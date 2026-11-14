@@ -39,11 +39,14 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <summary>
 /// Siembra una cartera con la forma que espera el cliente fundador
 /// (rediseñada 2026-08-01, antes eran 200 clientes genéricos pensados para
-/// un único tenant): clientes con 5-10 empresas contratistas, empresas con
-/// 1-3 centros y 5-12 trabajadores, cada uno con su documentación estándar
-/// en una mezcla realista de estados (vigente/próximo/urgente/vencido), más
-/// los datos que ejercitan el resto de flujos — asignaciones coherentes (un
-/// trabajador solo trabaja en centros de su propia empresa), visitas,
+/// un único tenant; ajustada el 2026-11-14 por D-P11): UNA sola Empresa propia
+/// por Tenant propietario, con todos sus Centros (varios por Cliente empresarial)
+/// y todos sus Trabajadores colgados de ella, cada Trabajador con su
+/// documentación estándar en una mezcla realista de estados
+/// (vigente/próximo/urgente/vencido), más
+/// los datos que ejercitan el resto de flujos — asignaciones coherentes (los
+/// Trabajadores de la Empresa propia y de sus Subcontratas trabajan en Centros
+/// de la única Empresa propia), visitas,
 /// evaluaciones, incidencias, vehículos con su documentación, proyectos con
 /// sus técnicos, gestiones documentales y tarifas de facturación de los 7
 /// conceptos — y un grupo de "veteranos" dados de baja hace más de cinco
@@ -201,19 +204,23 @@ public static class DatosPruebaSeeder
     ];
 
     /// <summary>
-    /// Peor estado de vigencia al que puede llegar la documentación de una
-    /// empresa contratista (o subcontrata) y de su plantilla.
+    /// Peor estado de vigencia al que puede llegar la documentación de un
+    /// Trabajador (o de una subcontrata y su plantilla).
     ///
     /// <para>
-    /// <b>Por qué el perfil es de la empresa y no del documento.</b> El estado
-    /// de un Centro es el <b>peor caso</b> de decenas de documentos (los ~20
-    /// obligatorios de su Empresa más los de cada trabajador con asignación
+    /// <b>Por qué el perfil no es del documento ni de la Empresa propia.</b> El
+    /// estado de un Centro es el <b>peor caso</b> de decenas de documentos (los
+    /// ~20 obligatorios de su Empresa más los de cada trabajador con asignación
     /// activa). Con un sorteo independiente por documento —lo que hacía la
     /// siembra— la probabilidad de que un centro entero se libre de tener al
     /// menos un vencido es despreciable: "mayoría de documentos vigente" se
-    /// convierte, agregado, en "casi todos los centros en rojo". El reparto
-    /// solo se ve en pantalla si se decide por el sujeto que agrega (la
-    /// empresa), no por cada documento suelto.
+    /// convierte, agregado, en "casi todos los centros en rojo". Y con una sola
+    /// Empresa propia por Tenant (D-P11), un perfil de Empresa pintaría todos los
+    /// Centros del mismo color, y sus documentos de Empresa tienen que estar al
+    /// día. El reparto se decide por el Centro: cada Trabajador propio hereda el
+    /// perfil de su Centro principal (<see cref="PerfilDeCentro"/>) y solo
+    /// comparte un segundo Centro con otro del mismo perfil, para que su
+    /// documentación no contamine a un Centro mejor.
     /// </para>
     /// </summary>
     private enum PerfilCumplimiento
@@ -225,12 +232,12 @@ public static class DatosPruebaSeeder
     }
 
     /// <summary>
-    /// Reparto determinista por posición en la lista (no sorteado: no consume
-    /// el generador aleatorio y garantiza que los cuatro perfiles están
-    /// representados pase lo que pase con el dado). La mitad de las empresas
+    /// Reparto determinista por posición del Centro en la lista (no sorteado: no
+    /// consume el generador aleatorio y garantiza que los cuatro perfiles están
+    /// representados pase lo que pase con el dado). La mitad de los Centros
     /// al día es lo que hace que el semáforo tenga verde de verdad.
     /// </summary>
-    private static PerfilCumplimiento PerfilDeEmpresa(int indice) => (indice % 10) switch
+    private static PerfilCumplimiento PerfilDeCentro(int indice) => (indice % 10) switch
     {
         0 or 1 or 2 or 3 or 4 => PerfilCumplimiento.AlDia,
         5 or 6 => PerfilCumplimiento.Proximo,
@@ -240,11 +247,12 @@ public static class DatosPruebaSeeder
 
     /// <summary>
     /// Las subcontratas van casi todas al día a propósito: su plantilla se
-    /// asigna a centros de OTRAS empresas (ver el bloque de asignaciones), así
-    /// que un perfil malo aquí no colorea un centro propio — contamina el de
-    /// un tercero y se lleva por delante el verde que la empresa titular sí
-    /// tenía. Una de cada cuatro basta para que el caso "el centro está en
-    /// rojo por la subcontrata, no por el titular" exista en la demo.
+    /// asigna a Centros de la única Empresa propia (ver el bloque de asignaciones),
+    /// así que un perfil malo aquí contamina un Centro que, por sus Trabajadores
+    /// propios, tenía otro estado. Una de cada cuatro basta para que el caso "el
+    /// Centro está en rojo por la Subcontrata, no por la Empresa propia" exista
+    /// en la demo; y esas Subcontratas solo se asignan a Centros ya Vencidos, para
+    /// no tapar los demás estados del semáforo.
     /// </summary>
     private static PerfilCumplimiento PerfilDeSubcontrata(int indice) =>
         indice % 4 == 3 ? PerfilCumplimiento.Vencido : PerfilCumplimiento.AlDia;
@@ -335,7 +343,7 @@ public static class DatosPruebaSeeder
 
         var aleatorio = new Random(20260801);
         var resumen = await SembrarDatosOperativosAsync(
-            dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
+            dbContext, aleatorio, RazonesSocialesClientes.Length, centrosMediosPorCliente: 5, numeroTrabajadores: 200, numeroSubcontratas: 8, cancellationToken);
 
         await SembrarUsuariosYCarteraAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
 
@@ -536,7 +544,7 @@ public static class DatosPruebaSeeder
         // servirían para verificar aislamiento a simple vista.
         var aleatorio = new Random(20260802);
         var resumen = await SembrarDatosOperativosAsync(
-            dbContext, aleatorio, numeroClientes: 3, numeroEmpresas: 9, numeroSubcontratas: 3, cancellationToken);
+            dbContext, aleatorio, numeroClientes: 3, centrosMediosPorCliente: 6, numeroTrabajadores: 75, numeroSubcontratas: 3, cancellationToken);
 
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -551,7 +559,7 @@ public static class DatosPruebaSeeder
     /// <summary>
     /// Igual que <see cref="SembrarSoloDatosAsync"/> (sin usuarios de prueba,
     /// para no colisionar emails entre tenants), pero con el tamaño completo
-    /// de <see cref="SeedAsync"/> (9 clientes/24 empresas/8 subcontratas) en
+    /// de <see cref="SeedAsync"/> (9 clientes/1 Empresa propia/8 subcontratas) en
     /// vez del recorte de "tenant de demo adicional" — para un segundo tenant
     /// que necesita ser tan rico como el primero (ver DelegacionDemoSeeder,
     /// tenant "Refrielectric"), no solo aportar variedad de aislamiento.
@@ -567,7 +575,7 @@ public static class DatosPruebaSeeder
         // recorte (20260802) — mismos generadores, datos distintos.
         var aleatorio = new Random(20260803);
         var resumen = await SembrarDatosOperativosAsync(
-            dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
+            dbContext, aleatorio, RazonesSocialesClientes.Length, centrosMediosPorCliente: 5, numeroTrabajadores: 200, numeroSubcontratas: 8, cancellationToken);
 
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -648,8 +656,8 @@ public static class DatosPruebaSeeder
     /// DatosPruebaSeederDeterminismoTests).
     /// </summary>
     internal static async Task<ResumenSiembra> SembrarDatosOperativosAsync(
-        CaeManagerDbContext dbContext, Random aleatorio, int numeroClientes, int numeroEmpresas,
-        int numeroSubcontratas, CancellationToken cancellationToken)
+        CaeManagerDbContext dbContext, Random aleatorio, int numeroClientes, int centrosMediosPorCliente,
+        int numeroTrabajadores, int numeroSubcontratas, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
         var contadorDni = 10_000_000 + aleatorio.Next(1_000_000);
@@ -671,11 +679,18 @@ public static class DatosPruebaSeeder
         dbContext.Empresas.AddRange(clientes);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Empresas contratistas: cada cliente trabaja con 5-10 del pool ---
-        var empresas = new List<Empresa>();
-        for (var i = 0; i < numeroEmpresas; i++)
-            empresas.Add(new Empresa($"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
-                GenerarCifValido(contadorCif++)));
+        // --- Empresa propia: UNA sola por Tenant propietario (D-P11). Todos los
+        // Centros, Trabajadores y Vehículos de la siembra cuelgan de ella, y las
+        // Subcontratas y los Clientes empresariales se relacionan con ella. Mismo
+        // patrón que PilotoOutboundSeeder. Esta construcción directa es la que
+        // deja exento al fichero en AltaDeEmpresaPropiaSoloTrasElLimiteTests: el
+        // seeder siembra un Tenant nuevo sin pasar por ILimiteEmpresaPropia, y que
+        // sea una sola lo afirma DatosPruebaSeederUnaEmpresaPropiaTests sobre el
+        // resultado de la siembra. ---
+        var propia = new Empresa(
+            $"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
+            GenerarCifValido(contadorCif++));
+        var empresas = new List<Empresa> { propia };
         dbContext.Empresas.AddRange(empresas);
 
         // F4.2c — RelacionEmpresarial es la única fuente de escritura: el
@@ -685,65 +700,39 @@ public static class DatosPruebaSeeder
         var relacionEmpresarialRepositorio = new RelacionEmpresarialRepository(dbContext);
         var ahoraSeed = DateTime.UtcNow;
 
-        var paresEmpresaCliente = new List<(Guid EmpresaId, Guid ClienteId)>();
+        // La Empresa propia presta servicio a todos los Clientes empresariales de
+        // la siembra: una Relación Empresarial por Cliente.
         foreach (var cliente in clientes)
-        {
-            var contratistas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(5, Math.Min(11, numeroEmpresas + 1)));
-            foreach (var contratista in contratistas)
-            {
-                paresEmpresaCliente.Add((contratista.Id, cliente.Id));
-                dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(contratista.Id, cliente.Id, ahoraSeed));
-            }
-        }
-
-        // Garantía: ninguna empresa se queda sin cliente. El sorteo de arriba
-        // puede dejar alguna sin ser elegida por ningún cliente; sin cliente
-        // no hay centro (bloque siguiente), y sin centro la empresa y su
-        // plantilla quedan invisibles en cualquier pantalla que navegue
-        // Centro→Trabajador. La repesca es determinista por posición en la
-        // lista de empresas, no un nuevo sorteo.
-        var empresasConCliente = paresEmpresaCliente.Select(par => par.EmpresaId).ToHashSet();
-        for (var i = 0; i < empresas.Count; i++)
-        {
-            var empresa = empresas[i];
-            if (empresasConCliente.Contains(empresa.Id)) continue;
-
-            var clienteAsignado = clientes[i % clientes.Count];
-            paresEmpresaCliente.Add((empresa.Id, clienteAsignado.Id));
-            dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(empresa.Id, clienteAsignado.Id, ahoraSeed));
-        }
+            dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(propia.Id, cliente.Id, ahoraSeed));
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Centros: cada empresa opera 1-3, siempre en clientes a los que presta servicio ---
-        var clientesPorEmpresa = paresEmpresaCliente
-            .GroupBy(par => par.EmpresaId)
-            .ToDictionary(g => g.Key, g => g.Select(par => par.ClienteId).ToList());
-
+        // --- Centros: la Empresa propia opera varios en cada Cliente empresarial.
+        // El orden (por Cliente, luego por número de Centro) fija el CodigoCentro y
+        // el perfil de cumplimiento de cada Centro (ver PerfilDeCentro). ---
         var centros = new List<Centro>();
-        var centrosPorEmpresa = new Dictionary<Guid, List<Centro>>();
         var numeroCentro = 1;
-        foreach (var empresa in empresas)
+        foreach (var cliente in clientes)
         {
-            centrosPorEmpresa[empresa.Id] = [];
-            if (!clientesPorEmpresa.TryGetValue(empresa.Id, out var clienteIds) || clienteIds.Count == 0)
-                continue;
-
-            foreach (var clienteId in ElementosAleatoriosUnicos(aleatorio, clienteIds, aleatorio.Next(1, 4)))
+            for (var n = aleatorio.Next(Math.Max(1, centrosMediosPorCliente - 1), centrosMediosPorCliente + 2); n > 0; n--)
             {
-                var centro = new Centro(
-                    clienteId: clienteId,
-                    empresaId: empresa.Id,
+                centros.Add(new Centro(
+                    clienteId: cliente.Id,
+                    empresaId: propia.Id,
                     nombre: $"{ElementoAleatorio(aleatorio, NombresCentro)} {ElementoAleatorio(aleatorio, Ciudades)} {numeroCentro:D3}",
                     codigoCentro: $"CTR-{numeroCentro++:D4}",
                     direccion: $"Calle {ElementoAleatorio(aleatorio, Apellidos)} {aleatorio.Next(1, 200)}, {ElementoAleatorio(aleatorio, Ciudades)}",
                     contacto: null,
-                    contratoVigenteHasta: null);
-                centros.Add(centro);
-                centrosPorEmpresa[empresa.Id].Add(centro);
+                    contratoVigenteHasta: null));
             }
         }
         dbContext.Centros.AddRange(centros);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Los dos primeros Centros (CTR-0001 y CTR-0002) llevan los huecos
+        // documentales deliberados (ver centroSinIdentidad): su plantilla es solo
+        // suya y ninguna subcontrata ni segunda asignación les añade gente, para
+        // que sigan en Faltante y no los tape un Vencido ajeno.
+        var centrosSinHueco = centros.Count > 2 ? centros.Skip(2).ToList() : centros;
 
         // --- Subcontratas, vinculadas a clientes y empresas reales ---
         // F3b-Subcontrata: "Subcontrata" se crea como Empresa contraparte
@@ -760,10 +749,9 @@ public static class DatosPruebaSeeder
                 nivelServicio: NivelServicioSubcontrata.Gestionada.ToString());
             subcontratas.Add(subcontrata);
 
-            var empresasVinculadas = ElementosAleatoriosUnicos(aleatorio, empresas, aleatorio.Next(1, 4));
-            empresasPorSubcontrata[subcontrata.Id] = empresasVinculadas;
-            foreach (var empresaVinculada in empresasVinculadas)
-                dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, empresaVinculada.Id, ahoraSeed));
+            // Todas las Subcontratas cuelgan de la única Empresa propia del Tenant.
+            empresasPorSubcontrata[subcontrata.Id] = empresas;
+            dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, propia.Id, ahoraSeed));
 
             var clientesVinculados = ElementosAleatoriosUnicos(aleatorio, clientes, aleatorio.Next(1, 3));
             clientesPorSubcontrata[subcontrata.Id] = clientesVinculados;
@@ -790,21 +778,17 @@ public static class DatosPruebaSeeder
         }
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Trabajadores: 5-12 por empresa, 2-5 por subcontrata ---
+        // --- Trabajadores: toda la plantilla propia cuelga de la Empresa propia; 2-5 por subcontrata ---
         var trabajadores = new List<Trabajador>();
-        var trabajadoresPorEmpresa = new Dictionary<Guid, List<Trabajador>>();
-        foreach (var empresa in empresas)
+        var plantillaPropia = new List<Trabajador>();
+        for (var i = 0; i < numeroTrabajadores; i++)
         {
-            trabajadoresPorEmpresa[empresa.Id] = [];
-            for (var i = aleatorio.Next(5, 13); i > 0; i--)
-            {
-                var (nombre, apellidos) = SiguienteNombre(ref indiceNombre);
-                var trabajador = Trabajador.DeEmpresa(
-                    empresa.Id, nombre, apellidos, GenerarDniValido(contadorDni++),
-                    fechaNacimiento: hoy.AddYears(-aleatorio.Next(21, 60)).AddDays(-aleatorio.Next(0, 365)));
-                trabajadores.Add(trabajador);
-                trabajadoresPorEmpresa[empresa.Id].Add(trabajador);
-            }
+            var (nombre, apellidos) = SiguienteNombre(ref indiceNombre);
+            var trabajador = Trabajador.DeEmpresa(
+                propia.Id, nombre, apellidos, GenerarDniValido(contadorDni++),
+                fechaNacimiento: hoy.AddYears(-aleatorio.Next(21, 60)).AddDays(-aleatorio.Next(0, 365)));
+            trabajadores.Add(trabajador);
+            plantillaPropia.Add(trabajador);
         }
 
         var trabajadoresPorSubcontrata = new Dictionary<Guid, List<Trabajador>>();
@@ -824,29 +808,57 @@ public static class DatosPruebaSeeder
         dbContext.Trabajadores.AddRange(trabajadores);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // --- Asignaciones coherentes: cada trabajador, en centros de su propia empresa ---
+        // --- Asignaciones coherentes: los Trabajadores, en Centros de la única Empresa propia ---
+        // El Centro principal de cada Trabajador propio sale de su posición en la
+        // plantilla (reparto en rueda, sin dado: todo Centro tiene plantilla) y el
+        // Trabajador hereda el perfil de cumplimiento de ese Centro. El segundo
+        // Centro, si lo hay, solo se elige entre Centros de su mismo perfil, para
+        // que su documentación no empeore el estado de un Centro mejor.
         var asignaciones = new List<Asignacion>();
         var trabajadoresPorCentro = new Dictionary<Guid, List<Trabajador>>();
-        foreach (var (empresaId, plantilla) in trabajadoresPorEmpresa)
+        var perfilPorCentroId = centros
+            .Select((centro, indice) => (centro.Id, Perfil: PerfilDeCentro(indice)))
+            .ToDictionary(x => x.Id, x => x.Perfil);
+        var perfilPorTrabajadorId = new Dictionary<Guid, PerfilCumplimiento>();
+        if (centros.Count > 0)
         {
-            var centrosDeLaEmpresa = centrosPorEmpresa[empresaId];
-            if (centrosDeLaEmpresa.Count == 0) continue;
-
-            foreach (var trabajador in plantilla)
+            for (var k = 0; k < plantillaPropia.Count; k++)
             {
-                foreach (var centro in ElementosAleatoriosUnicos(aleatorio, centrosDeLaEmpresa, aleatorio.Next(1, 3)))
-                {
-                    asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy.AddDays(-aleatorio.Next(30, 900))));
-                    Agrupar(trabajadoresPorCentro, centro.Id, trabajador);
-                }
+                var trabajador = plantillaPropia[k];
+                var principal = centros[k % centros.Count];
+                var perfil = perfilPorCentroId[principal.Id];
+                perfilPorTrabajadorId[trabajador.Id] = perfil;
+
+                asignaciones.Add(new Asignacion(trabajador.Id, principal.Id, hoy.AddDays(-aleatorio.Next(30, 900))));
+                Agrupar(trabajadoresPorCentro, principal.Id, trabajador);
+
+                // Siempre se consume la tirada, para que el resto de la siembra no dependa de qué Centro toca.
+                var quiereSegundo = aleatorio.Next(2) == 0;
+                if (!quiereSegundo || k % centros.Count < 2) continue;
+
+                var candidatos = centrosSinHueco
+                    .Where(c => c.Id != principal.Id && perfilPorCentroId[c.Id] == perfil)
+                    .ToList();
+                if (candidatos.Count == 0) continue;
+
+                var segundo = ElementoAleatorio(aleatorio, candidatos);
+                asignaciones.Add(new Asignacion(trabajador.Id, segundo.Id, hoy.AddDays(-aleatorio.Next(30, 900))));
+                Agrupar(trabajadoresPorCentro, segundo.Id, trabajador);
             }
         }
 
         foreach (var subcontrata in subcontratas)
         {
-            var centrosAlcanzables = empresasPorSubcontrata[subcontrata.Id]
-                .SelectMany(e => centrosPorEmpresa[e.Id])
-                .ToList();
+            // Una subcontrata con perfil Vencido solo coloca plantilla en Centros de perfil
+            // Vencido: en cualquier otro empeoraría el estado de un Centro Próximo o Urgente
+            // y podría dejar sin representar uno de los estados del semáforo. (Si no hay
+            // ninguno, como en una siembra mínima, vale cualquier Centro sin hueco.)
+            var centrosAlcanzables = centrosSinHueco;
+            if (PerfilDeSubcontrata(subcontratas.IndexOf(subcontrata)) == PerfilCumplimiento.Vencido)
+            {
+                var vencidos = centrosSinHueco.Where(c => perfilPorCentroId[c.Id] == PerfilCumplimiento.Vencido).ToList();
+                if (vencidos.Count > 0) centrosAlcanzables = vencidos;
+            }
             if (centrosAlcanzables.Count == 0) continue;
 
             var plantillaSubcontrata = trabajadoresPorSubcontrata[subcontrata.Id];
@@ -889,16 +901,19 @@ public static class DatosPruebaSeeder
             .ToList();
 
         // --- Perfiles de cumplimiento (ver PerfilCumplimiento) ---
-        var perfilPorEmpresaId = new Dictionary<Guid, PerfilCumplimiento>();
-        for (var i = 0; i < empresas.Count; i++)
-            perfilPorEmpresaId[empresas[i].Id] = PerfilDeEmpresa(i);
+        // Los documentos de la Empresa propia están al día: cuentan en todos sus
+        // Centros, y un perfil malo los pintaría todos del mismo color. El reparto
+        // de estados sale de los Trabajadores (perfil del Centro principal).
+        var perfilPorEmpresaId = new Dictionary<Guid, PerfilCumplimiento> { [propia.Id] = PerfilCumplimiento.AlDia };
         for (var i = 0; i < subcontratas.Count; i++)
             perfilPorEmpresaId[subcontratas[i].Id] = PerfilDeSubcontrata(i);
 
         PerfilCumplimiento PerfilDeTrabajador(Trabajador trabajador) =>
-            perfilPorEmpresaId.GetValueOrDefault(
-                trabajador.EmpresaId ?? trabajador.SubcontrataId ?? Guid.Empty,
-                PerfilCumplimiento.AlDia);
+            perfilPorTrabajadorId.TryGetValue(trabajador.Id, out var perfilPropio)
+                ? perfilPropio
+                : perfilPorEmpresaId.GetValueOrDefault(
+                    trabajador.EmpresaId ?? trabajador.SubcontrataId ?? Guid.Empty,
+                    PerfilCumplimiento.AlDia);
 
         // --- Huecos documentales deliberados ---
         // Los dos tipos de DocumentacionObligatoriaSinVencimientoTrabajador se
@@ -956,32 +971,36 @@ public static class DatosPruebaSeeder
         // --- Vehículos con su documentación ---
         var vehiculos = new List<Vehiculo>();
         string[] modelos = ["Furgon Master", "Camion Atego", "Furgoneta Transit", "Pickup Hilux", "Furgon Ducato"];
-        foreach (var empresa in ElementosAleatoriosUnicos(aleatorio, empresas, Math.Min(10, empresas.Count)))
+        // Diez Vehículos de la Empresa propia. Sus documentos no cuentan en el
+        // semáforo de los Centros, así que aquí sí se reparten los perfiles
+        // (por posición, sin dado) para que los vencimientos de Vehículo tengan
+        // variedad en /alertas y en la ficha de Empresa.
+        for (var i = 0; i < 10; i++)
         {
+            // PerfilDeCentro solo reparte los cuatro perfiles por posición (i % 10); aquí no hay Centro.
+            var perfilDelVehiculo = PerfilDeCentro(i);
             var vehiculo = Vehiculo.DeEmpresa(
-                empresa.Id,
+                propia.Id,
                 $"Vehiculo {vehiculos.Count + 1:D2}",
                 ElementoAleatorio(aleatorio, modelos),
                 $"{aleatorio.Next(1000, 9999)}{(char)('B' + aleatorio.Next(0, 20))}{(char)('B' + aleatorio.Next(0, 20))}{(char)('B' + aleatorio.Next(0, 20))}");
             vehiculos.Add(vehiculo);
 
             foreach (var tipo in tiposVehiculo)
-                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, perfilPorEmpresaId[empresa.Id], id => Documento.DeVehiculo(vehiculo.Id, id.TipoId, id.Emision, id.Vencimiento)));
+                documentos.Add(CrearDocumento(aleatorio, hoy, tipo, perfilDelVehiculo, id => Documento.DeVehiculo(vehiculo.Id, id.TipoId, id.Emision, id.Vencimiento)));
         }
         dbContext.Vehiculos.AddRange(vehiculos);
 
         // --- Veteranos para la purga de retención: baja > 5 años, docs vencidos > 5 años ---
         foreach (var (nombre, apellidos) in VeteranosParaPurga)
         {
-            var empresa = ElementoAleatorio(aleatorio, empresas);
-            var veterano = Trabajador.DeEmpresa(empresa.Id, nombre, apellidos, GenerarDniValido(contadorDni++));
+            var veterano = Trabajador.DeEmpresa(propia.Id, nombre, apellidos, GenerarDniValido(contadorDni++));
             dbContext.Trabajadores.Add(veterano);
 
-            var centrosDeLaEmpresa = centrosPorEmpresa[empresa.Id];
-            if (centrosDeLaEmpresa.Count > 0)
+            if (centros.Count > 0)
             {
                 var alta = hoy.AddYears(-8).AddDays(-aleatorio.Next(0, 300));
-                var asignacion = new Asignacion(veterano.Id, ElementoAleatorio(aleatorio, centrosDeLaEmpresa).Id, alta);
+                var asignacion = new Asignacion(veterano.Id, ElementoAleatorio(aleatorio, centros).Id, alta);
                 asignacion.DarDeBaja(hoy.AddYears(-6).AddDays(-aleatorio.Next(0, 200)));
                 dbContext.Asignaciones.Add(asignacion);
             }
@@ -1293,11 +1312,12 @@ public static class DatosPruebaSeeder
     private readonly record struct DatosDocumento(Guid TipoId, DateOnly Emision, VigenciaDocumento Vencimiento);
 
     /// <summary>
-    /// Reparto realista de estados: dentro de una empresa la mayoría de los
-    /// documentos está al día, y solo una minoría cae en la banda del
-    /// <see cref="PerfilCumplimiento"/> de esa empresa — que es, por
-    /// construcción, el peor estado al que puede llegar su documentación y la
-    /// de su plantilla.
+    /// Reparto realista de estados: la mayoría de los documentos está al día, y
+    /// solo una minoría cae en la banda del <see cref="PerfilCumplimiento"/> que
+    /// se le pasa — el del Centro (heredado por los Trabajadores de ese Centro),
+    /// el de la Subcontrata o el del Vehículo, y siempre AlDia en la Empresa
+    /// propia — que es, por construcción, el peor estado al que puede llegar esa
+    /// documentación.
     ///
     /// <para>
     /// <b>Bandas alineadas con los umbrales reales</b>
@@ -1321,9 +1341,9 @@ public static class DatosPruebaSeeder
     {
         var sorteo = aleatorio.Next(100);
 
-        // Una cuarta parte de los documentos de una empresa marcada como
-        // "con problemas" los tiene de verdad; el resto está al día. Sin
-        // esto, un cliente en rojo saldría con el 100 % de su documentación
+        // Una cuarta parte de los documentos de un Centro, Trabajador o Subcontrata
+        // marcados como "con problemas" los tiene de verdad; el resto está al día.
+        // Sin esto, un Centro en rojo saldría con el 100 % de su documentación
         // en rojo, que no es un escenario que nadie reconozca.
         var banda = sorteo < 25 ? perfil : PerfilCumplimiento.AlDia;
 

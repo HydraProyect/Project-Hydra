@@ -61,6 +61,12 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
 
     // Las factorías de Cliente empresarial y Subcontrata ponen EsPropia = false; los seeders siembran Tenants de
     // demostración sin Producto Contratado. Empresa.cs no queda exento de la regla de EsPropia fuera del constructor.
+    // DatosPruebaSeeder (y con él DelegacionDemoSeeder, que reutiliza su siembra) sigue en la lista porque construye con
+    // el constructor público la única Empresa propia de cada Tenant que siembra, sin pasar por ILimiteEmpresaPropia (como
+    // PilotoOutboundSeeder). Ya no hay en él una Empresa propia de más: que sea una sola lo afirma
+    // DatosPruebaSeederUnaEmpresaPropiaTests sobre el resultado de la siembra (integración). Siguen exentos, sin que nada compruebe
+    // su recuento de Empresas propias por Tenant, hasta el incremento 2 de D-P11: CoberturaPantallasSeeder,
+    // EscenariosDireccionDemoSeeder y GestorCaeCarteraMultiTenantSeeder.
     private static readonly string[] ExentosDelLimite =
     [
         "src/CaeManager.Domain/Empresas/Empresa.cs",

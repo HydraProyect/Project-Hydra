@@ -26,10 +26,12 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     private static readonly Regex EntrarEnEdicion = new(@"/cuenta/configurar-2fa\?motivo=credenciales");
 
     // La lista sembrada no tiene una Empresa de nombre estable que sirva de ancla: el recorrido
-    // vale para cualquier fila, así que se toma la primera, y su celda de cumplimiento (la
-    // tercera) como punto de la fila que no es ningún control.
+    // vale para cualquier fila, así que se toma la primera, y su celda de cumplimiento (la barra, que no es
+    // ningún control) como punto de la fila que no lleva ninguno. /empresas lista solo las Empresas propias y,
+    // con una sola por Tenant (D-P11), la siembra deja una única fila: la de las detecciones sembradas. Por eso
+    // no vale la celda de detecciones (la tercera de la fila), que en ella es el botón de la pastilla.
     private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-empresas .fila-pulsable").First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(":scope > :nth-child(3)");
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".celda-cumplimiento-empresa");
 
     private async Task<IPage> AbrirEmpresasAsync(IBrowserContext contexto)
     {

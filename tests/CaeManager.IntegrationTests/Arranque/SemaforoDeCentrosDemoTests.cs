@@ -43,12 +43,15 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// un Centro es el <b>peor caso</b> de decenas de documentos, así que un
 /// sorteo por documento —por muy "mayoría vigente" que fuera— no deja
 /// prácticamente ningún centro en verde. De ahí el
-/// <c>PerfilCumplimiento</c> por empresa.
+/// <c>PerfilCumplimiento</c>: antes por Empresa propia; desde D-P11 (2026-11-14, una sola
+/// Empresa propia por Tenant) por Centro, y cada Trabajador propio hereda el perfil de su
+/// Centro principal. Los documentos de la Empresa propia están al día porque cuentan en todos
+/// sus Centros.
 /// </para>
 ///
 /// <para>
-/// <b>Medido</b> sobre <c>SembrarSoloDatosCompletosAsync</c> (41 centros con
-/// plantilla):
+/// <b>Medido</b> sobre <c>SembrarSoloDatosCompletosAsync</c> con el modelo anterior (24
+/// Empresas propias, 41 centros con plantilla; con el modelo actual lo mide este test en CI):
 /// </para>
 /// <list type="bullet">
 ///   <item><description>
