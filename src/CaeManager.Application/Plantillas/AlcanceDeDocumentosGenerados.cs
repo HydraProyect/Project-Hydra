@@ -12,11 +12,11 @@ public sealed record CoordenadasDocumentoGenerado(
 
 /// <summary>
 /// Asignación de Cartera de un <see cref="DocumentoGenerado"/>: la puerta de todas las lecturas del registro de
-/// generación (la lista de trazabilidad y el contador de «con avisos»). Un registro generado cuelga de un Documento
-/// real, así que verlo exige poder leer ese Documento (<see cref="DocumentoAlcanceExtensions.DocumentosLegiblesAsync"/>,
-/// SEG-16, OWASP ASVS 4.0.3 V4.2.1), y además que cada coordenada que el registro guarda esté en el alcance de quien
-/// mira: su Trabajador, su Empresa, su Centro y la plantilla de la que salió
-/// (<see cref="AlcanceDePlantillas.PlantillaDentroDeAlcanceAsync"/>).
+/// generación (la lista de trazabilidad, el contador de «con avisos» y el progreso de un lote). Un registro generado
+/// cuelga de un Documento real, así que verlo exige poder leer ese Documento
+/// (<see cref="DocumentoAlcanceExtensions.DocumentosLegiblesAsync"/>, SEG-16, OWASP ASVS 4.0.3 V4.2.1), y además que
+/// cada coordenada que el registro guarda esté en el alcance de quien mira: su Trabajador, su Empresa, su Centro y la
+/// plantilla de la que salió (<see cref="AlcanceDePlantillas"/>).
 ///
 /// <para>
 /// Lo que motiva el Documento: un documento generado desde una plantilla de ámbito Cliente sin Centro guarda
@@ -34,6 +34,57 @@ public sealed record CoordenadasDocumentoGenerado(
 /// </summary>
 public static class AlcanceDeDocumentosGenerados
 {
+    /// <summary>
+    /// Acota en la base, antes de materializar, los registros que <see cref="DocumentosGeneradosVisiblesAsync"/> va a
+    /// rechazar seguro: los de un Trabajador, una Empresa o un Centro fuera de la Cartera, y los de una plantilla fuera
+    /// de alcance (OWASP API4:2023, consumo sin cota). No sustituye a la puerta: es un subconjunto de su criterio, con
+    /// las mismas listas de alcance, y la puerta vuelve a decidir cada fila. Lo que no cabe en SQL es el Documento del
+    /// que cuelga el registro, que vive en otro contexto de persistencia (<c>FronterasEntrePersistenciaDeFeaturesTests</c>)
+    /// y se decide en memoria sobre lo que queda.
+    /// </summary>
+    public static async Task<IQueryable<DocumentoGenerado>> AcotarALaCarteraAsync(
+        this IAlcanceDatosService alcance,
+        IQueryable<DocumentoGenerado> consulta,
+        IPlantillasQueryContext plantillasContext,
+        CancellationToken cancellationToken = default)
+    {
+        if (await alcance.TieneAccesoTotalAsync(cancellationToken))
+            return consulta;
+
+        // Lista nula = sin restricción en esa coordenada; lista vacía = Cartera sin asignar (nada pasa salvo el nulo).
+        if (await alcance.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken) is { } trabajadores)
+            consulta = consulta.Where(d => d.TrabajadorId == null || trabajadores.Contains(d.TrabajadorId.Value));
+        if (await alcance.ObtenerEmpresaIdsVisiblesAsync(cancellationToken) is { } empresas)
+            consulta = consulta.Where(d => d.EmpresaId == null || empresas.Contains(d.EmpresaId.Value));
+        if (await alcance.ObtenerCentroIdsVisiblesAsync(cancellationToken) is { } centros)
+            consulta = consulta.Where(d => d.CentroId == null || centros.Contains(d.CentroId.Value));
+
+        // La plantilla, con el único criterio de AlcanceDePlantillas en vez de repetirlo en SQL. Se leen solo las
+        // plantillas atadas a un Centro o a un Cliente empresarial (las generales están siempre dentro) y solo sus tres
+        // columnas: es el catálogo del Tenant propietario, no el registro de generación, y su tamaño no crece con él.
+        var plantillasAtadas = await plantillasContext.PlantillasDocumento
+            .Where(p => p.CentroId != null || p.ClienteId != null)
+            .Select(p => new { p.Id, p.CentroId, p.ClienteId })
+            .ToListAsync(cancellationToken);
+        var plantillasFuera = new List<Guid>();
+        foreach (var plantilla in plantillasAtadas)
+        {
+            if (!await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken))
+                plantillasFuera.Add(plantilla.Id);
+        }
+
+        if (plantillasFuera.Count > 0)
+        {
+            var versionesFuera = await plantillasContext.PlantillasDocumentoVersion
+                .Where(v => plantillasFuera.Contains(v.PlantillaDocumentoId))
+                .Select(v => v.Id)
+                .ToListAsync(cancellationToken);
+            consulta = consulta.Where(d => !versionesFuera.Contains(d.PlantillaDocumentoVersionId));
+        }
+
+        return consulta;
+    }
+
     /// <summary>Los Ids de los registros de <paramref name="generados"/> que quien mira alcanza.</summary>
     public static async Task<HashSet<Guid>> DocumentosGeneradosVisiblesAsync(
         this IAlcanceDatosService alcance,
@@ -58,15 +109,16 @@ public static class AlcanceDeDocumentosGenerados
             .Select(v => new { v.Id, v.PlantillaDocumentoId })
             .ToListAsync(cancellationToken);
 
-        // La entidad entera, como en ObtenerPlantillasDocumentoQuery: PlantillaDentroDeAlcanceAsync decide sobre ella.
+        // Solo las dos coordenadas que decide AlcanceDePlantillas, sin cargar la entidad.
         var idsPlantillas = versiones.Select(v => v.PlantillaDocumentoId).Distinct().ToList();
         var plantillas = await plantillasContext.PlantillasDocumento
             .Where(p => idsPlantillas.Contains(p.Id))
+            .Select(p => new { p.Id, p.CentroId, p.ClienteId })
             .ToListAsync(cancellationToken);
 
         var plantillaDentroPorId = new Dictionary<Guid, bool>();
         foreach (var plantilla in plantillas)
-            plantillaDentroPorId[plantilla.Id] = await alcance.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken);
+            plantillaDentroPorId[plantilla.Id] = await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken);
 
         var plantillaDentroPorVersion = versiones
             .Where(v => plantillaDentroPorId.ContainsKey(v.PlantillaDocumentoId))
@@ -90,5 +142,46 @@ public static class AlcanceDeDocumentosGenerados
         }
 
         return visibles;
+    }
+}
+
+/// <summary>
+/// Asignación de Cartera de un <see cref="LoteGeneracionDocumento"/> existente, por Id (OWASP ASVS 4.0.3 V4.2.1): el
+/// mismo criterio con el que <c>IniciarLoteGeneracionDocumentosCommandHandler</c> deja nacer el lote, plantilla dentro
+/// de alcance y todos sus Trabajadores visibles. Lo usan la lectura del progreso
+/// (<c>ObtenerLoteGeneracionDocumentosQuery</c>) y el procesado de cada ítem
+/// (<c>ProcesarItemLoteGeneracionCommand</c>), que tratan el «no» igual que un lote o un ítem que no existe.
+/// </summary>
+public static class AlcanceDeLotesGeneracion
+{
+    public static async Task<bool> LoteDentroDeAlcanceAsync(
+        this IAlcanceDatosService alcance,
+        Guid plantillaDocumentoVersionId,
+        IReadOnlyCollection<Guid> trabajadorIds,
+        IPlantillasQueryContext plantillasContext,
+        CancellationToken cancellationToken = default)
+    {
+        if (await alcance.TieneAccesoTotalAsync(cancellationToken))
+            return true;
+
+        var plantillaId = await plantillasContext.PlantillasDocumentoVersion
+            .Where(v => v.Id == plantillaDocumentoVersionId)
+            .Select(v => (Guid?)v.PlantillaDocumentoId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var plantilla = plantillaId is { } id
+            ? await plantillasContext.PlantillasDocumento
+                .Where(p => p.Id == id)
+                .Select(p => new { p.CentroId, p.ClienteId })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+        // Una plantilla que ya no se lee no da alcance: falla cerrado.
+        if (plantilla is null || !await alcance.PlantillaDentroDeAlcanceAsync(plantilla.CentroId, plantilla.ClienteId, cancellationToken))
+            return false;
+
+        var trabajadoresVisibles = await alcance.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        if (trabajadoresVisibles is null)
+            return true;
+        var visibles = trabajadoresVisibles.ToHashSet();
+        return trabajadorIds.All(visibles.Contains);
     }
 }

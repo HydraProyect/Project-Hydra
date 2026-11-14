@@ -39,7 +39,11 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(
             return await consulta.CountAsync(cancellationToken);
 
         // Sin acceso total, la misma puerta que la lista (V4.2.1): el contador no puede contar lo que la tabla no enseña.
-        var generados = await consulta
+        // Trabajador, Empresa, Centro y plantilla se recortan en la base; solo se materializan las seis coordenadas de
+        // lo que queda, que son los generados con avisos que la tabla del panel ya enseña enteros a este usuario. El
+        // Documento del que cuelga cada uno vive en otro contexto de persistencia y se decide en memoria sobre ese resto.
+        var acotada = await alcanceDatos.AcotarALaCarteraAsync(consulta, plantillasContext, cancellationToken);
+        var generados = await acotada
             .Select(d => new CoordenadasDocumentoGenerado(
                 d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId, d.CentroId))
             .ToListAsync(cancellationToken);

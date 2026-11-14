@@ -40,14 +40,15 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         new(contexto, _documentos, new ProyectosQueryContextFalso(), alcance);
 
     /// <summary>Con su Documento real (legible), para que solo decidan las coordenadas del registro.</summary>
-    private DocumentoGenerado Generado(Guid versionId, EstadoDocumentoGenerado estado, Guid? trabajadorId = null, Guid? empresaId = null)
+    private DocumentoGenerado Generado(
+        Guid versionId, EstadoDocumentoGenerado estado, Guid? trabajadorId = null, Guid? empresaId = null, Guid? centroId = null)
     {
         var documento = trabajadorId is { } trabajador
             ? Documento.DeTrabajador(trabajador, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf")
             : Documento.DeEmpresa(empresaId ?? Guid.NewGuid(), Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "generado.pdf");
         _documentos.ListaDocumentos.Add(documento);
         return new(versionId, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, trabajadorId: trabajadorId, empresaId: empresaId,
-            conAvisos: estado == EstadoDocumentoGenerado.GeneradoConAvisos);
+            centroId: centroId, conAvisos: estado == EstadoDocumentoGenerado.GeneradoConAvisos);
     }
 
     /// <summary>Generado con avisos desde una plantilla de ámbito Cliente sin Centro: sin Trabajador, Empresa ni Centro.</summary>
@@ -120,6 +121,72 @@ public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandlerTests
         var gestorConCarteraLimitada = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteDeCartera]);
 
         var resultado = await Handler(contexto, gestorConCarteraLimitada).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        resultado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex (ronda 2): el Trabajador y su Documento están en la Cartera, y lo único que deja fuera el
+    /// registro es su Centro. Si el contador dejara de mirar el Centro, este caso contaría dos.
+    /// </summary>
+    [Fact]
+    public async Task No_cuenta_el_generado_de_un_Centro_fuera_de_la_Cartera_aunque_su_Documento_sea_legible()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        var trabajador = Guid.NewGuid();
+        var centroDeCartera = Guid.NewGuid();
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, centroId: centroDeCartera),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, centroId: Guid.NewGuid()),
+        ]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador], centroIdsVisibles: [centroDeCartera]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        resultado.Should().Be(1);
+    }
+
+    /// <summary>Lo mismo con la Empresa: Trabajador y Documento en la Cartera, Empresa del registro fuera.</summary>
+    [Fact]
+    public async Task No_cuenta_el_generado_de_una_Empresa_fuera_de_la_Cartera_aunque_su_Documento_sea_legible()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var version = CrearVersion(contexto);
+        var trabajador = Guid.NewGuid();
+        var empresaDeCartera = Guid.NewGuid();
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, empresaId: empresaDeCartera),
+            Generado(version.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador, empresaId: Guid.NewGuid()),
+        ]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador], empresaIdsVisibles: [empresaDeCartera]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        resultado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task No_cuenta_el_generado_de_una_plantilla_atada_a_un_Cliente_empresarial_fuera_de_la_Cartera()
+    {
+        var contexto = new PlantillasQueryContextFalso();
+        var versionGeneral = CrearVersion(contexto);
+        var plantillaAjena = new PlantillaDocumento(OrigenPlantilla.Externa, "Ficha ajena", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual,
+            Guid.NewGuid(), clienteId: Guid.NewGuid());
+        var versionAjena = new PlantillaDocumentoVersion(plantillaAjena.Id, 1, "url.pdf", new string('a', 64));
+        contexto.ListaPlantillasDocumento.Add(plantillaAjena);
+        contexto.ListaPlantillasDocumentoVersion.Add(versionAjena);
+        var trabajador = Guid.NewGuid();
+        contexto.ListaDocumentosGenerados.AddRange(
+        [
+            Generado(versionGeneral.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador),
+            Generado(versionAjena.Id, EstadoDocumentoGenerado.GeneradoConAvisos, trabajadorId: trabajador),
+        ]);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()], trabajadorIdsVisibles: [trabajador]);
+
+        var resultado = await Handler(contexto, alcance).Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
 
         resultado.Should().Be(1);
     }
