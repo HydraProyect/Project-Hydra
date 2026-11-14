@@ -61,8 +61,9 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
         { "CaeManager.Infrastructure.Persistence.Repositories.AcreditacionDocumentoPlataformaRepository", Modulo.Outbound },
         { "CaeManager.Infrastructure.Persistence.Interceptors.TenantRlsConnectionInterceptor", Modulo.Nucleo },
         { "Program", Modulo.Composicion },
-        // Corte tipo a tipo dentro de un área (N-1 y D-M1): cada excepción que separa un tipo de su área tiene ancla,
-        // para que borrarla no pase inadvertida (el tipo volvería en silencio al módulo de su área).
+        // Corte tipo a tipo dentro de un área (N-1 y cierre mensual de D-M1): borrar una de estas excepciones devolvería
+        // el tipo en silencio al módulo de su área. No todas las excepciones tienen ancla (las de Tarifas de Operador CAE,
+        // Documentos, Integraciones y Web no): un ancla por corte, no por línea.
         { "CaeManager.Application.Clientes.IBloqueoCarteraUsuario", Modulo.Nucleo },
         { "CaeManager.Application.Clientes.IDirectorioDestinosCartera", Modulo.Nucleo },
         { "CaeManager.Application.Clientes.ReglaDestinoCarteraCliente", Modulo.Outbound },
