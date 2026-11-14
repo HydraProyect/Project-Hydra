@@ -145,18 +145,30 @@ public class PlantillasListaGen2Tests : BunitContext
         Navegacion.Uri.Should().EndWith("/plantillas/nueva");
     }
 
-    /// <summary>En /documentos la cabecera es la de Documentos: la pestaña conserva su entradilla y su alta.</summary>
+    /// <summary>La cifra junto al título es el total del catálogo sin filtrar (artboard v34).</summary>
     [Fact]
-    public void Embebida_en_documentos_la_pestana_conserva_su_entradilla_y_su_alta()
+    public void El_contador_del_titulo_es_el_total_del_catalogo()
+    {
+        var cut = RenderizarPagina(new MediatorFalso { Almacen = { Plantilla("Anexo II"), Plantilla("Acta de coordinación") } });
+
+        cut.WaitForAssertion(() => cut.Find("header.cabecera-pagina .contador-titulo-plantillas").TextContent.Trim().Should().Be("2"));
+    }
+
+    /// <summary>El componente del catálogo no pinta cabecera ni alta propias: son de la página /plantillas.</summary>
+    [Fact]
+    public void El_componente_del_catalogo_no_pinta_cabecera_ni_alta()
     {
         Registrar(new MediatorFalso { Almacen = { Plantilla("Anexo II — Información de riesgos") } });
 
         var cut = Render<PlantillasTab>();
 
-        cut.WaitForAssertion(() => cut.Find("div.cabecera-pagina .texto-descriptivo").TextContent.Trim().Should().Be(PlantillasTab.TextoDescripcion));
-        cut.Find("div.cabecera-pagina button").TextContent.Trim().Should().Be("+ Nueva plantilla");
-        cut.FindAll("header.cabecera-pagina").Should().BeEmpty("la cabecera Gen 2 es de la página /plantillas, no de la pestaña");
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().HaveCount(1));
+        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        TextosDeLosBotonesTab(cut).Should().NotContain("+ Nueva plantilla");
     }
+
+    private static List<string> TextosDeLosBotonesTab(IRenderedComponent<PlantillasTab> cut) =>
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
 
     // ------------------------------------------------------------------- Lista
 
@@ -181,10 +193,11 @@ public class PlantillasListaGen2Tests : BunitContext
         tabla.QuerySelectorAll("th").Select(th => th.TextContent.Trim()).Should().Equal(["Nombre", "Ámbito", "Formato", "Estado", ""]);
 
         var filas = tabla.QuerySelectorAll("tbody tr");
-        filas.Select(f => f.QuerySelector("td.nombre-plantilla")!.TextContent.Trim())
+        filas.Select(f => f.QuerySelector("td.nombre-plantilla .celda-principal")!.TextContent.Trim())
             .Should().Equal(["Anexo II — Información de riesgos", "Ficha técnica del vehículo"]);
-        filas[1].QuerySelectorAll("td").Take(3).Select(td => td.TextContent.Trim())
-            .Should().Equal(["Ficha técnica del vehículo", "Vehículo", "Posición manual"]);
+        filas[1].QuerySelector("td.nombre-plantilla .celda-secundaria")!.TextContent.Trim().Should().Be("Toda la organización");
+        filas[1].QuerySelectorAll("td").Skip(1).Take(2).Select(td => td.TextContent.Trim())
+            .Should().Equal(["Vehículo", "Posición manual"]);
         filas[0].QuerySelectorAll("td")[2].TextContent.Trim().Should().Be("Campos AcroForm");
     }
 
@@ -270,7 +283,7 @@ public class PlantillasListaGen2Tests : BunitContext
         mediador.FallaCatalogo = false;
         await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.FindAll("tbody td.nombre-plantilla").Select(td => td.TextContent.Trim()).Should().Equal(["Anexo II"]));
+        cut.WaitForAssertion(() => cut.FindAll("tbody td.nombre-plantilla .celda-principal").Select(td => td.TextContent.Trim()).Should().Equal(["Anexo II"]));
         cut.Markup.Should().NotContain("No pudimos cargar las plantillas");
     }
 
@@ -283,7 +296,7 @@ public class PlantillasListaGen2Tests : BunitContext
         var acta = Plantilla("Acta de coordinación");
         var cut = RenderizarPagina(new MediatorFalso { Almacen = { anexo, acta } });
         var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
-        string Enfocada() => cut.Find("tr.fila-enfocada td.nombre-plantilla").TextContent.Trim();
+        string Enfocada() => cut.Find("tr.fila-enfocada td.nombre-plantilla .celda-principal").TextContent.Trim();
 
         cut.FindAll("tr.fila-enfocada").Should().BeEmpty("sin atajos no hay fila enfocada");
         var antes = Navegacion.Uri;
@@ -310,7 +323,7 @@ public class PlantillasListaGen2Tests : BunitContext
     {
         var cut = RenderizarPagina(new MediatorFalso(), "plantillas?Pestana=generados");
 
-        cut.FindAll("[role='tab']").Single(t => t.GetAttribute("aria-selected") == "true").TextContent.Trim()
+        cut.FindAll(".segmentado-opcion").Single(t => t.GetAttribute("aria-pressed") == "true").TextContent.Trim()
             .Should().StartWith("Generados");
     }
 
@@ -319,7 +332,7 @@ public class PlantillasListaGen2Tests : BunitContext
     {
         var cut = RenderizarPagina(new MediatorFalso { Almacen = { Plantilla("Anexo II") } });
 
-        await cut.FindAll("[role='tab']")[1].ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".segmentado-opcion")[1].ClickAsync(new MouseEventArgs());
 
         Navegacion.Uri.Should().Contain("Pestana=generados");
     }
@@ -371,6 +384,6 @@ public class PlantillasListaGen2Tests : BunitContext
 
         await cut.InvokeAsync(() => respuesta.SetResult((IReadOnlyList<PlantillaDocumentoListaDto>)[Plantilla("Anexo II")]));
 
-        cut.WaitForAssertion(() => cut.FindAll("tbody td.nombre-plantilla").Select(td => td.TextContent.Trim()).Should().Equal(["Anexo II"]));
+        cut.WaitForAssertion(() => cut.FindAll("tbody td.nombre-plantilla .celda-principal").Select(td => td.TextContent.Trim()).Should().Equal(["Anexo II"]));
     }
 }

@@ -18,7 +18,10 @@ public record PlantillaDocumentoListaDto(
     EstadoPlantillaDocumento Estado,
     Guid? VersionActualId,
     Guid UltimaVersionId,
-    EstadoConfiguracionPlantilla UltimaVersionEstado);
+    EstadoConfiguracionPlantilla UltimaVersionEstado,
+    int UltimaVersionNumero = 0,
+    Guid? CentroId = null,
+    Guid? ClienteId = null);
 
 /// <remarks>
 /// Asignación de Cartera: solo se listan las plantillas que alcanza quien mira (<see cref="AlcanceDePlantillas"/>), el
@@ -61,7 +64,8 @@ public class ObtenerPlantillasDocumentoQueryHandler(IPlantillasQueryContext plan
                 var ultimaVersion = ultimaVersionPorDocumento[d.Id];
                 return new PlantillaDocumentoListaDto(
                     d.Id, d.Nombre, d.Descripcion, d.AmbitoAplicacion, d.FormatoOrigen, d.Estado,
-                    d.VersionActualId, ultimaVersion.Id, ultimaVersion.EstadoConfiguracion);
+                    d.VersionActualId, ultimaVersion.Id, ultimaVersion.EstadoConfiguracion,
+                    ultimaVersion.NumeroVersion, d.CentroId, d.ClienteId);
             })
             .OrderBy(d => d.Nombre)
             .ToList();

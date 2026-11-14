@@ -11,6 +11,8 @@
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 
+@if (!FiltrosEnLaBarra)
+{
 <div class="filtros-generados">
     <div class="barra-filtros">
         <CampoSelect Etiqueta="Plantilla" Valor="@(_plantillaFiltro?.ToString() ?? "")" ValorChanged="CambiarPlantillaFiltroAsync">
@@ -38,6 +40,7 @@
         <span class="resumen-generados" title="@TituloResumen">@TextoResumen</span>
     }
 </div>
+}
 
 @if (_errorCarga)
 {
@@ -52,7 +55,7 @@ else if (_cargando)
 {
     <EstadoCargando Filas="6" />
 }
-else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
+else if (Visibles.Count == 0 && HayFiltrosActivos)
 {
     @* Distinto de "todavía no se ha generado ninguno": con una plantilla o un
        trabajador elegido, esa frase manda a generar de nuevo un documento que
@@ -64,7 +67,7 @@ else if (_documentosGenerados.Count == 0 && HayFiltrosActivos)
     <EstadoVacio NombreIcono="filtro" Titulo="Ningún documento generado con este filtro"
                  Descripcion="@DescripcionVacioPorFiltro">
         <Accion>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@(FiltrosEnLaBarra ? "Limpiar filtros" : "Quitar los filtros")</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -99,7 +102,7 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var generado in _documentosGenerados)
+                @foreach (var generado in Visibles)
                 {
                     var generadoEn = generado.GeneradoEnUtc.EnHoraPeninsular();
                     <tr @key="generado.DocumentoGeneradoId" class="@(generado.DocumentoGeneradoId == _idEnfocado ? "fila-enfocada" : null)">

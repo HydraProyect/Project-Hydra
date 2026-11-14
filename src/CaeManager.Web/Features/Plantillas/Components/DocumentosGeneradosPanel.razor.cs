@@ -3,6 +3,7 @@ using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Plantillas;
+using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Plantillas.Components;
@@ -56,6 +57,34 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// </summary>
     [Parameter] public EventCallback<int> AvisosPendientesCambiado { get; set; }
 
+    /// <summary>
+    /// La pantalla que aloja el panel (/plantillas) pinta ella la barra de filtros —buscador, pastillas y franja de
+    /// estados— y se los pasa: el panel no repite sus selectores ni su resumen. Sin esto (Subcontrata, y la ruta
+    /// /plantillas/documentos-generados) el panel lleva los suyos, como hasta ahora.
+    /// </summary>
+    [Parameter] public bool FiltrosEnLaBarra { get; set; }
+
+    /// <summary>Búsqueda libre de la barra (solo con <see cref="FiltrosEnLaBarra"/>): plantilla, Trabajador o Empresa, en memoria.</summary>
+    [Parameter] public string? Busqueda { get; set; }
+
+    /// <summary>Estados de código separados por coma (<c>Generado</c>, <c>GeneradoConAvisos</c>) de la franja. Vacío: todos.</summary>
+    [Parameter] public string? Estado { get; set; }
+
+    /// <summary>Plantilla elegida en la barra: filtra en el servidor, como el selector propio del panel.</summary>
+    [Parameter] public Guid? PlantillaId { get; set; }
+
+    /// <summary>Trabajador elegido en la barra: filtra en el servidor, como el selector propio del panel.</summary>
+    [Parameter] public Guid? TrabajadorId { get; set; }
+
+    /// <summary>Lo que la barra necesita del panel: los Trabajadores del selector y los recuentos de la franja.</summary>
+    [Parameter] public EventCallback<DatosFiltrosGenerados> DatosCargados { get; set; }
+
+    /// <summary>«Limpiar filtros» del vacío: los filtros son de la pantalla que aloja el panel, que es quien los quita.</summary>
+    [Parameter] public EventCallback LimpiarSolicitado { get; set; }
+
+    private bool _arrancado;
+    private string? _ultimosDatos;
+
     public void Dispose()
     {
         if (_desechado)
@@ -66,12 +95,75 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
         _ciclo.Dispose();
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!FiltrosEnLaBarra)
+            return;
+
+        // Plantilla y Trabajador filtran en el servidor: solo se vuelve a pedir si cambian. Antes del arranque
+        // (OnInitializedAsync, que ya carga con lo que haya) no se pide nada.
+        var cambio = _plantillaFiltro != PlantillaId || _trabajadorFiltro != TrabajadorId;
+        _plantillaFiltro = PlantillaId;
+        _trabajadorFiltro = TrabajadorId;
+        if (cambio && _arrancado)
+            await CargarAsync();
+
+        await NotificarDatosAsync();
+    }
+
+    /// <summary>Estados de código marcados en la franja; vacío, todos.</summary>
+    private IReadOnlyList<string> EstadosMarcados => SeleccionEstados.Separar(Estado);
+
+    private IEnumerable<DocumentoGeneradoListaDto> SinFiltroDeEstado =>
+        !FiltrosEnLaBarra || string.IsNullOrWhiteSpace(Busqueda)
+            ? _documentosGenerados
+            : _documentosGenerados.Where(d => Coincide(d, Busqueda.Trim()));
+
+    private static bool Coincide(DocumentoGeneradoListaDto d, string termino) =>
+        Contiene(d.PlantillaNombre, termino) || Contiene(d.TrabajadorNombreCompleto, termino) || Contiene(d.EmpresaRazonSocial, termino);
+
+    private static bool Contiene(string? texto, string termino) =>
+        texto is not null
+        && System.Globalization.CultureInfo.CurrentCulture.CompareInfo.IndexOf(
+            texto, termino, System.Globalization.CompareOptions.IgnoreCase | System.Globalization.CompareOptions.IgnoreNonSpace) >= 0;
+
+    /// <summary>Lo que el panel enseña: la carga del servidor con la búsqueda y la franja de estados de la barra, si la hay.</summary>
+    private IReadOnlyList<DocumentoGeneradoListaDto> Visibles =>
+        !FiltrosEnLaBarra || EstadosMarcados.Count == 0
+            ? SinFiltroDeEstado.ToList()
+            : SinFiltroDeEstado.Where(d => EstadosMarcados.Contains(d.Estado.ToString())).ToList();
+
+    /// <summary>
+    /// Avisa a la barra de los Trabajadores y de los recuentos (la lista con la búsqueda y sin el estado, como cuenta la
+    /// franja). Solo avisa si algo cambió: la barra se repinta al recibirlo y, sin esta guarda, volvería a llamar aquí.
+    /// </summary>
+    private async Task NotificarDatosAsync()
+    {
+        if (!FiltrosEnLaBarra || _desechado)
+            return;
+
+        var sinEstado = SinFiltroDeEstado.ToList();
+        var recuentos = sinEstado.GroupBy(d => d.Estado.ToString()).ToDictionary(g => g.Key, g => g.Count());
+        var firma = $"{_trabajadoresDisponibles.Count}|{sinEstado.Count}|{string.Join(",", recuentos.OrderBy(r => r.Key).Select(r => $"{r.Key}={r.Value}"))}";
+        if (firma == _ultimosDatos)
+            return;
+
+        _ultimosDatos = firma;
+        await DatosCargados.InvokeAsync(new DatosFiltrosGenerados(_trabajadoresDisponibles, recuentos, sinEstado.Count));
+    }
+
     /// <summary>La respuesta es de la carga vigente y el panel sigue vivo.</summary>
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
     protected override async Task OnInitializedAsync()
     {
         var token = _ciclo.Token;
+
+        if (FiltrosEnLaBarra)
+        {
+            _plantillaFiltro = PlantillaId;
+            _trabajadorFiltro = TrabajadorId;
+        }
 
         try
         {
@@ -92,6 +184,8 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
         }
 
         await CargarAsync();
+        _arrancado = true;
+        await NotificarDatosAsync();
     }
 
     private async Task CargarAsync()
@@ -146,14 +240,17 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// de "ninguno con este filtro": con una plantilla elegida, la primera
     /// frase manda a generar de nuevo algo que ya existe en otra.
     /// </summary>
-    private bool HayFiltrosActivos => _plantillaFiltro is not null || _trabajadorFiltro is not null;
+    private bool HayFiltrosActivos => _plantillaFiltro is not null || _trabajadorFiltro is not null
+        || (FiltrosEnLaBarra && (!string.IsNullOrWhiteSpace(Busqueda) || EstadosMarcados.Count > 0));
 
     /// <summary>
     /// Nombra solo los filtros puestos (revisión de Codex): decir «ni al
     /// trabajador seleccionado» cuando nadie eligió trabajador da por elegido
     /// algo que no lo está. Solo se pinta con al menos un filtro activo.
     /// </summary>
-    private string DescripcionVacioPorFiltro => (_plantillaFiltro, _trabajadorFiltro) switch
+    private string DescripcionVacioPorFiltro => FiltrosEnLaBarra
+        ? "Ninguno corresponde a los filtros puestos."
+        : (_plantillaFiltro, _trabajadorFiltro) switch
     {
         (not null, not null) => "Ninguno corresponde a la plantilla ni al trabajador seleccionados.",
         (not null, null) => "Ninguno corresponde a la plantilla seleccionada.",
@@ -170,6 +267,9 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// </summary>
     private Task LimpiarFiltrosAsync()
     {
+        if (FiltrosEnLaBarra)
+            return LimpiarSolicitado.InvokeAsync();
+
         _plantillaFiltro = null;
         _trabajadorFiltro = null;
         return CargarAsync();
@@ -211,24 +311,31 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
 
     private void ManejarAtajo(string tecla)
     {
-        if (_documentosGenerados.Count == 0) return;
+        var visibles = Visibles;
+        if (visibles.Count == 0) return;
 
         var indiceActual = _idEnfocado is { } id
-            ? _documentosGenerados.ToList().FindIndex(d => d.DocumentoGeneradoId == id)
+            ? visibles.ToList().FindIndex(d => d.DocumentoGeneradoId == id)
             : -1;
 
         switch (tecla)
         {
             case "j":
-                _idEnfocado = _documentosGenerados[Math.Min(indiceActual + 1, _documentosGenerados.Count - 1)].DocumentoGeneradoId;
+                _idEnfocado = visibles[Math.Min(indiceActual + 1, visibles.Count - 1)].DocumentoGeneradoId;
                 break;
             case "k":
-                _idEnfocado = _documentosGenerados[Math.Max(indiceActual - 1, 0)].DocumentoGeneradoId;
+                _idEnfocado = visibles[Math.Max(indiceActual - 1, 0)].DocumentoGeneradoId;
                 break;
             case "Enter":
                 if (indiceActual >= 0)
-                    Navigation.NavigateTo($"/documentos?documentoId={_documentosGenerados[indiceActual].DocumentoId}");
+                    Navigation.NavigateTo($"/documentos?documentoId={visibles[indiceActual].DocumentoId}");
                 break;
         }
     }
 }
+
+/// <summary>Lo que el panel de Generados devuelve a la barra de filtros de /plantillas.</summary>
+public sealed record DatosFiltrosGenerados(
+    IReadOnlyList<TrabajadorSelectorDto> Trabajadores,
+    IReadOnlyDictionary<string, int> Recuentos,
+    int TotalSinEstado);

@@ -110,11 +110,11 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         select $"{listado.Key}: {defecto}";
 
     [Fact]
-    public void El_recorrido_ve_los_trece_listados_con_barra_de_filtros()
+    public void El_recorrido_ve_los_catorce_listados_con_barra_de_filtros()
     {
         // Control positivo: si el recorrido no viera las páginas, «ninguno sin la pieza» valdría por vacío.
         ListadosConBarra().Keys.Select(Path.GetFileNameWithoutExtension).Should().BeEquivalentTo(
-            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias", "Usuarios", "Delegaciones"]);
+            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias", "Usuarios", "Delegaciones", "PlantillasTab"]);
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     [Fact]
     public void Todo_listado_con_barra_de_filtros_monta_la_vista_recordada_con_sus_atributos()
     {
-        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los trece.
+        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los catorce.
         Faltas(ListadosConBarra()).Should().BeEmpty(
             "un listado con <BarraFiltros> monta una vez <VistaRecordadaDeListado Conexion=\"_vistaRecordada\" Pantalla=\"@PantallasConVistaRecordada.…\" "
             + "ParametrosDeVista=\"ParametrosDeVista\" ParametroDeBusqueda=\"q\" OnAplicar=\"…\" AlCambiar=\"StateHasChanged\" /> "
@@ -156,11 +156,11 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
             l => l.Key,
             l => PantallaDeclarada(Atributo(MarcadoRazor.Aperturas(l.Value, Pieza).Single().Texto, "Pantalla")));
 
-        pantallas.Should().HaveCount(13, "control: una pantalla por cada uno de los trece listados");
+        pantallas.Should().HaveCount(14, "control: una pantalla por cada uno de los catorce listados");
         pantallas.Values.Should().OnlyContain(p => p != null && PantallasConVistaRecordada.Admitidas.Contains(p));
         pantallas.Values.Should().OnlyHaveUniqueItems();
-        pantallas.Should().OnlyContain(p => Path.GetFileNameWithoutExtension(p.Key) == p.Value,
-            "hoy cada pantalla se llama como su página: si un listado deja de cumplirlo a propósito, se cambia esta línea");
+        pantallas.Should().OnlyContain(p => Regex.Replace(Path.GetFileNameWithoutExtension(p.Key), "Tab$", string.Empty) == p.Value,
+            "hoy cada pantalla se llama como su página (PlantillasTab es el contenido de /plantillas, pantalla «Plantillas»): si un listado deja de cumplirlo a propósito, se cambia esta línea");
     }
 
     // ------------------------------------------------------------ sensibilidad
