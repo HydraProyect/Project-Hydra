@@ -200,6 +200,11 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
                 .ToListAsync();
             foreach (var cliente in rama.Clientes)
             {
+                var clienteSembrado = clientes.Single(c => c.RazonSocial == cliente.RazonSocial);
+                var propiaParaCliente = relaciones.SingleOrDefault(r => r.ProveedoraId == propia.Id && r.ClienteId == clienteSembrado.Id);
+                propiaParaCliente.Should().NotBeNull(
+                    $"MEDIDO ({rama.NombreTenant}): la Empresa propia presta servicio a «{cliente.RazonSocial}» con su Relación Empresarial");
+
                 var nombres = new[] { cliente.Subcontrata, cliente.SubcontrataDeLaPlantillaBase }.OfType<string>();
                 foreach (var nombre in nombres)
                 {
@@ -210,6 +215,9 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
                     subcontrata.EsPropia.Should().BeFalse($"MEDIDO ({rama.NombreTenant}): «{nombre}» no es una Empresa propia");
                     relaciones.Should().Contain(r => r.ProveedoraId == subcontrata.Id && r.ClienteId == propia.Id,
                         $"MEDIDO ({rama.NombreTenant}): «{nombre}» tiene su Relación Empresarial con la Empresa propia");
+                    relaciones.Should().ContainSingle(
+                        r => r.ProveedoraId == subcontrata.Id && r.ClienteId == clienteSembrado.Id && r.EnmarcadaEnId == propiaParaCliente!.Id,
+                        $"MEDIDO ({rama.NombreTenant}): «{nombre}» trabaja para «{cliente.RazonSocial}» enmarcada en la relación de la Empresa propia con él");
                 }
             }
         }
@@ -235,6 +243,12 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
         var cyberdyne = empresas.Single(e => e.RazonSocial == "Cyberdyne Ibérica S.A.");
         relaciones.Should().Contain(r => r.ProveedoraId == skynet.Id && r.ClienteId == cyberdyne.Id,
             "MEDIDO: y con el Cliente empresarial al que aporta la plantilla");
+
+        var trabajadores = await bootstrap.Trabajadores.IgnoreQueryFilters().Where(t => t.TenantId == tenantId).ToListAsync();
+        trabajadores.Where(t => t.SubcontrataId == skynet.Id).Should().NotBeEmpty(
+            "MEDIDO: Montajes Skynet S.L. aporta como Subcontrata la plantilla base de Cyberdyne Ibérica S.A.");
+        trabajadores.Should().NotContain(t => t.EmpresaId == skynet.Id,
+            "MEDIDO: nadie es empleado de Montajes Skynet S.L. como Empresa propia");
     }
 
     [Fact]
