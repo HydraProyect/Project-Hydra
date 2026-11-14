@@ -76,10 +76,20 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         {
             var repositorio = new AceptacionContractualTenantRepository(runtime);
             var aceptacion = Aceptacion(solicitud, "Condiciones");
+            var encargo = Aceptacion(solicitud, "Encargo");
             repositorio.Agregar(aceptacion);
-            repositorio.Agregar(Aceptacion(solicitud, "Encargo"));
+            repositorio.Agregar(encargo);
             await runtime.SaveChangesAsync();
-            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, DateTime.UtcNow));
+
+            // Un envío que llegó a Enviado y otro que se quedó en Preparado o acabó en Fallido: solo el
+            // primero cuenta como acuse.
+            var enviado = Guid.NewGuid();
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, enviado, FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, enviado, FaseAcuseAceptacionContractual.Enviado, DateTime.UtcNow));
+            var fallido = Guid.NewGuid();
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, fallido, FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, fallido, FaseAcuseAceptacionContractual.Fallido, DateTime.UtcNow));
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, Guid.NewGuid(), FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
             await runtime.SaveChangesAsync();
             propia = aceptacion.Id;
         }
@@ -117,6 +127,43 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<DbUpdateException>()
             .Which.InnerException.Should().BeOfType<PostgresException>()
             .Which.SqlState.Should().Be("23505");
+    }
+
+    [Fact]
+    public async Task Un_envio_del_acuse_no_deja_dos_filas_de_la_misma_fase()
+    {
+        await using var runtime = CrearRuntime();
+        var aceptacion = Aceptacion(Guid.NewGuid(), "Condiciones");
+        runtime.AceptacionesContractualesTenant.Add(aceptacion);
+        var envio = Guid.NewGuid();
+        runtime.AcusesAceptacionContractualTenant.Add(
+            new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, envio, FaseAcuseAceptacionContractual.Enviado, DateTime.UtcNow));
+        await runtime.SaveChangesAsync();
+        runtime.AcusesAceptacionContractualTenant.Add(
+            new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, envio, FaseAcuseAceptacionContractual.Enviado, DateTime.UtcNow));
+
+        var excepcion = await Record.ExceptionAsync(() => runtime.SaveChangesAsync());
+
+        excepcion.Should().BeOfType<DbUpdateException>()
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be("23505");
+    }
+
+    [Fact]
+    public async Task El_repositorio_ve_la_transaccion_abierta_y_los_cambios_pendientes()
+    {
+        // EnvioAcuseAceptacionContractual se niega con cualquiera de los dos: su guardado previo al correo
+        // tiene que ser definitivo y solo suyo.
+        await using var runtime = CrearRuntime();
+        var repositorio = new AceptacionContractualTenantRepository(runtime);
+        repositorio.HayTransaccionAbierta.Should().BeFalse();
+        repositorio.HayCambiosPendientes.Should().BeFalse();
+
+        await using (await runtime.Database.BeginTransactionAsync())
+            repositorio.HayTransaccionAbierta.Should().BeTrue();
+
+        repositorio.Agregar(Aceptacion(Guid.NewGuid(), "Condiciones"));
+        repositorio.HayCambiosPendientes.Should().BeTrue();
     }
 
     [Fact]
@@ -178,7 +225,8 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
     [InlineData("""UPDATE "AceptacionesContractualesTenant" SET "Version" = 'otra'""")]
     [InlineData("""UPDATE "AceptacionesContractualesTenant" SET "HashSha256" = repeat('d', 64)""")]
     [InlineData("""DELETE FROM "AceptacionesContractualesTenant" """)]
-    [InlineData("""UPDATE "AcusesAceptacionContractualTenant" SET "EnviadoEnUtc" = now()""")]
+    [InlineData("""UPDATE "AcusesAceptacionContractualTenant" SET "Fase" = 'Enviado'""")]
+    [InlineData("""UPDATE "AcusesAceptacionContractualTenant" SET "RegistradoEnUtc" = now()""")]
     [InlineData("""DELETE FROM "AcusesAceptacionContractualTenant" """)]
     public async Task La_aplicacion_no_puede_reescribir_ni_borrar_lo_aceptado(string orden)
     {

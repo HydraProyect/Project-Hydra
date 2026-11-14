@@ -3145,7 +3145,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("AceptacionContractualTenantId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("EnviadoEnUtc")
+                    b.Property<Guid>("EnvioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fase")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("RegistradoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("TenantId")
@@ -3157,6 +3165,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AceptacionContractualTenantId", "TenantId");
+
+                    b.HasIndex("TenantId", "EnvioId", "AceptacionContractualTenantId", "Fase")
+                        .IsUnique();
 
                     b.ToTable("AcusesAceptacionContractualTenant", (string)null);
                 });

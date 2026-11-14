@@ -36,7 +36,14 @@ public class AcuseAceptacionContractualTenantConfiguration : IEntityTypeConfigur
         builder.ToTable("AcusesAceptacionContractualTenant");
         builder.HasKey(a => a.Id);
 
+        builder.Property(a => a.Fase).IsRequired().HasConversion<string>()
+            .HasMaxLength(AcuseAceptacionContractualTenant.LongitudMaximaFase);
+
         builder.HasIndex(a => new { a.AceptacionContractualTenantId, a.TenantId });
+
+        // Un envío deja como mucho una fila por aceptación y fase: ni dos «Enviado» del mismo envío ni un
+        // resultado repetido por un reintento del guardado.
+        builder.HasIndex(a => new { a.TenantId, a.EnvioId, a.AceptacionContractualTenantId, a.Fase }).IsUnique();
 
         // Sin clave foránea a propósito: las dos tablas solo admiten INSERT y el acuse solo se crea a
         // partir de una aceptación ya leída del mismo Tenant (EnvioAcuseAceptacionContractual). Una FK

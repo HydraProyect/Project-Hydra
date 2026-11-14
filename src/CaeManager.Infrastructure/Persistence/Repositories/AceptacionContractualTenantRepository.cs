@@ -10,6 +10,11 @@ public class AceptacionContractualTenantRepository(CaeManagerDbContext dbContext
 
     public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => dbContext.AcusesAceptacionContractualTenant.Add(acuse);
 
+    public bool HayTransaccionAbierta =>
+        dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null;
+
+    public bool HayCambiosPendientes => dbContext.ChangeTracker.HasChanges();
+
     /// <summary>
     /// También cuenta las añadidas y aún sin guardar: si el Command del alta repite su delegado con el mismo
     /// contexto tras un fallo de guardado, las del primer intento siguen en el ChangeTracker y la consulta a la
@@ -34,7 +39,8 @@ public class AceptacionContractualTenantRepository(CaeManagerDbContext dbContext
 
     public async Task<IReadOnlyDictionary<Guid, DateTime>> UltimoAcusePorAceptacionAsync(CancellationToken cancellationToken = default) =>
         await dbContext.AcusesAceptacionContractualTenant.AsNoTracking()
+            .Where(a => a.Fase == FaseAcuseAceptacionContractual.Enviado)
             .GroupBy(a => a.AceptacionContractualTenantId)
-            .Select(g => new { g.Key, Ultimo = g.Max(a => a.EnviadoEnUtc) })
+            .Select(g => new { g.Key, Ultimo = g.Max(a => a.RegistradoEnUtc) })
             .ToDictionaryAsync(x => x.Key, x => x.Ultimo, cancellationToken);
 }

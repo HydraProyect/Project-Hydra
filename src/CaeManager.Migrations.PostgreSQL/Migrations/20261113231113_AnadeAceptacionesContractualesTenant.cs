@@ -51,7 +51,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     AceptacionContractualTenantId = table.Column<Guid>(type: "uuid", nullable: false),
                     UsuarioDestinatarioId = table.Column<Guid>(type: "uuid", nullable: false),
-                    EnviadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EnvioId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Fase = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    RegistradoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
@@ -75,6 +77,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "IX_AcusesAceptacionContractualTenant_AceptacionContractualTena~",
                 table: "AcusesAceptacionContractualTenant",
                 columns: new[] { "AceptacionContractualTenantId", "TenantId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AcusesAceptacionContractualTenant_TenantId_EnvioId_Aceptaci~",
+                table: "AcusesAceptacionContractualTenant",
+                columns: new[] { "TenantId", "EnvioId", "AceptacionContractualTenantId", "Fase" },
+                unique: true);
 
             // Evidencia contractual del Tenant propietario (#2009): RLS por Tenant y solo INSERT y SELECT para
             // la aplicación. Sin UPDATE ni DELETE, nadie de la aplicación reescribe ni borra lo aceptado ni sus

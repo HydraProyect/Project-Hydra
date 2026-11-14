@@ -89,31 +89,61 @@ public class AceptacionContractualTenant : EntidadConTenant
     }
 }
 
+/// <summary>En qué punto de un envío del acuse se escribió la fila (#2009).</summary>
+public enum FaseAcuseAceptacionContractual
+{
+    /// <summary>Guardada antes de que salga el correo: sin esta fila confirmada, el correo no sale.</summary>
+    Preparado,
+
+    /// <summary>El servicio de correo aceptó el envío.</summary>
+    Enviado,
+
+    /// <summary>El servicio de correo rechazó el envío.</summary>
+    Fallido,
+}
+
 /// <summary>
-/// Un envío por correo del texto aceptado (acuse) de una <see cref="AceptacionContractualTenant"/>.
-/// Solo se añade: cada envío o reenvío es una fila. Guarda a qué cuenta se envió, no su dirección.
+/// Un paso de un envío por correo del texto aceptado (acuse) de una <see cref="AceptacionContractualTenant"/>.
+/// Solo se añade, como una bandeja de salida en la que nada se reescribe: cada envío o reenvío tiene un
+/// <see cref="EnvioId"/>, con una fila <see cref="FaseAcuseAceptacionContractual.Preparado"/> por aceptación
+/// guardada antes de enviar, y después una <see cref="FaseAcuseAceptacionContractual.Enviado"/> o
+/// <see cref="FaseAcuseAceptacionContractual.Fallido"/>. Un envío que se queda en Preparado es de resultado
+/// incierto: el correo pudo salir o no, y no se afirma ninguna de las dos cosas. Guarda a qué cuenta se
+/// envió, no su dirección.
 /// </summary>
 public class AcuseAceptacionContractualTenant : EntidadConTenant
 {
+    public const int LongitudMaximaFase = 16;
+
     public Guid AceptacionContractualTenantId { get; private set; }
     public Guid UsuarioDestinatarioId { get; private set; }
-    public DateTime EnviadoEnUtc { get; private set; }
+    public Guid EnvioId { get; private set; }
+    public FaseAcuseAceptacionContractual Fase { get; private set; }
+    public DateTime RegistradoEnUtc { get; private set; }
 
     private AcuseAceptacionContractualTenant()
     {
         // Requerido por EF Core.
     }
 
-    public AcuseAceptacionContractualTenant(Guid aceptacionContractualTenantId, Guid usuarioDestinatarioId, DateTime enviadoEnUtc)
+    public AcuseAceptacionContractualTenant(
+        Guid aceptacionContractualTenantId, Guid usuarioDestinatarioId, Guid envioId,
+        FaseAcuseAceptacionContractual fase, DateTime registradoEnUtc)
     {
         if (aceptacionContractualTenantId == Guid.Empty)
             throw new ArgumentException("El acuse debe referirse a una aceptación.", nameof(aceptacionContractualTenantId));
         if (usuarioDestinatarioId == Guid.Empty)
             throw new ArgumentException("El acuse debe tener una cuenta destinataria.", nameof(usuarioDestinatarioId));
+        if (envioId == Guid.Empty)
+            throw new ArgumentException("El acuse debe pertenecer a un envío.", nameof(envioId));
+        if (!Enum.IsDefined(fase))
+            throw new ArgumentException("La fase del acuse no es válida.", nameof(fase));
 
         AceptacionContractualTenantId = aceptacionContractualTenantId;
         UsuarioDestinatarioId = usuarioDestinatarioId;
-        EnviadoEnUtc = SolicitudAlta.ExigirUtc(enviadoEnUtc, nameof(enviadoEnUtc));
+        EnvioId = envioId;
+        Fase = fase;
+        RegistradoEnUtc = SolicitudAlta.ExigirUtc(registradoEnUtc, nameof(registradoEnUtc));
     }
 }
 
@@ -122,6 +152,18 @@ public interface IAceptacionContractualTenantRepository
     void Agregar(AceptacionContractualTenant aceptacion);
 
     void AgregarAcuse(AcuseAceptacionContractualTenant acuse);
+
+    /// <summary>
+    /// Si la unidad de trabajo está dentro de una transacción. El acuse no se envía así: su guardado previo al
+    /// correo tiene que ser definitivo, y dentro de una transacción aún se podría deshacer.
+    /// </summary>
+    bool HayTransaccionAbierta { get; }
+
+    /// <summary>
+    /// Si la unidad de trabajo tiene cambios sin guardar. El acuse no se envía así: su guardado arrastraría
+    /// cambios ajenos que nadie ha confirmado.
+    /// </summary>
+    bool HayCambiosPendientes { get; }
 
     /// <summary>
     /// Si el Tenant actual ya materializó las aceptaciones de esa Solicitud de alta para esa cuenta, guardadas
@@ -133,6 +175,9 @@ public interface IAceptacionContractualTenantRepository
     /// <summary>Todas las aceptaciones del Tenant actual, de la más reciente a la más antigua.</summary>
     Task<IReadOnlyList<AceptacionContractualTenant>> ListarAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>El último acuse de cada aceptación del Tenant actual que tenga alguno.</summary>
+    /// <summary>
+    /// El último acuse enviado (<see cref="FaseAcuseAceptacionContractual.Enviado"/>) de cada aceptación del
+    /// Tenant actual que tenga alguno. Un envío preparado o fallido no cuenta como acuse.
+    /// </summary>
     Task<IReadOnlyDictionary<Guid, DateTime>> UltimoAcusePorAceptacionAsync(CancellationToken cancellationToken = default);
 }

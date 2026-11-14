@@ -11,13 +11,23 @@ namespace CaeManager.Application.Cumplimiento.AceptacionContractual;
 /// <summary>
 /// Envía por correo a una cuenta del Tenant actual el texto de lo que el Tenant propietario tiene
 /// aceptado (#2009): la aceptación más reciente de cada documento, con su versión, su fecha, su hash, el
-/// importe de permanencia mostrado y el texto completo de esa versión. Cada envío queda como una
-/// <see cref="AcuseAceptacionContractualTenant"/> por aceptación, y solo si el correo salió.
+/// importe de permanencia mostrado y el texto completo de esa versión.
 ///
 /// <para>
-/// Lo usan el alta, después de confirmar su transacción, y el reenvío que pide el Administrador del
-/// Tenant propietario (<see cref="ReenviarAcuseAceptacionContractualCommand"/>). Quien lo llama decide
-/// a qué cuenta; aquí solo se comprueba que la cuenta sea del Tenant actual, porque se envía a su correo.
+/// Bandeja de salida de solo inserción (<see cref="AcuseAceptacionContractualTenant"/>): primero se guardan
+/// las filas <see cref="FaseAcuseAceptacionContractual.Preparado"/> de este envío, y solo si ese guardado se
+/// confirma sale el correo; después se añade el resultado, Enviado o Fallido. Así nunca sale un correo sin
+/// que conste, y nunca se afirma un envío que el servicio de correo no aceptó. Si el correo sale y falla el
+/// guardado del resultado, el envío queda en Preparado: de resultado incierto, sin afirmar de más.
+/// </para>
+///
+/// <para>
+/// Lo usan el alta, después de confirmar su transacción (este servicio guarda por su cuenta, y el guardado
+/// previo al correo tiene que ser definitivo, no parte de una transacción que aún se pueda deshacer: con una
+/// transacción abierta o cambios pendientes en la unidad de trabajo se niega con <c>EnvioNoAislado</c>), y el
+/// reenvío que pide el Administrador del Tenant propietario (<see cref="ReenviarAcuseAceptacionContractualCommand"/>).
+/// Quien lo llama decide a qué cuenta; aquí solo se comprueba que la cuenta sea del Tenant actual, porque se
+/// envía a su correo.
 /// </para>
 /// </summary>
 public interface IEnvioAcuseAceptacionContractual
@@ -45,8 +55,16 @@ public sealed class EnvioAcuseAceptacionContractual(
     public static readonly Error TextoNoDisponible = Error.Crear(
         "AceptacionContractual.Acuse.TextoNoDisponible", "No encontramos el texto de una versión aceptada.");
 
+    public static readonly Error EnvioNoAislado = Error.Crear(
+        "AceptacionContractual.Acuse.EnvioNoAislado", "No podemos enviar el acuse en este momento.");
+
     public async Task<Result> EnviarAsync(Guid usuarioDestinatarioId, CancellationToken cancellationToken = default)
     {
+        // El guardado previo al correo tiene que ser definitivo y solo de este envío: ni dentro de una
+        // transacción que aún se pueda deshacer, ni arrastrando cambios pendientes de quien llama.
+        if (repositorio.HayTransaccionAbierta || repositorio.HayCambiosPendientes)
+            return Result.Fallo(EnvioNoAislado);
+
         var cuenta = await cuentas.ObtenerAsync(usuarioDestinatarioId, cancellationToken);
         if (cuenta is not { EsPropiaDelTenantActual: true, Activa: true } || string.IsNullOrWhiteSpace(cuenta.Email))
             return Result.Fallo(CuentaNoValida);
@@ -71,16 +89,32 @@ public sealed class EnvioAcuseAceptacionContractual(
             documentos.Add((aceptacion, publicado));
         }
 
-        var envio = await correo.EnviarAsync(
-            cuenta.Email, Asunto, Cuerpo(documentos), TipoAvisoCorreo.Transaccional, cancellationToken: cancellationToken);
-        if (envio.EsFallido)
-            return envio;
+        var cuerpo = Cuerpo(documentos);
+        var envioId = IdentificadorEntidad.Nuevo();
 
-        var enviadoEnUtc = reloj.GetUtcNow().UtcDateTime;
-        foreach (var (aceptacion, _) in documentos)
-            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, usuarioDestinatarioId, enviadoEnUtc));
+        // 1. Lo que se va a enviar queda guardado antes de enviarlo. Si este guardado falla, la excepción
+        //    sube y el correo no sale.
+        AgregarFase(documentos, usuarioDestinatarioId, envioId, FaseAcuseAceptacionContractual.Preparado);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Exito();
+
+        // 2. El envío, sin cancelación: con la preparación ya confirmada, cortarlo a medias solo dejaría más
+        //    envíos de resultado incierto.
+        var envio = await correo.EnviarAsync(cuenta.Email, Asunto, cuerpo, TipoAvisoCorreo.Transaccional, cancellationToken: CancellationToken.None);
+
+        // 3. El resultado. Si este guardado falla, el envío se queda en Preparado: incierto, no afirmado.
+        AgregarFase(documentos, usuarioDestinatarioId, envioId,
+            envio.EsFallido ? FaseAcuseAceptacionContractual.Fallido : FaseAcuseAceptacionContractual.Enviado);
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        return envio.EsFallido ? envio : Result.Exito();
+    }
+
+    private void AgregarFase(
+        IReadOnlyList<(AceptacionContractualTenant Aceptacion, DocumentoContractualPublicado Publicado)> documentos,
+        Guid usuarioDestinatarioId, Guid envioId, FaseAcuseAceptacionContractual fase)
+    {
+        var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
+        foreach (var (aceptacion, _) in documentos)
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, usuarioDestinatarioId, envioId, fase, ahoraUtc));
     }
 
     private static string Cuerpo(IReadOnlyList<(AceptacionContractualTenant Aceptacion, DocumentoContractualPublicado Publicado)> documentos)

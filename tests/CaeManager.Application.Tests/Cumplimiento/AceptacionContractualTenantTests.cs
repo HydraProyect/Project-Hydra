@@ -364,8 +364,9 @@ public class AceptacionContractualTenantTests
         var e = new Escenario();
         e.Catalogo.Add(CondicionesV2);
         await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV2, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
-        var correo = new CorreoFalso();
-        var unidad = new UnidadFalsa();
+        var bitacora = new List<string>();
+        var correo = new CorreoFalso(bitacora: bitacora);
+        var unidad = new UnidadFalsa(e.Repositorio, bitacora);
 
         var r = await new EnvioAcuseAceptacionContractual(
                 e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true), correo, unidad, new RelojFijo(Ahora))
@@ -378,21 +379,95 @@ public class AceptacionContractualTenantTests
             .And.Contain("Texto del encargo 1.0")
             .And.Contain(CondicionesV2.HashSha256)
             .And.NotContain("Texto de condiciones 1.0");
-        e.Repositorio.Acuses.Should().HaveCount(2).And.OnlyContain(a => a.UsuarioDestinatarioId == Administrador && a.EnviadoEnUtc == Ahora);
-        unidad.Guardados.Should().Be(1);
+
+        // Primero se guarda lo preparado, después sale el correo y al final se guarda el resultado.
+        bitacora.Should().Equal("guardado: Preparado, Preparado", "correo", "guardado: Preparado, Preparado, Enviado, Enviado");
+        e.Repositorio.Acuses.Should().HaveCount(4)
+            .And.OnlyContain(a => a.UsuarioDestinatarioId == Administrador && a.RegistradoEnUtc == Ahora);
+        e.Repositorio.Acuses.Select(a => a.EnvioId).Distinct().Should().ContainSingle("las cuatro filas son del mismo envío");
+        (await e.Repositorio.UltimoAcusePorAceptacionAsync()).Should().HaveCount(2).And.OnlyContain(kv => kv.Value == Ahora);
     }
 
     [Fact]
-    public async Task El_acuse_no_se_registra_si_el_correo_no_sale_ni_se_envia_a_una_cuenta_ajena()
+    public async Task Si_no_se_puede_guardar_la_preparacion_el_correo_no_sale()
     {
         var e = new Escenario();
         await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
+        var correo = new CorreoFalso();
+
+        var enviar = () => new EnvioAcuseAceptacionContractual(
+                e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true), correo,
+                new UnidadFalsa(e.Repositorio, fallaEnGuardado: 1), new RelojFijo(Ahora))
+            .EnviarAsync(Administrador);
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>();
+        correo.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_correo_rechazado_queda_como_Fallido_y_no_cuenta_como_acuse()
+    {
+        var e = new Escenario();
+        await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
+        var bitacora = new List<string>();
 
         var fallido = await new EnvioAcuseAceptacionContractual(
-                e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true), new CorreoFalso(falla: true),
-                new UnidadFalsa(), new RelojFijo(Ahora))
+                e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true),
+                new CorreoFalso(falla: true, bitacora: bitacora), new UnidadFalsa(e.Repositorio, bitacora), new RelojFijo(Ahora))
             .EnviarAsync(Administrador);
+
         fallido.EsFallido.Should().BeTrue();
+        bitacora.Should().Equal("guardado: Preparado, Preparado", "correo", "guardado: Preparado, Preparado, Fallido, Fallido");
+        e.Repositorio.Acuses.Should().NotContain(a => a.Fase == FaseAcuseAceptacionContractual.Enviado);
+        (await e.Repositorio.UltimoAcusePorAceptacionAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_guardar_el_resultado_el_envio_queda_preparado_sin_afirmarse()
+    {
+        var e = new Escenario();
+        await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
+        var correo = new CorreoFalso();
+        var unidad = new UnidadFalsa(e.Repositorio, fallaEnGuardado: 2);
+
+        var enviar = () => new EnvioAcuseAceptacionContractual(
+                e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true), correo,
+                unidad, new RelojFijo(Ahora))
+            .EnviarAsync(Administrador);
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>();
+        correo.Enviados.Should().ContainSingle();
+        unidad.Confirmadas.Should().HaveCount(2).And.OnlyContain(a => a.Fase == FaseAcuseAceptacionContractual.Preparado);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task El_acuse_no_se_envia_dentro_de_una_transaccion_ni_con_cambios_pendientes(bool transaccion, bool pendientes)
+    {
+        var e = new Escenario();
+        await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
+        e.Repositorio.HayTransaccionAbierta = transaccion;
+        e.Repositorio.HayCambiosPendientes = pendientes;
+        var correo = new CorreoFalso();
+        var unidad = new UnidadFalsa(e.Repositorio);
+
+        var r = await new EnvioAcuseAceptacionContractual(
+                e.Repositorio, new CatalogoFalso(e.Catalogo), new CuentasFalsas(Administrador, propia: true), correo,
+                unidad, new RelojFijo(Ahora))
+            .EnviarAsync(Administrador);
+
+        r.Error.Should().Be(EnvioAcuseAceptacionContractual.EnvioNoAislado);
+        correo.Enviados.Should().BeEmpty();
+        unidad.Guardados.Should().Be(0);
+        e.Repositorio.Acuses.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_acuse_no_se_envia_a_una_cuenta_ajena_ni_con_un_texto_que_no_es_el_aceptado()
+    {
+        var e = new Escenario();
+        await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
 
         var correo = new CorreoFalso();
         var ajena = await new EnvioAcuseAceptacionContractual(
@@ -459,6 +534,8 @@ public class AceptacionContractualTenantTests
 
         public void Agregar(AceptacionContractualTenant aceptacion) => Aceptaciones.Add(aceptacion);
         public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => Acuses.Add(acuse);
+        public bool HayTransaccionAbierta { get; set; }
+        public bool HayCambiosPendientes { get; set; }
 
         public Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Aceptaciones.Any(a => a.SolicitudAltaId == solicitudAltaId && a.UsuarioId == usuarioId));
@@ -469,7 +546,8 @@ public class AceptacionContractualTenantTests
 
         public Task<IReadOnlyDictionary<Guid, DateTime>> UltimoAcusePorAceptacionAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyDictionary<Guid, DateTime>>(
-                Acuses.GroupBy(a => a.AceptacionContractualTenantId).ToDictionary(g => g.Key, g => g.Max(a => a.EnviadoEnUtc)));
+                Acuses.Where(a => a.Fase == FaseAcuseAceptacionContractual.Enviado)
+                    .GroupBy(a => a.AceptacionContractualTenantId).ToDictionary(g => g.Key, g => g.Max(a => a.RegistradoEnUtc)));
     }
 
     private sealed class CatalogoFalso(IReadOnlyList<DocumentoContractualPublicado> publicados) : ICatalogoDocumentosContractuales
@@ -534,7 +612,7 @@ public class AceptacionContractualTenantTests
         public Task<Result<string>> CorregirCorreoPendienteAsync(Guid id, string correoNuevo, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class CorreoFalso(bool falla = false) : IEmailService
+    private sealed class CorreoFalso(bool falla = false, List<string>? bitacora = null) : IEmailService
     {
         public List<(string Destinatario, string Asunto, string Cuerpo)> Enviados { get; } = [];
 
@@ -542,6 +620,7 @@ public class AceptacionContractualTenantTests
             string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
             string? responderA = null, CancellationToken cancellationToken = default)
         {
+            bitacora?.Add("correo");
             if (falla)
                 return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", "No salió.")));
             Enviados.Add((destinatarioEmail, asunto, cuerpoHtml));
@@ -549,13 +628,28 @@ public class AceptacionContractualTenantTests
         }
     }
 
-    private sealed class UnidadFalsa : IUnitOfWork
+    /// <summary>
+    /// Anota en <paramref name="bitacora"/> las fases de acuse que había al guardar, y conserva en
+    /// <see cref="Confirmadas"/> lo que quedó guardado de verdad. El guardado número <paramref name="fallaEnGuardado"/>
+    /// lanza, como un fallo de la base de datos, y no confirma nada.
+    /// </summary>
+    private sealed class UnidadFalsa(RepositorioFalso? repositorio = null, List<string>? bitacora = null, int fallaEnGuardado = 0) : IUnitOfWork
     {
         public int Guardados { get; private set; }
+        public List<AcuseAceptacionContractualTenant> Confirmadas { get; } = [];
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             Guardados++;
+            if (Guardados == fallaEnGuardado)
+                throw new InvalidOperationException("Fallo simulado de la base de datos.");
+            if (repositorio is not null)
+            {
+                Confirmadas.Clear();
+                Confirmadas.AddRange(repositorio.Acuses);
+                bitacora?.Add("guardado: " + string.Join(", ", repositorio.Acuses.Select(a => a.Fase)));
+            }
+
             return Task.FromResult(0);
         }
     }
