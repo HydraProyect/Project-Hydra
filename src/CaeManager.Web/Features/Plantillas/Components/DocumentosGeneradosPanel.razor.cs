@@ -139,7 +139,10 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     /// </summary>
     private async Task NotificarDatosAsync()
     {
-        if (!FiltrosEnLaBarra || _desechado)
+        // Antes del arranque los Trabajadores del selector aún no han llegado: avisar entonces dejaría a la barra con una lista
+        // vacía que daría por buena (y descartaría un Trabajador de la URL que sí existe). Un re-render del padre mientras
+        // OnInitializedAsync sigue pidiendo llega aquí (OnParametersSetAsync); el aviso sale al terminar la primera carga.
+        if (!FiltrosEnLaBarra || _desechado || !_arrancado)
             return;
 
         var sinEstado = SinFiltroDeEstado.ToList();

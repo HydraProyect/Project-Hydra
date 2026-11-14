@@ -583,6 +583,64 @@ public class PlantillasFiltrosTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    /// <summary>Retiene la consulta de Trabajadores del selector hasta que el test la suelta.</summary>
+    private sealed class MediatorConTrabajadoresRetenidos(MediatorFalso interior, Task liberar) : IMediator
+    {
+        public TaskCompletionSource Pedida { get; } = new();
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerTrabajadoresParaSelectorQuery)
+            {
+                Pedida.TrySetResult();
+                await liberar;
+            }
+
+            return await interior.Send(request, cancellationToken);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Con una base real, el padre se repinta (termina el catálogo) mientras el panel aún pide los Trabajadores del selector:
+    /// ese repintado no puede dar a la barra una lista vacía que descarte un Trabajador de la URL que sí existe.
+    /// </summary>
+    [Fact]
+    public void Un_trabajador_valido_de_la_url_se_conserva_si_el_padre_se_repinta_antes_de_que_lleguen_los_Trabajadores()
+    {
+        var retenida = new TaskCompletionSource();
+        var mediador = new MediatorConTrabajadoresRetenidos(CatalogoConGenerados(), retenida.Task);
+        Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
+        Services.AddScoped<ToastService>();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"plantillas?Pestana=generados&trabajador={Trabajador2}");
+
+        var cut = Render<PaginaPlantillas>();
+        cut.WaitForAssertion(() => mediador.Pedida.Task.IsCompleted.Should().BeTrue("el catálogo termina y monta el panel, que queda esperando a los Trabajadores"));
+        cut.Render();
+
+        retenida.SetResult();
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Entrega de EPI | Luis Gómez"]));
+        ClavesDeLaUrl().Should().Contain("trabajador");
+    }
+
     [Fact]
     public async Task Reintentar_tras_una_carga_fallida_de_Generados_pone_los_recuentos_de_la_franja()
     {
