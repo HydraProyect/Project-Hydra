@@ -306,6 +306,9 @@
   <data name="NombresNoIdentificados" xml:space="preserve">
     <value>El destino o el tipo actual no está entre los que puedes elegir: elige uno de la lista para poder asignarlo.</value>
   </data>
+  <data name="AvisoNoIdentificados" xml:space="preserve">
+    <value>Hay adjuntos cuyo destino o tipo propuesto no está entre los que puedes elegir. Elige otro en la fila o vuelve a cargar las listas por si cambiaron.</value>
+  </data>
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>

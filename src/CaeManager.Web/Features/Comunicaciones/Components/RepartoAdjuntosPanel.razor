@@ -72,6 +72,15 @@
                 <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
             </div>
         }
+        else if (enCurso && _puedeEscribir && _filas.Any(f => f.Pendiente && !f.NombresConocidos))
+        {
+            @* Las lecturas salieron bien pero un destino o un tipo propuesto no está entre los que se pueden elegir (o no es de la clase
+               del destino): además de elegir otro en la fila, se ofrece releer las listas por si el destino o el tipo es posterior a la lectura. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert" data-selectores="no-identificados">
+                <span>@Textos["AvisoNoIdentificados"]</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
+        }
 
         @if (cuerpoVisible)
         {
@@ -397,11 +406,12 @@ else if (_errorCarga is not null)
         return null;
     }
 
-    // El destino y el tipo que tenga el adjunto se pueden mostrar por su nombre: sin eso, aprobarlo sería a ciegas.
+    // El destino y el tipo que tenga el adjunto se pueden mostrar por su nombre: sin eso, aprobarlo sería a ciegas. El tipo, además,
+    // ha de estar entre los que se ofrecen para la clase del destino (TiposPara): un tipo de Empresa sobre un Trabajador no es listo.
     private bool NombresConocidos(AdjuntoRepartoDto a) =>
         (a.DestinoTrabajadorId is not { } t || _nombresTrabajadores.ContainsKey(t))
         && (a.DestinoEmpresaId is not { } e || _nombresEmpresas.ContainsKey(e))
-        && (a.TipoDocumentoId is not { } tipo || _nombresTipos.ContainsKey(tipo));
+        && (a.TipoDocumentoId is not { } tipo || TiposPara(a).Any(x => x.Id == tipo));
 
     private string? NombreTipo(AdjuntoRepartoDto a) =>
         a.TipoDocumentoId is { } tipoId ? (_nombresTipos.TryGetValue(tipoId, out var n) ? n : Textos["TipoActual"].Value) : null;

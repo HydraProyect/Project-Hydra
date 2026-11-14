@@ -306,6 +306,9 @@
   <data name="NombresNoIdentificados" xml:space="preserve">
     <value>El destí o el tipus actual no és entre els que pots triar: tria&apos;n un de la llista per poder assignar-lo.</value>
   </data>
+  <data name="AvisoNoIdentificados" xml:space="preserve">
+    <value>Hi ha adjunts amb un destí o un tipus proposat que no és entre els que pots triar. Tria&apos;n un altre a la fila o torna a carregar les llistes per si han canviat.</value>
+  </data>
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>

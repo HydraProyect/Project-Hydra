@@ -346,7 +346,8 @@ public class RepartoAdjuntosPanelTests : BunitContext
         Texto(cut).Should().NotContain("espera su fecha de emisión");
         EscribirEmision(cut, "doc.pdf", "2026-03-01");
 
-        cut.FindAll("[data-selectores]").Should().BeEmpty("no falló ningún selector: no hay nada que reintentar");
+        cut.FindAll("[data-selectores='fallo']").Should().BeEmpty("no falló ningún selector: no se dice que no se pudieran cargar");
+        cut.Find("[data-selectores='no-identificados']").TextContent.Should().NotContain("No pudimos cargar los nombres");
         cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
         Texto(cut).Should().Contain("Destino actual").And.Contain("elige uno de la lista para poder asignarlo");
         cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue();
@@ -358,6 +359,57 @@ public class RepartoAdjuntosPanelTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
         Texto(cut).Should().Contain("Lucía Mora");
         cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_destino_que_no_esta_en_el_selector_ofrece_Reintentar_que_relee_los_selectores()
+    {
+        // Las lecturas salieron bien, pero el destino propuesto no aparece: la fila avisa y bloquea, y la persona puede releer las listas.
+        var nuevo = Guid.NewGuid();
+        var mediador = Preparar(Roles.GestorCae, Adj("doc.pdf", trabajador: nuevo, tipo: TipoDniTrabajador));
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "doc.pdf", "2026-03-01");
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
+        var lecturas = mediador.De<ObtenerTrabajadoresParaSelectorQuery>().Count();
+
+        mediador.Trabajadores.Add(new(nuevo, "Lucía Mora", null, null));
+        cut.Find("[data-selectores='no-identificados'] button").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
+        mediador.De<ObtenerTrabajadoresParaSelectorQuery>().Count().Should().BeGreaterThan(lecturas, "Reintentar relee los selectores");
+        cut.FindAll("[data-selectores]").Should().BeEmpty();
+        Texto(cut).Should().Contain("Lucía Mora");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Un_tipo_de_otra_clase_que_el_destino_no_queda_listo_aunque_exista_en_el_catalogo(bool aEmpresa)
+    {
+        // Un Trabajador con un tipo de Empresa (o al revés): el tipo existe, pero no es de los que se ofrecen para ese destino.
+        var adjunto = aEmpresa
+            ? Adj("doc.pdf", empresa: EmpresaPropia, tipo: TipoDniTrabajador)
+            : Adj("doc.pdf", trabajador: Marta, tipo: TipoSeguroEmpresa);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "doc.pdf", "2026-03-01");
+
+        cut.Find(".adjb-e").TextContent.Trim().Should().Be("Revisar");
+        Texto(cut).Should().Contain("no está entre los que puedes elegir: elige uno de la lista").And.NotContain("1 listo");
+        cut.Find(".adjb-p .boton-primario").HasAttribute("disabled").Should().BeTrue("el lote no lleva un tipo que no es de la clase del destino");
+        cut.FindAll(".adjb-p button").Single(b => b.TextContent.Contains("uno a uno")).Click();
+        cut.FindAll(".adjb-uno-pie .boton-primario").Single().HasAttribute("disabled").Should().BeTrue("uno a uno tampoco se aprueba");
+        mediador.De<AsignarAdjuntosLoteCommand>().Should().BeEmpty();
+        cut.Find("[data-selectores='no-identificados'] button").TextContent.Trim().Should().Be("Reintentar");
+
+        // Elegir un tipo de la clase del destino lo deja listo.
+        cut.FindAll(".adjb-uno-cab button").Single(b => b.TextContent.Trim() == "Cerrar").Click();
+        cut.Find("select[aria-label='Tipo de documento de doc.pdf']").Change((aEmpresa ? TipoSeguroEmpresa : TipoDniTrabajador).ToString());
+
+        cut.WaitForAssertion(() => cut.Find(".adjb-e").TextContent.Trim().Should().Be("Listo"));
+        cut.FindAll("[data-selectores]").Should().BeEmpty();
     }
 
     // ---------- Por rol ----------
