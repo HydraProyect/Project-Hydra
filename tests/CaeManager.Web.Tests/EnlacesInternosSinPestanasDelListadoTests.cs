@@ -17,7 +17,7 @@ public class EnlacesInternosSinPestanasDelListadoTests
     /// <summary>
     /// Un literal entre comillas dobles o simples, en una línea (C#, Razor, plantillas), que enlaza a una de esas dos pestañas.
     /// Con <c>acreditacionId</c> sigue siendo la vista de Plataformas CAE y no cuenta; <c>plataformas</c> es la pestaña de otras
-    /// fichas. No ve un enlace compuesto por partes (concatenación, <c>QueryHelpers</c>): esos se revisan a mano.
+    /// fichas. No ve un enlace compuesto por partes (concatenación, <c>QueryHelpers</c>) ni uno precedido por un apóstrofo dentro del mismo literal: esos se revisan a mano.
     /// </summary>
     private static readonly Regex EnlaceAPestanaDelListado = new(
         @"([""'])[^""'\r\n]*pestana=(plataforma|sugerencias|preventivo)(?![A-Za-z-]|&acreditacionId|&amp;acreditacionId)[^""'\r\n]*\1",

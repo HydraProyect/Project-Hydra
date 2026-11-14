@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Configuracion;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
 using CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
 using CaeManager.Application.Configuracion.Queries;
