@@ -81,14 +81,14 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
             repositorio.Agregar(encargo);
             await runtime.SaveChangesAsync();
 
-            // Un envío que llegó a Enviado y otro que se quedó en Preparado o acabó en Fallido: solo el
+            // Un envío que llegó a Enviado y otro que se quedó en Preparado o acabó en NoConfirmado: solo el
             // primero cuenta como acuse.
             var enviado = Guid.NewGuid();
             repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, enviado, FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
             repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(aceptacion.Id, _usuarioId, enviado, FaseAcuseAceptacionContractual.Enviado, DateTime.UtcNow));
             var fallido = Guid.NewGuid();
             repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, fallido, FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
-            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, fallido, FaseAcuseAceptacionContractual.Fallido, DateTime.UtcNow));
+            repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, fallido, FaseAcuseAceptacionContractual.NoConfirmado, DateTime.UtcNow));
             repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(encargo.Id, _usuarioId, Guid.NewGuid(), FaseAcuseAceptacionContractual.Preparado, DateTime.UtcNow));
             await runtime.SaveChangesAsync();
             propia = aceptacion.Id;

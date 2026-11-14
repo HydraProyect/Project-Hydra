@@ -8,13 +8,14 @@ namespace CaeManager.Architecture.Tests;
 /// <summary>
 /// #2009, revisión Codex r3 de la PR #2213 (hallazgo b): nunca sale un correo de acuse de la aceptación contractual
 /// que no esté guardado. El acuse es una bandeja de salida de solo inserción (<c>AcuseAceptacionContractualTenant</c>):
-/// la fila Preparado se guarda antes del correo, y el resultado (Enviado o Fallido) después.
+/// la fila Preparado se guarda antes del correo, y el resultado (Enviado o NoConfirmado) después.
 /// <para>
 /// Inventario de escritores: solo <c>EnvioAcuseAceptacionContractual</c> construye filas de acuse y solo el repositorio
 /// las añade al contexto. Igualdad, no subconjunto: un escritor nuevo, o uno que deje de serlo, rompe el test y obliga a
 /// revisar la regla. Dentro de <c>EnviarAsync</c>, el instrumento exige que el primer guardado vaya antes del primer
-/// envío de correo, que lo que se añade antes de ese guardado sea la fase Preparado, y que la negativa por transacción
-/// abierta o cambios pendientes vaya antes de ese guardado.
+/// envío de correo, que antes de ese guardado solo se añada la fase Preparado (como argumento de <c>AgregarFase</c> o
+/// <c>AgregarAcuse</c>), y que antes de ese guardado el método salga (<c>return</c> o <c>throw</c>) con una transacción
+/// abierta o con cambios pendientes, cualquiera de las dos.
 /// </para>
 /// <para>
 /// Instrumento sintáctico con Roslyn, sin modelo semántico: reconoce <c>new AcuseAceptacionContractualTenant(...)</c>
@@ -126,6 +127,43 @@ public class AcuseAceptacionContractualSeGuardaAntesDelCorreoTests
             }
         }
         """)]
+    // Revisión Codex r4 de la PR #2213, BAJO: nombrar Preparado no basta si no se añade, y la negativa tiene que salir.
+    [InlineData("Preparado nombrado pero no añadido", """
+        class H
+        {
+            async Task<Result> EnviarAsync(CancellationToken ct)
+            {
+                if (repositorio.HayTransaccionAbierta || repositorio.HayCambiosPendientes) return Result.Fallo(e);
+                var fase = FaseAcuseAceptacionContractual.Preparado;
+                await unitOfWork.SaveChangesAsync(ct);
+                return await correo.EnviarAsync(a, b, c, d);
+            }
+        }
+        """)]
+    [InlineData("negativa que no sale", """
+        class H
+        {
+            async Task<Result> EnviarAsync(CancellationToken ct)
+            {
+                if (repositorio.HayTransaccionAbierta || repositorio.HayCambiosPendientes) logger.LogWarning("x");
+                AgregarFase(documentos, u, id, FaseAcuseAceptacionContractual.Preparado);
+                await unitOfWork.SaveChangesAsync(ct);
+                return await correo.EnviarAsync(a, b, c, d);
+            }
+        }
+        """)]
+    [InlineData("negativa solo si coinciden las dos", """
+        class H
+        {
+            async Task<Result> EnviarAsync(CancellationToken ct)
+            {
+                if (repositorio.HayTransaccionAbierta && repositorio.HayCambiosPendientes) return Result.Fallo(e);
+                AgregarFase(documentos, u, id, FaseAcuseAceptacionContractual.Preparado);
+                await unitOfWork.SaveChangesAsync(ct);
+                return await correo.EnviarAsync(a, b, c, d);
+            }
+        }
+        """)]
     public void El_instrumento_ve_un_envio_que_no_guarda_antes(string caso, string codigo)
     {
         InstrumentoAcuse.Infracciones(codigo, "EnviarAsync").Should().NotBeEmpty(caso);
@@ -143,7 +181,7 @@ public class AcuseAceptacionContractualSeGuardaAntesDelCorreoTests
                     AgregarFase(documentos, u, id, FaseAcuseAceptacionContractual.Preparado);
                     await unitOfWork.SaveChangesAsync(ct);
                     var envio = await correo.EnviarAsync(a, b, c, d);
-                    AgregarFase(documentos, u, id, envio.EsFallido ? FaseAcuseAceptacionContractual.Fallido : FaseAcuseAceptacionContractual.Enviado);
+                    AgregarFase(documentos, u, id, envio.EsFallido ? FaseAcuseAceptacionContractual.NoConfirmado : FaseAcuseAceptacionContractual.Enviado);
                     await unitOfWork.SaveChangesAsync(CancellationToken.None);
                     return envio;
                 }
@@ -216,18 +254,25 @@ internal static class InstrumentoAcuse
         if (correo is not null && correo.SpanStart < guardado.SpanStart)
             infracciones.Add("el correo sale antes del primer guardado");
 
+        // Antes del primer guardado solo se nombra la fase Preparado, y como argumento directo de la llamada que añade
+        // filas de acuse (AgregarFase o AgregarAcuse): mencionarla en otro sitio no la añade.
         var fasesAntes = cuerpo.DescendantNodes().OfType<MemberAccessExpressionSyntax>()
             .Where(m => m.SpanStart < guardado.SpanStart && NombreFinal(m.Expression) == "FaseAcuseAceptacionContractual")
-            .Select(m => m.Name.Identifier.ValueText)
             .ToList();
-        if (!fasesAntes.SequenceEqual(["Preparado"]))
-            infracciones.Add($"antes del primer guardado se añade [{string.Join(", ", fasesAntes)}], no solo Preparado");
+        var preparadoAnadido = fasesAntes.Any(m => m.Name.Identifier.ValueText == "Preparado"
+            && m.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax alta } }
+            && Nombre(alta) is "AgregarFase" or "AgregarAcuse");
+        if (!preparadoAnadido || fasesAntes.Any(m => m.Name.Identifier.ValueText != "Preparado"))
+            infracciones.Add($"antes del primer guardado no se añade solo Preparado (se nombra [{string.Join(", ", fasesAntes.Select(m => m.Name.Identifier.ValueText))}])");
 
+        // La negativa sale del método: un if que no devuelve deja seguir hasta el guardado.
         var negativa = cuerpo.DescendantNodes().OfType<IfStatementSyntax>().FirstOrDefault(s =>
             s.Condition.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(m => m.Name.Identifier.ValueText == "HayTransaccionAbierta")
-            && s.Condition.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(m => m.Name.Identifier.ValueText == "HayCambiosPendientes"));
+            && s.Condition.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(m => m.Name.Identifier.ValueText == "HayCambiosPendientes")
+            && s.Condition is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalOrExpression }
+            && s.Statement is ReturnStatementSyntax or ThrowStatementSyntax);
         if (negativa is null || negativa.SpanStart > guardado.SpanStart)
-            infracciones.Add("no se niega a guardar con una transacción abierta o cambios pendientes antes del primer guardado");
+            infracciones.Add("no sale del método con una transacción abierta o cambios pendientes antes del primer guardado");
 
         return infracciones;
     }

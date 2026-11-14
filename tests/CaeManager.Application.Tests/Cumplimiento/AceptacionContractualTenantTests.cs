@@ -405,7 +405,7 @@ public class AceptacionContractualTenantTests
     }
 
     [Fact]
-    public async Task Un_correo_rechazado_queda_como_Fallido_y_no_cuenta_como_acuse()
+    public async Task Un_correo_sin_confirmar_queda_como_NoConfirmado_y_no_cuenta_como_acuse()
     {
         var e = new Escenario();
         await e.Registro().RegistrarAsync(Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)));
@@ -417,7 +417,9 @@ public class AceptacionContractualTenantTests
             .EnviarAsync(Administrador);
 
         fallido.EsFallido.Should().BeTrue();
-        bitacora.Should().Equal("guardado: Preparado, Preparado", "correo", "guardado: Preparado, Preparado, Fallido, Fallido");
+        bitacora.Should().Equal("guardado: Preparado, Preparado", "correo", "guardado: Preparado, Preparado, NoConfirmado, NoConfirmado");
+        e.Repositorio.Acuses.Should().NotContain(a => a.Fase.ToString() == "Fallido",
+            "un fallo del servicio de correo no prueba que el correo no saliera: no se afirma un rechazo");
         e.Repositorio.Acuses.Should().NotContain(a => a.Fase == FaseAcuseAceptacionContractual.Enviado);
         (await e.Repositorio.UltimoAcusePorAceptacionAsync()).Should().BeEmpty();
     }

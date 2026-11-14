@@ -98,8 +98,11 @@ public enum FaseAcuseAceptacionContractual
     /// <summary>El servicio de correo aceptó el envío.</summary>
     Enviado,
 
-    /// <summary>El servicio de correo rechazó el envío.</summary>
-    Fallido,
+    /// <summary>
+    /// El servicio de correo no confirmó el envío. No afirma que no saliera: un tiempo agotado o una conexión
+    /// perdida pueden llegar después de que el servidor aceptara el mensaje. Tampoco cuenta como acuse.
+    /// </summary>
+    NoConfirmado,
 }
 
 /// <summary>
@@ -107,8 +110,8 @@ public enum FaseAcuseAceptacionContractual
 /// Solo se añade, como una bandeja de salida en la que nada se reescribe: cada envío o reenvío tiene un
 /// <see cref="EnvioId"/>, con una fila <see cref="FaseAcuseAceptacionContractual.Preparado"/> por aceptación
 /// guardada antes de enviar, y después una <see cref="FaseAcuseAceptacionContractual.Enviado"/> o
-/// <see cref="FaseAcuseAceptacionContractual.Fallido"/>. Un envío que se queda en Preparado es de resultado
-/// incierto: el correo pudo salir o no, y no se afirma ninguna de las dos cosas. Guarda a qué cuenta se
+/// <see cref="FaseAcuseAceptacionContractual.NoConfirmado"/>. Un envío que se queda en Preparado o acaba en
+/// NoConfirmado es de resultado incierto: el correo pudo salir o no, y no se afirma ninguna de las dos cosas. Guarda a qué cuenta se
 /// envió, no su dirección.
 /// </summary>
 public class AcuseAceptacionContractualTenant : EntidadConTenant

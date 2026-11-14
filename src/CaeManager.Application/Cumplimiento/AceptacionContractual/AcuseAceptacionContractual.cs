@@ -16,9 +16,11 @@ namespace CaeManager.Application.Cumplimiento.AceptacionContractual;
 /// <para>
 /// Bandeja de salida de solo inserción (<see cref="AcuseAceptacionContractualTenant"/>): primero se guardan
 /// las filas <see cref="FaseAcuseAceptacionContractual.Preparado"/> de este envío, y solo si ese guardado se
-/// confirma sale el correo; después se añade el resultado, Enviado o Fallido. Así nunca sale un correo sin
-/// que conste, y nunca se afirma un envío que el servicio de correo no aceptó. Si el correo sale y falla el
-/// guardado del resultado, el envío queda en Preparado: de resultado incierto, sin afirmar de más.
+/// confirma sale el correo; después se añade el resultado: Enviado si el servicio de correo lo confirmó, y
+/// NoConfirmado si no (un fallo del servicio no prueba que el correo no saliera: un tiempo agotado puede
+/// llegar después de que el servidor lo aceptara). Así nunca sale un correo sin que conste, y nunca se
+/// afirma ni un envío ni un rechazo que no se conocen. Si falla el guardado del resultado, el envío queda en
+/// Preparado: de resultado incierto, sin afirmar de más.
 /// </para>
 ///
 /// <para>
@@ -103,7 +105,7 @@ public sealed class EnvioAcuseAceptacionContractual(
 
         // 3. El resultado. Si este guardado falla, el envío se queda en Preparado: incierto, no afirmado.
         AgregarFase(documentos, usuarioDestinatarioId, envioId,
-            envio.EsFallido ? FaseAcuseAceptacionContractual.Fallido : FaseAcuseAceptacionContractual.Enviado);
+            envio.EsFallido ? FaseAcuseAceptacionContractual.NoConfirmado : FaseAcuseAceptacionContractual.Enviado);
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
         return envio.EsFallido ? envio : Result.Exito();
     }
