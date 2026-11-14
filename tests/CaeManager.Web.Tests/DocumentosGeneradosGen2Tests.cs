@@ -349,6 +349,41 @@ public class DocumentosGeneradosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Con la barra de /plantillas, la plantilla se cambia MIENTRAS la primera carga de Generados sigue en vuelo. Antes
+    /// (<c>_arrancado</c> solo tras la primera carga) el cambio no lanzaba otra consulta y, al llegar, la respuesta lenta
+    /// —de «sin filtro»— se pintaba con la pastilla ya en otra plantilla, y sus recuentos se notificaban a la barra.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_la_plantilla_con_la_primera_carga_en_vuelo_lanza_otra_y_descarta_la_respuesta_lenta()
+    {
+        var primera = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso();
+        mediador.Generados.AddRange([Generado(AnexoId, "Anexo II"), Generado(EpiId, "Registro de EPI")]);
+        mediador.Retener = p => p is ObtenerDocumentosGeneradosQuery { PlantillaDocumentoId: null } ? primera.Task : null;
+        Services.AddScoped<IMediator>(_ => mediador);
+        var recuentos = new List<DatosFiltrosGenerados>();
+        var cut = Render<DocumentosGeneradosPanel>(p => p
+            .Add(c => c.FiltrosEnLaBarra, true)
+            .Add(c => c.DatosCargados, EventCallback.Factory.Create<DatosFiltrosGenerados>(this, recuentos.Add)));
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosGeneradosQuery>().Should().ContainSingle("barrera: la primera carga está en vuelo"));
+
+        cut.Render(p => p.Add(c => c.PlantillaId, EpiId));
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosGeneradosQuery>().Select(q => q.PlantillaDocumentoId)
+            .Should().Equal([null, EpiId], "el cambio de filtro con la primera carga en vuelo lanza la consulta nueva"));
+        cut.WaitForAssertion(() => PlantillasDeLaTabla(cut).Should().Equal(["Registro de EPI"]));
+
+        await cut.InvokeAsync(() => primera.SetResult(mediador.Filtrar(new ObtenerDocumentosGeneradosQuery(null, null))));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("aria-busy=\"true\""));
+        PlantillasDeLaTabla(cut).Should().Equal(["Registro de EPI"],
+            "la respuesta lenta era del filtro anterior: no se pinta con otra plantilla elegida");
+        recuentos.Should().NotBeEmpty("control: la barra recibió los recuentos de la carga vigente");
+        recuentos.Should().OnlyContain(d => d.TotalSinEstado == 1,
+            "los recuentos notificados son los de la lista vigente, nunca los de la respuesta superada");
+    }
+
+    /// <summary>
     /// Retirar el panel cancela la consulta en curso, y su respuesta tardía ya
     /// no toca un componente retirado. Que el token quede cancelado demuestra
     /// además que el Dispose se ejecutó: DisposeComponentsAsync lo llama.

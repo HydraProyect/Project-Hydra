@@ -1,20 +1,23 @@
 @*
     Contenido de Plantillas (REC-062, DEC-28, DDL-080), que fue una pestaña de /documentos: desde la PR8 esa barra no existe y
-    /documentos?pestana=plantillas redirige a /plantillas. Extraído de la antigua página dedicada, sin cambiar su contenido
-    funcional.
+    /documentos?pestana=plantillas redirige a /plantillas. Lo monta Plantillas.razor, que pinta encima la cabecera.
     Plantillas sigue teniendo rutas propias (/plantillas, /plantillas/nueva,
     /plantillas/{id}/editar, /plantillas/documentos-generados), que se
-    conservan como deep links — Plantillas.razor es ahora una página fina
-    que renderiza este mismo componente y pinta encima la cabecera Gen 2.
+    conservan como deep links.
 
-    Sub-pestañas Catálogo/Generados: aquí se mantienen como selector interno
-    (PestanaInicial solo se lee en el primer render; el cambio posterior
-    queda en memoria del propio componente), no como segundo parámetro de
-    consulta — la única superficie que refleja la sub-pestaña en la URL es
-    la página standalone /plantillas (deep link ?Pestana=generados ya
-    existente, cubierto por PestanaUrlDurableTests). Recargar
-    /plantillas sin ?Pestana= siempre abre en Catálogo: decisión
-    registrada en DDL-080, no un hueco.
+    «Catálogo | Generados» es un control segmentado (lienzo «Documentos · listado sin pestañas», v34, D-10), no una segunda
+    barra de pestañas. Aquí es una vista interna: PestanaInicial solo se lee al cambiar y el cambio posterior queda en la URL
+    de la página (?Pestana=generados, deep link ya existente, cubierto por PestanaUrlDurableTests). Recargar /plantillas sin
+    ?Pestana= y sin vista recordada abre en Catálogo (DDL-080). «Pestana» sí es parámetro de la vista recordada y de los
+    filtros guardados: la vista recordada recuerda cuál estaba abierta con sus filtros, y /plantillas sin filtros en la
+    URL —con o sin ?Pestana=generados— los restaura (con ?Pestana=generados solo si lo recordado es de Generados).
+
+    Buscador y filtros (D-53, lo pidió Chris el 12/11): el buscador de la pantalla (tecla F), las pastillas Ámbito, Formato,
+    Estado (franja con recuentos) y Alcance, «Filtros guardados» y, sin coincidencias, un vacío con «Limpiar filtros». La
+    lista del catálogo se carga completa (ObtenerPlantillasDocumentoQuery no pagina), así que el filtro va en memoria sobre
+    esa misma consulta, y los recuentos de la franja salen de la misma lista con los demás filtros aplicados y sin el de
+    estado. «Generados» recibe lo mismo con sus columnas: la franja Generado / Generado con avisos y los filtros de plantilla
+    y de Trabajador; su panel conserva la consulta de servidor por plantilla y Trabajador.
 *@
 @using CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla
 @using CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento
@@ -25,118 +28,172 @@
 @inject NavigationManager Navigation
 @inject ToastService Toasts
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Documentos.Recursos.TextosDocumentos> Textos
 
-@* Embebida en /documentos la pestaña trae su propia entradilla y su «+ Nueva
-   plantilla»: la cabecera de esa página es la de Documentos. En /plantillas
-   la cabecera Gen 2 la pinta la página, y aquí no se repite. *@
-@if (!CabeceraEnLaPagina)
-{
-    <div class="cabecera-pagina">
-        <p class="texto-descriptivo">@TextoDescripcion</p>
-        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
-    </div>
-}
-
-<Pestanas Definiciones="PestanasConContador" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Plantillas">
-    @if (_pestanaActiva == "catalogo")
+<div class="segmentado" role="group" aria-label="Plantillas">
+    @foreach (var vista in Vistas)
     {
-        @if (_errorCarga)
-        {
-            <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
-                <Accion>
-                    <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
-                </Accion>
-            </EstadoVacio>
-        }
-        else if (_cargando)
-        {
-            <EstadoCargando Filas="4" />
-        }
-        else if (_plantillas.Count == 0)
-        {
-            @* El mockup escribe «Sube tu primera plantilla Word o PDF» y
-               promete que TALVEG detectará sus campos. No se copia: el alta
-               solo acepta PDF (accept=".pdf" en ConfigurarPlantilla) y un
-               PDF sin campos AcroForm se configura a mano por posición. *@
-            <EstadoVacio NombreIcono="plantilla" Titulo="Todavía no hay plantillas" Descripcion="Crea la primera a partir de un PDF que te entregue un centro.">
-                <Accion>
-                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
-                </Accion>
-            </EstadoVacio>
-        }
-        else
-        {
-            @* j/k recorre el catálogo y Enter abre la plantilla enfocada, igual
-               que su botón. Sin «x»: el catálogo no tiene selección múltiple. *@
-            <AtajosListaTeclado OnAtajo="ManejarAtajo" />
+        <button type="button" class="segmentado-opcion" aria-pressed="@(_pestanaActiva == vista.Id ? "true" : "false")"
+                @onclick="() => CambiarVistaAsync(vista.Id)">@vista.Texto</button>
+    }
+</div>
 
-            @* Columnas frente al mockup: «Versión confirmada» no se pinta porque
-               PlantillaDocumentoListaDto no trae ni el número ni la fecha de la
-               versión; «Origen» (Word/PDF) sería siempre PDF, así que se
-               conserva «Formato», que sí distingue cómo se rellena. «Ámbito» no
-               lo pinta el mockup, pero la lista ya lo enseñaba. *@
-            @* La tabla tiene ancho mínimo y el marco se desplaza en horizontal:
-               como región con nombre y foco, con teclado también se puede
-               desplazar y el lector de pantalla anuncia qué contiene. *@
-            <div class="marco-lista-plantillas" role="region" aria-label="Catálogo de plantillas" tabindex="0">
-                <table class="tabla-datos">
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Ámbito</th>
-                            <th>Formato</th>
-                            <th>Estado</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var plantilla in _plantillas)
-                        {
-                            var confirmada = plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada;
-                            <tr @key="plantilla.Id" class="@(plantilla.Id == _idEnfocado ? "fila-enfocada" : null)">
-                                <td class="nombre-plantilla">@plantilla.Nombre</td>
-                                <td>@TextoAmbito(plantilla.AmbitoAplicacion)</td>
-                                <td>@(plantilla.FormatoOrigen == FormatoOrigenPlantilla.PdfConCampos ? "Campos AcroForm" : "Posición manual")</td>
-                                <td>
-                                    <Badge Tono="@(confirmada ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">
-                                        @TextoEstado(plantilla.UltimaVersionEstado)
-                                    </Badge>
-                                </td>
-                                <td>
-                                    @* «Ver» y no «Configurar» cuando la última versión
-                                       está confirmada: es inmutable y el editor la abre
-                                       en lectura (con la generación de documentos). El
-                                       mockup dice «Configurar» siempre; aquí manda lo
-                                       que el editor permite. El nombre accesible añade
-                                       la plantilla: hay un botón igual en cada fila. *@
-                                    <div class="acciones-plantilla">
-                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                               aria-label="@($"{(confirmada ? "Ver" : "Configurar")} {plantilla.Nombre}")"
-                                               OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
-                                            @(confirmada ? "Ver" : "Configurar")
-                                        </Boton>
-                                        @if (confirmada)
-                                        {
-                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                   aria-label="@($"Nueva versión de {plantilla.Nombre}")"
-                                                   OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
-                                                Nueva versión
-                                            </Boton>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
+@* La barra se monta siempre, como en Incidencias: la vista recordada y los filtros guardados no dependen de la carga. *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@PlaceholderBuscador"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
+        <Pastillas>
+            @if (_pestanaActiva == "catalogo")
+            {
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAmbito"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_ambito" ValorChanged="CambiarAmbitoAsync" Opciones="OpcionesAmbito" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroFormato"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_formato" ValorChanged="CambiarFormatoAsync" Opciones="OpcionesFormato" />
+                @* Estado: la misma selección que la franja (_estado), para que filtro y recuento sean uno. *@
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroEstado"]" TextoTodos="@Textos["PlantillasTodas"]" Valor="@_estado" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstadoPastilla" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroAlcance"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_alcance" ValorChanged="CambiarAlcanceAsync" Opciones="OpcionesAlcance" />
+            }
+            else
+            {
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroPlantilla"]" TextoTodos="@Textos["PlantillasTodas"]" Valor="@_plantillaFiltro" ValorChanged="CambiarPlantillaFiltroAsync" Opciones="OpcionesPlantilla" />
+                <PastillaFiltro Etiqueta="@Textos["PlantillasFiltroTrabajador"]" TextoTodos="@Textos["PlantillasTodos"]" Valor="@_trabajadorFiltro" ValorChanged="CambiarTrabajadorFiltroAsync" Opciones="OpcionesTrabajador" />
+            }
+        </Pastillas>
+        <Estados>
+            @if (_pestanaActiva == "catalogo")
+            {
+                <FranjaEstado CifraDetras="true" Opciones="OpcionesEstadoCatalogo" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
+                              Recuentos="RecuentosCatalogo" TotalTodos="TotalSinEstadoCatalogo" TextoTodos="@Textos["PlantillasTodas"]"
+                              EtiquetaAccesible="@Textos["PlantillasEstadoPlantillaAccesible"]" />
+            }
+            else
+            {
+                <FranjaEstado CifraDetras="true" Opciones="OpcionesEstadoGenerados" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
+                              Recuentos="_recuentosGenerados" TotalTodos="_totalSinEstadoGenerados" TextoTodos="@Textos["PlantillasTodos"]"
+                              EtiquetaAccesible="@Textos["PlantillasEstadoGeneradoAccesible"]" />
+            }
+        </Estados>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@string.Format(System.Globalization.CultureInfo.CurrentCulture, Textos["PlantillasChipBusqueda"].Value, _busqueda)" EtiquetaAccesible="@Textos["PlantillasQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Plantillas"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" ParametrosQueNoImpidenRestaurar="ParametrosQueEligenLaVista"
+                             OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Plantillas"
+                               ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+
+@if (_pestanaActiva == "catalogo")
+{
+    @if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_plantillas.Count == 0)
+    {
+        @* El alta solo acepta PDF (accept=".pdf" en ConfigurarPlantilla) y un PDF sin campos AcroForm se configura a mano por
+           posición: el texto es el del artboard, que ya no promete Word. *@
+        <EstadoVacio NombreIcono="plantilla" Titulo="Todavía no hay plantillas" Descripcion="Sube un PDF con campos o marca las posiciones a mano, y TALVEG lo rellenará con los datos de cada Trabajador.">
+            <Accion>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (Visibles.Count == 0 && HayFiltrosActivos)
+    {
+        @* Distinto de «todavía no hay plantillas»: con filtros puestos, el cero no dice que el catálogo esté vacío. *@
+        <EstadoVacio NombreIcono="filtro" Titulo="@Textos["PlantillasVacioFiltroTitulo"]" Descripcion="@DescripcionVacioPorFiltro">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["PlantillasLimpiarFiltros"]</Boton>
+            </Accion>
+        </EstadoVacio>
     }
     else
     {
-        <DocumentosGeneradosPanel AvisosPendientesCambiado="CambiarAvisosPendientes" />
+        @* j/k recorre el catálogo y Enter abre la plantilla enfocada, igual
+           que su botón. Sin «x»: el catálogo no tiene selección múltiple. *@
+        <AtajosListaTeclado OnAtajo="ManejarAtajo" />
+
+        @* Columnas: «Versión confirmada» no se pinta como columna porque el artboard la lleva en la segunda línea del nombre
+           (alcance · versión). «Origen» (Word/PDF) sería siempre PDF, así que se conserva «Formato», que sí distingue cómo
+           se rellena. La tabla tiene ancho mínimo y el marco se desplaza en horizontal: como región con nombre y foco, con
+           teclado también se puede desplazar y el lector de pantalla anuncia qué contiene. *@
+        <div class="marco-lista-plantillas" role="region" aria-label="Catálogo de plantillas" tabindex="0">
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Ámbito</th>
+                        <th>Formato</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var plantilla in Visibles)
+                    {
+                        var confirmada = plantilla.UltimaVersionEstado == EstadoConfiguracionPlantilla.Confirmada;
+                        <tr @key="plantilla.Id" class="@(plantilla.Id == _idEnfocado ? "fila-enfocada" : null)">
+                            <td class="nombre-plantilla">
+                                <span class="celda-principal">@plantilla.Nombre</span>
+                                <span class="celda-secundaria">@TextoAlcance(plantilla)</span>
+                            </td>
+                            <td>@TextoAmbito(plantilla.AmbitoAplicacion)</td>
+                            <td>@TextoFormato(plantilla.FormatoOrigen)</td>
+                            <td>
+                                <Badge Tono="@TonoEstado(plantilla.UltimaVersionEstado)" Tamano="TamanoBadge.Pequeno">
+                                    @TextoEstado(plantilla.UltimaVersionEstado)
+                                </Badge>
+                            </td>
+                            <td>
+                                @* «Ver» y no «Configurar» cuando la última versión
+                                   está confirmada: es inmutable y el editor la abre
+                                   en lectura (con la generación de documentos). El
+                                   artboard dibuja los tres botones en todas las filas;
+                                   aquí manda lo que el editor permite y las acciones no
+                                   cambian (el encargo las congela). El nombre accesible
+                                   añade la plantilla: hay un botón igual en cada fila. *@
+                                <div class="acciones-plantilla">
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           aria-label="@($"{(confirmada ? "Ver" : "Configurar")} {plantilla.Nombre}")"
+                                           OnClick="() => IrAConfigurar(plantilla.UltimaVersionId)">
+                                        @(confirmada ? "Ver" : "Configurar")
+                                    </Boton>
+                                    @if (confirmada)
+                                    {
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                               aria-label="@($"Nueva versión de {plantilla.Nombre}")"
+                                               OnClick="() => AbrirModalNuevaVersion(plantilla.Id, plantilla.Nombre)">
+                                            Nueva versión
+                                        </Boton>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
-</Pestanas>
+}
+else
+{
+    <DocumentosGeneradosPanel FiltrosEnLaBarra="true" Busqueda="@_busqueda" Estado="@_estado"
+                              PlantillaId="@IdDeFiltro(_plantillaFiltro)" TrabajadorId="@IdDeFiltro(_trabajadorFiltro)"
+                              AvisosPendientesCambiado="CambiarAvisosPendientes" DatosCargados="RecibirDatosGenerados"
+                              LimpiarSolicitado="LimpiarFiltrosAsync" />
+}
 
 <ModalFormulario HayCambios="() => HayCambiosSinGuardar" Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion"
                  Guardando="_subiendoNuevaVersion" HayErroresDeCampo="_subidaNuevaVersionFallida" TextoGuardar="Subir y configurar" TextoCancelar="Cancelar" OnGuardar="SubirNuevaVersionAsync"

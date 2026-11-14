@@ -25,9 +25,16 @@ public static class AlcanceDePlantillas
         if (plantilla.CentroId is { } centroId && !await alcance.CentroVisibleAsync(centroId, cancellationToken))
             return false;
 
-        if (plantilla.ClienteId is { } clienteEmpresarial && !await alcance.ClienteVisibleAsync(clienteEmpresarial, cancellationToken))
+        if (plantilla.ClienteEmpresarialDe() is { } clienteEmpresarial && !await alcance.ClienteVisibleAsync(clienteEmpresarial, cancellationToken))
             return false;
 
         return true;
     }
+
+    /// <summary>
+    /// El Cliente empresarial al que está atada la plantilla (<c>null</c> si no lo está). Punto único de lectura de
+    /// esa columna heredada: las lecturas con nombre canónico (la lista de plantillas, el DTO) pasan por aquí y no
+    /// extienden el uso del identificador antiguo.
+    /// </summary>
+    public static Guid? ClienteEmpresarialDe(this PlantillaDocumento plantilla) => plantilla.ClienteId;
 }

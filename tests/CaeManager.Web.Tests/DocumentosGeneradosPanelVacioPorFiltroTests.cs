@@ -32,6 +32,7 @@ public class DocumentosGeneradosPanelVacioPorFiltroTests : BunitContext
     public DocumentosGeneradosPanelVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
     }
 

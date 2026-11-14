@@ -45,13 +45,10 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/plantillas");
 
         // Mismo motivo que en el test de arriba.
-        await Ayudas.SeleccionarPestanaAsync(
-            page,
-            page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions
-            {
-                NameRegex = new System.Text.RegularExpressions.Regex("^Generados")
-            }),
-            "Generados");
+        // PR9: la vista se elige con el segmentado Catalogo | Generados (botones con aria-pressed), no con una barra role=tab.
+        var vistaGenerados = page.Locator("button.segmentado-opcion", new PageLocatorOptions { HasTextRegex = new System.Text.RegularExpressions.Regex("^Generados") });
+        await vistaGenerados.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 30_000 });
+        await vistaGenerados.ClickAsync(new LocatorClickOptions { Timeout = 15_000 });
 
         // 30 s explícitos, por el mismo motivo que en el test de arriba.
         await Assertions.Expect(page).ToHaveURLAsync(
@@ -60,9 +57,9 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/plantillas?Pestana=generados");
 
-        var pestanaActiva = page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Generados") });
-        await pestanaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        Assert.Equal("true", await pestanaActiva.GetAttributeAsync("aria-selected"));
+        var vistaActiva = page.Locator("button.segmentado-opcion", new PageLocatorOptions { HasTextRegex = new System.Text.RegularExpressions.Regex("^Generados") });
+        await vistaActiva.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await Assertions.Expect(vistaActiva).ToHaveAttributeAsync("aria-pressed", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 10_000 });
     }
 
     /// <summary>
@@ -80,8 +77,8 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
 
         await Assertions.Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/plantillas", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
-        // La pantalla de destino pinta su propia barra de secciones (Plantillas · Generados): señal de que cargó.
-        await Assertions.Expect(page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex("^Generados") }))
+        // La pantalla de destino pinta su propio segmentado (Catálogo · Generados): señal de que cargó.
+        await Assertions.Expect(page.Locator("button.segmentado-opcion", new PageLocatorOptions { HasTextRegex = new System.Text.RegularExpressions.Regex("^Generados") }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // Y el menú lateral lleva a ella sin pasar por /documentos.

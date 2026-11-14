@@ -138,6 +138,8 @@ public partial class DocumentosGen2Tests
         cabecera.TextContent.Contains("Nuevo documento").Should().Be(escritura);
         cabecera.TextContent.Contains("Subida múltiple").Should().Be(escritura);
         cabecera.TextContent.Contains("Importar documentos").Should().Be(importacion);
+        // D-27: Plantillas es página propia y Documentos la enlaza desde «Más acciones», con los roles de /plantillas.
+        cabecera.QuerySelectorAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).Contains("Plantillas").Should().Be(escritura);
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty("abrir el listado nunca selecciona documentos");
     }
 

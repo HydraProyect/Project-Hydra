@@ -34,6 +34,51 @@
     font-weight: 600;
 }
 
+/* Nombre y, debajo, alcance · versión (artboard del catálogo). */
+.celda-principal {
+    display: block;
+}
+
+.celda-secundaria {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* «Catálogo | Generados»: control segmentado del lienzo, no una barra de pestañas (D-10). */
+.segmentado {
+    display: inline-flex;
+    padding: 2px;
+    margin-bottom: var(--space-4);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.segmentado-opcion {
+    padding: var(--space-1) var(--space-4);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.segmentado-opcion[aria-pressed="true"] {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-tarjeta-lista);
+}
+
+.segmentado-opcion:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 1px;
+}
+
 .acciones-plantilla {
     display: flex;
     justify-content: flex-end;
