@@ -61,6 +61,15 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
         { "CaeManager.Infrastructure.Persistence.Repositories.AcreditacionDocumentoPlataformaRepository", Modulo.Outbound },
         { "CaeManager.Infrastructure.Persistence.Interceptors.TenantRlsConnectionInterceptor", Modulo.Nucleo },
         { "Program", Modulo.Composicion },
+        // Corte tipo a tipo dentro de un área (N-1 y D-M1): cada excepción que separa un tipo de su área tiene ancla,
+        // para que borrarla no pase inadvertida (el tipo volvería en silencio al módulo de su área).
+        { "CaeManager.Application.Clientes.IBloqueoCarteraUsuario", Modulo.Nucleo },
+        { "CaeManager.Application.Clientes.IDirectorioDestinosCartera", Modulo.Nucleo },
+        { "CaeManager.Application.Clientes.ReglaDestinoCarteraCliente", Modulo.Outbound },
+        { "CaeManager.Application.Dashboard.FotoCierreMensual", Modulo.Facturacion },
+        { "CaeManager.Application.Dashboard.ICierresCuadroDireccion", Modulo.Facturacion },
+        { "CaeManager.Application.Dashboard.ReabrirMesCuadroDireccionCommand", Modulo.Facturacion },
+        { "CaeManager.Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService", Modulo.Facturacion },
     };
 
     [Fact]
@@ -94,10 +103,25 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
             "una entrada que no clasifica ningún tipo es obsoleta o está mal escrita: bórrala o corrige la clave. Obsoletas:\n  " +
             string.Join("\n  ", obsoletas));
 
-        registro.Entradas.Where(e => e.Reservada).Should().OnlyContain(
-            e => e.Modulo != Modulo.Nucleo && e.Modulo != Modulo.Composicion
-                 && e.Clave.EndsWith("." + e.Modulo, StringComparison.Ordinal),
-            "solo se reserva el área con el nombre de su módulo, donde nace lo nuevo de ese módulo (ADR-013 § 4.7)");
+        // Qué se puede reservar lo impone la lectura (RegistroDeModulos.Leer, con su control de línea inválida).
+    }
+
+    /// <summary>
+    /// El registro solo es cerrado si mira todos los proyectos de <c>src</c>: un proyecto nuevo fuera de
+    /// <see cref="RegistroDeModulos.EnsambladosDeSrc"/> escaparía sin dar rojo.
+    /// </summary>
+    [Fact]
+    public void El_registro_mira_todos_los_proyectos_de_src()
+    {
+        var proyectos = Directory.EnumerateFiles(Path.Combine(FuentesDeSrc.RaizDelRepositorio(), "src"), "*.csproj",
+                SearchOption.AllDirectories)
+            .Select(Path.GetFileNameWithoutExtension)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        proyectos.Should().HaveCountGreaterThan(1, "control del instrumento: tiene que encontrar los proyectos de src");
+        RegistroDeModulos.EnsambladosDeSrc().Select(a => a.GetName().Name).Order(StringComparer.Ordinal)
+            .Should().Equal(proyectos, "cada proyecto de src se añade a RegistroDeModulos.EnsambladosDeSrc y al registro");
     }
 
     /// <summary>
@@ -231,6 +255,8 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
     [InlineData("area Domain.X.Y = Nucleo", "primer nivel")]
     [InlineData("area CaeManager.Domain.X = Nucleo", "sin el prefijo")]
     [InlineData("excepcion Domain.X.T = Nucleo reservada", "reservada")]
+    [InlineData("area Domain.Inbound = Outbound reservada", "nombre de su módulo")]
+    [InlineData("area Domain.Nucleo = Nucleo reservada", "nombre de su módulo")]
     [InlineData("area Domain.X = Nucleo\narea Domain.X = Outbound", "repetida")]
     public void Control_una_linea_invalida_del_registro_no_se_ignora(string texto, string mensaje)
     {

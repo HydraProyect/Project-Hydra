@@ -210,12 +210,16 @@ excepcion Application.Dashboard.Queries.FacturacionOperadorCaeDto               
 excepcion Application.Dashboard.Queries.CentrosNuevosPorClienteTotalDto                  = Facturacion provisional  # D-M1 (idem)
 excepcion Application.Dashboard.Queries.CalculosFacturacionOperadorCae                   = Facturacion provisional  # D-M1 (idem)
 excepcion Application.Dashboard.Queries.ObtenerFacturacionOperadorCaeQueryHandler        = Facturacion provisional  # D-M1 (idem)
-# Cierre mensual (D-M1, fila A'): la foto del mes congela las tarifas aplicadas; reabrir el mes la deshace.
-excepcion Application.Dashboard.FotoCierreMensual                                        = Facturacion provisional  # D-M1, A'
-excepcion Application.Dashboard.TarifaAplicadaCuadro                                     = Facturacion provisional  # D-M1, A' (FotoCierreMensual.cs)
-excepcion Application.Dashboard.ICierresCuadroDireccion                                  = Facturacion provisional  # D-M1, A'
-excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommand                         = Facturacion provisional  # D-M1, A'
-excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommandHandler                  = Facturacion provisional  # D-M1, A'
+# Cierre mensual: A' nombra la entidad y el trabajo de fondo; estos son los tipos de Application que existen solo para
+# ellos (la foto del mes congela las tarifas aplicadas; reabrir el mes la deshace). Inferencia del registro, no fila de A'.
+# Aristas a medir y congelar en M0b (contra D-F2, «Facturación solo depende del Núcleo y nadie depende de ella»): el
+# cuadro de dirección Outbound (ObtenerCuadroDireccionQuery, ObtenerSerieCuadroDireccionQuery) usa ICierresCuadroDireccion
+# e ITarifasOperadorCaeContext, y FotoCierreMensual contiene MedicionCuadroDireccion (Outbound).
+excepcion Application.Dashboard.FotoCierreMensual                                        = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.TarifaAplicadaCuadro                                     = Facturacion provisional  # D-M1 (cierre mensual; FotoCierreMensual.cs)
+excepcion Application.Dashboard.ICierresCuadroDireccion                                  = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommand                         = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommandHandler                  = Facturacion provisional  # D-M1 (cierre mensual)
 
 # Clientes: puertos de la cartera del Cliente empresarial que implementa el Núcleo (DirectorioUsuariosTenant en
 # Infrastructure.Autorizacion, BloqueoCarteraUsuario en la raíz de Persistence). Es el corte tipo a tipo de § 3 (N-1):

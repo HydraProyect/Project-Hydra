@@ -164,6 +164,10 @@ internal sealed class RegistroDeModulos
         var reservada = marcas.Contains("reservada");
         if (reservada && t[0] != "area")
             throw new FormatException($"Línea {numero} del registro de módulos: solo un área puede estar reservada: '{linea}'.");
+        if (reservada && (modulo is Modulo.Nucleo or Modulo.Composicion || !t[1].EndsWith("." + modulo, StringComparison.Ordinal)))
+            throw new FormatException(
+                $"Línea {numero} del registro de módulos: solo se reserva el área con el nombre de su módulo " +
+                $"(<Capa>.Inbound = Inbound, <Capa>.Facturacion = Facturacion): '{linea}'.");
         if (provisional && motivo.Length == 0)
             throw new FormatException(
                 $"Línea {numero} del registro de módulos: una entrada provisional lleva su motivo en un comentario '#': '{linea}'.");
