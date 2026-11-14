@@ -300,4 +300,7 @@
   <data name="NoAsignado" xml:space="preserve">
     <value>No s&apos;ha pogut assignar aquest adjunt.</value>
   </data>
+  <data name="AsignacionIndeterminada" xml:space="preserve">
+    <value>No s&apos;ha pogut confirmar si aquest adjunt ha arribat a assignar-se. Comprova-ho als Documents del fil abans de tornar-ho a provar.</value>
+  </data>
 </root>

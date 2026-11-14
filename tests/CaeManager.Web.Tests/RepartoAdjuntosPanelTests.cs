@@ -463,6 +463,61 @@ public class RepartoAdjuntosPanelTests : BunitContext
         mediador.De<AsignarAdjuntosLoteCommand>().Select(c => c.Adjuntos.Count).Should().Equal(20, 5);
     }
 
+    [Fact]
+    public void Si_una_tanda_falla_tras_asignar_otras_se_cuenta_lo_asignado_y_la_pagina_se_entera()
+    {
+        var adjuntos = Enumerable.Range(1, 25).Select(i => Adj($"doc-{i}.pdf", trabajador: Marta, tipo: TipoDniTrabajador)).ToArray();
+        var mediador = Preparar(Roles.GestorCae, adjuntos);
+        var llamadas = 0;
+        mediador.Lote = c => ++llamadas == 1
+            ? mediador.Todos(c, EstadoAsignacionAdjunto.Asignado)
+            : Result.Fallo<IReadOnlyList<ResultadoAsignacionAdjunto>>(Error.Crear("Lote.Falla", "El lote falló."));
+        var cambios = 0;
+        var cut = Pintar(() => cambios++);
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        foreach (var a in adjuntos) EscribirEmision(cut, a.NombreArchivo, "2026-03-01");
+
+        cut.Find(".adjb-p .boton-primario").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes
+            .Should().Contain(t => t.Mensaje.Contains("20 documentos asignados")));
+        cambios.Should().Be(1, "lo asignado por la primera tanda ya existe aunque la segunda falle");
+    }
+
+    [Fact]
+    public void Un_adjunto_indeterminado_no_se_pinta_como_un_rechazo_corriente()
+    {
+        var adjunto = Adj("dudoso.pdf", trabajador: Marta, tipo: TipoDniTrabajador);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        mediador.Lote = c => mediador.Todos(c, EstadoAsignacionAdjunto.Indeterminado);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        EscribirEmision(cut, "dudoso.pdf", "2026-03-01");
+
+        cut.Find(".adjb-p .boton-primario").Click();
+
+        cut.WaitForAssertion(() => cut.Find($".adjb-w[data-adjunto='{adjunto.Id}'] [role='alert']").TextContent
+            .Should().Contain("No se pudo confirmar"));
+    }
+
+    // ---------- Valores del selector de destino ----------
+
+    [Fact]
+    public void Las_opciones_de_destino_llevan_el_prefijo_de_su_clase_y_un_valor_ilegible_no_quita_el_destino()
+    {
+        var adjunto = Adj("a.pdf", trabajador: Marta);
+        var mediador = Preparar(Roles.GestorCae, adjunto);
+        var cut = Pintar();
+        cut.WaitForAssertion(() => cut.FindAll(".adjb").Should().HaveCount(1));
+        var select = "select[aria-label='Destino de a.pdf']";
+
+        cut.Find($"{select} option[value='t:{Pedro}']").Should().NotBeNull();
+        cut.Find($"{select} option[value='e:{EmpresaPropia}']").Should().NotBeNull();
+
+        cut.Find(select).Change("basura");
+
+        mediador.De<FijarDestinoAdjuntoCommand>().Should().BeEmpty("solo una cadena vacía quita el destino");
+    }
     // ---------- Agrupación y uno a uno ----------
 
     [Fact]

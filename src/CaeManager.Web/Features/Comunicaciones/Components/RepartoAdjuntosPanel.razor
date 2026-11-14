@@ -40,7 +40,7 @@
         <div class="adjb-c">
             <strong>@Textos["Titulo"]</strong>
             <span class="adjb-r">@Cabecera(resumen)</span>
-            <button type="button" class="tx-b" aria-pressed="@(BotonCabeceraPulsado(enCurso) ? "true" : "false")"
+            <button type="button" class="tx-b" aria-expanded="@(BotonCabeceraPulsado(enCurso) ? "true" : "false")"
                     @onclick="() => AlternarCabecera(enCurso)">@TextoBotonCabecera(enCurso)</button>
         </div>
 
@@ -76,7 +76,7 @@
                                             @onclick="() => _agruparPorTrabajador = true">@Textos["AgruparPorTrabajador"]</button>
                                     @if (resumen.Hechos > 0 && enCurso)
                                     {
-                                        <button type="button" class="ch @(_verResueltos ? "on" : null)" aria-pressed="@(_verResueltos ? "true" : "false")"
+                                        <button type="button" class="ch @(_verResueltos ? "on" : null)"
                                                 @onclick="() => _verResueltos = !_verResueltos">@(_verResueltos ? Textos["OcultarResueltos"] : Textos["VerResueltos", resumen.Hechos])</button>
                                     }
                                 }
@@ -194,20 +194,26 @@ else if (_errorCarga is not null)
         _errorCarga = null;
     }
 
+    // Dos lecturas de la misma conversación pueden acabar en orden inverso (la de la recarga de la página y la de después de una
+    // acción): solo vale la última que salió.
+    private int _generacionCarga;
+
     private async Task CargarAsync(Guid conversacionId)
     {
+        var generacion = ++_generacionCarga;
         try
         {
             var adjuntos = await Mediator.Send(new ObtenerRepartoAdjuntosQuery(conversacionId));
-            if (conversacionId != ConversacionId) return;
+            if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
 
             if (adjuntos.Count > 0 && !_selectoresCargados)
                 await CargarSelectoresAsync(conversacionId);
-            if (conversacionId != ConversacionId) return;
+            if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
 
             _filas = adjuntos.Select(a => new FilaReparto(a, EdicionDe(a.Id))).ToList();
             _errorCarga = null;
-            if (_enFoco && !_filas.Any(f => f.Pendiente)) _enFoco = false;
+            // Sin filas pendientes, o con el adjunto en foco ya fuera de la lista, no hay nada que mostrar «uno a uno»: se vuelve a la lista.
+            if (_enFoco && (!_filas.Any(f => f.Pendiente) || FilaEnFoco is null)) _enFoco = false;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -679,10 +685,13 @@ else if (_errorCarga is not null)
     private Task CambiarDestinoAsync(FilaReparto f, string? valor)
     {
         Guid? trabajadorId = null, empresaId = null;
-        if (valor is { Length: > 2 } && Guid.TryParse(valor.AsSpan(2), out var id))
+        if (!string.IsNullOrEmpty(valor))
         {
+            // Solo una cadena vacía quita el destino: un valor que no es «t:<id>» ni «e:<id>» no se interpreta como «quitar».
+            if (valor.Length <= 2 || !Guid.TryParse(valor.AsSpan(2), out var id)) return Task.CompletedTask;
             if (valor.StartsWith("t:", StringComparison.Ordinal)) trabajadorId = id;
             else if (valor.StartsWith("e:", StringComparison.Ordinal)) empresaId = id;
+            else return Task.CompletedTask;
         }
 
         // Un tipo elegido para una clase de destino no sirve a la otra: si cambia de Trabajador a Empresa (o al revés, o a nada),
@@ -741,15 +750,21 @@ else if (_errorCarga is not null)
     private Task AsignarAsync(IReadOnlyList<FilaReparto> filas, bool avanzar) =>
         EjecutarAsync(null, async () =>
         {
+            var conversacionId = ConversacionId;
             var asignados = 0;
             var revisiones = filas.ToDictionary(f => f.Adjunto.Id, f => f.Edicion.Revision);
+            try
+            {
             foreach (var tanda in filas.Chunk(AsignarAdjuntosLoteCommandValidator.MaximoAdjuntos))
             {
+                // Si la persona cambió de conversación a mitad de las tandas, no se manda el resto con otro hilo.
+                if (conversacionId != ConversacionId) return null;
                 var lote = tanda.Select(f => new AdjuntoAAsignar(f.Adjunto.Id, f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
-                var resultado = await Mediator.Send(new AsignarAdjuntosLoteCommand(ConversacionId, lote));
+                var resultado = await Mediator.Send(new AsignarAdjuntosLoteCommand(conversacionId, lote));
                 if (resultado.EsFallido)
                 {
-                    if (asignados > 0) AvisarAsignados(asignados);
+                    // Lo que las tandas anteriores ya asignaron existe: se dice y la página se entera aunque esta tanda falle.
+                    if (asignados > 0) { AvisarAsignados(asignados); await OnCambiado.InvokeAsync(); }
                     return resultado.Error.Mensaje;
                 }
 
@@ -760,6 +775,13 @@ else if (_errorCarga is not null)
                     {
                         asignados++;
                         edicion.Aviso = null;
+                    }
+                    else if (r.Estado == EstadoAsignacionAdjunto.Indeterminado)
+                    {
+                        // No se sabe si llegó a guardarse: no se pinta como un rechazo corriente ni se invita a reintentar a ciegas.
+                        _filaSinAsignar = true;
+                        if (!revisiones.TryGetValue(r.AdjuntoId, out var rev) || rev == edicion.Revision)
+                            edicion.Aviso = Textos["AsignacionIndeterminada"].Value;
                     }
                     else
                     {
@@ -773,6 +795,14 @@ else if (_errorCarga is not null)
 
             if (asignados > 0) AvisarAsignados(asignados);
             return null;
+            }
+            catch (Exception) when (asignados > 0)
+            {
+                // Una tanda lanzó tras otras ya asignadas: se cuenta lo asignado antes de que EjecutarAsync pinte el error.
+                AvisarAsignados(asignados);
+                await OnCambiado.InvokeAsync();
+                throw;
+            }
         }, notificar: true, avanzar: avanzar);
 
     private void AvisarAsignados(int n) =>
