@@ -13,6 +13,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.Bandeja;
+using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -198,6 +199,12 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     // los roles salvo Cliente.
     private bool _mostrarRequiereAtencion;
 
+    // «Reclamado y sin respuesta» es historial de reclamaciones: solo lo leen los roles de
+    // RolesComunicaciones.LecturaReclamaciones (decisión 2026-11-14). Consulta conserva el resto
+    // de «Requiere atención»; ni se le pinta el bloque ni se le pregunta al servidor, que además
+    // le devuelve vacío.
+    private bool _mostrarReclamadoSinRespuesta;
+
     /// <summary>
     /// Marca de un solo uso que añade el inicio de sesión
     /// (<c>RedireccionLocal.DestinoTrasLogin</c>). Desde 2026-10-21 no cambia lo
@@ -340,6 +347,8 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         {
             var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var mostrarRequiereAtencion = !estadoAutenticacion.User.IsInRole(Roles.Cliente);
+            var mostrarReclamadoSinRespuesta = mostrarRequiereAtencion
+                && RolesComunicaciones.LecturaReclamaciones.Split(',').Any(estadoAutenticacion.User.IsInRole);
             _esCoordinadorCae = estadoAutenticacion.User.IsInRole(Roles.CoordinadorCae);
             var perfilVocabulario = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery(), token);
 
@@ -392,7 +401,8 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                     }
 
                     pulso = await Mediator.Send(new ObtenerPulsoEquipoQuery(), token);
-                    sinRespuesta = await Mediator.Send(new ObtenerReclamacionesSinRespuestaQuery(), token);
+                    if (mostrarReclamadoSinRespuesta)
+                        sinRespuesta = await Mediator.Send(new ObtenerReclamacionesSinRespuestaQuery(), token);
                 }
             }
 
@@ -400,6 +410,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                 return;
 
             _mostrarRequiereAtencion = mostrarRequiereAtencion;
+            _mostrarReclamadoSinRespuesta = mostrarReclamadoSinRespuesta;
             _perfilVocabulario = perfilVocabulario;
             _kpis = kpis;
             _carteraEnOtroTenant = carteraEnOtroTenant;
