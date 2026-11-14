@@ -121,7 +121,9 @@ public class ResponsableBuzonElegible(
 
         if (perfil == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera
             && await TenantsBeneficiariosAutorizados.CarterasPorOperacion(operaciones, usuarioId, operadorTenantId, ahora)
-                .AnyAsync(v => v.Operacion.PropietarioTenantId == propietarioTenantId, cancellationToken))
+                .AnyAsync(v => v.Operacion.PropietarioTenantId == propietarioTenantId
+                               && v.Operacion.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto,
+                    cancellationToken))
             return new(perfil);
 
         // Vía heredada: el rol guardado, con la lista blanca de CurrentUserService.ResolverRolViaHeredadaAsync.

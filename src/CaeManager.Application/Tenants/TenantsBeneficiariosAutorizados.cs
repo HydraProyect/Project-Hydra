@@ -55,6 +55,15 @@ public sealed class AsignacionHeredadaVigente
 /// </para>
 ///
 /// <para>
+/// La vía de Operación solo cuenta Asignaciones de Operación de <see cref="ServicioDelContexto"/>
+/// (Outbound): el contexto que se elige, se revalida y se autoriza aquí es el de Outbound. Una
+/// Asignación de Operación Inbound del mismo Operador CAE externo sobre el mismo Tenant beneficiario
+/// no cambia la operación elegida ni da entrada por sí sola. Las etiquetas y recuentos que leen las
+/// operaciones de todos los servicios (<see cref="CarterasPorOperacionDeLaOrganizacion"/>,
+/// <see cref="OperacionesDelTenantEntero"/>, <see cref="AmbitosEfectivosDeCarteraAsync"/>) no filtran.
+/// </para>
+///
+/// <para>
 /// Cada método recibe el instante <c>ahora</c> del llamante: una sola lectura
 /// del reloj por decisión, para que dos condiciones de la misma comprobación no
 /// se evalúen en instantes distintos.
@@ -68,6 +77,14 @@ public sealed class AsignacionHeredadaVigente
 /// </summary>
 public static class TenantsBeneficiariosAutorizados
 {
+    /// <summary>
+    /// El servicio del contexto que eligen, revalidan y autorizan <see cref="OperacionesQueAutorizan"/>,
+    /// <see cref="OperaElTenantEnteroAsync"/> y <see cref="OrigenGestionadoAsync"/>. Hoy solo hay
+    /// selector de Outbound; cuando exista el de Inbound, el servicio lo elegirá la persona y no la fecha
+    /// (DN-21, punto 1), y esta constante pasará a ser un parámetro.
+    /// </summary>
+    public const ServicioCae ServicioDelContexto = ServicioCae.Outbound;
+
     /// <summary>
     /// Vía de Operación: carteras vigentes del usuario bajo operaciones vigentes
     /// externas de su Operador CAE de origen.
@@ -182,12 +199,17 @@ public static class TenantsBeneficiariosAutorizados
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
         OperacionesDelTenantEntero(operaciones, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
 
-    /// <summary>¿Opera <paramref name="tenantOrigenId"/> entero, y vigente, el Tenant propietario indicado?</summary>
+    /// <summary>
+    /// ¿Opera <paramref name="tenantOrigenId"/> entero, y vigente, el Tenant propietario indicado en
+    /// <see cref="ServicioDelContexto"/>? Es la vía sin cartera de <see cref="OperacionesQueAutorizan"/>,
+    /// vista desde el propietario (<c>ResponsableBuzonElegible</c>), con el mismo filtro de servicio.
+    /// </summary>
     public static Task<bool> OperaElTenantEnteroAsync(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, Guid propietarioTenantId, DateTime ahora,
         CancellationToken cancellationToken) =>
         OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
-            .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId, cancellationToken);
+            .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId
+                                   && operacion.Servicio == ServicioDelContexto, cancellationToken);
 
     /// <summary>
     /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la
@@ -222,13 +244,16 @@ public static class TenantsBeneficiariosAutorizados
     /// <item>Cualquier otro perfil, o ninguno: ninguna (fallo cerrado).</item>
     /// </list>
     /// Un Tenant propietario en suspensión operativa no se abre por ninguna, ni ninguna se abre
-    /// desde un Operador CAE suspendido (decisión D-3).
+    /// desde un Operador CAE suspendido (decisión D-3). Solo cuentan las de
+    /// <see cref="ServicioDelContexto"/>: una Asignación de Operación Inbound no autoriza un contexto
+    /// de Outbound, ni con cartera ni sin ella.
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora) =>
         OperacionesPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
-            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
+            .Where(operacion => operacion.Servicio == ServicioDelContexto
+                                && !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
                                 && !operaciones.TenantsSuspendidosIds.Contains(tenantOrigenId));
 
     private static IQueryable<AsignacionOperacion> OperacionesPorPerfil(
@@ -247,7 +272,9 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// La Asignación de Operación por la que el usuario puede abrir
     /// <paramref name="tenantId"/>, o <c>null</c>. Determinista (REC-136): si
-    /// varias autorizan, la vigente más reciente y, a igualdad, la de menor Id.
+    /// varias autorizan, la vigente más reciente y, a igualdad, la de menor Id. Todas son de
+    /// <see cref="ServicioDelContexto"/> (<see cref="OperacionesQueAutorizan"/>): una Inbound más
+    /// reciente no desplaza a la Outbound.
     /// </summary>
     public static Task<Guid?> OperacionQueAutorizaAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
@@ -431,7 +458,8 @@ public static class TenantsBeneficiariosAutorizados
     /// Cartera vigente bajo una operación vigente del propio Tenant de origen
     /// sobre sí mismo (raíz o interna). Es lo que decide si el origen cuenta como
     /// Tenant de la cartera (contrato del selector, § 4.2.3 y decisión 5).
-    /// No autoriza nada: el origen siempre está autorizado sobre sí mismo.
+    /// No autoriza nada: el origen siempre está autorizado sobre sí mismo. Solo cuenta una operación
+    /// de <see cref="ServicioDelContexto"/>, como en la vía de Operación.
     /// </summary>
     public static Task<bool> OrigenGestionadoAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, DateTime ahora,
@@ -445,6 +473,7 @@ public static class TenantsBeneficiariosAutorizados
                && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                && operacion.PropietarioTenantId == tenantOrigenId
                && operacion.OperadorTenantId == tenantOrigenId
+               && operacion.Servicio == ServicioDelContexto
                && operacion.Estado == EstadoAsignacion.Vigente
                && operacion.VigenciaDesde <= ahora
                && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)

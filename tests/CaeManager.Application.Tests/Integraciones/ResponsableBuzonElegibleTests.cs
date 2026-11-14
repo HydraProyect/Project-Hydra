@@ -223,6 +223,29 @@ public class ResponsableBuzonElegibleTests
             .Should().BeNull();
     }
 
+    private static AsignacionOperacion ExternaInbound() =>
+        Vigente(AsignacionOperacion.Externa(
+            Propietario, OperadorExterno, ServicioCae.Inbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora));
+
+    /// <summary>
+    /// La vía de Operación es la de <c>TenantsBeneficiariosAutorizados.OperacionesQueAutorizan</c>, también en el
+    /// servicio: una operación Inbound del Tenant entero no da al perfil de origen la entrada de Outbound.
+    /// </summary>
+    [Fact]
+    public async Task Una_operacion_Inbound_del_Tenant_entero_no_hace_atender_al_perfil_de_origen_de_acceso_total()
+    {
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "Administrador"), [ExternaInbound()]))
+            .Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Una_cartera_bajo_una_operacion_Inbound_no_hace_atender_al_Gestor_CAE_en_origen()
+    {
+        var inbound = ExternaInbound();
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "GestorCae"), [inbound], [Externa(inbound, Gestor)]))
+            .Should().NotBeNull();
+    }
+
     [Fact]
     public async Task Con_cartera_un_Gestor_CAE_en_origen_atiende_aunque_su_rol_guardado_sea_Consulta()
     {
