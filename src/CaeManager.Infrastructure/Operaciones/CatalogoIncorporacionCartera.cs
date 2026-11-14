@@ -293,15 +293,22 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        return dbContext.AsignacionesCartera.Where(c =>
+        return dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero).Where(c =>
             (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
             && c.Estado == EstadoAsignacion.Vigente
-            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-            && c.AmbitoRelacionClienteId == null
-            && c.AmbitoCentroId == null
-            && c.AmbitoTrabajadorId == null
-            && c.AmbitoProyectoId == null);
+            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta));
     }
+
+    /// <summary>
+    /// Cartera sin ninguna dimensión de ámbito: la del Tenant entero. Una sola definición para las
+    /// carteras vivas y para la regla de la fila heredada, que no puede sostenerse en una cartera
+    /// acotada (una dimensión reservada no concede nada).
+    /// </summary>
+    private static readonly System.Linq.Expressions.Expression<Func<AsignacionCartera, bool>> CarteraDelTenantEntero = c =>
+        c.AmbitoRelacionClienteId == null
+        && c.AmbitoCentroId == null
+        && c.AmbitoTrabajadorId == null
+        && c.AmbitoProyectoId == null;
 
     /// <summary>
     /// Las Asignaciones de Cartera universales vigentes del usuario, con rol Gestor CAE, sobre
@@ -695,7 +702,7 @@ public class CatalogoIncorporacionCartera(
         Guid? soloFilaId = null)
     {
         var leQuedaOtra = await (
-            from c in dbContext.AsignacionesCartera
+            from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
             join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
                   && c.PropietarioTenantId == propietarioTenantId
@@ -703,10 +710,6 @@ public class CatalogoIncorporacionCartera(
                   && c.Estado == EstadoAsignacion.Vigente
                   && c.VigenciaDesde <= ahora
                   && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-                  && c.AmbitoRelacionClienteId == null
-                  && c.AmbitoCentroId == null
-                  && c.AmbitoTrabajadorId == null
-                  && c.AmbitoProyectoId == null
                   && o.Servicio == Servicio
                   && o.OperadorTenantId == operadorTenantId
                   && o.PropietarioTenantId == propietarioTenantId
