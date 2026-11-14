@@ -13,11 +13,11 @@ public interface IAuditoriaQueryContext
     /// <c>ObtenerAuditoriaQuery</c>, una superficie administrativa de
     /// auditoría — no una lectura de negocio más. El único otro lector es
     /// <c>RegistroAccesoDocumentoSensibleService</c>, que solo pregunta si ya consta
-    /// la fila «Revisión IA» de un Documento y persona, desde que se creó la revisión
-    /// pendiente y dentro de la ventana de detección de extracción masiva, antes de
-    /// escribir otra: como mucho una fila por persona y Documento por cada revisión
-    /// pendiente y dentro de esa ventana; peticiones simultáneas pueden dejar más,
-    /// nunca menos.
+    /// la fila «Revisión IA» de un Documento y persona en el Tenant actual, desde que
+    /// se creó la revisión pendiente, antes de escribir otra: como mucho una fila por
+    /// persona y Documento desde que se creó la revisión pendiente que se abre;
+    /// peticiones simultáneas pueden dejar más, nunca menos. Solo decide la fila:
+    /// cada acceso cuenta para la señal de extracción masiva.
     /// </summary>
     IQueryable<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible { get; }
 }

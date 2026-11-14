@@ -26,9 +26,9 @@ namespace CaeManager.Application.Common;
 /// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
 /// entregarlo, todas en una sola transacción: si una falla, no queda ninguna y el zip no se entrega.
 /// Y el documento que la pantalla Revisión IA carga sola (<c>GET /documentos/revision-ia/{revisionId}/archivo</c>), con su
-/// tipo propio y deduplicado: como mucho una fila por persona y Documento por cada revisión pendiente y dentro de la
-/// ventana de detección de extracción masiva; peticiones simultáneas pueden dejar más, nunca menos
-/// (<see cref="RegistrarRevisionIaSiSensibleAsync"/>).
+/// tipo propio y la fila deduplicada: como mucho una fila por persona y Documento desde que se creó la revisión pendiente
+/// que se abre; peticiones simultáneas pueden dejar más, nunca menos; cada acceso cuenta para la señal de extracción
+/// masiva (<see cref="RegistrarRevisionIaSiSensibleAsync"/>).
 /// </para>
 ///
 /// <para>
@@ -81,20 +81,22 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// El documento de una revisión pendiente que la pantalla Revisión IA carga sola (D-49, opción C;
     /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c>): registra un
     /// <see cref="TipoAccesoDocumentoSensible.RevisionIa"/> igual que <see cref="RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>
-    /// —misma clasificación, mismo fallo en cerrado, misma señal de extracción masiva—, pero deduplicado por persona y
-    /// Documento: si ya consta una fila <c>RevisionIa</c> de ese Documento, con el mismo Usuario, Actor real y vía, ocurrida
-    /// desde <paramref name="revisionCreadaEnUtc"/> y dentro de la ventana de detección de extracción masiva
-    /// (<c>OpcionesIncidentesSeguridad.VentanaExtraccion</c>), no escribe otra (el visor pide por rangos y se recarga). La
-    /// cota de la ventana impide que deduplicar esconda una relectura masiva a la señal: toda lectura que no deja fila tiene
-    /// otra fila de esa persona y Documento ya contada en la ventana vigente (en el mismo proceso desde su arranque: el
-    /// contador de la señal vive en memoria). La consulta pasa por el filtro de Tenant y la
-    /// RLS de la tabla. Si no se puede comprobar, registra: un falso «ya registrado» dejaría un acceso sin rastro.
+    /// —misma clasificación, mismo fallo en cerrado, misma señal de extracción masiva—, pero con la fila deduplicada por
+    /// persona y Documento: si ya consta una fila <c>RevisionIa</c> de ese Documento, en el mismo Tenant, con el mismo
+    /// Usuario, Actor real y vía, ocurrida desde <paramref name="revisionCreadaEnUtc"/>, no escribe otra (el visor pide por
+    /// rangos y se recarga). La deduplicación solo decide la fila: cada acceso cuenta para la señal de extracción masiva, se
+    /// escriba la fila o no, igual que cada Apertura, así que deduplicar no esconde una relectura masiva a la señal ni
+    /// depende de lo que su contador en memoria recuerde tras un reinicio. La consulta pasa por el filtro de Tenant y la RLS
+    /// de la tabla, y compara además el Tenant actual. Si no se puede comprobar, registra: un falso «ya registrado» dejaría
+    /// un acceso sin rastro.
     ///
     /// <para>
-    /// Garantía: como mucho una fila por persona y Documento por cada revisión pendiente y dentro de la ventana de detección
-    /// de extracción masiva; peticiones simultáneas pueden dejar más, nunca menos (la comprobación y la escritura no van en
-    /// un bloqueo: la auditoría solo puede pecar por exceso). Una revisión nueva del mismo Documento deja otra fila para la
-    /// misma persona: es un acto de revisión nuevo.
+    /// Garantía: como mucho una fila por persona y Documento desde que se creó la revisión pendiente que se abre; peticiones
+    /// simultáneas pueden dejar más, nunca menos (la comprobación y la escritura no van en un bloqueo: la auditoría solo
+    /// puede pecar por exceso); cada acceso cuenta para la señal de extracción masiva. Una revisión creada después de la
+    /// última fila de esa persona deja otra fila: es un acto de revisión nuevo. La fila no identifica la revisión: con dos
+    /// revisiones pendientes del mismo Documento a la vez, la fila escrita al abrir una tapa la otra si es posterior a su
+    /// creación (hueco declarado).
     /// </para>
     /// La implementación por defecto no deduplica (registra en cada llamada): de más, nunca de menos.
     /// </summary>

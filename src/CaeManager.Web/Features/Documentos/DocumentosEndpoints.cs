@@ -36,8 +36,8 @@ public static class DocumentosEndpoints
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
 
         // Revisión IA (D-49, opción C): el visor de la revisión seleccionada se carga solo, y su acceso queda como
-        // «Revisión IA», como mucho una fila por persona y Documento por cada revisión pendiente y dentro de la ventana de
-        // detección de extracción masiva (más con peticiones simultáneas, nunca menos). El origen lo da esta ruta, ligada
+        // «Revisión IA», como mucho una fila por persona y Documento desde que se creó la revisión pendiente (más con
+        // peticiones simultáneas, nunca menos), y cada acceso cuenta para la señal de extracción masiva. El origen lo da esta ruta, ligada
         // a una revisión pendiente, nunca un dato del cliente (query, cabecera, Referer): /documentos/{id}/archivo sigue registrando una Apertura en cada GET.
         // Solo cookie de sesión y los roles de la pantalla (el claim; dentro de un Workspace operativo derivado ya es el rol
         // efectivo, y bajo una Sesión Privilegiada no hay ninguno). ObtenerRevisionIaParaVisorQuery vuelve a decidir con el
@@ -239,8 +239,9 @@ public static class DocumentosEndpoints
     /// <summary>
     /// Manejador de <c>GET /documentos/revision-ia/{revisionId}/archivo</c>: el documento de una revisión IA pendiente, para
     /// el visor que la pantalla Revisión IA carga sola (D-49, opción C). Sirve el Documento de ESA revisión —el cliente no
-    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>, como mucho una vez por persona y
-    /// Documento por cada revisión pendiente y dentro de la ventana de detección de extracción masiva
+    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>: como mucho una fila por persona y
+    /// Documento desde que se creó la revisión pendiente; peticiones simultáneas pueden dejar más, nunca menos; cada acceso
+    /// cuenta para la señal de extracción masiva
     /// (<see cref="IRegistroAccesoDocumentoSensibleService.RegistrarRevisionIaSiSensibleAsync"/>). Una revisión que quien
     /// pide no alcanza en la cola da 404, igual que un Id que no existe.
     /// </summary>

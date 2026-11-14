@@ -12,12 +12,12 @@ namespace CaeManager.Domain.Auditoria;
 /// plataforma CAE de terceros: el contenido sale hacia un tercero si el Gestor CAE
 /// lo envía, y el registro tiene que poder distinguirlo de una apertura en TALVEG.
 /// <see cref="RevisionIa"/> es el documento que la pantalla Revisión IA carga sola al seleccionar una revisión pendiente
-/// (D-49, opción C): lo sirve una ruta propia, ligada a la revisión, y se deduplica por persona (Usuario, Actor real y
-/// vía) y Documento, no una fila por petición: como mucho una fila por persona y Documento por cada revisión pendiente y
-/// dentro de la ventana de detección de extracción masiva; peticiones simultáneas pueden dejar más, nunca menos. Una
-/// revisión nueva del mismo Documento deja otra fila para la misma persona (es un acto de revisión nuevo), y pasada la
-/// ventana la relectura vuelve a registrarse y a contar para la señal. Lo decide el servidor por la ruta, nunca un dato del
-/// cliente; «Descargar» y cualquier otra vía siguen siendo <see cref="Apertura"/>.
+/// (D-49, opción C): lo sirve una ruta propia, ligada a la revisión, y la fila se deduplica por persona (Usuario, Actor
+/// real y vía) y Documento, no una por petición: como mucho una fila por persona y Documento desde que se creó la revisión
+/// pendiente que se abre; peticiones simultáneas pueden dejar más, nunca menos; cada acceso cuenta para la señal de
+/// extracción masiva, se escriba la fila o no. Una revisión creada después de la última fila de esa persona deja otra
+/// fila (es un acto de revisión nuevo); la fila no identifica la revisión. Lo decide el servidor por la ruta, nunca un dato
+/// del cliente; «Descargar» y cualquier otra vía siguen siendo <see cref="Apertura"/>.
 /// </summary>
 public enum TipoAccesoDocumentoSensible
 {

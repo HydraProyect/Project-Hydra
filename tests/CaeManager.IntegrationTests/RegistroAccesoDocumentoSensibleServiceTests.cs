@@ -94,14 +94,28 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         resultado.Elementos.Single(e => e.DocumentoId == dadoDeBaja.Id).DocumentoTitulo.Should().BeNull();
     }
 
-    private RegistroAccesoDocumentoSensibleService CrearServicioConDeduplicacion(ActorAuditoria actor, TimeProvider? reloj = null) =>
+    private RegistroAccesoDocumentoSensibleService CrearServicioConDeduplicacion(
+        ActorAuditoria actor, CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senales = null) =>
         new(_dbContext, _dbContext, new ActorAuditoriaFalso(actor),
             new RegistroAccesoDocumentoSensibleRepository(_dbContext, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance),
-            auditoriaContext: _dbContext, reloj: reloj);
+            senalesIncidente: senales, tenantActual: _tenantActual, auditoriaContext: _dbContext);
 
-    private sealed class RelojAdelantado(TimeSpan adelanto) : TimeProvider
+    /// <summary>Cuenta los avisos de Documento sensible abierto a la señal de extracción masiva.</summary>
+    private sealed class SenalesQueCuentan : CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad
     {
-        public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow() + adelanto;
+        public int DocumentosSensiblesAbiertos { get; private set; }
+
+        public Task DocumentoSensibleAbiertoAsync(Guid actorRealUsuarioId, Guid? tenantId, CancellationToken ct = default)
+        {
+            DocumentosSensiblesAbiertos++;
+            return Task.CompletedTask;
+        }
+
+        public Task InicioSesionNoReconocidoAsync(Guid usuarioId, Guid tenantPropietarioId, bool teniaContrasena, CancellationToken ct = default) =>
+            Task.CompletedTask;
+        public Task ExportacionAsync(Guid actorRealUsuarioId, Guid? tenantId, int filas, CancellationToken ct = default) => Task.CompletedTask;
+        public Task AccesoAOtroTenantRechazadoAsync(Guid usuarioId, Guid tenantOrigenId, Guid tenantObjetivoId, CancellationToken ct = default) =>
+            Task.CompletedTask;
     }
 
     private async Task<List<RegistroAccesoDocumentoSensible>> RegistrosDeAsync(Guid documentoId) =>
@@ -109,12 +123,11 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
     /// <summary>
     /// D-49, opción C: el visor de Revisión IA pide el documento cada vez que se selecciona la revisión; consta como mucho
-    /// una fila «Revisión IA» por persona y Documento por cada revisión pendiente y dentro de la ventana de detección de
-    /// extracción masiva (peticiones simultáneas pueden dejar más, nunca menos; aquí van en serie). Las Aperturas siguen
-    /// registrándose en cada llamada.
+    /// una fila «Revisión IA» por persona y Documento desde que se creó la revisión pendiente (peticiones simultáneas pueden
+    /// dejar más, nunca menos; aquí van en serie). Las Aperturas siguen registrándose en cada llamada.
     /// </summary>
     [Fact]
-    public async Task La_Revision_IA_deja_como_mucho_una_fila_por_persona_Documento_y_revision_pendiente_dentro_de_la_ventana()
+    public async Task La_Revision_IA_deja_como_mucho_una_fila_por_persona_Documento_y_revision_pendiente()
     {
         var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
         var documento = CrearDocumentoDeEmpresa(tipo.Id);
@@ -154,30 +167,28 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// La cota de la ventana de detección de extracción masiva, traducida a SQL: la misma persona, la misma revisión
-    /// pendiente, pero pasada la ventana (reloj del servicio adelantado), la fila previa ya no cuenta y se escribe otra, que
-    /// la señal vuelve a sumar. Dentro de la ventana, sí cuenta.
+    /// La fila y la señal, separadas, con la comprobación traducida a SQL: tras un «reinicio» (un servicio y una señal
+    /// nuevos, con la fila de la revisión ya persistida), cada relectura deduplicada sigue contando para la señal de
+    /// extracción masiva, como cada Apertura.
     /// </summary>
     [Fact]
-    public async Task La_Revision_IA_vuelve_a_dejar_fila_pasada_la_ventana_de_extraccion()
+    public async Task Cada_relectura_por_Revision_IA_cuenta_para_la_senal_aunque_no_deje_fila()
     {
         var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
         var documento = CrearDocumentoDeEmpresa(tipo.Id);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
-        var creada = DateTime.UtcNow.AddDays(-1);
+        var creada = DateTime.UtcNow.AddMinutes(-5);
         var actor = ActorAuditoria.Normal(Guid.NewGuid());
-        var ventana = new CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad().VentanaExtraccion;
-
         await CrearServicioConDeduplicacion(actor).RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
-        await CrearServicioConDeduplicacion(actor, new RelojAdelantado(ventana - TimeSpan.FromMinutes(5)))
-            .RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
-        (await RegistrosDeAsync(documento.Id)).Should().ContainSingle("control: dentro de la ventana, la fila previa cuenta");
 
-        await CrearServicioConDeduplicacion(actor, new RelojAdelantado(ventana + TimeSpan.FromMinutes(5)))
-            .RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
+        var senales = new SenalesQueCuentan();
+        var trasReinicio = CrearServicioConDeduplicacion(actor, senales);
+        for (var i = 0; i < 3; i++)
+            await trasReinicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, creada);
 
-        (await RegistrosDeAsync(documento.Id)).Should().HaveCount(2, "pasada la ventana, la fila previa ya no tapa la relectura");
+        (await RegistrosDeAsync(documento.Id)).Should().ContainSingle("la fila persistida tapa las relecturas");
+        senales.DocumentosSensiblesAbiertos.Should().Be(3, "cada acceso cuenta para la señal, se escriba la fila o no");
     }
 
     [Fact]

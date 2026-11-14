@@ -1,12 +1,10 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
-using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Auditoria;
 
@@ -21,11 +19,7 @@ public class RegistroAccesoDocumentoSensibleService(
     // Solo para la comprobación de «ya registrado» de RegistrarRevisionIaSiSensibleAsync. Sin él, esa vía registra en
     // cada llamada: de más, nunca de menos.
     IAuditoriaQueryContext? auditoriaContext = null,
-    ILogger<RegistroAccesoDocumentoSensibleService>? logger = null,
-    // La cota de esa misma comprobación: la ventana y el reloj de la señal de extracción masiva (ver CotaDeduplicacion).
-    // Sin ellos, los valores por defecto de las opciones y el reloj del sistema, que son los de producción sin configurar.
-    IOptions<OpcionesIncidentesSeguridad>? opcionesIncidentes = null,
-    TimeProvider? reloj = null)
+    ILogger<RegistroAccesoDocumentoSensibleService>? logger = null)
     : IRegistroAccesoDocumentoSensibleService
 {
     public async Task RegistrarSiSensibleAsync(
@@ -151,14 +145,21 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.ViaAccesoId,
             (TipoActorAuditoria)actor.ResolverTipoActor());
 
-        // Revisión IA: deduplicado, no una fila por GET (el visor pide por rangos y se recarga). Sin la misma fila ya escrita
-        // —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión pendiente y dentro de la ventana
-        // de detección de extracción masiva—, se registra. Como mucho una fila por persona y Documento por cada revisión
-        // pendiente y dentro de la ventana de detección de extracción masiva; peticiones simultáneas pueden dejar más, nunca
-        // menos: la comprobación y la escritura no van bajo un bloqueo, y la auditoría solo puede pecar por exceso. Una
-        // revisión nueva del mismo Documento deja otra fila para la misma persona: es un acto de revisión nuevo.
-        if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, CotaDeduplicacion(desde), cancellationToken))
-            return null;
+        // Señal de extracción masiva (documentos sensibles abiertos o descargados por el actor real). Se devuelve en vez de
+        // emitirse aquí para que quien agrupa varios registros en una transacción la emita solo tras confirmar.
+        SenalPendiente? senal = actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
+
+        // Revisión IA: la fila se deduplica, no una por GET (el visor pide por rangos y se recarga); la señal, no. Sin la
+        // misma fila ya escrita —mismo Tenant, Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión
+        // pendiente—, se registra. Como mucho una fila por persona y Documento desde que se creó la revisión pendiente que se
+        // abre; peticiones simultáneas pueden dejar más, nunca menos: la comprobación y la escritura no van bajo un bloqueo, y
+        // la auditoría solo puede pecar por exceso. Cada acceso cuenta para la señal de extracción masiva, se escriba la fila
+        // o no: la misma paridad que Apertura, donde cada GET suma, y sin depender de lo que el contador en memoria de la
+        // señal recuerde (se vacía al reiniciar el proceso; las filas, no). La fila no identifica la revisión: con dos
+        // revisiones pendientes del mismo Documento a la vez, la fila escrita al abrir una tapa la de la otra si es posterior
+        // a su creación (hueco declarado; identificarla exige una columna nueva).
+        if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, desde, cancellationToken))
+            return senal;
 
         // Falla en cerrado (DEC-36, REC-208): un acceso sensible que no queda
         // registrado no se sirve. El repositorio traduce el rechazo de la base
@@ -169,50 +170,28 @@ public class RegistroAccesoDocumentoSensibleService(
         if (!await repositorio.GuardarAsync(registro, cancellationToken))
             throw new AccesoDocumentoSensibleNoRegistradoException(recursoId);
 
-        // Señal de extracción masiva (documentos sensibles abiertos o descargados por el
-        // actor real), solo tras quedar registrado el acceso. Se devuelve en vez de emitirse aquí para que quien agrupa varios
-        // registros en una transacción la emita solo tras confirmar.
-        return actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
-    }
-
-    /// <summary>
-    /// Desde cuándo una fila ya escrita cuenta como la de este acceso: lo más tardío entre la creación de la revisión
-    /// pendiente y el comienzo de la ventana de detección de extracción masiva
-    /// (<see cref="OpcionesIncidentesSeguridad.VentanaExtraccion"/>, con el reloj de la señal).
-    ///
-    /// <para>
-    /// La señal (<see cref="ISenalesIncidenteSeguridad.DocumentoSensibleAbiertoAsync"/>) suma uno por cada fila escrita, por
-    /// Actor real y sin mirar el Documento, en una ventana deslizante de esa duración. Con esta cota, toda lectura que no
-    /// deja fila tiene otra fila de esa persona y Documento escrita dentro de la ventana vigente, que la señal ya contó (la
-    /// sumó al escribirla, en un instante igual o posterior a su <c>OcurridoEnUtc</c>): deduplicar no sirve para releer en
-    /// masa sin que la señal lo vea. Sin la cota, una fila de hace días taparía cada relectura de hoy. La propiedad vale
-    /// dentro del mismo proceso desde su arranque: el contador de la señal vive en memoria
-    /// (<see cref="VentanaDeslizantePorSujeto"/>), así que tras un reinicio, o en otra instancia, una fila de la ventana que
-    /// ese contador no sumó también deduplica. Para llegar al umbral hacen falta Documentos distintos, que sí dejan fila.
-    /// </para>
-    /// </summary>
-    private DateTime CotaDeduplicacion(DateTime revisionCreadaEnUtc)
-    {
-        var ventana = (opcionesIncidentes?.Value ?? new OpcionesIncidentesSeguridad()).VentanaExtraccion;
-        var inicioVentana = (reloj ?? TimeProvider.System).GetUtcNow().UtcDateTime - ventana;
-        return revisionCreadaEnUtc > inicioVentana ? revisionCreadaEnUtc : inicioVentana;
+        // La señal, solo tras quedar registrado el acceso (o constar ya registrado, arriba).
+        return senal;
     }
 
     /// <summary>
     /// ¿Consta ya la fila que <paramref name="registro"/> escribiría, ocurrida desde <paramref name="desdeUtc"/>? Lee por
-    /// <see cref="IAuditoriaQueryContext"/>, con el filtro de Tenant y la RLS de la tabla: solo ve filas del Tenant actual.
-    /// Falla en cerrado hacia el registro: sin contexto, sin Actor real (no hay de quién deduplicar) o si la consulta falla,
-    /// contesta que no, y se escribe la fila. Un falso «ya registrado» dejaría el acceso sin rastro; una fila de más, no.
+    /// <see cref="IAuditoriaQueryContext"/>, con el filtro de Tenant y la RLS de la tabla, y además compara el Tenant actual
+    /// de forma explícita: una fila de otro Tenant propietario no tapa nunca este acceso, aunque una de esas dos barreras
+    /// faltara. Falla en cerrado hacia el registro: sin contexto, sin Tenant actual, sin Actor real (no hay de quién
+    /// deduplicar) o si la consulta falla, contesta que no, y se escribe la fila. Un falso «ya registrado» dejaría el acceso
+    /// sin rastro; una fila de más, no. Solo decide la fila: la señal de extracción masiva se avisa en los dos casos.
     /// </summary>
     private async Task<bool> YaRegistradoAsync(RegistroAccesoDocumentoSensible registro, DateTime desdeUtc, CancellationToken cancellationToken)
     {
-        if (auditoriaContext is null || registro.ActorRealUsuarioId is null)
+        if (auditoriaContext is null || registro.ActorRealUsuarioId is null || tenantActual?.TenantId is not { } tenantId)
             return false;
 
         try
         {
             return await auditoriaContext.RegistrosAccesoDocumentoSensible.AnyAsync(r =>
-                r.DocumentoId == registro.DocumentoId
+                r.TenantId == tenantId
+                && r.DocumentoId == registro.DocumentoId
                 && r.TipoAcceso == registro.TipoAcceso
                 && r.UsuarioId == registro.UsuarioId
                 && r.ActorRealUsuarioId == registro.ActorRealUsuarioId

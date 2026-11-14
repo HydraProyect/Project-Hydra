@@ -104,9 +104,10 @@
                             </span>
                         </div>
                         @* D-49: el documento de la revisión seleccionada se carga solo, por la ruta de la revisión: el servidor sirve
-                           el Documento de esa revisión pendiente y lo registra como «Revisión IA», como mucho una vez por persona y
-                           Documento por cada revisión pendiente y dentro de la ventana de detección de extracción masiva (los
-                           rangos y las recargas del visor dentro de esa ventana no añaden filas). «Descargar» sigue en /documentos/{id}/archivo, como
+                           el Documento de esa revisión pendiente y lo registra como «Revisión IA»: como mucho una fila por persona y
+                           Documento desde que se creó la revisión pendiente (los rangos y las recargas del visor no añaden filas;
+                           peticiones simultáneas pueden dejar más, nunca menos), y cada petición cuenta para la señal de extracción
+                           masiva. «Descargar» sigue en /documentos/{id}/archivo, como
                            Apertura. El @key con el Id de la revisión impide que se vea el documento de otra al cambiar de selección. *@
                         <iframe
                             @key="actual.Id"
