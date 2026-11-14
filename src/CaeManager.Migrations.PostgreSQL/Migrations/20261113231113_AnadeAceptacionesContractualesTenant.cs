@@ -11,6 +11,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // El importe de permanencia que se mostró al aceptar se guarda con cada aceptación de la
+            // Solicitud de alta (#2009), para que el registro del Tenant propietario no dependa de
+            // un importe que pase el llamador.
+            migrationBuilder.AddColumn<decimal>(
+                name: "ImportePermanencia",
+                table: "AceptacionesSolicitudAlta",
+                type: "numeric(12,2)",
+                precision: 12,
+                scale: 2,
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "AceptacionesContractualesTenant",
                 columns: table => new
@@ -98,6 +109,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             migrationBuilder.DropTable(
                 name: "AcusesAceptacionContractualTenant");
+
+            migrationBuilder.DropColumn(
+                name: "ImportePermanencia",
+                table: "AceptacionesSolicitudAlta");
         }
     }
 }

@@ -33,17 +33,18 @@ public class AceptacionContractualTenantTests
         new("Opcional", "Opcional de prueba", "1.0", VigenciaV1, ObligatorioEnAlta: false, "Texto opcional");
 
     private static AceptacionDeclarada Declarada(DocumentoContractualPublicado d, DateTime cuando, bool facultades = false, string? hash = null) =>
-        new(d.Documento, d.Version, hash ?? d.HashSha256, facultades, "203.0.113.7", cuando);
+        new(d.Documento, d.Version, hash ?? d.HashSha256, facultades, "203.0.113.7", cuando, 177.00m);
 
     private static RegistrarAceptacionContractualAlta Datos(params AceptacionDeclarada[] aceptaciones) =>
-        new(Tenant, Administrador, SolicitudConAceptaciones(aceptaciones), 177.00m);
+        new(Tenant, Administrador, SolicitudConAceptaciones(aceptaciones));
 
     /// <summary>
-    /// Una Solicitud de alta real en PendientePago: las aceptaciones entran por el agregado, que ya impide
-    /// documentos repetidos, la falta de declaración de facultades y las fechas posteriores al paso a pago.
-    /// El correo va con mayúsculas para probar que se compara normalizado.
+    /// Una Solicitud de alta real, pagada: las aceptaciones entran por el agregado, que ya impide documentos
+    /// repetidos, la falta de declaración de facultades y las fechas posteriores al paso a pago. El correo va
+    /// con mayúsculas para probar que se compara normalizado.
     /// </summary>
-    private static SolicitudAlta SolicitudConAceptaciones(IReadOnlyCollection<AceptacionDeclarada> aceptaciones)
+    private static SolicitudAlta SolicitudConAceptaciones(
+        IReadOnlyCollection<AceptacionDeclarada> aceptaciones, bool pagada = true, Guid? completadaPara = null)
     {
         var inicio = Ahora.AddDays(-2);
         var token = new string('t', 43);
@@ -53,6 +54,11 @@ public class AceptacionContractualTenantTests
             return solicitud;
         solicitud.CompletarDatos("Org", "B12345674", "Calle 1", TramoTrabajadoresActivos.De1A10, true, false, inicio.AddHours(1));
         solicitud.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual, aceptaciones, "cs_test_2009", Ahora);
+        if (!pagada)
+            return solicitud;
+        solicitud.MarcarPagada("cs_test_2009", "cus_test_2009", "sub_test_2009", Ahora);
+        if (completadaPara is { } tenantCreado)
+            solicitud.Completar(tenantCreado, Ahora);
         return solicitud;
     }
 
@@ -66,7 +72,80 @@ public class AceptacionContractualTenantTests
 
         public RegistroAceptacionContractualAlta Registro() => new(
             new TenantFijo(TenantDelAmbito), new DirectorioFalso(Administradores),
-            new CuentasFalsas(Administrador, propia: true, CorreoCuenta), new CatalogoFalso(Catalogo), Repositorio, new RelojFijo(Ahora));
+            new CorreoDeCuentaFalso(Administrador, CorreoCuenta), new CatalogoFalso(Catalogo), Repositorio, new RelojFijo(Ahora));
+    }
+
+    [Fact]
+    public async Task Una_Solicitud_de_alta_completada_para_otro_Tenant_no_deja_sus_aceptaciones_en_este()
+    {
+        var e = new Escenario();
+        var solicitud = SolicitudConAceptaciones(
+            [Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)], completadaPara: Guid.NewGuid());
+
+        var r = await e.Registro().RegistrarAsync(new RegistrarAceptacionContractualAlta(Tenant, Administrador, solicitud));
+
+        r.Error.Should().Be(ErroresAceptacionContractual.FueraDelTenant);
+        e.Repositorio.Aceptaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_Solicitud_de_alta_completada_para_este_Tenant_se_registra()
+    {
+        var e = new Escenario();
+        var solicitud = SolicitudConAceptaciones(
+            [Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)], completadaPara: Tenant);
+
+        var r = await e.Registro().RegistrarAsync(new RegistrarAceptacionContractualAlta(Tenant, Administrador, solicitud));
+
+        r.EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Una_Solicitud_de_alta_sin_pagar_no_deja_evidencia_contractual()
+    {
+        var e = new Escenario();
+        var solicitud = SolicitudConAceptaciones(
+            [Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)], pagada: false);
+
+        var r = await e.Registro().RegistrarAsync(new RegistrarAceptacionContractualAlta(Tenant, Administrador, solicitud));
+
+        r.Error.Should().Be(ErroresAceptacionContractual.SolicitudNoPagada);
+        e.Repositorio.Aceptaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Las_aceptaciones_pendientes_de_otra_cuenta_no_dan_por_registrada_esta()
+    {
+        var e = new Escenario();
+        var datos = Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora));
+        e.Repositorio.Agregar(new AceptacionContractualTenant(
+            Guid.NewGuid(), datos.Solicitud.Id, Declarada(CondicionesV1, Ahora, facultades: true), Ahora));
+
+        var r = await e.Registro().RegistrarAsync(datos);
+
+        r.EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Count(a => a.UsuarioId == Administrador).Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("admin@ejemplo.test", true)]
+    [InlineData("  Admin@Ejemplo.TEST ", true)]
+    [InlineData("otra@ejemplo.test", false)]
+    [InlineData(" ", false)]
+    [InlineData(null, false)]
+    public void El_correo_de_la_cuenta_se_compara_recortado_y_normalizado(string? correoCuenta, bool coincide)
+    {
+        SolicitudAlta.CorreoCoincide(correoCuenta, SolicitudAlta.NormalizarCorreo("Admin@Ejemplo.test")).Should().Be(coincide);
+    }
+
+    [Fact]
+    public void El_correo_compara_igual_en_forma_Unicode_compuesta_y_descompuesta()
+    {
+        var compuesto = SolicitudAlta.NormalizarCorreo("josé@ejemplo.test");
+
+        SolicitudAlta.CorreoCoincide("josé@ejemplo.test", compuesto).Should().BeTrue();
+        SolicitudAlta.CorreoCoincide("josé@ejemplo.test", "").Should().BeFalse();
     }
 
     [Fact]
@@ -107,7 +186,7 @@ public class AceptacionContractualTenantTests
     {
         var e = new Escenario();
 
-        var r = await e.Registro().RegistrarAsync(new RegistrarAceptacionContractualAlta(Tenant, Administrador, SolicitudConAceptaciones([]), null));
+        var r = await e.Registro().RegistrarAsync(new RegistrarAceptacionContractualAlta(Tenant, Administrador, SolicitudConAceptaciones([])));
 
         r.Error.Should().Be(ErroresAceptacionContractual.SinAceptaciones);
         e.Repositorio.Aceptaciones.Should().BeEmpty();
@@ -190,14 +269,32 @@ public class AceptacionContractualTenantTests
     }
 
     [Fact]
-    public async Task Rechaza_un_importe_de_permanencia_negativo()
+    public async Task El_importe_registrado_es_el_que_la_Solicitud_de_alta_guardo_con_cada_aceptacion()
     {
         var e = new Escenario();
-        var r = await e.Registro().RegistrarAsync(
-            Datos(Declarada(CondicionesV1, Ahora, facultades: true), Declarada(EncargoV1, Ahora)) with { ImportePermanencia = -1m });
+        var r = await e.Registro().RegistrarAsync(Datos(
+            Declarada(CondicionesV1, Ahora, facultades: true) with { ImportePermanencia = 59.00m },
+            Declarada(EncargoV1, Ahora) with { ImportePermanencia = null }));
 
-        r.Error.Should().Be(ErroresAceptacionContractual.DatoNoValido);
-        e.Repositorio.Aceptaciones.Should().BeEmpty();
+        r.EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Single(a => a.Documento == "Condiciones").ImportePermanencia.Should().Be(59.00m);
+        e.Repositorio.Aceptaciones.Single(a => a.Documento == "Encargo").ImportePermanencia.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("1.001")]
+    [InlineData("10000000000")]
+    public void La_Solicitud_de_alta_no_admite_un_importe_de_permanencia_invalido(string importe)
+    {
+        var declarada = Declarada(CondicionesV1, Ahora, facultades: true) with
+        {
+            ImportePermanencia = decimal.Parse(importe, System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+        var crear = () => SolicitudConAceptaciones([declarada]);
+
+        crear.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -348,8 +445,8 @@ public class AceptacionContractualTenantTests
         public void Agregar(AceptacionContractualTenant aceptacion) => Aceptaciones.Add(aceptacion);
         public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => Acuses.Add(acuse);
 
-        public Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Aceptaciones.Any(a => a.SolicitudAltaId == solicitudAltaId));
+        public Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Aceptaciones.Any(a => a.SolicitudAltaId == solicitudAltaId && a.UsuarioId == usuarioId));
 
         public Task<IReadOnlyList<AceptacionContractualTenant>> ListarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<AceptacionContractualTenant>>(
@@ -394,6 +491,13 @@ public class AceptacionContractualTenantTests
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigen);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    /// <summary>La cuenta <paramref name="usuarioId"/> es propia de <see cref="Tenant"/> y tiene <paramref name="email"/>.</summary>
+    private sealed class CorreoDeCuentaFalso(Guid usuarioId, string email) : ICorreoDeCuentaAceptante
+    {
+        public Task<bool> EsCorreoDeLaCuentaAsync(Guid id, Guid tenantId, string correoNormalizado, CancellationToken cancellationToken = default) =>
+            Task.FromResult(id == usuarioId && tenantId == Tenant && SolicitudAlta.CorreoCoincide(email, correoNormalizado));
     }
 
     private sealed class CuentasFalsas(Guid usuarioId, bool propia, string email = CorreoAdministrador, bool activa = true) : IGestionCuentasUsuario

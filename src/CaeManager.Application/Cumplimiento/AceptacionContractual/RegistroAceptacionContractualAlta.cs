@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Usuarios;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
@@ -12,12 +11,14 @@ namespace CaeManager.Application.Cumplimiento.AceptacionContractual;
 /// La Solicitud de alta cargada por el Command del alta. Las aceptaciones se leen de ella, no de una lista
 /// aparte: así solo se registra lo que declaró quien verificó su correo en esa Solicitud de alta.
 /// </param>
-/// <param name="ImportePermanencia">El importe de permanencia que se mostró al aceptar, sin impuestos.</param>
+/// <remarks>
+/// El importe de permanencia tampoco lo pasa el llamador: es el que la Solicitud de alta guardó con cada
+/// aceptación (<see cref="AceptacionCondicionesAlta.ImportePermanencia"/>), el que se mostró al aceptar.
+/// </remarks>
 public sealed record RegistrarAceptacionContractualAlta(
     Guid TenantId,
     Guid UsuarioId,
-    SolicitudAlta Solicitud,
-    decimal? ImportePermanencia);
+    SolicitudAlta Solicitud);
 
 /// <summary>
 /// Materializa en el Tenant propietario las aceptaciones de la Solicitud de alta (#2009, paso 5 de
@@ -30,8 +31,10 @@ public sealed record RegistrarAceptacionContractualAlta(
 /// Concurrencia: el Command del alta modifica la misma Solicitud de alta en esa transacción
 /// (<see cref="SolicitudAlta.Completar"/>, con su versión de fila), así que de dos procesamientos
 /// simultáneos solo uno confirma. El otro se deshace entero, estas filas incluidas, y al reintentarse
-/// encuentra las aceptaciones ya registradas. El índice único (Tenant, Solicitud de alta, Documento)
-/// cierra el mismo hueco en la base de datos.
+/// encuentra las aceptaciones ya registradas. Esa versión de fila es la única defensa cuando los dos
+/// procesamientos crean Tenants distintos: el índice único (Tenant, Solicitud de alta, Documento) solo
+/// impide duplicados dentro del mismo Tenant. Por eso el Command del alta tiene que llamar a
+/// <see cref="SolicitudAlta.Completar"/> en la misma transacción que este registro.
 /// </para>
 /// </summary>
 public interface IRegistroAceptacionContractualAlta
@@ -50,6 +53,9 @@ public static class ErroresAceptacionContractual
     public static readonly Error SinDeclaracionFacultades = Error.Crear(
         "AceptacionContractual.SinDeclaracionFacultades",
         "Quien acepta tiene que declarar que tiene facultades para contratar.");
+
+    public static readonly Error SolicitudNoPagada = Error.Crear(
+        "AceptacionContractual.SolicitudNoPagada", "La aceptación solo se registra cuando la solicitud de alta está pagada.");
 
     public static readonly Error FueraDelTenant = Error.Crear(
         "AceptacionContractual.FueraDelTenant", "La aceptación solo se registra en la organización que se está dando de alta.");
@@ -79,7 +85,7 @@ public static class ErroresAceptacionContractual
 public sealed class RegistroAceptacionContractualAlta(
     ITenantActual tenantActual,
     IDirectorioUsuariosService directorioUsuarios,
-    IGestionCuentasUsuario cuentas,
+    ICorreoDeCuentaAceptante correoDeCuenta,
     ICatalogoDocumentosContractuales catalogo,
     IAceptacionContractualTenantRepository repositorio,
     TimeProvider reloj)
@@ -94,7 +100,8 @@ public sealed class RegistroAceptacionContractualAlta(
 
         var solicitud = datos.Solicitud;
         var aceptacionesSolicitud = solicitud.Aceptaciones
-            .Select(a => new AceptacionDeclarada(a.Documento, a.Version, a.HashSha256, a.DeclaraFacultades, a.Ip, a.AceptadaEnUtc))
+            .Select(a => new AceptacionDeclarada(
+                a.Documento, a.Version, a.HashSha256, a.DeclaraFacultades, a.Ip, a.AceptadaEnUtc, a.ImportePermanencia))
             .ToList();
 
         if (aceptacionesSolicitud.Count == 0)
@@ -114,12 +121,19 @@ public sealed class RegistroAceptacionContractualAlta(
             || (solicitud.TenantIdCreado is { } creado && creado != datos.TenantId))
             return Result.Fallo(ErroresAceptacionContractual.FueraDelTenant);
 
+        // Falla cerrado: solo una Solicitud de alta pagada (o ya completada, en un reintento) deja
+        // evidencia contractual en el Tenant propietario.
+        if (solicitud.Estado is not (EstadoSolicitudAlta.Pagada or EstadoSolicitudAlta.Completada))
+            return Result.Fallo(ErroresAceptacionContractual.SolicitudNoPagada);
+
         // El Command del alta se reintenta entero (estrategia de ejecución) y el webhook puede llegar
-        // dos veces: si esta Solicitud de alta ya dejó sus aceptaciones, guardadas o pendientes de guardar
-        // en esta unidad de trabajo, no se duplican. Va antes de las comprobaciones de estado que cambia
-        // (cuenta, catálogo): lo ya registrado no deja de estarlo porque luego se desactive la cuenta o se
-        // retire una versión. El índice único de la tabla lo garantiza también en la base de datos.
-        if (await repositorio.ExistenDeSolicitudAltaAsync(solicitud.Id, cancellationToken))
+        // dos veces: si esta Solicitud de alta ya dejó sus aceptaciones para esta cuenta, guardadas o
+        // pendientes de guardar en esta unidad de trabajo, no se duplican. Va antes de las comprobaciones
+        // de estado que cambia (cuenta, catálogo): lo ya registrado no deja de estarlo porque luego se
+        // desactive la cuenta o se retire una versión. El índice único de la tabla lo garantiza también
+        // en la base de datos, dentro del Tenant.
+        if (datos.UsuarioId != Guid.Empty
+            && await repositorio.ExistenDeSolicitudAltaAsync(solicitud.Id, datos.UsuarioId, cancellationToken))
             return Result.Exito();
 
         // Reglas 2 y 3 de la #2009: acepta una cuenta propia del Tenant propietario, activa y con rol de
@@ -135,9 +149,7 @@ public sealed class RegistroAceptacionContractualAlta(
         // NormalizedEmail de Identity). Sin correo verificado no hay a quién atribuirla.
         if (solicitud.CorreoVerificadoEnUtc is null || string.IsNullOrEmpty(solicitud.CorreoNormalizado))
             return Result.Fallo(ErroresAceptacionContractual.AceptanteNoAcreditado);
-        var cuenta = await cuentas.ObtenerAsync(datos.UsuarioId, cancellationToken);
-        if (cuenta is null || string.IsNullOrWhiteSpace(cuenta.Email)
-            || SolicitudAlta.NormalizarCorreo(cuenta.Email.Trim()) != solicitud.CorreoNormalizado)
+        if (!await correoDeCuenta.EsCorreoDeLaCuentaAsync(datos.UsuarioId, datos.TenantId, solicitud.CorreoNormalizado, cancellationToken))
             return Result.Fallo(ErroresAceptacionContractual.AceptanteNoAcreditado);
 
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
@@ -166,7 +178,7 @@ public sealed class RegistroAceptacionContractualAlta(
         try
         {
             nuevas = aceptacionesSolicitud
-                .Select(a => new AceptacionContractualTenant(datos.UsuarioId, solicitud.Id, a, datos.ImportePermanencia, ahoraUtc))
+                .Select(a => new AceptacionContractualTenant(datos.UsuarioId, solicitud.Id, a, ahoraUtc))
                 .ToList();
         }
         catch (ArgumentException)

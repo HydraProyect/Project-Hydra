@@ -2,14 +2,20 @@ using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.AltaAutonoma;
 
-/// <summary>Lo que declara quien acepta un documento de condiciones durante el alta autónoma.</summary>
+/// <summary>
+/// Lo que declara quien acepta un documento de condiciones durante el alta autónoma.
+/// <paramref name="ImportePermanencia"/> es el importe de permanencia que se le mostró al aceptar, sin impuestos,
+/// o <c>null</c> si no se mostró ninguno (#2009).
+/// </summary>
 public sealed record AceptacionDeclarada(
-    string Documento, string Version, string HashSha256, bool DeclaraFacultades, string Ip, DateTime AceptadaEnUtc);
+    string Documento, string Version, string HashSha256, bool DeclaraFacultades, string Ip, DateTime AceptadaEnUtc,
+    decimal? ImportePermanencia = null);
 
 /// <summary>
 /// Aceptación de un documento de condiciones en una <see cref="SolicitudAlta"/>: qué documento, qué
 /// versión, el SHA-256 del texto aceptado, si quien acepta declara tener facultades para obligar a la
-/// organización, desde qué IP y cuándo. Es la evidencia previa al alta; cuando nace el Tenant, el
+/// organización, desde qué IP, cuándo y qué importe de permanencia se le mostró. Es la evidencia previa al
+/// alta; cuando nace el Tenant, el
 /// Command del alta la materializa en <see cref="Cumplimiento.AceptacionContractualTenant"/> con
 /// <c>RegistroAceptacionContractualAlta</c> (#2009).
 /// </summary>
@@ -19,6 +25,8 @@ public class AceptacionCondicionesAlta : Entity
     public const int LongitudMaximaVersion = 50;
     public const int LongitudHash = 64;
     public const int LongitudMaximaIp = 45;
+    public const int PrecisionImporte = 12;
+    public const int EscalaImporte = 2;
 
     public Guid SolicitudAltaId { get; private set; }
     public string Documento { get; private set; } = string.Empty;
@@ -27,6 +35,12 @@ public class AceptacionCondicionesAlta : Entity
     public bool DeclaraFacultades { get; private set; }
     public string Ip { get; private set; } = string.Empty;
     public DateTime AceptadaEnUtc { get; private set; }
+
+    /// <summary>
+    /// El importe de permanencia que se mostró al aceptar, sin impuestos, o <c>null</c> si no se mostró. Se guarda
+    /// aquí, con la aceptación, para que el alta materialice el importe mostrado y no el que rija al cobrar.
+    /// </summary>
+    public decimal? ImportePermanencia { get; private set; }
 
     private AceptacionCondicionesAlta()
     {
@@ -44,6 +58,18 @@ public class AceptacionCondicionesAlta : Entity
         DeclaraFacultades = declarada.DeclaraFacultades;
         Ip = SolicitudAlta.NormalizarIp(declarada.Ip, nameof(declarada.Ip));
         AceptadaEnUtc = SolicitudAlta.ExigirUtc(declarada.AceptadaEnUtc, nameof(declarada.AceptadaEnUtc));
+        ImportePermanencia = Importe(declarada.ImportePermanencia);
+    }
+
+    private static decimal? Importe(decimal? importe)
+    {
+        // numeric(12,2): no negativo, a lo sumo dos decimales y diez cifras enteras.
+        if (importe is < 0m or >= 10_000_000_000m
+            || importe is { } valor && decimal.Round(valor, EscalaImporte) != valor)
+            throw new ArgumentException(
+                "El importe de permanencia no puede ser negativo, tener más de dos decimales ni pasar de diez cifras enteras.",
+                nameof(importe));
+        return importe;
     }
 
     private static string Texto(string? valor, int maximo, string parametro)

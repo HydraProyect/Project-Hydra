@@ -87,7 +87,7 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         await using (var runtime = CrearRuntime())
         {
             var repositorio = new AceptacionContractualTenantRepository(runtime);
-            (await repositorio.ExistenDeSolicitudAltaAsync(solicitud)).Should().BeTrue();
+            (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, _usuarioId)).Should().BeTrue();
             var lista = await repositorio.ListarAsync();
             lista.Should().HaveCount(2).And.OnlyContain(a => a.TenantId == _tenantSesion);
             (await repositorio.UltimoAcusePorAceptacionAsync()).Keys.Should().Equal(propia);
@@ -124,11 +124,13 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
         var solicitud = Guid.NewGuid();
         await using var runtime = CrearRuntime();
         var repositorio = new AceptacionContractualTenantRepository(runtime);
-        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud)).Should().BeFalse();
+        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, _usuarioId)).Should().BeFalse();
 
         repositorio.Agregar(Aceptacion(solicitud, "Condiciones"));
 
-        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud)).Should().BeTrue();
+        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, _usuarioId)).Should().BeTrue();
+        (await repositorio.ExistenDeSolicitudAltaAsync(solicitud, Guid.NewGuid())).Should().BeFalse(
+            "una fila pendiente aún no lleva Tenant: la de otra cuenta no da por registrada esta");
     }
 
     [Fact]
@@ -187,8 +189,8 @@ public class AceptacionContractualTenantBajoRlsTests : IAsyncLifetime
 
     private AceptacionContractualTenant Aceptacion(Guid solicitudAltaId, string documento) => new(
         _usuarioId, solicitudAltaId,
-        new AceptacionDeclarada(documento, "1.0", HashDePrueba, true, "203.0.113.7", DateTime.UtcNow.AddMinutes(-1)),
-        177.00m, DateTime.UtcNow);
+        new AceptacionDeclarada(documento, "1.0", HashDePrueba, true, "203.0.113.7", DateTime.UtcNow.AddMinutes(-1), 177.00m),
+        DateTime.UtcNow);
 
     private CurrentUserServiceFalso Usuario() => new(_usuarioId, Roles.Administrador, tenantOrigenId: _tenantSesion);
 

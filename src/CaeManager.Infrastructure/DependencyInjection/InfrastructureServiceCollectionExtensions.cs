@@ -672,6 +672,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IDirectorioDestinosCartera>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
+        services.AddScoped<CaeManager.Application.Cumplimiento.AceptacionContractual.ICorreoDeCuentaAceptante>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         services.AddScoped<CaeManager.Application.Plataforma.IConcesionAdministradorPorPlataforma,
             CaeManager.Infrastructure.Plataforma.ConcesionAdministradorPorPlataforma>();

@@ -47,6 +47,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<decimal?>("ImportePermanencia")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
                     b.Property<string>("Ip")
                         .IsRequired()
                         .HasMaxLength(45)

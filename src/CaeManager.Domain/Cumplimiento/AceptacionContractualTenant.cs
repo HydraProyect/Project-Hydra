@@ -29,8 +29,8 @@ public class AceptacionContractualTenant : EntidadConTenant
     public const int LongitudMaximaVersion = AceptacionCondicionesAlta.LongitudMaximaVersion;
     public const int LongitudHash = AceptacionCondicionesAlta.LongitudHash;
     public const int LongitudMaximaIp = AceptacionCondicionesAlta.LongitudMaximaIp;
-    public const int PrecisionImporte = 12;
-    public const int EscalaImporte = 2;
+    public const int PrecisionImporte = AceptacionCondicionesAlta.PrecisionImporte;
+    public const int EscalaImporte = AceptacionCondicionesAlta.EscalaImporte;
 
     /// <summary>La cuenta que aceptó: el Administrador del Tenant propietario.</summary>
     public Guid UsuarioId { get; private set; }
@@ -47,7 +47,8 @@ public class AceptacionContractualTenant : EntidadConTenant
 
     /// <summary>
     /// El importe de permanencia que se mostró al aceptar, sin impuestos, tal como se mostró. Lo calcula
-    /// quien pinta la oferta; aquí solo se guarda como evidencia. <c>null</c> si no se mostró ninguno.
+    /// quien pinta la oferta; aquí solo se guarda como evidencia, copiado de la declaración
+    /// (<see cref="AceptacionDeclarada.ImportePermanencia"/>). <c>null</c> si no se mostró ninguno.
     /// </summary>
     public decimal? ImportePermanencia { get; private set; }
 
@@ -60,15 +61,13 @@ public class AceptacionContractualTenant : EntidadConTenant
     }
 
     public AceptacionContractualTenant(
-        Guid usuarioId, Guid? solicitudAltaId, AceptacionDeclarada declarada, decimal? importePermanencia, DateTime registradaEnUtc)
+        Guid usuarioId, Guid? solicitudAltaId, AceptacionDeclarada declarada, DateTime registradaEnUtc)
     {
         ArgumentNullException.ThrowIfNull(declarada);
         if (usuarioId == Guid.Empty)
             throw new ArgumentException("La aceptación debe pertenecer a una cuenta.", nameof(usuarioId));
         if (solicitudAltaId == Guid.Empty)
             throw new ArgumentException("La Solicitud de alta de origen no puede ser vacía.", nameof(solicitudAltaId));
-        if (importePermanencia is < 0m || importePermanencia is { } importe && decimal.Round(importe, EscalaImporte) != importe)
-            throw new ArgumentException("El importe de permanencia no puede ser negativo ni tener más de dos decimales.", nameof(importePermanencia));
 
         // Valida con las mismas reglas que la evidencia previa de la Solicitud de alta: un dato que allí
         // no se admitiría tampoco se admite aquí.
@@ -85,7 +84,7 @@ public class AceptacionContractualTenant : EntidadConTenant
         DeclaraFacultades = validada.DeclaraFacultades;
         Ip = validada.Ip;
         AceptadaEnUtc = validada.AceptadaEnUtc;
-        ImportePermanencia = importePermanencia;
+        ImportePermanencia = validada.ImportePermanencia;
         RegistradaEnUtc = registrada;
     }
 }
@@ -124,8 +123,12 @@ public interface IAceptacionContractualTenantRepository
 
     void AgregarAcuse(AcuseAceptacionContractualTenant acuse);
 
-    /// <summary>Si el Tenant actual ya materializó las aceptaciones de esa Solicitud de alta.</summary>
-    Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Si el Tenant actual ya materializó las aceptaciones de esa Solicitud de alta para esa cuenta. Las
+    /// añadidas y aún sin guardar cuentan solo si son de la misma cuenta: una fila pendiente aún no lleva
+    /// Tenant (se sella al guardar), y la de otra cuenta no puede dar por registrada esta.
+    /// </summary>
+    Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default);
 
     /// <summary>Todas las aceptaciones del Tenant actual, de la más reciente a la más antigua.</summary>
     Task<IReadOnlyList<AceptacionContractualTenant>> ListarAsync(CancellationToken cancellationToken = default);
