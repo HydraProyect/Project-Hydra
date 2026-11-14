@@ -19,7 +19,7 @@ namespace CaeManager.Application.Plataforma;
 /// contra el token y el tenant que <see cref="Common.ITenantActual"/> resuelve
 /// en ese instante antes de elevar el rol — el ámbito abierto no basta por sí
 /// solo, tiene que seguir coincidiendo con ambos en el momento de cada
-/// apertura de conexión.
+/// apertura de conexión y de cada realineación de una conexión retenida.
 /// </summary>
 public static class AmbitoEscrituraPrivilegiada
 {

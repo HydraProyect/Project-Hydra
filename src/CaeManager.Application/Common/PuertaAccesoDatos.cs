@@ -76,11 +76,26 @@ namespace CaeManager.Application.Common;
 /// operaciones nuevas y espera, con tope, a que la que está en vuelo termine.
 /// Sigue sin disponerse el semáforo.
 /// </para>
+/// <para>
+/// <b>Una conexión por operación.</b> La puerta delimita la operación: desde que
+/// se toma hasta que se suelta, nadie más en el scope toca el <c>DbContext</c>.
+/// Por eso es también el sitio donde la capa de datos puede retener la conexión
+/// física abierta durante la operación entera, en vez de abrirla y cerrarla en
+/// cada comando y pagar en cada apertura el contexto RLS firmado
+/// (<c>TenantRlsConnectionInterceptor</c>). La puerta no sabe nada de EF: ofrece
+/// <see cref="RetenerHastaSalir"/>, que solo concede la retención desde el flujo
+/// de la operación que tiene la puerta en ese instante, y libera lo retenido
+/// <b>antes</b> de soltar el semáforo, también si la operación lanzó. Así
+/// <see cref="CerrarAsync"/>, que espera al semáforo, solo vuelve con la conexión
+/// ya devuelta al pool, y la operación siguiente del scope nunca hereda la
+/// conexión de la anterior.
+/// </para>
 /// </summary>
 public sealed class PuertaAccesoDatos
 {
     private readonly SemaphoreSlim _puerta = new(1, 1);
-    private readonly AsyncLocal<bool> _flujoDentro = new();
+    private readonly AsyncLocal<OperacionEnCurso?> _flujoDentro = new();
+    private OperacionEnCurso? _operacionEnCurso;
     private volatile bool _cerrada;
 
     // Sin Dispose, por lo mismo que el semáforo: sin temporizador ni WaitHandle
@@ -193,40 +208,171 @@ public sealed class PuertaAccesoDatos
 
     public async Task<T> EjecutarAsync<T>(Func<Task<T>> operacion, CancellationToken cancellationToken = default)
     {
-        if (_flujoDentro.Value)
+        if (EsReentrada())
             return await operacion();
 
         await AdquirirAsync(cancellationToken);
-        _flujoDentro.Value = true;
+        var enCurso = Entrar();
         try
         {
             return await operacion();
         }
         finally
         {
-            _flujoDentro.Value = false;
-            _puerta.Release();
+            await SalirAsync(enCurso);
         }
     }
 
     public async Task EjecutarAsync(Func<Task> operacion, CancellationToken cancellationToken = default)
     {
-        if (_flujoDentro.Value)
+        if (EsReentrada())
         {
             await operacion();
             return;
         }
 
         await AdquirirAsync(cancellationToken);
-        _flujoDentro.Value = true;
+        var enCurso = Entrar();
         try
         {
             await operacion();
         }
         finally
         {
-            _flujoDentro.Value = false;
+            await SalirAsync(enCurso);
+        }
+    }
+
+    /// <summary>
+    /// Retiene <paramref name="recurso"/> hasta que la operación que tiene la
+    /// puerta termine: llama a <paramref name="adquirir"/> ahora y a
+    /// <paramref name="liberar"/> al salir, antes de soltar el semáforo, haya
+    /// terminado bien o con excepción. Devuelve <c>false</c> sin llamar a nada si
+    /// el flujo que lo pide no es el de la operación en curso (no hay operación,
+    /// ya terminó, o es un flujo rezagado de una anterior) o si ese recurso ya
+    /// está retenido en esta operación. Si <paramref name="adquirir"/> lanza, no
+    /// queda nada retenido.
+    ///
+    /// <para>
+    /// Para la capa de datos (<c>TenantRlsConnectionInterceptor</c>), que retiene
+    /// así la conexión física durante la operación. <paramref name="liberar"/> no
+    /// debería lanzar: es limpieza, y se ejecuta sin token de cancelación.
+    /// </para>
+    /// </summary>
+    public bool RetenerHastaSalir(object recurso, Action adquirir, Func<ValueTask> liberar)
+    {
+        ArgumentNullException.ThrowIfNull(recurso);
+        ArgumentNullException.ThrowIfNull(adquirir);
+        ArgumentNullException.ThrowIfNull(liberar);
+
+        var enCurso = _flujoDentro.Value;
+        if (enCurso is null || !ReferenceEquals(enCurso, Volatile.Read(ref _operacionEnCurso)))
+            return false;
+
+        return enCurso.Retener(recurso, adquirir, liberar);
+    }
+
+    /// <summary>
+    /// Reentrada: el flujo pertenece a la operación que tiene la puerta ahora
+    /// (un <c>Send</c> anidado, o una tarea hija que la operación aún espera).
+    /// Un flujo rezagado de una operación ya terminada hereda el
+    /// <c>AsyncLocal</c> pero no es reentrada: entra por el semáforo como una
+    /// operación nueva, porque si no correría a la vez que la operación que sí
+    /// tiene la puerta, sobre el mismo <c>DbContext</c> y la conexión que esa
+    /// operación retiene, o después de <see cref="CerrarAsync"/>.
+    /// </summary>
+    private bool EsReentrada() =>
+        _flujoDentro.Value is { } enCurso && ReferenceEquals(enCurso, Volatile.Read(ref _operacionEnCurso));
+    private OperacionEnCurso Entrar()
+    {
+        var enCurso = new OperacionEnCurso();
+        Volatile.Write(ref _operacionEnCurso, enCurso);
+        _flujoDentro.Value = enCurso;
+        return enCurso;
+    }
+
+    /// <summary>
+    /// Libera lo retenido y después suelta el semáforo. El <c>finally</c>
+    /// interior garantiza que el semáforo se suelta aunque liberar lanzara: una
+    /// puerta que no se suelta deja el scope entero bloqueado.
+    ///
+    /// <para>
+    /// La operación deja de ser la vigente <b>antes</b> de liberar (segunda
+    /// revisión de Codex): mientras se cierra la conexión o se restaura el
+    /// sellado, un flujo rezagado de esta operación que despierte no es
+    /// reentrada, espera al semáforo como operación nueva y no usa el
+    /// <c>DbContext</c> a la vez que la limpieza. Las liberaciones no pasan por
+    /// <see cref="EjecutarAsync(Func{Task}, CancellationToken)"/>, así que no se
+    /// esperan a sí mismas.
+    /// </para>
+    /// </summary>
+    private async Task SalirAsync(OperacionEnCurso enCurso)
+    {
+        Volatile.Write(ref _operacionEnCurso, null);
+        try
+        {
+            await enCurso.TerminarAsync();
+        }
+        finally
+        {
+            _flujoDentro.Value = null;
             _puerta.Release();
+        }
+    }
+
+    /// <summary>
+    /// Una operación de la puerta: identifica el flujo que la tiene (los
+    /// anidados lo heredan por el <c>AsyncLocal</c>) y guarda lo que retiene.
+    /// </summary>
+    private sealed class OperacionEnCurso
+    {
+        private readonly object _candado = new();
+        private readonly List<(object Recurso, Func<ValueTask> Liberar)> _retenidos = [];
+        private bool _terminada;
+
+        public bool Retener(object recurso, Action adquirir, Func<ValueTask> liberar)
+        {
+            lock (_candado)
+            {
+                if (_terminada || _retenidos.Exists(r => ReferenceEquals(r.Recurso, recurso)))
+                    return false;
+
+                adquirir();
+                _retenidos.Add((recurso, liberar));
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Marca la operación como terminada —ningún flujo puede retener nada
+        /// más en ella— y libera en orden inverso. Si una liberación lanza, se
+        /// intentan las demás y se relanza la primera excepción al final.
+        /// </summary>
+        public async Task TerminarAsync()
+        {
+            List<(object Recurso, Func<ValueTask> Liberar)> retenidos;
+            lock (_candado)
+            {
+                _terminada = true;
+                retenidos = [.. _retenidos];
+                _retenidos.Clear();
+            }
+
+            Exception? primerError = null;
+            for (var i = retenidos.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    await retenidos[i].Liberar();
+                }
+                catch (Exception ex)
+                {
+                    primerError ??= ex;
+                }
+            }
+
+            if (primerError is not null)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(primerError);
         }
     }
 }

@@ -120,11 +120,12 @@ public sealed class FirmanteContextoRls
     /// abrió <c>TenantRlsConnectionInterceptor</c> (no hay contexto que tocar).
     ///
     /// <para>
-    /// El estado en memoria NO cambia aquí: el llamante invoca
-    /// <see cref="TokenPendiente.Confirmar"/> solo después de que el
-    /// <c>set_config</c> haya llegado a la base. Si fallara o se cancelara, la
-    /// memoria seguiría describiendo el token que la conexión tiene de verdad
-    /// (hallazgo P2 de Codex, ronda 1).
+    /// El estado en memoria NO cambia aquí, solo al invocar
+    /// <see cref="TokenPendiente.Confirmar"/> (hallazgo P2 de Codex, ronda 1).
+    /// El sellado no lo invoca (quinta revisión de Codex de la conexión por
+    /// operación): mueve el contexto solo dentro del ámbito transaccional de su
+    /// lote y lo devuelve al terminarlo, así que la memoria sigue describiendo el
+    /// contexto de base, que es el de la conexión fuera del lote.
     /// </para>
     /// </summary>
     public static async Task<TokenPendiente?> FirmarConTenantAsync(DbConnection conexion, Guid? tenantId, CancellationToken ct)
@@ -212,6 +213,36 @@ public sealed class FirmanteContextoRls
         tenantId = null;
         return false;
     }
+
+    /// <summary>
+    /// El Tenant activo del contexto de base de esta conexión: el que fijó
+    /// <c>TenantRlsConnectionInterceptor</c> al abrirla o al realinearla con el
+    /// contexto actual. Para <c>TenantSelladoInterceptor</c>: dentro de una
+    /// transacción del llamador, decide si el ámbito cambió desde que se abrió la
+    /// conexión comparando el Tenant de esta base con el de
+    /// <c>ITenantActual</c>.
+    /// </summary>
+    public static bool TryObtenerTenantBase(DbConnection conexion, out Guid? tenantId)
+    {
+        if (EstadoPorConexion.TryGetValue(conexion, out var estado))
+        {
+            tenantId = estado.Base.TenantId;
+            return true;
+        }
+
+        tenantId = null;
+        return false;
+    }
+
+    /// <summary>
+    /// ¿Tiene esta conexión un contexto firmado anotado en memoria? No lo tiene
+    /// si nunca se firmó, si se firmó sin clave (token vacío) o si una renovación
+    /// o un sellado sin clave lo vaciaron. Para <c>TenantRlsConnectionInterceptor</c>:
+    /// una conexión sin contexto firmado no está alineada aunque su sesión esté
+    /// anotada, y el siguiente comando vuelve a intentar firmar (cuarta revisión
+    /// de Codex).
+    /// </summary>
+    public static bool TieneContextoFirmado(DbConnection conexion) => EstadoPorConexion.TryGetValue(conexion, out _);
 
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
     public static void Olvidar(DbConnection conexion) => EstadoPorConexion.Remove(conexion);
