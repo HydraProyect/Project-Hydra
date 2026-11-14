@@ -87,7 +87,13 @@ public class ObtenerSubcontratasParaSelectorQueryHandlerTests
             RelacionEmpresarial.Crear(_subcontrataAjena.Id, _empresaPropia.Id, ahora)
         ]);
 
-        var resultado = await HandleAsync(GestorCaeConCartera(_subcontrataEnCartera.Id), _empresaPropia.Id);
+        // Una tercera, en cartera pero sin Relación Empresarial con esa Empresa: el filtro por
+        // EmpresaId la deja fuera aunque el alcance la admita.
+        var enCarteraSinRelacion = Empresa.CrearComoSubcontrata("Andamios Triana S.L.", null, "Estandar");
+        _empresas.ListaEmpresas.Add(enCarteraSinRelacion);
+
+        var resultado = await HandleAsync(
+            GestorCaeConCartera(_subcontrataEnCartera.Id, enCarteraSinRelacion.Id), _empresaPropia.Id);
 
         resultado.Should().ContainSingle().Which.Id.Should().Be(_subcontrataEnCartera.Id);
     }
