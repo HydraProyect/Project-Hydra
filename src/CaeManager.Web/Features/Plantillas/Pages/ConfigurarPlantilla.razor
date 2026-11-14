@@ -312,6 +312,10 @@
                                             </label>
                                         }
                                     </div>
+                                    @if (LoteSuperaTope)
+                                    {
+                                        <p class="editor-plantilla-aviso-campo" role="alert">@MensajeLoteSuperaTope</p>
+                                    }
                                 </div>
                             }
                             else if (_ambitoAplicacion == AmbitoAplicacion.Trabajador)
