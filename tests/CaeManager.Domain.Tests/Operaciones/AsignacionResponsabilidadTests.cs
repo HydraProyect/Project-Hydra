@@ -443,4 +443,73 @@ public class AsignacionResponsabilidadTests
         cartera.Ambito.EsUniversal.Should().BeTrue();
         cartera.Rol.Should().Be("CoordinadorCae");
     }
+
+    // ── Emisión desde la fila heredada y por acto explícito (decisión de Chris del 2026-11-14) ──
+
+    [Fact]
+    public void La_fila_heredada_solo_emite_a_quien_nunca_tuvo_cartera_en_el_par()
+    {
+        AsignacionCartera.FilaHeredadaPuedeEmitir([]).Should().BeTrue("es el traslado inicial del modelo antiguo");
+
+        var operacion = OperacionExterna();
+        AsignacionCartera Cartera(DateTime desde) =>
+            AsignacionCartera.Externa(operacion, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, desde, null, Ahora);
+
+        // Reactivar no repone: la cerrada por la cascada de una revocación bloquea.
+        var revocada = Cartera(Ahora.AddDays(-1));
+        revocada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+        // Tras la expiración, la fila heredada falla cerrada.
+        var expirada = Cartera(Ahora.AddDays(-1));
+        expirada.Cerrar(MotivoCierreAsignacion.Expirada, Ahora);
+        // Una Programada cerrada por una revocación bloquea también Consulta.
+        var programadaCerrada = Cartera(Ahora.AddDays(1));
+        programadaCerrada.Estado.Should().Be(EstadoAsignacion.Programada);
+        programadaCerrada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+        // Una suspendida, viva o cerrada, tampoco vuelve como vigente.
+        var suspendida = Cartera(Ahora.AddDays(-1));
+        suspendida.Suspender();
+        var suspendidaCerrada = Cartera(Ahora.AddDays(-1));
+        suspendidaCerrada.Suspender();
+        suspendidaCerrada.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+
+        foreach (var historico in new[] { revocada, expirada, programadaCerrada, suspendida, suspendidaCerrada })
+            AsignacionCartera.FilaHeredadaPuedeEmitir([historico]).Should().BeFalse(
+                $"una cartera {historico.Estado} ({historico.MotivoCierre}) es histórico: lo que fue no vuelve solo");
+    }
+
+    [Fact]
+    public void El_acto_explicito_no_emite_junto_a_una_cartera_viva_que_no_autoriza()
+    {
+        var operacion = OperacionExterna();
+        AsignacionCartera Cartera(DateTime desde) =>
+            AsignacionCartera.Externa(operacion, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, desde, null, Ahora);
+
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([]).Should().BeFalse();
+
+        var vigente = Cartera(Ahora.AddDays(-1));
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(vigente, operacion)]).Should().BeFalse();
+
+        var cerrada = Cartera(Ahora.AddDays(-1));
+        cerrada.Suspender();
+        cerrada.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(cerrada, operacion)]).Should().BeFalse(
+            "el acto explícito es quien decide volver a conceder: las cerradas no cuentan");
+
+        var suspendida = Cartera(Ahora.AddDays(-1));
+        suspendida.Suspender();
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(suspendida, operacion)]).Should().BeTrue();
+
+        var programada = Cartera(Ahora.AddDays(1));
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(programada, operacion)]).Should().BeTrue();
+
+        var operacionSuspendida = OperacionExterna();
+        var bajoSuspendida = AsignacionCartera.Externa(
+            operacionSuspendida, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+        operacionSuspendida.Suspender();
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(bajoSuspendida, operacionSuspendida)]).Should().BeTrue(
+            "una Vigente bajo una operación Suspendida está, en la práctica, suspendida");
+
+        FluentActions.Invoking(() => AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(vigente, operacionSuspendida)]))
+            .Should().Throw<ArgumentException>();
+    }
 }

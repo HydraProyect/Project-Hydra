@@ -131,6 +131,140 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             "el motivo de la petición y el Operador CAE externo quedan en la auditoría");
     }
 
+    /// <summary>
+    /// Decisión de Chris del 2026-11-14 (hallazgo de Codex en la revisión de la PR #2215): la vía de
+    /// Soporte TALVEG cierra lo mismo que <c>CerrarOperacionDelegadaAsync</c>, toda Asignación de
+    /// Operación Outbound del par, del Tenant entero o acotada a un Cliente empresarial, vigente o
+    /// programada, y sus carteras. Inbound tiene su propio ciclo y queda intacta.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_capacidad_revoca_cierra_tambien_las_operaciones_Outbound_acotadas_y_sus_carteras()
+    {
+        Guid acotadaVigente, acotadaProgramada, inbound, carteraAcotada, carteraProgramada, carteraInbound;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var uno = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente acotado uno S.A.", "B10380202", false, null, null);
+            var dos = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente acotado dos S.A.", "B10380228", false, null, null);
+            contexto.Empresas.AddRange(uno, dos);
+            var vigente = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(uno.Id), ahora, null, ahora, _gestora);
+            var programada = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(dos.Id), ahora.AddDays(2), null, ahora, _gestora);
+            var deInbound = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            var c1 = AsignacionCartera.Externa(vigente, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            // Programada y principal: la función la cierra sin recordar la marca (D-9).
+            var c2 = AsignacionCartera.Externa(programada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(3), null, ahora, _gestora);
+            c2.DesignarPrincipal();
+            var c3 = AsignacionCartera.Externa(deInbound, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            contexto.AsignacionesOperacion.AddRange(vigente, programada, deInbound);
+            contexto.AsignacionesCartera.AddRange(c1, c2, c3);
+            await contexto.SaveChangesAsync();
+            programada.Estado.Should().Be(EstadoAsignacion.Programada, "control: empieza en el futuro");
+            (acotadaVigente, acotadaProgramada, inbound, carteraAcotada, carteraProgramada, carteraInbound) =
+                (vigente.Id, programada.Id, deInbound.Id, c1.Id, c2.Id, c3.Id);
+        }
+
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+
+        foreach (var operacion in new[] { _operacion, acotadaVigente, acotadaProgramada })
+            (await EscalarAsync<string>(
+                @"SELECT ""Estado"" || '/' || ""MotivoCierre"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", operacion))
+                .Should().Be("Cerrada/Revocada", "toda Asignación de Operación Outbound del par se cierra, también las acotadas");
+        foreach (var cartera in new[] { _cartera, carteraAcotada, carteraProgramada })
+            (await EscalarAsync<string>(
+                @"SELECT ""Estado"" || '/' || ""MotivoCierre"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", cartera))
+                .Should().Be("Cerrada/Revocada", "y todas sus carteras");
+        (await EscalarAsync<string>(
+            @"SELECT ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraAcotada))
+            .Should().Be("false", "solo recuerda la marca la cartera que la llevaba");
+        (await EscalarAsync<string>(
+            @"SELECT ""EsPrincipal""::text || '/' || ""EraPrincipalAlCerrarsePorCascada""::text FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraProgramada))
+            .Should().Be("false/true", "el cierre apaga la marca y recuerda que la llevaba, como AsignacionCartera.CerrarPorCascadaDeLaOperacion; desde la opción A (2026-11-14, D-9 superada) es histórico sin lector y reactivar no la lee");
+        (await EscalarAsync<bool>(
+            @"SELECT ""VigenciaHasta"" = ""VigenciaDesde"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", acotadaProgramada))
+            .Should().BeTrue("la programada se cierra sin haber empezado, como Cerrar en C#");
+
+        (await EscalarAsync<string>(@"SELECT ""Estado"" FROM ""AsignacionesOperacion"" WHERE ""Id"" = @u;", inbound))
+            .Should().Be("Vigente", "Inbound tiene su propio ciclo");
+        (await EscalarAsync<string>(@"SELECT ""Estado"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u;", carteraInbound))
+            .Should().Be("Vigente");
+
+        var filas = await LeerAuditoriaDeSesionAsync(sesion);
+        filas.Select(f => (f.EntidadTipo, f.EntidadId)).Should().BeEquivalentTo(
+            [("DelegacionTenant", _delegacion),
+             ("AsignacionOperacion", _operacion), ("AsignacionOperacion", acotadaVigente), ("AsignacionOperacion", acotadaProgramada),
+             ("AsignacionCartera", _cartera), ("AsignacionCartera", carteraAcotada), ("AsignacionCartera", carteraProgramada)],
+            "una fila de auditoría por cada fila que la función escribe, y ninguna de Inbound");
+    }
+
+    /// <summary>
+    /// Rondas 1 y 2 de Codex en la PR #2223, con la opción A (decisión de Chris del 2026-11-14):
+    /// reactivar no repone ninguna cartera, así que la función ya no marca nada como restaurable. Cierra
+    /// por revocación toda cartera no cerrada del par, en cualquier estado —una Suspendida cuya fecha de
+    /// fin ya pasada coincide con la de su operación, una Vigente principal bajo una operación Suspendida
+    /// y la Vigente principal bajo la del Tenant entero— y apaga la marca de principal de todas.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_capacidad_cierra_toda_cartera_del_par_en_cualquier_estado_y_apaga_la_marca_de_principal()
+    {
+        var otraGestora = Guid.NewGuid();
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            SembrarCuenta(contexto, "otra-gestora", _tenantOperador, otraGestora);
+            await contexto.SaveChangesAsync();
+        }
+
+        Guid suspendida, bajoSuspendida;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var finPasado = DateTime.UtcNow.AddMinutes(-1);
+            var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
+            var cartera = AsignacionCartera.Externa(
+                operacion, otraGestora, "GestorCae", AmbitoAsignacion.Universal, ahora, finPasado, ahora, _gestora);
+            cartera.Suspender();
+
+            var cliente = CaeManager.Domain.Empresas.Empresa.CrearComoCliente("Cliente suspendido S.A.", "B10380202", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var acotada = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora, null, ahora, _gestora);
+            var vigenteBajoSuspendida = AsignacionCartera.Externa(
+                acotada, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            vigenteBajoSuspendida.DesignarPrincipal();
+            acotada.Suspender();
+
+            contexto.AsignacionesOperacion.Add(acotada);
+            contexto.AsignacionesCartera.AddRange(cartera, vigenteBajoSuspendida);
+            await contexto.SaveChangesAsync();
+            (suspendida, bajoSuspendida) = (cartera.Id, vigenteBajoSuspendida.Id);
+        }
+
+        // La colisión: la operación vigente del Tenant entero con la misma fecha de fin ya pasada que la
+        // suspendida (el job de expiración aún no la ha cerrado). Cerrar conserva esa fecha en las dos.
+        await EjecutarAsync(
+            @"UPDATE ""AsignacionesOperacion"" SET ""VigenciaHasta"" =
+                (SELECT ""VigenciaHasta"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u)
+              WHERE ""Id"" = (SELECT ""AsignacionOperacionId"" FROM ""AsignacionesCartera"" WHERE ""Id"" = @u);", suspendida);
+
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+
+        const string Marca = @"
+SELECT c.""Estado"" || '/' || c.""MotivoCierre"" || '/' || c.""EsPrincipal""::text || '/' ||
+       CASE WHEN c.""VigenciaHasta"" = o.""VigenciaHasta"" THEN 'igual' ELSE 'otro' END
+FROM ""AsignacionesCartera"" c JOIN ""AsignacionesOperacion"" o ON o.""Id"" = c.""AsignacionOperacionId""
+WHERE c.""Id"" = @u;";
+        (await EscalarAsync<string>(Marca, suspendida)).Should().Be("Cerrada/Revocada/false/igual",
+            "la suspendida se cierra y conserva la fecha de fin que compartía con su operación");
+        (await EscalarAsync<string>(Marca, bajoSuspendida)).Should().Be("Cerrada/Revocada/false/igual",
+            "la principal bajo una operación suspendida se cierra sin la marca de principal");
+        (await EscalarAsync<string>(Marca, _cartera)).Should().StartWith("Cerrada/Revocada/false/",
+            "y la principal bajo la del Tenant entero, también");
+    }
+
     // ── Cada precondición de la función, incumplida ──────────────────────────
 
     [Fact]

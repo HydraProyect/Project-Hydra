@@ -107,6 +107,13 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
         using (AmbitoTenantExplicito.Establecer(_operadorA))
             propietario.AsignacionesOperacion.AddRange(sobreX, sobreY, sobreW, sobreZ, sobreVAcotada, sobreVEntera);
+        // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
+        using (AmbitoTenantExplicito.Establecer(_operadorA))
+            propietario.DelegacionesTenant.AddRange(
+                new DelegacionTenant(_operadorA, _empresaX), new DelegacionTenant(_operadorA, _empresaY),
+                new DelegacionTenant(_operadorA, _empresaW), new DelegacionTenant(_operadorA, _empresaV));
+        using (AmbitoTenantExplicito.Establecer(_operadorB))
+            propietario.DelegacionesTenant.Add(new DelegacionTenant(_operadorB, _empresaZ));
         await propietario.SaveChangesAsync();
 
         var cerradaEnY = AsignacionCartera.Externa(sobreY, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora);

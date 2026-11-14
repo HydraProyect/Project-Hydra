@@ -78,7 +78,7 @@ public static class ClienteActivoEndpoints
         var asignacionOperacionId = tenantId == tenantOrigenId.Value
             ? null
             : await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operacionesContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
+                operacionesContext, dbContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
                 await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), ahora, cancellationToken);
 
         // El Tenant de origen del usuario siempre está autorizado sobre sí

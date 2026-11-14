@@ -341,7 +341,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
                     ? await currentUserService.ObtenerTenantOrigenIdAsync() is { } tenantOrigenId
                       && await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
-                          operacionesContext, usuarioId.Value, tenantOrigenId, tenantSeleccionado,
+                          operacionesContext, dbContext, usuarioId.Value, tenantOrigenId, tenantSeleccionado,
                           asignacionOperacionId, await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(),
                           ahora, cancellationToken)
                     : await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(

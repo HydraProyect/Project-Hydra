@@ -75,14 +75,6 @@ public class AsignacionesOperativasWriterFalso : IAsignacionesOperativasWriter
     /// <summary>Para que un test cuelgue de la operación recién abierta las carteras que la reactivación repone.</summary>
     public Action<AsignacionOperacion>? AlReabrirCarteras { get; set; }
 
-    public Task<Guid?> ReabrirCarterasDeOperadoresAsync(
-        AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default)
-    {
-        DelegacionesConCarterasReabiertas.Add(delegacionTenantId);
-        AlReabrirCarteras?.Invoke(operacion);
-        return Task.FromResult(AnteriorPrincipal);
-    }
-
     public Task CerrarCarteraOperadorAsync(
         Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, MotivoCierreAsignacion motivo,
         CancellationToken cancellationToken = default)
