@@ -251,12 +251,12 @@ public partial class DocumentosGeneradosPanel : ComponentBase, IDisposable
     private string DescripcionVacioPorFiltro => FiltrosEnLaBarra
         ? "Ninguno corresponde a los filtros puestos."
         : (_plantillaFiltro, _trabajadorFiltro) switch
-    {
-        (not null, not null) => "Ninguno corresponde a la plantilla ni al trabajador seleccionados.",
-        (not null, null) => "Ninguno corresponde a la plantilla seleccionada.",
-        (null, not null) => "Ninguno corresponde al trabajador seleccionado.",
-        _ => "Ninguno corresponde a los filtros puestos."
-    };
+        {
+            (not null, not null) => "Ninguno corresponde a la plantilla ni al trabajador seleccionados.",
+            (not null, null) => "Ninguno corresponde a la plantilla seleccionada.",
+            (null, not null) => "Ninguno corresponde al trabajador seleccionado.",
+            _ => "Ninguno corresponde a los filtros puestos."
+        };
 
     /// <summary>
     /// Quita los dos filtros en una sola recarga; encadenar los manejadores

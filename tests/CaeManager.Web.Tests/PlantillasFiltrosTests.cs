@@ -292,6 +292,23 @@ public class PlantillasFiltrosTests : BunitContext
         cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Anexo II | Ana Pérez"]));
     }
 
+    /// <summary>Sola, sin buscador que ya excluya filas: la franja de estado es la que filtra (mutación: quitarla).</summary>
+    [Fact]
+    public void Generados_filtra_solo_por_estado_en_la_franja()
+    {
+        var cut = Renderizar(CatalogoConGenerados(), "plantillas?Pestana=generados&estado=GeneradoConAvisos");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Entrega de EPI | Luis Gómez", "Anexo II | Ana Pérez"]));
+    }
+
+    [Fact]
+    public void Generados_con_el_estado_limpio_deja_solo_los_generados_sin_avisos()
+    {
+        var cut = Renderizar(CatalogoConGenerados(), "plantillas?Pestana=generados&estado=Generado");
+
+        cut.WaitForAssertion(() => FilasGenerados(cut).Should().Equal(["Entrega de EPI | Ana Pérez"]));
+    }
+
     [Fact]
     public void Generados_filtra_por_plantilla_en_el_servidor()
     {
