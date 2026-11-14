@@ -5,7 +5,6 @@ using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
-using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plataforma;
 using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
@@ -216,6 +215,9 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Plantillas.GenerarDocumentoIndividualCommandHandler",
         "Plantillas.GuardarElementosPlantillaCommandHandler",
         "Plantillas.IniciarLoteGeneracionDocumentosCommandHandler",
+        // Antes exento por delegar en GenerarDocumentoIndividual: marcar fallido el ítem de un lote ajeno no tenía
+        // vuelta atrás (IDOR, ASVS 4.0.3 V4.2.1), así que ahora comprueba él mismo la puerta del lote y el Centro.
+        "Plantillas.ProcesarItemLoteGeneracionCommandHandler",
 
         // Contratos de acceso (Inbound M1): la autoridad es la de Proyecto, por el Cliente del contrato.
         "ContratosAcceso.ActualizarContratoAccesoCommandHandler",
@@ -440,9 +442,6 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["Documentos.ConfirmarDocumentoPropuestoPorIaCommandHandler"] = new(
             "exige una persona y delega el alta en CrearDocumentoCommand, que comprueba la cartera del Trabajador",
             DelegaEn: typeof(CrearDocumentoCommand)),
-        ["Plantillas.ProcesarItemLoteGeneracionCommandHandler"] = new(
-            "cada ítem del lote se genera con GenerarDocumentoIndividualCommand, que comprueba la cartera del " +
-            "Trabajador o Cliente empresarial ítem a ítem", DelegaEn: typeof(GenerarDocumentoIndividualCommand)),
 
         // ── Plano Comercial: tarifas por rol, no por cartera ────────────────────────────────────
         ["Facturacion.CrearTarifaClienteCommandHandler"] = new(
@@ -533,7 +532,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 45;
+    private const int MaximoDeExentos = 44;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

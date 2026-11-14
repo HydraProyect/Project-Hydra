@@ -14,11 +14,35 @@ public class PlantillasQueryContextFalso : IPlantillasQueryContext
     public List<LoteGeneracionDocumento> ListaLotesGeneracionDocumento { get; } = [];
     public List<ItemGeneracionDocumento> ListaItemsGeneracionDocumento { get; } = [];
 
-    public IQueryable<PlantillaDocumento> PlantillasDocumento => new TestAsyncQueryable<PlantillaDocumento>(ListaPlantillasDocumento.AsQueryable());
-    public IQueryable<PlantillaDocumentoVersion> PlantillasDocumentoVersion => new TestAsyncQueryable<PlantillaDocumentoVersion>(ListaPlantillasDocumentoVersion.AsQueryable());
-    public IQueryable<PlantillaElemento> PlantillasElemento => new TestAsyncQueryable<PlantillaElemento>(ListaPlantillasElemento.AsQueryable());
-    public IQueryable<ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => new TestAsyncQueryable<ConocimientoDeteccionCampo>(ListaConocimientosDeteccionCampo.AsQueryable());
-    public IQueryable<DocumentoGenerado> DocumentosGenerados => new TestAsyncQueryable<DocumentoGenerado>(ListaDocumentosGenerados.AsQueryable());
-    public IQueryable<LoteGeneracionDocumento> LotesGeneracionDocumento => new TestAsyncQueryable<LoteGeneracionDocumento>(ListaLotesGeneracionDocumento.AsQueryable());
-    public IQueryable<ItemGeneracionDocumento> ItemsGeneracionDocumento => new TestAsyncQueryable<ItemGeneracionDocumento>(ListaItemsGeneracionDocumento.AsQueryable());
+    /// <summary>Cuántas consultas se han abierto sobre cualquiera de las colecciones de este contexto.</summary>
+    public int Lecturas { get; private set; }
+
+    private TestAsyncQueryable<T> Leer<T>(List<T> lista)
+    {
+        Lecturas++;
+        return new TestAsyncQueryable<T>(lista.AsQueryable());
+    }
+
+    public IQueryable<PlantillaDocumento> PlantillasDocumento => Leer(ListaPlantillasDocumento);
+    public IQueryable<PlantillaDocumentoVersion> PlantillasDocumentoVersion => Leer(ListaPlantillasDocumentoVersion);
+    public IQueryable<PlantillaElemento> PlantillasElemento => Leer(ListaPlantillasElemento);
+    public IQueryable<ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => Leer(ListaConocimientosDeteccionCampo);
+    public IQueryable<DocumentoGenerado> DocumentosGenerados => Leer(ListaDocumentosGenerados);
+    public IQueryable<LoteGeneracionDocumento> LotesGeneracionDocumento => Leer(ListaLotesGeneracionDocumento);
+    /// <summary>
+    /// Se llama justo antes de cada lectura de <see cref="ItemsGeneracionDocumento"/> con su número de orden (1, 2...),
+    /// para simular otro circuito que cambia los ítems entre dos lecturas del mismo handler (intercalado TOCTOU).
+    /// </summary>
+    public Action<int>? AntesDeLeerItems { get; set; }
+
+    private int _lecturasDeItems;
+
+    public IQueryable<ItemGeneracionDocumento> ItemsGeneracionDocumento
+    {
+        get
+        {
+            AntesDeLeerItems?.Invoke(++_lecturasDeItems);
+            return Leer(ListaItemsGeneracionDocumento);
+        }
+    }
 }

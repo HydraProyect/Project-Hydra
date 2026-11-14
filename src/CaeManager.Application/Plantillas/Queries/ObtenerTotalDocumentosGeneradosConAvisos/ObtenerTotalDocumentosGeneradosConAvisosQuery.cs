@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Plantillas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,22 +24,28 @@ public record ObtenerTotalDocumentosGeneradosConAvisosQuery : IRequest<int>;
 
 public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(
     IPlantillasQueryContext plantillasContext,
+    IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTotalDocumentosGeneradosConAvisosQuery, int>
 {
     public async Task<int> Handle(ObtenerTotalDocumentosGeneradosConAvisosQuery request, CancellationToken cancellationToken)
     {
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-
         var consulta = plantillasContext.DocumentosGenerados
             .Where(d => d.Estado == EstadoDocumentoGenerado.GeneradoConAvisos);
 
-        if (trabajadorIdsVisibles is not null)
-            consulta = consulta.Where(d => d.TrabajadorId == null || trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
-        if (empresaIdsVisibles is not null)
-            consulta = consulta.Where(d => d.EmpresaId == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value));
+        // Con acceso total no hay nada que recortar: se cuenta en la base, como antes.
+        if (await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
+            return await consulta.CountAsync(cancellationToken);
 
-        return await consulta.CountAsync(cancellationToken);
+        // Sin acceso total, el contador no es una consulta propia (V4.2.1, API4:2023): cuenta la misma función que pinta
+        // la lista, AlcanceDeDocumentosGenerados.GeneradosVisiblesAsync, sobre el universo de la lista sin filtros y con
+        // la misma puerta, así que no puede contar lo que la tabla no enseña. El estado se filtra antes en la base: la
+        // puerta decide cada fila por sus coordenadas, sin mirar las demás, y filtrar el estado antes o después da el
+        // mismo número; antes solo materializa menos. Su coste queda acotado por el de la lista (sin paginación de
+        // servidor, igual que en main).
+        var generados = await alcanceDatos.GeneradosVisiblesAsync(
+            consulta, plantillasContext, documentosContext, proyectosContext, cancellationToken);
+        return generados.Count;
     }
 }

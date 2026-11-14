@@ -62,6 +62,15 @@ public static class DocumentoAlcanceExtensions
     /// <summary>
     /// La misma puerta para varios Documentos, con una sola lectura de sus coordenadas. Devuelve los legibles: el historial
     /// cuenta, porque quien guarda un Id puede apuntar a un Documento ya sustituido.
+    ///
+    /// <para>
+    /// Las listas de Trabajadores, Empresas y Vehículos visibles se leen una vez para todos los Documentos, como
+    /// conjuntos (<see cref="CarteraEnMemoria"/>): decidir N Documentos cuesta O(N) comprobaciones, no O(N·C) contra una
+    /// Cartera de C Ids (Codex, ronda 4 de la PR #2222). Con un solo Documento no merece la pena convertir la Cartera
+    /// y se busca en la lista, como antes. Quedan por Documento la lista de Clientes empresariales
+    /// (<see cref="AlcanceDatosServiceExtensions.ClienteVisibleAsync"/>, una Cartera corta) y la lectura del Proyecto de
+    /// un Documento de Proyecto, que solo afecta a esos Documentos.
+    /// </para>
     /// </summary>
     public static async Task<HashSet<Guid>> DocumentosLegiblesAsync(
         this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> documentoIds, IDocumentosQueryContext documentosContext,
@@ -76,9 +85,10 @@ public static class DocumentoAlcanceExtensions
             .Select(d => new { d.Id, d.TrabajadorId, d.ClienteId, d.VehiculoId, d.ProyectoId, d.EmpresaId })
             .ToListAsync(cancellationToken);
 
+        var cartera = new CarteraEnMemoria(alcance, comoConjunto: documentos.Count > 1);
         foreach (var documento in documentos)
         {
-            if (await alcance.DocumentoLegibleAsync(
+            if (await DocumentoLegibleAsync(alcance, cartera,
                 documento.TrabajadorId, documento.ClienteId, documento.VehiculoId, documento.ProyectoId, documento.EmpresaId,
                 proyectosContext, cancellationToken))
                 legibles.Add(documento.Id);
@@ -88,9 +98,17 @@ public static class DocumentoAlcanceExtensions
     }
 
     /// <summary>La misma decisión sobre las coordenadas de un Documento ya leído, para quien las proyecta por su cuenta.</summary>
-    public static async Task<bool> DocumentoLegibleAsync(
+    public static Task<bool> DocumentoLegibleAsync(
         this IAlcanceDatosService alcance, Guid? trabajadorId, Guid? clienteId, Guid? vehiculoId, Guid? proyectoId, Guid? empresaId,
-        IProyectosQueryContext proyectosContext, CancellationToken cancellationToken = default)
+        IProyectosQueryContext proyectosContext, CancellationToken cancellationToken = default) =>
+        DocumentoLegibleAsync(alcance, new CarteraEnMemoria(alcance, comoConjunto: false),
+            trabajadorId, clienteId, vehiculoId, proyectoId, empresaId, proyectosContext, cancellationToken);
+
+    // La única definición del criterio; las dos públicas de arriba delegan aquí, con una Cartera por llamada.
+    private static async Task<bool> DocumentoLegibleAsync(
+        IAlcanceDatosService alcance, CarteraEnMemoria cartera,
+        Guid? trabajadorId, Guid? clienteEmpresarialId, Guid? vehiculoId, Guid? proyectoId, Guid? empresaId,
+        IProyectosQueryContext proyectosContext, CancellationToken cancellationToken)
     {
         // El ámbito (Trabajador/Cliente/Vehículo/Empresa) determina contra qué
         // cartera se comprueba el alcance — son cuatro FKs mutuamente
@@ -98,13 +116,13 @@ public static class DocumentoAlcanceExtensions
         // Documento de Trabajador es el caso más sensible: incluye archivos de
         // vigilancia de la salud (categoría especial Art. 9 RGPD).
         if (trabajadorId is { } trabajador)
-            return await alcance.TrabajadorVisibleAsync(trabajador, cancellationToken);
+            return await cartera.TrabajadorVisibleAsync(trabajador, cancellationToken);
 
-        if (clienteId is { } cliente)
+        if (clienteEmpresarialId is { } cliente)
             return await alcance.ClienteVisibleAsync(cliente, cancellationToken);
 
         if (vehiculoId is { } vehiculo)
-            return await alcance.VehiculoVisibleAsync(vehiculo, cancellationToken);
+            return await cartera.VehiculoVisibleAsync(vehiculo, cancellationToken);
 
         var clienteIdDeProyecto = proyectoId is { } proyecto
             ? await proyectosContext.Proyectos.Where(p => p.Id == proyecto).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
@@ -121,6 +139,6 @@ public static class DocumentoAlcanceExtensions
         // para servir.
         // Un Proyecto eliminado (filtro global de borrado logico) no resuelve su Cliente
         // empresarial y llega aqui sin EmpresaId (propietario exclusivo): no encontrado, no 500.
-        return empresaId is { } empresa && await alcance.EmpresaVisibleAsync(empresa, cancellationToken);
+        return empresaId is { } empresa && await cartera.EmpresaVisibleAsync(empresa, cancellationToken);
     }
 }

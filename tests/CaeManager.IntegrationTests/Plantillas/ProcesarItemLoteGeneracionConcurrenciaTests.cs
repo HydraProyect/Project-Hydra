@@ -110,6 +110,8 @@ public class ProcesarItemLoteGeneracionConcurrenciaTests : IAsyncLifetime
     private static ProcesarItemLoteGeneracionCommandHandler ConstruirHandler(CaeManagerDbContext contexto, bool exito) =>
         new(
             new ItemGeneracionDocumentoRepository(contexto), new LoteGeneracionDocumentoRepository(contexto),
+            // Con acceso total: aquí se prueba la concurrencia, no la Asignación de Cartera (eso, en los unitarios).
+            contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
             new MediatorFalso
             {
                 Respuesta = exito
