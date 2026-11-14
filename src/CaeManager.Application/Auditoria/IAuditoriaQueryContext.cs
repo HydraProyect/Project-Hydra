@@ -15,9 +15,10 @@ public interface IAuditoriaQueryContext
     /// <c>RegistroAccesoDocumentoSensibleService</c>, que solo pregunta si ya consta
     /// la fila «Revisión IA» de un Documento y persona en el Tenant actual, desde que
     /// se creó la revisión pendiente, antes de escribir otra: como mucho una fila por
-    /// persona y Documento desde que se creó la revisión pendiente que se abre;
-    /// peticiones simultáneas pueden dejar más, nunca menos. Solo decide la fila:
-    /// cada acceso cuenta para la señal de extracción masiva.
+    /// persona y revisión pendiente: con una sola revisión pendiente del Documento se
+    /// deduplica por persona y Documento desde que se creó; con varias, cada acceso deja
+    /// fila (y no llega a preguntar); peticiones simultáneas pueden dejar más, nunca
+    /// menos. Solo decide la fila: cada acceso cuenta para la señal de extracción masiva.
     /// </summary>
     IQueryable<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible { get; }
 }

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
@@ -149,15 +150,14 @@ public class RegistroAccesoDocumentoSensibleService(
         // emitirse aquí para que quien agrupa varios registros en una transacción la emita solo tras confirmar.
         SenalPendiente? senal = actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
 
-        // Revisión IA: la fila se deduplica, no una por GET (el visor pide por rangos y se recarga); la señal, no. Sin la
-        // misma fila ya escrita —mismo Tenant, Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión
-        // pendiente—, se registra. Como mucho una fila por persona y Documento desde que se creó la revisión pendiente que se
-        // abre; peticiones simultáneas pueden dejar más, nunca menos: la comprobación y la escritura no van bajo un bloqueo, y
-        // la auditoría solo puede pecar por exceso. Cada acceso cuenta para la señal de extracción masiva, se escriba la fila
-        // o no: la misma paridad que Apertura, donde cada GET suma, y sin depender de lo que el contador en memoria de la
-        // señal recuerde (se vacía al reiniciar el proceso; las filas, no). La fila no identifica la revisión: con dos
-        // revisiones pendientes del mismo Documento a la vez, la fila escrita al abrir una tapa la de la otra si es posterior
-        // a su creación (hueco declarado; identificarla exige una columna nueva).
+        // Revisión IA: la fila se deduplica, no una por GET (el visor pide por rangos y se recarga); la señal, no. Como mucho
+        // una fila por persona y revisión pendiente: con una sola revisión pendiente del Documento se deduplica por persona y
+        // Documento desde que se creó —la misma fila ya escrita: mismo Tenant, Documento, tipo, Usuario, Actor real y vía—;
+        // con varias, cada acceso deja fila, porque la fila no identifica la revisión y la de una taparía la otra.
+        // Peticiones simultáneas pueden dejar más, nunca menos: la comprobación y la escritura no van bajo un bloqueo, y la
+        // auditoría solo puede pecar por exceso. Cada acceso cuenta para la señal de extracción masiva, se escriba la fila o
+        // no: la misma paridad que Apertura, donde cada GET suma, y sin depender de lo que el contador en memoria de la señal
+        // recuerde (se vacía al reiniciar el proceso; las filas, no).
         if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, desde, cancellationToken))
             return senal;
 
@@ -178,8 +178,9 @@ public class RegistroAccesoDocumentoSensibleService(
     /// ¿Consta ya la fila que <paramref name="registro"/> escribiría, ocurrida desde <paramref name="desdeUtc"/>? Lee por
     /// <see cref="IAuditoriaQueryContext"/>, con el filtro de Tenant y la RLS de la tabla, y además compara el Tenant actual
     /// de forma explícita: una fila de otro Tenant propietario no tapa nunca este acceso, aunque una de esas dos barreras
-    /// faltara. Falla en cerrado hacia el registro: sin contexto, sin Tenant actual, sin Actor real (no hay de quién
-    /// deduplicar) o si la consulta falla, contesta que no, y se escribe la fila. Un falso «ya registrado» dejaría el acceso
+    /// faltara. Con más de una revisión pendiente del Documento (<see cref="ColaRevisionIa.Pendientes"/>) contesta que no:
+    /// la fila no dice de qué revisión es. Falla en cerrado hacia el registro: sin contexto, sin Tenant actual, sin Actor
+    /// real (no hay de quién deduplicar) o si alguna de las dos consultas falla, contesta que no, y se escribe la fila. Un falso «ya registrado» dejaría el acceso
     /// sin rastro; una fila de más, no. Solo decide la fila: la señal de extracción masiva se avisa en los dos casos.
     /// </summary>
     private async Task<bool> YaRegistradoAsync(RegistroAccesoDocumentoSensible registro, DateTime desdeUtc, CancellationToken cancellationToken)
@@ -189,6 +190,15 @@ public class RegistroAccesoDocumentoSensibleService(
 
         try
         {
+            // La fila no identifica la revisión: con varias revisiones pendientes del Documento, la fila de una taparía el
+            // acceso por otra. Entonces no se deduplica y cada acceso deja fila. «Pendiente» es la de la cola
+            // (ColaRevisionIa.Pendientes), sin acotar por cartera: contar de más solo lleva a escribir la fila.
+            var revisionesPendientesDelDocumento = await ColaRevisionIa.Pendientes(documentosContext, trabajadorIdsVisibles: null)
+                .Where(p => p.Revision.DocumentoId == registro.DocumentoId)
+                .CountAsync(cancellationToken);
+            if (revisionesPendientesDelDocumento > 1)
+                return false;
+
             return await auditoriaContext.RegistrosAccesoDocumentoSensible.AnyAsync(r =>
                 r.TenantId == tenantId
                 && r.DocumentoId == registro.DocumentoId

@@ -123,7 +123,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
     /// <summary>
     /// D-49, opción C: el visor de Revisión IA pide el documento cada vez que se selecciona la revisión; consta como mucho
-    /// una fila «Revisión IA» por persona y Documento desde que se creó la revisión pendiente (peticiones simultáneas pueden
+    /// una fila «Revisión IA» por persona y Documento desde que se creó la única revisión pendiente (peticiones simultáneas pueden
     /// dejar más, nunca menos; aquí van en serie). Las Aperturas siguen registrándose en cada llamada.
     /// </summary>
     [Fact]
@@ -164,6 +164,39 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await otra.RegistrarRevisionIaSiSensibleAsync(documento.Id, DateTime.UtcNow.AddMinutes(1));
 
         (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().Be(3);
+    }
+
+    /// <summary>
+    /// Dos revisiones pendientes del mismo Documento a la vez: la fila no identifica la revisión, así que no se deduplica y
+    /// cada apertura deja fila, con el recuento de pendientes traducido a SQL bajo el filtro de Tenant. Al resolver una,
+    /// vuelve la deduplicación.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_revisiones_pendientes_del_mismo_Documento_cada_apertura_deja_fila()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        var a = RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)");
+        var b = RevisionIaDocumento.Crear(documento.Id, 40, null, null, null, null, "Confianza baja (40%)");
+        _dbContext.RevisionesIaDocumento.AddRange(a, b);
+        await _dbContext.SaveChangesAsync();
+        var servicio = CrearServicioConDeduplicacion(ActorAuditoria.Normal(Guid.NewGuid()));
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, b.CreadaEnUtc);
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
+
+        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
+            .Should().Be(3, "con dos pendientes, cada acceso deja fila");
+
+        b.Resolver();
+        await _dbContext.SaveChangesAsync();
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documento.Id, a.CreadaEnUtc);
+
+        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
+            .Should().Be(3, "con una sola pendiente vuelve la deduplicación");
     }
 
     /// <summary>

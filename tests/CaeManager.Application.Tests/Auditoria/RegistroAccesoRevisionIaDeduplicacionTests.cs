@@ -17,8 +17,8 @@ namespace CaeManager.Application.Tests.Auditoria;
 
 /// <summary>
 /// El acceso «Revisión IA» (D-49, opción C) separa la fila de auditoría de la señal de extracción masiva: la fila se
-/// deduplica —como mucho una por persona y Documento desde que se creó la revisión pendiente; peticiones simultáneas pueden
-/// dejar más, nunca menos—, y cada acceso cuenta para la señal, se escriba la fila o no. La deduplicación falla en cerrado
+/// deduplica —como mucho una por persona y revisión pendiente: con una sola revisión pendiente del Documento, por persona y
+/// Documento desde que se creó; con varias, cada acceso deja fila; peticiones simultáneas pueden dejar más, nunca menos—, y cada acceso cuenta para la señal, se escriba la fila o no. La deduplicación falla en cerrado
 /// hacia el registro: si la comprobación de «ya registrado» no se puede hacer, se escribe la fila igualmente y queda un aviso
 /// sin datos personales. Contra la base (filtro de Tenant, RLS, traducción a SQL) lo prueba la suite de integración
 /// (<c>RegistroAccesoDocumentoSensibleServiceTests</c>); aquí, con contextos en memoria, solo la decisión del servicio.
@@ -295,6 +295,134 @@ public class RegistroAccesoRevisionIaDeduplicacionTests
         await servicio.RegistrarRevisionIaSiSensibleAsync(DocumentoId, RevisionCreadaEnUtc);
 
         repositorio.Guardados.Should().BeEmpty("la fila ya consta: el contenedor inyectó el contexto de auditoría");
+    }
+
+    // ── Varias revisiones pendientes del mismo Documento ──────────────────
+    // La fila no identifica la revisión: con dos pendientes a la vez, la fila escrita al abrir una taparía el acceso por la
+    // otra. Con más de una pendiente no se deduplica; con una sola, sí. Las filas se escriben y se leen del mismo almacén,
+    // así que la segunda apertura ve la fila de la primera, como en la base.
+
+    /// <summary>A y B pendientes del mismo Documento, abiertas en los dos órdenes: cada una deja su fila, y las dos cuentan para la señal.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Con_dos_revisiones_pendientes_del_Documento_cada_una_deja_su_fila_en_cualquier_orden(bool primeroA)
+    {
+        var (documentos, documentoId, a, b) = DocumentoConDosRevisionesPendientes();
+        var almacen = new AlmacenDeFilas();
+        var senales = new SenalesEspia();
+        var servicio = ServicioSobre(documentos, almacen, senales);
+        var orden = primeroA ? new[] { a, b } : [b, a];
+
+        foreach (var revision in orden)
+            await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, revision.CreadaEnUtc);
+
+        almacen.Filas.Should().HaveCount(2, "con dos revisiones pendientes, la fila de una no tapa la de la otra");
+        senales.Avisos.Should().HaveCount(2);
+    }
+
+    /// <summary>Con dos pendientes, reabrir la misma revisión vuelve a dejar fila: por exceso, nunca por defecto.</summary>
+    [Fact]
+    public async Task Con_dos_revisiones_pendientes_reabrir_la_misma_vuelve_a_escribir_la_fila()
+    {
+        var (documentos, documentoId, a, _) = DocumentoConDosRevisionesPendientes();
+        var almacen = new AlmacenDeFilas();
+        var senales = new SenalesEspia();
+        var servicio = ServicioSobre(documentos, almacen, senales);
+
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, a.CreadaEnUtc);
+        await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, a.CreadaEnUtc);
+
+        almacen.Filas.Should().HaveCount(2);
+        senales.Avisos.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Con una sola revisión pendiente —la otra ya resuelta, que no cuenta—, la deduplicación sigue: una fila para tres
+    /// accesos, y los tres cuentan para la señal.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_sola_revision_pendiente_y_otra_resuelta_sigue_deduplicando()
+    {
+        var (documentos, documentoId, a, b) = DocumentoConDosRevisionesPendientes();
+        b.Resolver();
+        var almacen = new AlmacenDeFilas();
+        var senales = new SenalesEspia();
+        var servicio = ServicioSobre(documentos, almacen, senales);
+
+        for (var i = 0; i < 3; i++)
+            await servicio.RegistrarRevisionIaSiSensibleAsync(documentoId, a.CreadaEnUtc);
+
+        almacen.Filas.Should().ContainSingle("con una sola revisión pendiente, como mucho una fila por persona y Documento");
+        senales.Avisos.Should().HaveCount(3);
+    }
+
+    /// <summary>
+    /// Si la consulta de revisiones pendientes falla, falla en cerrado hacia el registro: escribe la fila aunque ya conste
+    /// una idéntica, avisa sin datos personales y el acceso cuenta para la señal.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_consulta_de_revisiones_pendientes_falla_escribe_la_fila()
+    {
+        var documentos = new DocumentosConRevisionesQueCaen();
+        var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        documentos.ListaDocumentos.Add(documento);
+        var almacen = new AlmacenDeFilas();
+        await ServicioSobre(new DocumentosQueryContextFalso { ListaDocumentos = { documento } }, almacen, new SenalesEspia())
+            .RegistrarRevisionIaSiSensibleAsync(documento.Id, RevisionCreadaEnUtc);
+        almacen.Filas.Should().ContainSingle("control del instrumento: la primera apertura deja fila");
+
+        var avisos = new RegistroDeAvisos<RegistroAccesoDocumentoSensibleService>();
+        var senales = new SenalesEspia();
+        await ServicioSobre(documentos, almacen, senales, avisos).RegistrarRevisionIaSiSensibleAsync(documento.Id, RevisionCreadaEnUtc);
+
+        almacen.Filas.Should().HaveCount(2, "sin poder contar las revisiones pendientes, se registra: de más, nunca de menos");
+        avisos.Entradas.Should().ContainSingle().Which.Texto.Should().Contain(nameof(InvalidOperationException))
+            .And.NotContain(documento.Id.ToString()).And.NotContain(DocumentosConRevisionesQueCaen.Mensaje);
+        senales.Avisos.Should().ContainSingle();
+    }
+
+    private static (DocumentosQueryContextFalso Documentos, Guid DocumentoId, RevisionIaDocumento A, RevisionIaDocumento B)
+        DocumentoConDosRevisionesPendientes()
+    {
+        var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        var a = RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)");
+        var b = RevisionIaDocumento.Crear(documento.Id, 40, null, null, null, null, "Confianza baja (40%)");
+        var documentos = new DocumentosQueryContextFalso();
+        documentos.ListaDocumentos.Add(documento);
+        documentos.ListaRevisionesIaDocumento.AddRange([a, b]);
+        return (documentos, documento.Id, a, b);
+    }
+
+    private static RegistroAccesoDocumentoSensibleService ServicioSobre(
+        DocumentosQueryContextFalso documentos, AlmacenDeFilas almacen, ISenalesIncidenteSeguridad senales,
+        ILogger<RegistroAccesoDocumentoSensibleService>? avisos = null) =>
+        new(documentos, new TiposDocumentoQueryContextFalso(), new ActorFijo(ActorAuditoria.Normal(UsuarioId)), almacen,
+            senalesIncidente: senales, tenantActual: new TenantFijo(TenantPropietarioId), auditoriaContext: almacen, logger: avisos);
+
+    /// <summary>Repositorio y contexto de auditoría a la vez: lo que se guarda (con el Tenant sellado) se lee después.</summary>
+    private sealed class AlmacenDeFilas : IRegistroAccesoDocumentoSensibleRepository, IAuditoriaQueryContext
+    {
+        public List<RegistroAccesoDocumentoSensible> Filas { get; } = [];
+
+        public Task<bool> GuardarAsync(RegistroAccesoDocumentoSensible registro, CancellationToken cancellationToken = default)
+        {
+            Filas.Add(ConTenant(registro, TenantPropietarioId));
+            return Task.FromResult(true);
+        }
+
+        public IQueryable<RegistroAuditoria> RegistrosAuditoria =>
+            new TestAsyncQueryable<RegistroAuditoria>(Array.Empty<RegistroAuditoria>().AsQueryable());
+        public IQueryable<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible =>
+            new TestAsyncQueryable<RegistroAccesoDocumentoSensible>(Filas.ToList().AsQueryable());
+    }
+
+    /// <summary>Los Documentos se leen; la consulta de revisiones pendientes cae (conexión caída, RLS que la rechaza).</summary>
+    private sealed class DocumentosConRevisionesQueCaen : DocumentosQueryContextFalso, CaeManager.Application.Documentos.IDocumentosQueryContext
+    {
+        internal const string Mensaje = "revisiones caídas con datos";
+
+        public new IQueryable<RevisionIaDocumento> RevisionesIaDocumento => throw new InvalidOperationException(Mensaje);
     }
 
     /// <summary>
