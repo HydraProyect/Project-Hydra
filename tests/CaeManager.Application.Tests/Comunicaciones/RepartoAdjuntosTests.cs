@@ -346,27 +346,23 @@ public class RepartoAdjuntosTests
             new AutorizacionEscrituraBehavior<TRequest, TResponse>(usuario, new SesionPrivilegiadaAusente(), new TenantActualFijo(Guid.NewGuid()))
                 .Handle(peticion, ct => handler(ct), CancellationToken.None);
 
-        switch (comando)
+        if (comando == nameof(FijarDestinoAdjuntoCommand))
         {
-            case nameof(FijarDestinoAdjuntoCommand):
-            {
-                var peticion = new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null);
-                var r = await Autorizar(usuario, peticion, ct => { llego = true; return Fijar(Total()).Handle(peticion, ct); });
-                return (r.EsFallido ? r.Error.Codigo : null, llego);
-            }
-            case nameof(ResolverAdjuntoCommand):
-            {
-                var peticion = new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Descartar);
-                var r = await Autorizar(usuario, peticion, ct => { llego = true; return Resolver(Total()).Handle(peticion, ct); });
-                return (r.EsFallido ? r.Error.Codigo : null, llego);
-            }
-            default:
-            {
-                var peticion = new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]);
-                var r = await Autorizar(usuario, peticion, ct => { llego = true; return Lote(Total(), new MediadorDelLote()).Handle(peticion, ct); });
-                return (r.EsFallido ? r.Error.Codigo : null, llego);
-            }
+            var fijar = new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null);
+            var r = await Autorizar(usuario, fijar, ct => { llego = true; return Fijar(Total()).Handle(fijar, ct); });
+            return (r.EsFallido ? r.Error.Codigo : null, llego);
         }
+
+        if (comando == nameof(ResolverAdjuntoCommand))
+        {
+            var resolver = new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Descartar);
+            var r = await Autorizar(usuario, resolver, ct => { llego = true; return Resolver(Total()).Handle(resolver, ct); });
+            return (r.EsFallido ? r.Error.Codigo : null, llego);
+        }
+
+        var lote = new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]);
+        var resultado = await Autorizar(usuario, lote, ct => { llego = true; return Lote(Total(), new MediadorDelLote()).Handle(lote, ct); });
+        return (resultado.EsFallido ? resultado.Error.Codigo : null, llego);
     }
 
     [Theory]
