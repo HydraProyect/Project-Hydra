@@ -29,7 +29,8 @@ namespace CaeManager.Domain.Comercial;
 /// <para>
 /// Ningún flujo lo crea todavía: lo hará <c>CompletarAltaAutonomaCommand</c> (A6), que abrirá también la vía
 /// de escritura en la base, y la línea Inbound el alta del Tenant del Cliente empresarial (B-04). Hasta entonces
-/// la migración solo concede lectura.
+/// la migración solo concede lectura. Ninguna de esas vías puede dejar que el propio Tenant beneficiario se
+/// conceda la línea Inbound (detalle en <c>ProductoContratadoConfiguration</c>).
 /// </para>
 /// <para>
 /// Gate comercial de Inbound (DN-7, opción (a)): las funciones de lectura entre Tenants <c>app_inbound_*</c> solo

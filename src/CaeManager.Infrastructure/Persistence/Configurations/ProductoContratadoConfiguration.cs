@@ -9,16 +9,20 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// Producto Contratado (plano 4, RQ-30, D-6): tabla con Tenant, el Tenant beneficiario. La migración que la
 /// crea le pone RLS con FORCE y la política <c>aislamiento_tenant</c>, como a cualquier tabla con Tenant, y
 /// concede solo SELECT a <c>cae_app_runtime</c> y a <c>cae_app_soporte</c>: ningún rol de la aplicación la
-/// escribe hasta que A6 abra la vía desde <c>CompletarAltaAutonomaCommand</c>.
+/// escribe hasta que A6 abra la vía desde <c>CompletarAltaAutonomaCommand</c> y B-04 la de la línea Inbound.
 /// <para>
 /// Los enumerados se guardan por nombre, con un CHECK que repite la lista, como en <c>SolicitudesAlta</c>.
 /// Sin índice único por Tenant: cuántos Productos Contratados vigentes admite un Tenant beneficiario no
 /// está decidido, y añadirlo después es aditivo porque hasta A6 no hay filas.
 /// </para>
 /// <para>
-/// Una fila de la línea Inbound vigente abre la lectura entre Tenants de su Tenant beneficiario (gate DN-7 en
-/// <c>app_inbound_tenant_contratista_del_contrato</c>). Por eso su vía de escritura no puede ser un INSERT de
-/// <c>cae_app_runtime</c> bajo <c>aislamiento_tenant</c>: el WITH CHECK dejaría a un Tenant concederse su propia línea.
+/// Una fila de la línea Inbound vigente es condición necesaria, no suficiente, de la lectura entre Tenants de su
+/// Tenant beneficiario (gate DN-7 en <c>app_inbound_tenant_contratista_del_contrato</c>): hacen falta además un
+/// contrato de acceso vigente y vinculado al Tenant de la Empresa contratista y una autorización vigente de ese Tenant.
+/// Aun así, cualquier vía de escritura futura (A6 desde <c>CompletarAltaAutonomaCommand</c>, B-04) tiene que impedir
+/// que <c>cae_app_runtime</c> escriba <c>"Linea" = 'Inbound'</c>: la política <c>aislamiento_tenant</c> solo exige
+/// <c>"TenantId" = app_ctx_tenant_id()</c>, así que un INSERT o UPDATE del propio Tenant bajo ella le dejaría
+/// concederse su línea Inbound.
 /// </para>
 /// </summary>
 public class ProductoContratadoConfiguration : IEntityTypeConfiguration<ProductoContratado>

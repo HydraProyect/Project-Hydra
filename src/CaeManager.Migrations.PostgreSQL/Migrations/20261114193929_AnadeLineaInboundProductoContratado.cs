@@ -37,8 +37,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Tenant lee Inbound entre Tenants en ningún entorno hasta que tenga su línea.
     /// </para>
     /// <para>
-    /// El Down vuelve a estrechar el CHECK y falla si ya hay filas de la línea Inbound: hay que finalizarlas y borrarlas
-    /// antes, decisión que no toma la migración.
+    /// El Down vuelve a estrechar el CHECK y falla si ya hay filas de la línea Inbound, en cualquier estado (el CHECK
+    /// solo mira el valor de <c>Linea</c>): hay que borrarlas antes, con la identidad propietaria, decisión que no toma la
+    /// migración.
     /// </para>
     /// </summary>
     public partial class AnadeLineaInboundProductoContratado : Migration
