@@ -16,6 +16,13 @@ public interface ICobrosLiquidacionOperadorCaeContext
     /// <summary>Acotado al Tenant del ámbito por el filtro global y por la política RLS <c>aislamiento_tenant</c>.</summary>
     IQueryable<CobroLiquidacionOperadorCae> CobrosLiquidacionOperadorCae { get; }
     void Agregar(CobroLiquidacionOperadorCae cobro);
+
+    /// <summary>
+    /// La primera marca de la consulta con sus valores de la base: si el contexto (uno por circuito en Blazor Server) ya la
+    /// tenía rastreada sin cambios, la relee, porque EF no reemplaza sus valores al materializar otra consulta y la
+    /// comparación con la versión leída daría un conflicto falso.
+    /// </summary>
+    Task<CobroLiquidacionOperadorCae?> ObtenerActualAsync(IQueryable<CobroLiquidacionOperadorCae> consulta, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -41,8 +48,9 @@ public static class AutorizacionCobrosLiquidacionOperadorCae
 }
 
 /// <param name="ReferenciaFacturaEmisor">El número de la factura real del emisor, si lo anotó.</param>
+/// <param name="Version">El token de concurrencia de la marca: quien la edita lo devuelve en <see cref="MarcarCobroLiquidacionOperadorCaeCommand.VersionLeida"/>.</param>
 public record CobroLiquidacionOperadorCaeDto(
-    Guid TenantBeneficiarioId, EstadoCobroLiquidacion Estado, string? ReferenciaFacturaEmisor, DateTime MarcadaEnUtc);
+    Guid TenantBeneficiarioId, EstadoCobroLiquidacion Estado, string? ReferenciaFacturaEmisor, DateTime MarcadaEnUtc, Guid Version);
 
 /// <param name="PuedeMarcar">Si quien mira puede cambiar las marcas (Administrador o Dirección CAE del Operador).</param>
 /// <param name="Cobros">Solo las liquidaciones marcadas; la que no sale está <see cref="EstadoCobroLiquidacion.Pendiente"/>.</param>
@@ -70,7 +78,7 @@ public class ObtenerCobrosLiquidacionOperadorCaeQueryHandler(IFuenteLiquidacionO
         {
             var cobros = await contexto.CobrosLiquidacionOperadorCae
                 .Where(c => c.TenantId == emisor && c.Anyo == request.Anyo && c.Mes == request.Mes)
-                .Select(c => new CobroLiquidacionOperadorCaeDto(c.PropietarioTenantId, c.Estado, c.ReferenciaFacturaEmisor, c.MarcadaEnUtc))
+                .Select(c => new CobroLiquidacionOperadorCaeDto(c.PropietarioTenantId, c.Estado, c.ReferenciaFacturaEmisor, c.MarcadaEnUtc, c.Version))
                 .ToListAsync(cancellationToken);
             return new CobrosLiquidacionOperadorCaeDto(puedeMarcar, cobros);
         }
@@ -82,8 +90,13 @@ public class ObtenerCobrosLiquidacionOperadorCaeQueryHandler(IFuenteLiquidacionO
 /// impagada, con el número de la factura real del emisor si lo quiere anotar. Es solo una anotación: ningún estado
 /// suspende la gestión, corta el acceso ni avisa a nadie.
 /// </summary>
+/// <param name="VersionLeida">
+/// La <see cref="CobroLiquidacionOperadorCaeDto.Version"/> de la marca que vio quien edita, o <c>null</c> si cuando cargó el
+/// mes la liquidación no tenía marca. Si ya no coincide, otra persona la cambió entretanto y el cambio se rechaza con
+/// <see cref="AutorizacionCobrosLiquidacionOperadorCae.Conflicto"/> en vez de pisar su marca con valores viejos.
+/// </param>
 public record MarcarCobroLiquidacionOperadorCaeCommand(
-    Guid TenantBeneficiarioId, int Anyo, int Mes, EstadoCobroLiquidacion Estado, string? ReferenciaFacturaEmisor) : ICommand;
+    Guid TenantBeneficiarioId, int Anyo, int Mes, EstadoCobroLiquidacion Estado, string? ReferenciaFacturaEmisor, Guid? VersionLeida) : ICommand;
 
 public class MarcarCobroLiquidacionOperadorCaeCommandValidator : AbstractValidator<MarcarCobroLiquidacionOperadorCaeCommand>
 {
@@ -125,9 +138,14 @@ public class MarcarCobroLiquidacionOperadorCaeCommandHandler(
             return Result.Fallo(AutorizacionCobrosLiquidacionOperadorCae.EmpresaNoGestionada);
 
         using var ambito = AmbitoTenantExplicito.Establecer(emisor);
-        var existente = await contexto.CobrosLiquidacionOperadorCae.FirstOrDefaultAsync(c =>
+        var existente = await contexto.ObtenerActualAsync(contexto.CobrosLiquidacionOperadorCae.Where(c =>
             c.TenantId == emisor && c.PropietarioTenantId == request.TenantBeneficiarioId
-            && c.Anyo == request.Anyo && c.Mes == request.Mes, cancellationToken);
+            && c.Anyo == request.Anyo && c.Mes == request.Mes), cancellationToken);
+
+        // Edición sobre una marca que otra persona cambió después de que quien edita cargara el mes (o que creó mientras
+        // tanto): se rechaza antes de escribir, porque aplicar el formulario viejo encima borraría su marca sin avisar.
+        if (existente?.Version != request.VersionLeida)
+            return Result.Fallo(AutorizacionCobrosLiquidacionOperadorCae.Conflicto);
 
         if (existente is null)
             contexto.Agregar(CobroLiquidacionOperadorCae.Registrar(
@@ -135,7 +153,7 @@ public class MarcarCobroLiquidacionOperadorCaeCommandHandler(
         else
             existente.Marcar(request.Estado, request.ReferenciaFacturaEmisor, usuarioId, ahora);
 
-        // Dos marcas a la vez: la primera alta choca con el índice único (Tenant emisor, Tenant beneficiario, mes) y una
+        // Dos marcas a la vez entre esa comprobación y el guardado: la primera alta choca con el índice único (Tenant emisor, Tenant beneficiario, mes) y una
         // edición sobre una marca que otra persona acaba de cambiar, con el token de concurrencia (IVersionable). En los
         // dos casos gana la primera entera, nunca una mezcla de estado, referencia y autoría, y lo que este intento dejó
         // rastreado se suelta para que el siguiente Command del circuito no lo guarde.

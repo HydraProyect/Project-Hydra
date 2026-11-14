@@ -144,7 +144,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
                         Cobros = Cobros with
                         {
                             Cobros = [.. Cobros.Cobros.Where(x => x.TenantBeneficiarioId != c.TenantBeneficiarioId),
-                                new CobroLiquidacionOperadorCaeDto(c.TenantBeneficiarioId, c.Estado, c.ReferenciaFacturaEmisor, Ahora)],
+                                new CobroLiquidacionOperadorCaeDto(c.TenantBeneficiarioId, c.Estado, c.ReferenciaFacturaEmisor, Ahora, Guid.NewGuid())],
                         };
                     return marca;
                 case FijarTarifaOperadorCaeCommand c:
@@ -358,9 +358,27 @@ public class FacturacionOperadorPaginaTests : BunitContext
         await cut.FindAll(".fct-cobro-formulario button").Single(b => Texto(b) == "Guardar cobro").ClickAsync(new MouseEventArgs());
 
         mediador.Enviados.OfType<MarcarCobroLiquidacionOperadorCaeCommand>().Should().ContainSingle()
-            .Which.Should().Be(new MarcarCobroLiquidacionOperadorCaeCommand(Ebro, 2026, 9, EstadoCobroLiquidacion.Cobrada, "F-2026/118"));
+            .Which.Should().Be(new MarcarCobroLiquidacionOperadorCaeCommand(Ebro, 2026, 9, EstadoCobroLiquidacion.Cobrada, "F-2026/118", null),
+                "sin marca previa no hay versión que devolver");
         cut.WaitForAssertion(() => Texto(cut.Find(".fct-cobro-estado")).Should().Be("Cobrada"));
         Texto(cut.Find(".fct-cobro-referencia")).Should().Be("Factura F-2026/118");
+    }
+
+    [Fact]
+    public async Task Al_cambiar_una_marca_el_comando_lleva_la_version_que_se_cargo_con_el_mes()
+    {
+        var version = Guid.NewGuid();
+        var (cut, mediador) = Renderizar(new Escenario
+        {
+            Cobros = new(true, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, "F-1", Ahora, version)]),
+        });
+        await cut.FindAll(".fct-mes")[2].ClickAsync(new MouseEventArgs());
+
+        await cut.Find(".fct-cobro-formulario select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoCobroLiquidacion.Cobrada) });
+        await cut.FindAll(".fct-cobro-formulario button").Single(b => Texto(b) == "Guardar cobro").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviados.OfType<MarcarCobroLiquidacionOperadorCaeCommand>().Should().ContainSingle()
+            .Which.VersionLeida.Should().Be(version, "si otra persona la cambió entretanto, el handler rechaza la edición en vez de pisarla");
     }
 
     [Fact]
@@ -369,7 +387,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
         var escenario = new Escenario
         {
             Tarifas = null,
-            Cobros = new(false, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, null, Ahora)]),
+            Cobros = new(false, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, null, Ahora, Guid.NewGuid())]),
         };
         var (cut, mediador) = Renderizar(escenario);
         await cut.FindAll(".fct-mes")[2].ClickAsync(new MouseEventArgs());

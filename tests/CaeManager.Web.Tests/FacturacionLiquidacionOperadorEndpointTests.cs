@@ -156,7 +156,7 @@ public class FacturacionLiquidacionOperadorEndpointTests
     {
         var escenario = new Escenario
         {
-            Cobros = new(true, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, "F-2026/118", Ahora)]),
+            Cobros = new(true, [new CobroLiquidacionOperadorCaeDto(Ebro, EstadoCobroLiquidacion.Impagada, "F-2026/118", Ahora, Guid.NewGuid())]),
         };
 
         var filas = Filas((await DescargarAsync("?anyo=2026&mes=9", escenario)).Contexto);

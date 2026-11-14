@@ -244,6 +244,49 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
             "queda la primera marca entera, nunca una mezcla de las dos");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_edicion_hecha_sobre_un_mes_ya_cargado_no_pisa_la_marca_que_otra_persona_guardo_despues(bool yaHabiaMarca)
+    {
+        Como("Administrador", _operadorA);
+        if (yaHabiaMarca)
+            (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Pendiente, "F-0")).EsExitoso.Should().BeTrue();
+
+        // Dos personas cargan el mes; la primera guarda y la segunda guarda después con lo que vio al cargar.
+        var formularioPrimera = await LeerAsync();
+        var formularioSegunda = await LeerAsync();
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Cobrada, "F-1", formulario: formularioPrimera)).EsExitoso.Should().BeTrue();
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Impagada, "F-2", formulario: formularioSegunda)).Error
+            .Should().Be(AutorizacionCobrosLiquidacionOperadorCae.Conflicto, "la segunda edita una versión que ya no es la de la base");
+
+        (await LeerAsync()).De(_empresaX).Should().Match<CobroLiquidacionOperadorCaeDto>(c =>
+            c.Estado == EstadoCobroLiquidacion.Cobrada && c.ReferenciaFacturaEmisor == "F-1",
+            "la marca de la primera persona sigue entera");
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Impagada, "F-2")).EsExitoso
+            .Should().BeTrue("control positivo: tras recargar el mes, la segunda aplica su marca");
+    }
+
+    [Fact]
+    public async Task Un_circuito_que_ya_tenia_la_marca_rastreada_no_da_un_conflicto_falso_tras_la_edicion_de_otra_persona()
+    {
+        Como("Administrador", _operadorA);
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Pendiente, "F-0")).EsExitoso.Should().BeTrue();
+
+        // El contexto del circuito de la primera persona guarda una marca y la deja rastreada.
+        await using var circuito = _arnes.Servicios.CreateAsyncScope();
+        var contexto = circuito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        (await MarcarConAsync(circuito.ServiceProvider, contexto, _empresaX, EstadoCobroLiquidacion.Cobrada, "F-1")).EsExitoso.Should().BeTrue();
+
+        // Otra persona, en su propio circuito, la cambia después.
+        (await MarcarAsync(_empresaX, EstadoCobroLiquidacion.Impagada, "F-2")).EsExitoso.Should().BeTrue();
+
+        // La primera recarga el mes y vuelve a marcar desde el mismo circuito: su versión es la de la base.
+        (await MarcarConAsync(circuito.ServiceProvider, contexto, _empresaX, EstadoCobroLiquidacion.Cobrada, "F-3")).EsExitoso
+            .Should().BeTrue("el handler relee la marca rastreada en vez de compararla con un token viejo");
+        (await LeerAsync()).De(_empresaX)!.ReferenciaFacturaEmisor.Should().Be("F-3");
+    }
+
     [Fact]
     public async Task La_guarda_mira_el_rol_en_el_Tenant_de_origen_del_Operador_y_no_en_el_del_ambito()
     {
@@ -334,23 +377,29 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
     }
 
     private async Task<Result> MarcarAsync(
-        Guid empresa, EstadoCobroLiquidacion estado, string? referencia, int? anyo = null, int? mes = null)
+        Guid empresa, EstadoCobroLiquidacion estado, string? referencia, int? anyo = null, int? mes = null,
+        CobrosLiquidacionOperadorCaeDto? formulario = null)
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        return await MarcarConAsync(scope.ServiceProvider, contexto, empresa, estado, referencia, anyo, mes);
+        return await MarcarConAsync(scope.ServiceProvider, contexto, empresa, estado, referencia, anyo, mes, formulario);
     }
 
-    /// <summary>El handler con las piezas del contenedor de producción (la fuente, con su mediador y la serie del Cuadro).</summary>
-    private Task<Result> MarcarConAsync(
+    /// <summary>
+    /// El handler con las piezas del contenedor de producción (la fuente, con su mediador y la serie del Cuadro). Sin
+    /// <paramref name="formulario"/>, quien marca acaba de cargar el mes: lleva la versión que hay ahora en la base.
+    /// </summary>
+    private async Task<Result> MarcarConAsync(
         IServiceProvider servicios, IUnitOfWork unidad, Guid empresa, EstadoCobroLiquidacion estado, string? referencia,
-        int? anyo = null, int? mes = null)
+        int? anyo = null, int? mes = null, CobrosLiquidacionOperadorCaeDto? formulario = null)
     {
+        formulario ??= await LeerAsync(anyo, mes);
         var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
         var handler = new MarcarCobroLiquidacionOperadorCaeCommandHandler(
             _sesion, contexto, servicios.GetRequiredService<IFuenteLiquidacionOperadorCae>(), unidad, TimeProvider.System, contexto);
-        return handler.Handle(
-            new MarcarCobroLiquidacionOperadorCaeCommand(empresa, anyo ?? _anyo, mes ?? _mes, estado, referencia), CancellationToken.None);
+        return await handler.Handle(
+            new MarcarCobroLiquidacionOperadorCaeCommand(empresa, anyo ?? _anyo, mes ?? _mes, estado, referencia, formulario.De(empresa)?.Version),
+            CancellationToken.None);
     }
 
     /// <summary>

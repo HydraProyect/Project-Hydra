@@ -397,7 +397,7 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         {
             var referencia = ReferenciaEditada(empresa).Trim();
             var resultado = await Mediator.Send(new MarcarCobroLiquidacionOperadorCaeCommand(
-                empresa.TenantId, _anyo, _mes, EstadoEditado(empresa), referencia.Length == 0 ? null : referencia));
+                empresa.TenantId, _anyo, _mes, EstadoEditado(empresa), referencia.Length == 0 ? null : referencia, CobroDe(empresa)?.Version));
             if (!resultado.EsExitoso)
             {
                 ToastService.MostrarError(Textos["CobroError"].Value, resultado.Error);
