@@ -40,7 +40,9 @@ public class IniciarLoteGeneracionDocumentosCommandValidator : AbstractValidator
     /// Tope de Trabajadores distintos por lote de generación (decisión de Chris, 2026-11-14, «Sí, 200»; sustituye
     /// al «sin tope» de ADR-010 § 2.6, porque el coste del lote crece O(N) por llamada). La cifra no sale de ninguna
     /// medición. Fuente única: este validador (el servidor rechaza el lote entero, sin truncarlo) y la pantalla de
-    /// generación (avisa y deshabilita el envío) leen esta misma constante.
+    /// generación (avisa y deshabilita el envío) leen esta misma constante. No se comparte con el tope homónimo de
+    /// <c>CrearAsignacionesCommandValidator</c> (altas de Asignación): son lotes distintos, que hoy coinciden en la
+    /// cifra por casualidad y se cambian por separado.
     /// </summary>
     public const int MaximoTrabajadoresPorLote = 200;
 

@@ -1,8 +1,10 @@
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.IniciarLoteGeneracionDocumentos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Plantillas.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -54,6 +56,35 @@ public partial class ConfigurarPlantillaEditorGen2Tests
 
         await Boton(cut, "Generar lote").ClickAsync(new MouseEventArgs());
         mediador.Veces<IniciarLoteGeneracionDocumentosCommand>().Should().Be(0, "por encima del tope no se manda nada al servidor");
+    }
+
+    /// <summary>Red de seguridad: si el servidor rechaza el lote (estado desfasado), el usuario ve el motivo y puede reintentar.</summary>
+    [Fact]
+    public async Task Si_el_servidor_rechaza_el_lote_por_el_tope_se_muestra_el_motivo_y_el_boton_queda_libre()
+    {
+        var trabajadorId = Guid.NewGuid();
+        var motivo = IniciarLoteGeneracionDocumentosCommandValidator.MensajeSuperaTopeTrabajadores(201);
+        var mediador = new MediatorFalso
+        {
+            Version = Result.Exito(Detalle(_versionId, estado: EstadoConfiguracionPlantilla.Confirmada)),
+            Retener = p => p switch
+            {
+                ObtenerTrabajadoresParaSelectorQuery => Task.FromResult<object>(
+                    (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(trabajadorId, "Ana Pérez", null, null)]),
+                IniciarLoteGeneracionDocumentosCommand => Task.FromException<object>(
+                    new FluentValidation.ValidationException([new FluentValidation.Results.ValidationFailure("TrabajadorIds", motivo)])),
+                _ => null
+            }
+        };
+        var cut = Renderizar(mediador);
+        await cut.FindAll("input[type=radio]")[1].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find(".editor-plantilla-lista-trabajadores input").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        await Boton(cut, "Generar lote").ClickAsync(new MouseEventArgs());
+
+        Toasts.Mensajes.Should().ContainSingle()
+            .Which.Should().Match<ToastMensaje>(m => m.Mensaje == motivo && m.Tono == TonoToast.Error);
+        Boton(cut, "Generar lote").HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]
