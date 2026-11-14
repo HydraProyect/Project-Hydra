@@ -16,7 +16,7 @@
     <value>Bústies de correu</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
-    <value>TALVEG només llegeix les bústies d&apos;aquesta llista.</value>
+    <value>TALVEG llegeix les bústies d&apos;aquesta llista i, només si actives la confirmació automàtica d&apos;una, hi envia un avís de recepció.</value>
   </data>
   <data name="EnlaceConexiones" xml:space="preserve">
     <value>Per connectar, desconnectar o diagnosticar una bústia, ves a</value>
@@ -109,28 +109,28 @@
     <value>Confirmació automàtica en rebre un correu</value>
   </data>
   <data name="ModalAcuseIntro" xml:space="preserve">
-    <value>Desactivada per defecte. En activar-la, cada conversa nova d&apos;aquesta bústia rep una confirmació de recepció.</value>
+    <value>Desactivada per defecte. En activar-la, TALVEG enviarà des d&apos;aquesta bústia una confirmació de recepció al remitent d&apos;algunes converses noves: només les que compleixin les condicions següents.</value>
   </data>
   <data name="ModalAcuseReglasTitulo" xml:space="preserve">
     <value>Quan s&apos;envia</value>
   </data>
   <data name="ModalAcuseRegla1" xml:space="preserve">
-    <value>Només s&apos;envia en el primer correu d&apos;una conversa nova.</value>
+    <value>Només s&apos;envia en el primer correu d&apos;una conversa nova i, com a màxim, una confirmació cada 24 hores per remitent.</value>
   </data>
   <data name="ModalAcuseRegla2" xml:space="preserve">
-    <value>Mai no s&apos;envia a respostes automàtiques ni a missatges de fora d&apos;oficina.</value>
+    <value>Només si el correu ha arribat fa menys d&apos;una hora, l&apos;autenticació del correu és vàlida i no demana que es respongui a una altra adreça.</value>
   </data>
   <data name="ModalAcuseRegla3" xml:space="preserve">
-    <value>Mai no s&apos;envia a llistes de distribució.</value>
+    <value>S&apos;omet davant d&apos;allò que sembla una resposta automàtica, un missatge de fora d&apos;oficina o una llista de distribució. Aquesta detecció es basa en capçaleres, assumpte i remitent, i pot fallar.</value>
   </data>
   <data name="ModalAcuseRegla4" xml:space="preserve">
-    <value>Mai no s&apos;envia a remitents no-reply (noreply, no-reply, donotreply).</value>
+    <value>S&apos;omet davant de remitents no-reply (noreply, no-reply, donotreply) i davant dels d&apos;una Plataforma CAE. Tampoc s&apos;envia des de bústies personals.</value>
   </data>
   <data name="ModalAcuseBorrador" xml:space="preserve">
     <value>El text de la confirmació és fix i encara provisional: està pendent d&apos;aprovació.</value>
   </data>
   <data name="ModalAcuseAviso" xml:space="preserve">
-    <value>S&apos;enviarà a cada conversa nova d&apos;aquesta bústia a partir d&apos;ara.</value>
+    <value>S&apos;aplicarà als correus que arribin a aquesta bústia a partir d&apos;ara.</value>
   </data>
   <data name="ModalAcuseGuardar" xml:space="preserve">
     <value>Desa la confirmació</value>

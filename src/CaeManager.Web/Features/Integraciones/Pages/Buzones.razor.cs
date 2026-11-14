@@ -2,6 +2,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -28,7 +29,8 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
-    private IReadOnlyList<CuentaVisibleEnRol> _gestores = [];
+    private IReadOnlyList<CuentaVisibleEnRol> _candidatos = [];
+    private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> _elegibles = new Dictionary<Guid, IReadOnlySet<Guid>>();
     private IReadOnlyDictionary<Guid, string> _nombres = new Dictionary<Guid, string>();
     private bool _cargando = true;
     private bool _cargaFallida;
@@ -75,13 +77,18 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         try
         {
             var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), token);
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, token);
+            var candidatos = await ObtenerCandidatosAsync(token);
             var ids = conexiones.SelectMany(c => new[] { c.ResponsableUsuarioId, c.GestorPropietarioId })
                 .OfType<Guid>().Distinct().ToList();
             var nombres = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(ids, token);
+
+            // Solo los buzones compartidos tienen selector: uno personal responde siempre a su propietario. Para que lo
+            // evalúe el servidor hace falta ser Administrador, y es quien ve el selector.
+            var elegibles = await ObtenerElegiblesAsync(conexiones, candidatos, token);
             if (generacion != _generacionCarga || token.IsCancellationRequested) return;
             _conexiones = conexiones;
-            _gestores = gestores;
+            _candidatos = candidatos;
+            _elegibles = elegibles;
             _nombres = nombres;
             _cargaFallida = false;
         }
@@ -91,6 +98,28 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
             _cargaFallida = true;
             throw;
         }
+    }
+
+    /// <summary>
+    /// Las cuentas visibles con un rol que <see cref="ResponsableBuzonElegible"/> puede aceptar (Administrador, Dirección CAE,
+    /// Coordinador CAE y Gestor CAE). No es la regla, solo el universo sobre el que se pregunta: la decide el servidor.
+    /// </summary>
+    private async Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerCandidatosAsync(CancellationToken token)
+    {
+        var candidatos = new Dictionary<Guid, CuentaVisibleEnRol>();
+        foreach (var rol in new[] { Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae })
+            foreach (var cuenta in await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, token))
+                candidatos.TryAdd(cuenta.Id, cuenta);
+        return candidatos.Values.OrderBy(c => c.NombreCompleto, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>> ObtenerElegiblesAsync(
+        IReadOnlyList<ConexionIntegracionListaDto> conexiones, IReadOnlyList<CuentaVisibleEnRol> candidatos, CancellationToken token)
+    {
+        var compartidos = conexiones.Where(c => c.GestorPropietarioId is null).Select(c => c.Id).ToList();
+        if (compartidos.Count == 0 || candidatos.Count == 0) return new Dictionary<Guid, IReadOnlySet<Guid>>();
+        return await Mediator.Send(
+            new ObtenerResponsablesElegiblesBuzonesQuery(compartidos, candidatos.Select(c => c.Id).ToList()), token);
     }
 
     private async Task RecargarSinPropagarAsync()
@@ -111,10 +140,16 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
 
     private string NombreDe(Guid usuarioId) => _nombres.TryGetValue(usuarioId, out var nombre) ? nombre : "—";
 
-    /// <summary>Gestores CAE visibles y, si el responsable actual ya no lo es (cambió de rol), él también para no mostrar otro.</summary>
+    /// <summary>
+    /// Las cuentas que <see cref="ResponsableBuzonElegible"/> acepta para este buzón (la regla de <c>FijarResponsableBuzonCommand</c>
+    /// y de la ingesta, no una lista de roles propia) y, si el responsable actual ya no lo es (cambió de rol o de cartera), él
+    /// también para no mostrar otro.
+    /// </summary>
     private IEnumerable<(Guid Id, string NombreCompleto)> OpcionesDeResponsable(ConexionIntegracionListaDto conexion)
     {
-        var opciones = _gestores.Select(g => (g.Id, g.NombreCompleto)).ToList();
+        var opciones = _elegibles.TryGetValue(conexion.Id, out var ids)
+            ? _candidatos.Where(c => ids.Contains(c.Id)).Select(c => (c.Id, c.NombreCompleto)).ToList()
+            : [];
         if (conexion.ResponsableUsuarioId is { } actual && opciones.All(o => o.Id != actual))
             opciones.Add((actual, NombreDe(actual)));
         return opciones;
@@ -204,6 +239,11 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         {
             Logger.LogError(ex, "Error al cambiar el acuse automático de la conexión {ConexionId}.", conexion.Id);
             ToastService.Mostrar(Textos["ErrorAcuse"], TonoToast.Error);
+
+            // Una excepción no dice si el comando llegó a guardar: el estado que se enseña tiene que volver del servidor, o la
+            // fila seguiría mostrando el anterior (p. ej. «Desactivado» con el acuse ya enviando correo). Si la recarga también
+            // falla, CargarAsync vacía el listado y la página avisa en vez de dejar controles sobre un estado dudoso.
+            await RecargarSinPropagarAsync();
         }
         finally
         {
@@ -235,6 +275,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         {
             Logger.LogError(ex, "Error al cambiar el responsable de la conexión {ConexionId}.", conexion.Id);
             ToastService.Mostrar(Textos["ErrorResponsable"], TonoToast.Error);
+
+            // Misma razón que en el acuse: tras una excepción no se sabe si el Responsable llegó a cambiar.
+            await RecargarSinPropagarAsync();
         }
         finally
         {

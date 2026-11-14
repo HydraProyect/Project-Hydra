@@ -16,7 +16,7 @@
     <value>Buzones de correo</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
-    <value>TALVEG solo lee los buzones de esta lista.</value>
+    <value>TALVEG lee los buzones de esta lista y, solo si activas el acuse automático de uno, envía desde él un aviso de recibo.</value>
   </data>
   <data name="EnlaceConexiones" xml:space="preserve">
     <value>Para conectar, desconectar o diagnosticar un buzón, ve a</value>
@@ -109,28 +109,28 @@
     <value>Acuse automático al recibir un correo</value>
   </data>
   <data name="ModalAcuseIntro" xml:space="preserve">
-    <value>Desactivado por defecto. Al activarlo, cada conversación nueva de este buzón recibe un acuse de recibo.</value>
+    <value>Desactivado por defecto. Al activarlo, TALVEG enviará desde este buzón un acuse de recibo al remitente de algunas conversaciones nuevas: solo las que cumplan las condiciones siguientes.</value>
   </data>
   <data name="ModalAcuseReglasTitulo" xml:space="preserve">
     <value>Cuándo se envía</value>
   </data>
   <data name="ModalAcuseRegla1" xml:space="preserve">
-    <value>Solo se envía en el primer correo de una conversación nueva.</value>
+    <value>Solo se envía en el primer correo de una conversación nueva y, como mucho, un acuse cada 24 horas por remitente.</value>
   </data>
   <data name="ModalAcuseRegla2" xml:space="preserve">
-    <value>Nunca se envía a respuestas automáticas ni a mensajes de fuera de oficina.</value>
+    <value>Solo si el correo llegó hace menos de una hora, la autenticación del correo es válida y no pide que se responda a otra dirección.</value>
   </data>
   <data name="ModalAcuseRegla3" xml:space="preserve">
-    <value>Nunca se envía a listas de distribución.</value>
+    <value>Se omite ante lo que parece una respuesta automática, un mensaje de fuera de oficina o una lista de distribución. Esa detección se apoya en cabeceras, asunto y remitente, y puede fallar.</value>
   </data>
   <data name="ModalAcuseRegla4" xml:space="preserve">
-    <value>Nunca se envía a remitentes no-reply (noreply, no-reply, donotreply).</value>
+    <value>Se omite ante remitentes no-reply (noreply, no-reply, donotreply) y ante los de una Plataforma CAE. Tampoco se envía desde buzones personales.</value>
   </data>
   <data name="ModalAcuseBorrador" xml:space="preserve">
     <value>El texto del acuse es fijo y todavía provisional: está pendiente de aprobación.</value>
   </data>
   <data name="ModalAcuseAviso" xml:space="preserve">
-    <value>Se enviará a cada conversación nueva de este buzón desde ahora.</value>
+    <value>Se aplicará a los correos que lleguen a este buzón desde ahora.</value>
   </data>
   <data name="ModalAcuseGuardar" xml:space="preserve">
     <value>Guardar acuse</value>

@@ -4,6 +4,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
@@ -43,11 +44,20 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         /// <summary>Si se pone, el comando falla con este error y no cambia nada (lo que haría el handler real).</summary>
         public Error? FalloDelComando { get; set; }
 
+        /// <summary>Si se pone, el comando guarda el cambio y después lanza esta excepción (el handler real puede caer tras confirmar).</summary>
+        public Exception? ExcepcionTrasAplicar { get; set; }
+
+        /// <summary>Las cuentas que el servidor da por elegibles; null = todas las que se le preguntan.</summary>
+        public HashSet<Guid>? Elegibles { get; set; }
+
+        public List<ObtenerResponsablesElegiblesBuzonesQuery> ConsultasElegibles { get; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object respuesta = request switch
             {
                 ObtenerConexionesIntegracionQuery => (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
+                ObtenerResponsablesElegiblesBuzonesQuery q => Evaluar(q),
                 FijarAcuseAutomaticoBuzonCommand c => Aplicar(c),
                 FijarResponsableBuzonCommand c => Aplicar(c),
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -55,11 +65,20 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             return Task.FromResult((TResponse)respuesta);
         }
 
+        private IReadOnlyDictionary<Guid, IReadOnlySet<Guid>> Evaluar(ObtenerResponsablesElegiblesBuzonesQuery consulta)
+        {
+            ConsultasElegibles.Add(consulta);
+            return consulta.ConexionIds.ToDictionary(
+                id => id,
+                id => (IReadOnlySet<Guid>)consulta.CandidatoIds.Where(c => Elegibles is null || Elegibles.Contains(c)).ToHashSet());
+        }
+
         private Result Aplicar(FijarAcuseAutomaticoBuzonCommand comando)
         {
             ComandosAcuse.Add(comando);
             if (FalloDelComando is { } fallo) return Result.Fallo(fallo);
             Conexiones = Conexiones.Select(c => c.Id == comando.ConexionId ? c with { AcuseAutomaticoActivo = comando.Activo } : c).ToList();
+            if (ExcepcionTrasAplicar is { } excepcion) throw excepcion;
             return Result.Exito();
         }
 
@@ -68,6 +87,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             ComandosResponsable.Add(comando);
             if (FalloDelComando is { } fallo) return Result.Fallo(fallo);
             Conexiones = Conexiones.Select(c => c.Id == comando.ConexionId ? c with { ResponsableUsuarioId = comando.ResponsableUsuarioId } : c).ToList();
+            if (ExcepcionTrasAplicar is { } excepcion) throw excepcion;
             return Result.Exito();
         }
 
@@ -81,24 +101,24 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
     /// <summary>La consulta real del rol se prueba contra PostgreSQL en la integración.</summary>
     private sealed class DirectorioConGestores(
-        IReadOnlyList<CuentaVisibleEnRol> gestores, Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> userManager,
-        CaeManagerDbContext identidad)
+        IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>> cuentasPorRol,
+        Microsoft.AspNetCore.Identity.UserManager<ApplicationUser> userManager, CaeManagerDbContext identidad)
         : DirectorioUsuariosTenant(
             userManager, new ConexionesGen2Tests.ContextoTenantsFalso(), new ConexionesGen2Tests.TenantActualFalso(),
             new PuertaAccesoDatos(), identidad, null!)
     {
         public override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(
             string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult(rol == Roles.GestorCae ? gestores : []);
+            Task.FromResult(cuentasPorRol.TryGetValue(rol, out var cuentas) ? cuentas : []);
     }
 
-    private static DirectorioUsuariosTenant Directorio(IReadOnlyList<CuentaVisibleEnRol> gestores)
+    private static DirectorioUsuariosTenant Directorio(IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>> cuentasPorRol)
     {
         var identidad = new CaeManagerDbContext(new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
             DataProtectionProvider.Create(nameof(BuzonesAcuseAutomaticoTests)), new ConexionesGen2Tests.TenantActualFalso());
         var usuarios = new Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>(
             new ConexionesGen2Tests.AlmacenUsuariosFalso(), null!, null!, null!, null!, null!, null!, null!, null!);
-        return new DirectorioConGestores(gestores, usuarios, identidad);
+        return new DirectorioConGestores(cuentasPorRol, usuarios, identidad);
     }
 
     private static ConexionIntegracionListaDto Buzon(string nombre, bool acuse = false, Guid? propietario = null, Guid? responsable = null) =>
@@ -106,13 +126,18 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             propietario, null, responsable, acuse, EsBuzonCompartido: propietario is null);
 
     private IRenderedComponent<Buzones> Renderizar(
-        MediadorBuzones mediador, string? rol = Roles.Administrador, IReadOnlyList<CuentaVisibleEnRol>? gestores = null)
+        MediadorBuzones mediador, string? rol = Roles.Administrador, IReadOnlyList<CuentaVisibleEnRol>? gestores = null,
+        IReadOnlyDictionary<string, IReadOnlyList<CuentaVisibleEnRol>>? cuentasPorRol = null)
     {
         var autorizacion = AddAuthorization();
         if (rol is not null) autorizacion.SetAuthorized("usuario").SetRoles(rol);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
-        Services.AddScoped(_ => Directorio(gestores ?? []));
+        var directorio = cuentasPorRol ?? new Dictionary<string, IReadOnlyList<CuentaVisibleEnRol>>
+        {
+            [Roles.GestorCae] = gestores ?? []
+        };
+        Services.AddScoped(_ => Directorio(directorio));
         return Render<Buzones>();
     }
 
@@ -153,8 +178,11 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         var modal = cut.Find(".modal-contenido").TextContent;
         modal.Should().Contain("Acuse automático al recibir un correo").And.Contain("cae@ejemplo.test");
-        modal.Should().Contain("Solo se envía en el primer correo de una conversación nueva.")
-            .And.Contain("respuestas automáticas").And.Contain("listas de distribución").And.Contain("no-reply");
+        modal.Should().Contain("Solo se envía en el primer correo de una conversación nueva")
+            .And.Contain("respuesta automática").And.Contain("lista de distribución").And.Contain("no-reply");
+        modal.Should().Contain("puede fallar", "la detección de automáticos y listas es heurística y el texto no promete lo contrario")
+            .And.Contain("24 horas").And.Contain("autenticación");
+        modal.Should().NotContain("Nunca se envía a listas").And.NotContain("cada conversación nueva");
         mediador.ComandosAcuse.Should().BeEmpty("el interruptor solo abre la confirmación: activar envía correo externo");
         cut.Find("[data-testid=interruptor-acuse]").GetAttribute("aria-checked").Should().Be("false");
     }
@@ -251,7 +279,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     [InlineData(Roles.DireccionCae)]
     [InlineData(Roles.Consulta)]
     [InlineData(null)]
-    public void Quien_no_es_Administrador_ve_el_estado_del_acuse_sin_interruptor_ni_selector(string? rol)
+    public void El_componente_renderizado_por_quien_no_es_Administrador_muestra_el_estado_sin_interruptor_ni_selector(string? rol)
     {
         var cut = Renderizar(
             new MediadorBuzones { Conexiones = [Buzon("cae", acuse: true), Buzon("proyectos")] },
@@ -262,6 +290,119 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         cut.FindAll("[data-testid=interruptor-acuse]").Should().BeEmpty();
         cut.FindAll("[data-testid=selector-responsable]").Should().BeEmpty();
         cut.FindAll("[data-testid=estado-acuse]").Select(e => e.TextContent.Trim()).Should().Equal("Activado", "Desactivado");
+    }
+
+    /// <summary>
+    /// El test anterior renderiza el componente directamente: prueba qué dibuja, no quién llega a la página. El acceso a la
+    /// ruta lo decide el <c>[Authorize]</c> de la página, que se lee aquí por reflexión (un bUnit sin router no evalúa
+    /// <c>[Authorize]</c>); el efecto de ese atributo sobre cada rol lo evalúa el enrutador de la aplicación.
+    /// </summary>
+    [Fact]
+    public void La_ruta_de_Buzones_solo_admite_al_Administrador()
+    {
+        typeof(Buzones).GetCustomAttributes(typeof(Microsoft.AspNetCore.Components.RouteAttribute), inherit: false)
+            .Cast<Microsoft.AspNetCore.Components.RouteAttribute>().Select(r => r.Template)
+            .Should().Equal("/integraciones/buzones");
+
+        var autorizacion = typeof(Buzones).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .Should().ContainSingle("la página declara un único [Authorize] con Roles=").Subject;
+        autorizacion.Roles.Should().Be(Roles.Administrador, "ni Dirección CAE, ni Coordinador CAE, ni Gestor CAE, ni Consulta");
+    }
+
+    /// <summary>
+    /// El selector no tiene lista de roles propia: pregunta al servidor quién es elegible (<c>ResponsableBuzonElegible</c>), con
+    /// todos los roles que esa regla puede aceptar como universo. Administrador, Dirección CAE y Coordinador CAE aparecen si
+    /// el servidor los da por elegibles; un Gestor CAE que el servidor descarta (sin cartera) no aparece.
+    /// </summary>
+    [Fact]
+    public void El_selector_de_responsable_ofrece_exactamente_las_cuentas_que_el_servidor_da_por_elegibles()
+    {
+        var admin = new CuentaVisibleEnRol(Guid.NewGuid(), "Ana Admin", "ana@ejemplo.test", null);
+        var direccion = new CuentaVisibleEnRol(Guid.NewGuid(), "Berta Dirección", "berta@ejemplo.test", null);
+        var coordinador = new CuentaVisibleEnRol(Guid.NewGuid(), "Carla Coordinadora", "carla@ejemplo.test", null);
+        var gestorConCartera = new CuentaVisibleEnRol(Guid.NewGuid(), "Diego Gestor", "diego@ejemplo.test", null);
+        var gestorSinCartera = new CuentaVisibleEnRol(Guid.NewGuid(), "Elena Sincartera", "elena@ejemplo.test", null);
+        var buzon = Buzon("cae");
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [buzon],
+            Elegibles = [admin.Id, direccion.Id, coordinador.Id, gestorConCartera.Id]
+        };
+        var cut = Renderizar(mediador, cuentasPorRol: new Dictionary<string, IReadOnlyList<CuentaVisibleEnRol>>
+        {
+            [Roles.Administrador] = [admin],
+            [Roles.DireccionCae] = [direccion],
+            [Roles.CoordinadorCae] = [coordinador],
+            [Roles.GestorCae] = [gestorConCartera, gestorSinCartera],
+            [Roles.Consulta] = [new CuentaVisibleEnRol(Guid.NewGuid(), "Fran Consulta", "fran@ejemplo.test", null)]
+        });
+
+        cut.Find("[data-testid=selector-responsable]").QuerySelectorAll("option").Select(o => o.TextContent.Trim())
+            .Should().Equal("Sin responsable", "Ana Admin", "Berta Dirección", "Carla Coordinadora", "Diego Gestor");
+        var consulta = mediador.ConsultasElegibles.Should().ContainSingle().Subject;
+        consulta.ConexionIds.Should().Equal(buzon.Id);
+        consulta.CandidatoIds.Should().BeEquivalentTo(
+            [admin.Id, direccion.Id, coordinador.Id, gestorConCartera.Id, gestorSinCartera.Id],
+            "el universo son los cuatro roles que la regla puede aceptar, y Consulta no entra");
+    }
+
+    [Fact]
+    public void Un_buzon_personal_no_entra_en_la_consulta_de_elegibles()
+    {
+        var compartido = Buzon("cae");
+        var mediador = new MediadorBuzones { Conexiones = [Buzon("marta", propietario: Guid.NewGuid()), compartido] };
+
+        Renderizar(mediador, gestores: [new CuentaVisibleEnRol(Guid.NewGuid(), "Lucía Sanz", "lucia@ejemplo.test", null)]);
+
+        mediador.ConsultasElegibles.Should().ContainSingle().Which.ConexionIds.Should().Equal(compartido.Id);
+    }
+
+    /// <summary>
+    /// Una excepción del comando no dice si guardó. Aquí guarda y luego lanza: la página no puede quedarse con el
+    /// «Desactivado» anterior, tiene que releer el estado del servidor.
+    /// </summary>
+    [Fact]
+    public void Si_el_comando_del_acuse_guarda_y_despues_lanza_la_fila_enseña_el_estado_guardado()
+    {
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae", acuse: true)],
+            ExcepcionTrasAplicar = new InvalidOperationException("cae tras confirmar")
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find("[data-testid=interruptor-acuse]").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            mediador.ComandosAcuse.Should().ContainSingle();
+            Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Error);
+            cut.Find("[data-testid=estado-acuse]").TextContent.Trim().Should().Be("Desactivado",
+                "el comando ya lo desactivó: la fila lo enseña tras releer, no el «Activado» de antes");
+            cut.Find("[data-testid=interruptor-acuse]").GetAttribute("disabled").Should().BeNull("la fila vuelve a ser operable");
+        });
+    }
+
+    [Fact]
+    public void Si_el_comando_del_responsable_guarda_y_despues_lanza_el_selector_enseña_el_guardado()
+    {
+        var lucia = new CuentaVisibleEnRol(Guid.NewGuid(), "Lucía Sanz", "lucia@ejemplo.test", null);
+        var andres = new CuentaVisibleEnRol(Guid.NewGuid(), "Andrés Rey", "andres@ejemplo.test", null);
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae", responsable: lucia.Id)],
+            ExcepcionTrasAplicar = new InvalidOperationException("cae tras confirmar")
+        };
+        var cut = Renderizar(mediador, gestores: [lucia, andres]);
+
+        cut.Find("[data-testid=selector-responsable]").Change(andres.Id.ToString());
+
+        cut.WaitForAssertion(() =>
+        {
+            Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Error);
+            cut.Find("[data-testid=selector-responsable] option[selected]").TextContent.Trim().Should().Be("Andrés Rey");
+        });
     }
 
     [Fact]
@@ -290,7 +431,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         var selector = cut.Find("[data-testid=selector-responsable]");
         selector.QuerySelectorAll("option").Select(o => o.TextContent.Trim())
-            .Should().Equal("Sin responsable", "Lucía Sanz", "Andrés Rey");
+            .Should().Equal("Sin responsable", "Andrés Rey", "Lucía Sanz");
         selector.QuerySelector("option[selected]")!.TextContent.Trim().Should().Be("Lucía Sanz");
 
         selector.Change(andres.Id.ToString());
