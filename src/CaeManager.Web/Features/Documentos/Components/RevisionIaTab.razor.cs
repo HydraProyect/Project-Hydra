@@ -53,9 +53,6 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private Guid? _procesandoId;
     private Guid? _revisionIdSeleccionada;
 
-    /// <summary>La revisión cuyo documento se ha pedido ver (iframe cargado); <c>null</c> en reposo. Volver al reposo al cambiar de selección.</summary>
-    private Guid? _revisionDocumentoAbierta;
-
     /// <summary>Con el avance automático apagado, al terminar una revisión no se elige otra: el Gestor CAE escoge la siguiente.</summary>
     private bool _sinSeleccion;
 
@@ -266,11 +263,6 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         var token = cts.Token;
         _cargando = !silenciosa;
         _errorCarga = false;
-        if (!silenciosa)
-        {
-            // «Reintentar» (y la carga inicial) no devuelven el iframe: cada visita al documento es una pulsación explícita.
-            _revisionDocumentoAbierta = null;
-        }
 
         StateHasChanged();
 
@@ -307,7 +299,6 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             else if (_sinSeleccion && !RevisionesVisibles.Any(r => r.Id == _revisionIdSeleccionada))
             {
                 _revisionIdSeleccionada = null;
-                _revisionDocumentoAbierta = null;
             }
             else
             {
@@ -322,7 +313,6 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             if (!_dispose && generacion == _generacionCarga)
             {
                 _errorCarga = true;
-                _revisionDocumentoAbierta = null;
             }
         }
         finally
@@ -628,25 +618,8 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         ReiniciarOperacionPorCambioDeEntidad();
     }
 
-    /// <summary>
-    /// «Ver documento»: carga el iframe de ESTA revisión. Cada GET de /documentos/{id}/archivo registra una Apertura, así que
-    /// no se hace al seleccionar sino por petición explícita.
-    /// </summary>
-    private void AbrirDocumento(Guid revisionId)
-    {
-        if (_revisionIdSeleccionada == revisionId)
-        {
-            _revisionDocumentoAbierta = revisionId;
-        }
-    }
-
-    /// <summary>El documento está cargado solo si el visor abierto es el de la revisión que ahora está seleccionada.</summary>
-    private bool DocumentoAbiertoDeLaSeleccionada =>
-        _revisionDocumentoAbierta is { } abierta && abierta == _revisionIdSeleccionada;
-
     private void ReiniciarOperacionPorCambioDeEntidad()
     {
-        _revisionDocumentoAbierta = null;
         _generacionEntidad++;
         _confirmacionDescartarVisible = false;
         _correccionManualVisible = false;

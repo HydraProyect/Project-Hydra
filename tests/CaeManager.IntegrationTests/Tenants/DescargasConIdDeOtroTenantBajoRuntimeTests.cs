@@ -70,6 +70,7 @@ public class DescargasConIdDeOtroTenantBajoRuntimeTests(DescargasEntreTenantsFix
     public static TheoryData<string> Rutas() =>
     [
         "/documentos/{id:guid}/archivo",
+        "/documentos/revision-ia/{revisionId:guid}/archivo",
         "/subcontratas/verificaciones/{id:guid}/evidencia",
         "/auditoria/{id:guid}/archivo-anterior",
         "/visitas/{id:guid}/paquete-documental.zip",
@@ -295,6 +296,11 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         poliza.AdjuntarArchivo(segundaVersion.Clave);
         await contexto.SaveChangesAsync();
 
+        // La revisión IA pendiente de la póliza: el visor de Revisión IA sirve el Documento de la revisión.
+        var revisionIa = RevisionIaDocumento.Crear(poliza.Id, 80, "Póliza RC", hoy.AddDays(-30), hoy.AddDays(200), true, "Revisar la lectura");
+        contexto.RevisionesIaDocumento.Add(revisionIa);
+        await contexto.SaveChangesAsync();
+
         var registroAnterior = await contexto.RegistrosAuditoria.AsNoTracking()
             .Where(r => r.EntidadTipo == "Documento" && r.EntidadId == poliza.Id && r.DatosAntes != null)
             .OrderByDescending(r => r.FechaUtc)
@@ -302,6 +308,7 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
             .FirstAsync();
 
         _recursosDeB["/documentos/{id:guid}/archivo"] = new(poliza.Id, segundaVersion.Bytes);
+        _recursosDeB["/documentos/revision-ia/{revisionId:guid}/archivo"] = new(revisionIa.Id, segundaVersion.Bytes);
         _recursosDeB["/subcontratas/verificaciones/{id:guid}/evidencia"] = new(verificacion.Id, evidencia.Bytes);
         _recursosDeB["/auditoria/{id:guid}/archivo-anterior"] = new(registroAnterior, primeraVersion.Bytes);
         _recursosDeB["/visitas/{id:guid}/paquete-documental.zip"] = new(visita.Id, null);
@@ -350,6 +357,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         {
             "/documentos/{id:guid}/archivo" =>
                 await DocumentosEndpoints.ServirArchivoAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), ct),
+            "/documentos/revision-ia/{revisionId:guid}/archivo" =>
+                await DocumentosEndpoints.ServirArchivoDeRevisionIaAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), ct),
             "/subcontratas/verificaciones/{id:guid}/evidencia" =>
                 await SubcontratasEndpoints.ServirEvidenciaAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), ct),
             "/auditoria/{id:guid}/archivo-anterior" =>

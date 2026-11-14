@@ -54,6 +54,10 @@
     <value>Desplega {0}</value>
     <comment>Nombre accesible del botón que despliega el detalle de una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="TipoAccesoRevisionIa" xml:space="preserve">
+    <value>Revisió IA</value>
+    <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el documento se cargó en el visor de la pantalla Revisión IA (cada acceso del visor de Revisión IA a un Documento sensible deja una fila de tipo Revisión IA, igual que cada Apertura; cuenta para la señal de extracción masiva).</comment>
+  </data>
   <data name="TipoAccesoEntregaExtension" xml:space="preserve">
     <value>Lliurament a l'extensió</value>
     <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el archivo se entregó a la extensión de navegador.</comment>

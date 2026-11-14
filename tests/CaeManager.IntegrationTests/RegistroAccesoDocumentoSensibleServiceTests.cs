@@ -94,6 +94,94 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         resultado.Elementos.Single(e => e.DocumentoId == dadoDeBaja.Id).DocumentoTitulo.Should().BeNull();
     }
 
+    private RegistroAccesoDocumentoSensibleService CrearServicioConSenal(
+        ActorAuditoria actor, CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senales) =>
+        new(_dbContext, _dbContext, new ActorAuditoriaFalso(actor),
+            new RegistroAccesoDocumentoSensibleRepository(_dbContext, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance),
+            senalesIncidente: senales, tenantActual: _tenantActual);
+
+    /// <summary>Cuenta los avisos de Documento sensible abierto a la señal de extracción masiva.</summary>
+    private sealed class SenalesQueCuentan : CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad
+    {
+        public int DocumentosSensiblesAbiertos { get; private set; }
+
+        public Task DocumentoSensibleAbiertoAsync(Guid actorRealUsuarioId, Guid? tenantId, CancellationToken ct = default)
+        {
+            DocumentosSensiblesAbiertos++;
+            return Task.CompletedTask;
+        }
+
+        public Task InicioSesionNoReconocidoAsync(Guid usuarioId, Guid tenantPropietarioId, bool teniaContrasena, CancellationToken ct = default) =>
+            Task.CompletedTask;
+        public Task ExportacionAsync(Guid actorRealUsuarioId, Guid? tenantId, int filas, CancellationToken ct = default) => Task.CompletedTask;
+        public Task AccesoAOtroTenantRechazadoAsync(Guid usuarioId, Guid tenantOrigenId, Guid tenantObjetivoId, CancellationToken ct = default) =>
+            Task.CompletedTask;
+    }
+
+    private async Task<List<RegistroAccesoDocumentoSensible>> RegistrosDeAsync(Guid documentoId) =>
+        await _dbContext.RegistrosAccesoDocumentoSensible.AsNoTracking().Where(r => r.DocumentoId == documentoId).ToListAsync();
+
+    /// <summary>
+    /// D-49, opción C, contra la base: cada acceso del visor de Revisión IA a un Documento sensible deja una fila de tipo
+    /// Revisión IA, igual que cada Apertura, y cuenta para la señal de extracción masiva. Las Aperturas no cambian.
+    /// </summary>
+    [Fact]
+    public async Task Cada_acceso_por_Revision_IA_deja_su_fila_y_avisa_a_la_senal_igual_que_cada_Apertura()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        var marta = Guid.NewGuid();
+        var senales = new SenalesQueCuentan();
+        var servicio = CrearServicioConSenal(ActorAuditoria.Normal(marta), senales);
+
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
+        await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        var registros = await RegistrosDeAsync(documento.Id);
+        registros.Where(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa).Should().HaveCount(2, "dos GET seguidos, dos filas")
+            .And.OnlyContain(r => r.UsuarioId == marta);
+        registros.Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.Apertura).Should().Be(2, "la Apertura no cambia");
+        senales.DocumentosSensiblesAbiertos.Should().Be(4, "cada acceso cuenta para la señal de extracción masiva");
+    }
+
+    /// <summary>Dos revisiones pendientes del mismo Documento: cada acceso, a una u otra, deja su fila.</summary>
+    [Fact]
+    public async Task Con_dos_revisiones_pendientes_del_mismo_Documento_cada_acceso_deja_su_fila()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        _dbContext.RevisionesIaDocumento.AddRange(
+            RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)"),
+            RevisionIaDocumento.Crear(documento.Id, 40, null, null, null, null, "Confianza baja (40%)"));
+        await _dbContext.SaveChangesAsync();
+        var servicio = CrearServicioConSenal(ActorAuditoria.Normal(Guid.NewGuid()), new SenalesQueCuentan());
+
+        for (var i = 0; i < 3; i++)
+            await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
+
+        (await RegistrosDeAsync(documento.Id)).Count(r => r.TipoAcceso == TipoAccesoDocumentoSensible.RevisionIa)
+            .Should().Be(3, "cada acceso deja su fila, sea de la revisión que sea");
+    }
+
+    [Fact]
+    public async Task La_Revision_IA_de_un_Documento_no_sensible_no_deja_fila()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.SinDatosPersonales);
+        var documento = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        await CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()))
+            .RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.RevisionIa);
+
+        (await RegistrosDeAsync(documento.Id)).Should().BeEmpty();
+    }
     [Fact]
     public async Task Registra_el_acceso_cuando_el_tipo_revela_salud()
     {

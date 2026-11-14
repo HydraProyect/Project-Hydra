@@ -41,6 +41,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
     private static readonly Dictionary<string, string> RutasPorId = new()
     {
         ["/documentos/{id:guid}/archivo"] = PruebaDeDescargas,
+        ["/documentos/revision-ia/{revisionId:guid}/archivo"] = PruebaDeDescargas,
         ["/subcontratas/verificaciones/{id:guid}/evidencia"] = PruebaDeDescargas,
         ["/auditoria/{id:guid}/archivo-anterior"] = PruebaDeDescargas,
         ["/visitas/{id:guid}/paquete-documental.zip"] = PruebaDeDescargas,
@@ -65,7 +66,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
     /// </summary>
     private static readonly Dictionary<string, (int Llamadas, string Motivo)> Catalogo = new()
     {
-        ["src/CaeManager.Web/Features/Documentos/DocumentosEndpoints.cs"] = (3, "por Id: /documentos/{id}/archivo; además plantilla.xlsx y exportar.xlsx, generadas"),
+        ["src/CaeManager.Web/Features/Documentos/DocumentosEndpoints.cs"] = (3, "por Id: /documentos/{id}/archivo y /documentos/revision-ia/{revisionId}/archivo, que comparten el único Results.File de ServirEnLinea; además plantilla.xlsx y exportar.xlsx, generadas"),
         ["src/CaeManager.Web/Features/Subcontratas/SubcontratasEndpoints.cs"] = (2, "por Id: evidencia de la verificación; además exportar.xlsx"),
         ["src/CaeManager.Web/Features/Auditoria/AuditoriaEndpoints.cs"] = (2, "por Id: archivo-anterior; además exportar.xlsx"),
         ["src/CaeManager.Web/Features/Visitas/VisitasEndpoints.cs"] = (2, "por Id: paquete-documental.zip; además exportar.xlsx"),
@@ -135,6 +136,24 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
 
         mapeo.Success.Should().BeTrue("control positivo: el mapeo de la ruta se encuentra");
         mapeo.Value.Should().Contain("AuthenticationSchemes = IdentityConstants.ApplicationScheme");
+        mapeo.Value.Should().NotContain("Policies.");
+    }
+
+    /// <summary>
+    /// El visor de Revisión IA (D-49, opción C): solo la cookie de sesión, como el archivo por Id, y solo los roles que ven
+    /// la pestaña. El manejador vuelve a comprobar el rol efectivo, que bajo una Sesión Privilegiada no existe.
+    /// </summary>
+    [Fact]
+    public void El_archivo_del_visor_de_Revision_IA_solo_admite_la_cookie_de_sesion_y_los_roles_de_la_pestana()
+    {
+        var fuente = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src/CaeManager.Web/Features/Documentos/DocumentosEndpoints.cs"));
+
+        var mapeo = Regex.Match(fuente, @"""/documentos/revision-ia/\{revisionId:guid\}/archivo""[^;]*;");
+
+        mapeo.Success.Should().BeTrue("control positivo: el mapeo de la ruta se encuentra");
+        mapeo.Value.Should().Contain("ServirArchivoDeRevisionIaAsync");
+        mapeo.Value.Should().Contain("AuthenticationSchemes = IdentityConstants.ApplicationScheme");
+        mapeo.Value.Should().Contain("Roles = string.Join(',', ColaRevisionIa.RolesQueAccedenALaPestana)");
         mapeo.Value.Should().NotContain("Policies.");
     }
 

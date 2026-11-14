@@ -25,6 +25,9 @@ namespace CaeManager.Application.Common;
 /// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>. Y el «Preparar paquete» de Empresa 360
 /// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
 /// entregarlo, todas en una sola transacción: si una falla, no queda ninguna y el zip no se entrega.
+/// Y el documento que la pantalla Revisión IA carga sola (<c>GET /documentos/revision-ia/{revisionId}/archivo</c>), con
+/// <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>: cada acceso del visor de Revisión IA a un Documento sensible deja
+/// una fila de tipo Revisión IA, igual que cada Apertura; cuenta para la señal de extracción masiva.
 /// </para>
 ///
 /// <para>
