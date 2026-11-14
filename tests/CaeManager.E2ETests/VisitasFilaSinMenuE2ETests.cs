@@ -136,7 +136,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // El recuento de trabajadores es un control de dentro: enseña quién entra y NO abre la vista
         // rápida. Tampoco el título ni el pie de su ventana, que no son botones: quien pulsa ahí está
         // usando la ventana, no la fila.
-        // La fila del test es la última de la lista (su fecha es la más lejana): se centra antes de
+        // La fila del test está entre las últimas de la lista (su fecha es lejana): se centra antes de
         // abrir la ventana, que se sostiene por :hover y :focus-within. Si su pie quedara fuera de la
         // vista, el desplazamiento del propio clic la sacaría de debajo del puntero y se cerraría.
         await fila.EvaluateAsync("f => f.scrollIntoView({ block: 'center' })");

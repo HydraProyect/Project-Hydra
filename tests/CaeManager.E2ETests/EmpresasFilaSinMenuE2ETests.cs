@@ -71,7 +71,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(panel).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
 
-        // Un punto de la fila que no es ningún control: la celda de cumplimiento.
+        // Un punto de la fila que no es ningún control: la celda de detecciones, vacía en esta fila.
         await CeldaSinControles(fila).ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombre);
 
