@@ -232,12 +232,6 @@
   <data name="RevIaDialogoFiltroOculta" xml:space="preserve">
     <value>Con el filtro activo, {0} de ellas no se ven en la lista: se aceptan igual, porque este botón actúa sobre toda la cola y no solo sobre lo que muestra el filtro.</value>
   </data>
-  <data name="RevIaVerDocumento" xml:space="preserve">
-    <value>Ver documento</value>
-  </data>
-  <data name="RevIaDocumentoReposo" xml:space="preserve">
-    <value>El documento no se carga hasta que lo pidas: las aperturas de documentos sensibles quedan registradas.</value>
-  </data>
   <data name="RevIaDialogoConfirmar" xml:space="preserve">
     <value>Confirmar todos</value>
   </data>

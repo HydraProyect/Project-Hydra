@@ -2,6 +2,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
@@ -33,6 +34,20 @@ public static class DocumentosEndpoints
         // cartera con el rol real de quien pide.
         endpoints.MapGet("/documentos/{id:guid}/archivo", ServirArchivoAsync)
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
+
+        // Revisión IA (D-49, opción C): el visor de la revisión seleccionada se carga solo. Cada acceso del visor de Revisión
+        // IA a un Documento sensible deja una fila de tipo Revisión IA, igual que cada Apertura; cuenta para la señal de
+        // extracción masiva. El origen lo da esta ruta, ligada a una revisión pendiente, nunca un dato del cliente (query,
+        // cabecera, Referer): /documentos/{id}/archivo sigue registrando una Apertura en cada GET.
+        // Solo cookie de sesión y los roles de la pantalla (el claim; dentro de un Workspace operativo derivado ya es el rol
+        // efectivo, y bajo una Sesión Privilegiada no hay ninguno). ObtenerRevisionIaParaVisorQuery vuelve a decidir con el
+        // rol efectivo, la cola (pendiente, Tenant propietario, Asignación de Cartera) y, al abrir, DocumentoLegibleAsync.
+        endpoints.MapGet("/documentos/revision-ia/{revisionId:guid}/archivo", ServirArchivoDeRevisionIaAsync)
+            .RequireAuthorization(new AuthorizeAttribute
+            {
+                AuthenticationSchemes = IdentityConstants.ApplicationScheme,
+                Roles = string.Join(',', ColaRevisionIa.RolesQueAccedenALaPestana),
+            });
 
         // Solo se enlaza desde /importacion (Importacion.razor: Roles = ConCargaMasivaCsv: Administrador, Dirección CAE y Coordinador CAE)
         // — mismo motivo que el RequireAuthorization de /clientes/plantilla.xlsx,
@@ -218,8 +233,62 @@ public static class DocumentosEndpoints
         if (abierto.Rechazo is not null)
             return abierto.Rechazo;
 
-        var documento = abierto.Documento!;
+        return ServirEnLinea(contexto, abierto.Flujo!, abierto.Documento!);
+    }
 
+    /// <summary>
+    /// Manejador de <c>GET /documentos/revision-ia/{revisionId}/archivo</c>: el documento de una revisión IA pendiente, para
+    /// el visor que la pantalla Revisión IA carga sola (D-49, opción C). Sirve el Documento de ESA revisión —el cliente no
+    /// lo elige— y lo registra como <see cref="TipoAccesoDocumentoSensible.RevisionIa"/>: cada acceso del visor de Revisión
+    /// IA a un Documento sensible deja una fila de tipo Revisión IA, igual que cada Apertura; cuenta para la señal de
+    /// extracción masiva. Una revisión que quien pide no alcanza en la cola da 404, igual que un Id que no existe.
+    /// </summary>
+    public static async Task<IResult> ServirArchivoDeRevisionIaAsync(
+        Guid revisionId, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+        IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
+        CancellationToken cancellationToken)
+    {
+        RevisionIaParaVisorDto? revision;
+        try
+        {
+            revision = await mediator.Send(new ObtenerRevisionIaParaVisorQuery(revisionId), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
+        {
+            return RechazoIncrustable(contexto, ErroresLecturaSensible.Responder(contexto, ex, revisionId,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!)));
+        }
+        if (revision is null)
+            return RechazoIncrustable(contexto, Results.NotFound());
+
+        var abierto = await AbrirConRegistroAsync(
+            revision.DocumentoId, TipoAccesoDocumentoSensible.RevisionIa, contexto, mediator, almacenamiento, registroAcceso,
+            fabricaRegistro, cancellationToken);
+        if (abierto.Rechazo is not null)
+            return RechazoIncrustable(contexto, abierto.Rechazo);
+
+        return ServirEnLinea(contexto, abierto.Flujo!, abierto.Documento!);
+    }
+
+    /// <summary>
+    /// El rechazo del visor de Revisión IA (la revisión se resolvió en otra pestaña, salió del alcance, el registro se
+    /// rechazó): el mismo código, sin cuerpo ni dato alguno, pero incrustable en el mismo origen como la respuesta buena,
+    /// para que el <c>&lt;iframe&gt;</c> quede en blanco en vez de enseñar la página de error del navegador por
+    /// <c>X-Frame-Options: DENY</c>. Sin páginas de estado: <c>UseStatusCodePagesWithReExecute("/not-found")</c> metería en
+    /// el visor el HTML de la aplicación, con las cabeceras por defecto. Solo esta ruta; <c>/documentos/{id}/archivo</c> no
+    /// cambia.
+    /// </summary>
+    private static IResult RechazoIncrustable(HttpContext contexto, IResult rechazo)
+    {
+        if (contexto.Features.Get<Microsoft.AspNetCore.Diagnostics.IStatusCodePagesFeature>() is { } paginasDeEstado)
+            paginasDeEstado.Enabled = false;
+        contexto.PermitirIncrustacionEnMismoOrigen();
+        return rechazo;
+    }
+
+    /// <summary>El archivo vigente, en línea y por rangos, incrustable solo en el mismo origen: lo que muestra el visor.</summary>
+    private static IResult ServirEnLinea(HttpContext contexto, Stream flujo, DocumentoDetalleDto documento)
+    {
         // Se muestra en el navegador, no se descarga: VisorDocumento lo incrusta en un <iframe> y los
         // enlaces «Ver PDF» lo abren en una pestaña. Pasar el nombre a Results.File como
         // fileDownloadName habría añadido Content-Disposition: attachment (el defecto que forzaba la
@@ -248,7 +317,7 @@ public static class DocumentosEndpoints
         // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
         // lectura por rangos que sí lo haría exige un formato cifrado por
         // bloques, pendiente de decisión.
-        return Results.File(abierto.Flujo!, "application/pdf", enableRangeProcessing: true);
+        return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
     }
 
     /// <summary>

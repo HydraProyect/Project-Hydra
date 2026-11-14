@@ -129,7 +129,7 @@ public class RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests : IAsyncL
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         foreach (var sensibilidad in sensibilidades)
         {
-            foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>().Where(t => t != TipoAccesoDocumentoSensible.EntregaExtension))
+            foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>().Where(t => !TiposQueSoporteNuncaRegistra.Contains(t)))
             {
                 (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), sensibilidad.ToString(), tipoAcceso.ToString()))
                     .Should().Be("registrado", $"{sensibilidad} × {tipoAcceso} es un acceso sensible que se registra");
@@ -137,16 +137,26 @@ public class RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests : IAsyncL
         }
     }
 
-    /// <summary>La extensión no funciona bajo una Sesión Privilegiada: Soporte TALVEG nunca registra una entrega a ella.</summary>
-    [Fact]
-    public async Task La_funcion_rechaza_la_entrega_a_la_extension()
+    /// <summary>
+    /// Tipos que ninguna ruta usable bajo una Sesión Privilegiada escribe: la extensión no funciona bajo ella, y la ruta
+    /// del visor de Revisión IA exige un rol de negocio efectivo, que la Sesión Privilegiada no tiene
+    /// (<c>SesionPrivilegiadaSinRolDeNegocioMiddleware</c>). La función los rechaza, y así debe seguir.
+    /// </summary>
+    private static readonly TipoAccesoDocumentoSensible[] TiposQueSoporteNuncaRegistra =
+        [TipoAccesoDocumentoSensible.EntregaExtension, TipoAccesoDocumentoSensible.RevisionIa];
+
+    /// <summary>Soporte TALVEG nunca registra una entrega a la extensión ni un acceso desde el visor de Revisión IA.</summary>
+    [Theory]
+    [InlineData(nameof(TipoAccesoDocumentoSensible.EntregaExtension))]
+    [InlineData(nameof(TipoAccesoDocumentoSensible.RevisionIa))]
+    public async Task La_funcion_rechaza_los_tipos_que_ninguna_ruta_de_soporte_escribe(string tipoAcceso)
     {
         var sesion = await AbrirSesionDeSoporteLecturaAsync();
 
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
 
         (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), nameof(Domain.Documentos.SensibilidadDocumental.DatosPersonales),
-                nameof(TipoAccesoDocumentoSensible.EntregaExtension)))
+                tipoAcceso))
             .Should().Be("valor_no_valido");
     }
 
