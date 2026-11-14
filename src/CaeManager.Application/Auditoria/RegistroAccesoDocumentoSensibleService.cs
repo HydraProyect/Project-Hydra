@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Auditoria;
 
@@ -19,7 +21,11 @@ public class RegistroAccesoDocumentoSensibleService(
     // Solo para la comprobación de «ya registrado» de RegistrarRevisionIaSiSensibleAsync. Sin él, esa vía registra en
     // cada llamada: de más, nunca de menos.
     IAuditoriaQueryContext? auditoriaContext = null,
-    ILogger<RegistroAccesoDocumentoSensibleService>? logger = null)
+    ILogger<RegistroAccesoDocumentoSensibleService>? logger = null,
+    // La cota de esa misma comprobación: la ventana y el reloj de la señal de extracción masiva (ver CotaDeduplicacion).
+    // Sin ellos, los valores por defecto de las opciones y el reloj del sistema, que son los de producción sin configurar.
+    IOptions<OpcionesIncidentesSeguridad>? opcionesIncidentes = null,
+    TimeProvider? reloj = null)
     : IRegistroAccesoDocumentoSensibleService
 {
     public async Task RegistrarSiSensibleAsync(
@@ -145,13 +151,13 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.ViaAccesoId,
             (TipoActorAuditoria)actor.ResolverTipoActor());
 
-        // Revisión IA: deduplicado por persona y Documento, no una fila por GET (el visor pide por rangos y se recarga). Sin
-        // la misma fila ya escrita —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión—, se
-        // registra. Como mucho una fila por persona y Documento en condiciones normales; peticiones simultáneas pueden dejar
-        // más, nunca menos: la comprobación y la escritura no van bajo un bloqueo, y la auditoría solo puede pecar por exceso.
-        // Dos revisiones pendientes del mismo Documento, vistas por la misma persona, comparten fila: comportamiento
-        // aceptado, la fila registra el acceso al Documento.
-        if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, desde, cancellationToken))
+        // Revisión IA: deduplicado, no una fila por GET (el visor pide por rangos y se recarga). Sin la misma fila ya escrita
+        // —mismo Documento, tipo, Usuario, Actor real y vía, desde que se creó la revisión pendiente y dentro de la ventana
+        // de detección de extracción masiva—, se registra. Como mucho una fila por persona y Documento por cada revisión
+        // pendiente y dentro de la ventana de detección de extracción masiva; peticiones simultáneas pueden dejar más, nunca
+        // menos: la comprobación y la escritura no van bajo un bloqueo, y la auditoría solo puede pecar por exceso. Una
+        // revisión nueva del mismo Documento deja otra fila para la misma persona: es un acto de revisión nuevo.
+        if (deduplicarDesdeUtc is { } desde && await YaRegistradoAsync(registro, CotaDeduplicacion(desde), cancellationToken))
             return null;
 
         // Falla en cerrado (DEC-36, REC-208): un acceso sensible que no queda
@@ -167,6 +173,27 @@ public class RegistroAccesoDocumentoSensibleService(
         // actor real), solo tras quedar registrado el acceso. Se devuelve en vez de emitirse aquí para que quien agrupa varios
         // registros en una transacción la emita solo tras confirmar.
         return actor.ActorRealUsuarioId is { } actorReal ? new SenalPendiente(actorReal, tenantActual?.TenantId) : null;
+    }
+
+    /// <summary>
+    /// Desde cuándo una fila ya escrita cuenta como la de este acceso: lo más tardío entre la creación de la revisión
+    /// pendiente y el comienzo de la ventana de detección de extracción masiva
+    /// (<see cref="OpcionesIncidentesSeguridad.VentanaExtraccion"/>, con el reloj de la señal).
+    ///
+    /// <para>
+    /// La señal (<see cref="ISenalesIncidenteSeguridad.DocumentoSensibleAbiertoAsync"/>) suma uno por cada fila escrita, por
+    /// Actor real y sin mirar el Documento, en una ventana deslizante de esa duración. Con esta cota, toda lectura que no
+    /// deja fila tiene otra fila de esa persona y Documento escrita dentro de la ventana vigente, que la señal ya contó (la
+    /// sumó al escribirla, en un instante igual o posterior a su <c>OcurridoEnUtc</c>): deduplicar no sirve para releer en
+    /// masa sin que la señal lo vea. Sin la cota, una fila de hace días taparía cada relectura de hoy. La señal tiene sus
+    /// propios límites (en memoria y por proceso, ver <see cref="VentanaDeslizantePorSujeto"/>); esta cota no los amplía.
+    /// </para>
+    /// </summary>
+    private DateTime CotaDeduplicacion(DateTime revisionCreadaEnUtc)
+    {
+        var ventana = (opcionesIncidentes?.Value ?? new OpcionesIncidentesSeguridad()).VentanaExtraccion;
+        var inicioVentana = (reloj ?? TimeProvider.System).GetUtcNow().UtcDateTime - ventana;
+        return revisionCreadaEnUtc > inicioVentana ? revisionCreadaEnUtc : inicioVentana;
     }
 
     /// <summary>

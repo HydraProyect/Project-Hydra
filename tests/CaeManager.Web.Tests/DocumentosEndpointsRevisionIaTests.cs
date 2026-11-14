@@ -16,7 +16,8 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// <c>GET /documentos/revision-ia/{revisionId}/archivo</c> (D-49, opción C): el visor de la pantalla Revisión IA se carga
-/// solo y su acceso queda como «Revisión IA», una vez por persona y Documento. Aquí se fija el manejador: sirve el
+/// solo y su acceso queda como «Revisión IA», como mucho una vez por persona y Documento por cada revisión pendiente y dentro
+/// de la ventana de detección de extracción masiva. Aquí se fija el manejador: sirve el
 /// Documento de la revisión —no uno que elija el cliente—, lo registra por la vía deduplicada y nunca como Apertura, y una
 /// revisión que la cola no alcanza da 404 sin abrir ni registrar nada. <c>/documentos/{id}/archivo</c> sigue registrando
 /// una Apertura en cada GET.

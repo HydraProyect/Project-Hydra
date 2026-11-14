@@ -11,7 +11,8 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Revisión IA, ronda 2: el visor carga solo el documento de la revisión seleccionada (D-49, opción C) por la ruta de la
-/// revisión, que el servidor registra como «Revisión IA» una vez por persona y Documento; «Descargar» sigue en
+/// revisión, que el servidor registra como «Revisión IA» como mucho una vez por persona y Documento por cada revisión
+/// pendiente y dentro de la ventana de detección de extracción masiva; «Descargar» sigue en
 /// /documentos/{id}/archivo (Apertura). También el texto del diálogo de «Confirmar todos», «Confirmable» según el umbral y
 /// el foco del desplegable.
 /// </summary>

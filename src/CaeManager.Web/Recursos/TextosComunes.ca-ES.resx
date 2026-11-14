@@ -56,7 +56,7 @@
   </data>
   <data name="TipoAccesoRevisionIa" xml:space="preserve">
     <value>Revisió IA</value>
-    <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el documento se cargó en el visor de la pantalla Revisión IA (deduplicado por persona y Documento desde que se creó la revisión).</comment>
+    <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el documento se cargó en el visor de la pantalla Revisión IA (deduplicado: como mucho una fila por persona y Documento por cada revisión pendiente y dentro de la ventana de detección de extracción masiva; peticiones simultáneas pueden dejar más, nunca menos).</comment>
   </data>
   <data name="TipoAccesoEntregaExtension" xml:space="preserve">
     <value>Lliurament a l'extensió</value>
