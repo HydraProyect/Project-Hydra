@@ -40,7 +40,9 @@ namespace CaeManager.IntegrationTests.Usuarios;
 /// delegada en las tres con el rol guardado «GestorCae»; su Gestora CAE, en X. La Plataforma P tiene una
 /// ventana de Soporte TALVEG abierta sobre X, con rol guardado «Consulta», para una persona cuyo perfil de
 /// origen es Administrador, y además una operación Inbound del Tenant entero sobre X, que no cuenta en
-/// Outbound (B-02a): el Soporte TALVEG conserva su rol guardado.
+/// Outbound (B-02a): el Soporte TALVEG conserva su rol guardado. En W, la misma ventana con una operación
+/// Outbound del Tenant entero de P: tampoco sube. En V, la única operación del Tenant entero de A es Inbound,
+/// y su Administradora delegada se ve con el rol guardado, no con el perfil de origen.
 /// </para>
 /// </summary>
 public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IAsyncLifetime
@@ -51,7 +53,7 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
     private readonly Guid _administradoraDeA = Guid.NewGuid();
     private readonly Guid _gestoraDeA = Guid.NewGuid();
     private readonly Guid _soporte = Guid.NewGuid();
-    private Guid _operadorA, _plataforma, _empresaX, _empresaY, _empresaZ;
+    private Guid _operadorA, _plataforma, _empresaX, _empresaY, _empresaZ, _empresaV, _empresaW;
 
     public async Task InitializeAsync()
     {
@@ -70,9 +72,12 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         var x = new Tenant("Empresa X");
         var y = new Tenant("Empresa Y");
         var z = new Tenant("Empresa Z");
-        propietario.Tenants.AddRange(a, p, x, y, z);
+        var v = new Tenant("Empresa V");
+        var w = new Tenant("Empresa W");
+        propietario.Tenants.AddRange(a, p, x, y, z, v, w);
         await propietario.SaveChangesAsync();
         (_operadorA, _plataforma, _empresaX, _empresaY, _empresaZ) = (a.Id, p.Id, x.Id, y.Id, z.Id);
+        (_empresaV, _empresaW) = (v.Id, w.Id);
 
         // Los roles los siembran las migraciones.
         var roles = await propietario.Roles.AsNoTracking().ToDictionaryAsync(r => r.Name!, r => r.Id);
@@ -106,10 +111,14 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
                 AsignacionOperacion.Externa(
                     _empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, ahora.AddDays(-1), ahora),
                 // Otro servicio: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola operación vigente del
-                // Tenant entero por propietario y servicio. Desde B-02a OperacionesDelTenantEntero solo cuenta Outbound,
-                // así que esta Inbound no rotula a nadie: que Soporte TALVEG no suba ni con una operación entera lo fija
-                // la regla pura en ObtenerDelegacionesQueryTests.El_rol_que_se_ensena_es_el_que_ejerce.
-                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
+                // Tenant entero por propietario y servicio, y X ya tiene la Outbound de A. Desde B-02a
+                // OperacionesDelTenantEntero solo cuenta Outbound, así que esta Inbound no rotula a nadie; el caso de
+                // Soporte TALVEG con una operación Outbound entera vive en W.
+                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora),
+                // V: la única operación del Tenant entero de A es Inbound, así que no rige el perfil de origen (B-02a).
+                AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora),
+                // W: Soporte TALVEG con una operación Outbound del Tenant entero de P; ni así sube a su perfil de origen.
+                AsignacionOperacion.Externa(_empresaW, _plataforma, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
         await propietario.SaveChangesAsync();
 
         var sobreX = new DelegacionTenant(_operadorA, _empresaX);
@@ -117,13 +126,18 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         var sobreZ = new DelegacionTenant(_operadorA, _empresaZ);
         var soporteSobreX = DelegacionTenant.ParaSoporte(_plataforma, _empresaX);
         soporteSobreX.ActivarParaSoporte("Incidencia de prueba", ahora.AddHours(2), ahora);
-        propietario.DelegacionesTenant.AddRange(sobreX, sobreY, sobreZ, soporteSobreX);
+        var sobreV = new DelegacionTenant(_operadorA, _empresaV);
+        var soporteSobreW = DelegacionTenant.ParaSoporte(_plataforma, _empresaW);
+        soporteSobreW.ActivarParaSoporte("Incidencia de prueba en W", ahora.AddHours(2), ahora);
+        propietario.DelegacionesTenant.AddRange(sobreX, sobreY, sobreZ, soporteSobreX, sobreV, soporteSobreW);
         propietario.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(sobreX.Id, _administradoraDeA, "GestorCae"),
             new AsignacionOperadorDelegado(sobreX.Id, _gestoraDeA, "GestorCae"),
             new AsignacionOperadorDelegado(sobreY.Id, _administradoraDeA, "GestorCae"),
             new AsignacionOperadorDelegado(sobreZ.Id, _administradoraDeA, "GestorCae"),
-            new AsignacionOperadorDelegado(soporteSobreX.Id, _soporte, "Consulta"));
+            new AsignacionOperadorDelegado(soporteSobreX.Id, _soporte, "Consulta"),
+            new AsignacionOperadorDelegado(sobreV.Id, _administradoraDeA, "GestorCae"),
+            new AsignacionOperadorDelegado(soporteSobreW.Id, _soporte, "Consulta"));
         await propietario.SaveChangesAsync();
     }
 
@@ -159,6 +173,26 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         usuarios.Where(r => delegaciones.ContainsKey(r.Key)).Should().BeEquivalentTo(delegaciones);
         usuarios[_soporte].Should().Be("Consulta",
             "la RLS deja leer la operación de P sobre X por la posición de propietario, pero es Inbound y Soporte no sube");
+    }
+
+    [Fact]
+    public async Task Soporte_TALVEG_no_sube_ni_con_una_operacion_Outbound_del_Tenant_entero()
+    {
+        var (usuarios, delegaciones) = await LeerAsync(sesion: Guid.NewGuid(), tenantOrigen: _empresaW, tenantActivo: _empresaW);
+
+        delegaciones.Should().BeEquivalentTo(new Dictionary<Guid, string> { [_soporte] = "Consulta" },
+            "la operación Outbound de P sobre W es del Tenant entero, y Soporte TALVEG conserva el rol de su ventana");
+        usuarios.Should().BeEquivalentTo(delegaciones);
+    }
+
+    [Fact]
+    public async Task Con_solo_una_operacion_Inbound_del_Tenant_entero_las_dos_pantallas_dicen_el_rol_guardado()
+    {
+        var (usuarios, delegaciones) = await LeerAsync(sesion: Guid.NewGuid(), tenantOrigen: _empresaV, tenantActivo: _empresaV);
+
+        delegaciones.Should().BeEquivalentTo(new Dictionary<Guid, string> { [_administradoraDeA] = "GestorCae" },
+            "la única operación del Tenant entero de A sobre V es Inbound, y en Outbound no rige el perfil de origen (B-02a)");
+        usuarios.Should().BeEquivalentTo(delegaciones);
     }
 
     [Fact]

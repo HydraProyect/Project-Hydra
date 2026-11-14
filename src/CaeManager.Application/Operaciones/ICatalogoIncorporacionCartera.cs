@@ -114,6 +114,15 @@ public enum ResultadoRetiradaApoyo
 /// </para>
 ///
 /// <para>
+/// <b>Solo Outbound</b> (B-02a): todo lo que este puerto lee, emite, retira o expira se acota a
+/// Asignaciones de Operación de <c>TenantsBeneficiariosAutorizados.ServicioDelContexto</c>. Una
+/// cartera bajo una operación de otro servicio no cuenta «en su cartera», no es cartera viva del
+/// Operador CAE (ni para la guarda de revocación de <c>EquipoDelOperadorCaeExterno</c>), no
+/// lleva una marca de principal que se apague, se encienda o se releve, no sostiene la fila
+/// heredada y no se retira desde aquí; una operación de otro servicio no es vigente para emitir.
+/// </para>
+///
+/// <para>
 /// Las escrituras (<see cref="IncorporarAsync"/>, <see cref="RetirarAsync"/>)
 /// tienen que ejecutarse con el Tenant propietario como Tenant activo
 /// (<c>AmbitoTenantExplicito</c>): la política RLS de las carteras solo deja
@@ -141,7 +150,7 @@ public interface ICatalogoIncorporacionCartera
     Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
         Guid operadorTenantId, CancellationToken cancellationToken = default);
 
-    /// <summary>La operación, si sigue vigente hoy; <c>null</c> si no existe, se cerró o caducó.</summary>
+    /// <summary>La operación Outbound, si sigue vigente hoy; <c>null</c> si no existe, es de otro servicio, se cerró o caducó.</summary>
     Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default);
 
