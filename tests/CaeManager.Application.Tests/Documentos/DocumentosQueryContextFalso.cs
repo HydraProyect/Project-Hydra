@@ -19,7 +19,17 @@ public class DocumentosQueryContextFalso : IDocumentosQueryContext
     public List<RechazoAcreditacionDocumentoPlataforma> ListaRechazosAcreditacionDocumentoPlataforma { get; } = [];
     public List<CambioEstadoAcreditacionPlataforma> ListaCambiosEstadoAcreditacionPlataforma { get; } = [];
 
-    public IQueryable<Documento> Documentos => new TestAsyncQueryable<Documento>(ListaDocumentos.AsQueryable());
+    /// <summary>Cuántas consultas se han abierto sobre <see cref="Documentos"/>.</summary>
+    public int LecturasDeDocumentos { get; private set; }
+
+    public IQueryable<Documento> Documentos
+    {
+        get
+        {
+            LecturasDeDocumentos++;
+            return new TestAsyncQueryable<Documento>(ListaDocumentos.AsQueryable());
+        }
+    }
     public IQueryable<RevisionIaDocumento> RevisionesIaDocumento => new TestAsyncQueryable<RevisionIaDocumento>(ListaRevisionesIaDocumento.AsQueryable());
     public IQueryable<AprobacionDocumento> AprobacionesDocumento => new TestAsyncQueryable<AprobacionDocumento>(ListaAprobacionesDocumento.AsQueryable());
     public IQueryable<VerificacionDocumentoOficial> VerificacionesDocumentoOficial => new TestAsyncQueryable<VerificacionDocumentoOficial>(ListaVerificacionesDocumentoOficial.AsQueryable());

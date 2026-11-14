@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -32,40 +34,24 @@ public class ObtenerDocumentosGeneradosQueryHandler(
     IPlantillasQueryContext plantillasContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
+    IDocumentosQueryContext documentosContext,
+    IProyectosQueryContext proyectosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentosGeneradosQuery, IReadOnlyList<DocumentoGeneradoListaDto>>
 {
     public async Task<IReadOnlyList<DocumentoGeneradoListaDto>> Handle(
         ObtenerDocumentosGeneradosQuery request, CancellationToken cancellationToken)
     {
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-
         var consulta = plantillasContext.DocumentosGenerados.AsQueryable();
 
         if (request.TrabajadorId is { } trabajadorId)
             consulta = consulta.Where(d => d.TrabajadorId == trabajadorId);
 
-        if (trabajadorIdsVisibles is not null)
-            consulta = consulta.Where(d => d.TrabajadorId == null || trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
-        if (empresaIdsVisibles is not null)
-            consulta = consulta.Where(d => d.EmpresaId == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value));
-
-        // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion ni
-        // DatosUtilizadosJson, y materializar la entidad daría 42501 en Sesión Privilegiada.
-        var generados = await consulta
-            .OrderByDescending(d => d.GeneradoEnUtc)
-            .Select(d => new
-            {
-                d.Id,
-                d.DocumentoId,
-                d.PlantillaDocumentoVersionId,
-                d.TrabajadorId,
-                d.EmpresaId,
-                d.GeneradoEnUtc,
-                d.Estado,
-            })
-            .ToListAsync(cancellationToken);
+        // El universo visible y su puerta (recorte en SQL, proyección sin columnas secretas y Asignación de Cartera fila
+        // a fila con el Documento del que cuelga) viven en una sola función, la misma que cuenta el contador de «con
+        // avisos»: AlcanceDeDocumentosGenerados.GeneradosVisiblesAsync.
+        var generados = await alcanceDatos.GeneradosVisiblesAsync(
+            consulta, plantillasContext, documentosContext, proyectosContext, cancellationToken);
 
         if (generados.Count == 0)
             return [];

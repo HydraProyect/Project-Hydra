@@ -128,16 +128,42 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
 
-        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso())
+        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
         var fila = listado.Should().ContainSingle().Subject;
         fila.DocumentoGeneradoId.Should().Be(_documentoGeneradoId);
         fila.PlantillaNombre.Should().Be("Plantilla de prueba");
         fila.EmpresaRazonSocial.Should().Be(_razonSocial);
 
-        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, new AlcanceDatosServiceFalso())
+        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
         conAvisos.Should().Be(1);
+    }
+
+    /// <summary>
+    /// La rama sin acceso total (la de un Gestor CAE con Asignación de Cartera) contra Postgres de verdad, y el contador
+    /// dando lo mismo que la lista (revisión puente de la ronda 3 de la PR #2222: los unitarios no ejercen la traducción
+    /// EF). Lo que traduce: el <c>Contains</c> de la Empresa, la proyección de coordenadas de plantilla seguida de
+    /// <c>Where</c>, la proyección con constructor tras <c>OrderBy</c> y las lecturas de la puerta. Lo que no: con una
+    /// plantilla general y solo la lista de Empresas, no entran los <c>Contains</c> de Trabajador y Centro ni el
+    /// <c>NOT IN</c> de las versiones de plantillas fuera de la Cartera.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task Sin_acceso_total_el_listado_y_su_contador_recortan_por_la_Cartera_en_la_base(bool empresaEnLaCartera, int esperados)
+    {
+        await using var contexto = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        var empresaGenerada = (await contexto.DocumentosGenerados.AsNoTracking().SingleAsync()).EmpresaId!.Value;
+        var gestorConCartera = new AlcanceDatosServiceFalso(empresaIds: [empresaEnLaCartera ? empresaGenerada : Guid.NewGuid()]);
+
+        var listado = await new ObtenerDocumentosGeneradosQueryHandler(contexto, contexto, contexto, contexto, contexto, gestorConCartera)
+            .Handle(new ObtenerDocumentosGeneradosQuery(), CancellationToken.None);
+        var conAvisos = await new ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(contexto, contexto, contexto, gestorConCartera)
+            .Handle(new ObtenerTotalDocumentosGeneradosConAvisosQuery(), CancellationToken.None);
+
+        listado.Should().HaveCount(esperados);
+        conAvisos.Should().Be(esperados);
     }
 
     [Fact]
