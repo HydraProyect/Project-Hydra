@@ -24,6 +24,10 @@ public static class RolesComunicaciones
     /// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c> en el servidor. Consulta entra a la bandeja pero
     /// no a este historial. Un test de la Web fija que las tres listas no se separen. Es la misma puerta de presentación que
     /// la pestaña de Documentos: <c>ObtenerReclamacionesEnviadasQuery</c> acota por cartera, no por rol.
+    /// La misma lista corta los otros dos rastros de reclamaciones (decisión 2026-11-14): el bloque «Reclamado y sin
+    /// respuesta» de Inicio y la línea «Última reclamación al Cliente» del Context Workspace del Centro. Ahí el servidor
+    /// también corta: <c>ObtenerReclamacionesSinRespuestaQuery</c> y <c>ObtenerUltimaReclamacionClienteQuery</c> devuelven
+    /// vacío fuera de <c>RolesQueLeenReclamaciones</c>.
     /// </summary>
     public const string LecturaReclamaciones =
         $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";

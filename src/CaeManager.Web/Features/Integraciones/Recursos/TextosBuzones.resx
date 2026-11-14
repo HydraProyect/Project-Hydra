@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Buzones de correo</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>TALVEG lee los buzones de esta lista y, solo si activas el acuse automático de uno, envía desde él un aviso de recibo.</value>
+  </data>
+  <data name="EnlaceConexiones" xml:space="preserve">
+    <value>Para conectar, desconectar o diagnosticar un buzón, ve a</value>
+  </data>
+  <data name="EnlaceConexionesVinculo" xml:space="preserve">
+    <value>Conexiones de integración</value>
+  </data>
+  <data name="Resumen" xml:space="preserve">
+    <value>Resumen</value>
+  </data>
+  <data name="ResumenBuzones" xml:space="preserve">
+    <value>Buzones</value>
+  </data>
+  <data name="ColBuzon" xml:space="preserve">
+    <value>Buzón</value>
+  </data>
+  <data name="ColTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="ColEnrutaA" xml:space="preserve">
+    <value>Enruta a</value>
+  </data>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ColResponsable" xml:space="preserve">
+    <value>Responsable</value>
+  </data>
+  <data name="ColAcuse" xml:space="preserve">
+    <value>Acuse automático</value>
+  </data>
+  <data name="TipoCompartido" xml:space="preserve">
+    <value>Compartido</value>
+  </data>
+  <data name="TipoPersonal" xml:space="preserve">
+    <value>Personal</value>
+  </data>
+  <data name="TipoConectado" xml:space="preserve">
+    <value>Conectado</value>
+  </data>
+  <data name="EnrutaOrganizacionPropia" xml:space="preserve">
+    <value>Organización propia</value>
+  </data>
+  <data name="EnrutaPersonal" xml:space="preserve">
+    <value>Personal de {0}</value>
+  </data>
+  <data name="EstadoHabilitada" xml:space="preserve">
+    <value>Habilitada</value>
+  </data>
+  <data name="EstadoConError" xml:space="preserve">
+    <value>Con error</value>
+  </data>
+  <data name="EstadoDeshabilitada" xml:space="preserve">
+    <value>Deshabilitada</value>
+  </data>
+  <data name="SinResponsable" xml:space="preserve">
+    <value>Sin responsable</value>
+  </data>
+  <data name="ResponsablePersonal" xml:space="preserve">
+    <value>{0} (propietario)</value>
+  </data>
+  <data name="AriaResponsable" xml:space="preserve">
+    <value>Responsable de {0}</value>
+  </data>
+  <data name="AcuseActivado" xml:space="preserve">
+    <value>Activado</value>
+  </data>
+  <data name="AcuseDesactivado" xml:space="preserve">
+    <value>Desactivado</value>
+  </data>
+  <data name="AcuseNoAplica" xml:space="preserve">
+    <value>No aplica</value>
+  </data>
+  <data name="AriaAcuse" xml:space="preserve">
+    <value>Acuse automático de {0}</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Aún no hay buzones conectados.</value>
+  </data>
+  <data name="VacioTexto" xml:space="preserve">
+    <value>Conecta el primero desde Conexiones de integración.</value>
+  </data>
+  <data name="AvisoCargaFallida" xml:space="preserve">
+    <value>No pudimos cargar los buzones. Vuelve a intentarlo en unos minutos.</value>
+  </data>
+  <data name="PieBuzones" xml:space="preserve">
+    <value>Cada conversación que abre un hilo nuevo se asigna al Responsable del buzón; queda sin asignar si el buzón no tiene Responsable o si este ya no puede atenderla. Si el correo continúa un hilo cerrado, la conversación nueva conserva a la persona que tenía asignada la anterior. Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera; Coordinador CAE y Gestor CAE, según su Asignación de Cartera o de Operación.</value>
+  </data>
+  <data name="ModalAcuseTitulo" xml:space="preserve">
+    <value>Acuse automático al recibir un correo</value>
+  </data>
+  <data name="ModalAcuseIntro" xml:space="preserve">
+    <value>Desactivado por defecto. Al activarlo, TALVEG enviará desde este buzón un acuse de recibo al remitente de algunas conversaciones nuevas: solo las que cumplan las condiciones siguientes.</value>
+  </data>
+  <data name="ModalAcuseReglasTitulo" xml:space="preserve">
+    <value>Cuándo se envía</value>
+  </data>
+  <data name="ModalAcuseRegla1" xml:space="preserve">
+    <value>Solo se envía en el primer correo de una conversación nueva y, como mucho, un acuse cada 24 horas por remitente.</value>
+  </data>
+  <data name="ModalAcuseRegla2" xml:space="preserve">
+    <value>Solo si el correo llegó hace menos de una hora, la autenticación del correo es válida y no pide que se responda a otra dirección.</value>
+  </data>
+  <data name="ModalAcuseRegla3" xml:space="preserve">
+    <value>Se omite ante lo que parece una respuesta automática, un mensaje de fuera de oficina o una lista de distribución. Esa detección se apoya en cabeceras, asunto y remitente, y puede fallar.</value>
+  </data>
+  <data name="ModalAcuseRegla4" xml:space="preserve">
+    <value>Se omite ante remitentes no-reply (noreply, no-reply, donotreply) y ante los de una Plataforma CAE. Tampoco se envía desde buzones personales.</value>
+  </data>
+  <data name="ModalAcuseBorrador" xml:space="preserve">
+    <value>El texto del acuse es fijo y todavía provisional: está pendiente de aprobación.</value>
+  </data>
+  <data name="ModalAcuseAviso" xml:space="preserve">
+    <value>Se aplicará a los correos que lleguen a este buzón desde ahora.</value>
+  </data>
+  <data name="ModalAcuseGuardar" xml:space="preserve">
+    <value>Guardar acuse</value>
+  </data>
+  <data name="ModalAcuseCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ToastAcuseActivado" xml:space="preserve">
+    <value>Acuse automático activado en {0}. Se aplicará a los correos que lleguen desde ahora, solo si cumplen las condiciones indicadas al activarlo.</value>
+  </data>
+  <data name="ToastAcuseDesactivado" xml:space="preserve">
+    <value>Acuse automático desactivado en {0}.</value>
+  </data>
+  <data name="ToastResponsableActualizado" xml:space="preserve">
+    <value>Responsable de {0} actualizado.</value>
+  </data>
+  <data name="ErrorAcuse" xml:space="preserve">
+    <value>No pudimos cambiar el acuse automático.</value>
+  </data>
+  <data name="ErrorResponsable" xml:space="preserve">
+    <value>No pudimos cambiar el responsable.</value>
+  </data>
+</root>

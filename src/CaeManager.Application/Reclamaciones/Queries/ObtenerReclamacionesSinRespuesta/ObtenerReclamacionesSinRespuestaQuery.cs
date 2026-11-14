@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
@@ -34,6 +35,10 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRe
 /// defecto en vez de por configuración: hoy solo hay un llamador y el umbral no
 /// se ha discutido con nadie. Cuando alguien quiera moverlo por tenant, este es
 /// el punto donde entra.
+///
+/// Es historial de reclamaciones: fuera de <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c> (Consulta
+/// y Usuario de Cliente) devuelve vacío, sin consultar nada (decisión 2026-11-14). Inicio tampoco la pregunta para esos
+/// roles.
 /// </summary>
 public record ObtenerReclamacionesSinRespuestaQuery(int DiasSinRespuesta = 7)
     : IRequest<IReadOnlyList<ReclamacionSinRespuestaDto>>;
@@ -59,12 +64,17 @@ public class ObtenerReclamacionesSinRespuestaQueryHandler(
     IComunicacionesQueryContext comunicacionesContext,
     IEmpresasQueryContext empresasContext,
     IAlcanceDatosService alcanceDatos,
-    DestinoDeReclamacionesEnviadasService destinoDeReclamaciones)
+    DestinoDeReclamacionesEnviadasService destinoDeReclamaciones,
+    ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerReclamacionesSinRespuestaQuery, IReadOnlyList<ReclamacionSinRespuestaDto>>
 {
     public async Task<IReadOnlyList<ReclamacionSinRespuestaDto>> Handle(
         ObtenerReclamacionesSinRespuestaQuery request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol
+            || !SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones.Contains(rol))
+            return [];
+
         var ahora = DateTime.UtcNow;
         var limite = ahora.AddDays(-request.DiasSinRespuesta);
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);

@@ -133,7 +133,8 @@ public class UltimaReclamacionClienteViaEmpresaTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerUltimaReclamacionClienteQueryHandler(
             lectura, alcance ?? new AlcanceDatosServiceFalso(),
-            new DestinoDeReclamacionesEnviadasService(lectura, lectura, lectura, lectura, lectura, lectura));
+            new DestinoDeReclamacionesEnviadasService(lectura, lectura, lectura, lectura, lectura, lectura),
+            new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", tenantOrigenId: _tenant));
 
         return await handler.Handle(new ObtenerUltimaReclamacionClienteQuery(clienteId), CancellationToken.None);
     }

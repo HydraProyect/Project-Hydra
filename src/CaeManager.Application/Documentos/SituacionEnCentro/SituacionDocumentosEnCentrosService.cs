@@ -93,27 +93,32 @@ public class SituacionDocumentosEnCentrosService(
     // motivo y el Gestor CAE de un cambio de estado anotado a mano en la plataforma (Centro 360, bloque 3 del 21-10).
     //
     // Regla de trazabilidad interna del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
-    // pendientes», punto 1). Son DOS reglas por tipo de dato y no se unifican: (1) la información operativa (el último
-    // motivo de rechazo del historial de rechazos de la acreditación, la dirección del portal y las notas del canal) la
-    // lee Consulta, porque la puerta es IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol
-    // Cliente; (2) la trazabilidad interna, de la que Consulta queda fuera solo en los tres puntos que enumera la frase
-    // siguiente, no en todo lo que un Gestor CAE deja anotado. Esta lista la aplica el servidor solo en tres
-    // puntos: la nota, el motivo y el Gestor CAE autor del REGISTRO de un cambio anotado a mano (CargarAnotacionesAsync de
-    // este servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery) y la última reclamación de los documentos de la
-    // situación, presentes o ausentes (CargarReclamacionesAsync). El motivo de un rechazo anotado a mano NO queda solo en
-    // ese registro: AcreditacionDocumentoPlataforma.CambiarEstadoAMano lo añade también al historial de rechazos (causa
-    // «Otro», sin autor ni nota; no distingue su origen del de un rechazo de la Plataforma CAE), y de ahí le llega a
-    // Consulta como UltimoMotivoRechazo por ObtenerAcreditacionesDelDocumentoQuery, ObtenerDocumentosQuery y
-    // ObtenerAcreditacionesPorProveedorQuery (esta última, en la pestaña Plataformas de Empresa 360, donde
-    // FilasPlataformasEmpresa lo filtra a las rechazadas en la presentación, y en GET /extension/acreditaciones-pendientes,
-    // sin restricción de rol, donde viaja también el motivo de rechazos pasados de acreditaciones que ya no están rechazadas).
-    // Las Queries de reclamaciones (ObtenerReclamacionesEnviadasQuery,
-    // ObtenerReclamacionesSinRespuestaQuery, ObtenerUltimaReclamacionClienteQuery) NO la comprueban: acotan por cartera,
-    // no por rol. Solo el historial de reclamaciones enviadas se le corta a Consulta en la presentación
-    // (Documentos.RolesDeGestionDocumental y RolesComunicaciones.LecturaReclamaciones; un test de la Web fija que esa
-    // lista no se separe de esta). Las otras dos sí le llegan hoy: el bloque «Reclamado y sin respuesta» de Inicio solo
-    // excluye al rol Cliente, y la línea de última reclamación del Centro en el Context Workspace (CentroWorkspacePanel) no
-    // filtra por rol (su Query solo comprueba que el Cliente sea visible).
+    // pendientes», punto 1; los rastros de reclamaciones y el motivo de la vista rápida, de la misma fecha, #2233). Son DOS
+    // reglas por tipo de dato y no se unifican: (1) la información operativa (el último motivo de rechazo del historial de
+    // rechazos de la acreditación, la dirección del portal y las notas del canal) la lee Consulta, porque su puerta es
+    // IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol Cliente; (2) la trazabilidad interna,
+    // de la que Consulta y el Usuario de Cliente quedan fuera. Esta lista la aplica el servidor en cinco puntos:
+    //   - la nota, el motivo y el Gestor CAE autor del REGISTRO de un cambio de estado anotado a mano
+    //     (CargarAnotacionesAsync de este servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery);
+    //   - la última reclamación de los documentos de la situación, presentes o ausentes (CargarReclamacionesAsync);
+    //   - ObtenerReclamacionesSinRespuestaQuery, que devuelve vacío (bloque «Reclamado y sin respuesta» de Inicio);
+    //   - ObtenerUltimaReclamacionClienteQuery, que devuelve null (línea «Última reclamación al Cliente» del Centro en el
+    //     Context Workspace);
+    //   - el UltimoMotivoRechazo de ObtenerAcreditacionesDelDocumentoQuery (vista rápida de un Documento), que queda a null.
+    // La presentación sigue la misma lista (RolesComunicaciones.LecturaReclamaciones): Inicio y CentroWorkspacePanel no envían
+    // esas dos Queries a los demás roles y DocumentoWorkspacePanel no pinta el motivo.
+    // El corte del motivo es solo el de la vista rápida: el motivo de un rechazo NO queda en ese único punto, y el de uno
+    // anotado a mano tampoco queda solo en el registro del cambio. AcreditacionDocumentoPlataforma.CambiarEstadoAMano lo
+    // añade también al historial de rechazos (causa «Otro», sin autor ni nota; no distingue su origen del de un rechazo de la
+    // Plataforma CAE), y de ahí le sigue llegando a Consulta como UltimoMotivoRechazo por ObtenerDocumentosQuery (listado de
+    // Documentos, solo si la acreditación está rechazada) y por ObtenerAcreditacionesPorProveedorQuery, sin condicionarlo al
+    // estado actual (pestaña Plataformas de Empresa 360, donde FilasPlataformasEmpresa lo filtra a las rechazadas en la
+    // presentación, y GET /extension/acreditaciones-pendientes, que solo exige sesión o token de extensión, sin lista de
+    // roles, y donde la extensión excluye los rechazos vigentes, así que viaja el de rechazos pasados).
+    // El historial de reclamaciones enviadas (ObtenerReclamacionesEnviadasQuery) NO la comprueba en el servidor: acota por
+    // cartera, no por rol, y se le corta a Consulta solo en la presentación (Documentos.RolesDeGestionDocumental y
+    // RolesComunicaciones.LecturaReclamaciones; HistorialReclamacionesEnComunicacionesTests, en la Web, fija que esas dos
+    // listas no se separen de esta).
     // Decide el rol efectivo (ICurrentUserService.ObtenerRolEfectivoAsync), así que la regla no depende de la vía por la
     // que la sesión es Consulta (su Tenant de origen, un Tenant beneficiario delegado por Asignación de Operación o la
     // delegación heredada del acceso de soporte).

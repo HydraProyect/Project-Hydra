@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -23,14 +24,12 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// solo cuentan los canales con Plataforma CAE de Centros visibles y con gestión CAE, y el motivo y la dirección se cortan con
 /// <see cref="IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync"/>, que decide por el rol efectivo: el rol Cliente recibe la
 /// lista vacía, así que ve el estado pero ni el motivo ni la dirección viajan en el DTO (decisión de Chris del 2026-11-12, opción B).
-/// El rol Consulta (de gestión en solo lectura, no de portal, por cualquier vía: Tenant de origen, Tenant beneficiario delegado por
-/// Asignación de Operación o delegación heredada) SÍ los recibe: regla operativa de la opción C (DECISION_LOG 2026-11-14, «Tanda 1
-/// de decisiones pendientes», punto 1). El <b>registro</b> de un cambio de estado anotado a mano (nota, motivo y autor) sigue la
-/// otra regla, la de trazabilidad interna (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>), y Consulta no lo lee
-/// de ahí. Pero el motivo de un rechazo anotado a mano no queda solo en ese registro: <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
-/// lo añade también al historial de rechazos (causa «Otro», sin autor ni nota; la tabla no distingue el origen) y esta consulta lo lee
-/// de ahí como <c>UltimoMotivoRechazo</c> (<c>RechazosAcreditacionDocumentoPlataforma</c>, más abajo) para todo rol que no sea Cliente,
-/// Consulta incluido. Es el mismo historial que leen <c>ObtenerDocumentosQuery</c> y <c>ObtenerAcreditacionesPorProveedorQuery</c>.
+/// El motivo, además, solo lo reciben los roles que leen el historial de reclamaciones
+/// (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>): Consulta recibe el estado y la dirección, pero no el
+/// motivo, que también guarda el de un rechazo anotado a mano (decisión de Chris del 2026-11-14). Es un corte de esta vista rápida:
+/// el mismo motivo sí le llega a Consulta por <c>ObtenerDocumentosQuery</c> y por <c>ObtenerAcreditacionesPorProveedorQuery</c>
+/// (Empresa 360 y <c>GET /extension/acreditaciones-pendientes</c>), que acotan por <c>ObtenerCentroIdsParaGestionAsync</c> y no por
+/// la lista de reclamaciones.
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
 /// </para>
 /// </summary>
@@ -43,8 +42,9 @@ public record AcreditacionesDelDocumentoDto(EstadoDocumento EstadoDocumental, IR
 /// <param name="PlataformaCodigo">El código de la Plataforma CAE, para su logotipo (<c>LogoPlataforma</c>); null si no lo tiene.</param>
 /// <param name="ClienteEmpresarialNombre">El Cliente empresarial del Centro del canal, no el Tenant propietario.</param>
 /// <param name="UltimoMotivoRechazo">
-/// El último motivo literal de rechazo, solo si está rechazada y el usuario gestiona el Centro del canal: <c>null</c> para el rol
-/// Cliente, con el mismo corte que <c>AcreditacionEnGrupoDto.UltimoMotivoRechazo</c>.
+/// El último motivo literal de rechazo, solo si está rechazada, el usuario gestiona el Centro del canal y su rol lee el historial
+/// de reclamaciones: <c>null</c> para el rol Cliente y para Consulta (2026-11-14). Para Consulta es más estricto que
+/// <c>AcreditacionEnGrupoDto.UltimoMotivoRechazo</c> del listado.
 /// </param>
 /// <param name="UrlAccesoCanal">
 /// La dirección del portal del canal de ESTA acreditación, con el mismo corte que el motivo; tal como está guardada (la pantalla la
@@ -61,7 +61,7 @@ public record AcreditacionDelDocumentoDto(Guid Id, Guid ProveedorId, string Plat
 public class ObtenerAcreditacionesDelDocumentoQueryHandler(
     IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerAcreditacionesDelDocumentoQuery, AcreditacionesDelDocumentoDto?>
 {
     public async Task<AcreditacionesDelDocumentoDto?> Handle(ObtenerAcreditacionesDelDocumentoQuery request, CancellationToken cancellationToken)
@@ -109,7 +109,14 @@ public class ObtenerAcreditacionesDelDocumentoQueryHandler(
         var centrosGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         bool Gestiona(Guid centroId) => centrosGestion == null || centrosGestion.Contains(centroId);
 
-        var rechazadas = crudas.Where(c => c.Estado == EstadoAcreditacion.Rechazada && Gestiona(c.CentroId)).Select(c => c.Id).ToList();
+        // El motivo sale del historial de rechazos, donde también queda el de un rechazo anotado a mano: es de gestión, y lo
+        // leen los mismos roles que el historial de reclamaciones (decisión 2026-11-14). Consulta ve el estado y la dirección
+        // del portal, no el motivo; sin rol efectivo, tampoco.
+        var leeMotivo = await currentUserService.ObtenerRolEfectivoAsync() is { } rol
+            && SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones.Contains(rol);
+        bool VeMotivo(Guid centroId) => leeMotivo && Gestiona(centroId);
+
+        var rechazadas = crudas.Where(c => c.Estado == EstadoAcreditacion.Rechazada && VeMotivo(c.CentroId)).Select(c => c.Id).ToList();
         var motivos = rechazadas.Count == 0
             ? new Dictionary<Guid, string>()
             : await documentosContext.RechazosAcreditacionDocumentoPlataforma
@@ -133,7 +140,7 @@ public class ObtenerAcreditacionesDelDocumentoQueryHandler(
                 proveedores.TryGetValue(c.ProveedorId, out var proveedor) ? proveedor.Nombre : "—",
                 proveedores.TryGetValue(c.ProveedorId, out var conCodigo) && !string.IsNullOrWhiteSpace(conCodigo.Codigo) ? conCodigo.Codigo : null,
                 clientesEmpresariales.GetValueOrDefault(c.ClienteEmpresarialId, "—"), c.CentroNombre, c.Estado, c.EstadoVigencia,
-                Gestiona(c.CentroId) ? motivos.GetValueOrDefault(c.Id) : null,
+                VeMotivo(c.CentroId) ? motivos.GetValueOrDefault(c.Id) : null,
                 Gestiona(c.CentroId) ? c.UrlAcceso : null))
             .OrderBy(a => a.PlataformaNombre, StringComparer.CurrentCulture)
             .ThenBy(a => a.ClienteEmpresarialNombre, StringComparer.CurrentCulture)

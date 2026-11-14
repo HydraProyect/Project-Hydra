@@ -34,7 +34,13 @@ public sealed record ImporteEnMoneda(string Moneda, decimal Importe);
 /// <param name="Importe">Null si no hay importe que enseñar (no se cobra, sin tarifa o importes ocultos).</param>
 /// <param name="Moneda">La de la línea con la que se valoró, no la de ninguna versión releída después.</param>
 public sealed record ConceptoFacturado(
-    ConceptoTarifaOperadorCae Concepto, int? Unidades, EstadoTarifaConcepto Estado, decimal? Precio, decimal? Importe, string? Moneda);
+    ConceptoTarifaOperadorCae Concepto, int? Unidades, EstadoTarifaConcepto Estado, decimal? Precio, decimal? Importe, string? Moneda)
+{
+    /// <summary>El nombre estable del concepto, para claves de recurso sin que el lector dependa del enum de Dashboard (D-F2).</summary>
+    public string Clave => Concepto.ToString();
+
+    public bool Cobra => Estado == EstadoTarifaConcepto.Cobra;
+}
 
 /// <summary>
 /// Lo que el Operador CAE externo cobra a una Empresa gestionada (Tenant beneficiario) en un mes. «Ingreso por
@@ -53,6 +59,14 @@ public sealed record EmpresaFacturada(
     int ExtranjerosEnExcel)
 {
     public ConceptoFacturado Concepto(ConceptoTarifaOperadorCae concepto) => Conceptos.Single(c => c.Concepto == concepto);
+
+    /// <summary>La clave de <c>TextosFacturacion</c> del estado de la cifra del mes, para lectores sin el enum de Dashboard (D-F2).</summary>
+    public string ClaveEstado => Estado switch
+    {
+        EstadoCifraMensual.Existe => "EstadoCerrado",
+        EstadoCifraMensual.Estimado => "EstadoSinCerrar",
+        _ => "EstadoEnCurso",
+    };
 
     public int? Extranjeros => Concepto(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero).Unidades;
 

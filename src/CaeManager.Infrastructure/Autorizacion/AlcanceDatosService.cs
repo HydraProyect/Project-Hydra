@@ -491,6 +491,23 @@ public class AlcanceDatosService(
 
         var ahora = DateTime.UtcNow;
 
+        // Una Asignación de Operación Outbound externa solo autoriza mientras la DelegacionTenant de
+        // Operador CAE externo que la sostiene siga activa y sin caducar (decisión de Chris del
+        // 2026-11-14, opción A en la PR #2223). La operación del Tenant entero lleva la caducidad de la
+        // delegación como fin, pero las acotadas no, y su cierre por la caducidad o por una revocación
+        // atendida por la ranura anterior solo llega con el job de expiración o con el siguiente
+        // arranque. La operación no guarda de qué delegación nació, así que se exige una del mismo par
+        // (Tenant propietario, Operador CAE externo) y, sin ella, falla cerrada. Una operación del
+        // propio Tenant (raíz o interna) no depende de ninguna delegación, e Inbound tiene su propio
+        // ciclo.
+        var esExterno = operadorTenantId.Value != propietarioTenantId;
+        var delegacionVigente = !esExterno || await dbContext.DelegacionesTenant.AnyAsync(d =>
+            d.TenantClienteId == propietarioTenantId
+            && d.TenantConsultoraId == operadorTenantId.Value
+            && d.Proposito == CaeManager.Domain.Tenants.PropositoDelegacion.OperadorExterno
+            && d.Activa
+            && (d.ExpiraEnUtc == null || ahora < d.ExpiraEnUtc), cancellationToken);
+
         var carteras = await dbContext.AsignacionesCartera
             .Where(c => usuarioIds.Contains(c.UsuarioId)
                         && c.PropietarioTenantId == propietarioTenantId
@@ -516,7 +533,8 @@ public class AlcanceDatosService(
                     && o.PropietarioTenantId == propietarioTenantId
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora
-                    && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
+                    && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)
+                    && (delegacionVigente || o.Servicio != ServicioCae.Outbound)),
                 c => c.AsignacionOperacionId, o => o.Id, (c, o) => new
                 {
                     Operacion = o.AmbitoRelacionClienteId,
@@ -602,14 +620,19 @@ public class AlcanceDatosService(
         // de Operación o la delegación heredada del acceso de soporte) recibe
         // el último motivo de rechazo del historial de rechazos de la
         // acreditación, la dirección del portal y las notas del canal. Otra
-        // regla, RolesQueLeenReclamaciones, corta el registro de un cambio de
-        // estado anotado a mano (su nota, su motivo y su autor), pero no el
-        // historial de rechazos: CambiarEstadoAMano guarda ahí también el motivo
-        // de un rechazo anotado a mano, sin distinguirlo del que devuelve la
-        // Plataforma CAE, y por esta puerta le llega a Consulta. El historial
-        // de reclamaciones enviadas no pasa por esa lista en el servidor y se
-        // le corta a Consulta en la presentación (detalle en el comentario de
-        // esa lista). No añadir Consulta a esta condición.
+        // regla, RolesQueLeenReclamaciones, corta en el servidor el registro de
+        // un cambio de estado anotado a mano (su nota, su motivo y su autor),
+        // los rastros de reclamaciones (sin respuesta de Inicio, última del
+        // Centro y última de los documentos de la situación) y el motivo de
+        // rechazo de la vista rápida de un Documento
+        // (ObtenerAcreditacionesDelDocumentoQuery), pero no el historial de
+        // rechazos en el resto de lecturas: CambiarEstadoAMano guarda ahí
+        // también el motivo de un rechazo anotado a mano, sin distinguirlo del
+        // que devuelve la Plataforma CAE, y por esta puerta le llega a Consulta
+        // por ObtenerDocumentosQuery y ObtenerAcreditacionesPorProveedorQuery.
+        // El historial de reclamaciones enviadas no pasa por esa lista en el
+        // servidor y se le corta a Consulta en la presentación (detalle en el
+        // comentario de esa lista). No añadir Consulta a esta condición.
         if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 

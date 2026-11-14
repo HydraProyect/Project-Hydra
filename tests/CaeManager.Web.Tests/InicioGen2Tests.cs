@@ -973,7 +973,7 @@ public class InicioGen2Tests : BunitContext
 
     /// <summary>
     /// El rol Cliente no ve el bloque de reclamaciones ni su estado vacío, aunque
-    /// la consulta devolviera una reclamación: el bloque va dentro de «Requiere atención».
+    /// la consulta devolviera una reclamación: no está en <c>RolesComunicaciones.LecturaReclamaciones</c>.
     /// </summary>
     [Fact]
     public void El_rol_Cliente_no_ve_el_estado_vacio_del_bloque()
@@ -1021,6 +1021,46 @@ public class InicioGen2Tests : BunitContext
         cut.FindAll(".dashboard-sin-respuesta-fila").Should().HaveCount(1);
         cut.Find(".dashboard-sin-respuesta-cliente").TextContent.Should().Be("Refrielectric S.A.");
         cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «Reclamado y sin respuesta» es historial de reclamaciones (decisión 2026-11-14): lo leen los roles de
+    /// <c>RolesComunicaciones.LecturaReclamaciones</c>. Consulta y el Usuario de Cliente ni lo ven ni lo preguntan al
+    /// servidor, aunque el servidor devolviera alguna fila. El resto de «Requiere atención» queda como en main: la cola y el
+    /// pulso del equipo llegan a todos los roles salvo Cliente, también a Consulta.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true, true)]
+    [InlineData(Roles.DireccionCae, true, true)]
+    [InlineData(Roles.CoordinadorCae, true, true)]
+    [InlineData(Roles.GestorCae, true, true)]
+    [InlineData(Roles.Consulta, true, false)]
+    [InlineData(Roles.Cliente, false, false)]
+    public void Reclamado_y_sin_respuesta_solo_para_quien_lee_reclamaciones_y_el_resto_de_Requiere_atencion_no_cambia(
+        string rol, bool veRequiereAtencion, bool veReclamaciones)
+    {
+        var mediador = new MediadorDeInicio
+        {
+            SinRespuesta =
+            [
+                new ReclamacionSinRespuestaDto(Guid.NewGuid(), Guid.NewGuid(), AmbitoAplicacion.Cliente,
+                    "Refrielectric S.A.", Guid.NewGuid(), DateTime.UtcNow.AddDays(-9), 9, 2),
+            ],
+        };
+
+        var cut = Renderizar(mediador, rol: rol);
+
+        var cabeceras = cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToList();
+
+        cabeceras.Contains("Requiere atención").Should().Be(veRequiereAtencion);
+        mediador.Bandejas.Should().Be(veRequiereAtencion ? 1 : 0);
+        mediador.Pulsos.Should().Be(veRequiereAtencion ? 1 : 0);
+
+        cabeceras.Contains("Reclamado y sin respuesta").Should().Be(veReclamaciones);
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().HaveCount(veReclamaciones ? 1 : 0);
+        cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
+        mediador.PeticionesSinRespuesta.Should().Be(veReclamaciones ? 1 : 0,
+            "quien no lee reclamaciones no las pregunta: la pregunta ni sale");
     }
 
     // --------------------------------------------------- qué llegó sin ver
@@ -1503,6 +1543,9 @@ public class InicioGen2Tests : BunitContext
         /// </summary>
         public int Pulsos { get; private set; }
 
+        /// <summary>Cuántas veces se preguntó por lo reclamado y sin respuesta (<see cref="ObtenerReclamacionesSinRespuestaQuery"/>).</summary>
+        public int PeticionesSinRespuesta { get; private set; }
+
         /// <summary>Empresas que el Gestor CAE puede pedir añadir a su cartera (el aviso de alcance cero de FS-06).</summary>
         public IReadOnlyList<CandidatoIncorporacionCarteraDto> Candidatos { get; init; } = [];
 
@@ -1538,6 +1581,7 @@ public class InicioGen2Tests : BunitContext
                     Pulsos++;
                     return Task.FromResult((TResponse)(object)new PulsoEquipoDto(0, 0, 0, null, false));
                 case ObtenerReclamacionesSinRespuestaQuery:
+                    PeticionesSinRespuesta++;
                     return Task.FromResult((TResponse)(object)SinRespuesta);
                 case ObtenerClientesAutorizadosQuery:
                     PeticionesAutorizados++;

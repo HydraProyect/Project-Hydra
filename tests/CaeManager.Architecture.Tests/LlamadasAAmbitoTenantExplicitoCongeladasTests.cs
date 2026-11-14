@@ -183,13 +183,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// </para>
     ///
     /// <para>
-    /// Actualizado 2026-10-09 (D-9, «al reactivar vuelve a ser principal quien lo
-    /// era antes»): <c>RelevoDePrincipalDeCartera.cs</c> pasa de 3 a 5. Las dos
-    /// nuevas son de <c>RestaurarAlReactivarAsync</c>: una al Tenant del Operador
-    /// CAE, para leer en Identity si el anterior principal sigue pudiendo serlo, y
-    /// otra al Tenant propietario, para devolverle la marca. Ambos Guid son los de la
-    /// Asignación de Operación que el comando acaba de abrir a partir de la
-    /// <c>DelegacionTenant</c> que cargó y autorizó.
+    /// Actualizado 2026-11-14 (opción A en la PR #2223, que supera D-9):
+    /// <c>RelevoDePrincipalDeCartera.cs</c> vuelve de 5 a 3. Reactivar una
+    /// DelegacionTenant ya no repone Asignaciones de Cartera ni la marca de
+    /// principal, así que se retiran <c>RestaurarAlReactivarAsync</c> y sus dos
+    /// llamadas (al Tenant del Operador CAE y al Tenant propietario).
     /// </para>
     ///
     /// <para>
@@ -293,6 +291,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
+        ["src/CaeManager.Application/Facturacion/LiquidacionesOperadorCae/CobrosLiquidacionOperadorCae.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "el emisor que devuelve IFuenteLiquidacionOperadorCae, que es el Tenant de origen del propio usuario: las marcas de cobro de la liquidación del Operador CAE son filas de ese Tenant; se leen si el rol efectivo ahí es Administrador, Dirección CAE o Coordinador CAE (EmisorQueLeeAsync) y se escriben solo si es Administrador o Dirección CAE (EmisorQueEmiteAsync) y el emisor gestionó a la Empresa en el mes"),
+        ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/FuenteLiquidacionOperadorCae.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, que es el Operador CAE: mira su rol efectivo en ese Tenant (AutorizacionCuadroDireccion.EntraPorRolAsync) y, si entra, lee las vigencias de sus Asignaciones de Operación externas del mes (ObtenerEmpresasGestionadasDelMesQueryHandler.LeerAsync)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
@@ -356,7 +360,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor. De la petición solo salen la Asignación de Operación y la persona"),
         ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Al reactivar una delegación (D-9), los dos salen de la Asignación de Operación que el comando acaba de abrir a partir de la DelegacionTenant ya cargada y autorizada. Ningún Guid llega de la petición"),
+                "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Ningún Guid llega de la petición"),
         // I5 (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): alerta «sin principal», escalado y «Asumir».
         ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
@@ -612,6 +616,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] = 3,
             // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
             ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
+            // Las dos con el emisor (Tenant de origen de quien pide): lectura y escritura de sus marcas de cobro.
+            ["src/CaeManager.Application/Facturacion/LiquidacionesOperadorCae/CobrosLiquidacionOperadorCae.cs"] = 2,
+            // Las dos con el Tenant de origen de quien pide: rol efectivo y vigencias del mes.
+            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/FuenteLiquidacionOperadorCae.cs"] = 2,
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] = 1,
@@ -630,7 +638,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] = 1,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
-            ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
+            ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 2,

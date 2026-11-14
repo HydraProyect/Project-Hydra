@@ -100,7 +100,9 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
 
         // La fila antigua se borra; la cartera se CIERRA. La diferencia es
         // deliberada: el modelo nuevo conserva el rastro de quién operó qué y
-        // hasta cuándo, y borrarla perdería exactamente eso.
+        // hasta cuándo, y borrarla perdería exactamente eso. Se cierran todas
+        // las suyas bajo cualquier Asignación de Operación Outbound del par, de
+        // Tenant entero o acotada (decisión de Chris del 2026-11-14).
         if (deOperadorExterno)
             await asignacionesWriter.CerrarCarteraOperadorAsync(
                 tenantPropietarioId, delegacion.TenantConsultoraId,

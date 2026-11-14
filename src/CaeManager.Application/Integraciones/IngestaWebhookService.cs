@@ -383,7 +383,7 @@ public class IngestaWebhookService(
     }
 
     /// <summary>
-    /// Toda conversación nace asignada al responsable de su buzón. La continuación de un hilo cerrado conserva
+    /// Una conversación nueva nace asignada al responsable de su buzón, si lo hay y puede atenderla. La continuación de un hilo cerrado conserva
     /// a quien ya la llevaba. Quien ya no puede atenderla (<see cref="ResponsableBuzonElegible"/>: rol, cuenta y
     /// cartera pueden haber cambiado desde que se le nombró, y un Id sin cuenta es lo mismo que no alcanzable) no
     /// se asigna: una conversación en manos de alguien sin acceso quedaría oculta para el resto, y sin asignar

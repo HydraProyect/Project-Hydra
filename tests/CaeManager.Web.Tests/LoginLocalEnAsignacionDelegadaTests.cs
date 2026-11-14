@@ -232,7 +232,10 @@ public partial class LoginLocalEnAsignacionDelegadaTests
 
         public IQueryable<Tenant> Tenants => Consulta(Array.Empty<Tenant>());
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw new NotSupportedException();
-        public IQueryable<DelegacionTenant> DelegacionesTenant => Consulta(new[] { Delegacion });
+        // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par vigente (PR #2223);
+        // la de Soporte de arriba solo sostiene la vía heredada.
+        private DelegacionTenant delegacionDelPar = null!;
+        public IQueryable<DelegacionTenant> DelegacionesTenant => Consulta(new[] { Delegacion, delegacionDelPar });
         public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Consulta(Asignaciones.Where(a => !a.EstaRevocada));
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => Consulta(new[] { operacion });
         public IQueryable<Guid> TenantsSuspendidosIds => Consulta(Array.Empty<Guid>());
@@ -251,6 +254,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
             escenario.Delegacion = DelegacionTenant.ParaSoporte(escenario.TenantOrigen, escenario.TenantVisitado);
             escenario.Delegacion.ActivarParaSoporte("Incidencia ficticia", ahora.AddHours(1), ahora);
             escenario.Asignaciones.Add(new AsignacionOperadorDelegado(escenario.Delegacion.Id, escenario.Usuario, rolAsignado));
+            escenario.delegacionDelPar = new DelegacionTenant(escenario.TenantOrigen, escenario.TenantVisitado);
             escenario.operacion = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
                 ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
             // La vía heredada no debe encontrar una operación alternativa en el fan-out.

@@ -39,11 +39,12 @@ public record CambioEstadoPlataformaCentroDto(
 /// No es un corte del dato: cuando el cambio anotado a mano es un rechazo, <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
 /// guarda ese mismo motivo también en el historial de rechazos (causa «Otro», sin autor ni nota; esa tabla no distingue si el
 /// rechazo lo devolvió la Plataforma CAE o se anotó a mano), y ese historial sí le llega a Consulta por la regla operativa
-/// (<c>ObtenerCentroIdsParaGestionAsync</c>) como <c>UltimoMotivoRechazo</c>: <c>ObtenerAcreditacionesDelDocumentoQuery</c> y
-/// <c>ObtenerDocumentosQuery</c> lo devuelven solo si la acreditación está rechazada; <c>ObtenerAcreditacionesPorProveedorQuery</c>
-/// (pestaña Plataformas de Empresa 360, donde la presentación lo filtra, y <c>GET /extension/acreditaciones-pendientes</c>, que no
-/// restringe por rol) lo devuelve sin condicionarlo al estado actual de la acreditación. Son dos reglas por tipo de dato y no se
-/// unifican, pero el motivo de un rechazo anotado a mano es legible para Consulta por esa otra vía; la nota y el autor, no.</para>
+/// (<c>ObtenerCentroIdsParaGestionAsync</c>) como <c>UltimoMotivoRechazo</c>: <c>ObtenerDocumentosQuery</c> lo devuelve solo si la
+/// acreditación está rechazada; <c>ObtenerAcreditacionesPorProveedorQuery</c> (pestaña Plataformas de Empresa 360, donde la
+/// presentación lo filtra, y <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por rol) lo devuelve sin
+/// condicionarlo al estado actual de la acreditación. La vista rápida de un Documento (<c>ObtenerAcreditacionesDelDocumentoQuery</c>)
+/// sí lo corta para Consulta, con la misma lista que esta sección. Son dos reglas por tipo de dato y no se unifican, pero el motivo
+/// de un rechazo anotado a mano es legible para Consulta por esas otras vías; la nota y el autor, no.</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,

@@ -21,6 +21,20 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// congelada para siempre; este cierra lo que ya no corresponde y abre lo que
 /// falta, en cada arranque, hasta que la doble escritura quede establecida.
 ///
+/// <para>
+/// <b>Nunca reabre ni recrea una Asignación de Operación externa</b> (decisión de
+/// Chris del 2026-11-14): solo crea la de una delegación que no tuvo ninguna. Si el
+/// par ya tiene alguna, aunque esté cerrada o expirada, lo que falte lo abre un acto
+/// explícito (reactivar la delegación), nunca el arranque.
+/// </para>
+///
+/// <para>
+/// <b>Solo concede desde una delegación activa y vigente</b> (ronda 1 de Codex en la PR #2223):
+/// una delegación inactiva, o marcada activa pero ya caducada, ni mantiene abierto lo del par ni
+/// da cartera a sus personas; y con una activa y vigente se cierra la cartera Outbound, de
+/// cualquier ámbito, de quien ya no tenga fila heredada en ella. Inbound no se toca.
+/// </para>
+///
 /// Lo que <b>no</b> migra:
 /// <list type="bullet">
 /// <item>Las delegaciones de propósito <c>Soporte</c>. El soporte de TALVEG no
@@ -75,10 +89,16 @@ public static class AsignacionesOperativasBackfillSeeder
         // Administrador y Dirección CAE en una cartera externa, y el rol
         // efectivo del Context Workspace delegado sale de ella. Cerrarlas es la
         // decisión del propietario aplicada a los datos que ya existen, no solo
-        // a los futuros; las internas (Tenant propio) no se tocan.
-        var operacionesExternas = operaciones.Where(o => !o.EsOperacionInterna).Select(o => o.Id).ToHashSet();
+        // a los futuros; las internas (Tenant propio) no se tocan. Solo Outbound: Inbound tiene su
+        // propio ciclo y este backfill no lo toca (ronda 1 de Codex en la PR #2223).
+        var operacionesExternas = operaciones
+            .Where(o => !o.EsOperacionInterna && o.Servicio == ServicioCae.Outbound)
+            .Select(o => o.Id)
+            .ToHashSet();
+        // No solo las vigentes: una Programada la activaría el job al llegar su fecha, y una
+        // Suspendida no tiene por qué quedar viva con un rol que no se delega.
         foreach (var prohibida in carteras.Where(c =>
-                     c.Estado == EstadoAsignacion.Vigente
+                     c.Estado != EstadoAsignacion.Cerrada
                      && operacionesExternas.Contains(c.AsignacionOperacionId)
                      && c.Rol is not null
                      && !RolesDelegables.Contains(c.Rol)))
@@ -124,33 +144,93 @@ public static class AsignacionesOperativasBackfillSeeder
             .OrderBy(d => d.CreadoEnUtc)
             .ToListAsync(cancellationToken);
 
+        // Ids de las delegaciones activas y vigentes por par (Tenant propietario, Operador CAE
+        // externo), para la reconciliación del paso 2b.
+        var idsVigentesPorPar = new Dictionary<(Guid Propietario, Guid Operador), HashSet<Guid>>();
+
         foreach (var delegacion in delegacionesComerciales)
         {
-            var operacionDeEsteOperador = operaciones.FirstOrDefault(o =>
-                !o.EsRaiz
-                && o.PropietarioTenantId == delegacion.TenantClienteId
-                && o.OperadorTenantId == delegacion.TenantConsultoraId
-                && o.Servicio == ServicioCae.Outbound
-                && o.Ambito.EsUniversal
-                && o.Estado != EstadoAsignacion.Cerrada);
-
-            if (!delegacion.Activa)
+            // Todas las Asignaciones de Operación Outbound externas de este par, de cualquier ámbito
+            // y estado: lo que el backfill puede cerrar y lo que le dice si el par ya se migró.
+            var propietarioId = delegacion.TenantClienteId;
+            if (delegacion.EstaVigente(ahora))
             {
-                if (operacionDeEsteOperador is not null)
+                var clave = (propietarioId, delegacion.TenantConsultoraId);
+                if (!idsVigentesPorPar.TryGetValue(clave, out var ids))
+                    idsVigentesPorPar[clave] = ids = [];
+                ids.Add(delegacion.Id);
+            }
+            var operacionesDelPar = operaciones.Where(o =>
+                    !o.EsRaiz
+                    && o.PropietarioTenantId == propietarioId
+                    && o.OperadorTenantId == delegacion.TenantConsultoraId
+                    && o.Servicio == ServicioCae.Outbound)
+                .ToList();
+
+            // Una delegación inactiva, o activa pero ya caducada: ninguna de las dos autoriza nada. Antes
+            // solo se cerraba lo del par con la inactiva, y la caducada dejaba abiertas sus operaciones
+            // acotadas, sin fecha de fin y con su cartera: el job de expiración solo cierra la del Tenant
+            // entero, que lleva la caducidad de la delegación (ronda 2 de Codex en la PR #2223).
+            if (!delegacion.EstaVigente(ahora))
+            {
+                // Las operaciones del par no dicen de qué delegación nacieron. Si el mismo Operador
+                // CAE externo tiene hoy otra delegación activa sobre este Tenant propietario (se
+                // revocó una y se autorizó otra), lo abierto es de la activa: cerrarlo aquí la dejaría
+                // sin autorización y, como el backfill ya no recrea, sin vía de vuelta. La revocación
+                // de esta ya cerró lo suyo en su momento. Solo cuenta una activa y vigente: una que
+                // sigue marcada activa pero ya caducó no autoriza nada, y dejar abierto lo del par
+                // por ella mantendría viva una operación sin delegación que la ampare (ronda 1 de
+                // Codex en la PR #2223).
+                if (delegacionesComerciales.Any(d =>
+                        d.EstaVigente(ahora) && d.Id != delegacion.Id
+                        && d.TenantClienteId == propietarioId
+                        && d.TenantConsultoraId == delegacion.TenantConsultoraId))
+                    continue;
+
+                // Reconciliación: la delegación se desactivó, o caducó, después de que el backfill
+                // creara la operación. De una desactivación el modelo antiguo no guardó cuándo, así que
+                // se marca como tal en vez de inventar una fecha — la etapa quedó con vigencia real
+                // desconocida; de una caducidad sí se sabe, y se cierra como Expirada en su fecha. Se
+                // cierran todas las no cerradas del par, del Tenant entero y acotadas, y sus carteras
+                // por la cascada: una delegación que no autoriza no deja ninguna autorización Outbound
+                // derivada, y nada de lo cerrado vuelve solo (decisión de Chris del 2026-11-14).
+                var (motivo, cierre) = delegacion is { Activa: true, ExpiraEnUtc: { } caducidad }
+                    ? (MotivoCierreAsignacion.Expirada, caducidad)
+                    : (MotivoCierreAsignacion.MigradaSinFecha, ahora);
+                foreach (var abierta in operacionesDelPar.Where(o => o.Estado != EstadoAsignacion.Cerrada))
                 {
-                    // Reconciliación: la delegación se desactivó después de que
-                    // el backfill creara la operación. El modelo antiguo no
-                    // guardó cuándo, así que se marca como tal en vez de
-                    // inventar una fecha — la etapa quedó con vigencia real
-                    // desconocida.
-                    operacionDeEsteOperador.Cerrar(MotivoCierreAsignacion.MigradaSinFecha, ahora);
+                    foreach (var cartera in carteras.Where(c =>
+                                 c.AsignacionOperacionId == abierta.Id && c.Estado != EstadoAsignacion.Cerrada))
+                    {
+                        cartera.CerrarPorCascadaDeLaOperacion(motivo, cierre);
+                        cerradas++;
+                    }
+
+                    abierta.Cerrar(motivo, cierre);
                     cerradas++;
                 }
 
                 continue;
             }
 
-            if (operacionDeEsteOperador is not null) continue; // ya migrada para este operador
+            // Ya migrada para este operador: tiene su operación del Tenant entero sin cerrar.
+            if (operacionesDelPar.Any(o => o.Ambito.EsUniversal && o.Estado != EstadoAsignacion.Cerrada)) continue;
+
+            // El backfill solo traslada al modelo nuevo una delegación que NUNCA tuvo Asignación de
+            // Operación. Si el par ya tiene alguna —cerrada, expirada o acotada—, la delegación ya
+            // vive en el modelo nuevo y lo que falte lo abre un acto explícito (reactivar la
+            // delegación), no el arranque. Antes se ignoraba la cerrada y se creaba otra: una
+            // operación expirada antes que su delegación volvía a autorizar en el arranque
+            // siguiente, también a los perfiles que autorizan sin cartera (hallazgo de Codex en la
+            // revisión de la PR #2215; decisión de Chris del 2026-11-14).
+            if (operacionesDelPar.Count > 0)
+            {
+                incidencias.Add(
+                    $"Delegación {delegacion.Id}: activa, pero sin Asignación de Operación Outbound del Tenant " +
+                    "entero abierta y con otras ya cerradas, expiradas o acotadas. El backfill no reabre ni recrea " +
+                    "operaciones: no migrada, requiere un acto explícito (reactivar la delegación).");
+                continue;
+            }
 
             // El invariante real es POR CLIENTE, no por (cliente, operador):
             // IX_AsignacionesOperacion_DelegacionTotalVigente exige como mucho
@@ -163,7 +243,7 @@ public static class AsignacionesOperativasBackfillSeeder
             // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
             var operacionDeOtroOperador = operaciones.FirstOrDefault(o =>
                 !o.EsRaiz
-                && o.PropietarioTenantId == delegacion.TenantClienteId
+                && o.PropietarioTenantId == propietarioId
                 && o.OperadorTenantId != delegacion.TenantConsultoraId
                 && o.Servicio == ServicioCae.Outbound
                 && o.Ambito.EsUniversal
@@ -191,12 +271,56 @@ public static class AsignacionesOperativasBackfillSeeder
             creadas++;
         }
 
-        // --- 3. Los operadores delegados, como carteras externas ---
-        var idsDelegacionesComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
+        var idsComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
         var operadoresDelegados = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => idsDelegacionesComerciales.Contains(a.DelegacionTenantId))
+            .Where(a => idsComerciales.Contains(a.DelegacionTenantId))
             .ToListAsync(cancellationToken);
 
+        // --- 2b. Reconciliación: carteras Outbound de personas retiradas ---
+        //
+        // Antes de la PR #2223, retirar a una persona del equipo del Operador CAE externo
+        // (CerrarCarteraOperadorAsync) solo cerraba su cartera bajo la operación vigente del Tenant
+        // entero, y la fila heredada se borraba: su cartera bajo una operación acotada siguió
+        // abierta, y con la delegación activa nada la reconciliaba (ronda 1 de Codex en la PR
+        // #2223). Con al menos una delegación activa y vigente del par, se cierra toda cartera no
+        // cerrada bajo cualquier Asignación de Operación Outbound externa del par —del Tenant
+        // entero o acotada, en cualquier estado— cuya persona no tenga una fila heredada no
+        // revocada, con un rol delegable, en una delegación activa y vigente de ese mismo par. Es
+        // la misma condición que exige el writer para conceder (ObtenerRolDelegadoAsync), y toda
+        // vía que emite una cartera externa escribe también su fila heredada
+        // (CatalogoIncorporacionCartera). Sin delegación activa y vigente, la rama de la inactiva
+        // o caducada ya lo cerró todo. Inbound no se toca.
+        foreach (var par in idsVigentesPorPar)
+        {
+            var delegacionesVigentesDelPar = par.Value;
+            var personasConFila = operadoresDelegados
+                .Where(a => delegacionesVigentesDelPar.Contains(a.DelegacionTenantId) && RolesDelegables.Contains(a.Rol))
+                .Select(a => a.UsuarioId)
+                .ToHashSet();
+
+            var operacionesDelPar = operaciones
+                .Where(o => !o.EsRaiz
+                            && o.PropietarioTenantId == par.Key.Propietario
+                            && o.OperadorTenantId == par.Key.Operador
+                            && o.Servicio == ServicioCae.Outbound)
+                .Select(o => o.Id)
+                .ToHashSet();
+
+            foreach (var huerfana in carteras.Where(c =>
+                         operacionesDelPar.Contains(c.AsignacionOperacionId)
+                         && c.Estado != EstadoAsignacion.Cerrada
+                         && !personasConFila.Contains(c.UsuarioId)))
+            {
+                huerfana.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+                cerradas++;
+                incidencias.Add(
+                    $"Cartera externa {huerfana.Id} del usuario {huerfana.UsuarioId}: sin asignación de operador " +
+                    $"delegado vigente en una delegación activa de {par.Key.Operador} sobre " +
+                    $"{par.Key.Propietario}. Cerrada.");
+            }
+        }
+
+        // --- 3. Los operadores delegados, como carteras externas ---
         var tenantPorUsuario = await dbContext.Users
             .Select(u => new { u.Id, u.TenantId })
             .ToDictionaryAsync(u => u.Id, u => u.TenantId, cancellationToken);
@@ -204,6 +328,12 @@ public static class AsignacionesOperativasBackfillSeeder
         foreach (var operador in operadoresDelegados)
         {
             var delegacion = delegacionesComerciales.First(d => d.Id == operador.DelegacionTenantId);
+
+            // Solo las personas de una delegación activa y vigente: con una inactiva o caducada y otra
+            // activa del mismo par, la asignación histórica de la primera encontraría la operación
+            // vigente de la segunda y recibiría una cartera universal que nadie le concedió (ronda 1
+            // de Codex en la PR #2223). No es una incidencia: esa delegación ya no autoriza.
+            if (!delegacion.EstaVigente(ahora)) continue;
 
             if (!tenantPorUsuario.TryGetValue(operador.UsuarioId, out var tenantDelUsuario))
             {
@@ -266,6 +396,29 @@ public static class AsignacionesOperativasBackfillSeeder
                 && c.Estado == EstadoAsignacion.Vigente);
 
             if (yaTiene) continue;
+
+            // La fila heredada solo traslada al modelo nuevo a quien nunca tuvo cartera en el par
+            // (AsignacionCartera.FilaHeredadaPuedeEmitir). Cualquier histórico —cerrada por una revocación,
+            // por la caducidad o por una reconciliación, Programada o Suspendida, viva o cerrada— falla
+            // cerrada: lo que fue no vuelve solo, tampoco tras reactivar la delegación (decisión de Chris
+            // del 2026-11-14). Antes se emitía en cuanto no había una Vigente, y luego en cuanto la última
+            // no constaba suspendida (rondas 2 y 3 de Codex en la PR #2223).
+            var operacionesDelParPorId = operaciones
+                .Where(o => !o.EsRaiz
+                            && o.PropietarioTenantId == operacion.PropietarioTenantId
+                            && o.OperadorTenantId == operacion.OperadorTenantId
+                            && o.Servicio == ServicioCae.Outbound)
+                .ToDictionary(o => o.Id);
+            var deLaPersonaEnElPar = carteras
+                .Where(c => c.UsuarioId == operador.UsuarioId && operacionesDelParPorId.ContainsKey(c.AsignacionOperacionId))
+                .ToList();
+            if (!AsignacionCartera.FilaHeredadaPuedeEmitir(deLaPersonaEnElPar))
+            {
+                incidencias.Add(
+                    $"Operador delegado {operador.UsuarioId} sobre la delegación {delegacion.Id}: ya tuvo una cartera " +
+                    "en el par. La fila heredada no la repone: hace falta un acto explícito.");
+                continue;
+            }
 
             var nueva = AsignacionCartera.Externa(
                 operacion, operador.UsuarioId, operador.Rol, AmbitoAsignacion.Universal,

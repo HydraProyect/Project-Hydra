@@ -115,23 +115,29 @@ public interface IAlcanceDatosService
     /// 2026-11-12 («B: estado, sin motivo»).
     /// La segunda regla, la de trazabilidad interna, se aplica en el servidor
     /// con <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>
-    /// y corta solo el <b>registro</b> de un cambio de estado anotado a mano
-    /// (su nota, su motivo y el Gestor CAE autor). No corta el motivo de un
-    /// rechazo anotado a mano: <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
-    /// lo guarda también en el historial de rechazos (causa «Otro», sin autor ni
-    /// nota, sin distinguir su origen del de un rechazo de la Plataforma CAE), y
-    /// ese historial le llega a Consulta por la regla operativa de este método
-    /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, <c>ObtenerDocumentosQuery</c>
-    /// y <c>ObtenerAcreditacionesPorProveedorQuery</c>, esta última en la pestaña
-    /// Plataformas de Empresa 360 y en <c>GET /extension/acreditaciones-pendientes</c>,
-    /// que no restringe por rol y no condiciona el motivo al estado actual de la
-    /// acreditación). El historial de reclamaciones enviadas no
-    /// pasa por esa lista en el servidor (sus Queries acotan por cartera, no por
-    /// rol) y se le corta a Consulta en la presentación; las reclamaciones sin
-    /// respuesta de Inicio y la última reclamación del Centro sí le llegan hoy
-    /// (ver el comentario de esa lista).
-    /// Añadir Consulta al corte de este método o a esa lista cambia la regla
-    /// de producto, no es un ajuste de implementación.
+    /// y corta cinco cosas, no solo una: el <b>registro</b> de un cambio de estado
+    /// anotado a mano (su nota, su motivo y el Gestor CAE autor), la última
+    /// reclamación de los documentos de la situación del Centro, las
+    /// reclamaciones sin respuesta de Inicio
+    /// (<c>ObtenerReclamacionesSinRespuestaQuery</c>, vacío), la última
+    /// reclamación al Cliente del Centro (<c>ObtenerUltimaReclamacionClienteQuery</c>,
+    /// null) y el motivo de rechazo de la vista rápida de un Documento
+    /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, a null). No corta el
+    /// motivo de un rechazo en el resto de sus lecturas:
+    /// <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c> guarda el de un
+    /// rechazo anotado a mano también en el historial de rechazos (causa «Otro»,
+    /// sin autor ni nota, sin distinguir su origen del de un rechazo de la
+    /// Plataforma CAE), y ese historial sigue llegando a Consulta por la regla
+    /// operativa de este método como <c>UltimoMotivoRechazo</c> en
+    /// <c>ObtenerDocumentosQuery</c> (solo si la acreditación está rechazada) y en
+    /// <c>ObtenerAcreditacionesPorProveedorQuery</c>, que no lo condiciona al
+    /// estado actual de la acreditación: en la pestaña Plataformas de Empresa 360
+    /// y en <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por
+    /// rol. El historial de reclamaciones enviadas no pasa por esa lista en el
+    /// servidor (sus Queries acotan por cartera, no por rol) y se le corta a
+    /// Consulta en la presentación (ver el comentario de esa lista).
+    /// Añadir Consulta al corte de este método o a esa lista cambia la
+    /// regla de producto, no es un ajuste de implementación.
     /// </para>
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default);

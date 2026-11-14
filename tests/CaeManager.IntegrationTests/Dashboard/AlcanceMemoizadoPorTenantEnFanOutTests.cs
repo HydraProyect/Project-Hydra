@@ -207,6 +207,10 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
 
         _dbContext.AsignacionesOperacion.AddRange(operacionAlfa, operacionBeta);
         _dbContext.AsignacionesCartera.AddRange(carteraAlfa, carteraBeta);
+        // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
+        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
+        _dbContext.DelegacionesTenant.AddRange(
+            new DelegacionTenant(_tenantConsultora, _tenantAlfa), new DelegacionTenant(_tenantConsultora, _tenantBeta));
         await _dbContext.SaveChangesAsync();
     }
 
