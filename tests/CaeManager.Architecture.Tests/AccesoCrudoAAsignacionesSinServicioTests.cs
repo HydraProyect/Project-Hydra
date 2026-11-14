@@ -52,7 +52,13 @@ namespace CaeManager.Architecture.Tests;
 /// sobrecarga es <c>CRECE</c>, no <c>NUEVA</c>.</item>
 /// <item>La cadena de la consulta se ensancha a la consulta exterior cuando el acceso está dentro de
 /// una lambda pasada como argumento o de una expresión de consulta: una subconsulta interior sin
-/// servicio comparte el filtro de la exterior.</item>
+/// servicio comparte el filtro de la exterior. Una lambda con cuerpo de bloque no ensancha: sus
+/// sentencias son independientes.</item>
+/// <item>En SQL, el filtro es un <c>"Servicio"</c> seguido de <c>=</c>, <c>&lt;&gt;</c>, <c>!=</c>,
+/// <c>IN</c> o <c>IS</c> que no sea la primera asignación tras <c>SET</c>: una segunda asignación
+/// (<c>SET "Estado" = …, "Servicio" = …</c>) cuenta como filtro, y la forma desparsada de
+/// <c>pg_dump</c> (<c>("Servicio")::text = …</c>) no casa. La función SQL con cuerpo <c>AS '…'</c> o
+/// <c>BEGIN ATOMIC</c> no se separa de la siguiente de la misma migración (hoy todas usan <c>$$</c>).</item>
 /// <item>El SQL de <c>tests/</c> y de los guiones de <c>scripts/</c>.</item>
 /// </list>
 /// </summary>
@@ -121,6 +127,20 @@ public class AccesoCrudoAAsignacionesSinServicioTests
 
         accesos.Should().ContainSingle("el instrumento tiene que ver el acceso").Which.FiltraPorServicio.Should().BeFalse();
         accesos[0].Clave.Should().Be(new Ubicacion("src/X/Lector.cs", simbolo));
+    }
+
+    [Fact]
+    public void Una_lambda_con_cuerpo_de_bloque_no_presta_el_filtro_entre_sus_sentencias()
+    {
+        var accesos = MedirCs(
+            "Task A() => puerta.EjecutarAsync(async () => {\n" +
+            "  var a = await ctx.AsignacionesOperacion.CountAsync(o => o.Servicio == s);\n" +
+            "  var b = await ctx.AsignacionesOperacion.CountAsync();\n" +
+            "});");
+
+        accesos.Should().HaveCount(2);
+        accesos.Count(a => a.FiltraPorServicio).Should().Be(1, "solo la sentencia que compara el servicio filtra");
+        accesos.Count(a => !a.FiltraPorServicio).Should().Be(1, "la sentencia hermana sin filtro es cruda");
     }
 
     [Theory]

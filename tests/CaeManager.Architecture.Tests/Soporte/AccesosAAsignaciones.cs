@@ -214,7 +214,9 @@ internal static class AccesosAAsignaciones
     /// Si la cadena vive dentro de una lambda pasada como argumento o dentro de una consulta integrada,
     /// el contexto se amplía a la cadena exterior: la consulta interior se evalúa dentro del predicado de
     /// la exterior (<c>ops.Where(o =&gt; o.Servicio == s &amp;&amp; ctx.AsignacionesCartera.Any(c =&gt;
-    /// c.AsignacionOperacionId == o.Id))</c>).
+    /// c.AsignacionOperacionId == o.Id))</c>). Solo si la lambda es de <b>expresión</b>: una lambda con
+    /// cuerpo de bloque (<c>puerta.EjecutarAsync(async () =&gt; { … })</c>) agrupa sentencias
+    /// independientes, y el contexto se queda en la cadena de la sentencia, como en un método.
     /// </summary>
     private static SyntaxNode ContextoDelAcceso(SyntaxNode acceso)
     {
@@ -222,9 +224,11 @@ internal static class AccesosAAsignaciones
         while (true)
         {
             var exterior = cadena.Ancestors().FirstOrDefault(a =>
-                a is LambdaExpressionSyntax { Parent: ArgumentSyntax } or QueryExpressionSyntax
+                a is LambdaExpressionSyntax { Parent: ArgumentSyntax, Body: not BlockSyntax } or QueryExpressionSyntax
+                    or LambdaExpressionSyntax { Body: BlockSyntax }
                     or MemberDeclarationSyntax or LocalFunctionStatementSyntax);
-            if (exterior is null or MemberDeclarationSyntax or LocalFunctionStatementSyntax)
+            if (exterior is null or MemberDeclarationSyntax or LocalFunctionStatementSyntax
+                or LambdaExpressionSyntax { Body: BlockSyntax })
                 return cadena;
             cadena = CadenaDeLaConsulta(exterior);
         }
