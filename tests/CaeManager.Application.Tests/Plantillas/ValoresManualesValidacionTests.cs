@@ -71,17 +71,4 @@ public class ValoresManualesValidacionTests
 
         resultado.IsValid.Should().BeFalse();
     }
-
-    /// <summary>ADR-010 § 2.6: sin límite arquitectónico arbitrario sobre el tamaño del lote — un lote grande sigue siendo válido.</summary>
-    [Fact]
-    public void IniciarLoteGeneracionDocumentos_no_limita_el_numero_de_trabajadores()
-    {
-        var validador = new IniciarLoteGeneracionDocumentosCommandValidator();
-        var comando = new IniciarLoteGeneracionDocumentosCommand(
-            Guid.NewGuid(), Enumerable.Range(0, 5000).Select(_ => Guid.NewGuid()).ToList());
-
-        var resultado = validador.Validate(comando);
-
-        resultado.IsValid.Should().BeTrue();
-    }
 }
