@@ -1,0 +1,3 @@
+# Ficheros de Domain y Application cuyo namespace no es su carpeta (ADR-013 § 4.3; NamespaceIgualACarpetaTests).
+# Formato: ruta :: namespace declarado (esperado …) = n. Solo baja: el objetivo es que esta lista quede vacía.
+src/CaeManager.Application/Usuarios/Queries/ObtenerEquipoDeCoordinador/ObtenerEquipoDeCoordinadorQuery.cs :: CaeManager.Application.Usuarios (esperado CaeManager.Application.Usuarios.Queries.ObtenerEquipoDeCoordinador) = 1
