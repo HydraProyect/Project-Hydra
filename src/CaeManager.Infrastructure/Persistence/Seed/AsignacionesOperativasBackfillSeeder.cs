@@ -192,9 +192,8 @@ public static class AsignacionesOperativasBackfillSeeder
                 // se marca como tal en vez de inventar una fecha — la etapa quedó con vigencia real
                 // desconocida; de una caducidad sí se sabe, y se cierra como Expirada en su fecha. Se
                 // cierran todas las no cerradas del par, del Tenant entero y acotadas, y sus carteras
-                // por la cascada, que recuerda su estado efectivo y no deja nada restaurable: una
-                // delegación que no autoriza no deja ninguna autorización Outbound derivada (decisión de
-                // Chris del 2026-11-14).
+                // por la cascada: una delegación que no autoriza no deja ninguna autorización Outbound
+                // derivada, y nada de lo cerrado vuelve solo (decisión de Chris del 2026-11-14).
                 var (motivo, cierre) = delegacion is { Activa: true, ExpiraEnUtc: { } caducidad }
                     ? (MotivoCierreAsignacion.Expirada, caducidad)
                     : (MotivoCierreAsignacion.MigradaSinFecha, ahora);
@@ -203,7 +202,7 @@ public static class AsignacionesOperativasBackfillSeeder
                     foreach (var cartera in carteras.Where(c =>
                                  c.AsignacionOperacionId == abierta.Id && c.Estado != EstadoAsignacion.Cerrada))
                     {
-                        cartera.CerrarPorCascadaDeLaOperacion(abierta, motivo, cierre);
+                        cartera.CerrarPorCascadaDeLaOperacion(motivo, cierre);
                         cerradas++;
                     }
 
@@ -398,10 +397,12 @@ public static class AsignacionesOperativasBackfillSeeder
 
             if (yaTiene) continue;
 
-            // Lo suspendido nunca vuelve como vigente, la misma guarda que el writer
-            // (AsignacionCartera.AlgunaQuedoSuspendida): con una cartera Suspendida viva o la última
-            // del par suspendida, el arranque no emite otra Vigente. Antes la emitía en cuanto no
-            // encontraba una Vigente (ronda 2 de Codex en la PR #2223).
+            // La fila heredada solo traslada al modelo nuevo a quien nunca tuvo cartera en el par
+            // (AsignacionCartera.FilaHeredadaPuedeEmitir). Cualquier histórico —cerrada por una revocación,
+            // por la caducidad o por una reconciliación, Programada o Suspendida, viva o cerrada— falla
+            // cerrada: lo que fue no vuelve solo, tampoco tras reactivar la delegación (decisión de Chris
+            // del 2026-11-14). Antes se emitía en cuanto no había una Vigente, y luego en cuanto la última
+            // no constaba suspendida (rondas 2 y 3 de Codex en la PR #2223).
             var operacionesDelParPorId = operaciones
                 .Where(o => !o.EsRaiz
                             && o.PropietarioTenantId == operacion.PropietarioTenantId
@@ -410,12 +411,12 @@ public static class AsignacionesOperativasBackfillSeeder
                 .ToDictionary(o => o.Id);
             var deLaPersonaEnElPar = carteras
                 .Where(c => c.UsuarioId == operador.UsuarioId && operacionesDelParPorId.ContainsKey(c.AsignacionOperacionId))
-                .Select(c => (Cartera: c, Operacion: operacionesDelParPorId[c.AsignacionOperacionId]));
-            if (AsignacionCartera.AlgunaQuedoSuspendida(deLaPersonaEnElPar))
+                .ToList();
+            if (!AsignacionCartera.FilaHeredadaPuedeEmitir(deLaPersonaEnElPar))
             {
                 incidencias.Add(
-                    $"Operador delegado {operador.UsuarioId} sobre la delegación {delegacion.Id}: su cartera del par " +
-                    "está o quedó suspendida. No se emite otra vigente: reanudarla requiere un acto explícito.");
+                    $"Operador delegado {operador.UsuarioId} sobre la delegación {delegacion.Id}: ya tuvo una cartera " +
+                    "en el par. La fila heredada no la repone: hace falta un acto explícito.");
                 continue;
             }
 

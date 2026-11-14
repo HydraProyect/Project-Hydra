@@ -364,185 +364,28 @@ public class AsignacionResponsabilidadTests
 
     // ── D-9: quién era el principal cuando la cascada cerró la operación ──
 
-    private static (AsignacionOperacion Operacion, AsignacionCartera Cartera) OperacionYCartera(string rol = "GestorCae")
-    {
-        var operacion = OperacionExterna();
-        return (operacion, AsignacionCartera.Externa(
-            operacion, Guid.NewGuid(), rol, AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora));
-    }
-
     [Fact]
     public void El_cierre_por_cascada_recuerda_que_era_la_principal_y_la_cartera_cerrada_sigue_sin_serlo()
     {
-        var (operacion, cartera) = OperacionYCartera();
+        var cartera = CarteraExterna("GestorCae");
         cartera.DesignarPrincipal();
 
-        cartera.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora);
+        cartera.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
 
         cartera.EraPrincipalAlCerrarsePorCascada.Should().BeTrue("es lo que la reactivación lee para devolverle la marca");
         cartera.EsPrincipal.Should().BeFalse("el dato es histórico: una cartera cerrada no cuenta como principal vivo");
         cartera.Estado.Should().Be(EstadoAsignacion.Cerrada);
         cartera.MotivoCierre.Should().Be(MotivoCierreAsignacion.Revocada);
-        cartera.RestaurableAlReactivar.Should().BeTrue("vigente bajo una operación vigente, revocada: la reactivación la repone");
-        cartera.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Vigente);
     }
 
     [Fact]
     public void El_cierre_por_cascada_de_una_cartera_de_apoyo_no_la_recuerda_como_principal()
     {
-        var (operacion, cartera) = OperacionYCartera();
+        var cartera = CarteraExterna("GestorCae");
 
-        cartera.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora);
+        cartera.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
 
         cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
-        cartera.RestaurableAlReactivar.Should().BeTrue("control: se repone, pero sin marca de principal");
-    }
-
-    // ── Ronda 2 de Codex en la PR #2223: lo suspendido nunca vuelve como vigente ──
-
-    [Fact]
-    public void La_cascada_de_una_cartera_suspendida_no_la_deja_restaurable_aunque_comparta_fecha_de_fin()
-    {
-        var operacion = AsignacionOperacion.Externa(
-            Propietario, Operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-2), Ahora.AddDays(-1), Ahora.AddDays(-2));
-        var cartera = AsignacionCartera.Externa(
-            operacion, Guid.NewGuid(), "GestorCae", AmbitoAsignacion.Universal, Ahora.AddDays(-2), Ahora.AddDays(-1), Ahora.AddDays(-2));
-        cartera.DesignarPrincipal();
-        cartera.Suspender();
-
-        cartera.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora);
-        operacion.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-
-        cartera.VigenciaHasta.Should().Be(operacion.VigenciaHasta, "control: la colisión de fechas que engañaba a la inferencia");
-        cartera.RestaurableAlReactivar.Should().BeFalse("la marca es explícita: la fecha ya no decide");
-        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse("lo que no vuelve no tiene marca que devolver");
-        cartera.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Suspendida);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void La_cascada_de_una_operacion_suspendida_cierra_sus_carteras_vigentes_como_suspendidas(bool suspendida)
-    {
-        var (operacion, cartera) = OperacionYCartera();
-        cartera.DesignarPrincipal();
-        if (suspendida) operacion.Suspender();
-
-        cartera.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora);
-
-        cartera.RestaurableAlReactivar.Should().Be(!suspendida, "bajo una operación suspendida no autorizaba nada que reponer");
-        cartera.EraPrincipalAlCerrarsePorCascada.Should().Be(!suspendida);
-        cartera.EstadoAlCerrarse.Should().Be(suspendida ? EstadoAsignacion.Suspendida : EstadoAsignacion.Vigente);
-    }
-
-    [Theory]
-    [InlineData(MotivoCierreAsignacion.Expirada)]
-    [InlineData(MotivoCierreAsignacion.MigradaSinFecha)]
-    public void Solo_una_revocacion_deja_la_cartera_restaurable(MotivoCierreAsignacion motivo)
-    {
-        var (operacion, cartera) = OperacionYCartera();
-        cartera.DesignarPrincipal();
-
-        cartera.CerrarPorCascadaDeLaOperacion(operacion, motivo, Ahora);
-
-        cartera.RestaurableAlReactivar.Should().BeFalse("la reactivación solo deshace una revocación");
-        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
-        cartera.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Vigente);
-    }
-
-    [Fact]
-    public void La_cascada_exige_la_operacion_de_la_cartera_y_aun_sin_cerrar()
-    {
-        var (operacion, cartera) = OperacionYCartera();
-        var (otra, _) = OperacionYCartera();
-
-        cartera.Invoking(c => c.CerrarPorCascadaDeLaOperacion(otra, MotivoCierreAsignacion.Revocada, Ahora))
-            .Should().Throw<ArgumentException>();
-        operacion.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        cartera.Invoking(c => c.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora))
-            .Should().Throw<InvalidOperationException>("cerrada la operación, ya no se sabe en qué estado estaba");
-        cartera.Estado.Should().Be(EstadoAsignacion.Vigente);
-    }
-
-    [Fact]
-    public void Cerrar_recuerda_el_estado_propio_y_nunca_deja_la_cartera_restaurable()
-    {
-        var (_, cartera) = OperacionYCartera();
-        cartera.Suspender();
-
-        cartera.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-
-        cartera.EstadoAlCerrarse.Should().Be(EstadoAsignacion.Suspendida);
-        cartera.RestaurableAlReactivar.Should().BeFalse();
-    }
-
-    [Fact]
-    public void Quedo_suspendida_mira_la_cartera_viva_su_operacion_y_el_estado_al_cerrarse()
-    {
-        var (operacion, vigente) = OperacionYCartera("Consulta");
-        vigente.QuedoSuspendida(operacion).Should().BeFalse("control: vigente bajo una vigente");
-
-        var (op2, suspendida) = OperacionYCartera("Consulta");
-        suspendida.Suspender();
-        suspendida.QuedoSuspendida(op2).Should().BeTrue();
-
-        var (op3, bajoSuspendida) = OperacionYCartera("Consulta");
-        op3.Suspender();
-        bajoSuspendida.QuedoSuspendida(op3).Should().BeTrue("vigente bajo una operación suspendida");
-
-        var (op4, cerradaSuspendida) = OperacionYCartera("Consulta");
-        cerradaSuspendida.Suspender();
-        cerradaSuspendida.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        cerradaSuspendida.QuedoSuspendida(op4).Should().BeTrue("cerrada desde Suspendida");
-
-        var (op5, cerradaVigente) = OperacionYCartera("Consulta");
-        cerradaVigente.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        cerradaVigente.QuedoSuspendida(op5).Should().BeFalse("cerrada desde Vigente");
-
-        vigente.Invoking(c => c.QuedoSuspendida(op2)).Should().Throw<ArgumentException>();
-    }
-
-    [Fact]
-    public void Alguna_quedo_suspendida_mira_las_vivas_y_la_ultima_por_creacion()
-    {
-        var operacion = OperacionExterna();
-        AsignacionCartera Cartera(DateTime creada) => AsignacionCartera.Externa(
-            operacion, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, creada, null, creada);
-
-        AsignacionCartera.AlgunaQuedoSuspendida([]).Should().BeFalse("sin cartera anterior no hay nada suspendido");
-
-        var antigua = Cartera(Ahora.AddDays(-3));
-        antigua.Suspender();
-        antigua.Cerrar(MotivoCierreAsignacion.Revocada, Ahora.AddDays(-2));
-        var reciente = Cartera(Ahora.AddDays(-1));
-        reciente.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        AsignacionCartera.AlgunaQuedoSuspendida([(antigua, operacion), (reciente, operacion)])
-            .Should().BeFalse("la última, por creación, se cerró vigente");
-        AsignacionCartera.AlgunaQuedoSuspendida([(reciente, operacion), (antigua, operacion)])
-            .Should().BeFalse("el orden de entrada no cuenta");
-
-        // CreadoEnUtc lo fija el constructor con el reloj: se crean en el orden en que se emitieron.
-        var anteriorVigente = Cartera(Ahora.AddDays(-3));
-        anteriorVigente.Cerrar(MotivoCierreAsignacion.Revocada, Ahora.AddDays(-2));
-        var ultimaSuspendida = Cartera(Ahora.AddDays(-1));
-        ultimaSuspendida.Suspender();
-        ultimaSuspendida.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        AsignacionCartera.AlgunaQuedoSuspendida([(ultimaSuspendida, operacion), (anteriorVigente, operacion)])
-            .Should().BeTrue("la última quedó suspendida");
-
-        var vivaSuspendida = Cartera(Ahora.AddDays(-3));
-        vivaSuspendida.Suspender();
-        AsignacionCartera.AlgunaQuedoSuspendida([(vivaSuspendida, operacion), (reciente, operacion)])
-            .Should().BeTrue("una viva suspendida bloquea aunque no sea la última");
-
-        // La viva suspendida es la más antigua: la última por creación se cerró vigente. Solo la
-        // rama de las vivas la ve.
-        var vivaAntigua = Cartera(Ahora.AddDays(-5));
-        vivaAntigua.Suspender();
-        var posteriorCerradaVigente = Cartera(Ahora.AddDays(-1));
-        posteriorCerradaVigente.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
-        AsignacionCartera.AlgunaQuedoSuspendida([(posteriorCerradaVigente, operacion), (vivaAntigua, operacion)])
-            .Should().BeTrue("una viva suspendida bloquea aunque la última por creación se cerrara vigente");
     }
 
     [Theory]
@@ -563,11 +406,11 @@ public class AsignacionResponsabilidadTests
     [Fact]
     public void Una_cartera_ya_cerrada_no_se_puede_cerrar_otra_vez_por_cascada_para_fabricar_el_dato()
     {
-        var (operacion, cartera) = OperacionYCartera();
+        var cartera = CarteraExterna("GestorCae");
         cartera.DesignarPrincipal();
         cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, Ahora);
 
-        cartera.Invoking(c => c.CerrarPorCascadaDeLaOperacion(operacion, MotivoCierreAsignacion.Revocada, Ahora))
+        cartera.Invoking(c => c.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora))
             .Should().Throw<InvalidOperationException>();
         cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
     }
@@ -599,5 +442,74 @@ public class AsignacionResponsabilidadTests
         cartera.Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera sigue viva: pierde la marca, no el acceso");
         cartera.Ambito.EsUniversal.Should().BeTrue();
         cartera.Rol.Should().Be("CoordinadorCae");
+    }
+
+    // ── Emisión desde la fila heredada y por acto explícito (decisión de Chris del 2026-11-14) ──
+
+    [Fact]
+    public void La_fila_heredada_solo_emite_a_quien_nunca_tuvo_cartera_en_el_par()
+    {
+        AsignacionCartera.FilaHeredadaPuedeEmitir([]).Should().BeTrue("es el traslado inicial del modelo antiguo");
+
+        var operacion = OperacionExterna();
+        AsignacionCartera Cartera(DateTime desde) =>
+            AsignacionCartera.Externa(operacion, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, desde, null, Ahora);
+
+        // Reactivar no repone: la cerrada por la cascada de una revocación bloquea.
+        var revocada = Cartera(Ahora.AddDays(-1));
+        revocada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+        // Tras la expiración, la fila heredada falla cerrada.
+        var expirada = Cartera(Ahora.AddDays(-1));
+        expirada.Cerrar(MotivoCierreAsignacion.Expirada, Ahora);
+        // Una Programada cerrada por una revocación bloquea también Consulta.
+        var programadaCerrada = Cartera(Ahora.AddDays(1));
+        programadaCerrada.Estado.Should().Be(EstadoAsignacion.Programada);
+        programadaCerrada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+        // Una suspendida, viva o cerrada, tampoco vuelve como vigente.
+        var suspendida = Cartera(Ahora.AddDays(-1));
+        suspendida.Suspender();
+        var suspendidaCerrada = Cartera(Ahora.AddDays(-1));
+        suspendidaCerrada.Suspender();
+        suspendidaCerrada.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+
+        foreach (var historico in new[] { revocada, expirada, programadaCerrada, suspendida, suspendidaCerrada })
+            AsignacionCartera.FilaHeredadaPuedeEmitir([historico]).Should().BeFalse(
+                $"una cartera {historico.Estado} ({historico.MotivoCierre}) es histórico: lo que fue no vuelve solo");
+    }
+
+    [Fact]
+    public void El_acto_explicito_no_emite_junto_a_una_cartera_viva_que_no_autoriza()
+    {
+        var operacion = OperacionExterna();
+        AsignacionCartera Cartera(DateTime desde) =>
+            AsignacionCartera.Externa(operacion, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, desde, null, Ahora);
+
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([]).Should().BeFalse();
+
+        var vigente = Cartera(Ahora.AddDays(-1));
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(vigente, operacion)]).Should().BeFalse();
+
+        var cerrada = Cartera(Ahora.AddDays(-1));
+        cerrada.Suspender();
+        cerrada.Cerrar(MotivoCierreAsignacion.Revocada, Ahora);
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(cerrada, operacion)]).Should().BeFalse(
+            "el acto explícito es quien decide volver a conceder: las cerradas no cuentan");
+
+        var suspendida = Cartera(Ahora.AddDays(-1));
+        suspendida.Suspender();
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(suspendida, operacion)]).Should().BeTrue();
+
+        var programada = Cartera(Ahora.AddDays(1));
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(programada, operacion)]).Should().BeTrue();
+
+        var operacionSuspendida = OperacionExterna();
+        var bajoSuspendida = AsignacionCartera.Externa(
+            operacionSuspendida, Guid.NewGuid(), "Consulta", AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+        operacionSuspendida.Suspender();
+        AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(bajoSuspendida, operacionSuspendida)]).Should().BeTrue(
+            "una Vigente bajo una operación Suspendida está, en la práctica, suspendida");
+
+        FluentActions.Invoking(() => AsignacionCartera.HayAlgunaVivaQueNoAutoriza([(vigente, operacionSuspendida)]))
+            .Should().Throw<ArgumentException>();
     }
 }

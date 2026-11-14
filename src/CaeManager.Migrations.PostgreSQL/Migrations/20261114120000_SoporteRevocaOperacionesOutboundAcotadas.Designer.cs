@@ -9108,10 +9108,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<string>("EstadoAlCerrarse")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<string>("MotivoCierre")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
@@ -9121,11 +9117,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("PropietarioTenantId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("RestaurableAlReactivar")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
 
                     b.Property<string>("Rol")
                         .HasMaxLength(50)
@@ -9170,11 +9161,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             t.HasCheckConstraint("CK_AsignacionesCartera_EraPrincipalSoloCerrada", "NOT \"EraPrincipalAlCerrarsePorCascada\" OR \"Estado\" = 'Cerrada'");
 
-                            t.HasCheckConstraint("CK_AsignacionesCartera_EstadoAlCerrarseSoloCerrada", "\"EstadoAlCerrarse\" IS NULL OR (\"Estado\" = 'Cerrada' AND \"EstadoAlCerrarse\" IN ('Vigente', 'Programada', 'Suspendida'))");
-
                             t.HasCheckConstraint("CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero", "NOT \"EsPrincipal\" OR (\"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL AND (\"Rol\" IS NULL OR \"Rol\" IN ('GestorCae', 'CoordinadorCae')))");
-
-                            t.HasCheckConstraint("CK_AsignacionesCartera_RestaurableSoloCerradaVigente", "NOT \"RestaurableAlReactivar\" OR (\"Estado\" = 'Cerrada' AND \"EstadoAlCerrarse\" = 'Vigente')");
 
                             t.HasCheckConstraint("CK_AsignacionesCartera_TenantEnteroSalvoCerrada", "\"AmbitoRelacionClienteId\" IS NULL OR \"Estado\" = 'Cerrada'");
                         });

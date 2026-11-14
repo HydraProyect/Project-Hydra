@@ -19,12 +19,6 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
     /// <summary>CHECK que solo deja «era principal al cerrarse por cascada» en una cartera cerrada (D-9).</summary>
     public const string RestriccionEraPrincipal = "CK_AsignacionesCartera_EraPrincipalSoloCerrada";
 
-    /// <summary>CHECK que solo deja «estado al cerrarse» en una cartera cerrada, y con un estado vivo.</summary>
-    public const string RestriccionEstadoAlCerrarse = "CK_AsignacionesCartera_EstadoAlCerrarseSoloCerrada";
-
-    /// <summary>CHECK que solo deja «restaurable al reactivar» en una cartera cerrada que estaba Vigente.</summary>
-    public const string RestriccionRestaurable = "CK_AsignacionesCartera_RestaurableSoloCerradaVigente";
-
     public void Configure(EntityTypeBuilder<AsignacionCartera> builder)
     {
         builder.HasKey(a => a.Id);
@@ -39,8 +33,6 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         builder.Property(a => a.MotivoCierre).HasConversion<string>().HasMaxLength(30);
         builder.Property(a => a.EsPrincipal).IsRequired().HasDefaultValue(false);
         builder.Property(a => a.EraPrincipalAlCerrarsePorCascada).IsRequired().HasDefaultValue(false);
-        builder.Property(a => a.EstadoAlCerrarse).HasConversion<string>().HasMaxLength(20);
-        builder.Property(a => a.RestaurableAlReactivar).IsRequired().HasDefaultValue(false);
 
         // "¿Qué lleva este usuario?" — la pregunta que hace el servicio de
         // alcance de datos al principio de cada circuito.
@@ -80,19 +72,6 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
                 RestriccionEraPrincipal,
                 $"NOT \"{nameof(AsignacionCartera.EraPrincipalAlCerrarsePorCascada)}\" " +
                 $"OR \"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada'");
-            // Cuarto y quinto (ronda 2 de Codex en la PR #2223): «estado al cerrarse» y «restaurable al
-            // reactivar» son histórico de una cartera cerrada, y solo es restaurable la que estaba Vigente.
-            // Sin ellos, una fila podría hacer pasar por restaurable lo que estaba suspendido.
-            t.HasCheckConstraint(
-                RestriccionEstadoAlCerrarse,
-                $"\"{nameof(AsignacionCartera.EstadoAlCerrarse)}\" IS NULL " +
-                $"OR (\"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada' " +
-                $"AND \"{nameof(AsignacionCartera.EstadoAlCerrarse)}\" IN ('Vigente', 'Programada', 'Suspendida'))");
-            t.HasCheckConstraint(
-                RestriccionRestaurable,
-                $"NOT \"{nameof(AsignacionCartera.RestaurableAlReactivar)}\" " +
-                $"OR (\"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada' " +
-                $"AND \"{nameof(AsignacionCartera.EstadoAlCerrarse)}\" = 'Vigente')");
         });
 
         // Como máximo un principal vivo por Asignación de Operación. «Vivo» es no cerrado: incluye Suspendida

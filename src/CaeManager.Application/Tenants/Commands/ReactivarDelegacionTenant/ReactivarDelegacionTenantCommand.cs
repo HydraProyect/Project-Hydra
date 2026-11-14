@@ -50,9 +50,7 @@ public class ReactivarDelegacionTenantCommandHandler(
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork,
     ITenantsQueryContext tenantsContext,
-    ITransaccionDeComando transaccion, ICatalogoIncorporacionCartera catalogo,
-    IDirectorioDestinosCartera directorioDestinos, IDirectorioUsuariosService directorioUsuarios,
-    IBloqueoCarteraUsuario bloqueoCartera, ITenantActual tenantActual,
+    ITransaccionDeComando transaccion, ITenantActual tenantActual,
     IAutorizacionDelegacionTenant autorizacion)
     : IRequestHandler<ReactivarDelegacionTenantCommand, Result>,
       IRequestHandler<PuedeReactivarQuery, bool>
@@ -111,19 +109,13 @@ public class ReactivarDelegacionTenantCommandHandler(
                    acceso.OperadorTenantId, acceso.TenantPropietarioId, acceso.EsDeOperadorExterno, cancellationToken);
     }
 
-    internal static readonly Error CambioMientrasReactivabas = Error.Crear(
-        "DelegacionTenant.CambioMientrasReactivabas",
-        "Alguien cambió las asignaciones de esta delegación mientras la reactivabas. Vuelve a intentarlo.");
-
     private static readonly Error NoEncontrada =
         Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación.");
 
     /// <summary>
     /// Autoridad y contexto primero, fuera de la transacción; después, en una transacción
-    /// abierta con el Tenant propietario: devolver la marca de principal a quien la llevaba es
-    /// un segundo guardado (el índice único de principal no es diferible y las carteras
-    /// repuestas tienen que existir antes), y no puede quedar la delegación reactivada con el
-    /// principal a medias.
+    /// abierta con el Tenant propietario, la delegación reactivada y su operación nueva se
+    /// guardan juntas.
     /// </summary>
     public async Task<Result> Handle(ReactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
@@ -134,7 +126,8 @@ public class ReactivarDelegacionTenantCommandHandler(
 
         var delegacion = await repositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
 
-        // Reactivar RESTAURA capacidad —reabre la operación y las carteras de todo el equipo—,
+        // Reactivar RESTAURA capacidad —reabre la operación del Operador CAE externo, aunque sin
+        // ninguna Asignación de Cartera—,
         // así que no se autoriza como revocar: es del Administrador del Tenant propietario, desde
         // su propia casa (decisión SEG-7 del 2026-10-31), y nunca del Operador CAE externo.
         //
@@ -206,30 +199,19 @@ public class ReactivarDelegacionTenantCommandHandler(
         // permite responder quién operaba en cada momento. Siempre es la de un Operador CAE
         // externo: la autoridad de arriba (PuedeReactivarAsync) ya lo exigió, y el propósito no
         // cambia nunca en una DelegacionTenant.
-        var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+        await asignacionesWriter.AbrirOperacionDelegadaAsync(
             tenantPropietarioId, delegacion.TenantConsultoraId,
             DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
 
-        // Y sus carteras. Desactivar las cerró en cascada pero no borró las
-        // filas de operador delegado, así que reactivar sin esto dejaría una
-        // operación vigente con cero carteras: el operador entraría al
-        // workspace sin ver un solo dato hasta el siguiente arranque.
-        var anteriorPrincipal = await asignacionesWriter.ReabrirCarterasDeOperadoresAsync(
-            operacion, delegacion.Id, cancellationToken);
-
+        // Sin carteras (decisión de Chris del 2026-11-14, opción A en la PR #2223): reactivar la
+        // delegación no repone ninguna Asignación de Cartera, ni la de Consulta desde la fila
+        // heredada ni las de Gestor CAE o Coordinador CAE que la revocación cerró, ni la marca de
+        // principal (D-9 deja de aplicarse aquí). Cada cartera vuelve por un acto explícito
+        // (incorporación aceptada, asignación en Usuarios, alta del operador delegado), y el
+        // arranque tampoco la emite desde la fila heredada si la persona ya tuvo alguna en el par.
+        // Antes se reponían las que había cerrado la cascada, y reconocerlas por fecha o por una
+        // marca dejaba volver lo caducado o lo suspendido (rondas 1 a 3 de Codex).
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // «Al reactivar vuelve a ser principal quien lo era antes» (D-9, 2026-10-08). Con las
-        // carteras ya guardadas: la marca se enciende sobre la cartera repuesta, o se releva
-        // al Coordinador CAE de esa persona si ya no puede llevarla.
-        if (anteriorPrincipal is { } anteriorPrincipalId
-            && !await RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync(
-                catalogo,
-                new OperacionConPrincipal(operacion.PropietarioTenantId, operacion.Id),
-                operacion.OperadorTenantId, anteriorPrincipalId,
-                directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken))
-            return Result.Fallo(CambioMientrasReactivabas);
-
         return Result.Exito();
     }
 }

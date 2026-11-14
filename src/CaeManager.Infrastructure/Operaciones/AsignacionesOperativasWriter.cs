@@ -194,16 +194,13 @@ public class AsignacionesOperativasWriter(
             .Where(c => ids.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada)
             .ToListAsync(cancellationToken);
 
-        // Todas por la cascada, antes que su operación: es AsignacionCartera la que decide, con el estado
-        // de las dos, qué queda marcado como restaurable. Solo una cartera Vigente bajo una operación
-        // Vigente vuelve al reactivar, y solo ella recuerda si era la principal (D-9). Una Suspendida o
-        // Programada, o una Vigente bajo una operación Suspendida o Programada, se cierra sin marca y
-        // recordando su estado efectivo (EstadoAlCerrarse): lo suspendido nunca vuelve como vigente.
-        // Antes la reactivación reconocía la cascada por la fecha de fin, y una Suspendida con la misma
-        // fecha de fin ya pasada que su operación pasaba por restaurable (ronda 2 de Codex en la PR #2223).
-        var porId = operaciones.ToDictionary(o => o.Id);
+        // Todas, en cualquier estado no cerrado. Nada de lo que se cierra aquí vuelve al reactivar la
+        // delegación: la reactivación abre una operación nueva sin ninguna cartera, y cada una nace de
+        // un acto explícito (decisión de Chris del 2026-11-14, opción A en la PR #2223). Antes la
+        // reactivación reponía las carteras que esta cascada había cerrado, y la marca o la fecha con
+        // que se reconocían dejaban volver lo caducado o lo suspendido (rondas 1 a 3 de Codex).
         foreach (var cartera in carteras)
-            cartera.CerrarPorCascadaDeLaOperacion(porId[cartera.AsignacionOperacionId], motivo, ahora);
+            cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
 
         foreach (var operacion in operaciones)
             operacion.Cerrar(motivo, ahora);
@@ -284,23 +281,24 @@ public class AsignacionesOperativasWriter(
 
         if (yaTiene) return;
 
-        // Lo suspendido nunca vuelve como vigente (ronda 2 de Codex en la PR #2223): la fila heredada
-        // no basta si la última cartera de la persona en este par estaba suspendida, viva o al cerrarse.
-        // Antes se emitía una Vigente sin mirarla: al reactivar la delegación, o junto a la Suspendida
-        // que seguía viva. Reanudarla es un acto explícito, no un efecto de la fila heredada.
-        if (await UltimaCarteraQuedoSuspendidaAsync(operacion, usuarioId, cancellationToken)) return;
+        // Lo suspendido nunca vuelve como vigente (ronda 2 de Codex en la PR #2223): este método solo lo
+        // llama un acto explícito (el alta de la persona como operador delegado), y aun así no emite
+        // una Vigente junto a una cartera viva suya en el par que hoy no autoriza —Suspendida,
+        // Programada o bajo una operación que no está Vigente—. Reanudarla es otro acto. La
+        // reactivación de la delegación ya no pasa por aquí: no repone carteras.
+        if (await HayAlgunaVivaQueNoAutorizaAsync(operacion, usuarioId, cancellationToken)) return;
 
         dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
             operacion, usuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
     }
 
     /// <summary>
-    /// Las carteras de la persona bajo cualquier Asignación de Operación Outbound externa del par de
-    /// <paramref name="operacion"/>, con su operación, y la guarda de dominio sobre ellas
-    /// (<see cref="AsignacionCartera.AlgunaQuedoSuspendida"/>). Mira también las añadidas al contexto y
-    /// aún sin guardar, por el mismo motivo que <see cref="ObtenerOperacionExternaVigenteAsync"/>.
+    /// Las carteras vivas de la persona bajo cualquier Asignación de Operación Outbound externa del par
+    /// de <paramref name="operacion"/>, con su operación, y la guarda de dominio sobre ellas
+    /// (<see cref="AsignacionCartera.HayAlgunaVivaQueNoAutoriza"/>). Mira también las añadidas al
+    /// contexto y aún sin guardar, por el mismo motivo que <see cref="ObtenerOperacionExternaVigenteAsync"/>.
     /// </summary>
-    private async Task<bool> UltimaCarteraQuedoSuspendidaAsync(
+    private async Task<bool> HayAlgunaVivaQueNoAutorizaAsync(
         AsignacionOperacion operacion, Guid usuarioId, CancellationToken cancellationToken)
     {
         var enBase = await (
@@ -311,6 +309,7 @@ public class AsignacionesOperativasWriter(
                       && o.OperadorTenantId == operacion.OperadorTenantId
                       && o.Servicio == ServicioCae.Outbound
                       && c.UsuarioId == usuarioId
+                      && c.Estado != EstadoAsignacion.Cerrada
                 select new { Cartera = c, Operacion = o })
             .ToListAsync(cancellationToken);
 
@@ -327,7 +326,7 @@ public class AsignacionesOperativasWriter(
                         && o.Servicio == ServicioCae.Outbound)
             .Select(c => (Cartera: c, Operacion: operacionesEnElContexto[c.AsignacionOperacionId]));
 
-        return AsignacionCartera.AlgunaQuedoSuspendida(
+        return AsignacionCartera.HayAlgunaVivaQueNoAutoriza(
             enBase.Select(x => (x.Cartera, x.Operacion)).Concat(anadidas).DistinctBy(x => x.Cartera.Id));
     }
 
@@ -341,118 +340,6 @@ public class AsignacionesOperativasWriter(
                             $"no se puede autorizar al usuario {usuarioId}.");
 
         await AbrirCarteraOperadorAsync(operacion, usuarioId, rol, cancellationToken);
-    }
-
-    public async Task<Guid?> ReabrirCarterasDeOperadoresAsync(
-        AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(operacion);
-
-        // Una fila heredada con Administrador o Dirección CAE (anterior a la
-        // decisión del 2026-09-23) no se reabre, pero tampoco impide reactivar
-        // la delegación para los operadores válidos: se omite, sin lanzar.
-        var operadores = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => a.DelegacionTenantId == delegacionTenantId && RolesDelegadosPermitidos.Contains(a.Rol))
-            .Select(a => new { a.UsuarioId, a.Rol })
-            .ToListAsync(cancellationToken);
-
-        foreach (var operador in operadores)
-            await AbrirCarteraOperadorAsync(operacion, operador.UsuarioId, operador.Rol, cancellationToken);
-
-        // Un Gestor CAE —o un Coordinador CAE con cartera propia— recupera la cartera del Tenant
-        // entero solo si la tenía vigente en la operación que esta desactivación cerró: una concesión
-        // explícita anterior, no una referencia (Empresa.EjecutivoUsuarioId) ni la mera fila de
-        // operador delegado.
-        var conCarteraPropia = operadores.Where(o => RolesConCarteraPropia.Contains(o.Rol)).ToList();
-
-        // La última operación externa cerrada del mismo par y del Tenant entero, sea cual sea su
-        // motivo: si la última etapa terminó por caducidad (Expirada) o por traspaso, no se repone
-        // nada desde una anterior. Solo del Tenant entero, como la que se reabre: la revocación
-        // cierra también las acotadas con el mismo instante (o, una Programada, con su inicio
-        // futuro), y tomar una de ellas como «anterior» haría perder lo que cerró la cascada de la
-        // del Tenant entero. Las acotadas no se reabren: hace falta un acto explícito.
-        // El ámbito se filtra en memoria: son las etapas cerradas de un solo par, pocas. Tampoco
-        // cuenta una que se cerró sin haber empezado: una Programada cerrada lleva su inicio como
-        // fin (VigenciaHasta == VigenciaDesde). No fue una etapa, y por fecha quedaría delante de la
-        // que cerró la cascada, también cuando ese inicio ya ha pasado. Antes se descartaba solo si
-        // su inicio seguía en el futuro (hallazgo de Codex en la ronda 1 de la PR #2223).
-        var anterior = (await dbContext.AsignacionesOperacion
-                .AsNoTracking()
-                .Where(o => o.Id != operacion.Id
-                            && !o.EsRaiz
-                            && o.PropietarioTenantId == operacion.PropietarioTenantId
-                            && o.OperadorTenantId == operacion.OperadorTenantId
-                            && o.Servicio == operacion.Servicio
-                            && o.Estado == EstadoAsignacion.Cerrada)
-                .ToListAsync(cancellationToken))
-            .Where(o => o.Ambito.EsUniversal && o.VigenciaHasta > o.VigenciaDesde)
-            .OrderByDescending(o => o.VigenciaHasta)
-            .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
-            .FirstOrDefault();
-        if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return null;
-
-        // Solo las carteras que la cascada de esa misma desactivación marcó como restaurables
-        // (AsignacionCartera.RestaurableAlReactivar): las que estaban Vigentes bajo esa operación
-        // Vigente. Una cartera revocada a un operador concreto con la operación aún vigente
-        // (CerrarCarteraOperadorAsync), una que estaba Suspendida o Programada, y cualquiera bajo una
-        // operación que estaba Suspendida no llevan la marca y no se reponen: nadie decidió
-        // devolvérselas, y lo suspendido nunca vuelve como vigente. Antes la cascada se reconocía por
-        // compartir la fecha de fin con la operación, y una Suspendida con la misma fecha de fin ya
-        // pasada pasaba por restaurable (ronda 2 de Codex en la PR #2223).
-        //
-        // Se leen todas, no solo las de quien hoy sigue figurando como operador delegado: quién era el
-        // principal tiene que saberse aunque su fila se haya revocado o cambiado de rol con la delegación
-        // desactivada. Si no, su ausencia pasaría por «no había principal» y la regla de más abajo
-        // marcaría al Gestor CAE de apoyo que quedara solo (revisión puente de I2b).
-        var cerradasPorLaCascada = await dbContext.AsignacionesCartera
-            .Where(c => c.AsignacionOperacionId == anterior.Id
-                        && c.Estado == EstadoAsignacion.Cerrada
-                        && c.MotivoCierre == MotivoCierreAsignacion.Revocada
-                        && c.RestaurableAlReactivar)
-            .Select(c => new { c.UsuarioId, c.Rol, c.EraPrincipalAlCerrarsePorCascada })
-            .ToListAsync(cancellationToken);
-
-        var ahora = DateTime.UtcNow;
-        var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
-
-        // La cartera vuelve con el rol que tenía, y solo si la fila de operador delegado sigue diciendo
-        // ese mismo rol: una cartera de Coordinador CAE (la del relevo del principal) no se repone a
-        // quien hoy figura como Gestor CAE, ni al revés.
-        var repuestas = new List<AsignacionCartera>();
-        foreach (var operador in conCarteraPropia)
-        {
-            if (!cerradasPorLaCascada.Any(c => c.UsuarioId == operador.UsuarioId && c.Rol == operador.Rol)) continue;
-            if (await TieneUniversalVigenteAsync(operacion, operador.UsuarioId, cancellationToken)) continue;
-
-            repuestas.Add(AsignacionCartera.Externa(
-                operacion, operador.UsuarioId, operador.Rol, AmbitoAsignacion.Universal,
-                ahora, vigenciaHasta: null, ahora, actorId));
-        }
-
-        dbContext.AsignacionesCartera.AddRange(repuestas);
-
-        // D-9 (2026-10-08): vuelve a ser principal quien lo era. La cascada lo dejó escrito en la fila
-        // cerrada; aquí solo se dice quién era —las carteras nacen todas sin marca— porque devolvérsela
-        // exige comprobar que su cuenta sigue pudiendo llevarla y, si no, relevar a su Coordinador CAE,
-        // y eso lo hace quien llama (RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync).
-        var anteriorPrincipal = cerradasPorLaCascada
-            .Where(c => c.EraPrincipalAlCerrarsePorCascada)
-            .Select(c => (Guid?)c.UsuarioId)
-            .FirstOrDefault();
-        if (anteriorPrincipal is not null)
-            return await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken)
-                ? null
-                : anteriorPrincipal;
-
-        // Sin ese dato —la operación se cerró antes de que existiera, o no tenía principal— rige el
-        // criterio de la migración AnadePrincipalALasCarteras: si se repone una sola cartera de Gestor
-        // CAE, esa responde del Tenant; si se reponen varias, ninguna —no se inventa un responsable
-        // por el orden de un bucle— y la operación queda sin principal hasta que alguien lo designe.
-        var deGestorCae = repuestas.Where(c => c.Rol == Roles.GestorCae).ToList();
-        if (deGestorCae.Count == 1)
-            await MarcarPrincipalSiNoHayAsync(operacion, deGestorCae[0], cancellationToken);
-
-        return null;
     }
 
     public async Task CerrarCarteraOperadorAsync(
@@ -503,13 +390,6 @@ public class AsignacionesOperativasWriter(
     /// </summary>
     private static readonly string[] RolesDelegadosPermitidos =
         [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
-
-    /// <summary>
-    /// Roles cuya cartera del Tenant entero nace de un acto explícito (asignación, solicitud
-    /// aceptada, relevo del principal) y por eso la reactivación solo la repone si la cascada la
-    /// cerró. Son los mismos que pueden llevar la marca de principal.
-    /// </summary>
-    private static readonly string[] RolesConCarteraPropia = [Roles.GestorCae, Roles.CoordinadorCae];
 
     /// <summary>
     /// Falla cerrado: sin una <see cref="AsignacionOperadorDelegado"/> única y
