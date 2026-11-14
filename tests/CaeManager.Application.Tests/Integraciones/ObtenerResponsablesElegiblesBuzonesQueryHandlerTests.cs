@@ -53,7 +53,8 @@ public class ObtenerResponsablesElegiblesBuzonesQueryHandlerTests
             alcance ?? new AlcanceDatosServiceFalso(conexionIntegracionVisible: buzonVisible),
             new ResponsableBuzonElegible(
                 _directorio = new DirectorioPorUsuario(cuentas), new EquipoVacio(), new OperacionesEnMemoria([], []),
-                new EmpresasQueryContextFalso(), new TenantActualFijo(Tenant)),
+                DelegacionesEnMemoria.VigentesDe(new OperacionesEnMemoria([], [])), new EmpresasQueryContextFalso(),
+                new TenantActualFijo(Tenant)),
             new CurrentUserServiceFalso(Guid.NewGuid(), rolActual));
 
     private ConexionIntegracion Buzon(Guid? empresa = null, Guid? propietario = null,
