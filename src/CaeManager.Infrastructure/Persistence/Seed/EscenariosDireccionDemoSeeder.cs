@@ -27,7 +27,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// externo ArcoSPA opera seis Tenants propietarios, con un Gestor CAE que
 /// lleva una cartera en los seis, un segundo Gestor CAE con cartera en tres y
 /// un Coordinador CAE que ve las de ambos. Cada Tenant recibe su rama —
-/// Cliente empresarial, contratista, subcontrata, centros, plantilla con
+/// Cliente empresarial, Subcontrata, centros, plantilla con
 /// extranjeros, documentos, acreditaciones, visitas e incidencias — y las
 /// vigencias son <b>relativas a hoy</b>, así que la demo enseña los mismos
 /// estados el día que se siembre y unos días después (ver
@@ -43,6 +43,12 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// y ese es exactamente el defecto del incidente de 2026-08-27. El camino a
 /// producción es otro (ver la fase 2 del encargo), y reutiliza
 /// <see cref="SembrarRamaAsync"/> sin esta guarda.
+/// </para>
+///
+/// <para>
+/// <b>Una sola Empresa propia por Tenant (D-P11).</b> Todos los Centros y Trabajadores de una rama cuelgan de la
+/// única Empresa propia del Tenant propietario (<see cref="SiembraEmpresaPropia"/>: la del Tenant si ya la tiene, o
+/// la que nombra la rama) o de sus Subcontratas; los Clientes empresariales de la rama son clientes suyos.
 /// </para>
 ///
 /// <para>
@@ -205,6 +211,13 @@ public static class EscenariosDireccionDemoSeeder
                 tenantPropietarioId, tenantOperadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
+            // La única Empresa propia del Tenant (D-P11): de ella cuelgan los Centros y la plantilla de todos los
+            // Clientes empresariales de la rama. Si el Tenant ya la tiene (los de DelegacionDemoSeeder traen la de
+            // DatosPruebaSeeder) se reutiliza, y su razón social manda sobre la del catálogo.
+            var propia = await SiembraEmpresaPropia.AsegurarAsync(
+                dbContext, tenantPropietarioId, rama.EmpresaPropia,
+                DatosPruebaSeeder.GenerarCifValido(6_900_000 + indiceRama), cancellationToken);
+
             var tipos = await dbContext.TiposDocumento.ToListAsync(cancellationToken);
             var proveedores = await dbContext.ProveedoresPlataformaCae
                 .Where(p => p.Activo).OrderBy(p => p.Codigo).ToListAsync(cancellationToken);
@@ -222,7 +235,7 @@ public static class EscenariosDireccionDemoSeeder
                 if (clienteId is null)
                 {
                     var constructor = new ConstructorDeCliente(
-                        dbContext, spec, gestor.Id, tipos, proveedores, hoy, indiceGlobal: indiceRama * 10 + i);
+                        dbContext, spec, propia.Id, gestor.Id, tipos, proveedores, hoy, indiceGlobal: indiceRama * 10 + i);
                     clienteId = constructor.Construir();
                     await dbContext.SaveChangesAsync(cancellationToken);
                 }
@@ -300,7 +313,7 @@ public static class EscenariosDireccionDemoSeeder
 
     private enum Extranjeria { No, FueraDeLaUe, DeLaUe }
 
-    /// <param name="Clave">c0..c5 son de la contratista; s0..s1, de la subcontrata.</param>
+    /// <param name="Clave">c0..c5 son de la Empresa propia del Tenant (o de la Subcontrata que aporta la plantilla base, si el catálogo la pide); s0..s1, de la Subcontrata.</param>
     private sealed record PuestoDePlantilla(string Clave, bool DeSubcontrata, int Centro, Extranjeria Extranjeria);
 
     /// <summary>
@@ -366,7 +379,7 @@ public static class EscenariosDireccionDemoSeeder
     /// daría por sembrado.
     /// </summary>
     private sealed class ConstructorDeCliente(
-        CaeManagerDbContext dbContext, ClienteEscenarioDemo spec, Guid gestorId,
+        CaeManagerDbContext dbContext, ClienteEscenarioDemo spec, Guid empresaPropiaId, Guid gestorId,
         IReadOnlyList<TipoDocumento> tipos, IReadOnlyList<ProveedorPlataformaCae> proveedores,
         DateOnly hoy, int indiceGlobal)
     {
@@ -389,18 +402,30 @@ public static class EscenariosDireccionDemoSeeder
             var cliente = Empresa.CrearComoCliente(
                 spec.RazonSocial, DatosPruebaSeeder.GenerarCifValido(baseCif),
                 esCritico: spec.Escenario is EscenarioClienteDemo.AccesoBloqueado, notas: null, ejecutivoUsuarioId: gestorId);
-            var contratista = new Empresa(spec.Contratista, DatosPruebaSeeder.GenerarCifValido(baseCif + 1));
-            var subcontrata = Empresa.CrearComoSubcontrata(
-                spec.Subcontrata, DatosPruebaSeeder.GenerarCifValido(baseCif + 2), NivelServicioSubcontrata.Gestionada.ToString());
-            dbContext.Empresas.AddRange(cliente, contratista, subcontrata);
 
-            var contratistaParaCliente = RelacionEmpresarial.Crear(contratista.Id, cliente.Id, ahora);
-            dbContext.RelacionesEmpresariales.AddRange(
-                contratistaParaCliente,
-                RelacionEmpresarial.Crear(subcontrata.Id, contratista.Id, ahora),
-                RelacionEmpresarial.Crear(subcontrata.Id, cliente.Id, ahora, contratistaParaCliente.Id));
+            // Las Subcontratas de la Empresa propia para este Cliente empresarial: la que aporta la plantilla base (si el
+            // catálogo la pide) y la que aporta la de dos de los centros, que es siempre la última.
+            var subcontratas = (spec.SubcontrataDeLaPlantillaBase is { } deLaBase
+                    ? new[] { (Nombre: deLaBase, Desplazamiento: 1), (Nombre: spec.Subcontrata, Desplazamiento: 2) }
+                    : new[] { (Nombre: spec.Subcontrata, Desplazamiento: 2) })
+                .Select(s => Empresa.CrearComoSubcontrata(
+                    s.Nombre, DatosPruebaSeeder.GenerarCifValido(baseCif + s.Desplazamiento), NivelServicioSubcontrata.Gestionada.ToString()))
+                .ToList();
+            var subcontrata = subcontratas[^1];
+            var subcontrataDeLaBase = subcontratas.Count > 1 ? subcontratas[0] : null;
+            dbContext.Empresas.Add(cliente);
+            dbContext.Empresas.AddRange(subcontratas);
 
-            var centros = CrearCentros(cliente, contratista);
+            // Una sola Empresa propia por Tenant (D-P11): presta servicio al Cliente empresarial y tiene a las
+            // Subcontratas como proveedoras suyas, también frente a ese Cliente (enmarcadas en su relación con él).
+            var propiaParaCliente = RelacionEmpresarial.Crear(empresaPropiaId, cliente.Id, ahora);
+            dbContext.RelacionesEmpresariales.Add(propiaParaCliente);
+            foreach (var s in subcontratas)
+                dbContext.RelacionesEmpresariales.AddRange(
+                    RelacionEmpresarial.Crear(s.Id, empresaPropiaId, ahora),
+                    RelacionEmpresarial.Crear(s.Id, cliente.Id, ahora, propiaParaCliente.Id));
+
+            var centros = CrearCentros(cliente);
             var canales = CrearCanales(centros);
 
             var trabajadores = new Dictionary<string, Trabajador>();
@@ -415,7 +440,9 @@ public static class EscenariosDireccionDemoSeeder
 
                 var trabajador = plaza.DeSubcontrata
                     ? Trabajador.DeSubcontrata(subcontrata.Id, nombre, apellidos, identificacion, fechaNacimiento: nacimiento)
-                    : Trabajador.DeEmpresa(contratista.Id, nombre, apellidos, identificacion, fechaNacimiento: nacimiento);
+                    : subcontrataDeLaBase is not null
+                        ? Trabajador.DeSubcontrata(subcontrataDeLaBase.Id, nombre, apellidos, identificacion, fechaNacimiento: nacimiento)
+                        : Trabajador.DeEmpresa(empresaPropiaId, nombre, apellidos, identificacion, fechaNacimiento: nacimiento);
                 trabajadores[plaza.Clave] = trabajador;
 
                 dbContext.Trabajadores.Add(trabajador);
@@ -445,7 +472,7 @@ public static class EscenariosDireccionDemoSeeder
             return cliente.Id;
         }
 
-        private List<Centro> CrearCentros(Empresa cliente, Empresa contratista)
+        private List<Centro> CrearCentros(Empresa cliente)
         {
             var fichaCompleta = spec.Escenario is not EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente;
             var centros = new List<Centro>();
@@ -453,7 +480,7 @@ public static class EscenariosDireccionDemoSeeder
             {
                 var ciudad = Ciudades[(indiceGlobal + i) % Ciudades.Length];
                 centros.Add(new Centro(
-                    cliente.Id, contratista.Id,
+                    cliente.Id, empresaPropiaId,
                     nombre: $"{NombresCentro[i]} {ciudad}",
                     codigoCentro: $"DIR-{indiceGlobal:D2}{i + 1}",
                     direccion: $"Polígono {ciudad} Norte, nave {i + 1}",

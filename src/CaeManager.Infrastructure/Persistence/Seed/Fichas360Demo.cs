@@ -33,7 +33,7 @@ public sealed record VigenciaMaqueta(ClaseVigenciaMaqueta Clase, int EmitidoEn, 
 public sealed record DocumentoMaqueta(string Titular, string Tipo, VigenciaMaqueta Vigencia);
 
 /// <param name="Empleador">Razón social de la Empresa que lo emplea (ya sembrada por la rama de Pizza Planet).</param>
-/// <param name="DeSubcontrata">El empleador ocupa la posición de subcontrata en su Relación Empresarial.</param>
+/// <param name="DeSubcontrata">El empleador es una Subcontrata de la Empresa propia; con <c>false</c>, el empleador es la propia Empresa propia (Limpiezas Raccoon S.L.).</param>
 public sealed record TrabajadorNuevoMaqueta(string Nombre, string Apellidos, string Identificacion, string Empleador, bool DeSubcontrata)
 {
     public string NombreCompleto => $"{Nombre} {Apellidos}";
@@ -49,6 +49,7 @@ public sealed record BajaDeAsignacionMaqueta(string Trabajador, string Centro, i
 public sealed record RequisitoDeCentroMaqueta(
     string Tipo, string Centro, bool Incluido = true, bool BloqueaAcceso = false, int? ToleranciaDias = null, int? PeriodicidadMeses = null);
 
+/// <param name="DeSubcontrata">El empleador es una Subcontrata de la Empresa propia; con <c>false</c>, la propia Empresa propia.</param>
 public sealed record VehiculoMaqueta(string Nombre, string Modelo, string Matricula, string Empleador, bool DeSubcontrata);
 
 /// <param name="ClienteEmpresarial">Razón social del Cliente empresarial titular del Centro del proyecto.</param>
@@ -99,7 +100,9 @@ public static class CatalogoFichas360Demo
 
     public const string NombreTenant = CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
 
-    // Empresas que ya siembra la rama de Pizza Planet. Aquí solo se nombran para localizarlas.
+    // Empresas que ya siembra la rama de Pizza Planet. Aquí solo se nombran para localizarlas. Pizza Planet tiene una sola
+    // Empresa propia (D-P11): Limpiezas Raccoon S.L., que presta servicio a Umbrella y a Cyberdyne; Montajes Skynet S.L.,
+    // Transportes Terminator S.L. y Laboratorios Nemesis S.L. son Subcontratas suyas.
     public const string Cyberdyne = "Cyberdyne Ibérica S.A.";
     public const string Skynet = "Montajes Skynet S.L.";
     public const string Terminator = "Transportes Terminator S.L.";
@@ -207,7 +210,8 @@ public static class CatalogoFichas360Demo
         new("Lucía Prats Roca", PlantaBilbao, Dia(21, 3, 2026)),
         new("Nuria Sanz Coll", PlantaBilbao, Dia(21, 3, 2026)),
 
-        // Montajes Skynet S.L.: cuatro en Almacén Vigo y tres en Planta Murcia («Centros de su empleador» del Vehículo).
+        // Montajes Skynet S.L., Subcontrata de Limpiezas Raccoon S.L.: cuatro en Almacén Vigo y tres en Planta Murcia
+        // («Centros de su empleador» del Vehículo).
         new("Rubén Pastor Rey", AlmacenVigo, Dia(21, 3, 2026)),
         new("Paula Salas Duque", AlmacenVigo, Dia(21, 3, 2026)),
     ];
@@ -300,7 +304,7 @@ public static class CatalogoFichas360Demo
 
     public static readonly IReadOnlyList<VehiculoMaqueta> Vehiculos =
     [
-        new(CamionGrua, "Iveco Daily", MatriculaCamionGrua, Skynet, DeSubcontrata: false),
+        new(CamionGrua, "Iveco Daily", MatriculaCamionGrua, Skynet, DeSubcontrata: true),
         new("Furgoneta T2", "Renault Master", "7788 LLK", Terminator, DeSubcontrata: true),
         new("Camión 7", "MAN TGL", "4455 MNP", Terminator, DeSubcontrata: true),
         new("Furgoneta 1", "Ford Transit", "1234 ABC", Raccoon, DeSubcontrata: false),
