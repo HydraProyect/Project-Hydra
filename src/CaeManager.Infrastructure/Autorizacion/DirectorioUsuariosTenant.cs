@@ -816,7 +816,7 @@ public class DirectorioUsuariosTenant(
             var ahora = DateTime.UtcNow;
 
             var porCartera = await (
-                from v in TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(identidad, tenantId, ahora)
+                from v in TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(identidad, identidad, tenantId, ahora)
                 where v.Cartera.AmbitoRelacionClienteId == null
                       && v.Cartera.AmbitoCentroId == null && v.Cartera.AmbitoTrabajadorId == null
                       && v.Cartera.AmbitoProyectoId == null

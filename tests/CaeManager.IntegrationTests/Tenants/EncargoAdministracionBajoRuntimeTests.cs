@@ -909,7 +909,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     private static TechoDeRolPorEncargo Techo(IServiceScope ambito)
     {
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        return new TechoDeRolPorEncargo(contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
+        return new TechoDeRolPorEncargo(contexto, contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
             ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()),
             new TenantConAdministradorPropioEnBase(contexto));
     }

@@ -1,6 +1,8 @@
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -20,6 +22,9 @@ public class OperacionesQueAutorizanPorServicioTests
     private static readonly Guid OperadorCaeExterno = Guid.NewGuid();
     private static readonly Guid TenantBeneficiario = Guid.NewGuid();
     private static readonly DateTime Ahora = DateTime.UtcNow;
+
+    /// <summary>La DelegacionTenant de Operador CAE externo del par, activa y sin caducidad: la vía de Operación la exige.</summary>
+    private static readonly TenantsQueryContextFalso Delegacion = DelegacionesEnMemoria.Vigente(OperadorCaeExterno, TenantBeneficiario);
 
     private static T Vigente<T>(T asignacion) where T : class
     {
@@ -41,7 +46,7 @@ public class OperacionesQueAutorizanPorServicioTests
 
     private static Task<Guid?> OperacionQueAutorizaAsync(OperacionesEnMemoria contexto, string rolDeOrigen) =>
         TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-            contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, rolDeOrigen, Ahora, default);
+            contexto, Delegacion, Usuario, OperadorCaeExterno, TenantBeneficiario, rolDeOrigen, Ahora, default);
 
     [Theory]
     [InlineData("Administrador")]
@@ -55,10 +60,10 @@ public class OperacionesQueAutorizanPorServicioTests
         (await OperacionQueAutorizaAsync(contexto, rolDeOrigen)).Should().Be(outbound.Id,
             "la Inbound es más reciente, pero no es una operación de Outbound");
         (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
-                contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, outbound.Id, rolDeOrigen, Ahora, default))
+                contexto, Delegacion, Usuario, OperadorCaeExterno, TenantBeneficiario, outbound.Id, rolDeOrigen, Ahora, default))
             .Should().BeTrue();
         (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
-                contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, inbound.Id, rolDeOrigen, Ahora, default))
+                contexto, Delegacion, Usuario, OperadorCaeExterno, TenantBeneficiario, inbound.Id, rolDeOrigen, Ahora, default))
             .Should().BeFalse("una selección que nombre la Inbound no se revalida en el contexto de Outbound");
     }
 
@@ -72,7 +77,7 @@ public class OperacionesQueAutorizanPorServicioTests
 
         (await OperacionQueAutorizaAsync(contexto, rolDeOrigen)).Should().BeNull();
         (await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
-                contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, inbound.Id, rolDeOrigen, rolDeOrigen,
+                contexto, Delegacion, Usuario, OperadorCaeExterno, TenantBeneficiario, inbound.Id, rolDeOrigen, rolDeOrigen,
                 Ahora, default))
             .Should().BeNull("sin operación de Outbound no hay rol efectivo en el Tenant beneficiario");
     }
@@ -108,14 +113,14 @@ public class OperacionesQueAutorizanPorServicioTests
         (await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
                 contexto, [Usuario], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
             .Should().Equal([clienteEmpresarial], "la Inbound del Tenant entero no aporta el ámbito null (Tenant entero)");
-        (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(contexto, OperadorCaeExterno, Ahora)
+        (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(contexto, Delegacion, OperadorCaeExterno, Ahora)
                 .Select(v => v.Operacion.Id).ToListAsync())
             .Should().Equal([outboundAcotada.Id], "la cartera bajo la Inbound no cuenta en Outbound");
         (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(contexto, OperadorCaeExterno, Ahora)
                 .ToListAsync())
             .Should().BeEmpty("la única operación del Tenant entero es Inbound");
         (await TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync(
-                contexto, Usuario, OperadorCaeExterno, TenantBeneficiario, inboundEntera.Id, ["GestorCae"], Ahora, default))
+                contexto, Delegacion, Usuario, OperadorCaeExterno, TenantBeneficiario, inboundEntera.Id, ["GestorCae"], Ahora, default))
             .Should().BeFalse("la cartera universal bajo la Inbound no es una cartera del Tenant entero en Outbound");
     }
 

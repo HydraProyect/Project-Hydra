@@ -227,7 +227,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
                     operaciones, usuarioId, tenantOrigenId, ahora, cancellationToken)));
 
         var porOperacion = (await TenantsBeneficiariosAutorizados
-            .OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .OperacionesQueAutorizan(operaciones, dbContext, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .Select(o => o.PropietarioTenantId)
             .ToListAsync(cancellationToken)).ToHashSet();
 

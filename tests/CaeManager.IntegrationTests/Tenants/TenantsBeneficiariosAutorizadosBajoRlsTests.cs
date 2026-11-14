@@ -157,6 +157,8 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
                 operacion, usuario, Roles.GestorCae, AmbitoAsignacion.Universal, carteraDesde, carteraHasta, ahora);
             _propietario.AsignacionesOperacion.Add(operacion);
             _propietario.AsignacionesCartera.Add(cartera);
+            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
+            if (propietario != operador) _propietario.DelegacionesTenant.Add(new DelegacionTenant(operador, propietario));
             await _propietario.SaveChangesAsync();
             return (operacion, cartera);
         }
@@ -276,7 +278,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     public async Task Por_Operacion_solo_alcanza_el_Tenant_con_operacion_y_cartera_vigentes_del_Operador_de_origen()
     {
         var alcanzados = await TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(_propietario, _gestor, _origen, DateTime.UtcNow)
+            .CarterasPorOperacion(_propietario, _propietario, _gestor, _origen, DateTime.UtcNow)
             .Select(v => v.Operacion.PropietarioTenantId)
             .ToListAsync();
 
@@ -289,7 +291,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     public async Task Por_Operacion_nunca_devuelve_el_propio_Tenant_de_origen()
     {
         var alcanzados = await TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(_propietario, _gestorConOrigen, _origen, DateTime.UtcNow)
+            .CarterasPorOperacion(_propietario, _propietario, _gestorConOrigen, _origen, DateTime.UtcNow)
             .Select(v => v.Operacion.PropietarioTenantId)
             .ToListAsync();
 
@@ -607,7 +609,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     public async Task Sin_cartera_los_perfiles_de_organizacion_alcanzan_solo_las_operaciones_vigentes_del_Tenant_entero(string perfil)
     {
         var alcanzados = await TenantsBeneficiariosAutorizados
-            .OperacionesQueAutorizan(_propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
+            .OperacionesQueAutorizan(_propietario, _propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
             .Select(o => o.PropietarioTenantId)
             .ToListAsync();
 
@@ -622,7 +624,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     public async Task Sin_cartera_un_Gestor_CAE_u_otro_perfil_no_alcanza_ninguna_operacion(string? perfil)
     {
         (await TenantsBeneficiariosAutorizados
-                .OperacionesQueAutorizan(_propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
+                .OperacionesQueAutorizan(_propietario, _propietario, Guid.NewGuid(), _origen, perfil, DateTime.UtcNow)
                 .AnyAsync())
             .Should().BeFalse();
     }
@@ -663,16 +665,16 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         var unicaInbound = await OperacionConCartera(soloInbound.Id, ServicioCae.Inbound, ahora.AddDays(-2));
 
         (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                _propietario, persona, _origen, conLasDos.Id, perfil, DateTime.UtcNow, default))
+                _propietario, _propietario, persona, _origen, conLasDos.Id, perfil, DateTime.UtcNow, default))
             .Should().Be(outbound, "la Inbound es más reciente, pero no es una operación de Outbound");
         (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
-                _propietario, persona, _origen, conLasDos.Id, inboundMasReciente, perfil, DateTime.UtcNow, default))
+                _propietario, _propietario, persona, _origen, conLasDos.Id, inboundMasReciente, perfil, DateTime.UtcNow, default))
             .Should().BeFalse();
         (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                _propietario, persona, _origen, soloInbound.Id, perfil, DateTime.UtcNow, default))
+                _propietario, _propietario, persona, _origen, soloInbound.Id, perfil, DateTime.UtcNow, default))
             .Should().BeNull();
         (await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
-                _propietario, persona, _origen, soloInbound.Id, unicaInbound, perfil, DateTime.UtcNow, default))
+                _propietario, _propietario, persona, _origen, soloInbound.Id, unicaInbound, perfil, DateTime.UtcNow, default))
             .Should().BeFalse();
 
         (await ListaAsync(persona, perfil)).Select(c => c.TenantId).Should().Contain(conLasDos.Id)
@@ -846,8 +848,8 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
                 usuario, Roles.Administrador, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
             await _propietario.SaveChangesAsync();
         }
-        var delegacion = new DelegacionTenant(_origen, _a);
-        _propietario.DelegacionesTenant.Add(delegacion);
+        // La del par ya la sembró InitializeAsync para la vía de Operación.
+        var delegacion = await _propietario.DelegacionesTenant.SingleAsync(d => d.TenantConsultoraId == _origen && d.TenantClienteId == _a);
         _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, usuario, Roles.Consulta));
         await _propietario.SaveChangesAsync();
