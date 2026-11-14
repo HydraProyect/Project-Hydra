@@ -41,7 +41,12 @@ public class ProcesarItemLoteGeneracionCommandHandler(
         // GenerarDocumentoIndividual lo exige, y sin esta comprobación un Gestor CAE sin ese Centro en su Cartera seguiría
         // pudiendo dejar fallido el ítem de otro. Si no pasa, responde igual que un Id que no existe, para no delatar el
         // ítem ni su estado (ItemYaProcesado delataría que el ítem existe y ya generó).
-        if (!await ItemDentroDeAlcanceAsync(lote, contexto.CentroId, cancellationToken))
+        //
+        // El ítem se leyó arriba, antes de la puerta, y la puerta mira el estado actual del lote: como un ítem solo avanza
+        // y su DocumentoGeneradoId no se retira, lo que este ítem tenía al leerlo también lo ve la puerta, y se le pasa
+        // además como instantánea para que su generado quede comprobado aunque la lectura actual no lo trajera (TOCTOU,
+        // Codex ronda 3, PR #2222). La comprobación del estado va después de la puerta y usa esa misma lectura.
+        if (!await ItemDentroDeAlcanceAsync(lote, item, contexto.CentroId, cancellationToken))
             return ItemNoEncontrado();
 
         if (item.Estado != EstadoItemGeneracion.Pendiente)
@@ -93,7 +98,8 @@ public class ProcesarItemLoteGeneracionCommandHandler(
         return Result.Exito();
     }
 
-    private async Task<bool> ItemDentroDeAlcanceAsync(LoteGeneracionDocumento lote, Guid? centroId, CancellationToken cancellationToken)
+    private async Task<bool> ItemDentroDeAlcanceAsync(
+        LoteGeneracionDocumento lote, ItemGeneracionDocumento item, Guid? centroId, CancellationToken cancellationToken)
     {
         if (await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
             return true;
@@ -102,7 +108,8 @@ public class ProcesarItemLoteGeneracionCommandHandler(
             return false;
 
         return await alcanceDatos.LoteVisibleEnteroAsync(
-            lote.Id, lote.PlantillaDocumentoVersionId, plantillasContext, documentosContext, proyectosContext, cancellationToken);
+            lote.Id, lote.PlantillaDocumentoVersionId, [new ItemDeLoteLeido(item.TrabajadorId, item.DocumentoGeneradoId)],
+            plantillasContext, documentosContext, proyectosContext, cancellationToken);
     }
 
     private static Result ItemNoEncontrado() =>

@@ -44,18 +44,24 @@ public class ObtenerLoteGeneracionDocumentosQueryHandler(
         if (lote is null)
             return LoteNoEncontrado();
 
-        // Asignación de Cartera por Id (OWASP ASVS 4.0.3 V4.2.1), todo o nada (AlcanceDeLotesGeneracion.LoteVisibleEnteroAsync,
-        // el mismo criterio que ProcesarItemLoteGeneracionCommand): plantilla dentro de alcance, todos sus Trabajadores
-        // visibles y cada documento generado por sus ítems visible en la lista de trazabilidad. Si algo no pasa, responde
-        // igual que un lote que no existe, sin estado ni recuentos que lo delaten; si pasa, el lote se ve entero, con su
-        // estado y sus recuentos reales.
-        if (!await alcanceDatos.LoteVisibleEnteroAsync(
-                lote.Id, lote.PlantillaDocumentoVersionId, plantillasContext, documentosContext, proyectosContext, cancellationToken))
-            return LoteNoEncontrado();
-
+        // La instantánea de ítems que se devuelve se lee ANTES de la puerta, nunca después: un ítem solo avanza y un
+        // DocumentoGeneradoId asignado no se retira, así que la puerta, que mira el estado actual, ve todo generado de esta
+        // instantánea (y lo que se completó después). Leerla tras la puerta dejaba una ventana en la que un ítem completado
+        // entre las dos lecturas salía en la respuesta con un generado sin comprobar (TOCTOU, Codex ronda 3, PR #2222).
         var items = await plantillasContext.ItemsGeneracionDocumento
             .Where(i => i.LoteGeneracionDocumentoId == lote.Id)
             .ToListAsync(cancellationToken);
+
+        // Asignación de Cartera por Id (OWASP ASVS 4.0.3 V4.2.1), todo o nada (AlcanceDeLotesGeneracion.LoteVisibleEnteroAsync,
+        // el mismo criterio que ProcesarItemLoteGeneracionCommand): plantilla dentro de alcance, todos sus Trabajadores
+        // visibles y cada documento generado por sus ítems, los de la instantánea incluidos, visible en la lista de
+        // trazabilidad. Si algo no pasa, responde igual que un lote que no existe, sin estado ni recuentos que lo delaten;
+        // si pasa, el lote se ve entero, con su estado y sus recuentos reales, y se devuelve solo esa instantánea.
+        var instantanea = items.Select(i => new ItemDeLoteLeido(i.TrabajadorId, i.DocumentoGeneradoId)).ToList();
+        if (!await alcanceDatos.LoteVisibleEnteroAsync(
+                lote.Id, lote.PlantillaDocumentoVersionId, instantanea,
+                plantillasContext, documentosContext, proyectosContext, cancellationToken))
+            return LoteNoEncontrado();
 
         var idsTrabajadores = items.Select(i => i.TrabajadorId).Distinct().ToList();
         var trabajadores = await trabajadoresContext.Trabajadores

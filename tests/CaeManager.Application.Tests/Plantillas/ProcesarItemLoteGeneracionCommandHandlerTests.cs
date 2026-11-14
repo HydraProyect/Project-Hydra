@@ -461,6 +461,30 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Plantilla.ItemYaProcesado");
     }
 
+    /// <summary>
+    /// Hallazgo TOCTOU de Codex (ronda 3 de la PR #2222): el ítem se lee por el repositorio antes de la puerta y la
+    /// puerta relee los ítems del lote. El ítem leído viaja a la puerta como instantánea, así que su generado se
+    /// comprueba aunque la lectura actual no lo traiga (aquí, otra copia del ítem, pendiente). Sin la instantánea la
+    /// puerta pasaría y la respuesta sería ItemYaProcesado, que delata un ítem que generó un documento oculto.
+    /// </summary>
+    [Fact]
+    public async Task El_generado_del_item_leido_antes_de_la_puerta_se_comprueba_aunque_la_lectura_actual_no_lo_traiga()
+    {
+        var (items, lotes, contexto, lote, item, clienteEmpresarial) = LoteDeOtroGestor();
+        var documentos = new DocumentosQueryContextFalso();
+        var completado = ItemCompletadoConGenerado(contexto, documentos, lote, item.TrabajadorId, centroId: Guid.NewGuid());
+        items.Agregar(completado);
+        contexto.ListaItemsGeneracionDocumento.Remove(completado);
+        contexto.ListaItemsGeneracionDocumento.Add(new ItemGeneracionDocumento(lote.Id, item.TrabajadorId));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEmpresarial],
+            trabajadorIdsVisibles: [item.TrabajadorId], centroIdsVisibles: [Guid.NewGuid()]);
+
+        var resultado = await Handler(items, lotes, new MediatorFalso(), contexto, alcance, documentos)
+            .Handle(new ProcesarItemLoteGeneracionCommand(completado.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ItemNoEncontrado");
+    }
+
     private static ProcesarItemLoteGeneracionCommandHandler Handler(
         ItemGeneracionDocumentoRepositorioFalso items, LoteGeneracionDocumentoRepositorioFalso lotes, MediatorFalso mediator,
         PlantillasQueryContextFalso? contexto = null, AlcanceDatosServiceFalso? alcance = null, DocumentosQueryContextFalso? documentos = null) =>

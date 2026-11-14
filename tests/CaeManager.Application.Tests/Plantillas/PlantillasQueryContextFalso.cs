@@ -20,5 +20,20 @@ public class PlantillasQueryContextFalso : IPlantillasQueryContext
     public IQueryable<ConocimientoDeteccionCampo> ConocimientosDeteccionCampo => new TestAsyncQueryable<ConocimientoDeteccionCampo>(ListaConocimientosDeteccionCampo.AsQueryable());
     public IQueryable<DocumentoGenerado> DocumentosGenerados => new TestAsyncQueryable<DocumentoGenerado>(ListaDocumentosGenerados.AsQueryable());
     public IQueryable<LoteGeneracionDocumento> LotesGeneracionDocumento => new TestAsyncQueryable<LoteGeneracionDocumento>(ListaLotesGeneracionDocumento.AsQueryable());
-    public IQueryable<ItemGeneracionDocumento> ItemsGeneracionDocumento => new TestAsyncQueryable<ItemGeneracionDocumento>(ListaItemsGeneracionDocumento.AsQueryable());
+    /// <summary>
+    /// Se llama justo antes de cada lectura de <see cref="ItemsGeneracionDocumento"/> con su número de orden (1, 2...),
+    /// para simular otro circuito que cambia los ítems entre dos lecturas del mismo handler (intercalado TOCTOU).
+    /// </summary>
+    public Action<int>? AntesDeLeerItems { get; set; }
+
+    private int _lecturasDeItems;
+
+    public IQueryable<ItemGeneracionDocumento> ItemsGeneracionDocumento
+    {
+        get
+        {
+            AntesDeLeerItems?.Invoke(++_lecturasDeItems);
+            return new TestAsyncQueryable<ItemGeneracionDocumento>(ListaItemsGeneracionDocumento.AsQueryable());
+        }
+    }
 }

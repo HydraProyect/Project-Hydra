@@ -274,4 +274,61 @@ public class ObtenerLoteGeneracionDocumentosQueryHandlerTests
         resultado.Valor.Items.Should().HaveCount(2);
         resultado.Valor.ItemsCompletados.Should().Be(2);
     }
+
+    /// <summary>
+    /// Hallazgo TOCTOU de Codex (ronda 3 de la PR #2222, alta): la puerta leía los ítems y después el handler los volvía
+    /// a leer para devolverlos. Aquí otro circuito completa el ítem con un generado de un Centro fuera de la Cartera justo
+    /// antes de la segunda lectura. Con la instantánea leída antes de la puerta, la puerta (segunda lectura) ve ese
+    /// generado y niega; con el orden antiguo la puerta habría visto el ítem pendiente y la respuesta habría llevado el
+    /// generado oculto sin comprobar.
+    /// </summary>
+    [Fact]
+    public async Task Un_item_completado_con_un_generado_oculto_entre_la_instantanea_y_la_puerta_no_sale_en_la_respuesta()
+    {
+        var (contexto, lote, uno, dos) = ConstruirLote();
+        var centroDeCartera = Guid.NewGuid();
+        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
+        DocumentoGenerado? oculto = null;
+        contexto.AntesDeLeerItems = lectura =>
+        {
+            if (lectura == 2)
+                oculto = CompletarConGenerado(contexto, lote, itemUno, centroId: Guid.NewGuid());
+        };
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos], centroIdsVisibles: [centroDeCartera]);
+
+        var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        oculto.Should().NotBeNull("el intercalado tiene que haber ocurrido entre dos lecturas de los ítems");
+        if (resultado.EsExitoso)
+            resultado.Valor.Items.Select(i => i.DocumentoGeneradoId).Should().NotContain(oculto!.Id);
+        (resultado.EsFallido, resultado.Error.Codigo, resultado.Error.Mensaje).Should().Be(await RespuestaDeUnLoteInexistente(alcance));
+    }
+
+    /// <summary>
+    /// La defensa de la puerta: cada generado de la instantánea tiene que estar en lo que la puerta comprobó, aunque la
+    /// lectura actual no lo traiga. Un ítem no puede volver a pendiente (solo avanza), así que este intercalado no ocurre
+    /// en la base; si ocurriera, la puerta niega en vez de dejar salir un generado que no miró.
+    /// </summary>
+    [Fact]
+    public async Task Un_generado_oculto_de_la_instantanea_que_la_lectura_actual_ya_no_trae_tambien_se_niega()
+    {
+        var (contexto, lote, uno, dos) = ConstruirLote();
+        var centroDeCartera = Guid.NewGuid();
+        var itemUno = contexto.ListaItemsGeneracionDocumento.Single(i => i.TrabajadorId == uno);
+        CompletarConGenerado(contexto, lote, itemUno, centroId: Guid.NewGuid());
+        contexto.AntesDeLeerItems = lectura =>
+        {
+            if (lectura != 2)
+                return;
+            contexto.ListaItemsGeneracionDocumento.Remove(itemUno);
+            contexto.ListaItemsGeneracionDocumento.Add(new ItemGeneracionDocumento(lote.Id, uno));
+        };
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [uno, dos], centroIdsVisibles: [centroDeCartera]);
+
+        var resultado = await Handler(contexto, new TrabajadoresQueryContextFalso(), alcance)
+            .Handle(new ObtenerLoteGeneracionDocumentosQuery(lote.Id), CancellationToken.None);
+
+        (resultado.EsFallido, resultado.Error.Codigo, resultado.Error.Mensaje).Should().Be(await RespuestaDeUnLoteInexistente(alcance));
+    }
 }

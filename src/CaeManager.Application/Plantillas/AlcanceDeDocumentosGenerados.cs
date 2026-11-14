@@ -217,11 +217,24 @@ public static class AlcanceDeLotesGeneracion
     /// filtrados. Así quien lo ve lo ve con su estado y sus recuentos reales, y quien no, recibe lo mismo que por un lote
     /// que no existe. Con acceso total no cambia nada.
     /// </para>
+    ///
+    /// <para>
+    /// <paramref name="instantanea"/> son los ítems que el llamador ya leyó y va a usar (devolver o procesar), leídos
+    /// ANTES de llamar a esta puerta. La puerta vuelve a leer los ítems del lote, en su estado actual, y decide sobre la
+    /// unión de los dos. Por qué basta (hallazgo TOCTOU de Codex, ronda 3 de la PR #2222): un ítem solo avanza
+    /// (Pendiente a Completado, CompletadoConAvisos o Fallido) y un <c>DocumentoGeneradoId</c> asignado no se retira
+    /// ni cambia, así que todo generado de la instantánea sigue en los ítems actuales cuando la puerta los mira y queda
+    /// comprobado; si se dio de baja entretanto, ya no se lee y la puerta falla. Lo que se completó después de la
+    /// instantánea también se comprueba, aunque el llamador no lo devuelva. Al revés (la puerta primero y la instantánea
+    /// después) un ítem completado entre las dos lecturas llevaría a la respuesta un generado que nadie miró. Además, por
+    /// defensa, cada generado de la instantánea tiene que estar en el conjunto comprobado como visible: si no, niega.
+    /// </para>
     /// </summary>
     public static async Task<bool> LoteVisibleEnteroAsync(
         this IAlcanceDatosService alcance,
         Guid loteId,
         Guid plantillaDocumentoVersionId,
+        IReadOnlyCollection<ItemDeLoteLeido> instantanea,
         IPlantillasQueryContext plantillasContext,
         IDocumentosQueryContext documentosContext,
         IProyectosQueryContext proyectosContext,
@@ -230,10 +243,11 @@ public static class AlcanceDeLotesGeneracion
         if (await alcance.TieneAccesoTotalAsync(cancellationToken))
             return true;
 
-        var items = await plantillasContext.ItemsGeneracionDocumento
+        var actuales = await plantillasContext.ItemsGeneracionDocumento
             .Where(i => i.LoteGeneracionDocumentoId == loteId)
-            .Select(i => new { i.TrabajadorId, i.DocumentoGeneradoId })
+            .Select(i => new ItemDeLoteLeido(i.TrabajadorId, i.DocumentoGeneradoId))
             .ToListAsync(cancellationToken);
+        var items = actuales.Concat(instantanea).ToList();
 
         if (!await alcance.LoteDentroDeAlcanceAsync(
                 plantillaDocumentoVersionId, items.Select(i => i.TrabajadorId).Distinct().ToList(), plantillasContext, cancellationToken))
@@ -256,7 +270,8 @@ public static class AlcanceDeLotesGeneracion
         var visibles = await alcance.DocumentosGeneradosVisiblesAsync(
             generados, plantillasContext, documentosContext, proyectosContext, cancellationToken);
 
-        // Un generado que ya no se lee (inexistente u oculto) no está en «visibles»: falla cerrado.
+        // Un generado que ya no se lee (inexistente u oculto) no está en «visibles»: falla cerrado. idsGenerados
+        // incluye los de la instantánea, así que ninguno sale sin haber pasado por aquí.
         return idsGenerados.All(visibles.Contains);
     }
 
@@ -293,3 +308,9 @@ public static class AlcanceDeLotesGeneracion
         return trabajadorIds.All(visibles.Contains);
     }
 }
+
+/// <summary>
+/// Lo que decide la Asignación de Cartera de un <see cref="ItemGeneracionDocumento"/>: su Trabajador y, si ya generó,
+/// su documento. Es la instantánea que el llamador pasa a <see cref="AlcanceDeLotesGeneracion.LoteVisibleEnteroAsync"/>.
+/// </summary>
+public sealed record ItemDeLoteLeido(Guid TrabajadorId, Guid? DocumentoGeneradoId);
