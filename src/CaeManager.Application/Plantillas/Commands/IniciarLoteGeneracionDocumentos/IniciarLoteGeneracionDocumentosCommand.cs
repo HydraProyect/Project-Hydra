@@ -32,17 +32,34 @@ public class IniciarLoteGeneracionDocumentosCommandValidator : AbstractValidator
     // Mismos límites que GenerarDocumentoIndividualCommandValidator sobre
     // ValoresManuales (auditoría de seguridad del módulo, 2026-08-30): aquí
     // se serializan una sola vez en LoteGeneracionDocumento.ContextoJson,
-    // compartido por todo el lote. Deliberadamente SIN límite sobre
-    // TrabajadorIds — ADR-010 § 2.6 ("sin límite arquitectónico arbitrario")
-    // decide explícitamente no imponer un tope aquí hasta tener un
-    // benchmark real de coste por documento.
+    // compartido por todo el lote.
     public const int LongitudMaximaValorManual = GenerarDocumentoIndividualCommandValidator.LongitudMaximaValorManual;
     public const int MaximoValoresManuales = GenerarDocumentoIndividualCommandValidator.MaximoValoresManuales;
+
+    /// <summary>
+    /// Tope de Trabajadores distintos por lote de generación (decisión de Chris, 2026-11-14, «Sí, 200»; sustituye
+    /// al «sin tope» de ADR-010 § 2.6, porque el coste del lote crece O(N) por llamada). La cifra no sale de ninguna
+    /// medición. Fuente única: este validador (el servidor rechaza el lote entero, sin truncarlo) y la pantalla de
+    /// generación (avisa y deshabilita el envío) leen esta misma constante. No se comparte con el tope homónimo de
+    /// <c>CrearAsignacionesCommandValidator</c> (altas de Asignación): son lotes distintos, que hoy coinciden en la
+    /// cifra por casualidad y se cambian por separado.
+    /// </summary>
+    public const int MaximoTrabajadoresPorLote = 200;
+
+    /// <summary>Mensaje del tope, el mismo en el rechazo del servidor y en el aviso de la pantalla.</summary>
+    public static string MensajeSuperaTopeTrabajadores(int elegidos) =>
+        $"Un lote admite como máximo {MaximoTrabajadoresPorLote} trabajadores y has elegido {elegidos}. " +
+        "Reduce la selección o genera en varios lotes.";
 
     public IniciarLoteGeneracionDocumentosCommandValidator()
     {
         RuleFor(c => c.PlantillaDocumentoVersionId).NotEmpty();
         RuleFor(c => c.TrabajadorIds).NotEmpty().WithMessage("Selecciona al menos un trabajador.");
+        // Se cuentan los Trabajadores distintos, porque el handler deduplica antes de crear el lote: el coste lo marcan
+        // ellos, no las repeticiones. Rechaza el lote entero; nunca lo recorta a los primeros 200.
+        RuleFor(c => c.TrabajadorIds)
+            .Must(ids => ids is null || ids.Distinct().Count() <= MaximoTrabajadoresPorLote)
+            .WithMessage(c => MensajeSuperaTopeTrabajadores(c.TrabajadorIds.Distinct().Count()));
         RuleFor(c => c.ValoresManuales)
             .Must(v => v is null || v.Count <= MaximoValoresManuales)
             .WithMessage($"No se pueden enviar más de {MaximoValoresManuales} valores manuales.");

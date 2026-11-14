@@ -5,7 +5,9 @@ namespace CaeManager.Domain.Plantillas;
 /// <summary>
 /// Generación en lote — un <see cref="Documentos.Documento"/> por cada
 /// Trabajador de una lista (ADR-010 § 2.6): "modelada como operación real
-/// desde el día 1", sin límite arquitectónico arbitrario. Existe siempre,
+/// desde el día 1". El tope de Trabajadores por lote (200, decisión de
+/// 2026-11-14) lo impone <c>IniciarLoteGeneracionDocumentosCommandValidator</c>,
+/// no esta entidad. Existe siempre,
 /// tenga la ejecución que tenga (síncrona dentro del circuito Blazor en
 /// este MVP, o encolada más adelante) — es lo que permite consultar el
 /// progreso por Query aunque la página se recargue a mitad de proceso.
