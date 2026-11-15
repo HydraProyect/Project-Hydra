@@ -6,7 +6,12 @@ using MediatR;
 //   ClaveSintetica.X                          (externo: «global::ClaveSintetica.X»)
 // Ninguna prueba los recorre como población de Application: viven en el ensamblado de tests, no en el de Application.
 
-#pragma warning disable CA1812 // clases que solo se usan por reflexión
+/// <summary>Handler sin namespace: su clave lleva «global::» como espacio y se deshace en el nombre simple.</summary>
+public sealed class HandlerSinNamespaceSintetico : IRequestHandler<CaeManager.Application.ClaveSintetica.PeticionSintetica, int>
+{
+    public Task<int> Handle(CaeManager.Application.ClaveSintetica.PeticionSintetica request, CancellationToken cancellationToken) =>
+        Task.FromResult(0);
+}
 
 namespace CaeManager.Application.ClaveSintetica
 {

@@ -161,6 +161,20 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         DefectosDeLaClave(Clave(handlerDentro, dentro), handlerDentro, fuera).Should().NotBeEmpty();
         DefectosDeLaClave(Clave(handlerDentro, fuera), handlerDentro, dentro).Should().NotBeEmpty();
         DefectosDeLaClave(Clave(handlerFuera, dentro), handlerDentro, dentro).Should().NotBeEmpty();
+
+        // Las ramas que deshacen la clave, por separado de la comparación con Clave: una clave fabricada con la forma
+        // correcta y el espacio o la petición equivocados tiene que dar también el defecto de identificación.
+        var original = Clave(handlerDentro, dentro);
+        DefectosDeLaClave(original with { Lugar = "Otro" }, handlerDentro, dentro)
+            .Should().Contain(d => d.Contains("identifica al handler"));
+        DefectosDeLaClave(original with { Simbolo = "HandlerSintetico[Otra.Peticion]" }, handlerDentro, dentro)
+            .Should().Contain(d => d.Contains("identifica la petición"));
+
+        // Handler sin namespace: el espacio de la clave es solo «global::» y se deshace en el nombre simple.
+        var handlerSinNamespace = typeof(HandlerSinNamespaceSintetico);
+        handlerSinNamespace.Namespace.Should().BeNull();
+        Clave(handlerSinNamespace, dentro).Lugar.Should().Be("global::");
+        DefectosDeLaClave(Clave(handlerSinNamespace, dentro), handlerSinNamespace, dentro).Should().BeEmpty();
     }
 
     [Fact]
@@ -345,7 +359,11 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     /// <summary>
     /// Nombre completo de un tipo, también cuando <see cref="Type.FullName"/> es <c>null</c> (genérico construido sobre
     /// parámetros sin resolver, como la petición de un handler genérico abierto): se reconstruye con el namespace, el
-    /// tipo que lo contiene (separado por <c>+</c>) y el nombre.
+    /// tipo que lo contiene (separado por <c>+</c>) y el nombre. Ese nombre lleva el arity (<c>P`1</c>) pero no los
+    /// argumentos de tipo: un handler genérico abierto que atendiera <c>P&lt;T&gt;</c> y <c>P&lt;List&lt;T&gt;&gt;</c> daría
+    /// la misma clave, y <c>Medir</c> lo diría en voz alta como clave duplicada. Hoy Application no tiene handlers
+    /// genéricos abiertos; para ese caso la comprobación de ida y vuelta de <see cref="DefectosDeLaClave"/> comparte
+    /// esta función y no es independiente.
     /// </summary>
     private static string NombreCompleto(Type tipo)
     {

@@ -16,7 +16,8 @@
 # nombre completo relativo a el, tambien si la clase atiende una sola peticion: cambiar la Query por otra homonima de otro namespace, o sin
 # cambiar el nombre del handler, sale NUEVA u OBSOLETA. Un nombre que no cuelga de CaeManager.Application lleva el prefijo global:: y su nombre
 # completo, para no confundirse con uno relativo (CaeManager.Application.Foo.Query -> Foo.Query; Foo.Query externo -> global::Foo.Query).
-# Hoy las 113 entradas cuelgan de Application y ninguna lleva el prefijo. (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
+# Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
+# hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.)
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
@@ -97,7 +98,6 @@ Plataforma.Queries.ObtenerSesionPrivilegiadaPorId :: ObtenerSesionPrivilegiadaPo
 Plataforma.Queries.PuedeInicializarPlataforma :: PuedeInicializarPlataformaQueryHandler[Plataforma.Queries.PuedeInicializarPlataforma.PuedeInicializarPlataformaQuery] = 1
 Retencion.Queries :: ObtenerSolicitudesPurgaQueryHandler[Retencion.Queries.ObtenerSolicitudesPurgaQuery] = 1
 Seguridad.Incidentes.Aviso.Queries.ObtenerIncidenteSeguridad :: ObtenerIncidenteSeguridadQueryHandler[Seguridad.Incidentes.Aviso.Queries.ObtenerIncidenteSeguridad.ObtenerIncidenteSeguridadQuery] = 1
-Subcontratas.Queries.ObtenerSubcontratasParaSelector :: ObtenerSubcontratasParaSelectorQueryHandler[Subcontratas.Queries.ObtenerSubcontratasParaSelector.ObtenerSubcontratasParaSelectorQuery] = 1
 Telemetria.Queries.ObtenerTiempoGestionConversacion :: ObtenerTiempoGestionConversacionQueryHandler[Telemetria.Queries.ObtenerTiempoGestionConversacion.ObtenerTiempoGestionConversacionQuery] = 1
 Tenants :: PermisosAccesosDelegadosQueryHandler[Tenants.PermisosAccesosDelegadosQuery] = 1
 Tenants.Commands.DesactivarDelegacionTenant :: DesactivarDelegacionTenantCommandHandler[Tenants.Commands.DesactivarDelegacionTenant.PuedeRevocarQuery] = 1
