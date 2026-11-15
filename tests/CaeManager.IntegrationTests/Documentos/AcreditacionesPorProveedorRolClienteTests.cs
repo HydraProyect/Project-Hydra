@@ -115,11 +115,11 @@ public class AcreditacionesPorProveedorRolClienteTests : IAsyncLifetime
     private async Task<List<AcreditacionDrillDownDto>> ConsultarComoAsync(Guid usuarioId, string rol)
     {
         await using var contexto = CrearContexto();
-        var alcance = new AlcanceDatosService(
-            contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenantActual.TenantId),
-            _tenantActual, new SesionPrivilegiadaAusente());
+        // La misma identidad para el alcance y para el corte por rol del motivo: el usuario y el rol que se consultan.
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenantActual.TenantId);
+        var alcance = new AlcanceDatosService(contexto, usuario, _tenantActual, new SesionPrivilegiadaAusente());
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+            contexto, contexto, contexto, contexto, contexto, contexto, alcance, usuario);
 
         var proveedores = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
         return proveedores.SelectMany(p => p.Clientes).SelectMany(c => c.Documentos).ToList();

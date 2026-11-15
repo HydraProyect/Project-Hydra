@@ -96,7 +96,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
 
         await using var consulta = CrearContexto();
         var handlerQuery = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var proveedores = await handlerQuery.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
 
@@ -162,7 +162,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
 
         await using var consulta = CrearContexto();
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var porDefecto = await handler.Handle(
             new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
@@ -256,7 +256,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
 
         await using var consulta = CrearContexto();
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         async Task<List<AcreditacionDrillDownDto>> PedirAsync(ObtenerAcreditacionesPorProveedorQuery query) =>
             (await handler.Handle(query, CancellationToken.None))
@@ -339,7 +339,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
 
         await using var consulta = CrearContexto();
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso());
+            consulta, consulta, consulta, consulta, consulta, consulta, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var porDefecto = (await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None))
             .SelectMany(p => p.Clientes).SelectMany(c => c.Documentos).ToList();
@@ -411,7 +411,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
         await using var consulta = CrearContexto();
         var handlerQuery = new ObtenerAcreditacionesPorProveedorQueryHandler(
             consulta, consulta, consulta, consulta, consulta, consulta,
-            new AlcanceDatosServiceFalso(centroIds: []));
+            new AlcanceDatosServiceFalso(centroIds: []), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var proveedores = await handlerQuery.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
 

@@ -568,16 +568,16 @@ public partial class DocumentosGen2Tests
     // ------------------------------------------------------------- el rol Cliente (decisión de Chris del 2026-11-12, opción B)
 
     /// <summary>
-    /// El rol Cliente ve la columna «Estado en la plataforma» de las acreditaciones de sus Centros visibles, y el filtro,
-    /// pero no el motivo literal de rechazo. El servidor ya no se lo manda (lo fija la prueba de Application); aquí el doble
-    /// lo manda igualmente y la página no lo pinta.
+    /// Consulta y el rol Cliente ven la columna «Estado en la plataforma» de las acreditaciones de sus Centros visibles, y el
+    /// filtro, pero no el motivo literal de rechazo (decisiones 2026-11-12 y 2026-11-15). El servidor ya no se lo manda (lo
+    /// fija la prueba de Application); aquí el doble lo manda igualmente y la página no lo pinta.
     /// </summary>
     [Theory]
     [InlineData("Administrador", true)]
     [InlineData("GestorCae", true)]
-    [InlineData("Consulta", true)]
+    [InlineData("Consulta", false)]
     [InlineData("Cliente", false)]
-    public async Task El_estado_en_la_plataforma_se_ve_con_cualquier_rol_y_el_motivo_de_rechazo_no_con_el_rol_Cliente(string rol, bool veMotivo)
+    public async Task El_estado_en_la_plataforma_se_ve_con_cualquier_rol_y_el_motivo_de_rechazo_no_con_Consulta_ni_el_rol_Cliente(string rol, bool veMotivo)
     {
         var e = ConVinculos();
         var (cut, mediador) = Renderizar(e.Mediador, rol: rol);
