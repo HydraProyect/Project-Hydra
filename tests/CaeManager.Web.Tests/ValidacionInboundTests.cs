@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Inbound.Validacion.Pages;
@@ -247,6 +247,98 @@ public class ValidacionInboundTests : BunitContext
         LogicaValidacionInbound.MuestraParaRevision(11, 5).Should().Be(3);
     }
 
+    [Fact]
+    public void Sin_ninguna_lectura_el_peor_resultado_es_sin_detectar_y_no_correcto()
+    {
+        // Una lectura vacía (la IA no corrió o falló) no es «todo correcto»: antes de la corrección devolvía Correcto.
+        LogicaValidacionInbound.Peor([]).Should().Be(ResultadoLectura.SinDetectar);
+        LogicaValidacionInbound.Peor([ResultadoLectura.Correcto, ResultadoLectura.Correcto]).Should().Be(ResultadoLectura.Correcto);
+        LogicaValidacionInbound.Peor([ResultadoLectura.Correcto, ResultadoLectura.SinDetectar]).Should().Be(ResultadoLectura.SinDetectar);
+        LogicaValidacionInbound.Peor([ResultadoLectura.SinDetectar, ResultadoLectura.ConError]).Should().Be(ResultadoLectura.ConError);
+    }
+
+    [Fact]
+    public void Un_documento_sin_ninguna_lectura_pide_confirmar_antes_de_validar()
+    {
+        var sinLectura = Documento(IdA) with { DatosAVerificar = [], Chequeos = [] };
+        _servicio.Documento = RespuestaValidacion<DocumentoAValidar>.Correcta(sinLectura);
+        var cut = RenderDetalle(IdA);
+
+        cut.Markup.Should().Contain("Hay datos sin detectar: revísalos antes de validar.");
+        cut.Markup.Should().NotContain("Todo correcto: pulsa Espacio para validar.");
+
+        Pulsar(cut, "Validar");
+
+        cut.Markup.Should().Contain("Hay datos sin detectar en el documento");
+        _servicio.Llamadas.Should().BeEmpty("sin lectura no hay nada «correcto»: el veredicto no sale hasta confirmar");
+    }
+
+    // ---------------------------------------------------------------- Lote: solo filas visibles y elegibles
+
+    private static void PulsarFiltro(IRenderedComponent<DocumentosPorValidar> cut, string pastilla, string opcion)
+    {
+        cut.FindAll("button.pfb-disparador").Single(b => b.TextContent.Contains(pastilla)).Click();
+        cut.FindAll("button.pfb-opcion").Single(b => b.TextContent.Trim() == opcion).Click();
+    }
+
+    // La barra de lote abre el diálogo de confirmación; el botón «Validar» del diálogo es el que no cuelga de la barra.
+    private static void ConfirmarLote(IRenderedComponent<DocumentosPorValidar> cut)
+    {
+        cut.FindAll(".blv button").Single(b => b.TextContent.Trim() == "Validar").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar" && b.Closest(".blv") is null).Click();
+    }
+
+    private static AngleSharp.Dom.IElement CasillaDe(IRenderedComponent<DocumentosPorValidar> cut, string titular) =>
+        cut.FindAll("tbody tr").Single(f => f.TextContent.Contains(titular)).QuerySelector("input[type=checkbox]")!;
+
+    [Fact]
+    public void Una_marca_que_un_filtro_esconde_se_quita_y_no_entra_en_el_lote()
+    {
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Correcta(Cola(
+            Fila(IdA, "Aptitud médica", "Ana Pérez", "Montajes Ebro", ResultadoLectura.Correcto),
+            Fila(IdB, "Aptitud médica", "Luis Gil", "Obras Duero", ResultadoLectura.Correcto)));
+        var cut = Render<DocumentosPorValidar>();
+
+        // Tras cada marca la tabla se repinta: la casilla se busca de nuevo en cada vuelta.
+        CasillaDe(cut, "Ana Pérez").Change(true);
+        CasillaDe(cut, "Luis Gil").Change(true);
+        cut.Markup.Should().Contain("2 seleccionados");
+
+        PulsarFiltro(cut, "Empresa contratista", "Montajes Ebro");
+
+        cut.Markup.Should().Contain("1 seleccionado").And.NotContain("2 seleccionados");
+        ConfirmarLote(cut);
+
+        _servicio.IdsDeLote.Should().ContainSingle().Which.Should().Equal(IdA);
+    }
+
+    [Fact]
+    public void El_lote_no_lleva_una_fila_no_elegible_aunque_el_navegador_reactive_su_casilla()
+    {
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Correcta(Cola(
+            Fila(IdA, "Aptitud médica", "Ana Pérez", "Montajes Ebro", ResultadoLectura.Correcto),
+            Fila(IdB, "Aptitud médica", "Luis Gil", "Montajes Ebro", ResultadoLectura.ConError, 1),
+            Fila(IdC, "Aptitud médica", "Marta Soler", "Montajes Ebro", ResultadoLectura.Correcto, exclusion: "aptitud médica")));
+        var cut = Render<DocumentosPorValidar>();
+
+        // El servidor del circuito no se fía del atributo disabled: se reactivan a mano las casillas de lo no elegible.
+        foreach (var titular in new[] { "Luis Gil", "Marta Soler" })
+        {
+            var casilla = CasillaDe(cut, titular);
+            casilla.HasAttribute("disabled").Should().BeTrue();
+            casilla.RemoveAttribute("disabled");
+            casilla.Change(true);
+        }
+
+        cut.FindAll(".blv").Should().BeEmpty("ninguna fila no elegible queda marcada");
+
+        CasillaDe(cut, "Ana Pérez").Change(true);
+        cut.Markup.Should().Contain("1 seleccionado");
+        ConfirmarLote(cut);
+
+        _servicio.IdsDeLote.Should().ContainSingle().Which.Should().Equal(IdA);
+    }
+
     private sealed class ServicioFalso : IServicioValidacionInbound
     {
         public RespuestaValidacion<ColaValidacion> Cola { get; set; } = RespuestaValidacion<ColaValidacion>.NoDisponible;
@@ -282,8 +374,13 @@ public class ValidacionInboundTests : BunitContext
             return Task.FromResult(Veredicto);
         }
 
-        public Task<RespuestaValidacion<LoteRegistrado>> ValidarLoteAsync(IReadOnlyList<Guid> documentoIds, CancellationToken cancellationToken = default) =>
-            Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
+        public List<IReadOnlyList<Guid>> IdsDeLote { get; } = [];
+
+        public Task<RespuestaValidacion<LoteRegistrado>> ValidarLoteAsync(IReadOnlyList<Guid> documentoIds, CancellationToken cancellationToken = default)
+        {
+            IdsDeLote.Add(documentoIds);
+            return Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
+        }
 
         public Task<RespuestaValidacion<LoteRegistrado>> DeshacerLoteAsync(Guid loteId, CancellationToken cancellationToken = default) =>
             Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
