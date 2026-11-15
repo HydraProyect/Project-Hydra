@@ -157,19 +157,20 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
     private async Task<OperacionDeConversacion?> ResolverContextoOperativoAsync()
     {
         using var ambito = _arnes.Servicios.CreateScope();
-        FijarSesion(_administradorPropietario, Roles.Administrador);
+        var administrador = FijarSesion(_administradorPropietario, Roles.Administrador);
         using (AmbitoTenantExplicito.Establecer(_propietario))
-            return await ContextoOperativo(ambito.ServiceProvider).ResolverAsync(_propietario, _cliente, null, CancellationToken.None);
+            return await ContextoOperativo(ambito.ServiceProvider, administrador)
+                .ResolverAsync(_propietario, _cliente, null, CancellationToken.None);
     }
 
     /// <summary>El mensaje del <see cref="InvalidOperationException"/> con que se detiene el aviso.</summary>
     private async Task<string> AvisarCriticaAsync(OperacionDeConversacion operacion)
     {
         using var ambito = _arnes.Servicios.CreateScope();
-        FijarSesion(_administradorPropietario, Roles.Administrador);
+        var administrador = FijarSesion(_administradorPropietario, Roles.Administrador);
         using (AmbitoTenantExplicito.Establecer(_propietario))
         {
-            var aviso = async () => await ContextoOperativo(ambito.ServiceProvider)
+            var aviso = async () => await ContextoOperativo(ambito.ServiceProvider, administrador)
                 .AvisarCriticaAsync(operacion, Guid.NewGuid(), CancellationToken.None);
             return (await aviso.Should().ThrowAsync<InvalidOperationException>()).Which.Message;
         }
@@ -177,11 +178,15 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
 
     /// <summary>
     /// Ninguna de las dos ramas que se miden llega a escribir avisos: el repositorio de notificaciones y la unidad de
-    /// trabajo van a null para que, si alguna llegara, la prueba falle ruidosamente.
+    /// trabajo van a null para que, si alguna llegara, la prueba falle ruidosamente. El arnés no registra el
+    /// directorio de usuarios: se construye como en los demás tests de esta clase, sobre el mismo contexto.
     /// </summary>
-    private static ContextoOperativoConversacionService ContextoOperativo(IServiceProvider servicios) =>
-        new(servicios.GetRequiredService<CaeManagerDbContext>(), servicios.GetRequiredService<ITenantActual>(),
-            servicios.GetRequiredService<IDirectorioUsuariosService>(), null!, null!);
+    private static ContextoOperativoConversacionService ContextoOperativo(IServiceProvider servicios, ICurrentUserService usuario)
+    {
+        var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
+        var tenant = servicios.GetRequiredService<ITenantActual>();
+        return new(contexto, tenant, Directorio(servicios, contexto, tenant, usuario), null!, null!);
+    }
 
     // ── Estado discriminante ─────────────────────────────────────────────────
 

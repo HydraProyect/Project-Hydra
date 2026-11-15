@@ -103,7 +103,15 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         operaciones.Should().HaveCount(2, "control: la del Tenant entero del alta y la acotada sembrada");
         operaciones.Should().OnlyContain(o => o.OrigenId == _delegacion && o.RevocacionesDelOrigen == 0,
             "el writer fija el origen en el alta y el trigger lo deduce en la inserción que no lo trae");
-        (await verificacion.AsignacionesOperacion.SingleAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario))
+        // El Tenant sembrado no tiene raíz (sin datos de prueba nadie le aprovisiona el producto): se inserta aquí, como
+        // propietario de la base, para ver que el trigger la deja sin origen aunque el par tenga una delegación activa.
+        await using (var sembrado = ContextoPropietarioDeLaBase(_propietario))
+        {
+            var ahora = DateTime.UtcNow;
+            sembrado.AsignacionesOperacion.Add(AsignacionOperacion.Raiz(_propietario, ServicioCae.Outbound, ahora, ahora));
+            await sembrado.SaveChangesAsync();
+        }
+        (await verificacion.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario))
             .OrigenId.Should().BeNull("la raíz es interna: no nace de ninguna DelegacionTenant");
         (await CarterasAutorizadasDelOperadorAsync()).Should().Contain(acotada,
             "con su DelegacionTenant de origen vigente, la operación autoriza");
@@ -218,8 +226,10 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     {
         var anterior = await OperacionDelTenantEnteroAsync();
 
-        (await RevocarAsync()).EsExitoso.Should().BeTrue();
-        (await ReactivarAsync()).EsExitoso.Should().BeTrue();
+        var revocar = await RevocarAsync();
+        revocar.EsExitoso.Should().BeTrue(revocar.EsFallido ? revocar.Error.Codigo : string.Empty);
+        var reactivar = await ReactivarAsync();
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : string.Empty);
 
         await using var verificacion = ContextoPropietarioDeLaBase();
         (await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Revocaciones.Should().Be(1);
@@ -437,12 +447,18 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             return await handler.Handle(new CrearDelegacionTenantCommand(_operador, _propietario), CancellationToken.None);
     }
 
+    /// <summary>
+    /// Revoca por el comando real. La DelegacionTenant de un Operador CAE externo la revoca su equipo, desde su propia
+    /// casa (<c>EquipoDelOperadorCaeExterno</c>), no el Administrador del Tenant propietario; un Administrador del
+    /// Operador CAE externo no necesita cartera para hacerlo.
+    /// </summary>
     private async Task<Result> RevocarAsync()
     {
+        var administradorOperador = await SembrarUsuarioAsync("admin-operador", _operador, Roles.Administrador);
         using var ambito = _arnes.Servicios.CreateScope();
         var servicios = ambito.ServiceProvider;
         var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
-        var usuarioActual = FijarSesion(_administradorPropietario, Roles.Administrador);
+        var usuarioActual = FijarSesion(administradorOperador, Roles.Administrador);
         var tenant = servicios.GetRequiredService<ITenantActual>();
         var handler = new DesactivarDelegacionTenantCommandHandler(
             new DelegacionTenantRepository(contexto), usuarioActual,
@@ -450,7 +466,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             Directorio(servicios, contexto, tenant, usuarioActual), contexto,
             new CatalogoIncorporacionCartera(contexto, usuarioActual));
 
-        using (AmbitoTenantExplicito.Establecer(_propietario))
+        using (AmbitoTenantExplicito.Establecer(_operador))
             return await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);
     }
 
