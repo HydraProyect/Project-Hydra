@@ -289,7 +289,36 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Fallo del borrado de suscripción; null, éxito.</summary>
     public Error? ErrorEliminacion { get; set; }
 
-    public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
+    /// <summary>
+    /// Páginas del listado de la recuperación del hueco, en orden: la primera responde a la petición sin enlace y cada
+    /// una de las siguientes al enlace de la anterior. Un fallo en la lista corta ahí.
+    /// </summary>
+    public List<Result<PaginaMensajesRecibidosGraphDto>> PaginasRecibidos { get; } = [];
+
+    /// <summary>Cada petición del listado de la recuperación: buzón, fecha desde la que lista y enlace seguido.</summary>
+    public List<(BuzonGraph Buzon, DateTime DesdeUtc, string? Enlace)> ListadosRecibidosPedidos { get; } = [];
+
+    /// <summary>Se ejecuta en cada petición del listado de la recuperación, antes de responder (para simular carreras).</summary>
+    public Action<int>? AlListarRecibidos { get; set; }
+
+    public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var indice = ListadosRecibidosPedidos.Count;
+        ListadosRecibidosPedidos.Add((buzon, desdeUtc, siguienteEnlace));
+        AlListarRecibidos?.Invoke(indice);
+        return Task.FromResult(indice < PaginasRecibidos.Count
+            ? PaginasRecibidos[indice]
+            : Result.Exito(new PaginaMensajesRecibidosGraphDto([], null)));
+    }
+
+    public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) => "recuperacion:" + string.Join(",", mensajeIds);
+
+    public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) =>
+        payloadJson.StartsWith("recuperacion:", StringComparison.Ordinal)
+            ? payloadJson["recuperacion:".Length..].Split(',')
+            : MensajeIdsADevolver;
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
 

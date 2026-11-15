@@ -47,6 +47,15 @@ public record CarpetaGraphDto(
 
 public record MensajeEnviadoGraphDto(string MensajeExternoId, string HiloExternoId);
 
+/// <summary>Un mensaje de la Bandeja de entrada en el listado de la recuperación del hueco: solo su Id y su recepción.</summary>
+public record MensajeRecibidoGraphDto(string MensajeExternoId, DateTime RecibidoUtc);
+
+/// <summary>
+/// Una página del listado de la recuperación del hueco. <see cref="SiguienteEnlace"/> es el <c>@odata.nextLink</c> tal
+/// cual lo devolvió Graph; null solo cuando Graph no devolvió continuación, que es lo único que da el listado por completo.
+/// </summary>
+public record PaginaMensajesRecibidosGraphDto(IReadOnlyList<MensajeRecibidoGraphDto> Mensajes, string? SiguienteEnlace);
+
 /// <summary>
 /// Buzón sobre el que actúa una llamada a Graph. El propio de quien consintió
 /// (<see cref="EsCompartido"/> falso) va por <c>/me/...</c>, resuelto por el
@@ -204,6 +213,23 @@ public interface IMicrosoft365GraphClient
 
     /// <summary>Best-effort — el llamador no debe bloquear una desconexión local si esto falla (la suscripción expira sola).</summary>
     Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Una página de la Bandeja de entrada para la recuperación del hueco: los mensajes recibidos desde
+    /// <paramref name="desdeUtc"/> (<c>receivedDateTime ge</c>), en orden ascendente de recepción. Con
+    /// <paramref name="siguienteEnlace"/> pide la continuación que devolvió la página anterior, sin fabricar
+    /// <c>$skip</c>; ese enlace solo se sigue si apunta a la misma raíz de Graph, porque lleva el token del buzón.
+    /// Un 200 sin <c>value</c>, con un mensaje sin Id o sin recepción, o con un enlace ajeno, es un fallo, nunca una
+    /// lista vacía.
+    /// </summary>
+    Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Puro formato, sin llamada de red: el payload de un evento de recuperación del hueco con estos Ids, en la forma
+    /// que lee <see cref="ExtraerMensajeIdsDeNotificacion"/>. El formato de Graph solo lo conoce el adaptador.
+    /// </summary>
+    string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds);
 
     /// <summary>Puro parseo del payload de notificación de Graph — sin llamada de red. Devuelve los Ids de mensaje a los que hay que ir a buscar el contenido real.</summary>
     IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson);

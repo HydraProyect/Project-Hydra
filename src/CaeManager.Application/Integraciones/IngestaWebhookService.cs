@@ -111,7 +111,8 @@ public class IngestaWebhookService(
     /// <summary>
     /// Disparador (a) de <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/> para un evento que acaba de pasar a
     /// <see cref="EstadoEventoWebhook.DescartadoDefinitivo"/>, aquí o al recuperarlo estancado: la marca retrocede a su
-    /// recepción − <see cref="ConexionIntegracion.RetrasoMaximoNotificacion"/>, sea cual sea el estado de la conexión.
+    /// recepción − <see cref="ConexionIntegracion.RetrasoMaximoNotificacion"/> (o a <see cref="EventoWebhook.CubreDesdeUtc"/>
+    /// si es anterior, en un evento de recuperación), sea cual sea el estado de la conexión.
     /// </summary>
     public static async Task RegistrarHuecoSiDescartadoAsync(
         EventoWebhook evento, IConexionIntegracionRepository conexiones, CancellationToken cancellationToken)
@@ -120,7 +121,7 @@ public class IngestaWebhookService(
             return;
 
         var conexion = await conexiones.ObtenerPorIdAsync(evento.ConexionIntegracionId, cancellationToken);
-        conexion?.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
+        conexion?.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc, evento.CubreDesdeUtc);
     }
 
     /// <returns>El motivo si el evento debe esperar (sin gastar intentos); null si quedó resuelto.</returns>
@@ -145,11 +146,12 @@ public class IngestaWebhookService(
             // ConError solo lo ponen ya resultados definitivos (CompletarIdentidadBuzonService) o un fallo de la
             // renovación. Descartar el evento es una pérdida real, en ConError y en Deshabilitada (también el que
             // esperaba verificación cuando se desconectó la conexión): disparador (a) de HuecoPendienteDesdeUtc, y
-            // Conexiones avisa de posible correo no recuperado desde esa fecha. El hueco queda declarado, no se lee
-            // (issue #2124). Graph reintenta la entrega hasta cuatro horas, así que el correo de una notificación
-            // descartada pudo llegar hasta cuatro horas antes de su recepción: la marca retrocede a recepción − 4 h,
-            // nunca se adelanta, y se guarda con el evento.
-            conexion.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
+            // Conexiones avisa de posible correo no recuperado desde esa fecha, y la recuperación del hueco lo lee
+            // después (RecuperacionHuecoCorreoService, issue #2124). Graph reintenta la entrega hasta cuatro horas, así
+            // que el correo de una notificación descartada pudo llegar hasta cuatro horas antes de su recepción: la marca
+            // retrocede a recepción − 4 h (o a la fecha que cubre un evento de recuperación, si es anterior), nunca se
+            // adelanta, y se guarda con el evento.
+            conexion.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc, evento.CubreDesdeUtc);
             logger.LogWarning(
                 "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",
                 evento.Id, conexion.Id, conexion.Estado);

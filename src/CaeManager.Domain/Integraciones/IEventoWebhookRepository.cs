@@ -42,5 +42,12 @@ public interface IEventoWebhookRepository
     /// </summary>
     Task<IReadOnlyList<EventoWebhook>> ObtenerRetenidosAsync(Guid conexionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Si la conexión <paramref name="conexionId"/>, del Tenant de la sesión, tiene algún evento de recuperación del hueco
+    /// (<see cref="EventoWebhook.EsRecuperacionHueco"/>) sin terminar: Pendiente, Procesando o Retenido. Mientras lo haya,
+    /// la marca del hueco no se limpia. Lee la base, no lo rastreado.
+    /// </summary>
+    Task<bool> ExistenRecuperacionesSinIngerirAsync(Guid conexionId, CancellationToken cancellationToken = default);
+
     void Agregar(EventoWebhook evento);
 }

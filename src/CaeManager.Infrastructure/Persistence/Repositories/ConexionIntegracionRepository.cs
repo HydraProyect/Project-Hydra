@@ -29,5 +29,14 @@ public class ConexionIntegracionRepository(CaeManagerDbContext dbContext) : ICon
             .Select(c => c.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> ObtenerIdsConHuecoPendienteAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.ConexionesIntegracion.AsNoTracking()
+            .Where(c => c.HuecoPendienteDesdeUtc != null
+                && c.Proveedor == ProveedorIntegracion.Microsoft365
+                && c.Estado == EstadoConexionIntegracion.Habilitada)
+            .OrderBy(c => c.HuecoPendienteDesdeUtc)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(ConexionIntegracion conexion) => dbContext.ConexionesIntegracion.Add(conexion);
 }

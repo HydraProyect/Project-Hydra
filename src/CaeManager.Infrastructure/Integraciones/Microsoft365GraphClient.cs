@@ -994,6 +994,126 @@ public class Microsoft365GraphClient(
         }
     }
 
+    /// <summary>Tamaño de página del listado de la recuperación del hueco.</summary>
+    internal const int TamanoPaginaRecuperacion = 50;
+
+    private static readonly Error ErrorListadoIlegible =
+        Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft 365 devolvió un listado de la Bandeja de entrada ilegible.");
+
+    public async Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken)
+    {
+        string url;
+        if (siguienteEnlace is null)
+        {
+            // Se redondea hacia abajo al segundo: leer de más se deduplica en la ingesta, leer de menos perdería correo.
+            var desde = DateTime.SpecifyKind(desdeUtc, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+            url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
+                "?$select=id,receivedDateTime" +
+                $"&$filter={Uri.EscapeDataString($"receivedDateTime ge {desde}")}" +
+                "&$orderby=receivedDateTime asc" +
+                $"&$top={TamanoPaginaRecuperacion}";
+        }
+        else if (EsEnlaceDeGraph(siguienteEnlace))
+            url = siguienteEnlace;
+        else
+        {
+            // El enlace lleva el token del buzón: fuera de la raíz de Graph no se sigue.
+            logger.LogError("Microsoft Graph devolvió una continuación del listado fuera de su raíz; no se sigue.");
+            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorListadoIlegible);
+        }
+
+        try
+        {
+            using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                var error = EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la Bandeja de entrada del buzón.");
+                return Result.Fallo<PaginaMensajesRecibidosGraphDto>(error);
+            }
+
+            var cuerpo = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+            return LeerPaginaRecibidos(cuerpo) is { } pagina
+                ? Result.Exito(pagina)
+                : Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorListadoIlegible);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al listar la Bandeja de entrada para recuperar el hueco de correo.");
+            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar la Bandeja de entrada para recuperar el hueco.");
+            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorTiempoAgotado);
+        }
+    }
+
+    /// <summary>Solo una URL absoluta https bajo <see cref="RaizGraph"/>, sin credenciales en la autoridad.</summary>
+    internal static bool EsEnlaceDeGraph(string enlace) =>
+        Uri.TryCreate(enlace, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttps
+        && string.Equals(uri.Host, "graph.microsoft.com", StringComparison.OrdinalIgnoreCase)
+        && uri.IsDefaultPort
+        && string.IsNullOrEmpty(uri.UserInfo)
+        && uri.AbsolutePath.StartsWith("/v1.0/", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Una página legible: un objeto con un array <c>value</c> cuyos elementos traen <c>id</c> y <c>receivedDateTime</c>, y
+    /// como mucho un <c>@odata.nextLink</c> de texto. Cualquier otra cosa (un <c>{}</c>, un <c>null</c>, un elemento a
+    /// medias) devuelve null: el llamador lo trata como fallo y la marca se queda.
+    /// </summary>
+    internal static PaginaMensajesRecibidosGraphDto? LeerPaginaRecibidos(string cuerpo)
+    {
+        try
+        {
+            using var documento = JsonDocument.Parse(cuerpo);
+            var raiz = documento.RootElement;
+            if (raiz.ValueKind != JsonValueKind.Object
+                || !raiz.TryGetProperty("value", out var valor) || valor.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var mensajes = new List<MensajeRecibidoGraphDto>(valor.GetArrayLength());
+            foreach (var elemento in valor.EnumerateArray())
+            {
+                if (elemento.ValueKind != JsonValueKind.Object
+                    || !elemento.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(id.GetString())
+                    || !elemento.TryGetProperty("receivedDateTime", out var recibido) || recibido.ValueKind != JsonValueKind.String
+                    || !DateTimeOffset.TryParse(recibido.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal, out var recibidoUtc))
+                    return null;
+
+                mensajes.Add(new MensajeRecibidoGraphDto(id.GetString()!, recibidoUtc.UtcDateTime));
+            }
+
+            string? siguiente = null;
+            if (raiz.TryGetProperty("@odata.nextLink", out var enlace))
+            {
+                if (enlace.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(enlace.GetString()))
+                    return null;
+                siguiente = enlace.GetString();
+            }
+
+            return new PaginaMensajesRecibidosGraphDto(mensajes, siguiente);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds)
+    {
+        if (mensajeIds.Count == 0 || mensajeIds.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("El evento de recuperación necesita al menos un Id de mensaje válido.", nameof(mensajeIds));
+
+        return JsonSerializer.Serialize(new { value = mensajeIds.Select(id => new { resourceData = new { id } }) });
+    }
+
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson)
     {
         try
