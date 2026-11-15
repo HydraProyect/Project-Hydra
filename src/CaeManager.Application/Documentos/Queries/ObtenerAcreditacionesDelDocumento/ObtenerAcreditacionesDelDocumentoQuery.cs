@@ -27,11 +27,9 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// lista vacía, así que ve el estado pero ni el motivo ni la dirección viajan en el DTO (decisión de Chris del 2026-11-12, opción B).
 /// El motivo, además, solo lo reciben los roles que leen el historial de reclamaciones
 /// (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>): Consulta recibe el estado y la dirección, pero no el
-/// motivo, que también guarda el de un rechazo anotado a mano (decisión de Chris del 2026-11-14). Es un corte de esta vista rápida:
-/// el mismo motivo sí le llega a Consulta, entre otras vías, por <c>ObtenerDocumentosQuery</c> y por
-/// <c>ObtenerAcreditacionesPorProveedorQuery</c> (Bandeja del Gestor, Empresa 360 y
-/// <c>GET /extension/acreditaciones-pendientes</c>), que acotan por <c>ObtenerCentroIdsParaGestionAsync</c> y no por la lista de
-/// reclamaciones (ver el comentario de <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>).
+/// motivo, que también guarda el de un rechazo anotado a mano (decisión de Chris del 2026-11-14). Es el mismo corte que
+/// <c>ObtenerDocumentosQuery</c> y <c>ObtenerAcreditacionesPorProveedorQuery</c> (decisión del 2026-11-15; ver el comentario de
+/// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>).
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
 /// </para>
 /// </summary>
@@ -46,7 +44,7 @@ public record AcreditacionesDelDocumentoDto(EstadoDocumento EstadoDocumental, IR
 /// <param name="ClienteEmpresarialNombre">El Cliente empresarial del Centro del canal, no el Tenant propietario.</param>
 /// <param name="UltimoMotivoRechazo">
 /// El último motivo literal de rechazo, solo si está rechazada, el usuario gestiona el Centro del canal y su rol lee el historial
-/// de reclamaciones: <c>null</c> para el rol Cliente y para Consulta (2026-11-14). Para Consulta es más estricto que
+/// de reclamaciones: <c>null</c> para el rol Cliente y para Consulta (2026-11-14), con el mismo corte que
 /// <c>AcreditacionEnGrupoDto.UltimoMotivoRechazo</c> del listado.
 /// </param>
 /// <param name="UrlAccesoCanal">
@@ -115,8 +113,7 @@ public class ObtenerAcreditacionesDelDocumentoQueryHandler(
         // El motivo sale del historial de rechazos, donde también queda el de un rechazo anotado a mano: es de gestión, y lo
         // leen los mismos roles que el historial de reclamaciones (decisión 2026-11-14). Consulta ve el estado y la dirección
         // del portal, no el motivo; sin rol efectivo, tampoco.
-        var leeMotivo = await currentUserService.ObtenerRolEfectivoAsync() is { } rol
-            && SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones.Contains(rol);
+        var leeMotivo = await SituacionDocumentosEnCentrosService.RolLeeTrazabilidadInternaAsync(currentUserService);
         bool VeMotivo(Guid centroId) => leeMotivo && Gestiona(centroId);
 
         var rechazadas = crudas.Where(c => c.Estado == EstadoAcreditacion.Rechazada && VeMotivo(c.CentroId)).Select(c => c.Id).ToList();

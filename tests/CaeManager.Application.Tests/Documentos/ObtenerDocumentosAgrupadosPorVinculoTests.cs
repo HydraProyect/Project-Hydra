@@ -61,9 +61,9 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
             Contratista = ConEmpresa("Contratista");
         }
 
-        public ObtenerDocumentosQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null) => new(
+        public ObtenerDocumentosQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null, string? rol = "GestorCae") => new(
             new ConfiguracionFalsa(), Documentos, Empresas, Proyectos, Tipos, Trabajadores, new VehiculosFalsos(),
-            alcance ?? new(), Centros, Proveedores);
+            alcance ?? new(), Centros, Proveedores, new CurrentUserServiceFalso(Guid.NewGuid(), rol));
 
         public Empresa ConEmpresa(string nombre)
         {
@@ -587,6 +587,38 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         var deGestorDeA = await e.Handler(gestorDeA).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
         Acreditaciones(deGestorDeA).Select(a => a.UltimoMotivoRechazo).Should().Equal(["Motivo en A", null],
             "el motivo llega solo del Centro que gestiona");
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-11-15: el motivo del historial de rechazos, donde también queda el de un rechazo anotado a
+    /// mano, solo llega a los roles de la trazabilidad interna; Consulta y el rol Cliente ven la acreditación rechazada y la
+    /// dirección del portal, sin motivo. El alcance es el de acceso total, así que el corte que se mide es solo el del rol.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("GestorCae", true)]
+    [InlineData("Consulta", false)]
+    [InlineData("Cliente", false)]
+    [InlineData(null, false)]
+    public async Task El_motivo_de_un_rechazo_anotado_a_mano_solo_llega_a_los_roles_de_la_trazabilidad_interna(
+        string? rol, bool recibeMotivo)
+    {
+        var e = new Escenario();
+        var centro = e.ConCentro(e.ConEmpresa("Cliente empresarial"), "Centro");
+        var acreditacion = e.Acreditar(e.ConDocumento(), centro, e.ConPlataforma("Nalanda"), url: "https://portal.nalanda.test");
+        acreditacion.CambiarEstadoAMano(EstadoAcreditacion.Rechazada, new DateOnly(2026, 11, 10), "Anotado a mano: sin firma",
+            "Nota interna", Guid.NewGuid(), DateTime.UtcNow);
+        e.Documentos.ListaRechazosAcreditacionDocumentoPlataforma.AddRange(acreditacion.HistorialRechazos);
+
+        var resultado = await e.Handler(rol: rol).Handle(Agrupado(AgrupacionDocumentos.PlataformaCae), default);
+
+        var enGrupo = resultado.Elementos.Should().ContainSingle().Subject.Grupo!.Acreditacion!;
+        enGrupo.Estado.Should().Be(EstadoAcreditacion.Rechazada, "el estado en la plataforma llega a todos");
+        enGrupo.UltimoMotivoRechazo.Should().Be(recibeMotivo ? "Anotado a mano: sin firma" : null);
+        enGrupo.UrlAccesoCanal.Should().Be("https://portal.nalanda.test",
+            "el corte es solo del motivo: con acceso total la dirección del portal llega a todos los roles, también a Consulta");
     }
 
     [Fact]

@@ -641,8 +641,10 @@
     </text>;
 
     /// <summary>
-    /// Quien puede recibir «Abrir portal» y ver el motivo literal de rechazo: todos los roles del Tenant salvo Cliente, el
-    /// mismo corte que ObtenerCentroIdsParaGestionAsync. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
+    /// Quien puede recibir «Abrir portal»: todos los roles del Tenant salvo Cliente, el mismo corte que
+    /// ObtenerCentroIdsParaGestionAsync. El motivo literal de rechazo no sigue esta lista: solo lo leen los roles de
+    /// RolesComunicaciones.LecturaReclamaciones (decisiones 2026-11-14 y 2026-11-15), y el servidor ya lo devuelve a null
+    /// para Consulta y Cliente. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
     /// </summary>
     private const string RolesQueAbrenPortal = ReglasAccionesAcreditacion.RolesQueAbrenPortal;
 
@@ -680,9 +682,10 @@
                                         <Badge Tono="TonoEnPlataforma(acreditacion)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
                                         @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
                                         {
-                                            @* El rol Cliente ve el estado, no el motivo (decisión de Chris del 2026-11-12, opción B): el
-                                               servidor ya no se lo manda; la página tampoco lo pinta aunque llegara. *@
-                                            <AuthorizeView Roles="@RolesQueAbrenPortal" Context="autorizacionMotivo">
+                                            @* Consulta y el rol Cliente ven el estado, no el motivo (decisiones de Chris del 2026-11-12,
+                                               opción B, y del 2026-11-15): el servidor ya no se lo manda; la página tampoco lo pinta
+                                               aunque llegara. *@
+                                            <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.LecturaReclamaciones" Context="autorizacionMotivo">
                                                 <span class="documentos-en-plataforma-motivo" title="@Textos["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]">@Textos["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]</span>
                                             </AuthorizeView>
                                         }

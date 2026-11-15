@@ -18,6 +18,7 @@ using System.Linq.Expressions;
 using System.Text.Json.Serialization;
 
 using CaeManager.Application.Documentos.Queries.ObtenerEntidadesAsociadasDeDocumentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
@@ -174,13 +175,14 @@ public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acr
 
 /// <param name="ClienteEmpresarialNombre">El Cliente empresarial del Centro del canal, no el Tenant propietario.</param>
 /// <param name="UltimoMotivoRechazo">
-/// El último motivo literal de rechazo, solo si el usuario gestiona el Centro del canal: <c>null</c> para el rol Cliente,
-/// que ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B).
+/// El último motivo literal de rechazo, solo si está rechazada, el usuario gestiona el Centro del canal y su rol lee el historial
+/// de reclamaciones (<c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>): <c>null</c> para el rol Cliente, que
+/// ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B), y para Consulta (2026-11-15).
 /// </param>
 /// <param name="UrlAccesoCanal">
-/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con el mismo corte que
-/// el motivo de rechazo: solo si el usuario gestiona el Centro del canal; <c>null</c> para el rol Cliente, sin dirección anotada o si
-/// el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
+/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con la regla operativa
+/// (no la del motivo de rechazo, que además corta a Consulta): solo si el usuario gestiona el Centro del canal; <c>null</c> para el
+/// rol Cliente, sin dirección anotada o si el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
 /// </param>
 public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
     string ClienteEmpresarialNombre, string? UltimoMotivoRechazo, string? UrlAccesoCanal = null)
@@ -904,9 +906,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // plataforma de las acreditaciones de sus Centros visibles, pero no el motivo (decisión de Chris del 2026-11-12,
         // opción B). Es el mismo corte que «Abrir portal» (ObtenerCentroIdsParaGestionAsync: lista vacía para el rol
         // Cliente, fallo cerrado), y se aplica aquí y no en la vista: el motivo ni se lee ni viaja en el DTO.
+        // Además, el motivo sale del historial de rechazos, donde también queda el de un rechazo anotado a mano: lo leen solo
+        // los roles de la trazabilidad interna, así que Consulta ve el estado y la dirección del portal, no el motivo
+        // (decisión de Chris del 2026-11-15, el mismo corte que la vista rápida del Documento).
         var centrosGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        var leeMotivo = await SituacionDocumentosEnCentrosService.RolLeeTrazabilidadInternaAsync(currentUserService);
         var rechazadas = dePagina
-            .Where(v => v.Estado == EstadoAcreditacion.Rechazada && (centrosGestion == null || centrosGestion.Contains(v.CentroId)))
+            .Where(v => leeMotivo && v.Estado == EstadoAcreditacion.Rechazada
+                && (centrosGestion == null || centrosGestion.Contains(v.CentroId)))
             .Select(v => v.AcreditacionId).ToList();
         var motivos = rechazadas.Count == 0
             ? new Dictionary<Guid, string>()
@@ -937,7 +944,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 Grupo = new GrupoDeFilaDocumentalDto(v.ProveedorId!.Value.ToString(), new AcreditacionEnGrupoDto(
                     v.AcreditacionId, v.Estado, v.EstadoVigencia, clientesEmpresariales.GetValueOrDefault(v.ClienteId, "—"),
                     motivos.GetValueOrDefault(v.AcreditacionId),
-                    // El mismo corte que el motivo: Centros que el usuario gestiona; el rol Cliente no recibe la dirección.
+                    // Regla operativa, no la del motivo: Centros que el usuario gestiona (Consulta sí recibe la dirección);
+                    // el rol Cliente no la recibe.
                     centrosGestion == null || centrosGestion.Contains(v.CentroId) ? v.UrlAcceso : null))
             }));
         }
