@@ -203,8 +203,8 @@ public partial class DocumentosPorValidar
             IReadOnlyList<Guid> ids = [.. _marcados.Where(elegibles.Contains)];
             if (ids.Count == 0)
             {
+                // Defensa en profundidad: la poda deja las marcas dentro del lote, así que solo se llega aquí con la barra ya cerrada.
                 _marcados.Clear();
-                Toast.Mostrar("Ningún documento marcado puede validarse en lote con los filtros actuales.");
                 return;
             }
 

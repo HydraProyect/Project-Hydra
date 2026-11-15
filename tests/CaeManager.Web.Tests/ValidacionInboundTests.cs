@@ -396,6 +396,23 @@ public class ValidacionInboundTests : BunitContext
         cut.WaitForAssertion(() => navegacion.Uri.Should().Contain(IdB.ToString(), "con «pasar al siguiente» se avanza una vez registrado"));
     }
 
+    [Fact]
+    public void Un_veredicto_que_vuelve_estando_ya_en_otro_documento_no_toca_el_estado_de_ese_otro()
+    {
+        Services.GetRequiredService<ColaEnCursoValidacion>().Fijar([IdA, IdB]);
+        _servicio.Documento = RespuestaValidacion<DocumentoAValidar>.Correcta(Documento(IdA));
+        _servicio.Pendiente = new TaskCompletionSource<RespuestaValidacion<VeredictoRegistrado>>();
+        var cut = RenderDetalle(IdA);
+        Pulsar(cut, "Validar");
+
+        // Se entra en B por un camino que no pasa por J ni K (menú, «atrás» del navegador) con el veredicto de A en vuelo.
+        cut.Render(p => p.Add(x => x.Id, IdB));
+        _servicio.Pendiente.SetResult(RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(Guid.NewGuid(), VeredictoValidacion.Validado)));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Deshacer (10 s)"));
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse("B sigue pendiente: el veredicto era de A");
+    }
+
     private sealed class ServicioFalso : IServicioValidacionInbound
     {
         public RespuestaValidacion<ColaValidacion> Cola { get; set; } = RespuestaValidacion<ColaValidacion>.NoDisponible;
