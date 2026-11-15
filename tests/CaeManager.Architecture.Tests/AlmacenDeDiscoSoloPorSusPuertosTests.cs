@@ -243,6 +243,33 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
         FuentesDeSrc.Analisis[Adaptador].Palabras[metodo].Should().Be(1, "el adaptador lo llama una vez, por el puerto");
     }
 
+    /// <summary>
+    /// Control de la rama de literales de los dos barridos de arriba: si <c>Literales</c> dejara de poblarse, un nombre
+    /// escrito en una cadena (<c>dynamic</c> por reflexión, <c>Type.GetType</c>) pasaría sin que ningún test cayera.
+    /// </summary>
+    [Fact]
+    public void Control_el_barrido_de_fuentes_ve_los_nombres_escritos_en_un_literal()
+    {
+        var analisis = FuentesDeSrc.AnalizarCSharp(
+            $$"""
+            class C
+            {
+                void M()
+                {
+                    var metodo = "{{nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync)}}";
+                    var tipo = "CaeManager.Infrastructure.FileStorage.{{NombreDeLaLectura}}";
+                }
+            }
+            """);
+
+        analisis.Literales.Should().NotBeNull();
+        analisis.Literales!.Should().ContainKey(nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync))
+            .And.ContainKey(NombreDeLaLectura);
+        analisis.Palabras.Should().NotContainKey(nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync),
+            "el nombre solo está en una cadena: lo ve la rama de literales, no la de identificadores")
+            .And.NotContainKey(NombreDeLaLectura);
+    }
+
     [Fact]
     public void Control_los_instrumentos_ven_su_registro_y_una_peticion_dentro_de_un_metodo()
     {
