@@ -105,7 +105,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
                 .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
             (await Consulta(runtime).Handle(new ObtenerRepartoAdjuntosQuery(_conversacionAjena), CancellationToken.None)).Should().BeEmpty();
             (await new AsignarAdjuntosLoteCommandHandler(runtime, Alcance(runtime), new MediadorSinEnvios(), NullLogger<AsignarAdjuntosLoteCommandHandler>.Instance)
-                .Handle(new AsignarAdjuntosLoteCommand(_conversacionAjena, [new AdjuntoAAsignar(_adjuntoAjeno, new DateOnly(2026, 10, 1), null, false)]), CancellationToken.None))
+                .Handle(new AsignarAdjuntosLoteCommand(_conversacionAjena, [new AdjuntoAAsignar(_adjuntoAjeno, Guid.NewGuid(), null, _empresaPropia, new DateOnly(2026, 10, 1), null, false)]), CancellationToken.None))
                 .Error.Codigo.Should().Be("Conversacion.NoEncontrada");
         }
 

@@ -26,9 +26,6 @@ public class ObtenerContratoAccesoPorIdQueryHandler(
         var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        return new ContratoAccesoDto(
-            contrato.Id, contrato.ClienteEmpresarialId, contrato.CentroId, contrato.EmpresaContratistaId,
-            contrato.FechaInicio, contrato.FechaFin, contrato.FechaCierreReal, contrato.EstaAbierto, contrato.VigenteEn(hoy),
-            conNotaInterna ? contrato.Notas : null, contrato.Version);
+        return ContratoAccesoDto.Desde(contrato, hoy, conNotaInterna);
     }
 }

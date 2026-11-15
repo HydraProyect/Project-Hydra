@@ -7,7 +7,11 @@ using MediatR;
 
 namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.ActualizarContratoAcceso;
 
-/// <summary>Solo cambian el fin contratado y las notas: las coordenadas y el inicio definen el contrato.</summary>
+/// <summary>
+/// Solo cambian el fin contratado y las notas: las coordenadas y el inicio definen el contrato. Solo se edita un contrato
+/// abierto, y el fin solo en uno Activo (<c>ContratoAcceso.Actualizar</c>); el de un Suspendido se amplía con
+/// <c>RenovarContratoAccesoCommand</c>. Un cambio del fin queda en el historial de vigencia como edición (B-05).
+/// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record ActualizarContratoAccesoCommand(Guid Id, DateOnly? FechaFin, string? Notas, Guid Version = default) : ICommand;
 
@@ -21,7 +25,8 @@ public class ActualizarContratoAccesoCommandValidator : AbstractValidator<Actual
 }
 
 public class ActualizarContratoAccesoCommandHandler(
-    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService, TimeProvider reloj)
     : IRequestHandler<ActualizarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(ActualizarContratoAccesoCommand request, CancellationToken cancellationToken)
@@ -33,13 +38,27 @@ public class ActualizarContratoAccesoCommandHandler(
         if (ConcurrenciaOptimista.Verificar(contrato, request.Version, "este contrato de acceso") is { } conflicto)
             return Result.Fallo(conflicto);
 
+        // Solo el cambio del fin deja fila en el historial de vigencia, que registra quién lo hizo: editar solo las notas no
+        // necesita usuario (el interceptor de auditoría ya identifica al autor por su cuenta).
+        var usuarioId = Guid.Empty;
+        if (request.FechaFin != contrato.FechaFin)
+        {
+            if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuario)
+                return Result.Fallo(ContratoAccesoErrores.SinUsuario);
+            usuarioId = usuario;
+        }
+
         try
         {
-            contrato.Actualizar(request.FechaFin, request.Notas);
+            contrato.Actualizar(request.FechaFin, request.Notas, usuarioId, reloj.GetUtcNow().UtcDateTime);
         }
         catch (ArgumentException ex)
         {
             return Result.Fallo(Error.Crear("ContratoAcceso.FechaFinInvalida", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(ContratoAccesoErrores.TransicionNoPermitida(ex.Message));
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
