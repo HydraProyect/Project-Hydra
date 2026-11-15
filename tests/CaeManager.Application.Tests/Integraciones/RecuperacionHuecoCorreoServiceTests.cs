@@ -110,7 +110,7 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
-    public async Task Un_fallo_en_la_segunda_pagina_no_limpia_la_marca_y_la_pasada_siguiente_reanuda_desde_el_cursor()
+    public async Task Un_fallo_en_la_segunda_pagina_no_limpia_la_marca_y_la_pasada_siguiente_reanuda_desde_la_continuacion()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
         escenario.Pagina(Continuacion1, escenario.Mensaje("m1", 10), escenario.Mensaje("m2", 20));
@@ -122,16 +122,75 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
         escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca.AddMinutes(20), "la página 1 quedó guardada");
+        escenario.Conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion1, "con su continuación");
         escenario.Eventos.Eventos.Should().ContainSingle();
 
-        escenario.Pagina(null, escenario.Mensaje("m2", 20), escenario.Mensaje("m3", 25));
+        escenario.Pagina(null, escenario.Mensaje("m3", 25));
         escenario.IngerirTodo();
 
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
 
-        escenario.Graph.ListadosRecibidosPedidos[2].DesdeUtc.Should().Be(escenario.Marca.AddMinutes(20), "reanuda desde el cursor");
-        escenario.Graph.ListadosRecibidosPedidos[2].Enlace.Should().BeNull("una pasada nueva no reutiliza una continuación de la anterior");
+        escenario.Graph.ListadosRecibidosPedidos[2].Enlace.Should().Be(Continuacion1, "reanuda desde la continuación guardada");
         escenario.Conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(escenario.Marca, "sigue siendo la misma recuperación");
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_continuacion_guardada_que_Graph_rechaza_se_olvida_y_la_pasada_siguiente_lista_desde_el_cursor()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(Continuacion1, escenario.Mensaje("m1", 10));
+        escenario.Graph.PaginasRecibidos.Add(Result.Fallo<PaginaMensajesRecibidosGraphDto>(
+            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503")));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Interrumpida);
+        escenario.Conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion1);
+
+        // Pasada 2: la continuación heredada falla de forma definitiva (caducada) y se olvida.
+        escenario.Graph.PaginasRecibidos.Add(Result.Fallo<PaginaMensajesRecibidosGraphDto>(
+            Error.Crear("Integraciones.Microsoft365.ErrorApi", "skiptoken caducado")));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Interrumpida);
+        escenario.Graph.ListadosRecibidosPedidos[2].Enlace.Should().Be(Continuacion1);
+        escenario.Conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+
+        // Pasada 3: vuelve al cursor.
+        escenario.Pagina(null, escenario.Mensaje("m1", 10), escenario.Mensaje("m2", 20));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+        escenario.Graph.ListadosRecibidosPedidos[3].Enlace.Should().BeNull();
+        escenario.Graph.ListadosRecibidosPedidos[3].DesdeUtc.Should().Be(escenario.Marca.AddMinutes(10));
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_continuacion_guardada_con_fallo_transitorio_se_conserva()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(Continuacion1, escenario.Mensaje("m1", 10));
+        escenario.Graph.PaginasRecibidos.Add(Result.Fallo<PaginaMensajesRecibidosGraphDto>(
+            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503")));
+        await escenario.PasadaAsync();
+
+        escenario.Graph.PaginasRecibidos.Add(Result.Fallo<PaginaMensajesRecibidosGraphDto>(
+            Error.Crear(CodigosErrorMicrosoft365.TiempoAgotado, "sin respuesta")));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Interrumpida);
+        escenario.Conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion1);
+    }
+
+    [Fact]
+    public async Task El_canje_del_token_no_recibe_la_cancelacion_del_llamador()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(null);
+        using var cancelacion = new CancellationTokenSource();
+
+        await escenario.PasadaAsync(cancelacion.Token);
+
+        escenario.Graph.CancelacionesDeToken.Should().NotBeEmpty()
+            .And.OnlyContain(c => !c.CanBeCanceled, "un canje que ya rotó la credencial tiene que llegar a guardarse");
     }
 
     [Fact]
@@ -219,7 +278,7 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
-    public async Task El_tope_de_mensajes_por_pasada_corta_y_la_siguiente_sigue_desde_el_cursor()
+    public async Task El_tope_de_mensajes_por_pasada_corta_y_la_siguiente_sigue_la_continuacion_guardada()
     {
         var escenario = new Escenario(TimeSpan.FromHours(30));
         for (var pagina = 0; pagina < 6; pagina++)
@@ -236,19 +295,53 @@ public class RecuperacionHuecoCorreoServiceTests
             RecuperacionHuecoCorreoService.MaximoMensajesPorPasada / 50);
         escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca.AddMinutes(249));
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+
+        // Pasada siguiente: sigue la continuación guardada, no vuelve a pedir los mismos 250 desde el cursor.
+        escenario.Pagina(null);
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+        escenario.Graph.ListadosRecibidosPedidos[5].Enlace.Should().Be("https://graph.microsoft.com/v1.0/p5");
+        escenario.Graph.ListadosRecibidosPedidos[6].Enlace.Should().Be("https://graph.microsoft.com/v1.0/p6");
+        escenario.Eventos.Eventos.SelectMany(e => e.PayloadCrudo.Split(':')[1].Split(','))
+            .Should().OnlyHaveUniqueItems("ningún mensaje se encola dos veces");
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Con_mas_de_250_mensajes_del_mismo_segundo_la_pasada_siguiente_avanza_por_la_continuacion()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        for (var pagina = 0; pagina < 5; pagina++)
+            escenario.Pagina($"https://graph.microsoft.com/v1.0/mismo{pagina + 1}",
+                Enumerable.Range(0, 50).Select(i => escenario.Mensaje($"s{pagina}-{i}", 10)).ToArray());
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Parcial);
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca.AddMinutes(10), "el cursor no puede pasar de ese segundo");
+
+        escenario.Pagina(null, escenario.Mensaje("posterior", 60));
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+
+        escenario.Graph.ListadosRecibidosPedidos[5].Enlace.Should().Be("https://graph.microsoft.com/v1.0/mismo5");
+        escenario.Eventos.Eventos.Last().PayloadCrudo.Should().Be("recuperacion:posterior", "el correo posterior se alcanza");
     }
 
     [Fact]
     public async Task El_tope_de_paginas_corta_una_continuacion_de_paginas_vacias()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
-        for (var pagina = 0; pagina < RecuperacionHuecoCorreoService.MaximoPaginasPorPasada + 5; pagina++)
+        for (var pagina = 0; pagina < RecuperacionHuecoCorreoService.MaximoPaginasPorPasada * 2 + 5; pagina++)
             escenario.Pagina($"https://graph.microsoft.com/v1.0/vacia{pagina}");
 
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Parcial);
 
         escenario.Graph.ListadosRecibidosPedidos.Should().HaveCount(RecuperacionHuecoCorreoService.MaximoPaginasPorPasada);
         escenario.Eventos.Eventos.Should().BeEmpty();
+
+        // Pasada siguiente: la continuación de la página 20, no la primera página otra vez.
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Parcial);
+        escenario.Graph.ListadosRecibidosPedidos[RecuperacionHuecoCorreoService.MaximoPaginasPorPasada].Enlace
+            .Should().Be($"https://graph.microsoft.com/v1.0/vacia{RecuperacionHuecoCorreoService.MaximoPaginasPorPasada - 1}");
+        escenario.Graph.ListadosRecibidosPedidos.Select(l => l.Enlace).Where(e => e is null)
+            .Should().ContainSingle("solo la primera pasada pide la primera página");
     }
 
     [Fact]

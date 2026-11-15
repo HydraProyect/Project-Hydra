@@ -41,9 +41,13 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public int VecesRefrescado { get; private set; }
 
+    /// <summary>La cancelación que recibió cada canje de token (refresco o token de aplicación), en orden.</summary>
+    public List<CancellationToken> CancelacionesDeToken { get; } = [];
+
     public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken)
     {
         VecesRefrescado++;
+        CancelacionesDeToken.Add(cancellationToken);
         return Task.FromResult(FallaRefresco
             ? Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "fallo simulado"))
             : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
@@ -54,6 +58,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
     {
         DirectoriosConTokenDeAplicacion.Add(directorioId);
+        CancelacionesDeToken.Add(cancellationToken);
         AlObtenerTokenAplicacion?.Invoke();
         return Task.FromResult(FallaTokenAplicacion
             ? Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.PermisoSinAcotar", "fallo simulado"))

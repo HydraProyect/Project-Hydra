@@ -8,6 +8,7 @@ namespace CaeManager.Domain.Tests.Integraciones;
 public class ConexionIntegracionRecuperacionHuecoTests
 {
     private static readonly DateTime Ahora = new(2026, 11, 15, 12, 0, 0, DateTimeKind.Utc);
+    private const string Continuacion = "https://graph.microsoft.com/v1.0/users/buzon/mailFolders/inbox/messages?$skiptoken=abc";
 
     private static ConexionIntegracion ConMarca(DateTime marcaUtc)
     {
@@ -36,7 +37,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(Ahora.AddHours(-3));
         conexion.RecuperacionHuecoTruncada.Should().BeFalse();
 
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), listadoCompleto: false);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
 
         conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15)).Should().Be(Ahora.AddHours(-1), "retoma desde el cursor, no desde la marca");
         conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(Ahora.AddHours(-3));
@@ -49,7 +50,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
 
         conexion.IniciarRecuperacionHueco(Ahora).Should().Be(Ahora - ConexionIntegracion.AntiguedadMaximaRecuperacion);
         conexion.RecuperacionHuecoTruncada.Should().BeTrue();
-        conexion.AvanzarRecuperacionHueco(null, listadoCompleto: true);
+        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null);
 
         conexion.CompletarRecuperacionHueco().Should().BeFalse();
         conexion.HuecoPendienteDesdeUtc.Should().Be(Ahora.AddDays(-10), "el correo anterior al tope no se ha leído");
@@ -62,12 +63,49 @@ public class ConexionIntegracionRecuperacionHuecoTests
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
 
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), listadoCompleto: false);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-2), listadoCompleto: false);
-        conexion.AvanzarRecuperacionHueco(null, listadoCompleto: false);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-2), Continuacion);
+        conexion.AvanzarRecuperacionHueco(null, Continuacion);
 
         conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-1));
         conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_continuacion_se_guarda_se_olvida_y_se_limpia_al_completar()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+
+        conexion.AvanzarRecuperacionHueco(null, Continuacion);
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion, "una página vacía con continuación no avanza el cursor, pero la continuación sí se guarda");
+        conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+
+        conexion.OlvidarContinuacionRecuperacionHueco().Should().BeTrue();
+        conexion.OlvidarContinuacionRecuperacionHueco().Should().BeFalse();
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-3), "olvidarla vuelve a listar desde el cursor");
+
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null);
+        conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+        var avanzarTrasCompletar = () => conexion.AvanzarRecuperacionHueco(Ahora, Continuacion);
+        avanzarTrasCompletar.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Una_perdida_anula_tambien_la_continuacion()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+
+        conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2)).Should().BeTrue();
+
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+        conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15)).Should().Be(Ahora.AddHours(-3));
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull("la nueva recuperación empieza sin la continuación de la anulada");
     }
 
     [Fact]
@@ -75,7 +113,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
 
-        var avanzar = () => conexion.AvanzarRecuperacionHueco(Ahora, listadoCompleto: true);
+        var avanzar = () => conexion.AvanzarRecuperacionHueco(Ahora, siguienteEnlace: null);
 
         avanzar.Should().Throw<InvalidOperationException>();
     }
@@ -85,7 +123,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), listadoCompleto: false);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
 
         var completar = () => conexion.CompletarRecuperacionHueco();
 
@@ -98,7 +136,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), listadoCompleto: true);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null);
 
         conexion.CompletarRecuperacionHueco().Should().BeTrue();
 
@@ -113,7 +151,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), listadoCompleto: true);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null);
 
         // Recepción posterior: min(marca, recepción − 4 h) es la marca de antes, pero hay que guardar la anulación.
         conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2)).Should().BeTrue();

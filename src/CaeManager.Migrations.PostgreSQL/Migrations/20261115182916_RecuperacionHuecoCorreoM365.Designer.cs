@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115173413_RecuperacionHuecoCorreoM365")]
+    [Migration("20261115182916_RecuperacionHuecoCorreoM365")]
     partial class RecuperacionHuecoCorreoM365
     {
         /// <inheritdoc />
@@ -8301,6 +8301,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("RecuperacionHuecoSiguienteEnlace")
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
                         .HasColumnType("timestamp with time zone");

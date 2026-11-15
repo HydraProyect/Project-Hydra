@@ -111,7 +111,7 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
         {
             var conexion = await runtime.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonPropio);
             conexion.IniciarRecuperacionHueco(DateTime.UtcNow);
-            conexion.AvanzarRecuperacionHueco(null, listadoCompleto: true);
+            conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null);
             await runtime.SaveChangesAsync();
         }
 

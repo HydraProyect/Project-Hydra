@@ -150,6 +150,15 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? RecuperacionHuecoCursorUtc { get; private set; }
 
     /// <summary>
+    /// La continuación de Graph (<c>@odata.nextLink</c>) de la última página encolada, si la traía: la pasada siguiente
+    /// sigue desde ella y no desde <see cref="RecuperacionHuecoCursorUtc"/>, para que un tope de la pasada no la haga
+    /// repetir las mismas páginas (muchos mensajes en el mismo segundo, páginas vacías con continuación). Si la
+    /// continuación ya no vale, se olvida (<see cref="OlvidarContinuacionRecuperacionHueco"/>) y se vuelve al cursor. No es
+    /// una credencial: el token va aparte.
+    /// </summary>
+    public string? RecuperacionHuecoSiguienteEnlace { get; private set; }
+
+    /// <summary>
     /// El listado de la recuperación en curso llegó al final (una página sin <c>@odata.nextLink</c>). No basta para
     /// limpiar la marca: además, ningún evento de recuperación de la conexión puede seguir sin ingerir.
     /// </summary>
@@ -407,24 +416,42 @@ public class ConexionIntegracion : EntidadBase
         var desde = marca > tope ? marca : tope;
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
+        RecuperacionHuecoSiguienteEnlace = null;
         RecuperacionHuecoListadoCompleto = false;
         return desde;
     }
 
     /// <summary>
     /// Una página del listado ya está encolada: el cursor pasa a la recepción del último mensaje de la página (solo
-    /// avanza) y, si la página no traía continuación, el listado queda completo.
+    /// avanza), se guarda su continuación y, si la página no la traía, el listado queda completo.
     /// </summary>
-    public void AvanzarRecuperacionHueco(DateTime? ultimoRecibidoUtc, bool listadoCompleto)
+    public void AvanzarRecuperacionHueco(DateTime? ultimoRecibidoUtc, string? siguienteEnlace)
     {
         if (RecuperacionHuecoCursorUtc is not { } cursor)
             throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
+        if (RecuperacionHuecoListadoCompleto)
+            throw new InvalidOperationException("El listado de la recuperación del hueco ya terminó.");
 
         if (ultimoRecibidoUtc is { } ultimo && ultimo > cursor)
             RecuperacionHuecoCursorUtc = ultimo;
 
-        if (listadoCompleto)
+        RecuperacionHuecoSiguienteEnlace = siguienteEnlace;
+        if (siguienteEnlace is null)
             RecuperacionHuecoListadoCompleto = true;
+    }
+
+    /// <summary>
+    /// La continuación guardada ya no vale (Graph la rechazó): la pasada siguiente vuelve a listar desde el cursor. Leer
+    /// de más se deduplica en la ingesta.
+    /// </summary>
+    /// <returns>true si había una continuación que olvidar.</returns>
+    public bool OlvidarContinuacionRecuperacionHueco()
+    {
+        if (RecuperacionHuecoSiguienteEnlace is null)
+            return false;
+
+        RecuperacionHuecoSiguienteEnlace = null;
+        return true;
     }
 
     /// <summary>
@@ -456,6 +483,7 @@ public class ConexionIntegracion : EntidadBase
 
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
+        RecuperacionHuecoSiguienteEnlace = null;
         RecuperacionHuecoListadoCompleto = false;
         return true;
     }

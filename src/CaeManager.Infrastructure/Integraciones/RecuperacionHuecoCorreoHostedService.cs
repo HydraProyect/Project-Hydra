@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +17,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// <see cref="RecuperacionHuecoCorreoService"/>. Envuelto en elección de líder, como
 /// <see cref="RenovacionSuscripcionWebhookHostedService"/>. Solo recorre los Tenants propietarios activos, cada uno en
 /// su propio ámbito con el Tenant explícito (filtro de Tenant y RLS del Tenant propietario); un Tenant que falla no
-/// detiene a los demás.
+/// detiene a los demás. Un Tenant con la automatización de ingesta de correo de Microsoft 365 apagada no se recupera.
 /// </summary>
 public class RecuperacionHuecoCorreoHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<RecuperacionHuecoCorreoHostedService> logger)
@@ -73,6 +75,11 @@ public class RecuperacionHuecoCorreoHostedService(
             {
                 using var ambito = ambitoFactory.CreateScope();
                 using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+                // El mismo interruptor que la ingesta: con ella apagada, lo encolado no se consumiría y la cola crecería.
+                if (!await ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>()
+                        .EstaActivoAsync(CatalogoAutomatizaciones.IngestaCorreoM365, stoppingToken))
+                    continue;
+
                 await ambito.ServiceProvider.GetRequiredService<RecuperacionHuecoCorreoService>()
                     .RecuperarDelTenantActualAsync(stoppingToken);
             }

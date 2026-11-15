@@ -998,7 +998,7 @@ public class Microsoft365GraphClient(
     internal const int TamanoPaginaRecuperacion = 50;
 
     private static readonly Error ErrorListadoIlegible =
-        Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft 365 devolvió un listado de la Bandeja de entrada ilegible.");
+        Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft 365 devolvió un listado de la carpeta Inbox ilegible.");
 
     public async Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
         string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken)
@@ -1031,7 +1031,7 @@ public class Microsoft365GraphClient(
             {
                 var error = EsRespuestaTransitoria(respuesta.StatusCode)
                     ? ConEsperaPedida(ErrorTransitorio, respuesta)
-                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la Bandeja de entrada del buzón.");
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la carpeta Inbox del buzón.");
                 return Result.Fallo<PaginaMensajesRecibidosGraphDto>(error);
             }
 
@@ -1042,12 +1042,12 @@ public class Microsoft365GraphClient(
         }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Fallo de red al listar la Bandeja de entrada para recuperar el hueco de correo.");
+            logger.LogError(ex, "Fallo de red al listar la carpeta Inbox para recuperar el hueco de correo.");
             return Result.Fallo<PaginaMensajesRecibidosGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar la Bandeja de entrada para recuperar el hueco.");
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar la carpeta Inbox para recuperar el hueco.");
             return Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorTiempoAgotado);
         }
     }
