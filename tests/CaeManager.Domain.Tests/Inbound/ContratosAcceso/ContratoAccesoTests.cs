@@ -455,6 +455,22 @@ public class ContratoAccesoTests
     }
 
     [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar, "PendienteDeConfirmar")]
+    [InlineData(EstadoContratoAcceso.Cancelado, "Cancelado")]
+    [InlineData(EstadoContratoAcceso.Rechazado, "Rechazado")]
+    [InlineData(EstadoContratoAcceso.Activo, "Finalizado")]
+    public void Finalizar_un_contrato_con_cierre_de_la_version_anterior_nombra_su_estado_efectivo(
+        EstadoContratoAcceso guardado, string estadoEnElMensaje)
+    {
+        var contrato = CerradoPorLaVersionAnterior(guardado);
+
+        FluentActions.Invoking(() => contrato.Finalizar(Inicio.AddDays(6)))
+            .Should().Throw<InvalidOperationException>()
+            .WithMessage($"Un contrato de acceso en estado {estadoEnElMensaje} no se puede finalizar.");
+        contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5));
+    }
+
+    [Theory]
     [MemberData(nameof(TodosLosEstados))]
     public void Sin_cierre_real_el_estado_efectivo_es_el_guardado(EstadoContratoAcceso estado)
     {

@@ -239,8 +239,8 @@ public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
     /// </summary>
     public void Finalizar(DateOnly fechaCierre)
     {
-        if (FechaCierreReal is not null)
-            throw new InvalidOperationException("El contrato de acceso ya está cerrado.");
+        // ExigirEstado ya rechaza un contrato con cierre real y nombra su estado efectivo: un Cancelado con cierre de la
+        // versión anterior dice «Cancelado», no «ya está cerrado» (que es solo el Finalizado).
         ExigirEstado("finalizar", EstadoContratoAcceso.Activo, EstadoContratoAcceso.Suspendido);
         if (fechaCierre < FechaInicio)
             throw new ArgumentException("La fecha de cierre no puede ser anterior a la de inicio.", nameof(fechaCierre));
