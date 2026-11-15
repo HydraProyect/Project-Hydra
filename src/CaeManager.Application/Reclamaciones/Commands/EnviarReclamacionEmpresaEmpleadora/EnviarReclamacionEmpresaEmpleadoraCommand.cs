@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -35,6 +36,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// <c>EnviarReclamacionEmpresaCommand</c> (de esta Empresa, de ámbito Empresa, dentro de la ventana); un pendiente sin
 /// Trabajador, con <c>ResolverParaEmpresaAsync</c>. Todo o nada.
 /// </param>
+[AreaDelEncargo("Reclamaciones")]
 public record EnviarReclamacionEmpresaEmpleadoraCommand(
     Guid EmpresaId,
     Guid? DelegacionEmpresaId,

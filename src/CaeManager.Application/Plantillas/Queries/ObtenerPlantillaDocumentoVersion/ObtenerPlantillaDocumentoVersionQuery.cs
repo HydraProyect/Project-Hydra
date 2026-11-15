@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Plantillas.Queries.ObtenerPlantillaDocumentoVersion;
 
 /// <summary>Todo lo que necesita el editor visual (ADR-010 § 2.3) en una sola carga: metadata de la versión y de su plantilla, más los elementos ya guardados.</summary>
+[AreaDelEncargo("Plantillas")]
 public record ObtenerPlantillaDocumentoVersionQuery(Guid PlantillaDocumentoVersionId)
     : IRequest<Result<PlantillaDocumentoVersionDetalleDto>>;
 

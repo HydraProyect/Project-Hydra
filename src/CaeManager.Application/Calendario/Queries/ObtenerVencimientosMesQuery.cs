@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Calendario.Queries;
 /// llega sin Empresa y no reclamable. Es una oferta, no una promesa: el envío revalida el alcance de gestión.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Calendario")]
 public record ObtenerVencimientosMesQuery(int Anio, int Mes) : IRequest<IReadOnlyList<VencimientoCalendarioDto>>;
 
 /// <param name="EmpresaId">Empresa empleadora (visible para el usuario); null si no está en ningún alcance suyo.</param>

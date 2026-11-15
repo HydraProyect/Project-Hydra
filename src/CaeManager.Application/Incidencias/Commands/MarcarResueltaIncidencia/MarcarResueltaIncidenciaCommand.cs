@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using MediatR;
 
 namespace CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia;
 
+[AreaDelEncargo("Incidencias")]
 public record MarcarResueltaIncidenciaCommand(Guid Id, bool Resuelta) : ICommand;
 
 public class MarcarResueltaIncidenciaCommandHandler(

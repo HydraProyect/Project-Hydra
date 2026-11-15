@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 /// Gestor quiere verlos, y el peor estado de la sección es el primer
 /// elemento tras ordenar.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerDocumentacionVisitaQuery(Guid VisitaId) : IRequest<DocumentacionVisitaDto?>;
 
 public record DocumentoVisitaItemDto(

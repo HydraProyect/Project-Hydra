@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
@@ -20,6 +21,7 @@ public record EmpresaDeCarteraDeGestor(Guid TenantId, string Nombre, bool EnCart
 /// cartera (<see cref="AutoridadSobreCarteraDeGestorCae"/>). Es UX, no enforcement:
 /// <c>AsignarCarteraGestorCaeCommand</c> vuelve a comprobarlo todo al guardar.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerCarteraDeGestorCaeQuery(Guid GestorUsuarioId) : IRequest<IReadOnlyList<EmpresaDeCarteraDeGestor>>;
 
 public class ObtenerCarteraDeGestorCaeQueryHandler(

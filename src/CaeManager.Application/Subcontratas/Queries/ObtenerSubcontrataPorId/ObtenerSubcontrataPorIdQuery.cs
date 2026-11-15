@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerSubcontrataPorIdQuery(Guid Id) : IRequest<SubcontrataDetalleDto?>;
 
 /// <param name="Notas">

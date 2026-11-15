@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestio
 /// <item>Lleva la versión que se vio en pantalla, igual que la marca.</item>
 /// </list>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record QuitarMarcaDocumentacionGestionadaCommand(Guid Id, Guid Version = default) : ICommand;
 
 public class QuitarMarcaDocumentacionGestionadaCommandValidator : AbstractValidator<QuitarMarcaDocumentacionGestionadaCommand>

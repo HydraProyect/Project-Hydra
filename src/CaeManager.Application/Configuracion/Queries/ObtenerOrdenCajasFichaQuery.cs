@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Configuracion.Queries;
 /// automático. Devuelve las claves tal como se guardaron: quien pinta la ficha
 /// las concilia con sus cajas (<c>OrdenCajasFicha.Conciliar</c>).
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ObtenerOrdenCajasFichaQuery(string TipoFicha) : IRequest<IReadOnlyList<string>>;
 
 public class ObtenerOrdenCajasFichaQueryHandler(IConfiguracionQueryContext dbContext, ICurrentUserService currentUserService)

@@ -1,10 +1,12 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerCredencialAccesoSubcontrataQuery(Guid SubcontrataId)
     : IRequest<CredencialAccesoSubcontrataDto?>, IConsultaDeSecretosDeTenant;
 

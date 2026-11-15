@@ -2,6 +2,7 @@ using CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
 using CaeManager.Application.AsistenteIa.Tareas;
 using CaeManager.Application.AsistenteIa.Tareas.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.AsistenteIa.Edicion;
 /// versión, la que vio (<paramref name="VersionVista"/>): dos pestañas no se pisan.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record CompletarPlanTareaAsistenteCommand(
     Guid TareaId,
     Guid VersionVista,

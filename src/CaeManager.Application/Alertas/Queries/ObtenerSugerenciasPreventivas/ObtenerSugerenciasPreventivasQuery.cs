@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 /// un único afectado la alerta individual de Alertas ya lo cubre — el valor
 /// de esta vista es detectar el patrón, no duplicar cada alerta suelta.
 /// </summary>
+[AreaDelEncargo("Alertas")]
 public record ObtenerSugerenciasPreventivasQuery : IRequest<IReadOnlyList<SugerenciaPreventivaDto>>;
 
 public record SugerenciaPreventivaDto(

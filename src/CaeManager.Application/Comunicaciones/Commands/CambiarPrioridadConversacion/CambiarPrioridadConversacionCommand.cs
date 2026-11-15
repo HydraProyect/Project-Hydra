@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record CambiarPrioridadConversacionCommand(Guid ConversacionId, PrioridadConversacion Prioridad) : ICommand;
 
 public class CambiarPrioridadConversacionCommandValidator : AbstractValidator<CambiarPrioridadConversacionCommand>

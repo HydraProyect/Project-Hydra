@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 /// <c>EditarUsuarioCommand</c>, <c>AsignarRolACuentaCommand</c>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerRolesNoAsignablesQuery : IRequest<IReadOnlyList<string>>;
 
 public class ObtenerRolesNoAsignablesQueryHandler(ICurrentUserService currentUserService, ITenantActual tenantActual,

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record ActualizarProyectoCommand(
     Guid Id, string Nombre, DateOnly? FechaFinPrevista, string? Notas, Guid Version = default)
     : ICommand;

@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Integraciones;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisit
 /// persona, con la misma autorización.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record EnviarPaqueteAcreditacionVisitaCommand(
     Guid VisitaId, Guid VersionVisita, Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios,
     string Asunto, string CuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto> Adjuntos) : ICommand<Guid>;

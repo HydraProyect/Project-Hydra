@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Notificaciones;
 using MediatR;
 
@@ -6,6 +7,7 @@ namespace CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPen
 
 public record NotificacionDto(Guid Id, string Titulo, string Mensaje, string? UrlAccion, string? TextoAccion);
 
+[AreaDelEncargo("Notificaciones")]
 public record ObtenerNotificacionesPendientesQuery : IRequest<IReadOnlyList<NotificacionDto>>;
 
 public class ObtenerNotificacionesPendientesQueryHandler(

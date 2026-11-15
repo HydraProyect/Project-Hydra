@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
@@ -38,6 +39,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 /// de alta uno a uno tras crear el tenant, sin forzar una copia completa que
 /// nadie pidió (YAGNI, ver Project-Hydra-Negocio/tecnico/PROJECT.md).
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record CrearClienteDeleganteCommand(string NombreTenantCliente) : ICommand<Guid>;
 
 public class CrearClienteDeleganteCommandValidator : AbstractValidator<CrearClienteDeleganteCommand>

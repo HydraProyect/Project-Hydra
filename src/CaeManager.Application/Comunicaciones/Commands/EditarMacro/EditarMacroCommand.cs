@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.EditarMacro;
 
+[AreaDelEncargo("Comunicaciones")]
 public record EditarMacroCommand(
     Guid Id, string Titulo, string CuerpoHtml, Guid? ClienteId, Guid Version = default) : ICommand;
 

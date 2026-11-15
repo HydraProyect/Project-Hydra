@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabaja
 /// </para>
 /// </summary>
 /// <param name="Notas">Vacía, solo espacios o <c>null</c>: el Trabajador se queda sin nota.</param>
+[AreaDelEncargo("Trabajadores")]
 public record GuardarNotaInternaTrabajadorCommand(Guid Id, string? Notas, Guid Version) : ICommand;
 
 public class GuardarNotaInternaTrabajadorCommandValidator : AbstractValidator<GuardarNotaInternaTrabajadorCommand>

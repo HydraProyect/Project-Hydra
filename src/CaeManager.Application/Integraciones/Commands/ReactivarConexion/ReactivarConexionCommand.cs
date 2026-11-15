@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 /// crea de nuevo si ya no existe (<see cref="SuscripcionAlRehabilitarService"/>):
 /// una conexión nunca vuelve a Habilitada sin suscripción vigente.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record ReactivarConexionCommand(Guid ConexionId) : ICommand;
 
 public class ReactivarConexionCommandValidator : AbstractValidator<ReactivarConexionCommand>

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExter
 /// historial real nunca se pierde. La evidencia adjunta no se borra del
 /// almacenamiento: soft delete significa que la fila puede restaurarse.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record EliminarVerificacionExternaSubcontrataCommand(Guid Id) : ICommand;
 
 public class EliminarVerificacionExternaSubcontrataCommandHandler(

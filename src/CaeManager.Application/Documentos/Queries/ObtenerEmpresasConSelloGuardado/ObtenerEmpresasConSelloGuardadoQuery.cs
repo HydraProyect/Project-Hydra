@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerEmpresasConSelloGuard
 /// pestaña Firma cuando el Documento no es de ámbito Empresa (así que no hay
 /// una Empresa relevante que resolver automáticamente).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerEmpresasConSelloGuardadoQuery : IRequest<IReadOnlyList<EmpresaConSelloDto>>;
 
 public record EmpresaConSelloDto(Guid EmpresaId, string RazonSocial);

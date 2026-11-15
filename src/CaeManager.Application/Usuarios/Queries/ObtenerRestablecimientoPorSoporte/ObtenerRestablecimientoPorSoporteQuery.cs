@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 
@@ -25,6 +26,7 @@ public record RestablecimientoPorSoporteDto(AdministradorUnicoActivo? Administra
 /// cerrada en otra pestaña seguiría mostrando al Administrador del Tenant objetivo
 /// hasta la siguiente revalidación del circuito.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerRestablecimientoPorSoporteQuery : IRequest<RestablecimientoPorSoporteDto?>;
 
 public class ObtenerRestablecimientoPorSoporteQueryHandler(

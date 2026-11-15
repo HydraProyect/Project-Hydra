@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record AsignarTecnicoProyectoCommand(Guid ProyectoId, Guid TrabajadorId, DateOnly FechaAlta)
     : ICommand<Guid>;
 

@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -47,6 +48,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// hasta el final: una sustitución confirmada entre medias deshace la marca, y una posterior espera a que esta termine.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
 
 public class MarcarAcreditacionNoRequeridaCommandValidator : AbstractValidator<MarcarAcreditacionNoRequeridaCommand>

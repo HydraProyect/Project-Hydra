@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerTenantObjetivoSesion;
 using MediatR;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// </list>
 /// Fuera de las dos, ninguno (fallo cerrado). Cada handler sigue exigiendo antes la lectura.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerTenantsCuadroDireccionQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>;
 
 public class ObtenerTenantsCuadroDireccionQueryHandler(IMediator mediator, ICurrentUserService currentUserService)

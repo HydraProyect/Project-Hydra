@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerEmpresasDeCentrosVisible
 /// portal (rol Cliente) va vacío aunque vea Centros con su Empresa; el filtro solo le ofrecía «Todas».
 /// Solo lectura para filtrar: no alimenta ningún comando.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerEmpresasDeCentrosVisiblesQuery : IRequest<IReadOnlyList<EmpresaDeCentroDto>>;
 
 public record EmpresaDeCentroDto(Guid Id, string RazonSocial);

@@ -19,6 +19,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion;
 /// —incluido quien administra por encargo— le devuelve una lista vacía.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerOperacionesEncargablesQuery : IRequest<IReadOnlyList<OperacionEncargableDto>>;
 
 public record OperacionEncargableDto(Guid AsignacionOperacionId, Guid OperadorTenantId, string OperadorNombre);

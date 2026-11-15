@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerDobleFactorPropio;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerDobleFactorPropio;
 /// Va por la tubería de MediatR, y no leyendo el servicio desde el componente, para que la lectura de la cuenta se
 /// serialice con el resto de accesos a datos del circuito.
 /// </remarks>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerDobleFactorPropioQuery : IRequest<bool>;
 
 public class ObtenerDobleFactorPropioQueryHandler(ICurrentUserService currentUserService)

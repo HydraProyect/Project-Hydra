@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa;
 
 /// <summary>Detecciones pendientes (sin resolver) de altas/bajas de personal para una Empresa — ver DeteccionTrabajadoresService.</summary>
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerDeteccionesPorEmpresaQuery(Guid EmpresaId) : IRequest<Result<IReadOnlyList<DeteccionTrabajadorDto>>>;
 
 /// <param name="AsignacionesActivas">

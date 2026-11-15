@@ -1,11 +1,13 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Queries.ObtenerVisitasProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record ObtenerVisitasProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<VisitaProyectoDto>>;
 
 public record VisitaProyectoDto(Guid Id, DateOnly FechaInicio, DateOnly FechaFin, int Trabajadores);

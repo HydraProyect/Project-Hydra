@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 /// (ver <see cref="Vehiculo.DeEmpresa"/>/<see cref="Vehiculo.DeSubcontrata"/>) —
 /// exactamente uno de EmpresaId/SubcontrataId debe venir informado.
 /// </summary>
+[AreaDelEncargo("Vehiculos")]
 public record CrearVehiculoCommand(
     Guid? EmpresaId,
     Guid? SubcontrataId,

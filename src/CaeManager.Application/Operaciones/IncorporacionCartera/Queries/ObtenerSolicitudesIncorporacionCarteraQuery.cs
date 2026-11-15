@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 /// todos a la vez, porque no hay una notificación por destinatario que borrar.
 /// </summary>
 /// <param name="SoloPendientes">Para la campana de avisos: solo la lista de pendientes, sin las demás.</param>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerSolicitudesIncorporacionCarteraQuery(bool SoloPendientes = false)
     : IRequest<Result<BandejaIncorporacionCarteraDto>>;
 

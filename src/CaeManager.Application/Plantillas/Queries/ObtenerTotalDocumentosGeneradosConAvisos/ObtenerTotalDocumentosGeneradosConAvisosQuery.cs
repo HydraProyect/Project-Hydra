@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plantillas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGenera
 /// (ni desaparecer) este contador, que es del ámbito completo visible del
 /// usuario.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record ObtenerTotalDocumentosGeneradosConAvisosQuery : IRequest<int>;
 
 public class ObtenerTotalDocumentosGeneradosConAvisosQueryHandler(

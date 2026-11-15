@@ -1,4 +1,5 @@
-﻿using CaeManager.Domain.Common;
+﻿using CaeManager.Application.Tenants.Encargo;
+using CaeManager.Domain.Common;
 using MediatR;
 
 namespace CaeManager.Application.Dashboard.Queries;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// Excel, a propósito, para que número y exportación no diverjan.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ContarExtranjerosCobrablesDelMesQuery(
     int Anyo, int Mes, IReadOnlyDictionary<Guid, IReadOnlyList<TramoDeVigencia>>? TramosPorTenant = null)
     : IRequest<ConteoExtranjerosCobrablesDelMesDto>;

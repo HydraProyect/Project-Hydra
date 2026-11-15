@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCent
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -40,6 +41,7 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtensi
 /// no lo pide: ahí el gestor registra una subida que hizo él.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ConfirmarSubidaDesdeExtensionCommand(Guid AcreditacionId, string? DominioPortal = null) : ICommand<CambioEstadoAnotadoDto>;
 
 /// <summary>
@@ -48,6 +50,7 @@ public record ConfirmarSubidaDesdeExtensionCommand(Guid AcreditacionId, string? 
 /// que dejó el estado actual y la acreditación no se ha tocado desde entonces (<paramref name="VersionEsperada"/>, la que
 /// devolvió la confirmación).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record DeshacerSubidaDesdeExtensionCommand(Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand;
 
 public class ConfirmarSubidaDesdeExtensionCommandValidator : AbstractValidator<ConfirmarSubidaDesdeExtensionCommand>

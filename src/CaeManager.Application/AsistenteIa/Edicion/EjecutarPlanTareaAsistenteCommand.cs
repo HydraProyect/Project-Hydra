@@ -6,6 +6,7 @@ using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Domain.AsistenteIa;
@@ -36,6 +37,7 @@ namespace CaeManager.Application.AsistenteIa.Edicion;
 /// queda para reintentar. Devuelve siempre el estado de cada paso.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record EjecutarPlanTareaAsistenteCommand(Guid TareaId) : ICommand<EjecucionPlanAsistenteDto>;
 
 public record PasoEjecutadoDto(

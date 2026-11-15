@@ -136,8 +136,8 @@ public class ExclusionesDelEncargoBehaviorTests
     }
 
     /// <summary>
-    /// ADR-013, M0c: una petición sin área resuelta (sin <see cref="AreaDelEncargoAttribute"/> ni entrada en
-    /// <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/>; su espacio de nombres no cuenta) falla
+    /// ADR-013, M0c: una petición sin área resuelta (sin <see cref="AreaDelEncargoAttribute"/> propia ni de una
+    /// base; su espacio de nombres no cuenta) falla
     /// cerrado bajo encargo no pleno; sin encargo pasa.
     /// </summary>
     [Fact]

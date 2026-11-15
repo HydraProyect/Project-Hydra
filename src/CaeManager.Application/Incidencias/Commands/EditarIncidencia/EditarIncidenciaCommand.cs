@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 
+[AreaDelEncargo("Incidencias")]
 public record EditarIncidenciaCommand(
     Guid Id, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad,
     DateOnly FechaOcurrencia, string Descripcion, Guid Version = default) : ICommand;

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Centros.Commands.EditarCanalGestion;
 /// guardar cualquier otro cambio con los campos en blanco borraría en
 /// silencio unas credenciales que el gestor no podía ver.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EditarCanalGestionCommand(
     Guid Id,
     string EtiquetaProposito,

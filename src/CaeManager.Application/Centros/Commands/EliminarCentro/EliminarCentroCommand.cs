@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Centros.Commands.EliminarCentro;
 
+[AreaDelEncargo("Centros")]
 public record EliminarCentroCommand(Guid Id) : ICommand;
 
 public class EliminarCentroCommandHandler(

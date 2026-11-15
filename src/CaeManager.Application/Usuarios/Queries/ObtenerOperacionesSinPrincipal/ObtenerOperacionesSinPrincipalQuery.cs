@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using MediatR;
 
@@ -66,6 +67,7 @@ public record AlertaDePrincipal(bool LaVe, IReadOnlyList<OperacionEnAlertaDePrin
 /// No concede nada: listar una operación no da acceso a su Tenant. Sin cartera vigente, alcance cero.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerOperacionesSinPrincipalQuery : IRequest<AlertaDePrincipal>;
 
 public class ObtenerOperacionesSinPrincipalQueryHandler(

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.DividirAdjuntoPdf;
 
 /// <param name="EmpresaGestionadaId">La misma que en Dividir: la del catálogo con el que se revisaron los tramos.</param>
 /// <param name="Tramos">Revisados por una persona, vengan o no de <c>PrepararDivisionAdjuntoQuery</c>.</param>
+[AreaDelEncargo("Comunicaciones")]
 public record DividirAdjuntoPdfCommand(Guid AdjuntoId, Guid EmpresaGestionadaId, IReadOnlyList<TramoACrear> Tramos)
     : ICommand<IReadOnlyList<ResultadoTramoCreado>>;
 

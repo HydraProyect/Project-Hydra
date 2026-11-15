@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Tenants;
 
 public sealed record PermisosAccesoDelegadoDto(bool PuedeRevocar, bool PuedeReactivar);
 
+[AreaDelEncargo("Tenants")]
 public sealed record PermisosAccesosDelegadosQuery(IReadOnlyCollection<Guid> Ids)
     : IRequest<IReadOnlyDictionary<Guid, PermisosAccesoDelegadoDto>>;
 

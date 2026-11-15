@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividad
 /// Cliente empresarial leía aquí el nombre de los Centros de otros Clientes
 /// empresariales del mismo Tenant propietario y su razón social.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerCentrosConActividadDeSubcontrataQuery(Guid SubcontrataId)
     : IRequest<IReadOnlyList<CentroConActividadDto>>;
 

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Logo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Tenants.Commands.GuardarLogoTenant;
 /// la capacidad Aprovisionamiento escriba con <c>cae_app_aprovisionamiento</c> (decisión 4), que solo
 /// puede actualizar las tres columnas del logo de <c>Tenants</c>.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record GuardarLogoTenantCommand(byte[] ImagenOriginal) : ICommand, IComandoDeAprovisionamiento;
 
 public class GuardarLogoTenantCommandValidator : AbstractValidator<GuardarLogoTenantCommand>

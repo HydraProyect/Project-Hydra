@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -82,6 +83,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// <see cref="ResultadoPaginado{T}.FiltroRevisionIaAplicado"/> (lo que se aplicó, no lo que se pidió). El listado solo enseña Documentos operativos, así que una revisión
 /// de un Documento sustituido, que la cola sí muestra, no lo incluye.
 /// </param>
+[AreaDelEncargo("Documentos")]
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,

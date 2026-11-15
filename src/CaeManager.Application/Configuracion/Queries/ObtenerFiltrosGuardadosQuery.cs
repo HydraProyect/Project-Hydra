@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Configuracion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Configuracion.Queries;
 /// filtro con nombre: nunca sale en este listado (se lee con
 /// <see cref="ObtenerVistaRecordadaQuery"/>).
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ObtenerFiltrosGuardadosQuery(string Pantalla) : IRequest<IReadOnlyList<FiltroGuardadoDto>>;
 
 public record FiltroGuardadoDto(Guid Id, string Nombre, string ValoresJson, DateTime CreadoEnUtc);

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public record AdjuntoRepartoDto(
     Guid? DestinoTrabajadorId, Guid? DestinoEmpresaId, Guid? TipoDocumentoId, string? MotivoRechazo,
     Guid? ResueltoPorUsuarioId, DateTime? ResueltoEnUtc, Guid? DocumentoId);
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerRepartoAdjuntosQuery(Guid ConversacionId) : IRequest<IReadOnlyList<AdjuntoRepartoDto>>;
 
 /// <summary>

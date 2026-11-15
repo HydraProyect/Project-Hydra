@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerPlataformaCaeCliente;
 /// <c>SoloConEscritura</c>. Ocultarlo solo en la pantalla dejaría el dato en la respuesta.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerPlataformaCaeClienteQuery(Guid ClienteEmpresarialId) : IRequest<PlataformaCaeClienteDto?>;
 
 /// <param name="Registrada">False: el Cliente empresarial aún no tiene plataforma registrada.</param>

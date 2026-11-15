@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.SituacionEnCentro;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionC
 /// y Usuario de Cliente) devuelve null, aunque el Cliente sea visible (decisión 2026-11-14). La presentación tampoco la
 /// pregunta para esos roles.
 /// </summary>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerUltimaReclamacionClienteQuery(Guid ClienteId) : IRequest<UltimaReclamacionClienteDto?>;
 
 /// <param name="ConversacionId">Null si esa reclamación salió sin buzón conectado, o si es anterior al vínculo con Comunicaciones.</param>

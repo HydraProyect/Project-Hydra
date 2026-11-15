@@ -7,14 +7,13 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// Encargo de administración no pleno.
 ///
 /// <para>
-/// La llevan, por obligación de <c>AreaDelEncargoPorTipoTests</c>, las peticiones de las áreas excluidas enteras y
-/// las de los módulos Inbound y Facturación del registro de módulos: las que más cuesta abrir por accidente y las
-/// que ADR-013 prevé mover. Una petición sin la marca toma el área de su entrada en
-/// <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/> y, si no la tiene, la de su base; sin ninguna,
-/// se queda sin área y se excluye (falla cerrado). El espacio de nombres no cuenta. La marca no se hereda sola
-/// (<c>Inherited = false</c>): la cadena la recorre <see cref="ActosExcluidosDelEncargo.AreaDe(Type)"/>, y la marca
-/// excluida de una base prevalece. La lista congelada de <c>AreaDelEncargoPorTipoTests</c> debe coincidir con la
-/// marca o la entrada de cada petición de <c>src</c>.
+/// La lleva toda petición de <c>src</c>, por obligación de <c>AreaDelEncargoPorTipoTests</c> (cada petición no genérica
+/// abierta la lleva directa o la hereda de una base marcada). Una petición sin marca toma el área de su base; sin
+/// ninguna, se queda sin área y se excluye (falla cerrado). El espacio de nombres no cuenta, y tampoco hay una tabla
+/// central <c>typeof</c>: referenciaba tipos de Outbound desde el Núcleo y rompía el ratchet de M0b. La marca no se
+/// hereda sola (<c>Inherited = false</c>): la cadena la recorre <see cref="ActosExcluidosDelEncargo.AreaDe(Type)"/>, y
+/// la marca excluida de una base prevalece. La lista congelada de <c>AreaDelEncargoPorTipoTests</c> debe coincidir
+/// con la marca de cada petición de <c>src</c>.
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]

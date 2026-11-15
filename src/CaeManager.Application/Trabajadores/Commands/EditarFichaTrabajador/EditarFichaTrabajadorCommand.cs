@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 
+[AreaDelEncargo("Trabajadores")]
 public record EditarFichaTrabajadorCommand(Guid Id, Guid Version,
     string? NumeroAfiliacionSeguridadSocial, string? Puesto, DateOnly? FechaNacimiento,
     string? Nacionalidad, string? TipoVinculo, DateOnly? FechaAltaEmpresa, DateOnly? FechaBajaEmpresa,

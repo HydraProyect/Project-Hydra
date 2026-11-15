@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -30,6 +31,7 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 /// el tipo actual de lo que se edita aunque esté archivado, para que editar no lo pierda. Sin <c>ParaAltaNueva</c>
 /// (gestión del catálogo, filtros) la lista incluye los archivados.
 /// </summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ObtenerTiposDocumentoQuery(
     Guid? ClienteId = null, Guid? EmpresaId = null, Guid? CentroId = null, AmbitoAplicacion? AmbitoAplicacion = null,
     string? Texto = null, bool ParaAltaNueva = false, Guid? TipoActualId = null)

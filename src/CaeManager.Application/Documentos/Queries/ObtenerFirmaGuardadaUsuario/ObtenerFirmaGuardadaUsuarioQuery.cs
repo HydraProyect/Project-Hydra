@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario;
 
 /// <summary>Firma guardada del usuario actual, o null si todavía no ha configurado ninguna.</summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerFirmaGuardadaUsuarioQuery : IRequest<FirmaGuardadaUsuarioDto?>;
 
 public record FirmaGuardadaUsuarioDto(string ImagenUrl, DateTime ActualizadaEnUtc, Guid Id);

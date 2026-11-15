@@ -1,5 +1,6 @@
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Plataforma.OrdenMenu;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Marco.Queries.ObtenerContextoMarco;
 /// el dato vigente (OWASP ASVS 4.0.3 V4.1.1, V4.1.3).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Marco")]
 public record ObtenerContextoMarcoQuery : IRequest<ContextoMarcoDto>;
 
 /// <param name="PerfilVocabulario">Perfil de vocabulario del Tenant efectivo (vista previa del Administrador aplicada); el perfil por defecto si no se pudo leer.</param>

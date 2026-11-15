@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,7 @@ public enum AlcanceSelectorTrabajadores
     BaseGeneralDelTenant,
 }
 
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores Alcance)
     : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 

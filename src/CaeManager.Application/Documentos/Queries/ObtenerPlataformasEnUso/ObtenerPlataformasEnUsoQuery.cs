@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
 /// ve. Son las opciones del filtro «Plataforma» del listado de Documentos; el catálogo completo
 /// (<c>ObtenerProveedoresPlataformaCaeQuery</c>) ofrecería decenas de plataformas sin ningún Documento.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerPlataformasEnUsoQuery : IRequest<IReadOnlyList<PlataformaEnUsoDto>>;
 
 /// <param name="Codigo">Slug del proveedor (<c>ProveedorPlataformaCae.Codigo</c>): la pantalla lo usa para el logotipo.</param>

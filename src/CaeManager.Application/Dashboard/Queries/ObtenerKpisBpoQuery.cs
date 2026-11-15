@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Telemetria;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Visitas;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerKpisBpoQuery(PeriodoKpi Periodo) : IRequest<KpisBpoDto>;
 
 public record HorasClienteDto(Guid ClienteId, string ClienteNombre, int SegundosActivos);

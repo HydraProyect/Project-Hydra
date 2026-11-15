@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Clientes.Queries.RevelarContrasenaAccesoPlatafo
 /// preste servicio (Relación Empresarial vigente, la misma lista que pinta la caja) (este handler).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record RevelarContrasenaAccesoPlataformaCaeQuery(Guid ClienteEmpresarialId, Guid EmpresaId)
     : IRequest<ContrasenaAccesoPlataformaCaeDto?>, IConsultaDeSecretosDeTenant;
 

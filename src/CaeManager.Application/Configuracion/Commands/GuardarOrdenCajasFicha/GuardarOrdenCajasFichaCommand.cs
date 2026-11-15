@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarOrdenCajasFicha;
 /// valida la forma de las claves y la lectura concilia el orden con las cajas
 /// que la pantalla pinta (<see cref="OrdenCajasFicha.Conciliar"/>).
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record GuardarOrdenCajasFichaCommand(string TipoFicha, IReadOnlyList<string> Claves) : ICommand, IComandoDeAutoservicio;
 
 /// <summary>

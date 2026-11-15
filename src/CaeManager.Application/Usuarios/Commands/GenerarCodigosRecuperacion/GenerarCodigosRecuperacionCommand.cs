@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion;
 /// permanente de esa persona.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record GenerarCodigosRecuperacionCommand(string CodigoAutenticador = "") : ICommand<IReadOnlyList<string>>, IComandoDeAutoservicio
 {
     public override string ToString() => nameof(GenerarCodigosRecuperacionCommand);

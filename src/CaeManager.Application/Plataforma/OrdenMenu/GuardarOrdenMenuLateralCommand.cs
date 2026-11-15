@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using MediatR;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Plataforma.OrdenMenu;
 /// de dominio; además la fila guarda quién hizo el último cambio para mostrarlo en la pantalla.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record GuardarOrdenMenuLateralCommand(
     IReadOnlyList<string> Grupos, IReadOnlyList<string> Enlaces, Guid VersionEsperada) : ICommand;
 

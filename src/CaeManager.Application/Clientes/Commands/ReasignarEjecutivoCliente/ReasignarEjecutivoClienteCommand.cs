@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// <see cref="ReasignadorCarteraCliente"/>, que comparte con la desactivación de un
 /// Gestor CAE con traspaso de cartera.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : ICommand;
 
 public class ReasignarEjecutivoClienteCommandHandler(

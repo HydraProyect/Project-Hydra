@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClient
 /// Centro puede personalizar la suya; esta es la que heredan los demás. <see cref="ToleranciaDias"/> es 0 cuando no hay fila
 /// (sin fila, la tolerancia es 0). Lo escribe <c>EstablecerToleranciaClienteEmpresarialCommand</c>.
 /// </summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ObtenerToleranciasClienteEmpresarialQuery(Guid ClienteEmpresarialId) : IRequest<IReadOnlyList<ToleranciaTipoDocumentoDto>>;
 
 public record ToleranciaTipoDocumentoDto(Guid TipoDocumentoId, string Nombre, AmbitoAplicacion Ambito, int ToleranciaDias);

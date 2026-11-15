@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.AsistenteIa.Candidatos;
 /// ausente.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ComprobarInstruccionIaCarteraQuery : IRequest<InstruccionIaCarteraDto>;
 
 /// <summary>Los Tenants de la cartera, separados por si tienen instrucción de tratamiento con IA vigente.</summary>

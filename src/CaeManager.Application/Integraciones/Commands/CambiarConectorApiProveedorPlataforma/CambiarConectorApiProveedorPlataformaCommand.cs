@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using MediatR;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Integraciones.Commands.CambiarConectorApiProvee
 /// <c>CambiarActivoProveedorPlataformaCommand</c>, que es el kill switch de la extensión de navegador
 /// y queda aparte: el catálogo no pertenece a ningún Tenant.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record CambiarConectorApiProveedorPlataformaCommand(Guid ProveedorId, bool Activo) : ICommand;
 
 public class CambiarConectorApiProveedorPlataformaCommandHandler(

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocu
 /// puede leer el Documento: fuera de su Asignación de Cartera es igual que no
 /// existir (SEG-16, <see cref="DocumentoAlcanceExtensions"/>).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerValidacionOficialDocumentoQuery(Guid DocumentoId) : IRequest<ValidacionOficialDocumentoDto?>;
 
 public record ValidacionOficialDocumentoDto(

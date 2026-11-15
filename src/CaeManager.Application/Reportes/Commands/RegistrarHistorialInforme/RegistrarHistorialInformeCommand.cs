@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Reportes;
 using MediatR;
@@ -6,6 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Reportes.Commands.RegistrarHistorialInforme;
 
 /// <summary>Escribe la fila de historial al generar la vista previa de un informe — no al descargarlo, igual que el propio panel "Historial" del mockup nace con la generación.</summary>
+[AreaDelEncargo("Reportes")]
 public record RegistrarHistorialInformeCommand(string TipoInforme, Guid? ClienteId, string? ClienteNombre) : ICommand;
 
 public class RegistrarHistorialInformeCommandHandler(

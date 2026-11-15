@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtension;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Documentos.Queries.PrepararEntregaArchivoExtens
 /// límite de ritmo y el registro de acceso.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record PrepararEntregaArchivoExtensionQuery(Guid AcreditacionId, string? DominioPortal) : IRequest<Result<EntregaArchivoExtensionDto>>;
 
 /// <param name="DocumentoId">El Documento de la Acreditación: lo que se servirá, no lo que el cliente pida.</param>

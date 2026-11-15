@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Reportes.Queries;
 /// "no existe", nunca como un error explícito que confirme que la fila sí
 /// está ahí.
 /// </summary>
+[AreaDelEncargo("Reportes")]
 public record GenerarInformeVigenciaQuery(Guid? ClienteId, Guid? CentroId, bool IncluirVigentes)
     : IRequest<InformeVigenciaDto?>;
 

@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 /// uno con su propio canal de gestión "principal" — no existe un portal
 /// principal a nivel de Cliente, elegir uno cualquiera sería inventar dato.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerResumenClienteQuery(Guid ClienteId) : IRequest<ResumenClienteDto?>;
 
 public record ResumenClienteDto(

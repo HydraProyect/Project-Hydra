@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa
 /// como petición explícita y separada — nunca como efecto de abrir esta
 /// pantalla.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerCredencialAccesoEmpresaSinContrasenaQuery(Guid EmpresaId) : IRequest<CredencialAccesoEmpresaSinContrasenaDto?>, IConsultaDeDatosDeCredencial;
 
 public record CredencialAccesoEmpresaSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);

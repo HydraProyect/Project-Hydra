@@ -3,6 +3,7 @@ using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDoc
 /// proveedor de IA externo está detrás de <see cref="ExtraccionDocumentoAdjuntoOptions"/>,
 /// apagado por defecto.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record DetectarActualizacionDocumentoDesdeAdjuntoQuery(Guid AdjuntoId)
     : IRequest<Result<DeteccionActualizacionDocumentoDto>>;
 

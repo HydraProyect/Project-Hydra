@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// multi-Tenant § 13). No concede nada: la solicitud queda Pendiente hasta que
 /// un Coordinador CAE del mismo Operador CAE la resuelva.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record SolicitarIncorporacionCarteraCommand(Guid TenantPropietarioId, string Mensaje) : ICommand<Guid>;
 
 public class SolicitarIncorporacionCarteraCommandHandler(

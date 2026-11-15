@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -10,6 +11,7 @@ using MediatR;
 namespace CaeManager.Application.Centros.Commands.EliminarCentros;
 
 /// <summary>Borrado en lote — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
+[AreaDelEncargo("Centros")]
 public record EliminarCentrosCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarCentrosCommandValidator : AbstractValidator<EliminarCentrosCommand>

@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
 using MediatR;
 
 namespace CaeManager.Application.Gestiones.Commands.CompletarGestion;
 
+[AreaDelEncargo("Gestiones")]
 public record CompletarGestionCommand(Guid Id, bool Completada) : ICommand;
 
 public class CompletarGestionCommandHandler(

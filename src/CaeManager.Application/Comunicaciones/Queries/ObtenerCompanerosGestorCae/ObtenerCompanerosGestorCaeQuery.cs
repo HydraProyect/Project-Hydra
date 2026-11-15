@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
@@ -41,6 +42,7 @@ public interface IDirectorioCompanerosGestorCae
 /// ámbito del propio Tenant de origen (<see cref="ContextoOperadorCae.EnOrigen"/>), la rama que la política ya permite.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerCompanerosGestorCaeQuery : IRequest<IReadOnlyList<CompaneroGestorCaeDto>>;
 
 public class ObtenerCompanerosGestorCaeQueryHandler(

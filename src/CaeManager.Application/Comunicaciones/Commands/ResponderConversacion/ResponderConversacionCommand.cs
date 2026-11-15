@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ResponderConversacionCommand(
     Guid ConversacionId, string CuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null) : ICommand;
 

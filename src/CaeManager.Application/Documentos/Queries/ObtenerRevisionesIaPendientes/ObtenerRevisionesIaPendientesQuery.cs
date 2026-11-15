@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendiente
 /// oficiales, una revisión puede pertenecer a un Documento de Empresa, no
 /// solo de Trabajador — por eso el join con Trabajador es left join.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerRevisionesIaPendientesQuery : IRequest<IReadOnlyList<RevisionIaDocumentoDto>>;
 
 /// <param name="PropietarioNombre">El trabajador ("Nombre Apellidos") o la razón social de la Empresa, según el ámbito del Documento.</param>

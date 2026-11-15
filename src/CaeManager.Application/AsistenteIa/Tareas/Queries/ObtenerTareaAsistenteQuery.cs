@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.AsistenteIa.Tareas.Queries;
 
 /// <summary>La conversación y el plan de una tarea del asistente de la persona, para reanudarla.</summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ObtenerTareaAsistenteQuery(Guid TareaId) : IRequest<Result<TareaAsistenteDto>>;
 
 public record TareaAsistenteDto(

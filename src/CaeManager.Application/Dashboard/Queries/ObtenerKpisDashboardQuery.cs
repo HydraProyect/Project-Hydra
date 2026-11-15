@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
@@ -17,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerKpisDashboardQuery : IRequest<KpisDashboardDto>;
 
 public record KpisDashboardDto(

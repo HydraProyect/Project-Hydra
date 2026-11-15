@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// por aquí</b>: si esa cartera lleva hoy la marca, ya no es de apoyo y el comando falla sin
 /// tocar nada (soltar el principal es una retirada con relevo, y la decide un Coordinador CAE).
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record DesasignarmeDeApoyoCommand(Guid PropuestaId) : ICommand;
 
 /// <summary>
@@ -25,6 +27,7 @@ public record DesasignarmeDeApoyoCommand(Guid PropuestaId) : ICommand;
 /// aceptada, y solo mientras <b>siga siendo el principal</b> de esa Asignación de Operación.
 /// Quien dejó de serlo ya no responde de ese Tenant propietario y no decide quién entra.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record RetirarApoyoConcedidoCommand(Guid PropuestaId) : ICommand;
 
 /// <summary>
@@ -32,6 +35,7 @@ public record RetirarApoyoConcedidoCommand(Guid PropuestaId) : ICommand;
 /// del Operador CAE, cualquiera; el Coordinador CAE, si le reporta el Gestor CAE de apoyo
 /// <b>o quien propuso el apoyo</b> (<see cref="AutoridadSobreCarteraDeGestorCae.PuedeRevocarApoyoAsync"/>).
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record RevocarApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 
 /// <summary>

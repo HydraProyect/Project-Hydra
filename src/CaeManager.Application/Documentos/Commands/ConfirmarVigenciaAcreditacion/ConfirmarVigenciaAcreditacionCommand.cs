@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -26,6 +27,7 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditaci
 /// puede cambiar mientras el modal está abierto.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
 
 public class ConfirmarVigenciaAcreditacionCommandHandler(

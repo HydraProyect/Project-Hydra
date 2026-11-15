@@ -1,5 +1,6 @@
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 /// ya usan los resultados de búsqueda — añadiendo el <c>Tipo</c> que
 /// necesita el palette para elegir el icono.
 /// </summary>
+[AreaDelEncargo("BusquedaGlobal")]
 public record ObtenerRecientesQuery : IRequest<IReadOnlyList<ItemRecienteDto>>;
 
 public record ItemRecienteDto(string Tipo, Guid? EntidadId, string Titulo, string? Subtitulo, string UrlDestino);

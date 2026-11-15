@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Documentos.Commands.GuardarSelloEmpresa;
 /// firma en campo) — una Empresa, un sello guardado. Solo por subida
 /// (fotografía de un sello físico real), siempre con recorte de fondo claro.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record GuardarSelloEmpresaCommand(Guid EmpresaId, byte[] ImagenOriginal) : ICommand;
 
 public class GuardarSelloEmpresaCommandValidator : AbstractValidator<GuardarSelloEmpresaCommand>

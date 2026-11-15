@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using MediatR;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Integraciones.Commands.CambiarActivoProveedorPl
 /// mismo criterio que <c>CrearClienteDeleganteCommand</c> para operaciones
 /// transversales por naturaleza.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record CambiarActivoProveedorPlataformaCommand(Guid ProveedorId, bool Activo) : ICommand;
 
 public class CambiarActivoProveedorPlataformaCommandHandler(

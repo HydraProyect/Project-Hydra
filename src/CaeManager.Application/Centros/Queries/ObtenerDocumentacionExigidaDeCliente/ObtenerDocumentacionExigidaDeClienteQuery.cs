@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCl
 /// Respeta la Asignación de Cartera: un Cliente empresarial fuera de cartera devuelve <c>null</c> (como si no existiera)
 /// y solo cuentan los Centros visibles (<see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/>).
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerDocumentacionExigidaDeClienteQuery(Guid ClienteEmpresarialId) : IRequest<DocumentacionExigidaClienteDto?>;
 
 /// <param name="CentrosConGestionCae">Centros visibles del Cliente empresarial con gestión CAE: el «M» de «En N de M Centros».</param>

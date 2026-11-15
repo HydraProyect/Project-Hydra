@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -11,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 
 /// <summary>Sin Trabajador ni Empresa, el adjunto vuelve a quedar sin destino.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record FijarDestinoAdjuntoCommand(Guid AdjuntoId, Guid? TrabajadorId, Guid? EmpresaId, Guid? TipoDocumentoId) : ICommand<Guid>;
 
 public class FijarDestinoAdjuntoCommandValidator : AbstractValidator<FijarDestinoAdjuntoCommand>

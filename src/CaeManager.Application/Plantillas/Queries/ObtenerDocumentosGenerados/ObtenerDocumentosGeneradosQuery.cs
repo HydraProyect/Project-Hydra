@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 /// volumen esperado de <see cref="DocumentoGenerado"/> en este MVP no lo
 /// necesita todavía (mismo criterio que <c>ObtenerPlantillasDocumentoQuery</c>).
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record ObtenerDocumentosGeneradosQuery(Guid? PlantillaDocumentoId = null, Guid? TrabajadorId = null)
     : IRequest<IReadOnlyList<DocumentoGeneradoListaDto>>;
 

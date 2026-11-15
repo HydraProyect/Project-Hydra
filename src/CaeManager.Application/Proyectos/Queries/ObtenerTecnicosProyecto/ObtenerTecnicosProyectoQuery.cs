@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record ObtenerTecnicosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<TecnicoProyectoDto>>;
 
 public record TecnicoProyectoDto(

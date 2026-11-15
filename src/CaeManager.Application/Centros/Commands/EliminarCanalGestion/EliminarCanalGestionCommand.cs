@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Centros.Commands.EliminarCanalGestion;
 /// cuál de los N pasaría a ser el acceso por defecto del Centro es una
 /// decisión del gestor, no algo que adivinar por orden de inserción.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EliminarCanalGestionCommand(Guid Id) : ICommand;
 
 public class EliminarCanalGestionCommandHandler(

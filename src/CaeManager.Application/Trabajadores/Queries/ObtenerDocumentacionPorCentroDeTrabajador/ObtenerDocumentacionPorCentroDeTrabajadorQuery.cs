@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCen
 /// distinto, así que el cálculo se hace centro a centro, pero sobre un
 /// único trabajador ya cargado una vez.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerDocumentacionPorCentroDeTrabajadorQuery(Guid TrabajadorId)
     : IRequest<IReadOnlyList<CentroDocumentacionTrabajadorDto>>;
 

@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExte
 /// (<c>ActualizarVerificacionExternaSubcontrataCommand</c>). El semáforo lo deriva la consulta de
 /// supervisión de la última no eliminada.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record RegistrarVerificacionExternaSubcontrataCommand(
     Guid SubcontrataId,
     Guid CentroId,

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 /// pedirlo, las filas llegan con las incidencias vacías.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Vehiculos")]
 public record ObtenerVehiculosQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma;
@@ -36,6 +37,7 @@ namespace CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma;
 /// capacidad es lo que se obtiene <i>después</i> de cruzarla.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record PuedeInicializarPlataformaQuery : IRequest<bool>;
 
 public class PuedeInicializarPlataformaQueryHandler(

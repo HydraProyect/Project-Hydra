@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// significa lo que el usuario supervisa, no el tenant entero saltándose la
 /// visibilidad por cartera.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerPulsoEquipoQuery : IRequest<PulsoEquipoDto>;
 
 public record PulsoEquipoDto(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// de Centro, ahora es automático y por Trabajador.
 /// </summary>
 /// <param name="CentroId">Limita el resultado a ese Centro (el detalle por Trabajador del Centro 360); <c>null</c> = todos los visibles (Mi trabajo).</param>
+[AreaDelEncargo("Centros")]
 public record ObtenerDocumentacionBloqueantePendienteQuery(Guid? CentroId = null)
     : IRequest<IReadOnlyList<DocumentacionBloqueantePendienteDto>>;
 

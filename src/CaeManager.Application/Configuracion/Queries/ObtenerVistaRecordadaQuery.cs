@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Configuracion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Configuracion.Queries;
 /// acotan el filtro global de EF y la política RLS. Sin usuario identificado o sin
 /// Tenant activo no hay vista que devolver.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ObtenerVistaRecordadaQuery(string Pantalla) : IRequest<string?>;
 
 public class ObtenerVistaRecordadaQueryHandler(

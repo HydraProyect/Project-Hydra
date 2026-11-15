@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 /// WhatsApp) + LineaWhatsApp. Restringido a Administrador — la línea lleva el
 /// System User token de Meta, una credencial de plataforma.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record CrearLineaWhatsAppCommand(
     string Nombre,
     string NumeroTelefono,

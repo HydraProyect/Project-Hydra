@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
@@ -46,6 +47,7 @@ public record PropuestaIaDocumento(
 /// escritura (Consulta no puede), la validación y la auditoría del actor real
 /// son las del alta normal.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ConfirmarDocumentoPropuestoPorIaCommand(
     Guid TrabajadorId, Guid TipoDocumentoId, DateOnly FechaEmision, DateOnly? FechaVencimientoManual,
     string ArchivoUrl, PropuestaIaDocumento Propuesta, bool NoCaduca = false)

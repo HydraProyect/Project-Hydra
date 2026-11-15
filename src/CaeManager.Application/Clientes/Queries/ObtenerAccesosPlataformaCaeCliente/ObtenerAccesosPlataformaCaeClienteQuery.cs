@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerAccesosPlataformaCaeCli
 /// se puede registrar, no se entrega.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerAccesosPlataformaCaeClienteQuery(Guid ClienteEmpresarialId)
     : IRequest<IReadOnlyList<AccesoPlataformaCaeDto>?>, IConsultaDeDatosDeCredencial;
 

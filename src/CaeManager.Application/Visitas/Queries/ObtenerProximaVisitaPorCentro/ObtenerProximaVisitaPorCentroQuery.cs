@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using MediatR;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 /// hay varias en curso a la vez para el mismo centro, se prioriza la que
 /// antes termina (la ventana de riesgo más apremiante).
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerProximaVisitaPorCentroQuery(IReadOnlyList<Guid> CentroIds)
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>>;
 

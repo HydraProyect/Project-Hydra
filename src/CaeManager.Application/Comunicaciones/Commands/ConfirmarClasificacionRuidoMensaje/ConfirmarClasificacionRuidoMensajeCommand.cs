@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionR
 /// phishing) y, si tiene ítems de gestión pendientes que son todos repetición de algo ya reclamado
 /// (<see cref="ClasificacionRuidoDetalleGestion"/>), esos también.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ConfirmarClasificacionRuidoMensajeCommand(Guid MensajeId) : ICommand;
 
 public class ConfirmarClasificacionRuidoMensajeCommandHandler(

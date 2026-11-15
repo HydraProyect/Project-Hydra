@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
@@ -10,6 +11,7 @@ using MediatR;
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 
 /// <summary>Borrado en lote (P3-31) — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
+[AreaDelEncargo("Trabajadores")]
 public record EliminarTrabajadoresCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarTrabajadoresCommandValidator : AbstractValidator<EliminarTrabajadoresCommand>

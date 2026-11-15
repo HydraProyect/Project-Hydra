@@ -1,8 +1,8 @@
 # Área del Encargo de administración resuelta para cada petición de src (nombre corto, tabulador, área).
 # La compara AreaDelEncargoPorTipoTests.El_area_de_cada_peticion_es_la_congelada. Es el segundo instrumento: el
-# área la declaran en src la [AreaDelEncargo] del tipo o su entrada en ActosExcluidosDelEncargo.AreasDePeticionesSinMarca,
-# y La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca_o_la_tabla exige que esta lista diga lo mismo.
-# Regenerarla no basta para cambiar un área: hay que cambiar también la marca o la tabla (D-8).
+# área la declara en src la [AreaDelEncargo] del propio tipo de la petición (o de una base marcada),
+# y La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca exige que esta lista diga lo mismo.
+# Regenerarla no basta para cambiar un área: hay que cambiar también la marca (D-8).
 # Volcada en la ronda 2 de la #2241 sobre el árbol con origin/main 2adbdc365 integrado; en la ronda 3 entra la
 # petición de flujo ObtenerMiTrabajoPorPartesQuery (Bandeja). Orden ordinal.
 AbrirAccesoSoporteCommand	Tenants

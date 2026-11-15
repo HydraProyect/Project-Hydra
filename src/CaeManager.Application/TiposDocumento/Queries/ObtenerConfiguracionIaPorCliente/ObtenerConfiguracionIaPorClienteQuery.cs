@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ public record ConfiguracionIaTipoDocumentoDto(
     public bool EfectivaActiva => GlobalActiva && (OverrideActiva ?? true);
 }
 
+[AreaDelEncargo("TiposDocumento")]
 public record ObtenerConfiguracionIaPorClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<ConfiguracionIaTipoDocumentoDto>>;
 
 public class ObtenerConfiguracionIaPorClienteQueryHandler(ITiposDocumentoQueryContext dbContext, IAlcanceDatosService alcanceDatos)

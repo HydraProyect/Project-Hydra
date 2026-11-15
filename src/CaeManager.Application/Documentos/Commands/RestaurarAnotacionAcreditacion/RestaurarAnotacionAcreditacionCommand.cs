@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -26,6 +27,7 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditac
 /// <c>IAccionAuditoriaPropia</c>) con Actor real separado del Usuario simulado.</item>
 /// </list>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record RestaurarAnotacionAcreditacionCommand(
     Guid AcreditacionId, EstadoAcreditacion EstadoPrevio, VigenciaEnPlataforma VigenciaPrevia, Guid VersionEsperada) : ICommand;
 

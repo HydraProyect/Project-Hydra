@@ -3,6 +3,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Los Documentos de una Empresa gestionada que se pueden unir: sus archivos vigentes y los de sus Trabajadores. Solo
 /// lista; leer el contenido y dejar constancia de ello es de <see cref="UnirPdfQuery"/>.
 /// </summary>
+[AreaDelEncargo("HerramientasPdf")]
 public record ListarDocumentosParaUnirQuery(Guid EmpresaGestionadaId) : IRequest<Result<DocumentosParaUnirDto>>;
 
 /// <param name="Documentos">Los PDF legibles más recientes, hasta <see cref="DocumentosUnibles.MaximoListados"/>.</param>

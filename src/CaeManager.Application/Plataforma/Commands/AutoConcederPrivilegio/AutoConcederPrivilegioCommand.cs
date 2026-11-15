@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -60,6 +61,7 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// SoporteLectura es además el plazo de renovación de la llave universal;
 /// para AdminPlataforma se ignora porque la concesión raíz no tiene fecha de fin.
 /// </param>
+[AreaDelEncargo("Plataforma")]
 public record AutoConcederPrivilegioCommand(
     CapacidadPrivilegio Capacidad,
     int DiasDeVigencia) : ICommand<Guid>;

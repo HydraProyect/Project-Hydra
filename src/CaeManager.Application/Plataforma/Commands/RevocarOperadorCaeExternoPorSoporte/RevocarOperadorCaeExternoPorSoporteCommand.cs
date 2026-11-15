@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -46,6 +47,7 @@ namespace CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPo
 /// <param name="DelegacionTenantId">La Delegación (Asignación de Operación delegada) que se revoca.</param>
 /// <param name="Motivo">La referencia de la petición del Tenant propietario (ticket o
 /// descripción), obligatoria. Se guarda en la auditoría.</param>
+[AreaDelEncargo("Plataforma")]
 public record RevocarOperadorCaeExternoPorSoporteCommand(Guid DelegacionTenantId, string Motivo)
     : ICommand, IComandoDeRevocacionOperadorCaeExterno, IComandoQueReduceExposicion;
 

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Contactos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public enum TipoPropietarioAgenda
     Centro
 }
 
+[AreaDelEncargo("Contactos")]
 public record ObtenerAgendaContactosQuery(TipoPropietarioAgenda Tipo, Guid PropietarioId)
     : IRequest<IReadOnlyList<ContactoAgendaDto>>;
 

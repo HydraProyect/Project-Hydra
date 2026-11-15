@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// documentos de Trabajador guardados y es otro universo). Corre dentro del <c>AmbitoTenantExplicito</c> de quien llama,
 /// solo para Tenants que alcanza enteros: el filtro global y la RLS lo acotan a ese Tenant.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerCumplimientoExigidoTenantQuery : IRequest<FraccionCumplimiento>;
 
 public class ObtenerCumplimientoExigidoTenantQueryHandler(

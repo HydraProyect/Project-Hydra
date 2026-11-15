@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
 
+[AreaDelEncargo("Integraciones")]
 public record DesconectarBuzonCommand(Guid ConexionId) : ICommand;
 
 public class DesconectarBuzonCommandValidator : AbstractValidator<DesconectarBuzonCommand>

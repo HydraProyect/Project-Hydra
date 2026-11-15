@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 /// (<see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/>), igual
 /// que en la consulta gemela de Subcontrata.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerCentrosConActividadDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
 public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)

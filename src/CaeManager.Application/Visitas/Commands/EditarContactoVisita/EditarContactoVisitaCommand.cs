@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Visitas.Commands.EditarContactoVisita;
 /// dentro del alcance de GESTIÓN de quien la edita; fuera de alcance, y en otro Tenant, responde igual que si no
 /// existiera, antes de comprobar la versión. No toca el contacto del Centro.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record EditarContactoVisitaCommand(Guid Id, Guid Version, string? Nombre, string? Telefono, string? Correo) : ICommand;
 
 public class EditarContactoVisitaCommandValidator : AbstractValidator<EditarContactoVisitaCommand>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloqu
 /// lectura parcial falla con <see cref="CodigosRevisionIa.CodigoAlertaARevisarIndividualmente"/>, aunque se envíe a mano
 /// y sea cual sea su confianza, porque aquí nadie llega a ver su motivo.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record AceptarDeteccionesIaEnBloqueCommand(IReadOnlyList<Guid> RevisionIds) : ICommand<ResultadoAceptacionEnBloque>;
 
 public record ResultadoAceptacionRevisionIa(Guid RevisionId, bool Aceptada, string? CodigoError, string? Mensaje);

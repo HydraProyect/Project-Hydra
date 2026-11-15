@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -15,12 +16,14 @@ namespace CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
 /// <c>null</c> es «Todo lo vigente». Regla y fuente en <see cref="IPaqueteDocumentalEmpresaService"/>; autorización en
 /// <see cref="AutorizacionPaqueteEmpresa"/>.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerResumenPaqueteEmpresaQuery(Guid EmpresaId, Guid? ClienteEmpresarialId) : IRequest<Result<ResumenPaqueteEmpresaDto>>;
 
 /// <summary>
 /// El zip del paquete («ZIP con carpetas por Trabajador»), para descargarlo por el endpoint autenticado
 /// <c>/empresas/{id}/paquete-documental.zip</c>, nunca por una URL pública. Misma selección que el resumen.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record DescargarPaqueteEmpresaQuery(Guid EmpresaId, Guid? ClienteEmpresarialId) : IRequest<Result<PaqueteEmpresaDescargaDto>>;
 
 public record PaqueteEmpresaDescargaDto(string NombreArchivo, byte[] Contenido);

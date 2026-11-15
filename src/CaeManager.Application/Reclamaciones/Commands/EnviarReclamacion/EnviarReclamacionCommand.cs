@@ -4,6 +4,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
@@ -61,6 +62,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// guardan en la agenda. Se validan aquí (formato, sin repetidos, tope), no en la UI — ver <see cref="DestinatariosExtraDeReclamacion"/>.
 /// </param>
 /// <param name="CorreosEnCopia">Direcciones en copia (CC) del mismo envío; mismas reglas que <paramref name="CorreosAdicionales"/>.</param>
+[AreaDelEncargo("Reclamaciones")]
 public record EnviarReclamacionCommand(
     Guid ClienteId,
     IReadOnlyList<Guid> DocumentoIds,

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
 /// Plantillas <see cref="OrigenPlantilla.TalvegPropio"/> no se dan de alta
 /// por aquí — su catálogo se siembra por código (§ 2.9).
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record CrearPlantillaDocumentoCommand(
     string Nombre,
     AmbitoAplicacion AmbitoAplicacion,

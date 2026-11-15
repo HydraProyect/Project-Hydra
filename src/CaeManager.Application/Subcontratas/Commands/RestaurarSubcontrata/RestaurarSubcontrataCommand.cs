@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 /// credenciales de portal ni sus documentos, y exige que no tenga trabajadores, así que no hay nada
 /// más que restaurar.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record RestaurarSubcontrataCommand(Guid Id) : ICommand;
 
 public class RestaurarSubcontrataCommandHandler(

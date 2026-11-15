@@ -1,12 +1,14 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Incidencias;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId;
 
+[AreaDelEncargo("Incidencias")]
 public record ObtenerIncidenciaPorIdQuery(Guid Id) : IRequest<IncidenciaDetalleDto?>;
 
 public record IncidenciaDetalleDto(

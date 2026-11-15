@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumen
 /// a la vez, y aquí interesa una sola fila por persona, no una por cada sitio
 /// donde trabaja.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(Guid SubcontrataId)
     : IRequest<IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>>;
 

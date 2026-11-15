@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.DocumentosIa;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 /// usuario conserva ambos campos editables y puede corregir la sugerencia
 /// antes de guardar (ver Issue #19, ninguna lectura IA corrige nada sola).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record DetectarCamposDocumentoQuery(byte[] Contenido, string NombreArchivo, AmbitoAplicacion Ambito)
     : IRequest<Result<DeteccionCamposDocumentoDto>>;
 

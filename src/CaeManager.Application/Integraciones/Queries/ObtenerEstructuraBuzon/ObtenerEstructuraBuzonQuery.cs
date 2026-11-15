@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using MediatR;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerEstructuraBuzon;
 /// guardado, cada consulta de solo lectura dejaría la credencial cada vez
 /// más desactualizada hasta que Graph rechazara el refresh token viejo.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record ObtenerEstructuraBuzonQuery(Guid ConexionIntegracionId) : IRequest<Result<IReadOnlyList<CarpetaGraphDto>>>;
 
 public class ObtenerEstructuraBuzonQueryHandler(

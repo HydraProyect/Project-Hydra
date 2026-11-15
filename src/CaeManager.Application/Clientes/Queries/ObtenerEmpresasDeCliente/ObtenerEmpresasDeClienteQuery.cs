@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 
 /// <summary>Respalda la pestaña "Empresas" del Context Workspace de Cliente.</summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerEmpresasDeClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<EmpresaDeClienteDto>>;
 
 public record EmpresaDeClienteDto(Guid Id, string RazonSocial, string? Cif);

@@ -3,6 +3,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaD
 /// mano en ese Centro (bloque 3 de la sesión del 21-10), desde Centro 360 o con «Lo he enviado» de la extensión
 /// (<see cref="CambioEstadoPlataformaCentroDto.Origen"/>), el más reciente primero, deshechos incluidos y marcados.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerCambiosEstadoPlataformaDeCentroQuery(Guid CentroId, int Maximo = 50)
     : IRequest<IReadOnlyList<CambioEstadoPlataformaCentroDto>>;
 

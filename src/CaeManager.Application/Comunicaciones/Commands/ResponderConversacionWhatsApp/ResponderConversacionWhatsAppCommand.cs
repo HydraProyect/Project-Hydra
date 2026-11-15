@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
 
 /// <summary>Texto libre — WhatsApp no lleva HTML; el composer del chat envía texto plano.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ResponderConversacionWhatsAppCommand(Guid ConversacionId, string Texto) : ICommand;
 
 public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<ResponderConversacionWhatsAppCommand>

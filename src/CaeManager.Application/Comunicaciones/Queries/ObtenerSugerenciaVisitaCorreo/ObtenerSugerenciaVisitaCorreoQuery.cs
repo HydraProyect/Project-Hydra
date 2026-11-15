@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 
 /// <summary>Alimenta el prellenado de /visitas cuando el Gestor pulsa "Crear visita" desde una sugerencia en la Bandeja.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerSugerenciaVisitaCorreoQuery(Guid Id) : IRequest<SugerenciaVisitaPrefillDto?>;
 
 public record SugerenciaVisitaPrefillDto(Guid Id, Guid? CentroId, DateOnly? FechaInicio, DateOnly? FechaFin, string Resumen);

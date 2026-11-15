@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.PrepararDivisionAdjunto;
 /// (<see cref="IPoliticaNotaInterna"/>, como <c>ObtenerRepartoAdjuntosQuery</c>). El resto lo decide
 /// <see cref="DivisionDeAdjuntos"/>. Como en la descarga, sin fila de acceso no se abre el archivo.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record PrepararDivisionAdjuntoQuery(Guid AdjuntoId, Guid EmpresaGestionadaId) : IRequest<Result<PreparacionDivisionPdf>>;
 
 public class PrepararDivisionAdjuntoQueryHandler(

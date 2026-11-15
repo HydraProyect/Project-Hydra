@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 /// <c>DelegacionDto.SomosLaConsultora</c>, calculada en <c>ObtenerDelegacionesQuery</c>.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record EsTenantOrigenPlataformaQuery : IRequest<bool>;
 
 public class EsTenantOrigenPlataformaQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)

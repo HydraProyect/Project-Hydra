@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -43,6 +44,7 @@ namespace CaeManager.Application.Plataforma.Commands.CambiarSegundoFactorDelTena
 /// <param name="ExigeSegundoFactorTodosLosPerfiles">El valor nuevo de la exigencia.</param>
 /// <param name="Motivo">La referencia de la petición (ticket o descripción), obligatoria. Se guarda en
 /// la auditoría.</param>
+[AreaDelEncargo("Plataforma")]
 public record CambiarSegundoFactorDelTenantPorPlataformaCommand(bool ExigeSegundoFactorTodosLosPerfiles, string Motivo)
     : ICommand, IComandoDeAjusteSegundoFactorTenant;
 

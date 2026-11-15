@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 
@@ -17,6 +18,7 @@ public record IdentidadPlataformaDto(
     Guid? ViaAccesoId,
     CapacidadPrivilegio? CapacidadActiva);
 
+[AreaDelEncargo("Plataforma")]
 public record ObtenerIdentidadPlataformaQuery : IRequest<IdentidadPlataformaDto>;
 
 public class ObtenerIdentidadPlataformaQueryHandler(

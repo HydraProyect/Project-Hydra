@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 
+[AreaDelEncargo("TiposDocumento")]
 public record EditarTipoDocumentoCommand(
     Guid Id,
     string Nombre,

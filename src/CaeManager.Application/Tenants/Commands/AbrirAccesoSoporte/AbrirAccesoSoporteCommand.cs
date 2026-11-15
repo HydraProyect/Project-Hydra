@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 /// haga falta reproducir una acción, porque escribir en datos reales de un
 /// cliente para diagnosticar es delicado.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record AbrirAccesoSoporteCommand(
     Guid DelegacionTenantId, string Motivo, int HorasDeVentana, string Rol = RolesSoporte.SoloLectura) : ICommand;
 

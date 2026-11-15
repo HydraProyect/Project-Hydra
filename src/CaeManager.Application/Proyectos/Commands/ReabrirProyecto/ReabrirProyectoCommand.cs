@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 /// fin ya pasó) y se guarda en el mismo paso. Los participantes que el cierre dio de baja no se reactivan solos. Queda
 /// auditado como cualquier escritura (interceptor de auditoría, actor = la persona).
 /// </summary>
+[AreaDelEncargo("Proyectos")]
 public record ReabrirProyectoCommand(Guid Id, Guid Version = default, DateOnly? NuevaFechaFinPrevista = null) : ICommand;
 
 public class ReabrirProyectoCommandValidator : AbstractValidator<ReabrirProyectoCommand>

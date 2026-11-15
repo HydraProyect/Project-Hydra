@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabaj
 /// Estas opciones no autorizan altas. El filtro puede prellenar el drawer de alta únicamente tras comprobar
 /// pertenencia a sus selectores; el comando mantiene su validación independiente de autorización.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerEmpleadoresDeTrabajadoresVisiblesQuery : IRequest<EmpleadoresDeTrabajadoresDto>;
 
 public record EmpleadorDeTrabajadorDto(Guid Id, string RazonSocial);

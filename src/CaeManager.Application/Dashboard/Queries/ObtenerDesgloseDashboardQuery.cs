@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// Trabajador — los de Cliente/Empresa no aparecen en el desglose todavía
 /// (fuera de alcance).
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerDesgloseDashboardQuery : IRequest<DesgloseDashboardDto>;
 
 public record DocumentoAtencionDto(

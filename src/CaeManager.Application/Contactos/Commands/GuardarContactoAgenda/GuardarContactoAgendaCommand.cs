@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Contactos;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 /// lo que no vio ni la pisa a ciegas.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Contactos")]
 public record GuardarContactoAgendaCommand(
     TipoPropietarioAgenda Tipo,
     Guid PropietarioId,

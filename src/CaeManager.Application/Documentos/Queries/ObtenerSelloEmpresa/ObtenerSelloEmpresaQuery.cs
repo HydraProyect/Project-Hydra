@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 
 /// <summary>Sello guardado de una Empresa, o null si todavía no tiene ninguno configurado, o si la Empresa está fuera de la cartera de GESTIÓN del usuario actual (REC-153).</summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerSelloEmpresaQuery(Guid EmpresaId) : IRequest<SelloEmpresaDto?>;
 
 public record SelloEmpresaDto(string ImagenUrl, DateTime ActualizadaEnUtc);

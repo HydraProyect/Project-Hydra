@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -40,6 +41,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRe
 /// y Usuario de Cliente) devuelve vacío, sin consultar nada (decisión 2026-11-14). Inicio tampoco la pregunta para esos
 /// roles.
 /// </summary>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerReclamacionesSinRespuestaQuery(int DiasSinRespuesta = 7)
     : IRequest<IReadOnlyList<ReclamacionSinRespuestaDto>>;
 

@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -30,6 +31,7 @@ namespace CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 /// la comprobación y el borrado van en una transacción, con el candado de los Administradores.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record EliminarUsuarioPendienteCommand(Guid UsuarioId) : ICommand;
 
 public class EliminarUsuarioPendienteCommandHandler(

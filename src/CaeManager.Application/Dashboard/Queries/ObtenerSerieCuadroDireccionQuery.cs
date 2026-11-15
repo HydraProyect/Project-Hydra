@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// (<paramref name="Anyo"/>, <paramref name="Mes"/>), del más antiguo al más reciente. Alimenta «Facturación y
 /// gestiones por mes», la pestaña Facturación, el mapa de calor de los últimos seis meses y la Comparativa anual.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerSerieCuadroDireccionQuery(int Anyo, int Mes, int Meses, bool ConFacturacion = false)
     : IRequest<SerieCuadroDireccionDto>
 {

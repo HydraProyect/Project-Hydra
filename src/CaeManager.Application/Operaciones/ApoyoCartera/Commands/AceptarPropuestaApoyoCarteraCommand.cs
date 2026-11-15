@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
@@ -43,6 +44,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// Es el control posterior que sustituye a la aprobación previa del Coordinador CAE.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record AceptarPropuestaApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 
 public class AceptarPropuestaApoyoCarteraCommandHandler(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// solicitud—; <paramref name="TextoEnmascarado"/>, la versión con marcadores
 /// que se envió al proveedor de IA, si se envió.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record CrearTareaAsistenteCommand(string TextoOriginal, string? TextoEnmascarado = null) : ICommand<Guid>;
 
 public class CrearTareaAsistenteCommandValidator : AbstractValidator<CrearTareaAsistenteCommand>

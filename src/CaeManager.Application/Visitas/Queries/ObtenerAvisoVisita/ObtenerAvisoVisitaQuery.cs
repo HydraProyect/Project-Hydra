@@ -2,6 +2,7 @@ using System.Globalization;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 /// credencial de un canal; un usuario de portal del rol Cliente no lo obtiene.
 /// Fuera de alcance responde lo mismo que una Visita inexistente.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerAvisoVisitaQuery(Guid VisitaId) : IRequest<Result<AvisoVisitaDto>>;
 
 public record AvisoVisitaDto(string Asunto, string Cuerpo);

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaS
 /// ese Centro todavía — el aviso que dispara la acción "Asignar" desde el
 /// acordeón.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record ObtenerTrabajadoresVisitaSinAsignacionQuery(Guid VisitaId, Guid CentroId)
     : IRequest<IReadOnlyList<TrabajadorSinAsignacionDto>>;
 

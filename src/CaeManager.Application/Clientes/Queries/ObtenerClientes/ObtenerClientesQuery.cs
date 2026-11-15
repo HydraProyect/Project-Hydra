@@ -4,6 +4,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -36,6 +37,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 /// <paramref name="Id"/>): la API, la exportación y los demás llamadores no lo piden y reciben la lista vacía
 /// (y la API, además, no serializa esos dos campos).
 /// </param>
+[AreaDelEncargo("Clientes")]
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
     int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false,

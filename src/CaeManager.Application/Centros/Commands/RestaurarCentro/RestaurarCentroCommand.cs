@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Commands.RestaurarCentro;
 
 /// <summary>Fase D ("Deshacer al eliminar") — ver RestaurarClienteCommand para el razonamiento completo del IgnoreQueryFilters()+TenantId.</summary>
+[AreaDelEncargo("Centros")]
 public record RestaurarCentroCommand(Guid Id) : ICommand;
 
 public class RestaurarCentroCommandHandler(

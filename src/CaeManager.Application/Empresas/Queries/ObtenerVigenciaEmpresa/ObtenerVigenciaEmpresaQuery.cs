@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.DocumentacionBase;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerVigenciaEmpresa;
 /// Centros solo ve lo que exigen los suyos. Un Centro sin gestión CAE no exige ningún tipo.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerVigenciaEmpresaQuery(Guid EmpresaId) : IRequest<VigenciaEmpresaDto>;
 
 /// <summary>Estado de una celda. «Vigente» incluye «Sin caducidad» (confirmado que no caduca).</summary>

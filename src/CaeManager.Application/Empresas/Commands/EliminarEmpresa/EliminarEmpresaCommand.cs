@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 
+[AreaDelEncargo("Empresas")]
 public record EliminarEmpresaCommand(Guid Id) : ICommand;
 
 public class EliminarEmpresaCommandHandler(

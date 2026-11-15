@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -13,6 +14,7 @@ public enum ResolucionAdjunto
     Reabrir = 2
 }
 
+[AreaDelEncargo("Comunicaciones")]
 public record ResolverAdjuntoCommand(Guid AdjuntoId, ResolucionAdjunto Resolucion, string? Motivo = null) : ICommand<Guid>;
 
 public class ResolverAdjuntoCommandValidator : AbstractValidator<ResolverAdjuntoCommand>

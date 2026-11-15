@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Calendario.Queries;
 /// reclamación aplica además la Asignación activa y el Centro con gestión CAE, y dice qué deja fuera.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Calendario")]
 public record ObtenerSemanaPorEmpresaQuery(DateOnly Fecha) : IRequest<IReadOnlyList<SemanaEmpresaDto>>;
 
 public record DocumentoSemanaDto(Guid DocumentoId, DateOnly Fecha, bool BloqueaAcceso,

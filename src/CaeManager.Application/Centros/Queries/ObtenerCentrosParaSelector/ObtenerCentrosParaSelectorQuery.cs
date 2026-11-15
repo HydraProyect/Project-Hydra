@@ -1,11 +1,13 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 
+[AreaDelEncargo("Centros")]
 public record ObtenerCentrosParaSelectorQuery(Guid? ClienteId = null, Guid? EmpresaId = null)
     : IRequest<IReadOnlyList<CentroSelectorDto>>;
 

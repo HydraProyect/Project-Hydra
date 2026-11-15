@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -36,6 +37,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumen
 /// sin recalcular el estado del documento: sigue siendo <c>Vigente</c> con
 /// fecha de referencia = hoy, solo se compara además contra esta fecha.
 /// </param>
+[AreaDelEncargo("Asignaciones")]
 public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, DateOnly? VentanaVisitaFechaFin = null, Guid? EmpresaEmpleadoraSubcontratistaId = null)
     : IRequest<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>>;
 
@@ -87,6 +89,7 @@ public record TrabajadorAsignacionDocumentacionDto(
 /// Centro que no lo es se omite (no aparece en el resultado). Sin la segunda línea de cada documento (plataformas y
 /// reclamaciones), que no cuenta para el cumplimiento ni para el peor estado.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record ObtenerCumplimientoDeAsignacionesPorCentrosQuery(IReadOnlyCollection<Guid> CentroIds, Guid EmpresaEmpleadoraSubcontratistaId)
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>;
 

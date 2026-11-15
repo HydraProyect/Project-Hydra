@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
 
+[AreaDelEncargo("Configuracion")]
 public record ActualizarParametroSistemaCommand(int UmbralAmbarDias, int UmbralRojoDias) : ICommand;
 
 public class ActualizarParametroSistemaCommandValidator : AbstractValidator<ActualizarParametroSistemaCommand>

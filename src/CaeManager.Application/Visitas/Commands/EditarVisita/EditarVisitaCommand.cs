@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Visitas.Commands.EditarVisita;
 
+[AreaDelEncargo("Visitas")]
 public record EditarVisitaCommand(
     Guid Id, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
     Guid Version = default, TimeOnly? HoraEstimadaAcceso = null)

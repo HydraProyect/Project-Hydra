@@ -77,16 +77,22 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// </para>
 ///
 /// <para>
-/// <b>El área se resuelve por tipo, nunca por la carpeta</b> (ADR-013, M0c; ver
-/// <see cref="AreaDe(Type)"/>): primero la <see cref="AreaDelEncargoAttribute"/> del tipo,
-/// sin ella su entrada en <see cref="AreasDePeticionesSinMarca"/> y, si tampoco, el área de
-/// su base; una derivada nunca queda menos restringida que su base. Cambiar el área de una
-/// petición exige editar su marca o la tabla, código de <c>src</c>; la lista congelada de
-/// <c>AreaDelEncargoPorTipoTests</c> es un segundo instrumento que debe coincidir con ellas.
-/// Antes se deducía del espacio de nombres, y mover <c>AutorizacionesLectura</c> a
-/// <c>CaeManager.Application.Inbound.*</c> la habría abierto bajo encargo no pleno (área
-/// «Inbound», que no está excluida). Las áreas excluidas enteras llevan la marca en cada
-/// petición; <b>nunca</b> se clasifica un segmento de módulo («Inbound», «Outbound») como área.
+/// <b>El área se resuelve por la marca del tipo, nunca por la carpeta</b> (ADR-013, M0c; ver
+/// <see cref="AreaDe(Type)"/>): la <see cref="AreaDelEncargoAttribute"/> del propio tipo de la petición y,
+/// sin ella, la de su base; una derivada nunca queda menos restringida que su base. Una petición sin
+/// ninguna se queda sin área y se excluye. Cambiar el área de una petición exige editar su marca, que vive
+/// en su propio fichero de <c>src</c>; la lista congelada de <c>AreaDelEncargoPorTipoTests</c> es un segundo
+/// instrumento que debe coincidir con las marcas. Antes se deducía del espacio de nombres, y mover
+/// <c>AutorizacionesLectura</c> a <c>CaeManager.Application.Inbound.*</c> la habría abierto bajo encargo
+/// no pleno (área «Inbound», que no está excluida). <b>Nunca</b> se clasifica un segmento de módulo
+/// («Inbound», «Outbound») como área.
+/// </para>
+///
+/// <para>
+/// <b>Por qué una marca en cada petición y no una tabla central.</b> Una tabla <c>typeof(Petición) → área</c>
+/// en este proyecto referenciaba tipos de Outbound desde el Núcleo (232 aristas Núcleo → Outbound en el IL) y
+/// rompía el ratchet de dependencias entre módulos de ADR-013 (M0b). La marca no añade ninguna arista hacia
+/// arriba: cada petición solo depende del atributo, que vive en el Núcleo.
 /// </para>
 ///
 /// <para>
@@ -95,7 +101,7 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// las de flujo (<see cref="IStreamRequest{TResponse}"/>), que MediatR no pasa por los primeros.
 /// </para>
 /// </summary>
-public static partial class ActosExcluidosDelEncargo
+public static class ActosExcluidosDelEncargo
 {
     /// <summary>Áreas cuyas peticiones, todas, eran exclusivas de Administrador o Dirección CAE.</summary>
     public static readonly IReadOnlySet<string> AreasExcluidas = new HashSet<string>(StringComparer.Ordinal)
@@ -212,43 +218,31 @@ public static partial class ActosExcluidosDelEncargo
     private static readonly ConcurrentDictionary<Type, string?> AreasResueltas = new();
 
     /// <summary>
-    /// El área de una petición, resuelta por su tipo y nunca por su carpeta (ADR-013, M0c; Codex r2, #2241):
+    /// El área de una petición, resuelta por la marca de su tipo y nunca por su carpeta (ADR-013, M0c; Codex r2, #2241):
     /// <list type="number">
     ///   <item>la de su <see cref="AreaDelEncargoAttribute"/>, si la lleva;</item>
-    ///   <item>si no la lleva, su entrada en <see cref="AreasDePeticionesSinMarca"/>;</item>
-    ///   <item>si tampoco, la de su tipo base si es una petición y, si no, la marca más cercana de su cadena de
-    ///   tipos base (la marca no se hereda sola: <c>Inherited = false</c>).</item>
+    ///   <item>si no la lleva, la de su tipo base si es una petición y, si no, la marca más cercana de su cadena
+    ///   de tipos base (la marca no se hereda sola: <c>Inherited = false</c>);</item>
+    ///   <item>si tampoco, ninguna: <c>null</c>.</item>
     /// </list>
-    /// Ninguno de los tres depende del espacio de nombres: mover una petición de carpeta no le cambia el área, y
-    /// cambiársela exige editar la marca o la tabla, código de <c>src</c>. En todos los casos solo vale un área
-    /// clasificada (<see cref="AreasExcluidas"/> o <see cref="AreasPermitidas"/>); cualquier otra cosa —una petición
-    /// nueva sin marca ni entrada, una marca con un área inexistente— da <c>null</c>, y <see cref="Excluye"/> la
-    /// excluye.
+    /// Ninguno depende del espacio de nombres: mover una petición de carpeta no le cambia el área, y cambiársela
+    /// exige editar su marca, código de <c>src</c>. Solo vale un área clasificada (<see cref="AreasExcluidas"/> o
+    /// <see cref="AreasPermitidas"/>); cualquier otra cosa —una petición nueva sin marca, una marca con un área
+    /// inexistente— da <c>null</c>, y <see cref="Excluye"/> la excluye.
     ///
     /// <para>
     /// <b>Una derivada nunca queda menos restringida que su base</b>: si un tipo base lleva la marca
     /// de un área excluida, o es una petición excluida por área o sin área, la derivada toma esa área
-    /// (o <c>null</c>) aunque declare otra marca o tenga entrada en la tabla con un área permitida.
+    /// (o <c>null</c>) aunque declare otra marca con un área permitida.
     /// </para>
     /// </summary>
     public static string? AreaDe(Type tipoPeticion)
     {
         ArgumentNullException.ThrowIfNull(tipoPeticion);
-        return AreasResueltas.GetOrAdd(tipoPeticion, t => ResolverArea(t, AreasDePeticionesSinMarca));
+        return AreasResueltas.GetOrAdd(tipoPeticion, ResolverArea);
     }
 
-    /// <summary>
-    /// <see cref="AreaDe(Type)"/> con otra tabla de áreas sin marca y sin caché: solo para que los tests prueben con
-    /// tipos sintéticos que la resolución no mira el espacio de nombres.
-    /// </summary>
-    internal static string? AreaDe(Type tipoPeticion, IReadOnlyDictionary<Type, string> areasSinMarca)
-    {
-        ArgumentNullException.ThrowIfNull(tipoPeticion);
-        ArgumentNullException.ThrowIfNull(areasSinMarca);
-        return ResolverArea(tipoPeticion, areasSinMarca);
-    }
-
-    private static string? ResolverArea(Type tipoPeticion, IReadOnlyDictionary<Type, string> areasSinMarca)
+    private static string? ResolverArea(Type tipoPeticion)
     {
         // Una marca de área excluida en cualquier tipo base, sea o no una petición, prevalece.
         for (var t = tipoPeticion.BaseType; t is not null; t = t.BaseType)
@@ -260,15 +254,14 @@ public static partial class ActosExcluidosDelEncargo
         string? areaDeLaBase = null;
         if (tipoPeticion.BaseType is { } tipoBase && EsPeticion(tipoBase))
         {
-            areaDeLaBase = ResolverArea(tipoBase, areasSinMarca);
+            areaDeLaBase = ResolverArea(tipoBase);
             if (areaDeLaBase is null || AreasExcluidas.Contains(areaDeLaBase))
                 return areaDeLaBase;
         }
 
-        // Marca propia; si no, su entrada en la tabla; si no, la de la base petición o la marca más cercana de la
-        // cadena: una derivada sin clasificar toma el área de su base, nunca una menos restringida.
+        // Marca propia; si no, la de la base petición o la marca más cercana de la cadena: una derivada sin
+        // marca toma el área de su base, nunca una menos restringida.
         var area = Marca(tipoPeticion)
-                   ?? (areasSinMarca.TryGetValue(tipoPeticion, out var deLaTabla) ? deLaTabla : null)
                    ?? areaDeLaBase
                    ?? MarcaHeredadaMasCercana(tipoPeticion);
         return area is not null && EsClasificada(area) ? area : null;

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerTenantObjetivoSesion;
 /// sobre el Tenant actual (<see cref="IPoliticaNotaInterna.TieneAccesoTotalAlTenantAsync"/>): fallo cerrado.
 /// No es Tenant de origen del Actor de Plataforma TALVEG, así que <c>EsOrigen</c> es false.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerTenantObjetivoSesionQuery : IRequest<ClienteAutorizadoDto?>;
 
 public class ObtenerTenantObjetivoSesionQueryHandler(

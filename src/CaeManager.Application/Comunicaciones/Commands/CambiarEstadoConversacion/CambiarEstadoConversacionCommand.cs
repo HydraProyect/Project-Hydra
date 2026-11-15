@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record CambiarEstadoConversacionCommand(Guid ConversacionId, EstadoConversacion NuevoEstado) : ICommand;
 
 public class CambiarEstadoConversacionCommandValidator : AbstractValidator<CambiarEstadoConversacionCommand>

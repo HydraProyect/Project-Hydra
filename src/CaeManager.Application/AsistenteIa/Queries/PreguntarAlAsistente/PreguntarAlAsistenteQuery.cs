@@ -2,6 +2,7 @@ using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.Extensions.Options;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 /// nombrar a personas de cualquier Tenant de la cartera, así que falla cerrado si
 /// alguno no tiene instrucción de tratamiento con IA vigente.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record PreguntarAlAsistenteQuery(IReadOnlyList<MensajeChatDto> Historial) : IRequest<Result<string>>;
 
 public class PreguntarAlAsistenteQueryHandler(

@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 /// ella no cuentan. Es la fracción total de pares, no la media de los % de cada Centro — la media sesgaría a favor de
 /// Centros con pocos requisitos.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerCumplimientoEmpresaQuery(Guid EmpresaId) : IRequest<int?>;
 
 public class ObtenerCumplimientoEmpresaQueryHandler(

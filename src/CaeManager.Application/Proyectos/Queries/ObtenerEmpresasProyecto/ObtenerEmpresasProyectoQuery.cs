@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Queries.ObtenerEmpresasProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record ObtenerEmpresasProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<EmpresaProyectoDto>>;
 
 /// <param name="DesdeRelacionSubcontrata">Ruta contextual del empleador, no un tipo permanente de Empresa.</param>

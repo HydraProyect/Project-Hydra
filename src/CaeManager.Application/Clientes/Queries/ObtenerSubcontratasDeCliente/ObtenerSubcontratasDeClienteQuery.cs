@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 
 /// <summary>Respalda la pestaña "Subcontratas" del Context Workspace de Cliente.</summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerSubcontratasDeClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<SubcontrataDeClienteDto>>;
 
 public record SubcontrataDeClienteDto(Guid Id, string RazonSocial);

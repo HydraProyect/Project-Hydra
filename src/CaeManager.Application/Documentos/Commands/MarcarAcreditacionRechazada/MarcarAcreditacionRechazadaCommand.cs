@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -10,6 +11,7 @@ using MediatR;
 namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada;
 
 /// <summary>"Marcar rechazado…" del drill-down por plataforma (mockup Documentos TALVEG: causa tipificada + detalle libre) — ver MarcarAcreditacionSubidaCommand, mismo motivo.</summary>
+[AreaDelEncargo("Documentos")]
 public record MarcarAcreditacionRechazadaCommand(Guid AcreditacionId, CausaRechazoAcreditacion Causa, string MotivoLiteral) : ICommand;
 
 public class MarcarAcreditacionRechazadaCommandValidator : AbstractValidator<MarcarAcreditacionRechazadaCommand>

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
 
 /// <summary>Solo Administrador: activa/desactiva la detección automática de altas/bajas de personal para un TipoDocumento de Empresa — ver TipoDocumento.DeteccionTrabajadoresActiva.</summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ActualizarDeteccionTrabajadoresGlobalCommand(Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarDeteccionTrabajadoresGlobalCommandValidator : AbstractValidator<ActualizarDeteccionTrabajadoresGlobalCommand>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Cumplimiento.Commands.RevocarInstruccionTratami
 /// tenant hasta que se registre una nueva. No borra la fila — ver
 /// <see cref="Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario.Revocar"/>.
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record RevocarInstruccionTratamientoIaTenantPropietarioCommand(Guid TenantPropietarioId, string Motivo) : ICommand;
 
 public class RevocarInstruccionTratamientoIaTenantPropietarioCommandValidator

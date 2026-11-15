@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario
 /// (trazo de canvas, ya PNG con fondo transparente) no se recorta fondo; si
 /// viene subida (foto de una firma en papel) sí, vía IConversorImagenSelloService.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record GuardarFirmaGuardadaUsuarioCommand(byte[] ImagenOriginal, bool EsImagenDibujada) : ICommand;
 
 public class GuardarFirmaGuardadaUsuarioCommandValidator : AbstractValidator<GuardarFirmaGuardadaUsuarioCommand>

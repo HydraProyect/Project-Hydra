@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using MediatR;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Auditoria.Queries;
 /// de Auditoría pone los últimos 90 días y lo muestra).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Auditoria")]
 public record ObtenerAuditoriaQuery(
     string? EntidadTipo,
     Guid? UsuarioId,

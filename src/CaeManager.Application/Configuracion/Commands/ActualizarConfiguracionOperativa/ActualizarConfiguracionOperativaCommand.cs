@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Configuracion.Commands.ActualizarConfiguracionO
 /// toca los umbrales documentales) porque son dos secciones distintas de
 /// <c>/configuracion</c> y no tiene sentido que guardar una arrastre la otra.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ActualizarConfiguracionOperativaCommand(
     TimeOnly HoraInicioJornada,
     TimeOnly HoraFinJornada,

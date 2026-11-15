@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescar
 /// entrega. Mejor un 404 decidido aquí que un 500 por un 42501.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerAdjuntoParaDescargaQuery(Guid Id) : IRequest<AdjuntoParaDescargaDto?>;
 
 public record AdjuntoParaDescargaDto(string NombreArchivo, string TipoContenido, string ArchivoUrl);

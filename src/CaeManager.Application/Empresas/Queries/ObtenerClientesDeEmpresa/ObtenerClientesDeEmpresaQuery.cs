@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 /// criterio que <c>ObtenerEmpresasDeClienteQuery</c>, en la dirección
 /// contraria.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerClientesDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<ClienteDeEmpresaDto>>;
 
 public record ClienteDeEmpresaDto(Guid Id, string RazonSocial, string? Cif);

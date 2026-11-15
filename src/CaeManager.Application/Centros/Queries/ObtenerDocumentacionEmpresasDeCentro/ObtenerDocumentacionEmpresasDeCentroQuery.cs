@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Domain.Common;
@@ -14,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
 
+[AreaDelEncargo("Centros")]
 public record ObtenerDocumentacionEmpresasDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<DocumentacionEmpresaCentroDto>>;
 public record DocumentoEmpresaCentroDto(Guid TipoDocumentoId, string Nombre, Guid? DocumentoId,
     EstadoDocumento Estado, DateOnly? FechaVencimiento, bool BloqueaAcceso, DateOnly? FechaEmision = null, DateOnly? EnToleranciaHasta = null,

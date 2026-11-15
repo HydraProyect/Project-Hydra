@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record AsignarEjecutivoConversacionCommand(Guid ConversacionId, Guid? EjecutivoId) : ICommand;
 
 public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<AsignarEjecutivoConversacionCommand>

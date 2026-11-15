@@ -1,4 +1,5 @@
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 /// Clientes, que ya no recibe altas desde F3b. Sin alcance de datos: solo
 /// Administrador llega a esta pantalla y ya tiene visibilidad total.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record BuscarEmpresaPorCifQuery(string Cif) : IRequest<EmpresaPorCifDto?>;
 
 public record EmpresaPorCifDto(Guid Id, string RazonSocial, string Cif);

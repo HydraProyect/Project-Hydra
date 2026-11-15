@@ -1,6 +1,7 @@
 using System.Data.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Comunicaciones.Commands.GenerarRespuestaSugerida;
 
 /// <summary>Con <paramref name="MacroId"/>, la macro rellenada; sin él, redacta Vega. Devuelve el Id de la sugerencia.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record GenerarRespuestaSugeridaCommand(Guid ConversacionId, Guid? MacroId = null) : ICommand<Guid>;
 
 public class GenerarRespuestaSugeridaCommandValidator : AbstractValidator<GenerarRespuestaSugeridaCommand>

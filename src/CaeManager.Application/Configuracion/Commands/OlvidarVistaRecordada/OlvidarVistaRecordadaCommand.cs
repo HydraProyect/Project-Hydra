@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
 /// pestaña la borró a la vez. Solo toca la fila reservada de
 /// <see cref="FiltroGuardado"/>; los filtros con nombre no se ven afectados.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record OlvidarVistaRecordadaCommand(string Pantalla) : ICommand, IComandoDeAutoservicio;
 
 public class OlvidarVistaRecordadaCommandValidator : AbstractValidator<OlvidarVistaRecordadaCommand>

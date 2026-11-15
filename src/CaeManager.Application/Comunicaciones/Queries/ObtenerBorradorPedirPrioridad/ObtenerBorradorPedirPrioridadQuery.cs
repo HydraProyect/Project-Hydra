@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrio
 /// — "plantilla adaptable" es literal: nada se envía sin que alguien lo
 /// revise primero.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerBorradorPedirPrioridadQuery(Guid CentroId) : IRequest<Result<BorradorPedirPrioridadDto>>;
 
 public record BorradorPedirPrioridadDto(

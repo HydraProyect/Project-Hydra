@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Configuracion.Queries;
 
+[AreaDelEncargo("Configuracion")]
 public record ObtenerParametroSistemaQuery : IRequest<ParametroSistemaDto>;
 
 public record ParametroSistemaDto(
