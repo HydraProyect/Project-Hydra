@@ -113,6 +113,13 @@ public class ReferenciasArchivoEnLaComposicionTests
         declaracion.Modulos.Should().OnlyContain(m => aportan.Contains(m));
     }
 
+    /// <summary>
+    /// Barrido de mejor esfuerzo sobre el texto de <c>src</c>: cuenta cada mención de los dos nombres, sea cual sea la
+    /// forma del registro (genérico, también partido en líneas, <c>typeof</c>, <c>ServiceDescriptor</c> o fábrica que
+    /// nombre el tipo), y exige que solo aparezcan en los ficheros que los definen, consumen, implementan o registran, por
+    /// ruta relativa completa. No ve un registro que no nombre ninguno de los dos tipos (por ejemplo, un escaneo de
+    /// ensamblados); ese caso solo lo detecta <c>Crear</c> en ejecución.
+    /// </summary>
     [Fact]
     public void Solo_la_composicion_de_Infrastructure_registra_la_declaracion_y_las_contribuciones()
     {
@@ -120,16 +127,25 @@ public class ReferenciasArchivoEnLaComposicionTests
         while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
             dir = Path.GetDirectoryName(dir);
         dir.Should().NotBeNull("se necesita la raíz del repositorio para leer src");
-        var registro = new System.Text.RegularExpressions.Regex(
-            @"new\s+[\w.]*ModulosConReferenciasArchivo\s*\(|Add\w+<[\w.]*(ModulosConReferenciasArchivo|IContribucionReferenciasArchivo)\b");
+        var mencion = new System.Text.RegularExpressions.Regex(
+            @"\b(ModulosConReferenciasArchivo|IContribucionReferenciasArchivo)\b");
 
-        var lugares = Directory.EnumerateFiles(Path.Combine(dir!, "src"), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-            .SelectMany(f => registro.Matches(File.ReadAllText(f)).Select(m => (Fichero: Path.GetFileName(f), m.Value)))
-            .ToList();
+        var menciones = Directory.EnumerateFiles(Path.Combine(dir!, "src"), "*.cs", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(dir!, f).Replace('\\', '/'))
+            .Where(f => !f.Contains("/obj/") && !f.Contains("/bin/"))
+            .Select(f => (Fichero: f, Veces: mencion.Matches(File.ReadAllText(Path.Combine(dir!, f))).Count))
+            .Where(m => m.Veces > 0)
+            .ToDictionary(m => m.Fichero, m => m.Veces);
 
-        lugares.Should().HaveCount(2, "una declaración y la contribución de Inbound, nada más");
-        lugares.Should().OnlyContain(l => l.Fichero == "InfrastructureServiceCollectionExtensions.cs");
+        menciones.Keys.Should().BeEquivalentTo(
+            "src/CaeManager.Infrastructure/FileStorage/ContribucionReferenciasArchivo.cs",
+            "src/CaeManager.Infrastructure/FileStorage/ReparacionAdjuntosTemporales.cs",
+            "src/CaeManager.Infrastructure/Inbound/FileStorage/ReferenciasArchivoInbound.cs",
+            "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs");
+        menciones["src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs"]
+            .Should().Be(2, "la composición registra una declaración y la contribución de Inbound, nada más");
+        menciones["src/CaeManager.Infrastructure/Inbound/FileStorage/ReferenciasArchivoInbound.cs"]
+            .Should().Be(1, "Inbound solo implementa la contribución; no la registra");
     }
 
     private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
