@@ -497,7 +497,7 @@ public class AlcanceDatosService(
         // 2026-11-14, opción A en la PR #2223). La operación del Tenant entero lleva la caducidad de la
         // delegación como fin, pero las acotadas no, y su cierre por la caducidad o por una revocación
         // atendida por la ranura anterior solo llega con el job de expiración o con el siguiente
-        // arranque. La operación no guarda de qué delegación nació, así que se exige una del mismo par
+        // arranque. A la operación sin origen (OrigenId nulo) se le exige una delegación del mismo par
         // (Tenant propietario, Operador CAE externo) y, sin ella, falla cerrada. Una operación del
         // propio Tenant (raíz o interna) no depende de ninguna delegación, e Inbound tiene su propio
         // ciclo.

@@ -141,8 +141,8 @@ public static class TenantsBeneficiariosAutorizados
               // par siga activa y sin caducar (decisión de Chris del 2026-11-14, opción A en la PR #2223), el
               // mismo predicado que AlcanceDatosService.ObtenerCarteraAsync: una operación acotada no lleva la
               // caducidad de la delegación como fin, y su cierre por la caducidad o por una revocación atendida
-              // por la ranura anterior solo llega con el job de expiración o con el siguiente arranque. La
-              // operación no guarda de qué delegación nació, así que se exige una del mismo par; sin ella, falla
+              // por la ranura anterior solo llega con el job de expiración o con el siguiente arranque. A la
+              // operación sin origen (OrigenId nulo) se le exige una delegación del mismo par; sin ella, falla
               // cerrado. La RLS de DelegacionesTenant deja leerla desde las dos posiciones que llaman aquí (el
               // Operador CAE es extremo de la delegación, como Tenant de origen o como Tenant activo).
               && tenants.DelegacionesTenant.Any(delegacion =>

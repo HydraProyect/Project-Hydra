@@ -218,6 +218,71 @@ public class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_origen_explicito_de_otro_par_se_rechaza()
+    {
+        Guid otraDelegacion;
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            var otroOperador = await SembrarTenantAsync(
+                propietarioDeLaBase, "Otro Operador CAE", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
+            var otra = new DelegacionTenant(otroOperador, _propietario);
+            propietarioDeLaBase.DelegacionesTenant.Add(otra);
+            await propietarioDeLaBase.SaveChangesAsync();
+            otraDelegacion = otra.Id;
+        }
+
+        // FijarOrigen ya lo rechaza en el dominio; la base es la defensa ante una inserción que no pase por él.
+        await using var contexto = ContextoPropietarioDeLaBase();
+        var ahora = DateTime.UtcNow;
+        var acotada = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
+        contexto.AsignacionesOperacion.Add(acotada);
+        contexto.Entry(acotada).Property(o => o.OrigenId).CurrentValue = otraDelegacion;
+        contexto.Entry(acotada).Property(o => o.RevocacionesDelOrigen).CurrentValue = 0;
+
+        var guardado = async () => await contexto.SaveChangesAsync();
+        (await guardado.Should().ThrowAsync<DbUpdateException>()).Which.Should()
+            .Match<DbUpdateException>(e => EsViolacionDeComprobacion(e), "la delegación de origen no es del par de la operación");
+    }
+
+    [Fact]
+    public async Task Con_dos_delegaciones_activas_del_par_el_trigger_no_deduce_el_origen()
+    {
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            propietarioDeLaBase.DelegacionesTenant.Add(new DelegacionTenant(_operador, _propietario));
+            await propietarioDeLaBase.SaveChangesAsync();
+        }
+
+        var acotada = await SembrarAcotadaConCarteraAsync();
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada)).OrigenId
+            .Should().BeNull("con dos delegaciones activas del par el origen es ambiguo y no se deduce");
+    }
+
+    [Fact]
+    public async Task Una_delegacion_caducada_no_es_origen_y_quitar_la_caducidad_cuenta_como_revocacion()
+    {
+        await EjecutarComoPropietarioAsync(
+            $"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = now() - interval '1 day' WHERE "Id" = '{_delegacion}'""");
+        var acotada = await SembrarAcotadaConCarteraAsync();
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+        {
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada)).OrigenId
+                .Should().BeNull("una delegación caducada no es origen deducible");
+            (await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Revocaciones
+                .Should().Be(0, "acortar la caducidad no amplía nada: no cuenta");
+        }
+
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = NULL WHERE "Id" = '{_delegacion}'""");
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Revocaciones
+                .Should().Be(1, "quitar la caducidad de una delegación de Operador CAE externo activa cuenta como revocación");
+    }
+
+    [Fact]
     public async Task El_contador_de_revocaciones_no_se_rebaja()
     {
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
