@@ -378,13 +378,15 @@ internal static class AccesosAAsignaciones
         // cartera cuando la cartera es el lado unido.
         bool JoinIntegradoRestringe(JoinClauseSyntax j)
         {
-            if (DeLaOperacion(j.LeftExpression) && DeLaCartera(j.RightExpression)) return true;
+            // La fuente de la cartera no puede haber salido ya a memoria (EnMemoria), como en el predicado.
+            if (DeLaOperacion(j.LeftExpression) && DeLaCartera(j.RightExpression)) return !EnMemoria(j.InExpression);
             if (j.Into is not null || !DeLaCartera(j.LeftExpression) || !DeLaOperacion(j.RightExpression)) return false;
             var consulta = j.FirstAncestorOrSelf<QueryExpressionSyntax>();
             return consulta is not null
                 && PropiedadDeFila(j.LeftExpression, "AsignacionOperacionId") is { } fila
                 && FuenteDeFila(fila) is { } fuente
-                && FuentesDeRango(consulta).Contains(fuente);
+                && FuentesDeRango(consulta).Contains(fuente)
+                && !EnMemoria(fuente);
         }
 
         foreach (var nodo in contexto.DescendantNodesAndSelf())
@@ -406,8 +408,8 @@ internal static class AccesosAAsignaciones
                                        && propia.Contains(metodo.Expression) && deLaOperacion.Contains(interior.Expression);
                     var carteraDentro = deLaOperacion.Contains(metodo.Expression) && propia.Contains(interior.Expression);
                     var (fuera, dentro) = (ClaveDeLambda(claveExterior), ClaveDeLambda(claveInterior));
-                    if ((carteraFuera && fuera == "AsignacionOperacionId" && dentro == "Id")
-                        || (carteraDentro && fuera == "Id" && dentro == "AsignacionOperacionId"))
+                    if ((carteraFuera && fuera == "AsignacionOperacionId" && dentro == "Id" && !EnMemoria(metodo.Expression))
+                        || (carteraDentro && fuera == "Id" && dentro == "AsignacionOperacionId" && !EnMemoria(interior.Expression)))
                         return true;
                     break;
             }
@@ -424,6 +426,11 @@ internal static class AccesosAAsignaciones
     /// cartera (o al <c>where</c> de una consulta que la recorre). Cualquier otro paso (una proyección,
     /// <c>!</c>, <c>||</c>, una comparación del resultado, un argumento de otra llamada) deja la lectura
     /// cruda: falla cerrado, aunque alguna de esas formas sí restrinja (falso positivo, va a la lista).
+    /// El predicado de la cartera tampoco cuenta si su cadena ya salió a memoria (<see cref="EnMemoria"/>,
+    /// igual que la fuente de la cartera en un <c>join</c> integrado o un <c>Join</c> de método); las
+    /// salidas a memoria que <see cref="EnMemoria"/> no reconoce (<c>AsAsyncEnumerable</c>,
+    /// <c>AsParallel</c>, <c>ToImmutable*</c>, <c>ToFrozen*</c>, <c>ToSortedSet</c>, un
+    /// <c>Enumerable.Where</c> estático) siguen contando: falso negativo declarado.
     /// </summary>
     private static bool RestringeLaCartera(SyntaxNode correlacion, HashSet<SyntaxNode> propia)
     {

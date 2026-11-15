@@ -71,8 +71,12 @@ namespace CaeManager.Architecture.Tests;
 /// <c>!</c> o <c>||</c> la dejan cruda. Un <c>GroupJoin</c> (o <c>join … into</c>) conserva las filas
 /// exteriores con el grupo vacío, así que solo correlaciona con la cartera como lado unido, y en un
 /// <c>join</c> integrado con la cartera fuera, su fila tiene que ser de rango de esa misma consulta. La
-/// salida a memoria solo se mira en ese predicado de la cartera: un <c>Join</c> de método o la comparación
-/// de Servicio de la operación tras un <c>AsEnumerable()</c> siguen contando (falso negativo). Cualquier otra forma (una clave compuesta, <c>Equals</c>,
+/// salida a memoria de la cartera (<c>AsEnumerable</c>, <c>ToList</c>, <c>ToArray</c>, <c>ToDictionary</c>,
+/// <c>ToHashSet</c>, <c>ToLookup</c>, con o sin <c>Async</c>) también la deja cruda, en el predicado y en
+/// la fuente de un <c>join</c> o <c>Join</c>; los controles solo fijan <c>AsEnumerable</c> y
+/// <c>ToList</c>. Siguen contando (falso negativo): otras salidas a memoria (<c>AsAsyncEnumerable</c>,
+/// <c>AsParallel</c>, <c>ToImmutable*</c>, <c>ToFrozen*</c>, <c>ToSortedSet</c>, <c>Enumerable.Where</c>
+/// estático) y la comparación de Servicio de la operación tras su propia salida a memoria. Cualquier otra forma (una clave compuesta, <c>Equals</c>,
 /// una variable <c>ops</c> que no se sabe qué recorre, una comparación del resultado como
 /// <c>Count(…) &gt; 0</c>) deja la lectura cruda (falso positivo, va a la lista). La
 /// fila se reconoce por la cadena y el nombre de la propiedad: una proyección anterior a la clave
@@ -236,6 +240,11 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     // El predicado correlacionado sobre una cartera que ya salió a memoria: la tabla se lee entera.
     [InlineData("void A() { var l = ctx.AsignacionesCartera.AsEnumerable().Where(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)).ToList(); }")]
     [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera.ToList() where ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) select c).ToList(); }")]
+    // La fuente de la cartera de un join integrado o de un Join de método que ya salió a memoria.
+    [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera.ToList() join o in ctx.AsignacionesOperacion.Where(x => x.Servicio == s) on c.AsignacionOperacionId equals o.Id select c).ToList(); }")]
+    [InlineData("void A() { var l = (from o in ctx.AsignacionesOperacion where o.Servicio == s join c in ctx.AsignacionesCartera.AsEnumerable() on o.Id equals c.AsignacionOperacionId select c).ToList(); }")]
+    [InlineData("void A() { var l = ctx.AsignacionesCartera.ToList().Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, o) => c).ToList(); }")]
+    [InlineData("void A() { var l = ctx.AsignacionesOperacion.Where(o => o.Servicio == s).Join(ctx.AsignacionesCartera.AsEnumerable(), o => o.Id, c => c.AsignacionOperacionId, (o, c) => c).ToList(); }")]
     // Una negación o una disyunción alrededor de la subconsulta correlacionada tampoco restringe.
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => !ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => x || ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
