@@ -490,7 +490,8 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             UNION
             SELECT p.proname, p.prosrc
               FROM pg_catalog.pg_proc p
-             WHERE p.proname = 'app_revocar_operador_cae_externo_por_soporte'
+             WHERE p.proname IN ('app_revocar_operador_cae_externo_por_soporte',
+                                 'app_encargo_administracion_exige_amparo_de_origen')
             """, conexion);
         var fuentes = new Dictionary<string, string>();
         await using (var lector = await comando.ExecuteReaderAsync())
@@ -500,13 +501,17 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         fuentes.Keys.Should().Contain(
             ["app_asignacion_operacion_sella_origen", "app_asignacion_operador_delegado_exige_delegacion_activa",
              "app_asignacion_operador_delegado_revocacion_definitiva", "app_delegacion_tenant_cuenta_revocaciones",
-             "app_delegacion_tenant_revoca_filas_heredadas", "app_revocar_operador_cae_externo_por_soporte"],
+             "app_delegacion_tenant_revoca_filas_heredadas", "app_revocar_operador_cae_externo_por_soporte",
+             "app_encargo_administracion_exige_amparo_de_origen"],
             "control: el instrumento ve las funciones de la ruta");
         foreach (var (nombre, fuente) in fuentes)
             fuente.Should().NotContainEquivalentOf("advisory", nombre);
         fuentes["app_asignacion_operacion_sella_origen"].Should().Contain("FOR SHARE")
             .And.NotContain("pg_trigger_depth").And.NotContain("deduccion_origen");
-        fuentes["app_asignacion_operador_delegado_exige_delegacion_activa"].Should().Contain("FOR SHARE");
+        fuentes["app_asignacion_operador_delegado_exige_delegacion_activa"].Should().Contain("FOR SHARE")
+            .And.Contain("RevocacionesDelOrigen", "la fila heredada compara y sella el contador (ronda 3 de Codex, alta 1)");
+        fuentes["app_encargo_administracion_exige_amparo_de_origen"].Should().Contain("FOR SHARE",
+            "el encargo bloquea la delegación de origen al insertarse (ronda 3 de Codex, media 3)");
         fuentes["app_revocar_operador_cae_externo_por_soporte"].Should().Contain("FOR UPDATE");
     }
 
@@ -550,6 +555,155 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         (await HistoriaDelParEnSiembra.TieneHistoriaAsync(verificacion, reactivada, CancellationToken.None)).Should().BeTrue();
         (await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(verificacion, reactivada, _gestoraOperador.Id, CancellationToken.None))
             .Should().BeFalse("lo que fue no vuelve solo, tampoco por la siembra");
+    }
+
+    // ── Ronda 4 tras Codex r3 (PR #2237, autorizada por Chris) ───────────────
+
+    /// <summary>
+    /// Ronda 3 de Codex, alta 1: la fila heredada que se decide sobre una lectura previa lleva el contador leído, y el
+    /// BEFORE INSERT lo compara con el real con la delegación bloqueada. Si entre la lectura y la inserción la delegación
+    /// se revocó y se reactivó, o se amplió su caducidad, la fila no nace. Controles: sin contador nace (solo se exige la
+    /// delegación activa) y se sella con el real; y la fila sellada ya no cambia de contador.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_fila_heredada_con_el_contador_leido_antes_de_una_revocacion_o_ampliacion_no_nace(bool ampliando)
+    {
+        if (ampliando)
+            await EjecutarComoPropietarioAsync(
+                $"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = now() + interval '1 day' WHERE "Id" = '{_delegacion}'""");
+
+        DelegacionTenant leida;
+        await using (var contexto = ContextoPropietarioDeLaBase())
+            leida = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+
+        if (ampliando)
+            await EjecutarComoPropietarioAsync(
+                $"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = now() + interval '30 days' WHERE "Id" = '{_delegacion}'""");
+        else
+        {
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+        }
+
+        var conElLeido = () => InsertarFilaHeredadaAsync(leida.Revocaciones);
+        (await conElLeido.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
+            e => EsViolacionDeComprobacion(e), "el contador leído ya no es el de la delegación");
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.UsuarioId == _gestoraOperador.Id))
+                .Should().BeFalse("no queda ninguna fila");
+
+        var sinContador = await InsertarFilaHeredadaAsync(revocacionesDelOrigen: null);
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.AsignacionesOperadorDelegadoConRevocadas.AsNoTracking().SingleAsync(a => a.Id == sinContador))
+                .RevocacionesDelOrigen.Should().Be(leida.Revocaciones + 1, "control: sin contador nace y se sella con el real");
+
+        var resellar = () => EjecutarComoPropietarioAsync(
+            $"""UPDATE "AsignacionesOperadorDelegado" SET "RevocacionesDelOrigen" = {leida.Revocaciones} WHERE "Id" = '{sinContador}'""");
+        (await resellar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation,
+            "el contador sellado de la fila no cambia");
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex, alta 1, la carrera: con una revocación y una reactivación en vuelo, la inserción de la fila
+    /// heredada espera al cerrojo (<c>FOR SHARE</c>) y, tras el COMMIT, lee la delegación activa con el contador nuevo y
+    /// rechaza la fila decidida con el viejo. Aísla la comparación del contador: al terminar, la delegación está activa.
+    /// </summary>
+    [Fact]
+    public async Task Una_revocacion_en_vuelo_no_deja_nacer_una_fila_heredada_con_el_contador_viejo()
+    {
+        int leido;
+        await using (var contexto = ContextoPropietarioDeLaBase())
+            leido = (await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion)).Revocaciones;
+
+        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await revocacion.OpenAsync();
+        await using var transaccion = await revocacion.BeginTransactionAsync();
+        foreach (var sql in new[]
+                 {
+                     $"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""",
+                     $"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""",
+                 })
+        {
+            await using var comando = new NpgsqlCommand(sql, revocacion, transaccion);
+            await comando.ExecuteNonQueryAsync();
+        }
+
+        var insercion = Task.Run(() => InsertarFilaHeredadaAsync(leido));
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        insercion.IsCompleted.Should().BeFalse("la inserción espera a que la revocación en vuelo termine");
+
+        await transaccion.CommitAsync();
+
+        var fallo = await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<Exception>();
+        fallo.Which.Should().Match<Exception>(e => EsViolacionDeComprobacion(e),
+            "tras el COMMIT la delegación está activa, pero con otro contador");
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion)).Activa
+            .Should().BeTrue("control: lo que la rechaza es el contador, no la delegación inactiva");
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex, alta 2: el propósito de una DelegacionTenant no cambia. Si cambiara, una de Operador CAE
+    /// externo pasaría a Soporte sin contar la revocación ni revocar sus filas heredadas, y al volver conservaría el
+    /// amparo. Ningún escritor del código lo cambia (solo lo fija <c>DelegacionTenant.ParaSoporte</c> al crearla).
+    /// </summary>
+    [Theory]
+    [InlineData("""SET "Proposito" = 'Soporte'""")]
+    [InlineData("""SET "Activa" = false, "Proposito" = 'Soporte'""")]
+    public async Task El_proposito_de_una_delegacion_no_cambia(string cambio)
+    {
+        var cambiar = () => EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" {cambio} WHERE "Id" = '{_delegacion}'""");
+
+        (await cambiar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var delegacion = await verificacion.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+        delegacion.Proposito.Should().Be(PropositoDelegacion.OperadorExterno);
+        delegacion.Activa.Should().BeTrue("control: el UPDATE entero se rechazó");
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex, media 5: una fila heredada viva no prueba que la operación siga abierta. Con la operación del par
+    /// cerrada, el par tiene historia y la siembra (<c>CoberturaPantallasSeeder</c>, que ya no mira la fila) no la reabre.
+    /// Control: con la misma fila viva y la operación abierta, no hay historia.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_fila_viva_y_la_operacion_cerrada_el_par_tiene_historia()
+    {
+        await InsertarFilaHeredadaAsync(revocacionesDelOrigen: null);
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            var delegacion = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+            (await HistoriaDelParEnSiembra.TieneHistoriaAsync(contexto, delegacion, CancellationToken.None))
+                .Should().BeFalse("control: fila viva y operación abierta");
+
+            var operaciones = await contexto.AsignacionesOperacion
+                .Where(o => !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador)
+                .ToListAsync();
+            operaciones.Should().NotBeEmpty("control: el alta abrió la operación");
+            foreach (var operacion in operaciones)
+                operacion.Cerrar(MotivoCierreAsignacion.Transferida, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var activa = await verificacion.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+        activa.Activa.Should().BeTrue("control: la delegación sigue activa");
+        (await verificacion.AsignacionesOperadorDelegado.AnyAsync(a => a.UsuarioId == _gestoraOperador.Id))
+            .Should().BeTrue("control: la fila sigue viva");
+        (await HistoriaDelParEnSiembra.TieneHistoriaAsync(verificacion, activa, CancellationToken.None))
+            .Should().BeTrue("la operación se cerró: la siembra no la reabre");
+    }
+
+    private async Task<Guid> InsertarFilaHeredadaAsync(int? revocacionesDelOrigen)
+    {
+        await using var contexto = ContextoPropietarioDeLaBase();
+        var fila = new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae, revocacionesDelOrigen);
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(fila);
+        await contexto.SaveChangesAsync();
+        return fila.Id;
     }
 
     /// <summary>

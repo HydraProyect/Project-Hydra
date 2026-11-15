@@ -141,12 +141,13 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             var operacionAnterior = Externa(_propietarioRelevado, _otroOperador, desde, ahora);
             // Una Asignación de Operación externa solo autoriza amparada por la DelegacionTenant de Operador CAE
             // externo de la que nació (AmparoDeOrigen, PR #2237), y el origen se sella al insertarla: la delegación
-            // va antes que la operación. Solo para los pares que operan hoy; el relevado por el otro Operador CAE no
-            // la conserva, y su operación anterior (cerrada) queda sin origen.
+            // va antes que la operación. El encargo también exige el amparo al insertarse
+            // (TR_EncargosAdministracion_ExigeAmparoDeOrigen, ronda 3 de Codex media 3): la operación anterior del
+            // relevado nace amparada, recibe su encargo y, al cerrarse, el otro Operador CAE pierde la delegación.
             OperacionExternaAmparada.Agregar(siembra, operacion);
             OperacionExternaAmparada.Agregar(siembra, operacionSinEncargo);
             OperacionExternaAmparada.Agregar(siembra, operacionDelOtro);
-            siembra.AsignacionesOperacion.Add(operacionAnterior);
+            var delegacionAnterior = OperacionExternaAmparada.Agregar(siembra, operacionAnterior);
 
             var encargo = Encargar(operacion, _adminPropietario.Id, ahora.AddDays(-10));
             var encargoDelOtro = Encargar(operacionDelOtro, Guid.NewGuid(), ahora.AddDays(-10));
@@ -155,6 +156,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             await siembra.SaveChangesAsync();
 
             operacionAnterior.Cerrar(MotivoCierreAsignacion.Transferida, ahora.AddDays(-5));
+            delegacionAnterior.Desactivar();
             await siembra.SaveChangesAsync();
             var operacionRelevada = Externa(_propietarioRelevado, _operador, ahora.AddDays(-5), ahora);
             OperacionExternaAmparada.Agregar(siembra, operacionRelevada);
@@ -356,6 +358,83 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         await using var comprobacion = ContextoPropietarioDeLaBase();
         (await comprobacion.EncargosAdministracion.CountAsync(e => e.AsignacionOperacionId == _operacion && e.RetiradoEnUtc == null))
             .Should().Be(0, "no queda escrito ningún encargo vigente");
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex, media 3: el filtro del repositorio no basta, porque entre su lectura y el guardado la
+    /// DelegacionTenant de origen puede revocarse. El trigger <c>TR_EncargosAdministracion_ExigeAmparoDeOrigen</c> repite el
+    /// predicado al insertar, sea cual sea el escritor: aquí, el propietario de la base, que no pasa por el repositorio ni
+    /// por la RLS. Control: la misma inserción sobre una operación amparada nace.
+    /// </summary>
+    [Fact]
+    public async Task El_trigger_rechaza_un_encargo_sobre_una_operacion_que_su_origen_ya_no_ampara_sea_cual_sea_el_escritor()
+    {
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            var origen = (await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo))
+                .OrigenId!.Value;
+            var delegacion = contexto.DelegacionesTenant.Where(d => d.Id == origen);
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+        }
+
+        var insertar = async () =>
+        {
+            await using var contexto = ContextoPropietarioDeLaBase();
+            var operacion = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo);
+            contexto.EncargosAdministracion.Add(Encargar(operacion, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        };
+        var rechazo = (await insertar.Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>().Subject;
+        rechazo.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        rechazo.ConstraintName.Should().Be("TR_EncargosAdministracion_ExigeAmparoDeOrigen");
+
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            (await contexto.EncargosAdministracion.AnyAsync(e => e.AsignacionOperacionId == _operacionSinEncargo))
+                .Should().BeFalse("no queda escrito ningún encargo");
+
+            var amparada = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionRelevada);
+            contexto.EncargosAdministracion.Add(Encargar(amparada, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex, media 3, la carrera: con una revocación de la DelegacionTenant de origen en vuelo, la inserción del
+    /// encargo espera al cerrojo (<c>FOR SHARE</c> en el trigger) y, tras el COMMIT, la rechaza.
+    /// </summary>
+    [Fact]
+    public async Task Una_revocacion_en_vuelo_no_deja_nacer_un_encargo_sobre_la_operacion()
+    {
+        Guid origen;
+        await using (var contexto = ContextoPropietarioDeLaBase())
+            origen = (await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo))
+                .OrigenId!.Value;
+
+        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await revocacion.OpenAsync();
+        await using var transaccion = await revocacion.BeginTransactionAsync();
+        await using (var comando = new NpgsqlCommand(
+                         $"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{origen}'""", revocacion, transaccion))
+            await comando.ExecuteNonQueryAsync();
+
+        var insercion = Task.Run(async () =>
+        {
+            await using var contexto = ContextoPropietarioDeLaBase();
+            var operacion = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo);
+            contexto.EncargosAdministracion.Add(Encargar(operacion, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        });
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        insercion.IsCompleted.Should().BeFalse("la inserción del encargo espera a que la revocación en vuelo termine");
+
+        await transaccion.CommitAsync();
+
+        (await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.ConstraintName.Should().Be("TR_EncargosAdministracion_ExigeAmparoDeOrigen");
     }
 
     // ── Los disparadores: lo que los privilegios por columna no cierran ───

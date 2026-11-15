@@ -578,14 +578,74 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // que EF emita el INSERT y el UPDATE del mismo guardado, la operación acaba sin amparo: sin origen (si la
         // delegación ya estaba inactiva al insertar) o con un contador sellado que la desactivación deja atrás.
         //
-        // La rama Activa de ObtenerRolDelegadoAsync queda como defensa en profundidad que el esquema hace
-        // inalcanzable sin desactivar triggers: una fila heredada solo nace con la delegación activa (BEFORE
-        // INSERT), desactivarla revoca sus filas en la misma sentencia (AFTER UPDATE) y el amparo exige el
-        // origen activo. Hueco declarado en la PR #2237 (Codex r2, media 10).
+        // La rama Activa de ObtenerRolDelegadoAsync, aislada, la mide el test siguiente.
         await CrearWriter(verificacionContexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*no tiene operación externa vigente*");
         (await verificacionContexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora))
             .Should().BeFalse("el fallo cerrado no deja escrita la cartera");
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex en la PR #2237, media 6: la comprobación <c>Activa</c> de <c>ObtenerRolDelegadoAsync</c>, aislada.
+    /// Con una DelegacionTenant de Operador CAE externo el esquema la hace inalcanzable (la fila heredada solo nace con la
+    /// delegación activa y revocarla revoca sus filas). Se alcanza con una del mismo par y de propósito Soporte, que nace
+    /// inactiva y cuyos triggers no exigen ni revocan nada: la operación externa sigue amparada por su origen, la persona
+    /// es del Operador CAE y su única fila cuelga de la delegación inactiva, así que lo único que falla es <c>Activa</c>.
+    /// Control: con la misma fila y la delegación activada, la cartera se emite.
+    /// </summary>
+    [Fact]
+    public async Task Asegurar_la_cartera_falla_si_la_unica_fila_del_usuario_cuelga_de_una_delegacion_inactiva()
+    {
+        var gestorSoporte = Guid.NewGuid();
+        Guid delegacionInactiva;
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            contexto.Users.Add(new ApplicationUser
+            {
+                Id = gestorSoporte,
+                TenantId = _consultora,
+                UserName = "g-soporte@consultora",
+                Email = "g-soporte@consultora"
+            });
+            var delegacion = DelegacionTenant.ParaSoporte(_consultora, _propietario);
+            contexto.DelegacionesTenant.Add(delegacion);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(delegacion.Id, gestorSoporte, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
+            delegacionInactiva = delegacion.Id;
+
+            (await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == delegacionInactiva)).Activa
+                .Should().BeFalse("control: nace inactiva");
+            (await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacionId)).Activa
+                .Should().BeTrue("control: el origen de la operación sigue activo");
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, gestorSoporte))
+                .Should().ThrowAsync<UnauthorizedAccessException>().WithMessage("*asignación delegada única y vigente*");
+        }
+
+        await using (var verificacion = CrearContexto(_propietario))
+            (await verificacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == gestorSoporte))
+                .Should().BeFalse("el fallo cerrado no deja escrita la cartera");
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == delegacionInactiva);
+            delegacion.ActivarParaSoporte("Prueba de la rama Activa", DateTime.UtcNow.AddHours(2), DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, gestorSoporte);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var comprobacion = CrearContexto(_propietario);
+        (await comprobacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == gestorSoporte))
+            .Should().BeTrue("control: con la delegación activa, la misma fila concede el rol y la cartera se emite");
     }
 
     // ---------- utilidades ----------

@@ -849,31 +849,51 @@ public static class DelegacionDemoSeeder
         CancellationToken cancellationToken,
         DateTime? inicioDeLaOperacion = null)
     {
+        // El alta son tres guardados (delegación, fila heredada y operación). Si un arranque se interrumpió entre ellos,
+        // la delegación existe y el par no tiene ninguna operación externa: el siguiente arranque completa lo que falta
+        // (ronda 3 de Codex en la PR #2237, baja 7). Con la operación ya abierta, el alta terminó y nada se repone; y
+        // una delegación del par revocada, de otro propósito o con historia tampoco se completa: lo que fue no vuelve solo.
+        DelegacionTenant? delegacion;
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
-            if (await dbContext.DelegacionesTenant.AnyAsync(
-                    d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
-                    cancellationToken))
+            delegacion = await dbContext.DelegacionesTenant
+                .Where(d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId)
+                .OrderBy(d => d.CreadoEnUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (delegacion is null)
+            {
+                delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
+                dbContext.DelegacionesTenant.Add(delegacion);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            else if (!delegacion.Activa
+                     || delegacion.Proposito != PropositoDelegacion.OperadorExterno
+                     || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken)
+                     || await AltaTerminadaAsync(dbContext, tenantClienteId, tenantConsultoraId, cancellationToken))
             {
                 return;
             }
+        }
 
-            var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
-
-            dbContext.DelegacionesTenant.Add(delegacion);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            var asignacion = new AsignacionOperadorDelegado(delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo);
-            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(asignacion);
-            await dbContext.SaveChangesAsync(cancellationToken);
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
+        {
+            if (await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(
+                    dbContext, delegacion, administradorConsultora.Id, cancellationToken))
+            {
+                var asignacion = new AsignacionOperadorDelegado(
+                    delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo, delegacion.Revocaciones);
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(asignacion);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
         }
 
         // La Asignación de Operación del Tenant entero nace aquí, con el alta de la delegación y desde ella como
         // origen, igual que en el alta por comando. Antes la abría el backfill en el arranque siguiente, y el backfill ya
-        // no crea operaciones externas (ronda 2 de Codex en la PR #2237, alta 5). Solo en el alta: si la delegación ya
-        // existía, se salió arriba y nada se repone. Quien siembra una historia con fecha propia (el piloto Outbound,
-        // las ramas de escenarios) la pasa en inicioDeLaOperacion: su apertura posterior devuelve esta operación, y con
-        // la hora del arranque los Centros y la vigencia de la demo nacerían antes que la operación.
+        // no crea operaciones externas (ronda 2 de Codex en la PR #2237, alta 5). Solo en el alta (o al completarla): si
+        // la operación ya existía, se salió arriba y nada se repone. Quien siembra una historia con fecha propia (el
+        // piloto Outbound, las ramas de escenarios) la pasa en inicioDeLaOperacion: su apertura posterior devuelve esta
+        // operación, y con la hora del arranque los Centros y la vigencia de la demo nacerían antes que la operación.
         using (AmbitoTenantExplicito.Establecer(tenantClienteId))
         {
             var writer = new AsignacionesOperativasWriter(
@@ -886,5 +906,20 @@ public static class DelegacionDemoSeeder
         logger.LogInformation(
             "Delegated Workspace de demo sembrado: {Administrador} puede operar {TenantCliente} como {Rol}.",
             administradorConsultora.Id, nombreTenantCliente, RolOperadorDelegadoDemo);
+    }
+
+    /// <summary>
+    /// Si el par ya tiene alguna Asignación de Operación externa, abierta o cerrada: el último paso del alta se hizo, y
+    /// la siembra no completa nada. Se lee en el ámbito del Tenant propietario, dueño de la operación.
+    /// </summary>
+    private static async Task<bool> AltaTerminadaAsync(
+        CaeManagerDbContext dbContext, Guid tenantClienteId, Guid tenantConsultoraId, CancellationToken cancellationToken)
+    {
+        using (AmbitoTenantExplicito.Establecer(tenantClienteId))
+        {
+            return await dbContext.AsignacionesOperacion.AnyAsync(
+                o => !o.EsRaiz && o.PropietarioTenantId == tenantClienteId && o.OperadorTenantId == tenantConsultoraId,
+                cancellationToken);
+        }
     }
 }

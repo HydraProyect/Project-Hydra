@@ -192,7 +192,10 @@ public class CatalogoIncorporacionCartera(
         // trabajo y el rol dentro de un ámbito explícito enumeran todavía los
         // Tenants por la fila heredada, no por las carteras. Sin ella la
         // cartera existiría y el Gestor CAE no vería el Tenant en ningún sitio.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, usuarioId, RolIncorporado);
+        // Con el contador sellado de la operación: el vínculo es su DelegacionTenant de origen, y el trigger de
+        // inserción rechaza la fila si entre esta lectura y el guardado se revocó o se amplió (ronda 3 de Codex, alta 1).
+        var filaHeredada = new AsignacionOperadorDelegado(
+            vinculoId.Value, usuarioId, RolIncorporado, operacion.RevocacionesDelOrigen);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);
@@ -252,7 +255,8 @@ public class CatalogoIncorporacionCartera(
         dbContext.AsignacionesCartera.Add(cartera);
 
         // Misma doble escritura de F1 que IncorporarAsync.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, propuesta.DestinatarioUsuarioId, RolIncorporado);
+        var filaHeredada = new AsignacionOperadorDelegado(
+            vinculoId.Value, propuesta.DestinatarioUsuarioId, RolIncorporado, operacion.RevocacionesDelOrigen);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoApoyoCartera(cartera, filaHeredada.Id, null);
@@ -521,7 +525,8 @@ public class CatalogoIncorporacionCartera(
         // CAE tendría la cartera y no vería el Tenant en el selector.
         if (filaHeredada is null)
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(vinculoId.Value, coordinadorUsuarioId, RolDeRelevo));
+                new AsignacionOperadorDelegado(
+                    vinculoId.Value, coordinadorUsuarioId, RolDeRelevo, operacion.RevocacionesDelOrigen));
 
         return ResultadoRelevoPrincipal.CarteraEmitida;
     }

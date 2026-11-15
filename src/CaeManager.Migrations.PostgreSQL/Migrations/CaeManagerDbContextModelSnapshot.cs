@@ -11234,6 +11234,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("RevocacionesDelOrigen")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("RevocadaEnUtc")
                         .HasColumnType("timestamp with time zone");
 

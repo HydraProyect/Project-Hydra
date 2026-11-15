@@ -179,14 +179,15 @@ public static class CoberturaPantallasSeeder
         // delegable (ver EscenariosDireccionDemoSeeder).
         await Aprovisionamiento.CrearDelegacionAsync(
             dbContext, operadorId, alfaId, gestorConCartera, logger, NombreTenantAlfa, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, direccion, Roles.Consulta, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, coordinador, Roles.CoordinadorCae, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, gestorSinCartera, Roles.GestorCae, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, direccion, Roles.Consulta, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, coordinador, Roles.CoordinadorCae, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, gestorSinCartera, Roles.GestorCae, cancellationToken);
 
         // Los Gestores CAE del Operador CAE cuelgan de su Coordinador CAE: sin ese vínculo el Coordinador no vería nada.
-        // En el mismo ámbito del Operador CAE se mira la fila viva de la primera persona, que es la prueba de que la
-        // delegación sigue activa: revocarla revoca sus filas heredadas (PR #2237). Revocada desde la interfaz, la siembra
-        // no reabre la operación (el writer lanzaría sin delegación vigente y el arranque caería).
+        // En el mismo ámbito del Operador CAE se mira la DelegacionTenant del par y su historia, no una fila viva: con una
+        // operación cerrada o tras una revocación y una reactivación seguida de una fila nueva desde la interfaz, la fila
+        // viva no prueba nada (ronda 3 de Codex en la PR #2237, media 5). Revocada o con historia, la siembra no reabre la
+        // operación ni emite la cartera (el writer lanzaría sin delegación vigente y el arranque caería).
         bool delegacionActiva;
         using (AmbitoTenantExplicito.Establecer(operadorId))
         {
@@ -200,11 +201,14 @@ public static class CoberturaPantallasSeeder
                         $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
             }
 
-            delegacionActiva = await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                a => a.UsuarioId == gestorConCartera.Id, cancellationToken);
+            var delegacion = await DelegacionDelParAsync(dbContext, operadorId, alfaId, cancellationToken);
+            delegacionActiva = delegacion is { Activa: true }
+                               && !await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken);
         }
         if (!delegacionActiva)
-            logger.LogWarning("Siembra de cobertura: la delegación de {Tenant} está revocada; no se reabre su operación externa.", NombreTenantAlfa);
+            logger.LogWarning(
+                "Siembra de cobertura: la delegación de {Tenant} está revocada o tiene historia; no se reabre su operación externa.",
+                NombreTenantAlfa);
 
         using (AmbitoTenantExplicito.Establecer(alfaId))
         {
@@ -260,29 +264,41 @@ public static class CoberturaPantallasSeeder
     }
 
     /// <summary>
-    /// El resto del equipo del Operador CAE entra en la misma operación que <paramref name="primero"/> (la persona con la
-    /// que se abrió), bajo el ámbito del Operador (le pertenece).
+    /// El resto del equipo del Operador CAE entra en la DelegacionTenant del par, bajo el ámbito del Operador (le
+    /// pertenece). Solo si la siembra puede crear su fila heredada (<see cref="HistoriaDelParEnSiembra"/>): la delegación
+    /// activa, el par sin historia y la persona sin ninguna fila, viva o revocada. Antes bastaba la fila viva de la
+    /// primera persona, y tras una revocación, una reactivación y una fila nueva desde la interfaz la siembra creaba filas
+    /// a quien no las tenía (ronda 3 de Codex en la PR #2237, media 5).
     /// </summary>
     private static async Task AsignarAlEquipoAsync(
-        CaeManagerDbContext dbContext, Guid operadorId, ApplicationUser primero, ApplicationUser usuario, string rol,
+        CaeManagerDbContext dbContext, Guid operadorId, Guid propietarioId, ApplicationUser usuario, string rol,
         CancellationToken cancellationToken)
     {
         using (AmbitoTenantExplicito.Establecer(operadorId))
         {
-            // Ninguna fila, viva o revocada: lo que se revocó no vuelve solo por la siembra (Codex r2, media 6).
-            if (await dbContext.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
+            var delegacion = await DelegacionDelParAsync(dbContext, operadorId, propietarioId, cancellationToken);
+            if (delegacion is null
+                || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                 return;
 
-            // Sin la fila viva de la primera persona, la delegación se revocó y la revocación revocó sus filas
-            // heredadas (PR #2237): la siembra no la reabre.
-            var operacionId = await dbContext.AsignacionesOperadorDelegado
-                .Where(a => a.UsuarioId == primero.Id).Select(a => (Guid?)a.DelegacionTenantId).SingleOrDefaultAsync(cancellationToken);
-            if (operacionId is null)
-                return;
-            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(operacionId.Value, usuario.Id, rol));
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol, delegacion.Revocaciones));
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
+
+    /// <summary>
+    /// La DelegacionTenant de Operador CAE externo del par, la misma que abre <c>CrearDelegacionAsync</c> (la más antigua);
+    /// <c>null</c> si no hay ninguna. Se llama dentro del ámbito del Operador CAE.
+    /// </summary>
+    private static Task<DelegacionTenant?> DelegacionDelParAsync(
+        CaeManagerDbContext dbContext, Guid operadorId, Guid propietarioId, CancellationToken cancellationToken) =>
+        dbContext.DelegacionesTenant
+            .Where(d => d.TenantConsultoraId == operadorId
+                        && d.TenantClienteId == propietarioId
+                        && d.Proposito == PropositoDelegacion.OperadorExterno)
+            .OrderBy(d => d.CreadoEnUtc)
+            .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>Cómo está un documento: los siete estados de la interfaz (Pendiente es la ausencia del documento).</summary>
     private enum Caso { Vigente, PorVencer, SinConfirmar, Vencido, EnTolerancia, Bloqueado, Pendiente }

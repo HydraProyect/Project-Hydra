@@ -23,14 +23,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <list type="bullet">
     /// <item><c>delegacion_tenant_cuenta_revocaciones</c> calcula el contador desde la fila anterior (cuenta también las
     /// revocaciones de la ranura anterior, que solo escribe <c>Activa = false</c>, y de la función SQL de Soporte; ningún
-    /// UPDATE puede rebajarlo).</item>
+    /// UPDATE puede rebajarlo). Rechaza además todo cambio de <c>Proposito</c>: una delegación de Operador CAE externo
+    /// que pasara a Soporte saldría sin contar la revocación ni revocar sus filas, y al volver conservaría el amparo
+    /// (ronda 3 de Codex, alta 2; ningún escritor del código cambia el propósito).</item>
     /// <item><c>delegacion_tenant_revoca_filas_heredadas</c>: cada revocación contada de una delegación de Operador CAE
     /// externo revoca sus <c>AsignacionesOperadorDelegado</c> no revocadas. La fila heredada autoriza por sí sola (vía
     /// heredada de <c>TenantsBeneficiariosAutorizados</c>) y, si sobreviviera, volvería a autorizar al reactivar la
     /// delegación (ronda 1 de Codex en la PR #2237, alta 1).</item>
     /// <item><c>asignacion_operador_delegado_exige_delegacion_activa</c>: una fila heredada viva no nace sobre una
-    /// delegación de Operador CAE externo inactiva, y <c>asignacion_operador_delegado_revocacion_definitiva</c>: una fila
-    /// revocada no se des-revoca y ninguna fila cambia de delegación, de persona ni de rol (ronda 2 de Codex, alta 2).</item>
+    /// delegación de Operador CAE externo inactiva; si el escritor trae el contador que leyó al decidir
+    /// (<c>AsignacionesOperadorDelegado.RevocacionesDelOrigen</c>), se rechaza si ya no es el de la delegación, y en todo
+    /// caso se sella con el real (ronda 3 de Codex, alta 1). <c>asignacion_operador_delegado_revocacion_definitiva</c>: una
+    /// fila revocada no se des-revoca y ninguna fila cambia de delegación, de persona, de rol ni de contador (ronda 2 de
+    /// Codex, alta 2).</item>
+    /// <item><c>TR_EncargosAdministracion_ExigeAmparoDeOrigen</c>: un Encargo de Administración solo nace sobre una
+    /// operación externa que su origen ampara al insertarlo, con la delegación bloqueada (ronda 3 de Codex, media 3).</item>
     /// <item><c>asignacion_operacion_sella_origen</c> comprueba y sella el origen solo en la inserción. Con origen
     /// explícito exige también el contador que el escritor leyó al decidir, y rechaza la inserción si la delegación ya no
     /// es del mismo par y de Operador CAE externo, si está inactiva o caducada, o si su contador actual no es el leído: una
@@ -63,8 +70,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Las funciones de los triggers no son SECURITY DEFINER: leen y bloquean bajo la RLS de quien escribe, que es uno de
     /// los dos extremos del par; la política de <c>AsignacionesOperadorDelegado</c> es la misma condición sobre la misma
     /// delegación que la de <c>DelegacionesTenant</c>. Si la fila de la delegación no es visible, la deducción deja el
-    /// origen a NULL (falla cerrada) y fijar un origen explícito se rechaza. La única SECURITY DEFINER es
-    /// <see cref="CreaFuncionAmparoDeOrigen"/>, que solo responde un booleano.
+    /// origen a NULL (falla cerrada) y fijar un origen explícito se rechaza. Hay dos SECURITY DEFINER:
+    /// <see cref="CreaFuncionAmparoDeOrigen"/>, que recibe solo el Id de una operación y solo responde un booleano, y la
+    /// función del trigger de <see cref="CreaExigenciaDeAmparoDelEncargo"/>, que no se puede llamar fuera del trigger y
+    /// solo rechaza: el Encargo de Administración por Aprovisionamiento lo escribe <c>cae_app_aprovisionamiento</c>, que
+    /// no lee ni bloquea <c>DelegacionesTenant</c>. Ninguna concede a ningún rol lectura ni escritura nueva.
     /// </para>
     /// </summary>
     public partial class AnadeProcedenciaDeOperacionExterna : Migration
@@ -106,6 +116,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 type: "integer",
                 nullable: true);
 
+            migrationBuilder.AddColumn<int>(
+                name: "RevocacionesDelOrigen",
+                table: "AsignacionesOperadorDelegado",
+                type: "integer",
+                nullable: true);
+
             migrationBuilder.CreateIndex(
                 name: "IX_AsignacionesOperacion_OrigenId",
                 table: "AsignacionesOperacion",
@@ -134,8 +150,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         RETURN NEW;
                     END IF;
 
+                    -- El propósito no cambia nunca (ronda 3 de Codex, alta 2): pasar por otro propósito dejaría una
+                    -- revocación sin revocar las filas heredadas, o una ampliación de caducidad sin contar.
+                    IF NEW."Proposito" IS DISTINCT FROM OLD."Proposito" THEN
+                        RAISE EXCEPTION 'El propósito de una DelegacionTenant es inmutable (%).', OLD."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+
                     IF (OLD."Activa" AND NOT NEW."Activa")
-                       OR (NEW."Proposito" = 'OperadorExterno' AND OLD."Activa" AND NEW."Activa"
+                       OR ((OLD."Proposito" = 'OperadorExterno' OR NEW."Proposito" = 'OperadorExterno')
+                           AND OLD."Activa" AND NEW."Activa"
                            AND OLD."ExpiraEnUtc" IS NOT NULL
                            AND (NEW."ExpiraEnUtc" IS NULL OR NEW."ExpiraEnUtc" > OLD."ExpiraEnUtc")) THEN
                         NEW."Revocaciones" := OLD."Revocaciones" + 1;
@@ -155,7 +179,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 BEGIN
-                    IF NEW."Proposito" = 'OperadorExterno' AND NEW."Revocaciones" > OLD."Revocaciones" THEN
+                    IF (OLD."Proposito" = 'OperadorExterno' OR NEW."Proposito" = 'OperadorExterno')
+                       AND NEW."Revocaciones" > OLD."Revocaciones" THEN
                         UPDATE public."AsignacionesOperadorDelegado"
                            SET "RevocadaEnUtc" = pg_catalog.now(),
                                "MotivoRevocacion" = 'Revocada su DelegacionTenant: reactivarla no la repone.'
@@ -174,6 +199,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 -- delegación activa, pero confirmada tras la revocación, sobreviviría y volvería a autorizar al
                 -- reactivar. Con FOR SHARE sobre la delegación, la revocación espera a este INSERT (y su trigger AFTER la
                 -- revoca) o este INSERT espera a la revocación, relee la fila confirmada y se rechaza.
+                -- Activa no basta (ronda 3 de Codex, alta 1): una ampliación de caducidad, o una revocación y una
+                -- reactivación completas, entre la decisión del escritor y su INSERT dejan la delegación activa con otra
+                -- activación. El escritor que decide sobre una lectura previa (el catálogo de carteras, con el contador
+                -- sellado de la operación amparada; el alta de una persona, con el de la delegación que leyó) trae ese
+                -- contador en RevocacionesDelOrigen, y si ya no es el de la delegación la inserción se rechaza, como en
+                -- asignacion_operacion_sella_origen. Sin él (la ranura anterior, una siembra que decide en la misma
+                -- transacción) se comprueba solo Activa bajo el FOR SHARE. En los dos casos la fila queda sellada con
+                -- el contador vigente al nacer.
                 CREATE FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa() RETURNS trigger
                     LANGUAGE plpgsql
                     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -181,18 +214,28 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 DECLARE
                     v_proposito text;
                     v_activa boolean;
+                    v_revocaciones integer;
                 BEGIN
                     IF NEW."RevocadaEnUtc" IS NOT NULL THEN
                         RETURN NEW;
                     END IF;
-                    SELECT d."Proposito", d."Activa" INTO v_proposito, v_activa
+                    SELECT d."Proposito", d."Activa", d."Revocaciones" INTO v_proposito, v_activa, v_revocaciones
                       FROM public."DelegacionesTenant" d
                      WHERE d."Id" = NEW."DelegacionTenantId"
                        FOR SHARE;
-                    IF FOUND AND v_proposito = 'OperadorExterno' AND NOT v_activa THEN
+                    IF NOT FOUND THEN
+                        -- Invisible bajo la RLS de quien escribe: lo rechaza el WITH CHECK de la tabla.
+                        RETURN NEW;
+                    END IF;
+                    IF v_proposito = 'OperadorExterno' AND NOT v_activa THEN
                         RAISE EXCEPTION 'Una fila heredada no nace sobre una DelegacionTenant de Operador CAE externo revocada (%).', NEW."Id"
                             USING ERRCODE = 'check_violation';
                     END IF;
+                    IF NEW."RevocacionesDelOrigen" IS NOT NULL AND NEW."RevocacionesDelOrigen" <> v_revocaciones THEN
+                        RAISE EXCEPTION 'La DelegacionTenant de la fila heredada se revocó o se amplió después de decidirla (%).', NEW."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    NEW."RevocacionesDelOrigen" := v_revocaciones;
                     RETURN NEW;
                 END;
                 $$;
@@ -213,7 +256,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                        OR NEW."DelegacionTenantId" IS DISTINCT FROM OLD."DelegacionTenantId"
                        OR NEW."UsuarioId" IS DISTINCT FROM OLD."UsuarioId"
                        OR NEW."Rol" IS DISTINCT FROM OLD."Rol"
-                       OR NEW."CreadoEnUtc" IS DISTINCT FROM OLD."CreadoEnUtc" THEN
+                       OR NEW."CreadoEnUtc" IS DISTINCT FROM OLD."CreadoEnUtc"
+                       OR NEW."RevocacionesDelOrigen" IS DISTINCT FROM OLD."RevocacionesDelOrigen" THEN
                         RAISE EXCEPTION 'Una fila heredada no cambia de delegación, de persona ni de rol (%).', OLD."Id"
                             USING ERRCODE = 'check_violation';
                     END IF;
@@ -330,32 +374,36 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 """);
 
             migrationBuilder.Sql(CreaFuncionAmparoDeOrigen);
+            migrationBuilder.Sql(CreaExigenciaDeAmparoDelEncargo);
         }
 
         /// <summary>
-        /// <c>app_operacion_amparada_por_su_origen</c>: el predicado de <c>AmparoDeOrigen</c> sobre una sola
-        /// Asignación de Operación, con sus columnas como argumentos, y solo un booleano de respuesta. Lo usa
+        /// <c>app_operacion_amparada_por_su_origen(uuid)</c>: el predicado de <c>AmparoDeOrigen</c> sobre una sola
+        /// Asignación de Operación, que recibe solo su Id y responde solo un booleano. Lo usa
         /// <c>EncargoAdministracionRepository</c> en todas sus vías (Codex r2 en la PR #2237, media 8): el comando que
         /// registra un Encargo de Administración por Aprovisionamiento escribe como <c>cae_app_aprovisionamiento</c>,
         /// que no tiene ni debe tener <c>SELECT</c> sobre <c>DelegacionesTenant</c>.
         /// <para>
+        /// Lee ella misma de la operación el par, el origen y el contador sellado, y compara la caducidad con la hora
+        /// de la base (ronda 3 de Codex, media 4): con la fecha y el contador como argumentos, quien conociera el Id de
+        /// una delegación y su par podía probar valores hasta deducir <c>Revocaciones</c> y <c>ExpiraEnUtc</c>. Ahora la
+        /// respuesta es la del amparo de una operación concreta y nada más.
+        /// </para>
+        /// <para>
         /// <c>SECURITY DEFINER</c> con el propietario de las tablas y <c>search_path</c> fijo, como
         /// <c>app_sesion_vigente</c>; comprueba que su propietario evita la RLS en vez de responder <c>false</c> a todo.
-        /// No lee <c>AsignacionesOperacion</c> (las columnas las trae quien ya leyó la operación bajo su RLS) ni devuelve
-        /// nada de la DelegacionTenant. Solo responde sobre una delegación que el contexto firmado vería bajo las dos
-        /// políticas de lectura de <c>DelegacionesTenant</c> (Tenant activo o Tenant de origen en uno de sus extremos),
-        /// salvo para una sesión cuyo <c>session_user</c> ya evita la RLS (la misma exención que
-        /// <c>app_exigir_contexto_firmado</c>). <c>EXECUTE</c> solo para los tres roles de la aplicación, que leen
-        /// operaciones encargables: <c>cae_app_runtime</c> (Administrador propio), <c>cae_app_soporte</c> (la consulta
-        /// en una Sesión Privilegiada) y <c>cae_app_aprovisionamiento</c> (el comando elevado). Decisión provisional
-        /// de la coordinadora, pendiente de Chris, frente a conceder <c>SELECT</c> o dejar esa vía sin el filtro.
+        /// Solo responde sobre una operación cuyo par vería el contexto firmado (Tenant activo o Tenant de origen en uno
+        /// de sus extremos, como las políticas de lectura de <c>DelegacionesTenant</c>), salvo para una sesión cuyo
+        /// <c>session_user</c> ya evita la RLS (la misma exención que <c>app_exigir_contexto_firmado</c>); para
+        /// cualquier otra, <c>false</c>. <c>EXECUTE</c> solo para los tres roles de la aplicación, que leen operaciones
+        /// encargables: <c>cae_app_runtime</c> (Administrador propio), <c>cae_app_soporte</c> (la consulta en una Sesión
+        /// Privilegiada) y <c>cae_app_aprovisionamiento</c> (el comando elevado). Decisión provisional de la
+        /// coordinadora, pendiente de Chris, frente a conceder <c>SELECT</c> o dejar esa vía sin el filtro.
         /// </para>
         /// </summary>
         public const string CreaFuncionAmparoDeOrigen =
             """
-            CREATE FUNCTION public.app_operacion_amparada_por_su_origen(
-                    p_propietario uuid, p_operador uuid, p_origen uuid, p_revocaciones_del_origen integer,
-                    p_ahora timestamp with time zone)
+            CREATE FUNCTION public.app_operacion_amparada_por_su_origen(p_operacion uuid)
                 RETURNS boolean
                 LANGUAGE plpgsql STABLE SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'
@@ -363,35 +411,104 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             DECLARE
                 v_tenant uuid := public.app_ctx_tenant_id();
                 v_tenant_origen uuid := public.app_ctx_tenant_origen_id();
-                v_sin_rls boolean;
+                v_propietario uuid;
+                v_operador uuid;
+                v_origen uuid;
+                v_revocaciones integer;
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
                                 WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
                     RAISE EXCEPTION 'El rol % no evita la RLS: la comprobación del amparo no vería ninguna DelegacionTenant', current_user;
                 END IF;
+                SELECT o."PropietarioTenantId", o."OperadorTenantId", o."OrigenId", o."RevocacionesDelOrigen"
+                  INTO v_propietario, v_operador, v_origen, v_revocaciones
+                  FROM public."AsignacionesOperacion" o
+                 WHERE o."Id" = p_operacion;
+                IF NOT FOUND THEN
+                    RETURN false;
+                END IF;
+                IF NOT (EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                 WHERE rolname = session_user AND (rolsuper OR rolbypassrls))
+                        OR COALESCE(v_tenant IN (v_propietario, v_operador), false)
+                        OR COALESCE(v_tenant_origen IN (v_propietario, v_operador), false)) THEN
+                    RETURN false;
+                END IF;
                 -- Una operación interna no depende de ninguna delegación.
-                IF p_propietario = p_operador THEN
+                IF v_propietario = v_operador THEN
                     RETURN true;
                 END IF;
-                v_sin_rls := EXISTS (SELECT 1 FROM pg_catalog.pg_roles
-                                      WHERE rolname = session_user AND (rolsuper OR rolbypassrls));
                 RETURN EXISTS (
                     SELECT 1 FROM public."DelegacionesTenant" d
-                     WHERE d."Id" = p_origen
-                       AND d."TenantClienteId" = p_propietario
-                       AND d."TenantConsultoraId" = p_operador
+                     WHERE d."Id" = v_origen
+                       AND d."TenantClienteId" = v_propietario
+                       AND d."TenantConsultoraId" = v_operador
                        AND d."Proposito" = 'OperadorExterno'
                        AND d."Activa"
-                       AND (d."ExpiraEnUtc" IS NULL OR p_ahora < d."ExpiraEnUtc")
-                       AND d."Revocaciones" = p_revocaciones_del_origen
-                       AND (v_sin_rls
-                            OR v_tenant IN (d."TenantClienteId", d."TenantConsultoraId")
-                            OR v_tenant_origen IN (d."TenantClienteId", d."TenantConsultoraId")));
+                       AND (d."ExpiraEnUtc" IS NULL OR pg_catalog.now() < d."ExpiraEnUtc")
+                       AND d."Revocaciones" = v_revocaciones);
             END;
             $$;
-            REVOKE ALL ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone) FROM PUBLIC;
-            GRANT EXECUTE ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone)
+            REVOKE ALL ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid) FROM PUBLIC;
+            GRANT EXECUTE ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid)
                 TO cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
+            """;
+
+        /// <summary>
+        /// <c>TR_EncargosAdministracion_ExigeAmparoDeOrigen</c> (ronda 3 de Codex en la PR #2237, media 3): un Encargo de
+        /// Administración solo nace sobre una Asignación de Operación externa que su origen ampara en el momento de la
+        /// inserción, sea cual sea el escritor. El repositorio ya filtra por el amparo al leer la operación, pero entre esa
+        /// lectura y el guardado una revocación o una ampliación de caducidad la dejaban sin amparo.
+        /// <para>
+        /// Sigue el patrón de los triggers de inserción de esta migración (<c>FOR SHARE</c> sobre la DelegacionTenant de
+        /// origen hasta el COMMIT: la revocación espera a este INSERT o este INSERT espera a la revocación y lee la fila
+        /// confirmada) y es AFTER, como <c>TR_EncargosAdministracion_OperadorDeLaOperacion</c>, para que una inserción que
+        /// la política rechaza siga saliendo con el error de la política. Bloquear en el repositorio no era posible:
+        /// <c>cae_app_aprovisionamiento</c> no puede leer ni bloquear <c>DelegacionesTenant</c>, y una función invocable
+        /// que bloqueara serviría a cualquier rol con <c>EXECUTE</c> para retener revocaciones. Por eso la función del
+        /// trigger es <c>SECURITY DEFINER</c>: una función de trigger no se puede llamar fuera de un trigger, no devuelve
+        /// nada y solo rechaza; no amplía lo que ningún rol lee ni escribe. El predicado es el de
+        /// <c>app_operacion_amparada_por_su_origen</c>, sin una segunda definición. El rechazo lleva el nombre del trigger
+        /// como restricción, para que el repositorio lo distinga.
+        /// </para>
+        /// </summary>
+        public const string CreaExigenciaDeAmparoDelEncargo =
+            """
+            CREATE FUNCTION public.app_encargo_administracion_exige_amparo_de_origen() RETURNS trigger
+                LANGUAGE plpgsql SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+            DECLARE
+                v_propietario uuid;
+                v_operador uuid;
+                v_origen uuid;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: la comprobación del amparo no vería ninguna DelegacionTenant', current_user;
+                END IF;
+                SELECT o."PropietarioTenantId", o."OperadorTenantId", o."OrigenId"
+                  INTO v_propietario, v_operador, v_origen
+                  FROM public."AsignacionesOperacion" o
+                 WHERE o."Id" = NEW."AsignacionOperacionId";
+                IF NOT FOUND OR v_propietario = v_operador THEN
+                    -- Sin operación lo rechaza la clave foránea; una interna no depende de ninguna delegación (y el
+                    -- dominio no la encarga).
+                    RETURN NULL;
+                END IF;
+                IF v_origen IS NOT NULL THEN
+                    PERFORM 1 FROM public."DelegacionesTenant" d WHERE d."Id" = v_origen FOR SHARE;
+                END IF;
+                IF NOT public.app_operacion_amparada_por_su_origen(NEW."AsignacionOperacionId") THEN
+                    RAISE EXCEPTION 'Un Encargo de Administración no nace sobre una Asignación de Operación que su origen ya no ampara (%).', NEW."Id"
+                        USING ERRCODE = 'check_violation', CONSTRAINT = 'TR_EncargosAdministracion_ExigeAmparoDeOrigen';
+                END IF;
+                RETURN NULL;
+            END;
+            $$;
+            REVOKE ALL ON FUNCTION public.app_encargo_administracion_exige_amparo_de_origen() FROM PUBLIC;
+            CREATE TRIGGER "TR_EncargosAdministracion_ExigeAmparoDeOrigen"
+                AFTER INSERT ON public."EncargosAdministracion"
+                FOR EACH ROW EXECUTE FUNCTION public.app_encargo_administracion_exige_amparo_de_origen();
             """;
 
         /// <inheritdoc />
@@ -400,7 +517,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // Las filas heredadas revocadas por RevocaFilasHeredadasPrevias no se reponen: revocar es definitivo.
             migrationBuilder.Sql(
                 """
-                DROP FUNCTION IF EXISTS public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone);
+                DROP TRIGGER IF EXISTS "TR_EncargosAdministracion_ExigeAmparoDeOrigen" ON public."EncargosAdministracion";
+                DROP FUNCTION IF EXISTS public.app_encargo_administracion_exige_amparo_de_origen();
+                DROP FUNCTION IF EXISTS public.app_operacion_amparada_por_su_origen(uuid);
                 DROP TRIGGER IF EXISTS asignacion_operacion_sella_origen ON public."AsignacionesOperacion";
                 DROP FUNCTION IF EXISTS public.app_asignacion_operacion_sella_origen();
                 DROP TRIGGER IF EXISTS asignacion_operador_delegado_revocacion_definitiva ON public."AsignacionesOperadorDelegado";
@@ -432,6 +551,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.DropColumn(
                 name: "RevocacionesDelOrigen",
                 table: "AsignacionesOperacion");
+
+            migrationBuilder.DropColumn(
+                name: "RevocacionesDelOrigen",
+                table: "AsignacionesOperadorDelegado");
         }
     }
 }

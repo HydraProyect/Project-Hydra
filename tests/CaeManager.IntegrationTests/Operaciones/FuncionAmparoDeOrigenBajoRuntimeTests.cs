@@ -20,8 +20,9 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// <list type="bullet">
 /// <item>Las dos versiones del predicado dan lo mismo sobre los mismos casos: amparada, revocada y reactivada, revocada,
 /// caducada y sin origen.</item>
-/// <item>Su forma: SECURITY DEFINER con el propietario de las tablas, <c>search_path</c> fijo, solo un booleano y
-/// <c>EXECUTE</c> solo para los tres roles de la aplicación; ningún rol gana <c>SELECT</c> sobre la tabla.</item>
+/// <item>Su forma: SECURITY DEFINER con el propietario de las tablas, <c>search_path</c> fijo, un único argumento (el Id
+/// de la operación: ni el contador ni la fecha, que la convertían en un oráculo, ronda 3 de Codex media 4), solo un
+/// booleano y <c>EXECUTE</c> solo para los tres roles de la aplicación; ningún rol gana <c>SELECT</c> sobre la tabla.</item>
 /// <item>Bajo el login real de <c>cae_app_runtime</c> (sin la exención del propietario) solo responde sobre una
 /// delegación de la que el contexto firmado es extremo, y como <c>cae_app_aprovisionamiento</c> responde sin poder leer
 /// la tabla.</item>
@@ -29,8 +30,7 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// </summary>
 public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
 {
-    private const string Funcion =
-        "public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone)";
+    private const string Funcion = "public.app_operacion_amparada_por_su_origen(uuid)";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Tenant _operador = new("Operador CAE externo de prueba");
@@ -83,7 +83,7 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
             .AmparadasPorSuOrigen(contexto.DelegacionesTenant, ahora)
             .Where(o => ids.Contains(o.Id)).Select(o => o.Id).ToListAsync();
         var porFuncion = await contexto.AsignacionesOperacion.AsNoTracking()
-            .AmparadasPorSuOrigenEnBase(ahora)
+            .AmparadasPorSuOrigenEnBase()
             .Where(o => ids.Contains(o.Id)).Select(o => o.Id).ToListAsync();
 
         porLinq.Should().BeEquivalentTo([_casos["amparada"].Operacion],
@@ -103,7 +103,8 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
                    has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE'),
                    has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'),
                    has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE'),
-                   has_table_privilege('cae_app_aprovisionamiento', 'public."DelegacionesTenant"', 'SELECT')
+                   has_table_privilege('cae_app_aprovisionamiento', 'public."DelegacionesTenant"', 'SELECT'),
+                   p.pronargs
             FROM pg_proc p WHERE p.oid = '{Funcion}'::regprocedure;
             """, conexion);
 
@@ -120,22 +121,15 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         lector.GetBoolean(8).Should().BeTrue();
         lector.GetBoolean(9).Should().BeTrue();
         lector.GetBoolean(10).Should().BeFalse("la función no se acompaña de un SELECT sobre la tabla");
+        lector.GetInt16(11).Should().Be(1,
+            "solo recibe el Id de la operación: con el contador o la fecha como argumento serviría de oráculo");
     }
 
     [Fact]
     public async Task Bajo_runtime_solo_responde_a_un_extremo_de_la_delegacion_y_bajo_aprovisionamiento_sin_leer_la_tabla()
     {
         var (propietario, operacion) = _casos["amparada"];
-        Guid origen;
-        int revocaciones;
-        await using (var contexto = ContextoPropietarioDeLaBase())
-        {
-            var fila = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == operacion);
-            origen = fila.OrigenId!.Value;
-            revocaciones = fila.RevocacionesDelOrigen!.Value;
-        }
-
-        var llamada = $"SELECT public.app_operacion_amparada_por_su_origen('{propietario}', '{_operador.Id}', '{origen}', {revocaciones}, now());";
+        var llamada = $"SELECT public.app_operacion_amparada_por_su_origen('{operacion}');";
 
         (await ComoRuntimeAsync(propietario, rol: null, llamada)).Should().Be(true, "control: el Tenant propietario es extremo");
         (await ComoRuntimeAsync(_operador.Id, rol: null, llamada)).Should().Be(true, "control: el Operador CAE externo es extremo");
