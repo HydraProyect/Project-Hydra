@@ -290,7 +290,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "tendría delta de comportamiento"),
         ["src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs"] =
             new(2, CategoriaUso.ReglaComercial,
-                ":127 (proyección) y :134 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
+                ":137 (proyección) y :144 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
                 "como RegistrarSuscripcionTenant rechaza suscribirlo: no concede nada. Defensa en profundidad, porque " +
                 "ReglaTenantObjetivoAjeno ya impide abrir la Sesión Privilegiada de Aprovisionamiento sobre la casa propia"),
         ["src/CaeManager.Application/Comercial/Queries/ObtenerEstadoComercialTenants/ObtenerEstadoComercialTenantsQuery.cs"] =

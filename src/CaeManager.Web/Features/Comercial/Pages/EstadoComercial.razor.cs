@@ -26,8 +26,9 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// identificador (<c>StripeCustomerId</c>), no lo pinta y nunca lo deduce del
 /// tenant. El agregado <c>Tenant</c> no lleva plan, importe ni fecha de
 /// renovación. La entidad <c>ProductoContratado</c> (alta autónoma, A5b) existe,
-/// pero ningún flujo la crea todavía y esta pantalla no la lee: no inventa
-/// ninguno de esos datos.
+/// y solo la crea la contratación de la línea Inbound por el Actor de Plataforma
+/// (<c>ContratarLineaInboundCommand</c>, B-04a), pero esta pantalla no la lee:
+/// no inventa ninguno de esos datos.
 /// </para>
 ///
 /// <para>
