@@ -194,8 +194,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // (ronda 3 de Codex): ni FechaInicio ni FechaFin, porque el Actualizar de la ranura anterior no mira el cierre, y
             // ampliar el fin de un contrato que acabó ayer y se finalizó con cierre futuro le devolvería la lectura hasta el
             // cierre; ni Estado, salvo Activo → Finalizado, que es lo que haría una normalización de los cierres de la ranura
-            // anterior y no amplía nada (los dos dan acceso hasta el cierre). TenantContratistaId lo guarda ya
-            // TR_ContratosAcceso_TenantContratistaUnaVez. EstaEliminado no entra: dar de baja estrecha, y deshacer una baja
+            // anterior y no amplía nada (los dos dan acceso hasta el cierre). TenantContratistaId lo guarda
+            // TR_ContratosAcceso_TenantContratistaUnaVez solo una vez vinculado: vincular un cerrado sin vínculo sigue
+            // valiendo, y da lectura solo dentro de sus fechas y su cierre, que aquí quedan congelados. EstaEliminado no entra: dar de baja estrecha, y deshacer una baja
             // devuelve el contrato a lo que era, con su mismo cierre. En la ranura nueva ningún escritor toca estas columnas de
             // un contrato cerrado: ExigirEstado rechaza toda acción si hay cierre real, y el inicio solo se escribe al crear.
             migrationBuilder.Sql("""

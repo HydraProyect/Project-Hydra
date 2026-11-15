@@ -394,6 +394,42 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             .Should().Be("TR_ContratosAcceso_CierreIrreversible", "Finalizado → Activo no");
     }
 
+    [Theory]
+    [InlineData("Suspendido", "Finalizado")]           // finalizar un suspendido le devolvería el acceso hasta el cierre
+    [InlineData("Cancelado", "Finalizado")]            // un Cerrar de la ranura anterior sobre un Cancelado no lo hace Finalizado
+    [InlineData("PendienteDeConfirmar", "Finalizado")]
+    [InlineData("Rechazado", "Activo")]
+    [InlineData("Activo", "Suspendido")]               // la excepción es Activo → Finalizado, no cualquier salida de Activo
+    public async Task Un_contrato_cerrado_solo_pasa_de_Activo_a_Finalizado(string estado, string nuevoEstado)
+    {
+        // Precondición en una sola sentencia, sobre un contrato sin cierre: el disparador no actúa (OLD sin cierre), como el
+        // Cerrar de la ranura anterior sobre un contrato que ella ve abierto.
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+        var precondicion = estado switch
+        {
+            "Suspendido" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Suspendido', \"FechaCierreReal\" = \"FechaInicio\" + 20 WHERE \"Id\" = {0};",
+            "Cancelado" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Cancelado', \"FechaCierreReal\" = \"FechaInicio\" + 20 WHERE \"Id\" = {0};",
+            "PendienteDeConfirmar" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'PendienteDeConfirmar', \"FechaCierreReal\" = \"FechaInicio\" + 20 WHERE \"Id\" = {0};",
+            "Rechazado" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Rechazado', \"FechaCierreReal\" = \"FechaInicio\" + 20 WHERE \"Id\" = {0};",
+            _ => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Activo', \"FechaCierreReal\" = \"FechaInicio\" + 20 WHERE \"Id\" = {0};",
+        };
+        (await contexto.Database.ExecuteSqlRawAsync(precondicion, _contratoVigente)).Should().Be(1);
+
+        var sql = nuevoEstado switch
+        {
+            "Finalizado" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Finalizado' WHERE \"Id\" = {0};",
+            "Activo" => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Activo' WHERE \"Id\" = {0};",
+            _ => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Suspendido' WHERE \"Id\" = {0};",
+        };
+        var cambiar = () => contexto.Database.ExecuteSqlRawAsync(sql, _contratoVigente);
+        var error = (await cambiar.Should().ThrowAsync<PostgresException>()).Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        error.ConstraintName.Should().Be("TR_ContratosAcceso_CierreIrreversible", $"{estado} → {nuevoEstado} sobre un cerrado");
+
+        await using var lectura = Contexto(_propietario.Id, _administrador);
+        (await lectura.ContratosAcceso.SingleAsync(c => c.Id == _contratoVigente)).Estado.ToString().Should().Be(estado);
+    }
+
     [Fact]
     public async Task Un_Cerrar_de_la_ranura_anterior_deja_Activo_en_la_columna_y_el_dominio_lo_trata_como_Finalizado()
     {
