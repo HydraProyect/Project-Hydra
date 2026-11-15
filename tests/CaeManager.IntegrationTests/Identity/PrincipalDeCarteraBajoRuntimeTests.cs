@@ -897,6 +897,37 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         (await CarterasAsync(vigentes[0])).Should().BeEmpty("ninguna de las dos repone carteras");
     }
 
+    /// <summary>
+    /// El entrelazado que hacía intermitente al test de arriba (issue #2232), forzado: una
+    /// reactivación ya decidió por el estado de la delegación (revocada) y se detiene justo antes de
+    /// abrir la operación; la otra llega entonces. Sin bloqueo, la segunda decidía con la delegación
+    /// revocada que leyó, abría la operación y confirmaba; la primera, al seguir, encontraba esa
+    /// operación ya confirmada, la tomaba por suya y también daba éxito.
+    /// </summary>
+    [Fact]
+    public async Task Una_reactivacion_que_llega_mientras_otra_decide_espera_a_que_confirme_y_pierde()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        var enPausa = new Pausa("antes:abrir-operacion");
+        var primera = ReactivarDelegacion(enPausa);
+        await enPausa.Alcanzada;
+
+        var segunda = ReactivarDelegacion();
+        var segundaNoEspero = await Task.WhenAny(segunda, Task.Delay(TimeSpan.FromSeconds(3))) == segunda;
+
+        enPausa.Soltar();
+        var resultados = await Task.WhenAll(primera, segunda);
+        resultados.Count(r => r.EsExitoso).Should().Be(1, "una reactiva; la otra pierde, como fallo o como excepción, sin escribir");
+        segundaNoEspero.Should().BeFalse("la segunda decide por la misma delegación y tiene que esperar a que la primera confirme");
+        resultados[0].EsExitoso.Should().BeTrue("la primera tenía la delegación bloqueada");
+        resultados[1].Error.Codigo.Should().Be("DelegacionTenant.YaActiva",
+            "cuando la segunda puede decidir, la delegación ya está activa");
+
+        var nueva = await OperacionVigenteAsync(); // SingleAsync: una sola operación vigente
+        (await CarterasAsync(nueva)).Should().BeEmpty("ninguna de las dos repone carteras");
+    }
+
     // ── Arnés ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -918,11 +949,13 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     /// 2026-10-31), único que reactiva. Lo que ve de las cuentas del Operador CAE externo es lo que se
     /// ve desde ese Tenant: las vinculadas a él.
     /// </summary>
-    private Task<Result> ReactivarDelegacion() =>
+    private Task<Result> ReactivarDelegacion(Pausa? pausa = null) =>
         EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, directorio, sp) =>
             new ReactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
-                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
+                    EscritorConPausa.Envolver(
+                        new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), pausa),
+                    contexto, contexto,
                     new TransaccionDeComando(contexto), sp.GetRequiredService<ITenantActual>(),
                     new AutorizacionDelegacionPorAdministradorDelCliente(sp.GetRequiredService<UserManager<ApplicationUser>>()))
                 .Handle(new ReactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
@@ -1088,6 +1121,31 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             _alcanzada.TrySetResult();
             return _soltada.Task.WaitAsync(TimeSpan.FromSeconds(120));
         }
+    }
+
+    /// <summary>
+    /// El escritor de producción con un punto de pausa justo antes de abrir la operación delegada: la
+    /// reactivación ya ha decidido por el estado de la delegación y todavía no ha escrito nada.
+    /// </summary>
+    private sealed class EscritorConPausa(IAsignacionesOperativasWriter real, Pausa pausa) : IAsignacionesOperativasWriter
+    {
+        public static IAsignacionesOperativasWriter Envolver(IAsignacionesOperativasWriter real, Pausa? pausa) =>
+            pausa is null ? real : new EscritorConPausa(real, pausa);
+
+        public Task AsegurarCarteraTenantEnteroAsync(Guid p, Guid g, CancellationToken c = default) => real.AsegurarCarteraTenantEnteroAsync(p, g, c);
+        public Task AsegurarOperacionRaizAsync(Guid p, DateTime d, CancellationToken c = default) => real.AsegurarOperacionRaizAsync(p, d, c);
+
+        public async Task<AsignacionOperacion> AbrirOperacionDelegadaAsync(
+            Guid p, Guid o, DateTime d, DateTime? h, CancellationToken c = default)
+        {
+            await pausa.EnAsync("antes:abrir-operacion");
+            return await real.AbrirOperacionDelegadaAsync(p, o, d, h, c);
+        }
+
+        public Task CerrarOperacionDelegadaAsync(Guid p, Guid o, MotivoCierreAsignacion m, CancellationToken c = default) => real.CerrarOperacionDelegadaAsync(p, o, m, c);
+        public Task AbrirCarteraOperadorAsync(AsignacionOperacion op, Guid u, string r, CancellationToken c = default) => real.AbrirCarteraOperadorAsync(op, u, r, c);
+        public Task AbrirCarteraOperadorAsync(Guid p, Guid o, Guid u, string r, CancellationToken c = default) => real.AbrirCarteraOperadorAsync(p, o, u, r, c);
+        public Task CerrarCarteraOperadorAsync(Guid p, Guid o, Guid u, MotivoCierreAsignacion m, CancellationToken c = default) => real.CerrarCarteraOperadorAsync(p, o, u, m, c);
     }
 
     private sealed class CatalogoConPausa(ICatalogoIncorporacionCartera real, Pausa pausa) : ICatalogoIncorporacionCartera
