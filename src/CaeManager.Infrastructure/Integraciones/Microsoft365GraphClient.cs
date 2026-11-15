@@ -994,35 +994,27 @@ public class Microsoft365GraphClient(
         }
     }
 
-    /// <summary>Tamaño de página del listado de la recuperación del hueco.</summary>
-    internal const int TamanoPaginaRecuperacion = 50;
+    /// <summary>
+    /// Tamaño de página del listado de la recuperación del hueco: el máximo que Graph admite en <c>messages</c>. Con
+    /// <c>$select=id,receivedDateTime</c> la página es ligera.
+    /// </summary>
+    internal const int TamanoPaginaRecuperacion = 1000;
 
     private static readonly Error ErrorListadoIlegible =
         Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft 365 devolvió un listado de la carpeta Inbox ilegible.");
 
     public async Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
-        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken)
     {
-        string url;
-        if (siguienteEnlace is null)
-        {
-            // Se redondea hacia abajo al segundo: leer de más se deduplica en la ingesta, leer de menos perdería correo.
-            var desde = DateTime.SpecifyKind(desdeUtc, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
-            url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
-                "?$select=id,receivedDateTime" +
-                $"&$filter={Uri.EscapeDataString($"receivedDateTime ge {desde}")}" +
-                "&$orderby=receivedDateTime asc" +
-                $"&$top={TamanoPaginaRecuperacion}";
-        }
-        else if (EsContinuacionDelListado(siguienteEnlace, buzon, desdeUtc))
-            url = siguienteEnlace;
-        else
-        {
-            // El enlace lleva el token del buzón: fuera de la raíz de Graph no se sigue. Y una continuación de otro buzón,
-            // otra carpeta, otro orden o un filtro posterior al cursor podría terminar el listado sin cubrir el intervalo.
-            logger.LogError("La continuación del listado de la recuperación no corresponde al listado de Inbox de ese buzón; no se sigue.");
-            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorContinuacionRechazada);
-        }
+        // Siempre la primera página de una consulta por fecha, nunca el @odata.nextLink: la continuación de Graph es
+        // posicional ($skip), y si entre dos páginas sale de la carpeta un mensaje ya leído, salta uno sin leer. Se redondea
+        // hacia abajo al segundo: leer de más se deduplica, leer de menos perdería correo.
+        var desde = DateTime.SpecifyKind(desdeUtc, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        var url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
+            "?$select=id,receivedDateTime" +
+            $"&$filter={Uri.EscapeDataString($"receivedDateTime ge {desde}")}" +
+            "&$orderby=receivedDateTime asc" +
+            $"&$top={TamanoPaginaRecuperacion}";
 
         try
         {
@@ -1030,14 +1022,9 @@ public class Microsoft365GraphClient(
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
             {
-                // Un 400, 404 o 410 sobre una continuación es la continuación rechazada (caducada o inválida); un 401 o un
-                // 403 dicen algo del token, no de ella, y no la hacen olvidar.
                 var error = EsRespuestaTransitoria(respuesta.StatusCode)
                     ? ConEsperaPedida(ErrorTransitorio, respuesta)
-                    : siguienteEnlace is not null && respuesta.StatusCode is System.Net.HttpStatusCode.BadRequest
-                        or System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Gone
-                        ? ErrorContinuacionRechazada
-                        : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la carpeta Inbox del buzón.");
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la carpeta Inbox del buzón.");
                 return Result.Fallo<PaginaMensajesRecibidosGraphDto>(error);
             }
 
@@ -1058,69 +1045,10 @@ public class Microsoft365GraphClient(
         }
     }
 
-    private static readonly Error ErrorContinuacionRechazada =
-        Error.Crear(CodigosErrorMicrosoft365.ContinuacionRechazada, "La continuación del listado de la carpeta Inbox ya no vale.");
-
-    /// <summary>
-    /// La continuación es del mismo listado que la recuperación pidió: bajo la raíz de Graph (<see cref="EsEnlaceDeGraph"/>),
-    /// sobre los mensajes de la carpeta Inbox del mismo buzón (un buzón propio, <c>me</c>, puede volver como
-    /// <c>users/{id}</c>), con orden <c>receivedDateTime asc</c> y un filtro <c>receivedDateTime ge</c> que no es posterior al
-    /// cursor (<paramref name="desdeUtc"/>), que solo avanza: la cadena empezó en un cursor igual o anterior. Graph conserva
-    /// en la continuación los parámetros de la consulta inicial. Cualquier otra cosa no se sigue: podría terminar el
-    /// listado sin haber cubierto el intervalo.
-    /// </summary>
-    internal static bool EsContinuacionDelListado(string enlace, BuzonGraph buzon, DateTime desdeUtc)
-    {
-        if (!EsEnlaceDeGraph(enlace) || !Uri.TryCreate(enlace, UriKind.Absolute, out var uri))
-            return false;
-
-        var ruta = Uri.UnescapeDataString(uri.AbsolutePath).ToLowerInvariant();
-        var deEseBuzon = buzon.EsCompartido
-            ? ruta.StartsWith($"/v1.0/users/{buzon.Direccion.ToLowerInvariant()}/", StringComparison.Ordinal)
-              || ruta.StartsWith($"/v1.0/users('{buzon.Direccion.ToLowerInvariant()}')/", StringComparison.Ordinal)
-            : ruta.StartsWith("/v1.0/me/", StringComparison.Ordinal) || ruta.StartsWith("/v1.0/users/", StringComparison.Ordinal);
-        if (!deEseBuzon
-            || !ruta.EndsWith("/messages", StringComparison.Ordinal)
-            || !(ruta.Contains("/mailfolders('inbox')/", StringComparison.Ordinal) || ruta.Contains("/mailfolders/inbox/", StringComparison.Ordinal)))
-            return false;
-
-        var parametros = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var par in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var igual = par.IndexOf('=');
-            var clave = Uri.UnescapeDataString((igual < 0 ? par : par[..igual]).Replace('+', ' '));
-            var valor = igual < 0 ? "" : Uri.UnescapeDataString(par[(igual + 1)..].Replace('+', ' '));
-            if (!parametros.TryAdd(clave, valor.Trim()))
-                return false;
-        }
-
-        if (!parametros.TryGetValue("$orderby", out var orden)
-            || !string.Equals(System.Text.RegularExpressions.Regex.Replace(orden, @"\s+", " "), "receivedDateTime asc", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        if (!parametros.TryGetValue("$filter", out var filtro))
-            return false;
-        var coincidencia = System.Text.RegularExpressions.Regex.Match(
-            filtro, @"^receivedDateTime\s+ge\s+(\S+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        return coincidencia.Success
-            && DateTimeOffset.TryParse(coincidencia.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.AssumeUniversal, out var filtroDesde)
-            && filtroDesde.UtcDateTime <= DateTime.SpecifyKind(desdeUtc, DateTimeKind.Utc);
-    }
-
-    /// <summary>Solo una URL absoluta https bajo <see cref="RaizGraph"/>, sin credenciales en la autoridad.</summary>
-    internal static bool EsEnlaceDeGraph(string enlace) =>
-        Uri.TryCreate(enlace, UriKind.Absolute, out var uri)
-        && uri.Scheme == Uri.UriSchemeHttps
-        && string.Equals(uri.Host, "graph.microsoft.com", StringComparison.OrdinalIgnoreCase)
-        && uri.IsDefaultPort
-        && string.IsNullOrEmpty(uri.UserInfo)
-        && uri.AbsolutePath.StartsWith("/v1.0/", StringComparison.Ordinal);
-
     /// <summary>
     /// Una página legible: un objeto con un array <c>value</c> cuyos elementos traen <c>id</c> y <c>receivedDateTime</c>, y
-    /// como mucho un <c>@odata.nextLink</c> de texto. Cualquier otra cosa (un <c>{}</c>, un <c>null</c>, un elemento a
-    /// medias) devuelve null: el llamador lo trata como fallo y la marca se queda.
+    /// como mucho un <c>@odata.nextLink</c> de texto, que solo dice si hay más (no se sigue). Cualquier otra cosa (un
+    /// <c>{}</c>, un <c>null</c>, un elemento a medias) devuelve null: el llamador lo trata como fallo y la marca se queda.
     /// </summary>
     internal static PaginaMensajesRecibidosGraphDto? LeerPaginaRecibidos(string cuerpo)
     {
@@ -1146,15 +1074,15 @@ public class Microsoft365GraphClient(
                 mensajes.Add(new MensajeRecibidoGraphDto(id.GetString()!, recibidoUtc.UtcDateTime));
             }
 
-            string? siguiente = null;
+            var hayMas = false;
             if (raiz.TryGetProperty("@odata.nextLink", out var enlace))
             {
                 if (enlace.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(enlace.GetString()))
                     return null;
-                siguiente = enlace.GetString();
+                hayMas = true;
             }
 
-            return new PaginaMensajesRecibidosGraphDto(mensajes, siguiente);
+            return new PaginaMensajesRecibidosGraphDto(mensajes, hayMas);
         }
         catch (JsonException)
         {

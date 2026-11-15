@@ -295,27 +295,27 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Error? ErrorEliminacion { get; set; }
 
     /// <summary>
-    /// Páginas del listado de la recuperación del hueco, en orden: la primera responde a la petición sin enlace y cada
-    /// una de las siguientes al enlace de la anterior. Un fallo en la lista corta ahí.
+    /// Respuestas del listado de la recuperación del hueco, en el orden en que se piden: la n-ésima petición recibe la
+    /// n-ésima página, sea cual sea su fecha. Pasadas las de la lista, una página vacía sin más detrás.
     /// </summary>
     public List<Result<PaginaMensajesRecibidosGraphDto>> PaginasRecibidos { get; } = [];
 
-    /// <summary>Cada petición del listado de la recuperación: buzón, fecha desde la que lista y enlace seguido.</summary>
-    public List<(BuzonGraph Buzon, DateTime DesdeUtc, string? Enlace)> ListadosRecibidosPedidos { get; } = [];
+    /// <summary>Cada petición del listado de la recuperación: buzón y fecha desde la que lista.</summary>
+    public List<(BuzonGraph Buzon, DateTime DesdeUtc)> ListadosRecibidosPedidos { get; } = [];
 
     /// <summary>Se ejecuta en cada petición del listado de la recuperación, antes de responder (para simular carreras).</summary>
     public Action<int>? AlListarRecibidos { get; set; }
 
     public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
-        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var indice = ListadosRecibidosPedidos.Count;
-        ListadosRecibidosPedidos.Add((buzon, desdeUtc, siguienteEnlace));
+        ListadosRecibidosPedidos.Add((buzon, desdeUtc));
         AlListarRecibidos?.Invoke(indice);
         return Task.FromResult(indice < PaginasRecibidos.Count
             ? PaginasRecibidos[indice]
-            : Result.Exito(new PaginaMensajesRecibidosGraphDto([], null)));
+            : Result.Exito(new PaginaMensajesRecibidosGraphDto([], false)));
     }
 
     public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) => "recuperacion:" + string.Join(",", mensajeIds);

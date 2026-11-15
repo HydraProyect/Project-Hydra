@@ -98,10 +98,10 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             // sin 42501.
             "ConsentidoPorUsuarioId", "DirectorioEntraId", "EsBuzonCompartido", "HuecoPendienteDesdeUtc", "IdentidadBuzon",
             "IdentidadVerificadaUtc", "MarcaHuecoPorRegistrarDesdeUtc", "ReintentoVerificacionNoAntesDeUtc",
-            // Recuperación del hueco (migración 20261115190723): generación, cobertura, cursor, continuación de Graph sin
-            // token y fin del listado; ninguna es un secreto.
+            // Recuperación del hueco (migración 20261115190723): generación, cobertura, cursor y fin del listado; ninguna
+            // es un secreto.
             "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
-            "RecuperacionHuecoListadoCompleto", "RecuperacionHuecoSiguienteEnlace"] },
+            "RecuperacionHuecoListadoCompleto"] },
     };
 
     private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";

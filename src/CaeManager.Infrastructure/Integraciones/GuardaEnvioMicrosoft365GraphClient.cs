@@ -99,8 +99,8 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
         interno.EliminarSuscripcionAsync(accessToken, graphSubscriptionId, cancellationToken);
 
     public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
-        string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken) =>
-        interno.ListarRecibidosDesdeAsync(accessToken, buzon, desdeUtc, siguienteEnlace, cancellationToken);
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken) =>
+        interno.ListarRecibidosDesdeAsync(accessToken, buzon, desdeUtc, cancellationToken);
 
     public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) =>
         interno.ConstruirPayloadRecuperacion(mensajeIds);

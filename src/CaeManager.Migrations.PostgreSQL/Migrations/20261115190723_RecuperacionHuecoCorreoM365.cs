@@ -42,22 +42,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 nullable: false,
                 defaultValue: false);
 
-            migrationBuilder.AddColumn<string>(
-                name: "RecuperacionHuecoSiguienteEnlace",
-                table: "ConexionesIntegracion",
-                type: "text",
-                nullable: true);
-
             // Columnas nullable o con valor por defecto, sin relleno: la ranura anterior del despliegue azul/verde no las
             // conoce (EF solo nombra las columnas de su modelo) y sigue funcionando; las filas existentes nacen sin
             // recuperación en curso. Soporte TALVEG lee estas dos tablas columna a columna
             // (SoporteSinColumnasSecretasRestantes, SoporteSinCodigoVerificacionNiPayloadWebhook): sin estos grants, cargar
-            // la entidad bajo cae_app_soporte daría 42501. Son fechas, un identificador de generación, un indicador y la
-            // continuación del listado de Graph (una URL sin credencial: no sirve sin el token de acceso). No cambia
+            // la entidad bajo cae_app_soporte daría 42501. Son fechas, un identificador de generación y un indicador. No cambia
             // políticas RLS ni roles.
             migrationBuilder.Sql("""
                 GRANT SELECT ("RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
-                              "RecuperacionHuecoListadoCompleto", "RecuperacionHuecoSiguienteEnlace")
+                              "RecuperacionHuecoListadoCompleto")
                     ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 GRANT SELECT ("CubreDesdeUtc") ON TABLE public."EventosWebhook" TO cae_app_soporte;
                 """);
@@ -84,10 +77,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             migrationBuilder.DropColumn(
                 name: "RecuperacionHuecoListadoCompleto",
-                table: "ConexionesIntegracion");
-
-            migrationBuilder.DropColumn(
-                name: "RecuperacionHuecoSiguienteEnlace",
                 table: "ConexionesIntegracion");
         }
     }
