@@ -201,11 +201,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
         // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
         // usuario del contexto firmado, y deja la traza. Solo los identificadores del contrato y del Documento, parametrizados por EF.
-        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorDocumentosInboundEnBase.cs",
             """var fila = await dbContext.Database.SqlQuery<FilaAutorizacion>($"SELECT * FROM app_inbound_autorizacion_del_contrato({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
-        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorDocumentosInboundEnBase.cs",
             """var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
-        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorDocumentosInboundEnBase.cs",
             """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
 
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en

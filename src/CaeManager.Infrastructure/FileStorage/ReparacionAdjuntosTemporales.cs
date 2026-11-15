@@ -3,7 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.EvidenciasInbound;
+using CaeManager.Domain.Inbound.EvidenciasInbound;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;

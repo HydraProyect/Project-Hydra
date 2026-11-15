@@ -1026,8 +1026,18 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
                                     or nameof(IAlcanceDatosService.AlcanzaElTenantEnteroAsync)))
             .ToList();
 
+    /// <summary>
+    /// Primer segmento bajo <c>CaeManager.Application</c>, saltando el segmento de módulo (Inbound, Outbound, Nucleo;
+    /// ADR-013 § 4.7): <c>CaeManager.Application.Inbound.ContratosAcceso.X</c> es la característica
+    /// <c>ContratosAcceso</c>, la misma que antes de M1.
+    /// </summary>
     internal static string Caracteristica(Type handler) =>
-        handler.Namespace?.Split('.') is [_, "Application", var area, ..] ? area : "(raíz)";
+        handler.Namespace?.Split('.') switch
+        {
+            [_, "Application", "Inbound" or "Outbound" or "Nucleo", var area, ..] => area,
+            [_, "Application", var area, ..] => area,
+            _ => "(raíz)",
+        };
 
     private static HashSet<Type> Parametros(Type tipo) =>
         tipo.GetConstructors().SelectMany(c => c.GetParameters()).Select(p => p.ParameterType).ToHashSet();

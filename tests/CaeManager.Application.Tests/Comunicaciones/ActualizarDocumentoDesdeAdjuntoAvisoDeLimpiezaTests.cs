@@ -9,7 +9,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Xunit;
-using TenantActualFijo = CaeManager.Application.Tests.AutorizacionesLectura.TenantActualFijo;
+using TenantActualFijo = CaeManager.Application.Tests.Inbound.AutorizacionesLectura.TenantActualFijo;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
