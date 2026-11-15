@@ -91,6 +91,45 @@ public class SituacionDocumentosEnCentrosService(
     // (Documentos.RolesDeGestionDocumental). A Consulta y al Usuario de Cliente esa pestaña les dice «sin permiso»;
     // la segunda línea de una ficha no puede ser una puerta lateral al mismo dato. Con la misma regla se leen la nota, el
     // motivo y el Gestor CAE de un cambio de estado anotado a mano en la plataforma (Centro 360, bloque 3 del 21-10).
+    //
+    // Regla de trazabilidad interna del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
+    // pendientes», punto 1; los rastros de reclamaciones, en «El rol Consulta y el rol Cliente no ven los rastros de
+    // reclamaciones de Inicio ni del Centro», y el motivo de la vista rápida, en la «Tanda 7 de decisiones pendientes», las
+    // dos del mismo día y entregadas en la #2233). Son DOS
+    // reglas por tipo de dato y no se unifican: (1) la información operativa (el último motivo de rechazo del historial de
+    // rechazos de la acreditación, la dirección del portal y las notas del canal) la lee Consulta, porque su puerta es
+    // IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync, que solo excluye al rol Cliente; (2) la trazabilidad interna,
+    // de la que Consulta y el Usuario de Cliente quedan fuera. Esta lista la aplica el servidor en cinco puntos:
+    //   - la nota, el motivo y el Gestor CAE autor del REGISTRO de un cambio de estado anotado a mano
+    //     (CargarAnotacionesAsync de este servicio y ObtenerCambiosEstadoPlataformaDeCentroQuery);
+    //   - la última reclamación de los documentos de la situación, presentes o ausentes (CargarReclamacionesAsync);
+    //   - ObtenerReclamacionesSinRespuestaQuery, que devuelve vacío (bloque «Reclamado y sin respuesta» de Inicio);
+    //   - ObtenerUltimaReclamacionClienteQuery, que devuelve null (línea «Última reclamación al Cliente» del Centro en el
+    //     Context Workspace);
+    //   - el UltimoMotivoRechazo de ObtenerAcreditacionesDelDocumentoQuery (vista rápida de un Documento), que queda a null.
+    // La presentación sigue la misma lista (RolesComunicaciones.LecturaReclamaciones): Inicio y CentroWorkspacePanel no envían
+    // esas dos Queries a los demás roles y DocumentoWorkspacePanel no pinta el motivo.
+    // El corte del motivo es solo el de la vista rápida, la Query que nombra la Tanda 7: el motivo de un rechazo NO queda en
+    // ese único punto, y el de uno anotado a mano tampoco queda solo en el registro del cambio.
+    // AcreditacionDocumentoPlataforma.CambiarEstadoAMano lo añade también al historial de rechazos (causa «Otro», sin autor ni
+    // nota; no distingue su origen del de un rechazo de la Plataforma CAE), y de ahí le sigue llegando a Consulta como
+    // UltimoMotivoRechazo, entre otras, por: ObtenerDocumentosQuery (listado de Documentos, solo si la acreditación está
+    // rechazada), la pestaña Plataforma de Documentos (PlataformaTab) y todo lo que cuelga de
+    // ObtenerAcreditacionesPorProveedorQuery, que no lo condiciona al estado actual: la Bandeja del Gestor
+    // (ObtenerBandejaGestorQuery, que lo pone en el subtítulo de los ítems de plataforma rechazada y, por
+    // ObtenerBandejaAgrupadaQuery, llega a «Requiere atención» de Inicio, que se pide a todo rol salvo Cliente), la pestaña
+    // Plataformas de Empresa 360 (donde FilasPlataformasEmpresa lo filtra a las rechazadas en la presentación) y GET /extension/acreditaciones-pendientes (que solo exige sesión o token
+    // de extensión, sin lista de roles, y donde el servidor excluye los rechazos vigentes con SoloSubiblesExtension, así que
+    // viaja el de rechazos pasados). El DECISION_LOG solo nombra la vista rápida: para estas otras vías no hay un corte
+    // decidido, y cortar solo el motivo anotado a mano exigiría que el historial de rechazos distinguiera su origen.
+    // El historial de reclamaciones enviadas (ObtenerReclamacionesEnviadasQuery) NO la comprueba en el servidor: acota por
+    // cartera, no por rol, y se le corta a Consulta solo en la presentación (Documentos.RolesDeGestionDocumental y
+    // RolesComunicaciones.LecturaReclamaciones; HistorialReclamacionesEnComunicacionesTests, en la Web, fija que esas dos
+    // listas no se separen de esta).
+    // Decide el rol efectivo (ICurrentUserService.ObtenerRolEfectivoAsync), así que la regla no depende de la vía por la
+    // que la sesión es Consulta (su Tenant de origen, un Tenant beneficiario delegado por Asignación de Operación o la
+    // delegación heredada del acceso de soporte).
+    // El Usuario de Cliente sigue con la decisión del 2026-11-12 («B: estado, sin motivo»).
     internal static readonly string[] RolesQueLeenReclamaciones =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
