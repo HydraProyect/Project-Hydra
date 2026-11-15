@@ -81,11 +81,26 @@ public class ReflexionNoPublicaCongeladaTests
         SeleccionPorFichero.Keys.Should().NotContain(f => f.Contains("/FileStorage/", StringComparison.Ordinal));
     }
 
-    public static TheoryData<string> Selectores() => new(SeleccionDeMiembros);
-
-    /// <summary>Control: cada nombre de la lista lo ve el predicado; si se quitara uno, su caso caería.</summary>
+    /// <summary>
+    /// Control: cada nombre lo ve el predicado. Los casos se escriben aquí, no se toman de <see cref="SeleccionDeMiembros"/>:
+    /// si se quitara un nombre de esa lista, su caso seguiría aquí y caería.
+    /// </summary>
     [Theory]
-    [MemberData(nameof(Selectores))]
+    [InlineData("GetMethod")]
+    [InlineData("GetMethods")]
+    [InlineData("GetMethodImpl")]
+    [InlineData("GetRuntimeMethod")]
+    [InlineData("GetRuntimeMethods")]
+    [InlineData("GetDeclaredMethod")]
+    [InlineData("GetDeclaredMethods")]
+    [InlineData("DeclaredMethods")]
+    [InlineData("DeclaredMembers")]
+    [InlineData("DeclaredConstructors")]
+    [InlineData("GetMember")]
+    [InlineData("GetMembers")]
+    [InlineData("FindMembers")]
+    [InlineData("GetDefaultMembers")]
+    [InlineData("InvokeMember")]
     public void Control_el_predicado_ve_cada_forma_de_seleccionar_un_miembro(string selector)
     {
         var sintetico = FuentesDeSrc.AnalizarCSharp($"class C {{ object M(dynamic tipo) => tipo.{selector}; }}");

@@ -38,8 +38,8 @@ namespace CaeManager.Architecture.Tests;
 /// lo fija solo el barrido de identificadores y literales de <c>src</c> sobre el nombre del método, de la envoltura y del
 /// puerto estrecho. La reflexión sobre miembros no públicos la acota <c>ReflexionNoPublicaCongeladaTests</c> a los usos que
 /// hay hoy. Lo que queda no se puede contener en .NET: código del mismo proceso que recorra los metadatos sin nombrar nada
-/// (enumerar tipos y métodos y elegirlos por su forma, con las <c>BindingFlags</c> calculadas) llega a cualquier miembro
-/// <c>internal</c>. Tampoco se ve lo que haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo,
+/// (unas <c>BindingFlags</c> calculadas, un recorrido de metadatos que no use ninguno de los nombres congelados, o uno sin
+/// <c>BindingFlags</c> que elija el miembro por su forma) llega a cualquier miembro <c>internal</c>. Tampoco se ve lo que haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo,
 /// <c>tools/</c>). La contención real de la lectura entre Tenants es la guarda de carpeta que aplica el adaptador sobre
 /// la referencia que devolvió la base (y que el almacén repite), no estos trinquetes, que solo hacen visible en la PR un
 /// consumidor nuevo. Tampoco fijan qué hace el adaptador por dentro: su test de comportamiento
