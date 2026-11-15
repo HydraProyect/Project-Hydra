@@ -1,10 +1,12 @@
 namespace CaeManager.Domain.Comercial;
 
 /// <summary>
-/// Escritura del Producto Contratado. Hoy solo la usa <c>ContratarLineaInboundCommand</c> (B-04a), que corre como
-/// <c>cae_app_aprovisionamiento</c>: ese rol tiene INSERT y no SELECT sobre <c>ProductosContratados</c> (decisión D-C,
-/// 2026-11-15), así que este puerto no lee. La regla de un solo Producto Contratado de la línea Inbound vigente por
-/// Tenant beneficiario (D-B) la impone el índice único parcial de la base y este puerto la traduce.
+/// Escritura del Producto Contratado. Hoy solo la usan los comandos de la línea Inbound (B-04a y su baja o corrección,
+/// opción B del 2026-11-15), que corren como <c>cae_app_aprovisionamiento</c>. Ese rol inserta, lee solo las columnas que
+/// necesita el WHERE de la baja (<c>Id</c>, <c>TenantId</c>, <c>Linea</c>, <c>Estado</c>, <c>EstaEliminado</c>) y
+/// actualiza solo <c>Estado</c> y <c>VigenteHastaUtc</c>, así que este puerto nunca materializa un Producto Contratado
+/// leído. La regla de un solo Producto Contratado de la línea Inbound vigente por Tenant beneficiario (D-B) la impone el
+/// índice único parcial de la base y este puerto la traduce.
 /// </summary>
 public interface IProductoContratadoRepository
 {
@@ -20,4 +22,35 @@ public interface IProductoContratadoRepository
     /// </summary>
     Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
         ProductoContratado intento, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finaliza el Producto Contratado de la línea Inbound vigente del Tenant activo, con fin de vigencia
+    /// <paramref name="vigenteHastaUtc"/>, y deja su registro de auditoría; escribe en el acto, así que el llamador lo
+    /// envuelve en una transacción si tiene que ir junto con otra escritura. El contexto no puede tener cambios
+    /// pendientes: si los tiene, no escribe nada y lanza <see cref="InvalidOperationException"/>. No pasa por
+    /// <see cref="ProductoContratado.Finalizar"/> porque el rol elevado no puede leer la fila entera: la coherencia entre
+    /// inicio y fin la impone el CHECK <c>CK_ProductosContratados_EstadoYVigencia</c>, y el resultado
+    /// <see cref="ResultadoFinalizacionInbound.VigenciaAunNoIniciada"/> la traduce.
+    /// </summary>
+    Task<FinalizacionInbound> FinalizarInboundVigenteAsync(
+        DateTime vigenteHastaUtc, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Qué hizo <see cref="IProductoContratadoRepository.FinalizarInboundVigenteAsync"/>.</summary>
+public enum ResultadoFinalizacionInbound
+{
+    /// <summary>La fila vigente pasó a Finalizado; <see cref="FinalizacionInbound.ProductoContratadoId"/> la identifica.</summary>
+    Finalizada,
+
+    /// <summary>El Tenant activo no tiene un Producto Contratado de la línea Inbound vigente: no se escribió nada.</summary>
+    SinInboundVigente,
+
+    /// <summary>
+    /// El fin quedaría antes del inicio de la vigencia (una contratación con el reloj de la aplicación adelantado, dentro
+    /// del margen de la política de INSERT): no se escribió nada.
+    /// </summary>
+    VigenciaAunNoIniciada,
+}
+
+/// <summary>Resultado de la finalización y, si la hubo, el Producto Contratado finalizado.</summary>
+public readonly record struct FinalizacionInbound(ResultadoFinalizacionInbound Resultado, Guid? ProductoContratadoId);

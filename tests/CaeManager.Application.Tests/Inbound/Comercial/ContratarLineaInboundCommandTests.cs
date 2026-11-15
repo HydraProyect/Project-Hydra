@@ -282,5 +282,9 @@ public class ContratarLineaInboundCommandTests
             Guardados++;
             return Task.FromResult(!RechazarPorInboundVigenteDuplicado);
         }
+
+        public Task<FinalizacionInbound> FinalizarInboundVigenteAsync(
+            DateTime vigenteHastaUtc, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("el alta de la línea Inbound no finaliza nada");
     }
 }

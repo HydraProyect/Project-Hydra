@@ -91,7 +91,8 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         // contratación saldría bien aunque el comando no llegara a elevarse.
         (await TienePrivilegioAsync("cae_app_soporte", "INSERT")).Should().BeFalse("control: la sesión lee como cae_app_soporte");
         (await TienePrivilegioAsync("cae_app_aprovisionamiento", "SELECT")).Should().BeFalse(
-            "control: el rol elevado no lee la tabla, así que el alta no puede depender de una lectura previa");
+            "control: el rol elevado no lee la tabla entera (solo las columnas del WHERE de la baja), así que el alta no " +
+            "puede depender de una lectura previa de lo contratado");
 
         var primera = await EnviarAsync(_sesionDeAprovisionamiento, rol: null,
             new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
@@ -184,7 +185,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         await using var contexto = CrearContextoPropietarioAuditado();
         var otro = await contexto.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id);
 
-        var repositorio = new ProductoContratadoRepository(contexto);
+        var repositorio = new ProductoContratadoRepository(contexto, new ActorFijo(_actorPlataforma));
         var intento = ContratoInbound("cus_Duplicado");
         repositorio.Agregar(intento);
 
@@ -204,7 +205,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
     {
         // Hallazgo 2 de Codex (ronda 2): antes, ante el duplicado se retiraban todos los Productos Contratados añadidos.
         await using var contexto = CrearContextoPropietarioAuditado();
-        var repositorio = new ProductoContratadoRepository(contexto);
+        var repositorio = new ProductoContratadoRepository(contexto, new ActorFijo(_actorPlataforma));
         var previo = ContratoInbound("cus_Previo");
         repositorio.Agregar(previo);
         var intento = ContratoInbound("cus_Intento");
@@ -236,7 +237,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
             viaAcceso: TipoViaAccesoAuditoria.Normal, viaAccesoId: null);
         contexto.RegistrosAuditoria.Add(auditoriaAjena);
 
-        var repositorio = new ProductoContratadoRepository(contexto);
+        var repositorio = new ProductoContratadoRepository(contexto, new ActorFijo(_actorPlataforma));
         var intento = ContratoInbound("cus_Intento");
         repositorio.Agregar(intento);
 
@@ -345,10 +346,12 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
             (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, InsertInbound(_tce.Id, vigenteDesde: desfase)))
                 .SqlState.Should().BeNull($"dentro del margen de 5 minutos: {desfase}");
 
-        // Ni lee ni cambia lo que inserta.
+        // Ni lee ni cambia lo contratado: la baja (FinalizaLineaInboundPorAprovisionamiento) solo le concede leer las
+        // columnas de su WHERE y actualizar Estado y VigenteHastaUtc, que prueba BajaYCorreccionLineaInboundPorAprovisionamientoTests.
         foreach (var sql in new[]
                  {
-                     """SELECT count(*) FROM "ProductosContratados";""",
+                     """SELECT "PagadorStripeCustomerId" FROM "ProductosContratados";""",
+                     """SELECT "Tramo", "Modalidad", "VigenteDesdeUtc" FROM "ProductosContratados";""",
                      """UPDATE "ProductosContratados" SET "Tramo" = 'De1A10';""",
                      """DELETE FROM "ProductosContratados";""",
                  })

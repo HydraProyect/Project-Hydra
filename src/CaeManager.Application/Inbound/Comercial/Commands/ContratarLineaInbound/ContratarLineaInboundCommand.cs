@@ -38,8 +38,8 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 ///
 /// <para>
 /// Fuera de alcance (D-D): el Administrador del Tenant y la Asignación de Operación Inbound, que van a B-04b.
-/// Tampoco hay todavía vía para corregir o dar de baja lo contratado: el rol elevado solo inserta, y un Pagador o un
-/// tramo mal introducidos no se arreglan desde la aplicación hasta que se decida esa vía.
+/// Un Pagador, un tramo o una modalidad mal introducidos se corrigen con <c>CorregirLineaInboundCommand</c>, y la línea
+/// se da de baja con <c>DarDeBajaLineaInboundCommand</c> (opción B del 2026-11-15).
 /// </para>
 /// </summary>
 [AreaDelEncargo("Comercial")]
