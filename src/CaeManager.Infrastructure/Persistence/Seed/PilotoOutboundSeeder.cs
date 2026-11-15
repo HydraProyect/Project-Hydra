@@ -1821,7 +1821,8 @@ public static class PilotoOutboundSeeder
                     var antesDelMargen = D.AddDays(-(OpcionesPilotoOutbound.MargenMaximoDias + 1 + j % 5));
                     var participante = new ProyectoTecnico(
                         proyecto.Id, trabajadores[evento.Participantes[j]].Id, porElInicio < antesDelMargen ? porElInicio : antesDelMargen);
-                    if (evento.Estado == EstadoEventoPilotoOutbound.Terminado) participante.DarDeBaja(fin);
+                    // Lo mismo que hace el cierre automático de eventos terminados (D-4, #2005): baja por fin del evento.
+                    if (evento.Estado == EstadoEventoPilotoOutbound.Terminado) participante.DarDeBaja(fin, MotivoBajaProyectoTecnico.FinDelEvento);
                     dbContext.ProyectosTecnicos.Add(participante);
                 }
             }

@@ -817,7 +817,7 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs"] = 1,
         // El recálculo del estado materializado (inyección y las dos llamadas).
         ["src/CaeManager.Application/EstadoMaterializado/RecalculoEstadoMaterializadoService.cs"] = 3,
-        // El sello del expediente de la Visita: inyección, una llamada y su referencia en la documentación.
+        // El sello del expediente de la Visita: la inyección y una llamada (los comentarios no cuentan).
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 2,
     };
 

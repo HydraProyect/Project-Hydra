@@ -31,7 +31,7 @@ internal static class EvaluadorExpedienteDePrueba
         IVisitaRepository repositorio,
         IAsignacionesQueryContext? asignaciones = null) =>
         new(
-            visitas, centros, documentos,
+            visitas, centros, documentos, trabajadores,
             new EvaluacionDeAccesoPorCentroService(
                 centros, tipos, trabajadores, asignaciones ?? new AsignacionesQueryContextFalso(), documentos,
                 new AlcanceDatosServiceFalso()),

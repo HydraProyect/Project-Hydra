@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
 using Microsoft.EntityFrameworkCore;
@@ -17,8 +18,8 @@ public interface IEvaluadorExpedienteVisitaService
 
     /// <summary>
     /// Reevalúa las visitas todavía sin sellar a las que afecta un Documento — las del
-    /// trabajador si es documentación de trabajador, o las de los centros de la empresa
-    /// si es documentación de empresa. Es el disparador natural al crear o renovar un
+    /// trabajador si es documentación de trabajador, o las de los Trabajadores de esa Empresa
+    /// si es documentación de empresa (la regla común mira la Empresa de cada participante). Es el disparador natural al crear o renovar un
     /// documento; los documentos de otros ámbitos (cliente, vehículo, proyecto) no
     /// intervienen en el expediente de una visita y se ignoran.
     /// </summary>
@@ -46,6 +47,7 @@ public class EvaluadorExpedienteVisitaService(
     IVisitasQueryContext visitasContext,
     ICentrosQueryContext centrosContext,
     IDocumentosQueryContext documentosContext,
+    ITrabajadoresQueryContext trabajadoresContext,
     IEvaluacionDeAccesoDelTenant evaluacionDeAcceso,
     IConfiguracionQueryContext configuracionContext,
     IVisitaRepository visitaRepository,
@@ -117,14 +119,18 @@ public class EvaluadorExpedienteVisitaService(
         }
         else if (propietario.EmpresaId is { } empresaId)
         {
-            var centroIds = await centrosContext.Centros
-                .Where(c => c.EmpresaId == empresaId)
-                .Select(c => c.Id)
+            // D-4: la regla común evalúa los documentos de la Empresa de cada participante (EmpresaId o, sin ella,
+            // SubcontrataId), no los de la Empresa del Centro. Las Visitas afectadas son las de los Trabajadores de
+            // esa Empresa, aunque el Centro sea de otra (una Subcontrata en el Centro de su contratista).
+            var trabajadorIds = await trabajadoresContext.Trabajadores
+                .Where(t => t.EmpresaId == empresaId || (t.EmpresaId == null && t.SubcontrataId == empresaId))
+                .Select(t => t.Id)
                 .ToListAsync(cancellationToken);
 
-            visitaIds = await pendientes
-                .Where(v => centroIds.Contains(v.CentroId))
-                .Select(v => v.Id)
+            visitaIds = await visitasContext.VisitasTrabajadores
+                .Where(vt => trabajadorIds.Contains(vt.TrabajadorId))
+                .Join(pendientes, vt => vt.VisitaId, v => v.Id, (vt, v) => v.Id)
+                .Distinct()
                 .ToListAsync(cancellationToken);
         }
         else
@@ -161,6 +167,12 @@ public class EvaluadorExpedienteVisitaService(
         // Una visita sin trabajadores todavía no es un expediente que se pueda dar por
         // completo — es una visita a medio dar de alta.
         if (trabajadorIds.Count == 0) return false;
+
+        // Un participante que ya no se resuelve (Trabajador eliminado) no se puede evaluar: la regla común lo
+        // omitiría y el sello, que es irreversible, quedaría puesto sin mirarlo. Sin todos evaluados, no se sella.
+        var resueltos = await trabajadoresContext.Trabajadores
+            .CountAsync(t => trabajadorIds.Contains(t.Id), cancellationToken);
+        if (resueltos < trabajadorIds.Count) return false;
 
         // D-4 (#2005, decisión del 2026-11-15): la misma regla de bloqueo que el resto de superficies, sin copia propia.
         // Completo = ningún requisito bloqueante del Centro (BloqueaAcceso, con su vigencia propia y su tolerancia)
