@@ -104,6 +104,18 @@ public class ContratarLineaInboundCommandTests
     }
 
     [Fact]
+    public async Task Bajo_impersonacion_la_sesion_de_Aprovisionamiento_no_contrata()
+    {
+        var sesion = Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id) with { UsuarioSimuladoId = Guid.NewGuid() };
+
+        var resultado = await Handler(sesion, _tenant.Id).Handle(Comando(), CancellationToken.None);
+
+        resultado.Error.Should().Be(ErroresContratarLineaInbound.NoAutorizado);
+        _tenants.Lecturas.Should().Be(0);
+        _productos.Agregados.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Sin_Tenant_activo_no_contrata_aunque_haya_sesion_de_Aprovisionamiento()
     {
         var resultado = await Handler(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id), tenantActivo: null)
@@ -219,8 +231,11 @@ public class ContratarLineaInboundCommandTests
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(sesion);
 
+        // Hallazgo 1 de Codex (ronda 1): el handler corre con la conexión elevada a cae_app_aprovisionamiento, que no
+        // lee SesionesPrivilegiadas; revalidar ahí fallaría con 42501. El falso reproduce ese fallo.
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(sesion);
+            throw new InvalidOperationException(
+                "El handler no revalida: la conexión elevada no tiene SELECT sobre SesionesPrivilegiadas (42501).");
     }
 
     private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider

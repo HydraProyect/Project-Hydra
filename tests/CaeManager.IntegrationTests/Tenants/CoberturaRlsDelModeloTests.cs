@@ -193,6 +193,10 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "solo la cuenta que firma el contexto revoca sus sesiones de cookie, aunque otra cuenta del mismo Tenant " +
             "pudiera escribir en él (el alta llega desde el inicio de sesión, sin usuario en el contexto)",
             ["\"UsuarioId\"", "app_ctx_usuario_id()"], [], []),
+        ("ProductosContratados", "aprovisionamiento_solo_contrata_inbound_vigente", 'a',
+            "cae_app_aprovisionamiento, que adoptan todos los comandos de aprovisionamiento, solo inserta lo que contrata " +
+            "ContratarLineaInboundCommand: la línea Inbound, vigente, sin fin, no eliminada y del Tenant del contexto firmado",
+            ["\"Linea\"", "'Inbound'", "'Vigente'", "\"VigenteHastaUtc\"", "\"EstaEliminado\"", "app_ctx_tenant_id()"], [], []),
     ];
 
     /// <summary>

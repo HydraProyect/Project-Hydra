@@ -95,10 +95,20 @@ public class ContratarLineaInboundCommandHandler(
         // La autoridad va antes que cualquier lectura: quien no puede no debe poder distinguir, por el mensaje de error,
         // qué Tenants existen o cuáles tienen ya la línea. ValidationBehavior corre antes que el handler, así que un
         // Administrador sin Sesión Privilegiada puede recibir antes el fallo de formato del Pagador; no revela datos.
+        //
+        // ObtenerAsync y no RevalidarAsync, como AutoridadSobreElEncargo y AutorizacionEscrituraEfectiva: el handler
+        // corre ya con la conexión elevada a cae_app_aprovisionamiento, que no tiene SELECT sobre SesionesPrivilegiadas
+        // ni ConcesionesPrivilegio (solo cae_app_runtime y cae_app_soporte), así que revalidar aquí fallaría con 42501.
+        // La memo que lee la dejó en fresco ElevacionEscrituraAprovisionamientoBehavior justo antes de elevar, en este
+        // mismo comando y después de la revalidación de AutorizacionEscrituraBehavior. Sin ese pipeline (sin sesión),
+        // ObtenerAsync consulta como el rol que tenga la conexión, que no es el elevado.
+        // Bajo impersonación no se contrata: el Actor real no actúa como el Usuario simulado.
         if (tenantActual.TenantId is not { } tenantId
-            || await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not { } sesion
+            || await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion
             || sesion.Capacidad != CapacidadPrivilegio.Aprovisionamiento
-            || sesion.TenantObjetivoId != tenantId)
+            || !sesion.TieneCaminoDeEscritura
+            || sesion.TenantObjetivoId != tenantId
+            || sesion.UsuarioSimuladoId is not null)
             return Result.Fallo<Guid>(ErroresContratarLineaInbound.NoAutorizado);
 
         // Se repite lo del validador: el handler no depende de que el pipeline lo haya ejecutado, y el dominio lanza

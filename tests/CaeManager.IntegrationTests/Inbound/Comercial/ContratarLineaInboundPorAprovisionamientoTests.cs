@@ -4,16 +4,19 @@ using CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInbound;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.AltaAutonoma;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Configurations;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.Infrastructure.Plataforma;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
@@ -27,8 +30,9 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial;
 /// <summary>
 /// B-04a: la contratación de la línea Inbound (<see cref="ContratarLineaInboundCommand"/>, decisiones D-B y D-C del
 /// 2026-11-15) contra PostgreSQL real, componiendo el flujo como <c>EncargoAdministracionPorAprovisionamientoTests</c>:
-/// <see cref="IMediator"/> real, <see cref="ISesionPrivilegiadaActual"/> real, la elevación real y el
-/// <see cref="TenantRlsConnectionInterceptor"/> real.
+/// <see cref="IMediator"/> real, <see cref="ISesionPrivilegiadaActual"/> real, la elevación real, el
+/// <see cref="TenantRlsConnectionInterceptor"/> real y, para el guardado, los interceptores de producción en su orden con
+/// el <see cref="ActorAuditoriaDesdeSesion"/> de producción.
 ///
 /// <para>
 /// Lo que solo esta composición prueba: que el handler escribe como <c>cae_app_aprovisionamiento</c> con el único
@@ -106,6 +110,101 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         fila.Tramo.Should().Be(TramoTrabajadoresActivos.De41A80);
         fila.Modalidad.Should().Be(ModalidadSuscripcionAlta.Anual);
         fila.Estado.Should().Be(EstadoProductoContratado.Vigente);
+
+        // El guardado pasó por AuditoriaInterceptor con el actor de producción, con la conexión elevada: la fila de
+        // auditoría atribuye el alta al Actor de Plataforma por la vía de su Sesión Privilegiada, y el intento rechazado
+        // no dejó la suya.
+        var auditoria = (await AuditoriaComoPropietarioAsync(primera.Valor)).Should().ContainSingle().Subject;
+        auditoria.TenantId.Should().Be(_tce.Id);
+        auditoria.UsuarioId.Should().Be(_actorPlataforma);
+        auditoria.ActorRealUsuarioId.Should().Be(_actorPlataforma);
+        auditoria.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.SesionPrivilegiada);
+        auditoria.ViaAccesoId.Should().Be(_sesionDeAprovisionamiento);
+    }
+
+    [Fact]
+    public async Task Dos_contrataciones_simultaneas_dejan_una_sola_linea_Inbound_vigente()
+    {
+        // Solape determinista, con el patrón de RegistroAltaBajoRuntimeTests y sin depender de tiempos: el propietario
+        // ocupa la plaza del índice único parcial con una fila sin confirmar, las dos contrataciones quedan esperando ese
+        // bloqueo en su INSERT, y al deshacerla se sueltan a la vez y compiten por la plaza.
+        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
+        await retenedor.OpenAsync();
+        await using var transaccion = await retenedor.BeginTransactionAsync();
+        await using (var plaza = new NpgsqlCommand(InsertInbound(_tce.Id), retenedor, transaccion))
+            await plaza.ExecuteNonQueryAsync();
+
+        var comando = new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual);
+        var tareas = Enumerable.Range(0, 2)
+            .Select(_ => Task.Run(() => EnviarAsync(_sesionDeAprovisionamiento, rol: null, comando)))
+            .ToArray();
+
+        await using (var observador = new NpgsqlConnection(_cadenaConexion))
+        {
+            await observador.OpenAsync();
+            await using var esperando = new NpgsqlCommand(
+                """
+                SELECT count(*) FROM pg_stat_activity
+                WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%ProductosContratados%'
+                """,
+                observador);
+            var limite = DateTime.UtcNow.AddSeconds(30);
+            while ((long)(await esperando.ExecuteScalarAsync())! < 2)
+            {
+                // Si una terminó antes de bloquearse, el fallo dice con qué, en vez de agotar la espera.
+                if (tareas.FirstOrDefault(t => t.IsCompleted) is { } terminada)
+                {
+                    var resultado = await terminada;
+                    resultado.EsExitoso.Should().BeFalse("ninguna contratación entra mientras la plaza está ocupada");
+                    throw new Xunit.Sdk.XunitException(
+                        $"una contratación terminó sin esperar el bloqueo de la plaza: {resultado.Error.Codigo}");
+                }
+
+                DateTime.UtcNow.Should().BeBefore(limite, "las dos contrataciones deben quedar esperando la plaza del índice");
+                await Task.Delay(25);
+            }
+        }
+
+        await transaccion.RollbackAsync();
+        var resultados = await Task.WhenAll(tareas);
+
+        var ganadora = resultados.Should().ContainSingle(r => r.EsExitoso, "el índice deja pasar una").Subject;
+        resultados.Single(r => !r.EsExitoso).Error.Should().Be(ErroresContratarLineaInbound.YaContratada);
+        (await FilasComoPropietarioAsync()).Should().ContainSingle().Which.Id.Should().Be(ganadora.Valor);
+        (await AuditoriaComoPropietarioAsync(ganadora.Valor)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_duplicado_rechazado_retira_solo_el_intento_y_conserva_los_cambios_pendientes_ajenos()
+    {
+        // Hallazgo 3 de Codex (ronda 1): antes, el repositorio vaciaba el ChangeTracker entero.
+        await EjecutarComoPropietarioAsync(InsertInbound(_tce.Id));
+
+        await using var contexto = CrearContextoPropietarioAuditado();
+        var otro = await contexto.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id);
+        var addOnEsperado = !otro.AddOnSubidaAutomaticaActivo;
+        otro.CambiarAddOnSubidaAutomatica(addOnEsperado);
+
+        var repositorio = new ProductoContratadoRepository(contexto);
+        var ahora = DateTime.UtcNow;
+        repositorio.Agregar(ProductoContratado.Contratar(
+            LineaProductoContratado.Inbound, "cus_Duplicado", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
+            vigenteDesdeUtc: ahora, ahoraUtc: ahora));
+
+        (await repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync()).Should().BeFalse("ya hay una vigente");
+
+        contexto.Entry(otro).State.Should().Be(EntityState.Modified, "el cambio pendiente de otro acto sigue rastreado");
+        contexto.ChangeTracker.Entries<ProductoContratado>().Should().BeEmpty("la fila rechazada no se cuela después");
+        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().BeEmpty("la auditoría del intento fallido tampoco");
+
+        await contexto.SaveChangesAsync();
+
+        (await AuditoriaComoPropietarioAsync(_otro.Id)).Should().ContainSingle(
+            "el cambio ajeno se guarda con su auditoría una sola vez, regenerada en este guardado");
+        await using var lectura = CrearContextoPropietarioAuditado();
+        (await lectura.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id))
+            .AddOnSubidaAutomaticaActivo.Should().Be(addOnEsperado);
+        (await FilasComoPropietarioAsync()).Should().ContainSingle("solo la vigente sembrada");
     }
 
     [Fact]
@@ -153,9 +252,28 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
             InsertInbound(_tce.Id) + InsertInbound(_tce.Id));
         dosVigentes.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
         dosVigentes.Restriccion.Should().Be(ProductoContratadoConfiguration.IndiceInboundVigentePorTenant);
+        // La finalizada la inserta el superusuario de pruebas (RESET ROLE dentro de la misma transacción), porque el rol
+        // elevado ya no puede insertar una fila finalizada.
         (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id,
-                InsertInbound(_tce.Id, finalizado: true) + InsertInbound(_tce.Id)))
+                "RESET ROLE;" + InsertInbound(_tce.Id, finalizado: true)
+                + "SET LOCAL ROLE cae_app_aprovisionamiento;" + InsertInbound(_tce.Id)))
             .SqlState.Should().BeNull("una fila finalizada no ocupa la plaza de la vigente");
+
+        // Hallazgo 2 de Codex (ronda 1): la política RESTRICTIVE de INSERT solo deja al rol elevado la fila que contrata
+        // ContratarLineaInboundCommand. El control positivo de arriba usa el mismo INSERT con la línea Inbound vigente.
+        foreach (var (sql, motivo) in new[]
+                 {
+                     (InsertInbound(_tce.Id, linea: "OutboundGestionPropia"), "otra línea del Producto Contratado"),
+                     (InsertInbound(_tce.Id, finalizado: true), "una fila ya finalizada"),
+                     (InsertInbound(_tce.Id, eliminado: true), "una fila eliminada"),
+                 })
+            (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, sql)).SqlState
+                .Should().Be(PostgresErrorCodes.InsufficientPrivilege, motivo);
+        // La política solo restringe al rol elevado: el superusuario de pruebas, que no la sufre, sí inserta la otra línea,
+        // así que el rechazo de arriba es de la política y no de la fila.
+        (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id,
+                "RESET ROLE;" + InsertInbound(_tce.Id, linea: "OutboundGestionPropia")))
+            .SqlState.Should().BeNull("control: la fila de otra línea es válida para la tabla");
 
         // Ni lee ni cambia lo que inserta.
         foreach (var sql in new[]
@@ -168,12 +286,14 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
                 .Should().Be(PostgresErrorCodes.InsufficientPrivilege, sql);
     }
 
-    private static string InsertInbound(Guid tenantId, bool finalizado = false) =>
+    private static string InsertInbound(
+        Guid tenantId, bool finalizado = false, string linea = "Inbound", bool eliminado = false) =>
         $"""
         INSERT INTO "ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
             "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
-        VALUES ('{Guid.NewGuid()}', 'Inbound', 'cus_X', 'De1A10', 'Anual', now() - interval '1 day',
-            {(finalizado ? "now()" : "NULL")}, '{(finalizado ? "Finalizado" : "Vigente")}', '{tenantId}', '{Guid.NewGuid()}', now(), false);
+        VALUES ('{Guid.NewGuid()}', '{linea}', 'cus_X', 'De1A10', 'Anual', now() - interval '1 day',
+            {(finalizado ? "now()" : "NULL")}, '{(finalizado ? "Finalizado" : "Vigente")}', '{tenantId}', '{Guid.NewGuid()}', now(),
+            {(eliminado ? "true" : "false")});
         """;
 
     private async Task<Result<Guid>> EnviarAsync(Guid? sesion, string? rol, ContratarLineaInboundCommand comando)
@@ -255,7 +375,10 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
             ? new CurrentUserServiceFalso(_actorPlataforma, rol: rol, tenantOrigenId: _tce.Id)
             : new CurrentUserServiceFalso(_actorPlataforma, rol: rol, tenantOrigenId: _plataforma.Id);
         var seleccion = new Seleccion(_tce.Id, sesionSeleccionada);
-        var dbContext = CrearContexto(_tce.Id, seleccion, currentUser);
+        // El actor de auditoría de producción (hallazgo 4 de Codex, ronda 1): sin consultar la base, lee la Sesión
+        // Privilegiada de la selección, así que la atribución sale igual con la conexión elevada.
+        var actorAuditoria = new ActorAuditoriaDesdeSesion(currentUser, seleccion, currentUser);
+        var dbContext = CrearContexto(_tce.Id, seleccion, currentUser, actorAuditoria);
 
         var servicios = new ServiceCollection();
         servicios.AddLogging();
@@ -278,26 +401,65 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         servicios.AddSingleton<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEncargosAdministracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IProductoContratadoRepository, ProductoContratadoRepository>();
-        servicios.AddSingleton<IActorAuditoria>(new ActorFijo(_actorPlataforma));
+        servicios.AddSingleton<IActorAuditoria>(actorAuditoria);
 
         return servicios.BuildServiceProvider();
     }
 
+    /// <summary>
+    /// Con <paramref name="actorAuditoria"/>, los interceptores de guardado de producción en su orden
+    /// (<c>ConfiguracionDeContexto</c>): auditoría, contexto RLS, sellado de Tenant y concurrencia optimista. Sin él, la
+    /// siembra, que no se audita.
+    /// </summary>
     private CaeManagerDbContext CrearContexto(
-        Guid tenantId, IClienteActivoSeleccionado seleccion, ICurrentUserService? currentUserService = null)
+        Guid tenantId, IClienteActivoSeleccionado seleccion, ICurrentUserService? currentUserService = null,
+        IActorAuditoria? actorAuditoria = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
-        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(
-                new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(
-                    tenantActual, seleccion,
-                    currentUserService ?? new CurrentUserServiceFalso(_actorPlataforma, rol: null, tenantOrigenId: tenantId),
-                    BaseDatosPostgresDePruebas.FirmanteContextoRls))
-            .Options;
+        var rls = new TenantRlsConnectionInterceptor(
+            tenantActual, seleccion,
+            currentUserService ?? new CurrentUserServiceFalso(_actorPlataforma, rol: null, tenantOrigenId: tenantId),
+            BaseDatosPostgresDePruebas.FirmanteContextoRls);
+        var constructor = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
+        if (actorAuditoria is null)
+            constructor.AddInterceptors(new TenantSelladoInterceptor(tenantActual), rls);
+        else
+            constructor.AddInterceptors(
+                new AuditoriaInterceptor(actorAuditoria), rls, new TenantSelladoInterceptor(tenantActual),
+                new ConcurrenciaOptimistaInterceptor());
 
+        return new CaeManagerDbContext(constructor.Options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>
+    /// Un contexto como superusuario de pruebas, sin contexto RLS, con la auditoría y el sellado: para probar el
+    /// repositorio sin los privilegios del rol elevado, que no deja guardar cambios ajenos a ProductosContratados.
+    /// </summary>
+    private CaeManagerDbContext CrearContextoPropietarioAuditado()
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = _tce.Id };
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion)
+            .AddInterceptors(new AuditoriaInterceptor(new ActorFijo(_actorPlataforma)), new TenantSelladoInterceptor(tenantActual))
+            .Options;
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private async Task EjecutarComoPropietarioAsync(string sql)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private async Task<List<RegistroAuditoria>> AuditoriaComoPropietarioAsync(Guid entidadId)
+    {
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(_cadenaConexion).Options;
+        await using var contexto = new CaeManagerDbContext(
+            options, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = _tce.Id });
+        return await contexto.RegistrosAuditoria.IgnoreQueryFilters().Where(r => r.EntidadId == entidadId).ToListAsync();
     }
 
     private sealed class Seleccion(Guid tenantSeleccionado, Guid? sesionPrivilegiadaId) : IClienteActivoSeleccionado
