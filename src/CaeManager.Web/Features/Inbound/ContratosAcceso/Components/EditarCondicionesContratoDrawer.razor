@@ -1,0 +1,175 @@
+@* Editar las condiciones de un contrato de acceso (FijarCondicionesContratoAccesoCommand): tipo, propia actividad, nivel máximo de
+   subcontrata y cupos con su motivo. El comando sustituye las condiciones enteras (lo que va vacío queda sin fijar), por eso el
+   formulario parte de lo que el contrato ya tiene. *@
+@using CaeManager.Application.Inbound.ContratosAcceso
+@using CaeManager.Application.Inbound.ContratosAcceso.Commands.FijarCondicionesContratoAcceso
+@using CaeManager.Application.Inbound.ContratosAcceso.Queries
+@using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using FluentValidation
+@using Microsoft.Extensions.Localization
+@inject MediatR.IMediator Mediator
+@inject IStringLocalizer<TextosContratosAcceso> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["CondicionesTitulo"]" Subtitulo="@Textos["CondicionesSubtitulo"]"
+                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]" HayCambios="() => HayCambiosSinGuardar"
+                  Guardando="_guardando" MensajeError="@_mensajeError" HayErroresDeCampo="@(_errores.Count > 0)" OnGuardar="GuardarAsync">
+    <div class="campo">
+        <label>@Textos["AltaTipoContrato"]</label>
+        <div class="lista-seleccion-multiple">
+            @foreach (var tipo in ContratoAccesoUi.Tipos)
+            {
+                var valor = tipo.ToString();
+                <label class="campo-checkbox">
+                    <input type="radio" name="cond-tipo" checked="@(_tipo == valor)" @onchange="() => _tipo = valor" />
+                    @Textos[ContratoAccesoUi.ClaveTipo(tipo)]
+                </label>
+            }
+        </div>
+    </div>
+    <div class="campo">
+        <label>@Textos["AltaPropiaActividad"]</label>
+        <div class="lista-seleccion-multiple">
+            @foreach (var valor in ContratoAccesoUi.PropiasActividad)
+            {
+                var nombre = valor.ToString();
+                <label class="campo-checkbox">
+                    <input type="radio" name="cond-propia" checked="@(_propiaActividad == nombre)" @onchange="() => _propiaActividad = nombre" />
+                    @Textos[ContratoAccesoUi.ClavePropiaActividad(valor)]
+                </label>
+            }
+        </div>
+    </div>
+    <CampoTexto Etiqueta="@Textos["AltaCupoTrabajadores"]" Type="number" Placeholder="@Textos["AltaSinLimite"]" Valor="@_cupoTrabajadores"
+                ValorChanged="v => { _cupoTrabajadores = v; _errores.Remove(CampoCupoTrabajadores); }" MensajeError="@ErrorDe(CampoCupoTrabajadores)" />
+    <CampoTexto Etiqueta="@Textos["AltaCupoSubcontratas"]" Type="number" Placeholder="@Textos["AltaSinLimite"]" Valor="@_cupoSubcontratas"
+                ValorChanged="v => { _cupoSubcontratas = v; _errores.Remove(CampoCupoSubcontratas); }" MensajeError="@ErrorDe(CampoCupoSubcontratas)" />
+    <div>
+        <CampoSelect Etiqueta="@Textos["AltaNivelSubcontrata"]" Valor="@_nivel" ValorChanged="v => { _nivel = v; _errores.Remove(CampoNivel); }">
+            <option value="">@Textos["AltaSinFijar"]</option>
+            @foreach (var nivel in ContratoAccesoUi.Niveles)
+            {
+                <option value="@nivel">@nivel</option>
+            }
+        </CampoSelect>
+        @if (ErrorDe(CampoNivel) is { } errorNivel)
+        {
+            <p class="campo-mensaje-error" aria-live="polite">@errorNivel</p>
+        }
+    </div>
+    <CampoTexto Etiqueta="@Textos["AltaMotivoCupo"]" Valor="@_motivoCupo"
+                ValorChanged="v => { _motivoCupo = v; _errores.Remove(CampoMotivo); }" MensajeError="@ErrorDe(CampoMotivo)" />
+</DrawerFormulario>
+
+@code {
+    private const string CampoCupoTrabajadores = "Condiciones.CupoTrabajadores";
+    private const string CampoCupoSubcontratas = "Condiciones.CupoSubcontratas";
+    private const string CampoNivel = "Condiciones.NivelMaxSubcontrata";
+    private const string CampoMotivo = "Condiciones.MotivoCupo";
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public ContratoAccesoDto Contrato { get; set; } = default!;
+
+    /// <summary>Se invoca cuando el comando salió bien; el padre recarga el contrato y avisa.</summary>
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    private readonly Dictionary<string, string> _errores = [];
+    private string _tipo = string.Empty;
+    private string _propiaActividad = string.Empty;
+    private string _nivel = string.Empty;
+    private string _cupoTrabajadores = string.Empty;
+    private string _cupoSubcontratas = string.Empty;
+    private string _motivoCupo = string.Empty;
+    private string? _mensajeError;
+    private bool _guardando;
+    private bool _eraVisible;
+
+    protected override void OnParametersSet()
+    {
+        // Cada apertura parte de las condiciones que el contrato tiene ahora, no de lo que quedó a medias.
+        if (Visible && !_eraVisible)
+        {
+            _errores.Clear();
+            _mensajeError = null;
+            _tipo = Contrato.Tipo?.ToString() ?? string.Empty;
+            _propiaActividad = Contrato.PropiaActividad?.ToString() ?? string.Empty;
+            _nivel = Contrato.NivelMaxSubcontrata?.ToString() ?? string.Empty;
+            _cupoTrabajadores = Contrato.CupoTrabajadores?.ToString() ?? string.Empty;
+            _cupoSubcontratas = Contrato.CupoSubcontratas?.ToString() ?? string.Empty;
+            _motivoCupo = Contrato.MotivoCupo ?? string.Empty;
+        }
+        _eraVisible = Visible;
+    }
+
+    private bool HayCambiosSinGuardar =>
+        _tipo != (Contrato.Tipo?.ToString() ?? string.Empty)
+        || _propiaActividad != (Contrato.PropiaActividad?.ToString() ?? string.Empty)
+        || _nivel != (Contrato.NivelMaxSubcontrata?.ToString() ?? string.Empty)
+        || _cupoTrabajadores != (Contrato.CupoTrabajadores?.ToString() ?? string.Empty)
+        || _cupoSubcontratas != (Contrato.CupoSubcontratas?.ToString() ?? string.Empty)
+        || _motivoCupo != (Contrato.MotivoCupo ?? string.Empty);
+
+    private string? ErrorDe(string campo) => _errores.GetValueOrDefault(campo);
+
+    private async Task GuardarAsync()
+    {
+        _errores.Clear();
+        _mensajeError = null;
+
+        if (!TryEntero(_cupoTrabajadores, CampoCupoTrabajadores, out var cupoTrabajadores)
+            | !TryEntero(_cupoSubcontratas, CampoCupoSubcontratas, out var cupoSubcontratas)
+            | !TryEntero(_nivel, CampoNivel, out var nivel))
+            return;
+
+        var condiciones = new CondicionesContratoAccesoDatos(
+            Tipo: Enum.TryParse<TipoContratoAcceso>(_tipo, out var tipo) ? tipo : null,
+            PropiaActividad: Enum.TryParse<PropiaActividadContrato>(_propiaActividad, out var propia) ? propia : null,
+            NivelMaxSubcontrata: nivel,
+            CupoTrabajadores: cupoTrabajadores,
+            CupoSubcontratas: cupoSubcontratas,
+            MotivoCupo: string.IsNullOrWhiteSpace(_motivoCupo) ? null : _motivoCupo.Trim());
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new FijarCondicionesContratoAccesoCommand(Contrato.Id, condiciones, Contrato.Version));
+            if (!resultado.EsExitoso)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            await OnGuardado.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            foreach (var grupo in ex.Errors.GroupBy(e => e.PropertyName))
+                _errores[grupo.Key] = grupo.First().ErrorMessage;
+            _mensajeError = _errores.Count == 0 ? Textos["ErrorGuardar"].Value : null;
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private bool TryEntero(string texto, string campo, out int? valor)
+    {
+        valor = null;
+        if (string.IsNullOrWhiteSpace(texto))
+            return true;
+        if (int.TryParse(texto, out var n))
+        {
+            valor = n;
+            return true;
+        }
+
+        _errores[campo] = Textos["AltaNumeroInvalido"];
+        return false;
+    }
+}

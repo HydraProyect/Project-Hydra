@@ -1,0 +1,209 @@
+@page "/inbound/contratos"
+@* Tarjeta 13 · Contratos de acceso (Inbound). Sin prerender, como el resto de listados interactivos: carga en el ciclo de
+   vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Components
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosContratosAcceso> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    @* Sin exportación a Excel: no hay endpoint de descarga de contratos de acceso (shortcut: cablear cuando exista). *@
+    <CabeceraListado Grupo="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
+        <Primaria>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirAlta(null)">@Textos["BotonDarDeAlta"]</Boton></SoloConEscritura>
+        </Primaria>
+    </CabeceraListado>
+    <p class="inbound-secundario" data-pieza="subtitulo-contratos">@Textos["Subtitulo"]</p>
+
+    @if (!_errorCarga)
+    {
+        @* Mismo marcado y clases que BarraFiltros en modo pastillas (list-page.css), sin «Filtros guardados»: la maqueta de
+           Contratos de acceso no los trae y guardarlos necesita backend (shortcut: cablear con las vistas recordadas). *@
+        <section class="barra-filtros-pastillas" aria-label="@Comunes["FiltrarEstaPantalla"]">
+            <div class="barra-filtros-pastillas-fila">
+                <div class="barra-filtros-buscador-pantalla">
+                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                    @* La tecla F enfoca este campo por data-filtro-pantalla (atajos-lista.js); la letra no se declara aquí porque ya la
+                       declara la pieza compartida del listado (CatalogoAtajosSincronizadoConJsTests). *@
+                    <CampoTexto Placeholder="@Textos["BuscadorPlaceholder"]" Valor="@_busqueda" ValorChanged="BuscarAsync"
+                                aria-label="@Textos["BuscadorPlaceholder"]" data-filtro-pantalla="" />
+                </div>
+                <PastillaFiltro Etiqueta="@Textos["FiltroCentro"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_centro"
+                                ValorChanged="CambiarCentro" Opciones="_opcionesCentro" />
+                <PastillaFiltro Etiqueta="@Textos["FiltroTipo"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_tipo"
+                                ValorChanged="CambiarTipo" Opciones="_opcionesTipo" />
+                @* «Con solicitudes» y «Con requerimientos pendientes» de la maqueta no están: dependen de B-17 y B-11 (shortcut: sin
+                   backend, cablear cuando entren). Un filtro sin datos devolvería siempre la lista vacía. *@
+                <PastillaFiltro Etiqueta="@Textos["FiltroPendiente"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_pendiente"
+                                ValorChanged="CambiarPendiente" Opciones="_opcionesPendiente" />
+            </div>
+
+            <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="CambiarEstado" Recuentos="_recuentos"
+                          EtiquetaAccesible="@Textos["FranjaEstadoEtiqueta"]" />
+
+            @if (HayFiltrosActivos)
+            {
+                <div class="chips-filtros barra-filtros-lista-chips">
+                    <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+                    @if (!string.IsNullOrWhiteSpace(_busqueda))
+                    {
+                        <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["QuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+                    }
+                    @if (_centro.Length > 0)
+                    {
+                        <ChipFiltro Etiqueta="@Textos["ChipCentro", _opcionesCentro.FirstOrDefault(o => o.Valor == _centro)?.Texto ?? _centro]" EtiquetaAccesible="@Textos["QuitarCentro"]" OnQuitar="() => CambiarCentro(string.Empty)" />
+                    }
+                    @if (_tipo.Length > 0)
+                    {
+                        <ChipFiltro Etiqueta="@Textos["ChipTipo", _opcionesTipo.FirstOrDefault(o => o.Valor == _tipo)?.Texto ?? _tipo]" EtiquetaAccesible="@Textos["QuitarTipo"]" OnQuitar="() => CambiarTipo(string.Empty)" />
+                    }
+                    @if (_pendiente.Length > 0)
+                    {
+                        <ChipFiltro Etiqueta="@Textos["ChipPendiente", Textos["PendienteVence"]]" EtiquetaAccesible="@Textos["QuitarPendiente"]" OnQuitar="() => CambiarPendiente(string.Empty)" />
+                    }
+                    <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">@Comunes["LimpiarTodo"]</button>
+                </div>
+            }
+        </section>
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_visibles.Count > 0)
+    {
+        <TarjetaListado>
+            <Contenido>
+                <table class="tabla-datos" aria-label="@Textos["TituloPagina"]">
+                    <thead><tr>
+                        <th scope="col">@Textos["ColEmpresa"]</th>
+                        <th scope="col">@Textos["ColCentro"]</th>
+                        <th scope="col">@Textos["ColVigencia"]</th>
+                        <th scope="col">@Textos["ColTrabajadores"]</th>
+                        <th scope="col">@Textos["ColPendiente"]</th>
+                        <th scope="col" class="col-estado">@Textos["ColEstado"]</th>
+                        <th scope="col"></th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach (var fila in Pagina)
+                    {
+                        var contrato = fila.Contrato;
+                        <tr @key="contrato.Id" data-contrato="@contrato.Id">
+                            <td>
+                                <a class="enlace-nombre-fila nombre-fila-entidad" href="@($"/inbound/contratos/{contrato.Id}")">@(fila.EmpresaNombre ?? Textos["EmpresaNoDisponible"].Value)</a>
+                                @if (!string.IsNullOrWhiteSpace(fila.EmpresaCif))
+                                {
+                                    <div class="inbound-secundario">@fila.EmpresaCif</div>
+                                }
+                            </td>
+                            <td>@(fila.CentroNombre ?? Textos["CentroNoDisponible"].Value)</td>
+                            <td>
+                                <div>@ContratoAccesoUi.Rango(contrato.FechaInicio, contrato.FechaFin, Textos)</div>
+                                <div class="inbound-secundario">@VigenciaDe(contrato)</div>
+                            </td>
+                            <td>
+                                @if (_actividad.TryGetValue(contrato.Id, out var actividad))
+                                {
+                                    <div>@Textos["TrabajadoresDeCupo", actividad.TrabajadoresAsignados, ContratoAccesoUi.TextoCupo(contrato.CupoTrabajadores, Textos)]</div>
+                                }
+                                else
+                                {
+                                    @* shortcut: sin backend, cablear cuando entre B-17 (Trabajadores con cupo). *@
+                                    <div title="@Textos["SinDatoTitulo"]">@Textos["SinDato"]</div>
+                                    <div class="inbound-secundario">@ContratoAccesoUi.TextoCupo(contrato.CupoTrabajadores, Textos)</div>
+                                }
+                            </td>
+                            <td>
+                                @if (_actividad.TryGetValue(contrato.Id, out var pendiente))
+                                {
+                                    @if (pendiente.SolicitudesPendientes == 0 && pendiente.RequerimientosPendientes == 0)
+                                    {
+                                        <span>@Textos["PendienteAlDia"]</span>
+                                    }
+                                    else
+                                    {
+                                        @if (pendiente.SolicitudesPendientes > 0)
+                                        {
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["PendienteSolicitudes", pendiente.SolicitudesPendientes]</Badge>
+                                        }
+                                        @if (pendiente.RequerimientosPendientes > 0)
+                                        {
+                                            <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["PendienteRequerimientos", pendiente.RequerimientosPendientes]</Badge>
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    @* shortcut: sin backend, cablear cuando entren B-17 (solicitudes) y B-11 (requerimientos). *@
+                                    <span title="@Textos["SinDatoTitulo"]">@Textos["SinDato"]</span>
+                                }
+                            </td>
+                            <td class="col-estado">
+                                <Badge Tono="ContratoAccesoUi.Tono(contrato.Estado)" Tamano="TamanoBadge.Pequeno">@Textos[ContratoAccesoUi.ClaveEstado(contrato.Estado)]</Badge>
+                            </td>
+                            <td>
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Href="@($"/inbound/contratos/{contrato.Id}?editar=true")" aria-label="@Textos["AccionEditarAria", fila.EmpresaNombre ?? Textos["EmpresaNoDisponible"].Value]">@Textos["AccionEditar"]</Boton>
+                                    @if (contrato.Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido)
+                                    {
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRenovar(fila)">@Textos["AccionRenovar"]</Boton>
+                                    }
+                                    @if (contrato.Estado == EstadoContratoAcceso.Finalizado)
+                                    {
+                                        @* Dar de alta de nuevo desde un Finalizado: el alta precarga Empresa contratista y Centro (la copia completa de las
+                                           condiciones es B-06). *@
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirAlta(fila)">@Textos["BotonDarDeAlta"]</Boton>
+                                    }
+                                </SoloConEscritura>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </Contenido>
+            <Pie>
+                <PaginadorSimple PresentacionMaqueta="false" PaginaActual="_numeroPagina" TotalPaginas="TotalPaginas" TotalElementos="_visibles.Count"
+                                 Etiqueta="@Textos["PaginadorEtiqueta"]" PaginaActualChanged="CambiarPagina"
+                                 TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPagina" ElementosEnPagina="Pagina.Count" />
+            </Pie>
+        </TarjetaListado>
+    }
+    else if (HayFiltrosActivos)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]" Descripcion="@Textos["VacioFiltrosDescripcion"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+            <Accion>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirAlta(null)">@Textos["BotonDarDeAlta"]</Boton></SoloConEscritura>
+            </Accion>
+        </EstadoVacio>
+    }
+</div>
+
+<DialogoRenovarContrato Visible="_renovando is not null" VisibleChanged="CerrarRenovar" ContratoId="@(_renovando?.Contrato.Id ?? Guid.Empty)"
+                        Version="@(_renovando?.Contrato.Version ?? Guid.Empty)" FinActual="@_renovando?.Contrato.FechaFin"
+                        Empresa="@_renovando?.EmpresaNombre" OnRenovado="RenovadoAsync" />
+
+<AltaContratoAccesoDrawer Visible="_altaVisible" VisibleChanged="CerrarAlta" Origen="_origenAlta" OnCreado="AltaCreadaAsync" />
+</LimiteDeErrores>

@@ -40,8 +40,14 @@ public static class RutaTrasCambioDeTenant
         if (Guid.TryParse(segmentos[0], out _) || segmentos[0].Equals(ArbolPlataforma, StringComparison.OrdinalIgnoreCase))
             return "/";
 
+        // El árbol /inbound/… tampoco tiene página en /inbound: sus listas cuelgan del segundo segmento
+        // (/inbound/contratos/{id} vuelve a /inbound/contratos).
+        if (segmentos[0].Equals(ArbolInbound, StringComparison.OrdinalIgnoreCase))
+            return segmentos.Length > 1 && !Guid.TryParse(segmentos[1], out _) ? "/" + segmentos[0] + "/" + segmentos[1] : "/";
+
         return "/" + segmentos[0];
     }
 
     private const string ArbolPlataforma = "plataforma";
+    private const string ArbolInbound = "inbound";
 }
