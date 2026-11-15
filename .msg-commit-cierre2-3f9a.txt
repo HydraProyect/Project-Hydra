@@ -1,0 +1,8 @@
+test(correo): cierra los supervivientes de la revision puente del barrido de regex y del ancla de atributos
+
+EsPatronDeRegex decide por el nombre del argumento cuando lo hay (pattern:) y solo por posicion
+cuando no lo hay: un literal en la posicion del patron pero con otro nombre ya no se excluye.
+Se declara el limite (un patron en una constante o en un return se valida como HTML) y se cubren
+Match/Matches/Split/EnumerateMatches/Count, parentesis, propiedad con new(), pattern: en new Regex,
+GeneratedRegexAttribute, y el ancla de href/alt con comilla simple, barra, salto de linea,
+mayusculas y aria-alt.

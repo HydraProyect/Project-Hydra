@@ -1,0 +1,17 @@
+﻿  Determinando los proyectos que se van a restaurar...
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Domain\CaeManager.Domain.csproj (en 143 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Application\CaeManager.Application.csproj (en 429 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Migrations.PostgreSQL\CaeManager.Migrations.PostgreSQL.csproj (en 541 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj (en 571 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\tests\CaeManager.Web.Tests\CaeManager.Web.Tests.csproj (en 568 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Web\CaeManager.Web.csproj (en 617 ms).
+  CaeManager.Domain -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Domain\bin\Debug\net10.0\CaeManager.Domain.dll
+  CaeManager.Application -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Application\bin\Debug\net10.0\CaeManager.Application.dll
+  CaeManager.Infrastructure -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Infrastructure\bin\Debug\net10.0\CaeManager.Infrastructure.dll
+  CaeManager.Migrations.PostgreSQL -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Migrations.PostgreSQL\bin\Debug\net10.0\CaeManager.Migrations.PostgreSQL.dll
+  CaeManager.Web -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\src\CaeManager.Web\bin\Debug\net10.0\CaeManager.Web.dll
+  CaeManager.Web.Tests -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll
+Serie de pruebas para C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a83d6ad239e806624\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+1 archivos de prueba en total coincidieron con el patrón especificado.
+
+Correctas! - Con error:     0, Superado:    84, Omitido:     0, Total:    84, Duración: 12 s - CaeManager.Web.Tests.dll (net10.0)

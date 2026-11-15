@@ -1,0 +1,10 @@
+fix(correo): el barrido excluye los patrones de regex por su lugar sintactico y el texto plano ancla href y alt
+
+El barrido de plantillas ya no neutraliza grupos (?<a>) por su forma: con Roslyn se excluyen
+enteros del analisis HTML los literales que son de verdad expresiones regulares (patron de
+new Regex(...) o new(...) con tipo Regex, segundo argumento de Regex.Match/IsMatch/Replace/
+Matches/Split/EnumerateMatches/Count y argumento de [GeneratedRegex]). Un (?<a>Entrar</a>) en un
+literal normal se valida como HTML y se detecta; el reemplazo de Regex.Replace sigue siendo plantilla.
+
+En TextoPlanoDeCorreo, href y el atributo leido por Atributo (alt) van precedidos de espacio,
+comilla o barra, no de un guion: data-href y data-alt ya no se muestran como destino ni como alt.

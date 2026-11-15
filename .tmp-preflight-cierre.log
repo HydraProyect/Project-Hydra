@@ -1,0 +1,33 @@
+﻿AVISO: la rama NO contiene el ultimo origin/main (le faltan 19 commits). Integralo antes de encolar: git merge origin/main (o git rebase origin/main si la rama aun no esta publicada) y repite el preflight.
+>>> Restaurar dependencias
+OK  Restaurar dependencias (5 s)
+>>> Compilar (warnings como errores)
+OK  Compilar (warnings como errores) (52 s)
+>>> Formato (verify-no-changes)
+OK  Formato (verify-no-changes) (287 s)
+>>> Tests de Domain
+OK  Tests de Domain [2247 pruebas] (17 s)
+>>> Tests de Application
+OK  Tests de Application [7013 pruebas] (57 s)
+>>> Tests de Architecture (ratchets)
+OK  Tests de Architecture (ratchets) [1549 pruebas] (241 s)
+>>> Tests de Web (bUnit)
+OK  Tests de Web (bUnit) [11825 pruebas] (195 s)
+Sin -CuerpoPr: la gobernanza del cuerpo no se ha comprobado.
+
+=== Resumen preflight-pr ===
+Restaurar dependencias                   PASA            5 s
+Compilar (warnings como errores)         PASA           52 s
+Formato (verify-no-changes)              PASA          287 s
+Tests de Domain [2247 pruebas]           PASA           17 s
+Tests de Application [7013 pruebas]      PASA           57 s
+Tests de Architecture (ratchets) [1549 pruebas] PASA          241 s
+Tests de Web (bUnit) [11825 pruebas]     PASA          195 s
+Gobernanza del cuerpo de la PR           OMITIDO         0 s
+Tiempo total: 14:17 (857 s)
+Logs de esta ejecucion: C:\Users\chris\AppData\Local\Temp\preflight-pr\agent-a83d6ad239e806624-20261112-204503-31608
+AVISO: la rama NO contiene el ultimo origin/main (le faltan 19 commits). Integralo antes de encolar: git merge origin/main (o git rebase origin/main si la rama aun no esta publicada) y repite el preflight.
+AVISO: hay 8 fichero/s sin commitear: el preflight ha validado el arbol de trabajo, pero la PR solo lleva lo commiteado.
+
+PREFLIGHT-PR: PASA
+EXIT=0

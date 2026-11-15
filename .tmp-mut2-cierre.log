@@ -1,0 +1,12 @@
+
+BASE => Correctas! - Con error:     0, Superado:   102, Omitido:     0, Total:   102, Duración: 11 s - CaeManager.Web.Tests.dll (net10.0) :: 
+M3a sin comilla simple en ancla => Con error! - Con error:     2, Superado:   100, Omitido:     0, Total:   102, Duración: 16 s - CaeManager.Web.Tests.dll (net10.0) :: Con error CaeManager.Web.Tests.Email.CorreoLegibleSinImagenesTests.El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(html: "<p><img src='l.p | Con error CaeManager.Web.Tests.Email.CorreoLegibleSinImagenesTests.El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(html: "<p><a class='x'h
+M3b sin barra en ancla => Con error! - Con error:     1, Superado:   101, Omitido:     0, Total:   102, Duración: 12 s - CaeManager.Web.Tests.dll (net10.0) :: Con error CaeManager.Web.Tests.Email.CorreoLegibleSinImagenesTests.El_texto_plano_conserva_la_direccion_con_comillas_dobles_simples_o_sin_comillas(html: "<p><a/href=https
+M4 posicion aunque haya nombre => Con error! - Con error:     2, Superado:   100, Omitido:     0, Total:   102, Duración: 12 s - CaeManager.Web.Tests.dll (net10.0) :: Con error CaeManager.Web.Tests.Email.CorreoLegibleSinImagenesTests.El_barrido_detecta_defectos_dentro_de_literales_de_cadena(codigo: "class C { string M(string t, string  | Con error CaeManager.Web.Tests.Email.CorreoLegibleSinImagenesTests.El_barrido_detecta_defectos_dentro_de_literales_de_cadena(codigo: "class C { bool M(string p) => Regex.
+ M tests/CaeManager.Web.Tests/Email/CorreoLegibleSinImagenesTests.cs
+?? .diff-revision-cierre-565652ebe.patch
+?? .msg-commit-cierre-3f9a.txt
+?? .tmp-mut-cierre.log
+?? .tmp-mut2-cierre.log
+?? .tmp-test1-cierre.log
+FIN
