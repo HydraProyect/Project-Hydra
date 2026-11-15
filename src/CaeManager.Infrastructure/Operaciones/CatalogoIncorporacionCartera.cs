@@ -81,7 +81,7 @@ public class CatalogoIncorporacionCartera(
         // Con origen, amparada por la DelegacionTenant concreta de la que nació (AmparoDeOrigen), no por cualquiera del
         // par; sin origen, como antes de la fase de expansión: la decide la delegación activa del par de abajo.
         return from operacion in dbContext.AsignacionesOperacion
-                   .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                   .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
                    .Where(OperacionDelServicioVigente(ahora))
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId
@@ -136,7 +136,7 @@ public class CatalogoIncorporacionCartera(
     /// </summary>
     private static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(CaeManagerDbContext dbContext, DateTime ahora) =>
         dbContext.AsignacionesOperacion
-            .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+            .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
             .Where(OperacionDelServicioVigente(ahora));
 
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
@@ -759,14 +759,14 @@ public class CatalogoIncorporacionCartera(
         IReadOnlyCollection<Guid> carterasCerradas, DateTime ahora, CancellationToken cancellationToken,
         Guid? soloFilaId = null)
     {
+        // Solo la cartera bajo una operación que autoriza, amparo de origen incluido, sostiene la fila heredada: la de
+        // una operación con origen que sobrevivió a una revocación no (ronda 1 de Codex en la PR #2253). Escrito en
+        // línea (es OperacionesQueAutorizan) para que la fuente del join sea la tabla a la vista del trinquete de
+        // acceso crudo (ADR-013 § 4.6).
         var leQuedaOtra = await (
             from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
-                // Solo la cartera bajo una operación que autoriza, amparo de origen incluido, sostiene la fila heredada: la de
-                // una operación con origen que sobrevivió a una revocación no (ronda 1 de Codex en la PR #2253). Escrito en
-                // línea (es OperacionesQueAutorizan) para que la fuente del join sea la tabla a la vista del trinquete de
-                // acceso crudo (ADR-013 § 4.6).
             join o in dbContext.AsignacionesOperacion
-                    .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
                     .Where(OperacionDelServicioVigente(ahora))
                 on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
@@ -854,7 +854,7 @@ public class CatalogoIncorporacionCartera(
         var vigentes = await (
                 from c in dbContext.AsignacionesCartera
                 join o in dbContext.AsignacionesOperacion
-                    .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
                     .Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
                 where asignacionCarteraIds.Contains(c.Id)
                       && c.Estado == EstadoAsignacion.Vigente

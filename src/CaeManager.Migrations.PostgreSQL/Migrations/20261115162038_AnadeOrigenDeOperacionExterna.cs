@@ -186,20 +186,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         -- transacción: se espera a la revocación, reactivación o ampliación que esté en vuelo y se decide
                         -- sobre las filas que confirmó, ya bloqueadas. Sin la condición de Activa en el WHERE del
                         -- bloqueo: con ella, una candidata revocada mientras se esperaba saldría del resultado en
-                        -- silencio y la operación nacería sin origen.
-                        SELECT pg_catalog.string_agg(b."Id"::text || ':' || b."Revocaciones"::text, ',' ORDER BY b."Id"),
-                               pg_catalog.count(*),
-                               pg_catalog.min(b."Id"::text)::uuid,
+                        -- silencio y la operación nacería sin origen. Por lo mismo, la condición de activa va en el
+                        -- FILTER de cada agregado y no en un WHERE exterior que el planificador pudiera empujar dentro
+                        -- de la subconsulta bloqueada (revisión puente de la ronda 2 de la PR #2253).
+                        SELECT pg_catalog.string_agg(b."Id"::text || ':' || b."Revocaciones"::text, ',' ORDER BY b."Id")
+                                   FILTER (WHERE b."Activa" AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now())),
+                               pg_catalog.count(*)
+                                   FILTER (WHERE b."Activa" AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now())),
+                               pg_catalog.min(b."Id"::text)
+                                   FILTER (WHERE b."Activa" AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now()))::uuid,
                                pg_catalog.min(b."Revocaciones")
+                                   FILTER (WHERE b."Activa" AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now()))
                           INTO v_bloqueadas, v_activas, v_unica, v_revocaciones
                           FROM (SELECT d."Id", d."Revocaciones", d."Activa", d."ExpiraEnUtc"
                                   FROM public."DelegacionesTenant" d
                                  WHERE d."TenantClienteId" = NEW."PropietarioTenantId"
                                    AND d."TenantConsultoraId" = NEW."OperadorTenantId"
                                    AND d."Proposito" = 'OperadorExterno'
-                                   FOR SHARE) b
-                         WHERE b."Activa"
-                           AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now());
+                                   FOR SHARE) b;
 
                         IF v_vistas IS DISTINCT FROM v_bloqueadas THEN
                             RAISE EXCEPTION 'Una DelegacionTenant del par cambió mientras se insertaba la Asignación de Operación sin origen (%); reintenta.', NEW."Id"
@@ -293,15 +297,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     END IF;
 
                     -- Mismo predicado de unicidad que la deducción, sobre las OperadorExterno del par bloqueadas.
-                    SELECT pg_catalog.count(*) INTO v_activas
+                    SELECT pg_catalog.count(*)
+                               FILTER (WHERE b."Activa" AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now()))
+                      INTO v_activas
                       FROM (SELECT d."Activa", d."ExpiraEnUtc"
                               FROM public."DelegacionesTenant" d
                              WHERE d."TenantClienteId" = NEW."TenantClienteId"
                                AND d."TenantConsultoraId" = NEW."TenantConsultoraId"
                                AND d."Proposito" = 'OperadorExterno'
-                               FOR SHARE) b
-                     WHERE b."Activa"
-                       AND (b."ExpiraEnUtc" IS NULL OR b."ExpiraEnUtc" > pg_catalog.now());
+                               FOR SHARE) b;
                     IF v_activas <> 1 THEN
                         RETURN NULL;
                     END IF;

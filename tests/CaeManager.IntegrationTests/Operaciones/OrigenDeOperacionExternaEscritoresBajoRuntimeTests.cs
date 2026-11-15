@@ -43,30 +43,62 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
     [Fact]
     public async Task La_insercion_sin_origen_que_espera_a_la_revocacion_en_vuelo_de_la_candidata_se_rechaza_para_reintentar()
     {
-        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
-        await revocacion.OpenAsync();
-        await using var transaccion = await revocacion.BeginTransactionAsync();
-        await using (var revocar = new NpgsqlCommand(
-                         """UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = @id""", revocacion, transaccion))
-        {
-            revocar.Parameters.AddWithValue("id", _delegacion);
-            (await revocar.ExecuteNonQueryAsync()).Should().Be(1, "control: la revocación toca la candidata");
-        }
-
-        var insercion = Task.Run(() => InsertarAcotadaSinOrigenAsync(_cliente));
-        await EsperarBloqueadaPorAsync(revocacion.ProcessID, insercion);
-        await transaccion.CommitAsync();
-
-        var guardado = async () => await insercion;
-        (await guardado.Should().ThrowAsync<DbUpdateException>()).Which.Should().Match<DbUpdateException>(
-            e => TieneEstado(e, PostgresErrorCodes.SerializationFailure),
-            "la candidata que leyó sin bloquear ya no es la que encontró bloqueada");
+        await InsertarMientrasSeConfirmaAsync("""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = @id""");
 
         // El reintento decide sobre lo confirmado: ninguna delegación activa, así que nace sin origen.
         var reintento = await InsertarAcotadaSinOrigenAsync(_cliente);
         await using var verificacion = ContextoPropietarioDeLaBase();
         (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == reintento)).OrigenId.Should().BeNull();
         (await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion)).Revocaciones.Should().Be(1);
+    }
+
+    /// <summary>
+    /// La carrera simétrica: la delegación está revocada y su reactivación se escribe sin confirmar. La inserción no la
+    /// ve activa en la primera lectura, pero el <c>FOR SHARE</c> bloquea todas las OperadorExterno del par, activas o
+    /// no, y al confirmarse la reactivación la encuentra activa. Si el bloqueo solo cubriera las activas, la inserción
+    /// no esperaría y nacería sin origen con una delegación activa ya confirmada.
+    /// </summary>
+    [Fact]
+    public async Task La_insercion_sin_origen_que_espera_a_la_reactivacion_en_vuelo_de_la_candidata_se_rechaza_para_reintentar()
+    {
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+
+        await InsertarMientrasSeConfirmaAsync("""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = @id""");
+
+        // El reintento decide sobre lo confirmado: una sola delegación activa, así que deduce su origen.
+        var reintento = await InsertarAcotadaSinOrigenAsync(_cliente);
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == reintento);
+        guardada.OrigenId.Should().Be(_delegacion);
+        guardada.RevocacionesDelOrigen.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Escribe <paramref name="sqlSobreLaCandidata"/> en otra conexión sin confirmar, lanza la inserción sin origen,
+    /// espera a que quede bloqueada por esa conexión, confirma y exige el rechazo con <c>serialization_failure</c>.
+    /// El contexto del test no reintenta: EF clasifica el 40001 como transitorio y lo envuelve en un
+    /// <see cref="InvalidOperationException"/> («likely due to a transient failure»), que es lo que en producción
+    /// reintenta la estrategia de <c>EnableRetryOnFailure</c>. Se exige el 40001 en la cadena de excepciones internas.
+    /// </summary>
+    private async Task InsertarMientrasSeConfirmaAsync(string sqlSobreLaCandidata)
+    {
+        await using var escritura = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await escritura.OpenAsync();
+        await using var transaccion = await escritura.BeginTransactionAsync();
+        await using (var comando = new NpgsqlCommand(sqlSobreLaCandidata, escritura, transaccion))
+        {
+            comando.Parameters.AddWithValue("id", _delegacion);
+            (await comando.ExecuteNonQueryAsync()).Should().Be(1, "control: la escritura toca la candidata");
+        }
+
+        var insercion = Task.Run(() => InsertarAcotadaSinOrigenAsync(_cliente));
+        await EsperarBloqueadaPorAsync(escritura.ProcessID, insercion);
+        await transaccion.CommitAsync();
+
+        var guardado = async () => await insercion;
+        (await guardado.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
+            e => TieneEstado(e, PostgresErrorCodes.SerializationFailure),
+            "la candidata que leyó sin bloquear ya no es la que encontró bloqueada");
     }
 
     // ── Alta 2: el catálogo de incorporación ─────────────────────────────────

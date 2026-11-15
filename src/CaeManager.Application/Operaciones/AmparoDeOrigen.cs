@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 
@@ -62,6 +63,15 @@ public static class AmparoDeOrigen
         return operaciones.Where(
             Expression.Lambda<Func<AsignacionOperacion, bool>>(Expression.OrElse(sinOrigen, amparo.Body), operacion));
     }
+
+    /// <summary>
+    /// <see cref="SinOrigenOAmparadasPorSuOrigen(IQueryable{AsignacionOperacion}, IQueryable{DelegacionTenant}, DateTime)"/>
+    /// con las delegaciones del contexto de consulta de Tenants, para los escritores que leen operaciones y
+    /// delegaciones del mismo contexto (<c>CatalogoIncorporacionCartera</c>).
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> SinOrigenOAmparadasPorSuOrigen(
+        this IQueryable<AsignacionOperacion> operaciones, ITenantsQueryContext tenants, DateTime ahora) =>
+        operaciones.SinOrigenOAmparadasPorSuOrigen(tenants.DelegacionesTenant, ahora);
 
     private static Expression<Func<AsignacionOperacion, bool>> Amparo(
         IQueryable<DelegacionTenant> delegaciones, DateTime ahora) =>
