@@ -97,8 +97,9 @@ public class ContratarLineaInboundCommandHandler(
         // Administrador sin Sesión Privilegiada puede recibir antes el fallo de formato del Pagador; no revela datos.
         //
         // ObtenerAsync y no RevalidarAsync, como AutoridadSobreElEncargo y AutorizacionEscrituraEfectiva: el handler
-        // corre ya con la conexión elevada a cae_app_aprovisionamiento, que no tiene SELECT sobre SesionesPrivilegiadas
-        // ni ConcesionesPrivilegio (solo cae_app_runtime y cae_app_soporte), así que revalidar aquí fallaría con 42501.
+        // corre ya con la conexión elevada a cae_app_aprovisionamiento, que no lee las tablas de sesiones ni de
+        // concesiones del plano de Plataforma (solo cae_app_runtime y cae_app_soporte), así que revalidar aquí fallaría
+        // con 42501 (lo reprodujo CI en la ronda 1 de Codex).
         // La memo que lee la dejó en fresco ElevacionEscrituraAprovisionamientoBehavior justo antes de elevar, en este
         // mismo comando y después de la revalidación de AutorizacionEscrituraBehavior. Sin ese pipeline (sin sesión),
         // ObtenerAsync consulta como el rol que tenga la conexión, que no es el elevado.

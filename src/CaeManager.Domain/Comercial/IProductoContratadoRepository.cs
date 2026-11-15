@@ -11,9 +11,10 @@ public interface IProductoContratadoRepository
     void Agregar(ProductoContratado producto);
 
     /// <summary>
-    /// Guarda los cambios pendientes. Devuelve <c>false</c>, sin propagar la excepción y descartando lo pendiente, solo
-    /// si la base rechaza la fila porque el Tenant beneficiario ya tiene un Producto Contratado de la línea Inbound
-    /// vigente; cualquier otro error se propaga.
+    /// Guarda los cambios pendientes. Devuelve <c>false</c>, sin propagar la excepción, solo si la base rechaza la fila
+    /// porque el Tenant beneficiario ya tiene un Producto Contratado de la línea Inbound vigente; cualquier otro error se
+    /// propaga. Al devolver <c>false</c> retira solo lo del intento rechazado (el Producto Contratado añadido y su
+    /// auditoría): los cambios pendientes de otro acto en el mismo contexto siguen rastreados.
     /// </summary>
     Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(CancellationToken cancellationToken = default);
 }

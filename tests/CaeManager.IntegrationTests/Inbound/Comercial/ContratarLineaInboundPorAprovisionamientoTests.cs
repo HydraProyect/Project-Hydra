@@ -184,6 +184,13 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         var otro = await contexto.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id);
         var addOnEsperado = !otro.AddOnSubidaAutomaticaActivo;
         otro.CambiarAddOnSubidaAutomatica(addOnEsperado);
+        // Un registro de auditoría ajeno ya pendiente antes del intento: el repositorio solo retira los que el interceptor
+        // añade durante el intento rechazado, no cualquier RegistroAuditoria añadido.
+        var auditoriaAjena = new RegistroAuditoria(
+            "PruebaAjena", Guid.NewGuid(), "Creado", null, null,
+            usuarioId: _actorPlataforma, tipoActor: TipoActorAuditoria.Persona, actorRealUsuarioId: _actorPlataforma,
+            viaAcceso: TipoViaAccesoAuditoria.Normal, viaAccesoId: null);
+        contexto.RegistrosAuditoria.Add(auditoriaAjena);
 
         var repositorio = new ProductoContratadoRepository(contexto);
         var ahora = DateTime.UtcNow;
@@ -195,9 +202,14 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
 
         contexto.Entry(otro).State.Should().Be(EntityState.Modified, "el cambio pendiente de otro acto sigue rastreado");
         contexto.ChangeTracker.Entries<ProductoContratado>().Should().BeEmpty("la fila rechazada no se cuela después");
-        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().BeEmpty("la auditoría del intento fallido tampoco");
+        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().ContainSingle(
+                "la auditoría del intento fallido tampoco; la ajena pendiente de antes, sí")
+            .Which.Entity.Should().BeSameAs(auditoriaAjena);
 
         await contexto.SaveChangesAsync();
+
+        (await AuditoriaComoPropietarioAsync(auditoriaAjena.EntidadId)).Should().ContainSingle(
+            "el registro ajeno pendiente se guarda");
 
         (await AuditoriaComoPropietarioAsync(_otro.Id)).Should().ContainSingle(
             "el cambio ajeno se guarda con su auditoría una sola vez, regenerada en este guardado");
