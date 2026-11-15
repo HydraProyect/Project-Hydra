@@ -330,6 +330,70 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
         contrato.Estado.Should().Be(EstadoContratoAcceso.Activo, "la ranura anterior no toca la columna Estado");
     }
 
+    [Theory]
+    [InlineData("FechaFin")]             // el Actualizar de la ranura anterior amplía el fin, que ya pasó
+    [InlineData("FechaFinNula")]         // o lo quita: indefinido hasta el cierre
+    [InlineData("FechaInicio")]          // adelantar el inicio amplía el acceso hacia atrás
+    [InlineData("Estado")]               // un cerrado no cambia de estado (salvo Activo → Finalizado)
+    public async Task Un_contrato_cerrado_no_cambia_sus_fechas_de_vigencia_ni_su_estado_bajo_runtime(string columna)
+    {
+        // Lo que vio Codex en la ronda 3: un contrato cuyo fin fue ayer se finaliza con cierre futuro (la ranura nueva lo
+        // admite) y después el Actualizar de la ranura anterior, que no mira el cierre, amplía FechaFin. Sin el disparador,
+        // la auxiliar volvería a dar lectura entre Tenants hasta el cierre.
+        var hoy = DiaDeNegocio.Hoy();
+        await using (var contexto = Contexto(_propietario.Id, _administrador))
+        {
+            var caducado = await contexto.ContratosAcceso.SingleAsync(c => c.Id == _contratoCaducado);
+            caducado.FechaFin.Should().Be(hoy.AddDays(-1), "precondición: el fin contratado fue ayer");
+            caducado.Finalizar(hoy.AddDays(10));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var runtime = Contexto(_propietario.Id, _administrador);
+        (await runtime.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"Notas\" = 'Nota tras el cierre', \"FechaFin\" = {hoy.AddDays(-1)} WHERE \"Id\" = {_contratoCaducado};"))
+            .Should().Be(1, "control: editar otra columna y reescribir el mismo fin sigue valiendo");
+
+        var sql = columna switch
+        {
+            "FechaFin" => "UPDATE \"ContratosAcceso\" SET \"FechaFin\" = \"FechaFin\" + 30 WHERE \"Id\" = {0};",
+            "FechaFinNula" => "UPDATE \"ContratosAcceso\" SET \"FechaFin\" = NULL WHERE \"Id\" = {0};",
+            "FechaInicio" => "UPDATE \"ContratosAcceso\" SET \"FechaInicio\" = \"FechaInicio\" - 30 WHERE \"Id\" = {0};",
+            _ => "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Activo' WHERE \"Id\" = {0};",
+        };
+        var cambiar = () => runtime.Database.ExecuteSqlRawAsync(sql, _contratoCaducado);
+        var error = (await cambiar.Should().ThrowAsync<PostgresException>()).Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        error.ConstraintName.Should().Be("TR_ContratosAcceso_CierreIrreversible");
+
+        await using var lectura = Contexto(_propietario.Id, _administrador);
+        var contrato = await lectura.ContratosAcceso.SingleAsync(c => c.Id == _contratoCaducado);
+        contrato.FechaInicio.Should().Be(hoy.AddDays(-60));
+        contrato.FechaFin.Should().Be(hoy.AddDays(-1));
+        contrato.FechaCierreReal.Should().Be(hoy.AddDays(10));
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Finalizado);
+        contrato.VigenteEn(hoy).Should().BeFalse("el fin contratado ya pasó, aunque el cierre sea futuro");
+    }
+
+    [Fact]
+    public async Task Un_cierre_de_la_ranura_anterior_se_puede_normalizar_de_Activo_a_Finalizado_y_no_volver()
+    {
+        // La única transición de estado que el disparador deja a un contrato cerrado: la normalización de los cierres que
+        // escribió la ranura anterior con Estado = 'Activo'. No amplía nada: los dos dan acceso hasta el cierre.
+        var hoy = DiaDeNegocio.Hoy();
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {hoy} WHERE \"Id\" = {_contratoVigente};")).Should().Be(1);
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Finalizado' WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1, "Activo → Finalizado sobre un cerrado sigue valiendo");
+
+        var volver = () => contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Activo' WHERE \"Id\" = {_contratoVigente};");
+        (await volver.Should().ThrowAsync<PostgresException>()).Which.ConstraintName
+            .Should().Be("TR_ContratosAcceso_CierreIrreversible", "Finalizado → Activo no");
+    }
+
     [Fact]
     public async Task Un_Cerrar_de_la_ranura_anterior_deja_Activo_en_la_columna_y_el_dominio_lo_trata_como_Finalizado()
     {

@@ -8,8 +8,9 @@ namespace CaeManager.Domain.Inbound.ContratosAcceso;
 ///
 /// <para>
 /// <b>Solo inserción.</b> Lo crea <see cref="ContratoAcceso"/> al renovar o al editar el fin, nunca otro código; nada lo
-/// modifica ni lo borra. La base lo repite: el runtime tiene <c>SELECT</c> e <c>INSERT</c>, sin <c>UPDATE</c> ni
-/// <c>DELETE</c>.
+/// modifica. Solo lo borra la cascada de su FK (<c>ON DELETE CASCADE</c>) cuando se borra físicamente su contrato, cosa
+/// que hoy solo hace la retirada de un Tenant de demostración con la identidad de bootstrap. La base lo repite: el runtime
+/// tiene <c>SELECT</c> e <c>INSERT</c>, sin <c>UPDATE</c> ni <c>DELETE</c>, y tampoco puede borrar contratos.
 /// </para>
 /// </summary>
 public class HistorialVigenciaContrato : EntidadConTenant

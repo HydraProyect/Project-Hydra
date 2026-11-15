@@ -17,7 +17,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>cae_app_soporte</c>. Y reescribe <c>app_inbound_tenant_contratista_del_contrato</c> con el filtro
     /// <c>"Estado" IN ('Activo', 'Finalizado')</c>, con la misma firma, lenguaje, volatilidad y <c>search_path</c>, sin
     /// <c>SECURITY DEFINER</c>: conserva propietario y privilegios. Y crea el disparador
-    /// <c>TR_ContratosAcceso_CierreIrreversible</c> (D-21): un cierre real ya escrito no cambia ni se quita para ningún rol.
+    /// <c>TR_ContratosAcceso_CierreIrreversible</c> (D-21): un cierre real ya escrito no cambia ni se quita para ningún rol,
+    /// y un contrato cerrado tampoco cambia su inicio, su fin ni su estado (salvo Activo → Finalizado). Para la ranura
+    /// anterior, su edición del fin de un contrato cerrado falla con un error de base de datos en vez de ampliar el acceso.
     /// </para>
     /// <para>
     /// Compatible con la ranura anterior durante el relevo azul/verde: solo añade (columnas, CHECK, una tabla, un filtro, un
@@ -30,9 +32,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// un Pendiente de confirmar, un Cancelado o un Rechazado de la ranura nueva (que ella ve abiertos) les escribe el cierre:
     /// conservan su estado, siguen sin dar acceso y quedan sin transiciones. Su <c>Reabrir</c> falla siempre, por
     /// <c>TR_ContratosAcceso_CierreIrreversible</c>, cerrara quien cerrase el contrato (ella misma tras la migración, ella antes
-    /// de la migración, o la ranura nueva): D-21 retira Reabrir, y la base no deja reabrir por la puerta de atrás. Es el único
-    /// cambio de comportamiento para la ranura anterior, y falla cerrado: su Reabrir responde con un error de base de datos en
-    /// vez de devolver el acceso. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
+    /// de la migración, o la ranura nueva): D-21 retira Reabrir, y la base no deja reabrir por la puerta de atrás. Su edición
+    /// del fin (o del inicio) de un contrato cerrado también falla. Son los únicos cambios de comportamiento para la ranura
+    /// anterior, y fallan cerrado: responden con un error de base de datos en vez de devolver el acceso. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
     /// constan en él, otro hueco acotado y declarado. La ranura anterior no conoce la tabla nueva ni el estado, y un contrato Cancelado o Pendiente que ella vea
     /// abierto sigue sin dar lectura entre Tenants, porque el filtro está en la base.
     /// </para>
@@ -188,20 +190,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // anterior: su Reabrir (FechaCierreReal = NULL) falla siempre, cerrara quien cerrase el contrato. Escribirlo sobre
             // un contrato sin cierre (el Cerrar de las dos ranuras) sigue valiendo. Sin UPDATE OF: un BEFORE UPDATE por fila con
             // WHEN vigila el valor final de la fila, lo cambie quien lo cambie.
+            // Un contrato cerrado tampoco cambia lo demás que lee app_inbound_tenant_contratista_del_contrato para dar acceso
+            // (ronda 3 de Codex): ni FechaInicio ni FechaFin, porque el Actualizar de la ranura anterior no mira el cierre, y
+            // ampliar el fin de un contrato que acabó ayer y se finalizó con cierre futuro le devolvería la lectura hasta el
+            // cierre; ni Estado, salvo Activo → Finalizado, que es lo que haría una normalización de los cierres de la ranura
+            // anterior y no amplía nada (los dos dan acceso hasta el cierre). TenantContratistaId lo guarda ya
+            // TR_ContratosAcceso_TenantContratistaUnaVez. EstaEliminado no entra: dar de baja estrecha, y deshacer una baja
+            // devuelve el contrato a lo que era, con su mismo cierre. En la ranura nueva ningún escritor toca estas columnas de
+            // un contrato cerrado: ExigirEstado rechaza toda acción si hay cierre real, y el inicio solo se escribe al crear.
             migrationBuilder.Sql("""
                 CREATE FUNCTION public.contrato_acceso_cierre_irreversible() RETURNS trigger
                     LANGUAGE plpgsql
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 BEGIN
-                    RAISE EXCEPTION 'El contrato de acceso % ya tiene cierre real: el cierre no cambia ni se quita (D-21).', OLD."Id"
+                    RAISE EXCEPTION 'El contrato de acceso % ya tiene cierre real: ni el cierre, ni las fechas de vigencia, ni el estado cambian (D-21).', OLD."Id"
                         USING ERRCODE = 'check_violation', CONSTRAINT = 'TR_ContratosAcceso_CierreIrreversible';
                 END;
                 $$;
 
                 CREATE TRIGGER "TR_ContratosAcceso_CierreIrreversible" BEFORE UPDATE ON public."ContratosAcceso"
                     FOR EACH ROW
-                    WHEN (OLD."FechaCierreReal" IS NOT NULL AND NEW."FechaCierreReal" IS DISTINCT FROM OLD."FechaCierreReal")
+                    WHEN (OLD."FechaCierreReal" IS NOT NULL
+                          AND (NEW."FechaCierreReal" IS DISTINCT FROM OLD."FechaCierreReal"
+                               OR NEW."FechaInicio" IS DISTINCT FROM OLD."FechaInicio"
+                               OR NEW."FechaFin" IS DISTINCT FROM OLD."FechaFin"
+                               OR (NEW."Estado" IS DISTINCT FROM OLD."Estado"
+                                   AND NOT (OLD."Estado" = 'Activo' AND NEW."Estado" = 'Finalizado'))))
                     EXECUTE FUNCTION public.contrato_acceso_cierre_irreversible();
                 """);
 
