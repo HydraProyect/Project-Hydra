@@ -212,9 +212,8 @@
         if (_errores.Count == 0)
             return;
 
-        _paso = _errores.ContainsKey(nameof(CrearContratoAccesoCommand.EmpresaContratistaId)) ? PasoEmpresa
-            : _errores.Keys.Any(k => k is nameof(CrearContratoAccesoCommand.CentroId) or nameof(CrearContratoAccesoCommand.FechaInicio) or nameof(CrearContratoAccesoCommand.FechaFin)) ? PasoContrato
-            : _paso;
+        // La Empresa contratista es el paso 1; Centro, fechas, cupos, nivel y notas viven en el paso 2.
+        _paso = _errores.ContainsKey(nameof(CrearContratoAccesoCommand.EmpresaContratistaId)) ? PasoEmpresa : PasoContrato;
     }
 
     private async Task IniciarAsync()
@@ -308,13 +307,17 @@
         if (centro is null || centro.ClienteEmpresarialId == Guid.Empty)
         {
             _errores[nameof(CrearContratoAccesoCommand.CentroId)] = Textos["AltaCentroInvalido"];
+            IrAlPasoDelError();
             return;
         }
 
         if (!TryEntero(_cupoTrabajadores, CampoCupoTrabajadores, out var cupoTrabajadores)
             | !TryEntero(_cupoSubcontratas, CampoCupoSubcontratas, out var cupoSubcontratas)
             | !TryEntero(_nivel, CampoNivel, out var nivel))
+        {
+            IrAlPasoDelError();
             return;
+        }
 
         var condiciones = new CondicionesContratoAccesoDatos(
             Tipo: Enum.TryParse<TipoContratoAcceso>(_tipo, out var tipo) ? tipo : null,
