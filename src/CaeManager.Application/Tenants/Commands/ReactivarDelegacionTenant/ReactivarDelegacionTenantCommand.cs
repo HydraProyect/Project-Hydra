@@ -170,7 +170,9 @@ public class ReactivarDelegacionTenantCommandHandler(
         // YaActiva sin escribir. Lo que la autoridad miró (Operador CAE externo, Tenant
         // propietario y propósito) no cambia nunca en una DelegacionTenant (private set, solo al
         // crearla), así que la relectura no la invalida.
-        var delegacion = await repositorio.BloquearYObtenerPorIdAsync(id, cancellationToken);
+        if (!await repositorio.BloquearYReleerAsync(id, cancellationToken))
+            return Result.Fallo(NoEncontrada);
+        var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
         if (delegacion is null || delegacion.TenantClienteId != tenantPropietarioId)
             return Result.Fallo(NoEncontrada);
 

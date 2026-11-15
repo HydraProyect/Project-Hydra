@@ -17,7 +17,7 @@ public class DelegacionTenantRepository(CaeManagerDbContext dbContext) : IDelega
     // La relectura es la razón de ser del método: una consulta con seguimiento devuelve la instancia que el contexto ya
     // rastrea sin pisar sus valores, así que la delegación leída antes de la transacción seguiría diciendo lo que decía
     // entonces (issue #2232: dos reactivaciones a la vez veían las dos Activa = false y las dos daban éxito).
-    public async Task<DelegacionTenant?> BloquearYObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> BloquearYReleerAsync(Guid id, CancellationToken cancellationToken = default)
     {
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException(
@@ -29,14 +29,15 @@ public class DelegacionTenantRepository(CaeManagerDbContext dbContext) : IDelega
             FOR UPDATE
             """).ToListAsync(cancellationToken);
         if (bloqueadas.Count != 1)
-            return null;
+            return false;
 
-        var rastreada = dbContext.ChangeTracker.Entries<DelegacionTenant>().FirstOrDefault(e => e.Entity.Id == id);
-        if (rastreada is null)
-            return await ObtenerPorIdAsync(id, cancellationToken);
-
-        await rastreada.ReloadAsync(cancellationToken);
-        return rastreada.State == EntityState.Detached ? null : rastreada.Entity;
+        // Si el contexto ya la rastreaba, la consulta devuelve esa instancia tal cual; ReloadAsync la pone al día.
+        var instancia = await ObtenerPorIdAsync(id, cancellationToken);
+        if (instancia is null)
+            return false;
+        var entrada = dbContext.Entry(instancia);
+        await entrada.ReloadAsync(cancellationToken);
+        return entrada.State != EntityState.Detached;
     }
 
     public Task<bool> ExisteActivaAsync(Guid tenantConsultoraId, Guid tenantClienteId, CancellationToken cancellationToken = default) =>

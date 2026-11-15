@@ -11,8 +11,8 @@ public class DelegacionTenantRepositorioFalso : IDelegacionTenantRepository
         Task.FromResult(Delegaciones.FirstOrDefault(d => d.Id == id));
 
     // En memoria no hay concurrencia que serializar: el bloqueo se prueba bajo PostgreSQL (PrincipalDeCarteraBajoRuntimeTests).
-    public Task<DelegacionTenant?> BloquearYObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        ObtenerPorIdAsync(id, cancellationToken);
+    public Task<bool> BloquearYReleerAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Delegaciones.Any(d => d.Id == id));
 
     public Task<bool> ExisteActivaAsync(Guid tenantConsultoraId, Guid tenantClienteId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Delegaciones.Any(d =>
