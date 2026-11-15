@@ -106,7 +106,7 @@ public partial class DocumentosPorValidar
             _error = respuesta.Disponible && respuesta.Valor is null;
             _cola = respuesta.Valor;
             _hayBase = _cola is { Documentos.Count: > 0 };
-            _marcados.RemoveWhere(id => _cola is null || _cola.Documentos.All(d => d.Id != id));
+            PodarMarcas();
         }
         catch (Exception)
         {
@@ -137,11 +137,17 @@ public partial class DocumentosPorValidar
         PodarMarcas();
     }
 
-    // Una fila que los filtros esconden deja de estar marcada: el lote es lo que el Gestor CAE ve, no lo que marcó antes.
+    // Las filas que entran en un lote ahora mismo: las que el Gestor CAE ve con los filtros de ahora y que son elegibles.
+    // Es la única definición del lote: marcar, podar y enviar parten de ella.
+    private HashSet<Guid> ElegiblesVisibles =>
+        [.. Visibles.Where(d => LogicaValidacionInbound.MotivoNoLote(d) is null).Select(d => d.Id)];
+
+    // Una fila que los filtros esconden, o que la recarga deja fuera de lote, deja de estar marcada: el lote es lo que el
+    // Gestor CAE ve y puede validar, no lo que marcó antes.
     private void PodarMarcas()
     {
-        var visibles = Visibles.Select(d => d.Id).ToHashSet();
-        _marcados.RemoveWhere(id => !visibles.Contains(id));
+        var elegibles = ElegiblesVisibles;
+        _marcados.RemoveWhere(id => !elegibles.Contains(id));
     }
 
     private async Task EmpezarAsync(IReadOnlyList<DocumentoPorValidar> documentos)
@@ -192,9 +198,17 @@ public partial class DocumentosPorValidar
         _enviandoLote = true;
         try
         {
-            // Solo las filas que el Gestor CAE sigue viendo con los filtros de ahora: una marca oculta no entra en el lote.
-            var visibles = Visibles.Select(d => d.Id).ToHashSet();
-            var respuesta = await Servicio.ValidarLoteAsync([.. _marcados.Where(visibles.Contains)]);
+            // Solo las filas que el Gestor CAE sigue viendo y que siguen siendo elegibles: una marca oculta no entra en el lote.
+            var elegibles = ElegiblesVisibles;
+            IReadOnlyList<Guid> ids = [.. _marcados.Where(elegibles.Contains)];
+            if (ids.Count == 0)
+            {
+                _marcados.Clear();
+                Toast.Mostrar("Ningún documento marcado puede validarse en lote con los filtros actuales.");
+                return;
+            }
+
+            var respuesta = await Servicio.ValidarLoteAsync(ids);
             if (!respuesta.Disponible)
                 Toast.Mostrar("La validación en lote no está disponible todavía.");
             else if (respuesta.Mensaje is not null)

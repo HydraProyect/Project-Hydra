@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Inbound.Validacion.Pages;
@@ -339,12 +339,71 @@ public class ValidacionInboundTests : BunitContext
         _servicio.IdsDeLote.Should().ContainSingle().Which.Should().Equal(IdA);
     }
 
+    [Fact]
+    public void Una_cola_rechazada_por_el_servidor_se_dice_como_error_y_no_como_cola_vacia()
+    {
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Rechazada("No tienes ninguna cartera asignada.");
+
+        var cut = Render<DocumentosPorValidar>();
+
+        cut.Markup.Should().Contain("No se pudo cargar la cola");
+        cut.Markup.Should().NotContain("No te queda nada por validar");
+    }
+
+    [Fact]
+    public void La_recarga_quita_la_marca_de_una_fila_que_deja_de_ser_elegible()
+    {
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Correcta(Cola(
+            Fila(IdA, "Aptitud médica", "Ana Pérez", "Montajes Ebro", ResultadoLectura.Correcto),
+            Fila(IdC, "Aptitud médica", "Marta Soler", "Montajes Ebro", ResultadoLectura.Correcto)));
+        var cut = Render<DocumentosPorValidar>();
+
+        CasillaDe(cut, "Ana Pérez").Change(true);
+        _servicio.Lote = RespuestaValidacion<LoteRegistrado>.Correcta(new LoteRegistrado(Guid.NewGuid(), 1, 1));
+        ConfirmarLote(cut);
+        cut.Markup.Should().Contain("1 documento validado en lote");
+
+        CasillaDe(cut, "Marta Soler").Change(true);
+        cut.Markup.Should().Contain("1 seleccionado");
+
+        // Deshacer recarga la cola: entre medias la lectura de la fila marcada pasó a «sin detectar» y ya no entra en lote.
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Correcta(Cola(
+            Fila(IdA, "Aptitud médica", "Ana Pérez", "Montajes Ebro", ResultadoLectura.Correcto),
+            Fila(IdC, "Aptitud médica", "Marta Soler", "Montajes Ebro", ResultadoLectura.SinDetectar, 1)));
+        cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith("Deshacer")).Click();
+
+        // El aviso espera a cancelar su cuenta atrás antes de llamar al servicio: la recarga llega de forma asíncrona.
+        cut.WaitForAssertion(() => cut.FindAll(".blv").Should().BeEmpty("la marca de una fila que ya no es elegible no sobrevive a la recarga"));
+        _servicio.Llamadas.Should().Contain("deshacer lote");
+    }
+
+    [Fact]
+    public void Con_un_veredicto_en_vuelo_no_se_navega_a_otro_documento()
+    {
+        Services.GetRequiredService<ColaEnCursoValidacion>().Fijar([IdA, IdB]);
+        _servicio.Documento = RespuestaValidacion<DocumentoAValidar>.Correcta(Documento(IdA));
+        _servicio.Pendiente = new TaskCompletionSource<RespuestaValidacion<VeredictoRegistrado>>();
+        var cut = RenderDetalle(IdA);
+        var navegacion = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var uriInicial = navegacion.Uri;
+
+        Pulsar(cut, "Validar");
+        Pulsar(cut, "Siguiente (J)");
+
+        navegacion.Uri.Should().Be(uriInicial, "el veredicto de A está en vuelo: navegar a B haría que su resultado cayera en B");
+
+        _servicio.Pendiente.SetResult(RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(Guid.NewGuid(), VeredictoValidacion.Validado)));
+        cut.WaitForAssertion(() => navegacion.Uri.Should().Contain(IdB.ToString(), "con «pasar al siguiente» se avanza una vez registrado"));
+    }
+
     private sealed class ServicioFalso : IServicioValidacionInbound
     {
         public RespuestaValidacion<ColaValidacion> Cola { get; set; } = RespuestaValidacion<ColaValidacion>.NoDisponible;
         public RespuestaValidacion<DocumentoAValidar> Documento { get; set; } = RespuestaValidacion<DocumentoAValidar>.NoDisponible;
         public RespuestaValidacion<VeredictoRegistrado> Veredicto { get; set; } = RespuestaValidacion<VeredictoRegistrado>.NoDisponible;
         public List<string> Llamadas { get; } = [];
+        public TaskCompletionSource<RespuestaValidacion<VeredictoRegistrado>>? Pendiente { get; set; }
+        public RespuestaValidacion<LoteRegistrado> Lote { get; set; } = RespuestaValidacion<LoteRegistrado>.NoDisponible;
 
         public Task<RespuestaValidacion<ColaValidacion>> ObtenerColaAsync(CancellationToken cancellationToken = default) => Task.FromResult(Cola);
 
@@ -353,7 +412,7 @@ public class ValidacionInboundTests : BunitContext
         public Task<RespuestaValidacion<VeredictoRegistrado>> ValidarAsync(SolicitudValidar solicitud, CancellationToken cancellationToken = default)
         {
             Llamadas.Add("validar " + solicitud.ConfirmadoConErrores);
-            return Task.FromResult(Veredicto);
+            return Pendiente is { } pendiente ? pendiente.Task : Task.FromResult(Veredicto);
         }
 
         public Task<RespuestaValidacion<VeredictoRegistrado>> RechazarAsync(SolicitudRechazar solicitud, CancellationToken cancellationToken = default)
@@ -379,10 +438,13 @@ public class ValidacionInboundTests : BunitContext
         public Task<RespuestaValidacion<LoteRegistrado>> ValidarLoteAsync(IReadOnlyList<Guid> documentoIds, CancellationToken cancellationToken = default)
         {
             IdsDeLote.Add(documentoIds);
-            return Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
+            return Task.FromResult(Lote);
         }
 
-        public Task<RespuestaValidacion<LoteRegistrado>> DeshacerLoteAsync(Guid loteId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
+        public Task<RespuestaValidacion<LoteRegistrado>> DeshacerLoteAsync(Guid loteId, CancellationToken cancellationToken = default)
+        {
+            Llamadas.Add("deshacer lote");
+            return Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
+        }
     }
 }

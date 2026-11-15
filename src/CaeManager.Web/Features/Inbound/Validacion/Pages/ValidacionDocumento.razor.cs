@@ -229,18 +229,19 @@ public partial class ValidacionDocumento
 
     private void IrAnterior()
     {
-        if (AnteriorId is { } id) Navegacion.NavigateTo($"/inbound/validacion/{id}");
+        // Con un veredicto en vuelo no se navega: el resultado volvería a un documento que ya no se ve.
+        if (!_enviando && AnteriorId is { } id) Navegacion.NavigateTo($"/inbound/validacion/{id}");
     }
 
     private void IrSiguiente()
     {
-        if (SiguienteId is { } id) Navegacion.NavigateTo($"/inbound/validacion/{id}");
+        if (!_enviando && SiguienteId is { } id) Navegacion.NavigateTo($"/inbound/validacion/{id}");
     }
 
     private void AbrirPendiente(Guid id)
     {
         _selectorAbierto = false;
-        Navegacion.NavigateTo($"/inbound/validacion/{id}");
+        if (!_enviando) Navegacion.NavigateTo($"/inbound/validacion/{id}");
     }
 
     private void CambiarEmision(DateOnly? emision)
@@ -352,6 +353,9 @@ public partial class ValidacionDocumento
     {
         if (_enviando) return;
         _enviando = true;
+        // El documento del veredicto se fija antes del await: si el Gestor CAE navega mientras la petición vuela, el veredicto
+        // es de este documento y no del que tenga delante cuando vuelva.
+        var documentoId = Id;
         try
         {
             var respuesta = await enviar();
@@ -369,9 +373,12 @@ public partial class ValidacionDocumento
 
             _veredicto = registrado;
             _textoVeredicto = textoEspecial ?? TextoVeredicto(registrado);
-            _veredictoDocumentoId = Id;
-            _resueltos.Add(Id);
+            _veredictoDocumentoId = documentoId;
+            _resueltos.Add(documentoId);
             _modo = ModoVeredicto.Ninguno;
+
+            // Si ya está en otro documento, el aviso de Deshacer queda con el veredicto y no se toca el estado del que ve.
+            if (documentoId != Id) return;
 
             var siguiente = SiguienteId;
             if (_pasarAlSiguiente)
@@ -407,10 +414,10 @@ public partial class ValidacionDocumento
 
         if (ReferenceEquals(_veredicto, veredicto)) _veredicto = null;
         _resueltos.Remove(documentoDelVeredicto);
-        _terminado = false;
-        _resuelto = false;
         if (documentoDelVeredicto == Id)
         {
+            _terminado = false;
+            _resuelto = false;
             await CargarAsync();
         }
         else
