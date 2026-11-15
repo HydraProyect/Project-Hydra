@@ -87,7 +87,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     private static readonly string[] ServiciosSinPersonaQueTocanAlTrabajador =
     [
         "src/CaeManager.Infrastructure/Alertas/EnvioAlertasVencimientoHostedService.cs", // resumen por correo: sin efecto de estado
-        "src/CaeManager.Infrastructure/Documentos/ConciliacionAcreditacionesEmpresaHostedService.cs", // crea acreditaciones pendientes de Empresa (actor Sistema, apagado por defecto); un pendiente de tipo bloqueante bloquea a los Trabajadores de la Empresa (DEFECTO a decidir, ver PR)
+        "src/CaeManager.Infrastructure/Documentos/ConciliacionAcreditacionesEmpresaHostedService.cs", // crea acreditaciones pendientes de Empresa (actor Sistema, apagado por defecto); un pendiente de tipo bloqueante bloquea a los Trabajadores de la Empresa (decisión pendiente, issue #2005)
         "src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs", // crea revisión pendiente de persona
     ];
 
@@ -110,7 +110,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
 
         encontrados.Should().Equal(
             ConsumidoresDelCalculo.OrderBy(f => f, StringComparer.Ordinal),
-            "un consumidor nuevo del bloqueo de acceso es una ruta nueva con efecto sobre un Trabajador (#2005): hay que inventariarla");
+            "un consumidor nuevo del cálculo, de sus lectores o de la query del bloqueo es una ruta nueva (#2005): hay que inventariarla (los miembros de solo vigencia o tolerancia de la regla no se vigilan aquí)");
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
         var raiz = RaizDelRepositorio();
 
         var comandos = FicherosDeCodigo(raiz)
-            .Where(f => Relativa(raiz, f).Contains("/Commands/", StringComparison.Ordinal))
+            .Where(f => Relativa(raiz, f).Contains("/Commands/", StringComparison.Ordinal) || f.EndsWith("Command.cs", StringComparison.Ordinal))
             .Where(f => ReferenciasAlBloqueo.Any(r => CodigoSinComentarios(f).Contains(r, StringComparison.Ordinal)))
             .Select(f => Relativa(raiz, f))
             .ToList();
