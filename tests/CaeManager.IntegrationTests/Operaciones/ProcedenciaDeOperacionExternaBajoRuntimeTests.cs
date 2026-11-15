@@ -596,6 +596,53 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Cierre y apertura en un solo guardado (revisor-puente del cierre de la ronda 3, media 1): tras revocar y reactivar
+    /// por SQL, como la ranura anterior, la operación del Tenant entero del alta sigue Vigente sin amparo y ocupa
+    /// <c>IX_AsignacionesOperacion_DelegacionTotalVigente</c>. <c>AbrirOperacionDelegadaAsync</c> la cierra y añade la
+    /// nueva en el mismo contexto; un único <c>SaveChanges</c> tiene que emitir el UPDATE de cierre antes del INSERT, o
+    /// el índice único lo rechaza con 23505 y la reactivación entera se revierte.
+    /// </summary>
+    [Fact]
+    public async Task Abrir_tras_una_revocacion_por_SQL_cierra_la_del_Tenant_entero_y_guarda_la_nueva_en_un_solo_guardado()
+    {
+        Guid delAlta;
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            delAlta = (await verificacion.AsignacionesOperacion.SingleAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador
+                && o.Servicio == ServicioCae.Outbound && o.Estado != EstadoAsignacion.Cerrada)).Id;
+
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == delAlta)).Estado
+                .Should().Be(EstadoAsignacion.Vigente, "control: la del Tenant entero sobrevivió a la revocación por SQL");
+
+        using var ambito = _arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var usuarioActual = FijarSesion(_administradorPropietario, Roles.Administrador);
+        var writer = new AsignacionesOperativasWriter(contexto, ambito.ServiceProvider.GetRequiredService<ITenantActual>(), usuarioActual);
+
+        Guid nueva;
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
+            nueva = (await writer.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null)).Id;
+            nueva.Should().NotBe(delAlta, "control: la del alta ya no está amparada y no se devuelve");
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+        {
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == delAlta)).Estado
+                .Should().Be(EstadoAsignacion.Cerrada, "el mismo guardado cerró la del alta");
+            var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == nueva);
+            guardada.Estado.Should().NotBe(EstadoAsignacion.Cerrada);
+            guardada.OrigenId.Should().Be(_delegacion);
+            guardada.RevocacionesDelOrigen.Should().Be(1, "sellada con el contador posterior a la revocación");
+        }
+    }
+
+    /// <summary>
     /// Reabrir es idempotente aunque el par tenga hoy dos delegaciones de Operador CAE externo activas (la base no lo
     /// impide): con una operación vigente y amparada por su origen, <c>AbrirOperacionDelegadaAsync</c> la devuelve y no
     /// lanza. Sin ella, con dos delegaciones activas, no abre nada (origen ambiguo).
