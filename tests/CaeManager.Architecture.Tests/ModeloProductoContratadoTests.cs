@@ -25,6 +25,7 @@ public class ModeloProductoContratadoTests
 {
     private const string Migracion = "20261109150000_AnadeProductosContratados.cs";
     private const string MigracionDeLaLineaInbound = "20261115130821_ContrataLineaInboundPorAprovisionamiento.cs";
+    private const string MigracionDeLaBajaInbound = "20261115170000_FinalizaLineaInboundPorAprovisionamiento.cs";
 
     private static readonly IModel Modelo = CrearContextoSinConexion().Model;
 
@@ -125,8 +126,8 @@ public class ModeloProductoContratadoTests
     }
 
     /// <summary>
-    /// D-C (2026-11-15): la vía de escritura de la línea Inbound concede INSERT, y nada más, a
-    /// <c>cae_app_aprovisionamiento</c>. El runtime y el soporte no ganan nada: con INSERT bajo
+    /// D-C (2026-11-15): la migración del alta de la línea Inbound concede INSERT, y nada más, a
+    /// <c>cae_app_aprovisionamiento</c>; la baja añade después sus columnas (test siguiente). El runtime y el soporte no ganan nada: con INSERT bajo
     /// <c>aislamiento_tenant</c>, un Tenant podría concederse su propia línea Inbound.
     /// </summary>
     [Fact]
@@ -139,6 +140,35 @@ public class ModeloProductoContratadoTests
         up.Should().NotContain("cae_app_runtime").And.NotContain("cae_app_soporte").And.NotContain("REVOKE",
             "aditiva: no quita nada a la ranura anterior");
         up.Should().NotContain("UpdateData").And.NotContain("InsertData").And.NotContain("AddColumn");
+    }
+
+    /// <summary>
+    /// Opción B (2026-11-15): la baja y la corrección de la línea Inbound conceden a <c>cae_app_aprovisionamiento</c> solo
+    /// UPDATE de <c>Estado</c> y <c>VigenteHastaUtc</c> y SELECT de las columnas del WHERE, nunca de la tabla entera, y
+    /// crean las dos RESTRICTIVE antes que los privilegios. El runtime y el soporte no ganan nada. Lo que la base hace con
+    /// ello lo prueba <c>BajaYCorreccionLineaInboundPorAprovisionamientoTests</c> en integración.
+    /// </summary>
+    [Fact]
+    public void La_baja_de_la_linea_Inbound_solo_concede_columnas_a_aprovisionamiento_y_despues_de_sus_politicas()
+    {
+        var up = Regex.Replace(TextoUp(MigracionDeLaBajaInbound), @"\s+", " ");
+
+        Regex.Matches(up, @"\bGRANT\b").Should().HaveCount(2);
+        up.Should().Contain("GRANT SELECT (\"Id\", \"TenantId\", \"Linea\", \"Estado\", \"EstaEliminado\") " +
+                            "ON TABLE public.\"ProductosContratados\" TO cae_app_aprovisionamiento;")
+            .And.Contain("GRANT UPDATE (\"Estado\", \"VigenteHastaUtc\") " +
+                         "ON TABLE public.\"ProductosContratados\" TO cae_app_aprovisionamiento;");
+        up.Should().NotContain("cae_app_runtime").And.NotContain("cae_app_soporte").And.NotContain("REVOKE",
+            "aditiva: no quita nada a la ranura anterior");
+        up.Should().NotContain("UpdateData").And.NotContain("InsertData").And.NotContain("AddColumn")
+            .And.NotContain("SECURITY DEFINER");
+
+        var politicaUpdate = up.IndexOf("AS RESTRICTIVE FOR UPDATE TO cae_app_aprovisionamiento", StringComparison.Ordinal);
+        var politicaSelect = up.IndexOf("AS RESTRICTIVE FOR SELECT TO cae_app_aprovisionamiento", StringComparison.Ordinal);
+        politicaUpdate.Should().BePositive();
+        politicaSelect.Should().BePositive();
+        up.IndexOf("GRANT", StringComparison.Ordinal).Should().BeGreaterThan(Math.Max(politicaUpdate, politicaSelect),
+            "nunca hay un instante en que el rol elevado actualice o lea sin las restrictivas");
     }
 
     [Fact]
