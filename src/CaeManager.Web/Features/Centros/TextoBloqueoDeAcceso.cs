@@ -25,7 +25,15 @@ public static class TextoBloqueoDeAcceso
     /// <summary>«Tipo (Empresa): situación», sin el Trabajador: para donde el Trabajador ya está dicho (su propia fila).</summary>
     public static string LineaDeDocumento(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo)
     {
-        var situacion = bloqueo.Situacion switch
+        var tipo = bloqueo.Ambito == AmbitoAplicacion.Empresa
+            ? textos["BloqueoTipoDeEmpresa", bloqueo.TipoDocumentoNombre].Value
+            : bloqueo.TipoDocumentoNombre;
+        return $"{tipo}: {Situacion(textos, bloqueo)}";
+    }
+
+    /// <summary>Solo la situación («venció el …», «fin de tolerancia …», «sin subir a la plataforma»…), para donde el Tipo ya está dicho (su propia fila).</summary>
+    public static string Situacion(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo) =>
+        bloqueo.Situacion switch
         {
             SituacionDeRequisitoBloqueante.Ausente => textos["BloqueoSituacionAusente"].Value,
             SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma => textos["BloqueoSituacionSinSubirAPlataforma"].Value,
@@ -36,9 +44,4 @@ public static class TextoBloqueoDeAcceso
                 textos["BloqueoSituacionVencido", vencimiento.ToString("dd/MM/yyyy")].Value,
             _ => textos["BloqueoSituacionVencidoSinFecha"].Value
         };
-        var tipo = bloqueo.Ambito == AmbitoAplicacion.Empresa
-            ? textos["BloqueoTipoDeEmpresa", bloqueo.TipoDocumentoNombre].Value
-            : bloqueo.TipoDocumentoNombre;
-        return $"{tipo}: {situacion}";
-    }
 }
