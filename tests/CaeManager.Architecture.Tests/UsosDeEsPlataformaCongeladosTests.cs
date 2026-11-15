@@ -288,6 +288,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":69 rechaza suscribir al tenant de plataforma. D-4: SE CONSERVA — es el invariante que " +
                 "impide que el tenant #1 salga de SinSuscripcion, y sin él la retirada de la exención sí " +
                 "tendría delta de comportamiento"),
+        ["src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs"] =
+            new(2, CategoriaUso.ReglaComercial,
+                ":113 (proyección) y :120 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
+                "como RegistrarSuscripcionTenant rechaza suscribirlo: no concede nada. Defensa en profundidad, porque " +
+                "ReglaTenantObjetivoAjeno ya impide abrir la Sesión Privilegiada de Aprovisionamiento sobre la casa propia"),
         ["src/CaeManager.Application/Comercial/Queries/ObtenerEstadoComercialTenants/ObtenerEstadoComercialTenantsQuery.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":53 filtro de presentación; la autorización real está tres líneas antes, en " +

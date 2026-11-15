@@ -39,6 +39,10 @@ public class ComandosDeAprovisionamientoInventariadosTests
         // de la retirada. Quién puede lo decide AutoridadSobreElEncargo, nunca el rol efectivo.
         "RegistrarEncargoAdministracionCommand",
         "RetirarEncargoAdministracionCommand",
+        // Línea Inbound del Producto Contratado (B-04a, decisiones D-A y D-C, 2026-11-15): el Actor de Plataforma TALVEG la
+        // contrata con Aprovisionamiento sobre ese Tenant; el rol elevado solo inserta en ProductosContratados. El handler
+        // exige además la Sesión Privilegiada, porque sin ella el rol efectivo pasaría AutorizacionEscrituraBehavior.
+        "ContratarLineaInboundCommand",
     ];
 
     [Fact]

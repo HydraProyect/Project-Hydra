@@ -462,6 +462,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IEncargoAdministracionRepository, EncargoAdministracionRepository>();
+        services.AddScoped<CaeManager.Domain.Comercial.IProductoContratadoRepository, ProductoContratadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.IPropuestaApoyoCarteraRepository, PropuestaApoyoCarteraRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
