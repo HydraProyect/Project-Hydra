@@ -342,7 +342,7 @@ namespace CaeManager.Architecture.Tests
                 .Where(p => CarpetaDeArea(p) is { } a
                             && (ActosExcluidosDelEncargo.AreasExcluidas.Contains(a) || ActosExcluidosDelEncargo.AreasPermitidas.Contains(a)))
                 .ToList();
-            enCarpetaDeArea.Should().Contain(p => registro.Clasificar(p)?.Modulo == Modulo.Inbound,
+            enCarpetaDeArea.Where(p => registro.Clasificar(p)?.Modulo == Modulo.Inbound).Should().NotBeEmpty(
                 "control positivo: las peticiones Inbound movidas siguen en una carpeta de área clasificada");
             enCarpetaDeArea
                 .Where(p => CarpetaDeArea(p) != Marca(p))
