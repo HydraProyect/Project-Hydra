@@ -265,7 +265,7 @@ public static class AsignacionesOperativasBackfillSeeder
                 "la reasigna un acto explícito.");
         }
 
-        // --- 2b. Ninguna Asignación de Cartera queda abierta bajo una operación Outbound externa cerrada ---
+        // --- 2c. Ninguna Asignación de Cartera queda abierta bajo una operación Outbound externa cerrada ---
         //
         // Residuo de la ronda 3 de Codex en la PR #2253: durante un despliegue azul-verde cuya ranura anterior sea
         // anterior a esa PR, su revocación lee las carteras antes de bloquear la DelegacionTenant, y una cartera que la

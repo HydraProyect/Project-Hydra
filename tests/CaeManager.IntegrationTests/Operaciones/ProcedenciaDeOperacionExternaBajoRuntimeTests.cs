@@ -183,41 +183,11 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
     // ── Ronda 2 tras Codex r1 (PR #2237) ─────────────────────────────────────
 
-    /// <summary>
-    /// Ronda 2 de Codex en la PR #2237, alta 1: ya no hay deducción diferida al COMMIT (su excepción a la inmutabilidad,
-    /// por marca de sesión y profundidad de trigger, era falsificable). Una operación insertada antes que su delegación
-    /// queda sin origen para siempre y falla cerrada: el escritor guarda la delegación antes que la operación.
-    /// </summary>
-    [Fact]
-    public async Task Una_operacion_insertada_antes_que_su_delegacion_en_la_misma_transaccion_queda_sin_origen()
-    {
-        // Se fuerza ese orden con dos guardados en una transacción: el BEFORE INSERT no ve la delegación todavía.
-        Guid otroOperador;
-        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
-            otroOperador = await SembrarTenantAsync(propietarioDeLaBase, "Operador CAE dos", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
-
-        var ahora = DateTime.UtcNow;
-        // Acotada: la del Tenant entero de _operador ocupa el índice único de la operación universal vigente.
-        var operacion = AsignacionOperacion.Externa(_propietario, otroOperador, ServicioCae.Outbound,
-            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
-        var delegacion = new DelegacionTenant(otroOperador, _propietario);
-        await using (var contexto = ContextoPropietarioDeLaBase())
-        {
-            await using var transaccion = await contexto.Database.BeginTransactionAsync();
-            contexto.AsignacionesOperacion.Add(operacion);
-            await contexto.SaveChangesAsync();
-            (await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == operacion.Id)).OrigenId
-                .Should().BeNull("control: al insertarla la delegación todavía no existe");
-            contexto.DelegacionesTenant.Add(delegacion);
-            await contexto.SaveChangesAsync();
-            await transaccion.CommitAsync();
-        }
-
-        await using var verificacion = ContextoPropietarioDeLaBase();
-        var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == operacion.Id);
-        guardada.OrigenId.Should().BeNull("sin deducción diferida, nada la sella al COMMIT");
-        guardada.RevocacionesDelOrigen.Should().BeNull();
-    }
+    // El test de la ronda 2 «Una_operacion_insertada_antes_que_su_delegacion_en_la_misma_transaccion_queda_sin_origen»
+    // se retira al fusionar la #2253: su trigger AFTER INSERT de DelegacionesTenant sella la operación nacida en la misma
+    // transacción, con la excepción acotada por TransaccionDeAlta e InicioTransaccionDeAlta, y esta PR lo conserva. El
+    // comportamiento vigente lo fija OrigenDeOperacionExternaEscritoresBajoRuntimeTests
+    // .La_operacion_insertada_antes_que_su_origen_en_la_misma_transaccion_queda_sellada.
 
     [Fact]
     public async Task Una_operacion_sin_origen_no_se_sella_despues_ni_con_la_marca_de_la_deduccion_diferida()
