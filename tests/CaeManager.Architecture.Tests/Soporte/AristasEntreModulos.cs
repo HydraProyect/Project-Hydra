@@ -10,6 +10,12 @@ namespace CaeManager.Architecture.Tests.Soporte;
 /// segundas se guardan aparte por origen, para la regla de bibliotecas de Facturación).
 ///
 /// <para>
+/// El caso de Razor (el auxiliar <c>__Blazor.</c>) lo mide el instrumento sobre <c>src</c>, pero ningún control sintético lo
+/// ejercita: los controles viven en el ensamblado de tests, que no compila Razor. Es un límite declarado, no una propiedad
+/// demostrada.
+/// </para>
+///
+/// <para>
 /// Esta clase solo mide. Qué pares están prohibidos y qué deuda hay congelada lo dice
 /// <c>DependenciasEntreModulosTests</c>; el instrumento de lectura es <see cref="ReferenciasIl"/>.
 /// </para>

@@ -13,7 +13,8 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Direcciones prohibidas</b> (ADR-013 § 4.1, reglas 1 a 3; D-F2 para Facturación): Inbound -> Outbound (cerrada, solo
-/// K-5 hasta B-22), Outbound -> Inbound (vacía), Núcleo -> Inbound y Núcleo -> Outbound (deuda que solo baja), Facturación
+/// K-5 hasta B-22), Outbound -> Inbound (cerrada, objetivo vacía; hoy solo K-2), Núcleo -> Inbound y Núcleo -> Outbound
+/// (deuda que solo baja), Facturación
 /// -> fuera del Núcleo y «nadie depende de Facturación». Permitidas y no listadas: todos -> Núcleo, y el punto de
 /// composición, que puede referenciar todos los módulos (regla 4). Las referencias a <c>Composicion</c> se miden y se
 /// informan, no se congelan.
@@ -28,7 +29,10 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Lo que estos tests no ven</b> (ADR-013 § 4.3, declarado aquí como límite conocido): una petición de MediatR
 /// construida por reflexión o por nombre, SQL en cadenas fuera de las migraciones, una columna <c>Guid</c> sin FK que
-/// apunte a otro módulo (K-9), un <c>cref</c> de documentación (K-6) y los literales que nombran features (K-8). El
+/// apunte a otro módulo (K-9), un <c>cref</c> de documentación (K-6) y los literales que nombran features (K-8). Los
+/// controles positivos son tipos C# en este ensamblado, no componentes Razor ni código de Roslyn; <b>Composición</b> como
+/// destino se mide y se informa, pero no se congela; y la lista Núcleo -> Outbound, por módulo (<c>Grano.Modulo</c>), no
+/// detecta que una arista se sustituya por otra del mismo tipo de origen y recuento. El
 /// registro es provisional en la mayoría de las áreas del Núcleo (<c>provisional</c> en <c>Modulos-registro.txt</c>): si
 /// una decisión de ADR-013 mueve un área, cambian las listas.
 /// </para>
@@ -58,9 +62,10 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
             "Inbound -> Outbound: lista cerrada, no admite altas (ADR-013 § 4.3). Hoy solo K-5 (EvidenciaInbound reutiliza el " +
             "estado de acreditación de Outbound) hasta B-22. Sube al Núcleo lo que Inbound necesita; no añadas la línea."),
         new("Modulos-Outbound-a-Inbound", [(Modulo.Outbound, Modulo.Inbound)], Grano.Tipo,
-            "Outbound -> Inbound: lista vacía y cerrada (ADR-013 § 4.3). Outbound no conoce a Inbound."),
+            "Outbound -> Inbound: lista cerrada, objetivo vacía (ADR-013 § 4.3). Hoy solo K-2: el registro clasifica " +
+            "Application.Importacion como Outbound y AnalizarPlantillaMaestraQuery usa AutorizacionLecturaAutoridad. Outbound no conoce a Inbound."),
         new("Modulos-Nucleo-a-Inbound", [(Modulo.Nucleo, Modulo.Inbound)], Grano.Tipo,
-            "Núcleo -> Inbound: prohibida (ADR-013 § 4.1, regla 3); la deuda (K-1, K-2, K-3, K-17) solo baja. Una línea que ya " +
+            "Núcleo -> Inbound: prohibida (ADR-013 § 4.1, regla 3); la deuda (K-1, K-3, K-17) solo baja. Una línea que ya " +
             "no se mide se borra; una nueva no se añade: contribuye por un puerto del Núcleo (mecanismo 10)."),
         new("Modulos-Nucleo-a-Outbound", [(Modulo.Nucleo, Modulo.Outbound)], Grano.Modulo,
             "Núcleo -> Outbound: prohibida (ADR-013 § 4.1, regla 3); la deuda de K-16 solo baja (N-4). Una línea que ya no se " +
@@ -86,6 +91,84 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
         var fallo = ListaCongelada.Verificar(lista.Nombre, Medido(medicion, lista), lista.Guia);
 
         fallo.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Las direcciones que el ADR-013 prohíbe (§ 4.1 reglas 1 a 3, D-F2), fijadas aquí y no deducidas de <see cref="Listas"/>:
+    /// quitar un par de una lista, o una lista entera, no puede dejar una dirección sin vigilar.
+    /// </summary>
+    private static readonly (Modulo Origen, Modulo Destino)[] ParesProhibidos =
+    [
+        (Modulo.Inbound, Modulo.Outbound),
+        (Modulo.Outbound, Modulo.Inbound),
+        (Modulo.Nucleo, Modulo.Inbound),
+        (Modulo.Nucleo, Modulo.Outbound),
+        (Modulo.Facturacion, Modulo.Outbound),
+        (Modulo.Facturacion, Modulo.Inbound),
+        (Modulo.Nucleo, Modulo.Facturacion),
+        (Modulo.Outbound, Modulo.Facturacion),
+        (Modulo.Inbound, Modulo.Facturacion),
+    ];
+
+    [Fact]
+    public void Las_listas_vigilan_exactamente_las_direcciones_prohibidas_del_adr()
+    {
+        Listas.SelectMany(l => l.Pares).Should().BeEquivalentTo(ParesProhibidos,
+            "quitar un par de una lista deja esa dirección sin vigilar; añadir uno exige decidirlo en el ADR, no aquí");
+    }
+
+    private static readonly string[] DestinosDeK5 = ["Domain.Documentos.EstadoAcreditacion", "Domain.Documentos.CausaRechazoAcreditacion"];
+
+    /// <summary>
+    /// «Cerrada» no es una promesa de la guía: el conjunto permitido está en código. Añadir a mano una línea nueva a
+    /// <c>Modulos-Inbound-a-Outbound.txt</c> (la lista cerrada) no deja el test de la lista en verde por sí sola.
+    /// </summary>
+    [Fact]
+    public void Inbound_a_Outbound_es_una_lista_cerrada_que_solo_admite_K5()
+    {
+        var lineas = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Inbound-a-Outbound"))).Keys;
+
+        foreach (var linea in lineas)
+        {
+            System.Text.RegularExpressions.Regex.IsMatch(linea.Lugar, @"\bEvidencias?Inbound").Should().BeTrue(
+                $"solo la evidencia Inbound reutiliza el estado de acreditación (K-5): «{linea.Lugar}» no es de ese grupo");
+            DestinosDeK5.Select(d => $"Outbound: {d}").Should().Contain(linea.Simbolo,
+                "el único destino Outbound permitido es el estado de acreditación y su causa de rechazo (K-5, hasta B-22)");
+        }
+    }
+
+    [Fact]
+    public void Outbound_a_Inbound_es_una_lista_cerrada_que_solo_admite_K2()
+    {
+        var lineas = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Outbound-a-Inbound"))).Keys;
+
+        foreach (var linea in lineas)
+        {
+            linea.Lugar.Should().Be("Application.Importacion.Queries.AnalizarPlantillaMaestraQueryHandler",
+                "Outbound -> Inbound solo admite K-2 (la autoridad de lectura que usa el análisis de la plantilla maestra)");
+            linea.Simbolo.Should().Be("Inbound: Application.AutorizacionesLectura.AutorizacionLecturaAutoridad");
+        }
+    }
+
+    /// <summary>
+    /// La deuda Núcleo -> Inbound (K-1, K-3, K-17) también está fijada en código: solo baja. Las listas de Núcleo -> Outbound y
+    /// de Facturación son deuda que solo baja y las vigila el trinquete (una línea nueva no la pone en verde el test de la
+    /// lista, pero sí lo hace la revisión de la PR; no hay conjunto permitido porque es deuda anterior al módulo).
+    /// </summary>
+    [Fact]
+    public void Nucleo_a_Inbound_solo_contiene_la_deuda_K1_K3_K17()
+    {
+        string[] permitidas =
+        [
+            "Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro.EstablecerDocumentacionRequeridaCentroCommandHandler",
+            "Infrastructure.FileStorage.DiskFileStorageService",
+            "Infrastructure.FileStorage.ReparacionAdjuntosTemporales",
+        ];
+
+        var lineas = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Nucleo-a-Inbound"))).Keys;
+
+        lineas.Select(l => l.Lugar).Distinct().Should().BeSubsetOf(permitidas,
+            "Núcleo -> Inbound solo baja: K-1 (documentación requerida del centro), K-3 (almacén de ficheros), K-17 (reparación de adjuntos)");
     }
 
     [Fact]
@@ -136,6 +219,7 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
     {
         var medicion = MedicionDeSrc.Valor.Aristas;
         var sb = new StringBuilder(medicion.Informe(ConfiguracionDeCompilacion()));
+        sb.Append($"Tokens del IL sin resolver (referencias a ensamblados opcionales, no vistas): {ReferenciasIl.TokensSinResolver}; opcodes desconocidos: {ReferenciasIl.OpcodesDesconocidos}\n");
 
         foreach (var lista in Listas)
         {
@@ -196,6 +280,46 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
         m.De(Modulo.Inbound, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaOutbound");
         m.De(Modulo.Facturacion, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaOutbound");
         m.De(Modulo.Facturacion, Modulo.Inbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaInbound");
+        m.De(Modulo.Inbound, Modulo.Facturacion).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaFacturacion");
+    }
+
+    /// <summary>Cada dirección prohibida tiene su propio origen sintético: un par sin control no se vigila de verdad.</summary>
+    [Fact]
+    public void Control_cada_direccion_prohibida_tiene_un_origen_sintetico_medido()
+    {
+        var m = MedirSinteticos();
+
+        foreach (var (origen, destino) in ParesProhibidos)
+            m.De(origen, destino).Should().NotBeEmpty($"el control sintético {origen} -> {destino} tiene que existir y medirse");
+    }
+
+    /// <summary>
+    /// Lo que antes se escapaba al lector: el tipo de un <c>catch</c>, la restricción de un parámetro genérico, un
+    /// <c>typeof</c> dentro de un array de argumentos de atributo y el cuerpo de un método asíncrono (la máquina de estado).
+    /// Cada uno es el único rastro de su arista en el tipo sintético.
+    /// </summary>
+    [Fact]
+    public void Control_el_lector_ve_catch_restricciones_atributos_y_metodos_asincronos()
+    {
+        var m = MedirSinteticos();
+
+        m.De(Modulo.Inbound, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaOutboundPorCatch")
+            .WhoseValue.Should().Contain("Application.ControlDeAristasOutbound.ExcepcionDeOutbound");
+        m.De(Modulo.Nucleo, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasNucleo.OrigenNucleoPorRestriccion");
+        m.De(Modulo.Facturacion, Modulo.Inbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaInboundPorAtributo");
+        m.De(Modulo.Facturacion, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaOutboundAsincrono");
+    }
+
+    /// <summary>
+    /// Un opcode que el lector no conoce trunca el método que lo contiene y esconde sus aristas: no se tolera. Los tokens
+    /// que no se resuelven (ensamblados opcionales) se cuentan y van al informe.
+    /// </summary>
+    [Fact]
+    public void El_lector_de_IL_no_pierde_opcodes()
+    {
+        _ = MedicionDeSrc.Valor.Aristas;
+
+        ReferenciasIl.OpcodesDesconocidos.Should().Be(0, "un opcode desconocido trunca el método y las aristas que viniera después se pierden");
     }
 
     [Fact]
@@ -228,15 +352,21 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
     }
 
     [Fact]
-    public void Control_quitar_una_arista_congelada_obliga_a_borrar_su_linea()
+    public void Control_una_arista_que_desaparece_de_la_medida_obliga_a_borrar_su_linea()
     {
-        // Sin las aristas medidas, cada línea de cada lista pasa a OBSOLETA a la vez: un instrumento ciego no da verde.
+        // Quitar de la medida real la primera arista de cada lista deja exactamente una línea obsoleta, y solo esa.
         foreach (var lista in Listas)
         {
-            var vacio = new Dictionary<Ubicacion, int>();
+            var medido = Medido(MedicionDeSrc.Valor.Aristas, lista);
             var listado = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista(lista.Nombre)));
-            ListaCongelada.Desvios(vacio, listado).Should().HaveCount(listado.Count)
-                .And.OnlyContain(d => d.StartsWith("OBSOLETA", StringComparison.Ordinal));
+            if (medido.Count == 0)
+                continue; // lista ya vaciada: no hay arista que quitar (el test de la lista exige que siga vacía)
+
+            var quitada = medido.Keys.OrderBy(k => k.Lugar, StringComparer.Ordinal).ThenBy(k => k.Simbolo, StringComparer.Ordinal).First();
+            medido.Remove(quitada);
+
+            ListaCongelada.Desvios(medido, listado).Should().ContainSingle($"{lista.Nombre}: quitar una arista deja una línea obsoleta")
+                .Which.Should().StartWith("OBSOLETA").And.Contain(quitada.Lugar);
         }
     }
 

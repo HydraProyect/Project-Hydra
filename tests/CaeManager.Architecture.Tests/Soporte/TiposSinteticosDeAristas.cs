@@ -24,6 +24,10 @@ namespace CaeManager.Application.ControlDeAristasNucleo
         public static void Cuerpo() => ControlDeAristasFacturacion.DestinoFacturacion.Llamar();
     }
 
+    /// <summary>Núcleo -> Outbound solo por la restricción de un parámetro genérico.</summary>
+    internal sealed class OrigenNucleoPorRestriccion<T>
+        where T : ControlDeAristasOutbound.DestinoOutbound;
+
     /// <summary>Un origen limpio: solo usa su propio módulo y no es ninguna arista.</summary>
     internal sealed class OrigenNucleoLimpio
     {
@@ -52,6 +56,8 @@ namespace CaeManager.Application.ControlDeAristasOutbound
         public static object Cuerpo() => new ControlDeAristasFacturacion.DestinoFacturacion();
     }
 
+    internal sealed class ExcepcionDeOutbound : Exception;
+
     /// <summary>Outbound -> Núcleo está permitido: no debe aparecer en ninguna lista prohibida.</summary>
     internal sealed class OrigenOutboundHaciaNucleo
     {
@@ -67,6 +73,28 @@ namespace CaeManager.Application.ControlDeAristasInbound
     internal sealed class OrigenInboundHaciaOutbound
     {
         public static void Cuerpo() => ControlDeAristasOutbound.DestinoOutbound.Llamar();
+    }
+
+    /// <summary>Inbound -> Outbound solo por el tipo de una cláusula catch.</summary>
+    internal sealed class OrigenInboundHaciaOutboundPorCatch
+    {
+        public static void Cuerpo()
+        {
+            try
+            {
+                Environment.GetEnvironmentVariable("CONTROL");
+            }
+            catch (ControlDeAristasOutbound.ExcepcionDeOutbound)
+            {
+                throw;
+            }
+        }
+    }
+
+    /// <summary>Inbound -> Facturación en el cuerpo de un método (para que el par tenga su propio control).</summary>
+    internal sealed class OrigenInboundHaciaFacturacion
+    {
+        public static void Cuerpo() => ControlDeAristasFacturacion.DestinoFacturacion.Llamar();
     }
 
     /// <summary>Inbound -> Núcleo está permitido: no debe aparecer en ninguna lista prohibida.</summary>
@@ -90,6 +118,26 @@ namespace CaeManager.Application.ControlDeAristasFacturacion
     {
         public static int Cuerpo() => new List<ControlDeAristasOutbound.DestinoOutbound>().Count;
     }
+
+    /// <summary>Facturación -> Outbound dentro de la máquina de estado de un método asíncrono.</summary>
+    internal sealed class OrigenFacturacionHaciaOutboundAsincrono
+    {
+        public static async Task<int> Cuerpo()
+        {
+            await Task.Yield();
+            return new List<ControlDeAristasOutbound.DestinoOutbound>().Count;
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Class)]
+    internal sealed class AtributoConTiposDeControl(params Type[] tipos) : Attribute
+    {
+        public Type[] Tipos { get; } = tipos;
+    }
+
+    /// <summary>Facturación -> Inbound solo en un typeof dentro de un array de argumentos de atributo.</summary>
+    [AtributoConTiposDeControl(typeof(ControlDeAristasInbound.DestinoInbound), typeof(string))]
+    internal sealed class OrigenFacturacionHaciaInboundPorAtributo;
 
     /// <summary>Facturación -> Inbound en la firma de un método.</summary>
     internal sealed class OrigenFacturacionHaciaInbound

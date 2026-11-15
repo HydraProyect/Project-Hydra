@@ -147,7 +147,13 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
 
         var gobernados = TiposDeSrc(registro).Where(t => registro.Clasificar(t)?.Entrada == entrada).ToList();
         gobernados.Should().NotBeEmpty($"la excepción '{clave}' no gobierna ningún tipo: es obsoleta");
-        gobernados.Should().OnlyContain(t => registro.Clasificar(t)!.Value.Modulo == esperado);
+    }
+
+    [Fact]
+    public void Ninguna_fila_de_la_tabla_esta_huerfana()
+    {
+        HuerfanasDeAncla(RegistroDeModulos.Versionado(), Tabla().Keys.ToHashSet(StringComparer.Ordinal)).Should().BeEmpty(
+            "toda fila de ancla es una excepción vigente del registro; si se borró del registro, quita también su fila");
     }
 
     [Fact]
@@ -190,6 +196,29 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
         var sinLaAnclada = RegistroDeModulos.Leer("area Domain.Documentos = Nucleo\n");
         HuerfanasDeAncla(sinLaAnclada, conAncla).Should().ContainSingle(s => s.Contains("EstadoAcreditacion"),
             "borrar una excepción anclada deja su fila huérfana");
+    }
+
+    /// <summary>
+    /// El mismo control sobre el registro versionado real, mutado: borrar la línea de una excepción sin ancla de tipo
+    /// (Tarifas, Documentos…) deja su fila huérfana, y añadir una excepción que nadie ancla la delata.
+    /// </summary>
+    [Fact]
+    public void Control_borrar_o_anadir_una_excepcion_en_el_registro_real_da_rojo()
+    {
+        var texto = File.ReadAllText(RegistroDeModulos.RutaVersionada());
+        var claves = Tabla().Keys.ToHashSet(StringComparer.Ordinal);
+        var lineas = texto.Split('\n');
+
+        var sinLaLinea = lineas.Where(l => !System.Text.RegularExpressions.Regex.IsMatch(
+            l, @"^excepcion\s+Domain\.Documentos\.AcreditacionDocumentoPlataforma\s")).ToArray();
+        sinLaLinea.Length.Should().Be(lineas.Length - 1, "control del instrumento: la línea existe una sola vez");
+        HuerfanasDeAncla(RegistroDeModulos.Leer(string.Join('\n', sinLaLinea)), claves)
+            .Should().ContainSingle(s => s.Contains("AcreditacionDocumentoPlataforma"));
+
+        var conUnaMas = RegistroDeModulos.Leer(texto + "\nexcepcion Application.ControlDeExcepcionSinAncla = Outbound\n");
+        var registro = RegistroDeModulos.Versionado();
+        ExcepcionesSinAncla(conUnaMas, TiposDeSrc(registro), TiposAnclaDeIntencion(), claves)
+            .Should().ContainSingle(s => s.Contains("ControlDeExcepcionSinAncla"));
     }
 
     // ---- Soporte ----
