@@ -60,10 +60,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// operación ya existente ni crea operaciones externas: solo las abre un acto explícito.
     /// </para>
     /// <para>
-    /// Las funciones no son SECURITY DEFINER: leen y bloquean bajo la RLS de quien escribe, que es uno de los dos extremos
-    /// del par; la política de <c>AsignacionesOperadorDelegado</c> es la misma condición sobre la misma delegación que la
-    /// de <c>DelegacionesTenant</c>. Si la fila de la delegación no es visible, la deducción deja el origen a NULL (falla
-    /// cerrada) y fijar un origen explícito se rechaza.
+    /// Las funciones de los triggers no son SECURITY DEFINER: leen y bloquean bajo la RLS de quien escribe, que es uno de
+    /// los dos extremos del par; la política de <c>AsignacionesOperadorDelegado</c> es la misma condición sobre la misma
+    /// delegación que la de <c>DelegacionesTenant</c>. Si la fila de la delegación no es visible, la deducción deja el
+    /// origen a NULL (falla cerrada) y fijar un origen explícito se rechaza. La única SECURITY DEFINER es
+    /// <see cref="CreaFuncionAmparoDeOrigen"/>, que solo responde un booleano.
     /// </para>
     /// </summary>
     public partial class AnadeProcedenciaDeOperacionExterna : Migration
@@ -327,7 +328,71 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     BEFORE INSERT OR UPDATE ON public."AsignacionesOperacion"
                     FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operacion_sella_origen();
                 """);
+
+            migrationBuilder.Sql(CreaFuncionAmparoDeOrigen);
         }
+
+        /// <summary>
+        /// <c>app_operacion_amparada_por_su_origen</c>: el predicado de <c>AmparoDeOrigen</c> sobre una sola
+        /// Asignación de Operación, con sus columnas como argumentos, y solo un booleano de respuesta. Lo usa
+        /// <c>EncargoAdministracionRepository</c> en todas sus vías (Codex r2 en la PR #2237, media 8): el comando que
+        /// registra un Encargo de Administración por Aprovisionamiento escribe como <c>cae_app_aprovisionamiento</c>,
+        /// que no tiene ni debe tener <c>SELECT</c> sobre <c>DelegacionesTenant</c>.
+        /// <para>
+        /// <c>SECURITY DEFINER</c> con el propietario de las tablas y <c>search_path</c> fijo, como
+        /// <c>app_sesion_vigente</c>; comprueba que su propietario evita la RLS en vez de responder <c>false</c> a todo.
+        /// No lee <c>AsignacionesOperacion</c> (las columnas las trae quien ya leyó la operación bajo su RLS) ni devuelve
+        /// nada de la DelegacionTenant. Solo responde sobre una delegación que el contexto firmado vería bajo las dos
+        /// políticas de lectura de <c>DelegacionesTenant</c> (Tenant activo o Tenant de origen en uno de sus extremos),
+        /// salvo para una sesión cuyo <c>session_user</c> ya evita la RLS (la misma exención que
+        /// <c>app_exigir_contexto_firmado</c>). <c>EXECUTE</c> solo para los tres roles de la aplicación, que leen
+        /// operaciones encargables: <c>cae_app_runtime</c> (Administrador propio), <c>cae_app_soporte</c> (la consulta
+        /// en una Sesión Privilegiada) y <c>cae_app_aprovisionamiento</c> (el comando elevado). Decisión provisional
+        /// de la coordinadora, pendiente de Chris, frente a conceder <c>SELECT</c> o dejar esa vía sin el filtro.
+        /// </para>
+        /// </summary>
+        public const string CreaFuncionAmparoDeOrigen =
+            """
+            CREATE FUNCTION public.app_operacion_amparada_por_su_origen(
+                    p_propietario uuid, p_operador uuid, p_origen uuid, p_revocaciones_del_origen integer,
+                    p_ahora timestamp with time zone)
+                RETURNS boolean
+                LANGUAGE plpgsql STABLE SECURITY DEFINER
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+            DECLARE
+                v_tenant uuid := public.app_ctx_tenant_id();
+                v_tenant_origen uuid := public.app_ctx_tenant_origen_id();
+                v_sin_rls boolean;
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                    RAISE EXCEPTION 'El rol % no evita la RLS: la comprobación del amparo no vería ninguna DelegacionTenant', current_user;
+                END IF;
+                -- Una operación interna no depende de ninguna delegación.
+                IF p_propietario = p_operador THEN
+                    RETURN true;
+                END IF;
+                v_sin_rls := EXISTS (SELECT 1 FROM pg_catalog.pg_roles
+                                      WHERE rolname = session_user AND (rolsuper OR rolbypassrls));
+                RETURN EXISTS (
+                    SELECT 1 FROM public."DelegacionesTenant" d
+                     WHERE d."Id" = p_origen
+                       AND d."TenantClienteId" = p_propietario
+                       AND d."TenantConsultoraId" = p_operador
+                       AND d."Proposito" = 'OperadorExterno'
+                       AND d."Activa"
+                       AND (d."ExpiraEnUtc" IS NULL OR p_ahora < d."ExpiraEnUtc")
+                       AND d."Revocaciones" = p_revocaciones_del_origen
+                       AND (v_sin_rls
+                            OR v_tenant IN (d."TenantClienteId", d."TenantConsultoraId")
+                            OR v_tenant_origen IN (d."TenantClienteId", d."TenantConsultoraId")));
+            END;
+            $$;
+            REVOKE ALL ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone) FROM PUBLIC;
+            GRANT EXECUTE ON FUNCTION public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone)
+                TO cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
+            """;
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
@@ -335,6 +400,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // Las filas heredadas revocadas por RevocaFilasHeredadasPrevias no se reponen: revocar es definitivo.
             migrationBuilder.Sql(
                 """
+                DROP FUNCTION IF EXISTS public.app_operacion_amparada_por_su_origen(uuid, uuid, uuid, integer, timestamp with time zone);
                 DROP TRIGGER IF EXISTS asignacion_operacion_sella_origen ON public."AsignacionesOperacion";
                 DROP FUNCTION IF EXISTS public.app_asignacion_operacion_sella_origen();
                 DROP TRIGGER IF EXISTS asignacion_operador_delegado_revocacion_definitiva ON public."AsignacionesOperadorDelegado";

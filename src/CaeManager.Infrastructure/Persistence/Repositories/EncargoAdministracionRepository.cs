@@ -1,4 +1,3 @@
-using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Persistence.Configurations;
@@ -17,10 +16,12 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
     public Task<AsignacionOperacion?> ObtenerOperacionAsync(
         Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
         // Solo si su origen la ampara: una Asignación de Operación externa cuya DelegacionTenant se revocó (o que
-        // nació sin origen) no admite un Encargo de Administración (Codex r2 en la PR #2237, media 8).
+        // nació sin origen) no admite un Encargo de Administración (Codex r2 en la PR #2237, media 8). El predicado
+        // se evalúa en PostgreSQL (FuncionAmparoDeOrigen) porque el comando por Aprovisionamiento lee como
+        // cae_app_aprovisionamiento, sin SELECT sobre esa tabla.
         dbContext.AsignacionesOperacion
             .AsNoTracking()
-            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)
+            .AmparadasPorSuOrigenEnBase(DateTime.UtcNow)
             .FirstOrDefaultAsync(
                 o => o.Id == asignacionOperacionId && o.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
@@ -33,7 +34,7 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
         // Y solo las que su origen ampara en ese instante (Codex r2 en la PR #2237, media 8).
         var candidatas = await dbContext.AsignacionesOperacion
             .AsNoTracking()
-            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+            .AmparadasPorSuOrigenEnBase(ahora)
             .Where(o => o.PropietarioTenantId == propietarioTenantId
                         && !o.EsRaiz
                         && o.OperadorTenantId != propietarioTenantId)

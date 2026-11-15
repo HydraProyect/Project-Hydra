@@ -131,6 +131,42 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         encargo.RetiradoEnUtc.Should().NotBeNull();
     }
 
+    /// <summary>
+    /// Codex r2 en la PR #2237, media 8, por la vía de Aprovisionamiento: revocada y reactivada la DelegacionTenant de
+    /// origen (como la ranura anterior, que solo escribe <c>Activa</c>), la operación sigue vigente pero ya no está
+    /// amparada, y el comando elevado la rechaza. <c>cae_app_aprovisionamiento</c> no tiene <c>SELECT</c> sobre
+    /// <c>DelegacionesTenant</c>: el amparo lo resuelve <c>app_operacion_amparada_por_su_origen</c> (decisión provisional
+    /// de la coordinadora, pendiente de Chris). El test del pipeline completo es su control positivo.
+    /// </summary>
+    [Fact]
+    public async Task Una_sesion_de_Aprovisionamiento_no_registra_el_encargo_sobre_una_operacion_sin_amparo()
+    {
+        (await TienePrivilegioSobreAsync("cae_app_aprovisionamiento", "public.\"DelegacionesTenant\"", "SELECT")).Should().BeFalse(
+            "control: el rol no lee la tabla; si la leyera, el test no mediría la función");
+
+        await using (var propietarioDeLaBase = CrearContexto(_propietario.Id, new SinSeleccion()))
+        {
+            var origen = (await propietarioDeLaBase.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionId))
+                .OrigenId!.Value;
+            var delegacion = propietarioDeLaBase.DelegacionesTenant.Where(d => d.Id == origen);
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+            (await propietarioDeLaBase.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionId)).Estado
+                .Should().Be(EstadoAsignacion.Vigente, "control: la operación sigue vigente; solo le falta el amparo");
+        }
+
+        await using (var proveedor = ConstruirProveedor(_sesionDeAprovisionamiento))
+        {
+            var registro = await proveedor.GetRequiredService<IMediator>().Send(
+                new RegistrarEncargoAdministracionCommand(_operacionId, "Cláusula 7.ª del contrato de servicio", null));
+            registro.EsFallido.Should().BeTrue("un Encargo de Administración no nace sobre una operación sin amparo");
+            registro.Error.Codigo.Should().Be(ErroresEncargoAdministracion.OperacionNoValida.Codigo);
+        }
+
+        await using var comprobacion = CrearContexto(_propietario.Id, new SinSeleccion());
+        (await comprobacion.EncargosAdministracion.AnyAsync()).Should().BeFalse();
+    }
+
     [Fact]
     public async Task Una_sesion_de_soporte_de_solo_lectura_no_registra_el_encargo()
     {
@@ -276,6 +312,18 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         comando.CommandText = "SELECT has_column_privilege(@rol, 'public.\"EncargosAdministracion\"', @columna, @privilegio);";
         comando.Parameters.AddWithValue("rol", rol);
         comando.Parameters.AddWithValue("columna", columna);
+        comando.Parameters.AddWithValue("privilegio", privilegio);
+        return (bool)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private async Task<bool> TienePrivilegioSobreAsync(string rol, string tabla, string privilegio)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT has_table_privilege(@rol, @tabla, @privilegio);";
+        comando.Parameters.AddWithValue("rol", rol);
+        comando.Parameters.AddWithValue("tabla", tabla);
         comando.Parameters.AddWithValue("privilegio", privilegio);
         return (bool)(await comando.ExecuteScalarAsync())!;
     }

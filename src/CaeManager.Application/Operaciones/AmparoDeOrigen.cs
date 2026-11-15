@@ -26,7 +26,10 @@ namespace CaeManager.Application.Operaciones;
 /// primitivas de <c>TenantsBeneficiariosAutorizados</c> (con cartera y del Tenant entero),
 /// <c>AmbitosEfectivosDeCarteraAsync</c>, <c>AlcanceDatosService.ObtenerCarteraAsync</c>,
 /// <c>CatalogoIncorporacionCartera</c>, <c>ContextoOperativoConversacionService</c> y
-/// <c>DirectorioUsuariosTenant</c>.
+/// <c>DirectorioUsuariosTenant</c>. <c>EncargoAdministracionRepository</c> aplica el mismo predicado en PostgreSQL
+/// (<c>app_operacion_amparada_por_su_origen</c>, vía <c>FuncionAmparoDeOrigen</c>), porque una de sus vías lee como
+/// <c>cae_app_aprovisionamiento</c>, sin <c>SELECT</c> sobre <c>DelegacionesTenant</c>; un test de integración compara
+/// las dos versiones.
 /// </para>
 /// </summary>
 public static class AmparoDeOrigen
