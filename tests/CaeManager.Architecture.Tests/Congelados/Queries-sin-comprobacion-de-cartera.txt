@@ -1,0 +1,135 @@
+# Queries de Application cuyo Handle no alcanza ninguna comprobacion de cartera de IAlcanceDatosService
+# (LlamadaAlAlcanceDeCarteraEnLecturaTests). Medida el 2026-11-14 sobre origin/main e3bee6554: 112 Queries; tras fusionar
+# origin/main 901385703 (#2229) entra una mas, la de Facturacion ObtenerCobrosLiquidacionOperadorCaeQueryHandler: 113 entradas.
+#
+# Estar aqui NO es un aval: es una medida, no una clasificacion. Los motivos tipicos de una entrada son datos
+# del propio usuario, catalogo o configuracion del Tenant, plano de Plataforma o de Operador CAE, agregado del
+# Tenant entero tras AlcanzaElTenantEnteroAsync, o una Query que solo compone otras por el mediador. La
+# clasificacion de cada entrada vive en el repositorio de negocio, no aqui.
+#
+# Una Query nueva que no llama a la comprobacion pone el test en rojo: lo correcto es anadir la comprobacion y
+# su test de Application con un usuario fuera de cartera. Si de verdad no aplica, la linea nueva deberia llevar
+# encima un comentario '#' que diga que lee y quien decide en su lugar (convencion de revision: el test no lo
+# impone, solo lo hace visible en el diff). Por la misma convencion, la lista solo deberia encoger.
+#
+# La clave es siempre Namespace del handler :: Handler[Peticion], con el namespace relativo a CaeManager.Application y la peticion con su
+# nombre completo relativo a el, tambien si la clase atiende una sola peticion: cambiar la Query por otra homonima de otro namespace, o sin
+# cambiar el nombre del handler, sale NUEVA u OBSOLETA. Un nombre que no cuelga de CaeManager.Application lleva el prefijo global:: y su nombre
+# completo, para no confundirse con uno relativo (CaeManager.Application.Foo.Query -> Foo.Query; Foo.Query externo -> global::Foo.Query).
+# Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
+# hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
+# de 113 entradas es el mismo.)
+ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
+ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
+Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1
+AsistenteIa.Candidatos :: ComprobarInstruccionIaCarteraQueryHandler[AsistenteIa.Candidatos.ComprobarInstruccionIaCarteraQuery] = 1
+AsistenteIa.Queries.PreguntarAlAsistente :: PreguntarAlAsistenteQueryHandler[AsistenteIa.Queries.PreguntarAlAsistente.PreguntarAlAsistenteQuery] = 1
+AsistenteIa.Queries.ProponerPlan :: ProponerPlanAsistenteQueryHandler[AsistenteIa.Queries.ProponerPlan.ProponerPlanAsistenteQuery] = 1
+AsistenteIa.Tareas.Queries :: ListarTareasAsistenteQueryHandler[AsistenteIa.Tareas.Queries.ListarTareasAsistenteQuery] = 1
+AsistenteIa.Tareas.Queries :: ObtenerTareaAsistenteQueryHandler[AsistenteIa.Tareas.Queries.ObtenerTareaAsistenteQuery] = 1
+Auditoria.Queries :: ObtenerAccesosDocumentosSensiblesQueryHandler[Auditoria.Queries.ObtenerAccesosDocumentosSensiblesQuery] = 1
+Auditoria.Queries :: ObtenerAuditoriaQueryHandler[Auditoria.Queries.ObtenerAuditoriaQuery] = 1
+Auditoria.Queries :: ObtenerRegistroAuditoriaPorIdQueryHandler[Auditoria.Queries.ObtenerRegistroAuditoriaPorIdQuery] = 1
+AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
+Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
+Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1
+BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1
+Calendario.Queries :: ObtenerCapasCalendarioQueryHandler[Calendario.Queries.ObtenerCapasCalendarioQuery] = 1
+CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[CatalogoBase.Queries.ObtenerCatalogoBaseQuery] = 1
+Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
+Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
+Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
+Configuracion.Queries :: ObtenerFiltrosGuardadosQueryHandler[Configuracion.Queries.ObtenerFiltrosGuardadosQuery] = 1
+Configuracion.Queries :: ObtenerOrdenCajasFichaQueryHandler[Configuracion.Queries.ObtenerOrdenCajasFichaQuery] = 1
+Configuracion.Queries :: ObtenerParametroSistemaQueryHandler[Configuracion.Queries.ObtenerParametroSistemaQuery] = 1
+Configuracion.Queries :: ObtenerSeguridadAccesoQueryHandler[Configuracion.Queries.ObtenerSeguridadAccesoQuery] = 1
+Configuracion.Queries :: ObtenerVistaRecordadaQueryHandler[Configuracion.Queries.ObtenerVistaRecordadaQuery] = 1
+Configuracion.Queries.ObtenerEstadoAutomatizaciones :: ObtenerEstadoAutomatizacionesQueryHandler[Configuracion.Queries.ObtenerEstadoAutomatizaciones.ObtenerEstadoAutomatizacionesQuery] = 1
+ContactosSeguridad.Queries.ObtenerContactoSeguridadDeMiOrganizacion :: ObtenerContactoSeguridadDeMiOrganizacionQueryHandler[ContactosSeguridad.Queries.ObtenerContactoSeguridadDeMiOrganizacion.ObtenerContactoSeguridadDeMiOrganizacionQuery] = 1
+ContactosSeguridad.Queries.ObtenerContactoSeguridadVigente :: ObtenerContactoSeguridadVigenteQueryHandler[ContactosSeguridad.Queries.ObtenerContactoSeguridadVigente.ObtenerContactoSeguridadVigenteQuery] = 1
+ContactosSeguridad.Queries.ObtenerContactosSeguridadPropuestos :: ObtenerContactosSeguridadPropuestosQueryHandler[ContactosSeguridad.Queries.ObtenerContactosSeguridadPropuestos.ObtenerContactosSeguridadPropuestosQuery] = 1
+ContactosSeguridad.Queries.ResolverDestinatariosAvisoSeguridad :: ResolverDestinatariosAvisoSeguridadQueryHandler[ContactosSeguridad.Queries.ResolverDestinatariosAvisoSeguridad.ResolverDestinatariosAvisoSeguridadQuery] = 1
+Cumplimiento.AceptacionContractual :: ObtenerAceptacionesContractualesTenantQueryHandler[Cumplimiento.AceptacionContractual.ObtenerAceptacionesContractualesTenantQuery] = 1
+Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos :: ObtenerEstadoAceptacionTerminosQueryHandler[Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos.ObtenerEstadoAceptacionTerminosQuery] = 1
+Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual :: ObtenerEstadoTratamientoIaActualQueryHandler[Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQuery] = 1
+Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario :: ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandler[Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario.ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery] = 1
+Dashboard.Queries :: ContarExtranjerosCobrablesDelMesQueryHandler[Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery] = 1
+Dashboard.Queries :: ObtenerComunicacionesCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerComunicacionesCuadroDireccionQuery] = 1
+Dashboard.Queries :: ObtenerCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerCuadroDireccionQuery] = 1
+Dashboard.Queries :: ObtenerCumplimientoExigidoTenantQueryHandler[Dashboard.Queries.ObtenerCumplimientoExigidoTenantQuery] = 1
+Dashboard.Queries :: ObtenerDashboardEjecutivoQueryHandler[Dashboard.Queries.ObtenerDashboardEjecutivoQuery] = 1
+Dashboard.Queries :: ObtenerEmpresasGestionadasDelMesQueryHandler[Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery] = 1
+Dashboard.Queries :: ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler[Dashboard.Queries.ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery] = 1
+Dashboard.Queries :: ObtenerExtranjerosDelMesQueryHandler[Dashboard.Queries.ObtenerExtranjerosDelMesQuery] = 1
+Dashboard.Queries :: ObtenerFacturacionOperadorCaeQueryHandler[Dashboard.Queries.ObtenerFacturacionOperadorCaeQuery] = 1
+Dashboard.Queries :: ObtenerGestionesPorDiaCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerGestionesPorDiaCuadroDireccionQuery] = 1
+Dashboard.Queries :: ObtenerKpisGlobalesQueryHandler[Dashboard.Queries.ObtenerKpisGlobalesQuery] = 1
+Dashboard.Queries :: ObtenerPreferenciaDashboardQueryHandler[Dashboard.Queries.ObtenerPreferenciaDashboardQuery] = 1
+Dashboard.Queries :: ObtenerSerieCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerSerieCuadroDireccionQuery] = 1
+Dashboard.Queries :: ObtenerTenantsCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerTenantsCuadroDireccionQuery] = 1
+Dashboard.TarifasOperadorCae :: ObtenerTarifasOperadorCaeQueryHandler[Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery] = 1
+Documentos.Queries.DetectarCamposDocumento :: DetectarCamposDocumentoQueryHandler[Documentos.Queries.DetectarCamposDocumento.DetectarCamposDocumentoQuery] = 1
+Documentos.Queries.ObtenerFirmaGuardadaUsuario :: ObtenerFirmaGuardadaUsuarioQueryHandler[Documentos.Queries.ObtenerFirmaGuardadaUsuario.ObtenerFirmaGuardadaUsuarioQuery] = 1
+DocumentosIa.Queries :: ObtenerAuditoriaIaQueryHandler[DocumentosIa.Queries.ObtenerAuditoriaIaQuery] = 1
+Empresas.Queries.BuscarEmpresaPorCif :: BuscarEmpresaPorCifQueryHandler[Empresas.Queries.BuscarEmpresaPorCif.BuscarEmpresaPorCifQuery] = 1
+# Lee las marcas de cobro de la liquidacion del Operador CAE emisor (plano comercial/de Operacion del Tenant emisor, filtradas por
+# TenantId del emisor y mes). No lee filas con cartera de Cliente empresarial. La Query solo se acota al Tenant emisor y al rol (EmisorQueLeeAsync, #2229); devuelve las marcas de TODOS los Tenants beneficiarios del mes y el filtro por los alcanzados lo aplican los consumidores, no la Query: posible hueco de alcance a decidir aparte.
+Facturacion.LiquidacionesOperadorCae :: ObtenerCobrosLiquidacionOperadorCaeQueryHandler[Facturacion.LiquidacionesOperadorCae.ObtenerCobrosLiquidacionOperadorCaeQuery] = 1
+HerramientasPdf :: PrepararDivisionPdfQueryHandler[HerramientasPdf.PrepararDivisionPdfQuery] = 1
+HerramientasPdf :: PrepararUnionPdfQueryHandler[HerramientasPdf.PrepararUnionPdfQuery] = 1
+Importacion.Queries :: AnalizarPlantillaMaestraQueryHandler[Importacion.Queries.AnalizarPlantillaMaestraQuery] = 1
+Importacion.Queries.ObtenerHistorialImportaciones :: ObtenerHistorialImportacionesQueryHandler[Importacion.Queries.ObtenerHistorialImportaciones.ObtenerHistorialImportacionesQuery] = 1
+Integraciones.Queries.ObtenerLineasWhatsApp :: ObtenerLineasWhatsAppQueryHandler[Integraciones.Queries.ObtenerLineasWhatsApp.ObtenerLineasWhatsAppQuery] = 1
+Integraciones.Queries.ObtenerProveedoresPlataformaCae :: ObtenerProveedoresPlataformaCaeQueryHandler[Integraciones.Queries.ObtenerProveedoresPlataformaCae.ObtenerProveedoresPlataformaCaeQuery] = 1
+Marco.Queries.ObtenerContextoMarco :: ObtenerContextoMarcoQueryHandler[Marco.Queries.ObtenerContextoMarco.ObtenerContextoMarcoQuery] = 1
+Notificaciones.Queries.ObtenerNotificacionesPendientes :: ObtenerNotificacionesPendientesQueryHandler[Notificaciones.Queries.ObtenerNotificacionesPendientes.ObtenerNotificacionesPendientesQuery] = 1
+Operaciones.ApoyoCartera.Queries :: ObtenerApoyosDeCarteraQueryHandler[Operaciones.ApoyoCartera.Queries.ObtenerApoyosDeCarteraQuery] = 1
+Operaciones.ApoyoCartera.Queries :: ObtenerDestinatariosDeApoyoQueryHandler[Operaciones.ApoyoCartera.Queries.ObtenerDestinatariosDeApoyoQuery] = 1
+Operaciones.ApoyoCartera.Queries :: ObtenerPropuestasApoyoPendientesQueryHandler[Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery] = 1
+Operaciones.IncorporacionCartera.Queries :: ObtenerCandidatosIncorporacionCarteraQueryHandler[Operaciones.IncorporacionCartera.Queries.ObtenerCandidatosIncorporacionCarteraQuery] = 1
+Operaciones.IncorporacionCartera.Queries :: ObtenerSolicitudesIncorporacionCarteraQueryHandler[Operaciones.IncorporacionCartera.Queries.ObtenerSolicitudesIncorporacionCarteraQuery] = 1
+Operaciones.IncorporacionCartera.Queries :: ParticipaEnIncorporacionCarteraQueryHandler[Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery] = 1
+Plantillas.Queries.DetectarCamposPlantilla :: DetectarCamposPlantillaQueryHandler[Plantillas.Queries.DetectarCamposPlantilla.DetectarCamposPlantillaQuery] = 1
+Plataforma.OrdenMenu :: ObtenerOrdenMenuLateralQueryHandler[Plataforma.OrdenMenu.ObtenerOrdenMenuLateralQuery] = 1
+Plataforma.Queries.ObtenerAccesosSoporteTalveg :: ObtenerAccesosSoporteTalvegQueryHandler[Plataforma.Queries.ObtenerAccesosSoporteTalveg.ObtenerAccesosSoporteTalvegQuery] = 1
+Plataforma.Queries.ObtenerAjusteSegundoFactorPorPlataforma :: ObtenerAjusteSegundoFactorPorPlataformaQueryHandler[Plataforma.Queries.ObtenerAjusteSegundoFactorPorPlataforma.ObtenerAjusteSegundoFactorPorPlataformaQuery] = 1
+Plataforma.Queries.ObtenerIdentidadPlataforma :: ObtenerIdentidadPlataformaQueryHandler[Plataforma.Queries.ObtenerIdentidadPlataforma.ObtenerIdentidadPlataformaQuery] = 1
+Plataforma.Queries.ObtenerSesionPrivilegiadaPorId :: ObtenerSesionPrivilegiadaPorIdQueryHandler[Plataforma.Queries.ObtenerSesionPrivilegiadaPorId.ObtenerSesionPrivilegiadaPorIdQuery] = 1
+Plataforma.Queries.PuedeInicializarPlataforma :: PuedeInicializarPlataformaQueryHandler[Plataforma.Queries.PuedeInicializarPlataforma.PuedeInicializarPlataformaQuery] = 1
+Retencion.Queries :: ObtenerSolicitudesPurgaQueryHandler[Retencion.Queries.ObtenerSolicitudesPurgaQuery] = 1
+Seguridad.Incidentes.Aviso.Queries.ObtenerIncidenteSeguridad :: ObtenerIncidenteSeguridadQueryHandler[Seguridad.Incidentes.Aviso.Queries.ObtenerIncidenteSeguridad.ObtenerIncidenteSeguridadQuery] = 1
+Telemetria.Queries.ObtenerTiempoGestionConversacion :: ObtenerTiempoGestionConversacionQueryHandler[Telemetria.Queries.ObtenerTiempoGestionConversacion.ObtenerTiempoGestionConversacionQuery] = 1
+Tenants :: PermisosAccesosDelegadosQueryHandler[Tenants.PermisosAccesosDelegadosQuery] = 1
+Tenants.Commands.DesactivarDelegacionTenant :: DesactivarDelegacionTenantCommandHandler[Tenants.Commands.DesactivarDelegacionTenant.PuedeRevocarQuery] = 1
+Tenants.Commands.ReactivarDelegacionTenant :: ReactivarDelegacionTenantCommandHandler[Tenants.Commands.ReactivarDelegacionTenant.PuedeReactivarQuery] = 1
+Tenants.Queries.AutorizarOperadorCaeExterno :: AutorizarOperadorCaeExternoQueriesHandler[Tenants.Queries.AutorizarOperadorCaeExterno.BuscarOperadorCaeExternoAutorizableQuery] = 1
+Tenants.Queries.AutorizarOperadorCaeExterno :: AutorizarOperadorCaeExternoQueriesHandler[Tenants.Queries.AutorizarOperadorCaeExterno.ObtenerTenantPropietarioAutorizanteQuery] = 1
+Tenants.Queries.EsAdministradorPlataforma :: EsAdministradorPlataformaQueryHandler[Tenants.Queries.EsAdministradorPlataforma.EsAdministradorPlataformaQuery] = 1
+Tenants.Queries.EsTenantOrigenPlataforma :: EsTenantOrigenPlataformaQueryHandler[Tenants.Queries.EsTenantOrigenPlataforma.EsTenantOrigenPlataformaQuery] = 1
+Tenants.Queries.ObtenerActividadSoporte :: ObtenerActividadSoporteQueryHandler[Tenants.Queries.ObtenerActividadSoporte.ObtenerActividadSoporteQuery] = 1
+Tenants.Queries.ObtenerClientesAutorizados :: ObtenerClientesAutorizadosQueryHandler[Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery] = 1
+Tenants.Queries.ObtenerDelegaciones :: ObtenerDelegacionesQueryHandler[Tenants.Queries.ObtenerDelegaciones.ObtenerDelegacionesQuery] = 1
+Tenants.Queries.ObtenerEncargosAdministracion :: ObtenerEncargosAdministracionQueryHandler[Tenants.Queries.ObtenerEncargosAdministracion.ObtenerEncargosAdministracionQuery] = 1
+Tenants.Queries.ObtenerEncargosAdministracion :: ObtenerOperacionesEncargablesQueryHandler[Tenants.Queries.ObtenerEncargosAdministracion.ObtenerOperacionesEncargablesQuery] = 1
+Tenants.Queries.ObtenerLogoOrganizacion :: ObtenerLogoOrganizacionQueryHandler[Tenants.Queries.ObtenerLogoOrganizacion.ObtenerLogoOrganizacionQuery] = 1
+Tenants.Queries.ObtenerLogoTenant :: ObtenerLogoTenantQueryHandler[Tenants.Queries.ObtenerLogoTenant.ObtenerLogoTenantQuery] = 1
+Tenants.Queries.ObtenerOperadoresCaeExternos :: ObtenerOperadoresCaeExternosQueryHandler[Tenants.Queries.ObtenerOperadoresCaeExternos.ObtenerOperadoresCaeExternosQuery] = 1
+Tenants.Queries.ObtenerPerfilVocabularioActual :: ObtenerPerfilVocabularioActualQueryHandler[Tenants.Queries.ObtenerPerfilVocabularioActual.ObtenerPerfilVocabularioActualQuery] = 1
+Tenants.Queries.ObtenerTenantObjetivoSesion :: ObtenerTenantObjetivoSesionQueryHandler[Tenants.Queries.ObtenerTenantObjetivoSesion.ObtenerTenantObjetivoSesionQuery] = 1
+Tenants.Queries.UsaRotulosPrimeraPersona :: UsaRotulosPrimeraPersonaQueryHandler[Tenants.Queries.UsaRotulosPrimeraPersona.UsaRotulosPrimeraPersonaQuery] = 1
+TiposDocumento.Queries.ObtenerTipoDocumentoPorId :: ObtenerTipoDocumentoPorIdQueryHandler[TiposDocumento.Queries.ObtenerTipoDocumentoPorId.ObtenerTipoDocumentoPorIdQuery] = 1
+TiposDocumento.Queries.ObtenerTiposDocumento :: ObtenerTiposDocumentoQueryHandler[TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery] = 1
+Usuarios :: ObtenerEquipoDeCoordinadorQueryHandler[Usuarios.ObtenerEquipoDeCoordinadorQuery] = 1
+Usuarios.Queries.ObtenerAvatarPropio :: ObtenerAvatarPropioQueryHandler[Usuarios.Queries.ObtenerAvatarPropio.ObtenerAvatarPropioQuery] = 1
+Usuarios.Queries.ObtenerCarteraDeGestorCae :: ObtenerCarteraDeGestorCaeQueryHandler[Usuarios.Queries.ObtenerCarteraDeGestorCae.ObtenerCarteraDeGestorCaeQuery] = 1
+Usuarios.Queries.ObtenerCuentaUsuario :: ObtenerCuentaUsuarioQueryHandler[Usuarios.Queries.ObtenerCuentaUsuario.ObtenerCuentaUsuarioQuery] = 1
+Usuarios.Queries.ObtenerDobleFactorPropio :: ObtenerDobleFactorPropioQueryHandler[Usuarios.Queries.ObtenerDobleFactorPropio.ObtenerDobleFactorPropioQuery] = 1
+Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta :: ObtenerEmpresasAsignablesEnAltaQueryHandler[Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta.ObtenerEmpresasAsignablesEnAltaQuery] = 1
+Usuarios.Queries.ObtenerNombreCuenta :: ObtenerNombreCuentaQueryHandler[Usuarios.Queries.ObtenerNombreCuenta.ObtenerNombreCuentaQuery] = 1
+Usuarios.Queries.ObtenerOperacionesSinPrincipal :: ObtenerOperacionesSinPrincipalQueryHandler[Usuarios.Queries.ObtenerOperacionesSinPrincipal.ObtenerOperacionesSinPrincipalQuery] = 1
+Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant :: ObtenerOperadoresCaeDeMiTenantQueryHandler[Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery] = 1
+Usuarios.Queries.ObtenerPersonasConCartera :: ObtenerPersonasConCarteraQueryHandler[Usuarios.Queries.ObtenerPersonasConCartera.ObtenerPersonasConCarteraQuery] = 1
+Usuarios.Queries.ObtenerRestablecimientoPorSoporte :: ObtenerRestablecimientoPorSoporteQueryHandler[Usuarios.Queries.ObtenerRestablecimientoPorSoporte.ObtenerRestablecimientoPorSoporteQuery] = 1
+Usuarios.Queries.ObtenerRolesNoAsignables :: ObtenerRolesNoAsignablesQueryHandler[Usuarios.Queries.ObtenerRolesNoAsignables.ObtenerRolesNoAsignablesQuery] = 1
+VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa :: ObtenerAvisosRevisionNormativaQueryHandler[VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa.ObtenerAvisosRevisionNormativaQuery] = 1
+Visitas.Queries.ObtenerProximaVisitaPorCentro :: ObtenerProximaVisitaPorCentroQueryHandler[Visitas.Queries.ObtenerProximaVisitaPorCentro.ObtenerProximaVisitaPorCentroQuery] = 1

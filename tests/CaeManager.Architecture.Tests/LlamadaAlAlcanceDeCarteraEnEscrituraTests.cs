@@ -1012,8 +1012,13 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// fila que escribe; el IL no ve el uso del valor devuelto. Separar «pide la lista» de «decide con
     /// ella» exigiría análisis de flujo de datos.
     /// </para>
+    ///
+    /// <para>
+    /// Es también el criterio de «llama» de la red gemela de lectura,
+    /// <see cref="LlamadaAlAlcanceDeCarteraEnLecturaTests"/>: un solo sitio, para que las dos no diverjan.
+    /// </para>
     /// </summary>
-    private static IReadOnlyCollection<MethodBase> MetodosQueComprueban() =>
+    internal static IReadOnlyCollection<MethodBase> MetodosQueComprueban() =>
         typeof(IAlcanceDatosService).GetMethods()
             .Where(m => m.Name is not (nameof(IAlcanceDatosService.OperaDesdeElLadoDeGestionAsync)
                                     or nameof(IAlcanceDatosService.ConexionIntegracionVisibleAsync)
@@ -1021,7 +1026,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
                                     or nameof(IAlcanceDatosService.AlcanzaElTenantEnteroAsync)))
             .ToList();
 
-    private static string Caracteristica(Type handler) =>
+    internal static string Caracteristica(Type handler) =>
         handler.Namespace?.Split('.') is [_, "Application", var area, ..] ? area : "(raíz)";
 
     private static HashSet<Type> Parametros(Type tipo) =>
