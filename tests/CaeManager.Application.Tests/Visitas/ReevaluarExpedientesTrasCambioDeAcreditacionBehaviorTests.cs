@@ -23,12 +23,14 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
     {
         public List<Guid> DocumentosEvaluados { get; } = [];
         public bool Lanzar { get; init; }
+        public bool Cancelar { get; init; }
 
         public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) => Task.FromResult(false);
 
         public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
         {
             if (Lanzar) throw new InvalidOperationException("fallo del evaluador");
+            if (Cancelar) throw new OperationCanceledException("cancelada");
             DocumentosEvaluados.Add(documentoId);
             return Task.CompletedTask;
         }
@@ -115,6 +117,18 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
             .Handle(new OrdenCualquiera(acreditacion.Id), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         evaluador.DocumentosEvaluados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_cancelacion_al_reevaluar_no_devuelve_error_de_una_orden_ya_guardada()
+    {
+        var (documentos, acreditacion) = Mundo();
+        var evaluador = new EvaluadorQueAnota { Cancelar = true };
+
+        var respuesta = await Behavior<OrdenDeAcreditacion>(documentos, evaluador)
+            .Handle(new OrdenDeAcreditacion(acreditacion.Id), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        respuesta.EsExitoso.Should().BeTrue("la orden ya guardó: cancelar la reevaluación del sello no la convierte en fallida");
     }
 
     [Fact]
