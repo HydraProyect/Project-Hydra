@@ -203,7 +203,8 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
         var contenido = Contenido(4096);
         var identificador = await servicio.GuardarAsync(new MemoryStream(contenido), "archivo.pdf");
         var archivo = new CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ArchivoInboundDto(Guid.NewGuid(), _tenant, identificador, false);
-        await using (var flujo = await servicio.AbrirOriginalAsync(archivo))
+        // Por el adaptador de Inbound, como en la composición real (ADR-013, K-3): reserva el almacén del Núcleo.
+        await using (var flujo = await new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(servicio)).AbrirOriginalAsync(archivo))
         {
             presupuesto.Reservado.Should().BeGreaterThan(0);
             using var copia = new MemoryStream();
