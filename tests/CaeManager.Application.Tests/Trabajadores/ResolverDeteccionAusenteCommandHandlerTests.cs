@@ -12,10 +12,49 @@ public class ResolverDeteccionAusenteCommandHandlerTests
     private static ResolverDeteccionAusenteCommandHandler CrearHandler(
         DeteccionTrabajadorRepositorioFalso deteccionRepositorio, TrabajadorRepositorioFalso trabajadorRepositorio,
         UnitOfWorkFalso unitOfWork, Guid? usuarioActualId = null,
-        AsignacionRepositorioFalso? asignaciones = null) =>
+        AsignacionRepositorioFalso? asignaciones = null, bool sinIdentidad = false) =>
         new(deteccionRepositorio, trabajadorRepositorio, asignaciones ?? new AsignacionRepositorioFalso(),
             new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(usuarioActualId ?? Guid.NewGuid()), unitOfWork);
+            new CurrentUserServiceFalso(sinIdentidad ? null : usuarioActualId ?? Guid.NewGuid()), unitOfWork);
+
+    /// <summary>
+    /// D-4 (#2005): la baja tiene un autor de persona. Sin identidad se guardaba <c>Guid.Empty</c> como autor; ahora la
+    /// orden falla antes de tocar nada, como EliminarTrabajador. El control es el mismo caso con identidad: baja, con
+    /// ese usuario como autor.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Sin_identidad_no_da_de_baja_ni_guarda_un_autor_vacio(bool sinIdentidad)
+    {
+        var empresaId = Guid.NewGuid();
+        var usuarioId = Guid.NewGuid();
+        var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gomez Ruiz", "77189989B");
+        var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
+        var deteccionRepositorio = new DeteccionTrabajadorRepositorioFalso();
+        deteccionRepositorio.Agregar(deteccion);
+        var trabajadorRepositorio = new TrabajadorRepositorioFalso();
+        trabajadorRepositorio.Agregar(trabajador);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(deteccionRepositorio, trabajadorRepositorio, unitOfWork, usuarioId, sinIdentidad: sinIdentidad);
+
+        var resultado = await handler.Handle(new ResolverDeteccionAusenteCommand(deteccion.Id, Desactivar: true), CancellationToken.None);
+
+        if (sinIdentidad)
+        {
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("Deteccion.SinIdentidad");
+            trabajador.EstaEliminado.Should().BeFalse("sin saber quién la pide, la baja no se aplica");
+            trabajador.EliminadoPorUsuarioId.Should().BeNull();
+            deteccion.Resuelta.Should().BeFalse("la detección sigue pendiente para quien sí pueda resolverla");
+            unitOfWork.VecesGuardado.Should().Be(0);
+        }
+        else
+        {
+            resultado.Valor.Should().Be(ResultadoResolucionAusente.DadoDeBaja);
+            trabajador.EliminadoPorUsuarioId.Should().Be(usuarioId, "control: con identidad, el autor es quien resolvió");
+        }
+    }
 
     [Fact]
     public async Task Desactivar_da_de_baja_al_trabajador_y_resuelve_la_deteccion()

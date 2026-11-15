@@ -118,6 +118,20 @@ public class CierreEventosTerminadosBajoRlsTests
             .Where(r => r.EntidadId == eventoPasado.Id && r.TipoActor == TipoActorAuditoria.Sistema)
             .ToListAsync();
         auditoria.Should().ContainSingle("el cierre automático queda auditado como acción del Sistema, sin persona detrás");
+
+        // D-4 (#2005, decisión del 2026-11-15): la baja del participante sigue siendo automática, con su motivo para que
+        // Proyectos la distinga de una desasignación a mano, y su autor registrado es el Sistema.
+        (await LeerParticipante(participantePasado.Id)).MotivoBaja.Should().Be(MotivoBajaProyectoTecnico.FinDelEvento);
+        (await LeerParticipante(participanteTardio.Id)).MotivoBaja.Should().Be(MotivoBajaProyectoTecnico.FinDelEvento);
+        (await LeerParticipante(participanteYaDeBaja.Id)).MotivoBaja.Should().Be(MotivoBajaProyectoTecnico.Desasignado,
+            "control: la baja anterior, hecha a mano, conserva su motivo");
+        var bajasDelParticipante = await verificacion.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.EntidadId == participantePasado.Id && r.Accion == "Modificado")
+            .Select(r => new { r.TipoActor, r.UsuarioId })
+            .ToListAsync();
+        bajasDelParticipante.Should().ContainSingle("la baja es la única modificación del participante")
+            .Which.Should().Be(new { TipoActor = TipoActorAuditoria.Sistema, UsuarioId = (Guid?)null },
+                "la baja automática queda auditada con el Sistema como autor, sin una persona detrás");
     }
 
     /// <summary>

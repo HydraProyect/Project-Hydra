@@ -10609,6 +10609,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly?>("FechaBaja")
                         .HasColumnType("date");
 
+                    b.Property<int?>("MotivoBaja")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("ProyectoId")
                         .HasColumnType("uuid");
 

@@ -231,25 +231,39 @@ public class SerieDocumentalEnSuperficiesTests
     {
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Visitas.Add(visita);
-        return await new EvaluadorExpedienteVisitaService(
-                _visitas, _centros, _documentos, _tipos, _trabajadores, _configuracion, repositorio, new UnitOfWorkFalso(),
-                NullLogger<EvaluadorExpedienteVisitaService>.Instance)
+        return await EvaluadorExpedienteDePrueba.Crear(
+                _visitas, _centros, _documentos, _tipos, _trabajadores, _configuracion, repositorio, _asignaciones)
             .EvaluarAsync(visita.Id);
     }
 
-    [Fact]
-    public async Task El_expediente_de_una_visita_con_un_voluntario_no_espera_un_tipo_cuya_serie_no_lo_incluye()
+    /// <summary>
+    /// Desde la decisión del 2026-11-15 (#2005, D-4) el sello usa la regla de bloqueo común: solo espera los tipos que el
+    /// Centro marca con <c>BloqueaAcceso</c>. Esa marca vive en una fila explícita del Centro, y la fila explícita manda
+    /// sobre la serie (como en la supervisión): la serie documental ya no decide el sello.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_expediente_de_una_visita_no_espera_un_tipo_requerido_que_el_centro_no_marca_como_bloqueante(bool serieSinVoluntario)
     {
-        SerieSinVoluntario();
+        if (serieSinVoluntario)
+            SerieSinVoluntario();
 
         (await ElExpedienteQuedaCompleto(VisitaCon(_voluntario))).Should().BeTrue(
-            "al voluntario no se le pide de serie, así que no falta nada que reunir");
+            "un tipo requerido que no bloquea el acceso no impide que el expediente esté completo");
     }
 
-    [Fact]
-    public async Task El_expediente_de_una_visita_con_un_voluntario_espera_el_tipo_con_la_serie_por_defecto()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_expediente_de_una_visita_espera_el_tipo_bloqueante_del_centro_sea_cual_sea_la_serie(bool serieSinVoluntario)
     {
-        (await ElExpedienteQuedaCompleto(VisitaCon(_voluntario))).Should().BeFalse("control: la serie Todos se lo pide");
+        if (serieSinVoluntario)
+            SerieSinVoluntario();
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipo.Id, _centro.Id, incluido: true, bloqueaAcceso: true));
+
+        (await ElExpedienteQuedaCompleto(VisitaCon(_voluntario))).Should().BeFalse(
+            "el Centro lo marca como bloqueante en una fila explícita, que manda sobre la serie");
     }
 
     private async Task<bool> LaDocumentacionDeLaVisitaLeEchaEnFaltaA(Visita visita, Trabajador trabajador)

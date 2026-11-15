@@ -3,10 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
-using CaeManager.Application.Trabajadores;
-using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -32,22 +29,24 @@ public interface IEvaluadorExpedienteVisitaService
 /// Decide cuándo el expediente documental de una Visita pasa a estar completo y
 /// congela ahí la matriz de antelación (<see cref="CalculadoraAntelacionVisita"/>).
 ///
-/// "Completo" significa que ningún documento <b>requerido</b> del Centro está
-/// <see cref="EstadoDocumento.Faltante"/> ni <see cref="EstadoDocumento.Vencido"/>,
-/// ni para la Empresa titular ni para ninguno de los Trabajadores de la visita.
-/// Se incluye Vencido a propósito: un apto médico caducado bloquea la entrada
-/// igual que uno que no existe, y llamar "completo" a ese expediente falsearía a
-/// favor del cliente el margen que tuvo el gestor.
+/// "Completo" significa que <b>ningún participante de la Visita está bloqueado en su Centro</b>, con la misma regla
+/// de bloqueo que el resto de superficies (D-4, decisión del 2026-11-15 sobre la #2005): solo cuentan los requisitos
+/// que el Centro marca con <c>BloqueaAcceso</c>, con la vigencia propia y la tolerancia del Centro, y un documento
+/// de Empresa ausente o que ya no vale bloquea a todos los participantes de esa Empresa
+/// (<see cref="ReglaBloqueoDeAcceso"/>, <see cref="IEvaluacionDeAccesoDelTenant.EvaluarTrabajadoresEnCentroAsync"/>).
+/// Hasta esa decisión el expediente tenía una regla propia —todo documento requerido, sin tolerancia y con los
+/// documentos de la Empresa del Centro— que podía dar por incompleto a quien el Centro deja entrar, o al revés.
 ///
 /// El sello es de un solo sentido: si después se añade un trabajador y vuelve a
 /// faltar papel, no se retira (ver <see cref="Visita.MarcarExpedienteCompleto"/>).
+/// La vía de revisión y reapertura por el Gestor CAE que pide D-4 está pendiente de
+/// una decisión de producto (estado al que vuelve, quién puede reabrir y qué se audita).
 /// </summary>
 public class EvaluadorExpedienteVisitaService(
     IVisitasQueryContext visitasContext,
     ICentrosQueryContext centrosContext,
     IDocumentosQueryContext documentosContext,
-    ITiposDocumentoQueryContext tiposDocumentoContext,
-    ITrabajadoresQueryContext trabajadoresContext,
+    IEvaluacionDeAccesoDelTenant evaluacionDeAcceso,
     IConfiguracionQueryContext configuracionContext,
     IVisitaRepository visitaRepository,
     IUnitOfWork unitOfWork,
@@ -65,9 +64,8 @@ public class EvaluadorExpedienteVisitaService(
             return false;
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
 
-        if (!await ExpedienteCompletoAsync(visita, hoy, cancellationToken))
+        if (!await ExpedienteCompletoAsync(visita, cancellationToken))
             return false;
 
         var ahora = DateTime.UtcNow;
@@ -138,12 +136,11 @@ public class EvaluadorExpedienteVisitaService(
             await EvaluarAsync(visitaId, cancellationToken);
     }
 
-    private async Task<bool> ExpedienteCompletoAsync(
-        Visita visita, DateOnly hoy, CancellationToken cancellationToken)
+    private async Task<bool> ExpedienteCompletoAsync(Visita visita, CancellationToken cancellationToken)
     {
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
-            .Select(c => new { c.EmpresaId, c.GestionCae })
+            .Select(c => new { c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (centro is null) return false;
@@ -155,90 +152,20 @@ public class EvaluadorExpedienteVisitaService(
         if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
             return await visitasContext.VisitasTrabajadores.AnyAsync(vt => vt.VisitaId == visita.Id, cancellationToken);
 
-        Guid? empresaId = centro.EmpresaId;
-
-        var tipos = await tiposDocumentoContext.TiposDocumento
-            // Un tipo archivado ya no se exige (como en EvaluacionDeAccesoPorCentroService): no admite documentos nuevos.
-            .Where(t => (t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador) && !t.Archivado)
-            .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
-            .ToListAsync(cancellationToken);
-
-        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tc.CentroId == visita.CentroId)
-            .ToListAsync(cancellationToken))
-            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
-
-        var tiposRequeridosEmpresa = tipos
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
-                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
-            .Select(t => t.Id)
-            .ToList();
-
-        var documentosEmpresa = await documentosContext.Documentos.Operativos()
-            .Where(d => d.EmpresaId == empresaId)
-            .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
-            .ToListAsync(cancellationToken);
-
-        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia)), hoy))
-            return false;
-
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visita.Id)
             .Select(vt => vt.TrabajadorId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
         // Una visita sin trabajadores todavía no es un expediente que se pueda dar por
         // completo — es una visita a medio dar de alta.
         if (trabajadorIds.Count == 0) return false;
 
-        var documentosTrabajadores = await documentosContext.Documentos.Operativos()
-            .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
-            .ToListAsync(cancellationToken);
-
-        var tipoContratacionPorTrabajador = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => t.TipoContratacion, cancellationToken);
-
-        foreach (var trabajadorId in trabajadorIds)
-        {
-            // La serie documental de cada tipo se filtra por el tipo de contratación de quien va a la visita.
-            var tipoContratacion = tipoContratacionPorTrabajador.GetValueOrDefault(trabajadorId, TipoContratacion.CuentaAjena);
-            var tiposRequeridosTrabajador = tipos
-                .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
-                         && ResolucionTipoDocumentoCentro.Aplica(
-                             filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion))
-                .Select(t => t.Id)
-                .ToList();
-
-            var suyos = documentosTrabajadores
-                .Where(d => d.TrabajadorId == trabajadorId)
-                .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia));
-
-            if (!TiposCubiertos(tiposRequeridosTrabajador, suyos, hoy))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool TiposCubiertos(
-        IReadOnlyCollection<Guid> tiposRequeridos,
-        IEnumerable<(Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, bool EsRenuncia)> documentos,
-        DateOnly hoy)
-    {
-        if (tiposRequeridos.Count == 0) return true;
-
-        var tiposVigentes = documentos
-            // Solo Vencido (y la ausencia) dejan un tipo sin cubrir: un documento
-            // sin vigencia confirmada existe y cuenta como papel entregado, que es
-            // lo que mide el sello de antelación.
-            // Un documento en renuncia (catálogo del 2026-10-17) tampoco cubre: no acredita, igual que en el resto de
-            // superficies (DocumentoEfectivo.ValidoHoy es la definición única).
-            .Where(d => DocumentoEfectivo.ValidoHoy(d.EstadoVigencia, d.FechaVencimiento, hoy, d.EsRenuncia))
-            .Select(d => d.TipoDocumentoId)
-            .ToHashSet();
-
-        return tiposRequeridos.All(tiposVigentes.Contains);
+        // D-4 (#2005, decisión del 2026-11-15): la misma regla de bloqueo que el resto de superficies, sin copia propia.
+        // Completo = ningún requisito bloqueante del Centro (BloqueaAcceso, con su vigencia propia y su tolerancia)
+        // bloquea a ningún participante, ni por un documento suyo ni por uno de su Empresa.
+        var requisitos = await evaluacionDeAcceso.EvaluarTrabajadoresEnCentroAsync(visita.CentroId, trabajadorIds, cancellationToken);
+        return !requisitos.Any(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion));
     }
 }

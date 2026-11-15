@@ -435,11 +435,19 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private void IrAFichaTrabajador(TecnicoProyectoDto tecnico) =>
         NavigationManager.NavigateTo($"/trabajadores/{tecnico.TrabajadorId}");
 
+    /// <summary>
+    /// D-4 (#2005): una baja que hizo el Sistema al cerrar el evento dice que fue por el fin del evento; una
+    /// desasignación a mano, o una baja anterior a que constara el motivo, solo da la fecha. Compartida con el panel de
+    /// técnicos de <c>Proyectos</c> para que las dos pantallas lo cuenten igual.
+    /// </summary>
+    internal static string ClaveMetaBaja(Domain.Proyectos.MotivoBajaProyectoTecnico? motivo) =>
+        motivo == Domain.Proyectos.MotivoBajaProyectoTecnico.FinDelEvento ? "MetaBajaFinDelEvento" : "MetaBajaFecha";
+
     private string MetaTecnico(TecnicoProyectoDto tecnico)
     {
         var partes = new List<string> { Textos["MetaAltaFecha", tecnico.FechaAlta] };
         if (tecnico.FechaBaja is { } baja)
-            partes.Add(Textos["MetaBajaFecha", baja]);
+            partes.Add(Textos[ClaveMetaBaja(tecnico.MotivoBaja), baja]);
         if (SinAsignarAlCentro(tecnico) && _detalle is not null)
             partes.Add(Textos["MetaTecnicoSinAsignar", _detalle.CentroNombre]);
         return string.Join(" · ", partes);
