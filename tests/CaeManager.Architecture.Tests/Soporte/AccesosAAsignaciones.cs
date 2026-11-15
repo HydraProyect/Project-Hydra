@@ -54,9 +54,10 @@ internal readonly record struct AccesoAAsignacion(
 ///
 /// <para>
 /// <b>Falla cerrado</b> en el SQL de las migraciones: una sentencia que el inventario no sabe seguir
-/// (<c>CREATE FUNCTION</c> sin cuerpo <c>AS</c> o <c>RETURN</c> identificable o con <c>BEGIN ATOMIC</c>, <c>CREATE
-/// PROCEDURE</c>, <c>CREATE … FUNCTION</c> o <c>VIEW</c> que el patrón no reconoce, <c>ALTER
-/// FUNCTION|PROCEDURE|ROUTINE|TABLE … RENAME TO|SET SCHEMA</c>, <c>ALTER VIEW … SET SCHEMA</c>) lanza
+/// (<c>CREATE FUNCTION</c> sin cuerpo <c>AS</c> o <c>RETURN</c> identificable, con <c>BEGIN ATOMIC</c> o con
+/// el cuerpo en literales concatenados, <c>CREATE PROCEDURE</c>, <c>CREATE RULE</c>, <c>CREATE …
+/// FUNCTION</c> o <c>VIEW</c> que el patrón no reconoce, <c>ALTER FUNCTION|PROCEDURE|ROUTINE|TABLE|SCHEMA
+/// … RENAME TO|SET SCHEMA</c>, <c>ALTER VIEW … SET SCHEMA</c>) lanza
 /// <see cref="InvalidOperationException"/> con la migración y la sentencia, en vez de ignorarse.
 /// </para>
 /// </summary>
@@ -323,8 +324,9 @@ internal static class AccesosAAsignaciones
 
     /// <summary>
     /// Para una Asignación de Cartera: la unión de las cadenas de las consultas sobre
-    /// <c>AsignacionesOperacion</c> del contexto que la <b>correlacionan</b> con su operación; vacía si
-    /// ninguna lo hace, y entonces la lectura es cruda. Solo tres formas correlacionan, cada una entre una
+    /// <c>AsignacionesOperacion</c> del contexto que la <b>correlacionan</b> con su operación, sin los nodos
+    /// que comparten con la cadena propia de la cartera (lo que va tras el <c>Join</c> que las une es una
+    /// proyección y no cuenta); vacía si ninguna la correlaciona, y entonces la lectura es cruda. Solo tres formas correlacionan, cada una entre una
     /// fila de la cadena <b>propia</b> de la cartera (<paramref name="propia"/>) y una fila de la cadena de
     /// la operación que no sea de la propia:
     /// <list type="bullet">
@@ -349,7 +351,9 @@ internal static class AccesosAAsignaciones
         {
             var deLaOperacion = new HashSet<SyntaxNode>();
             CadenaDeLaConsulta(operacion, deLaOperacion);
-            if (Correlaciona(contexto, propia, deLaOperacion)) resultado.UnionWith(deLaOperacion);
+            // Solo la parte de la cadena de la operación que no es ya la de la cartera: por encima del
+            // Join en que se unen, la fila es una proyección que puede arrastrar otra fuente.
+            if (Correlaciona(contexto, propia, deLaOperacion)) resultado.UnionWith(deLaOperacion.Except(propia));
         }
 
         return resultado;
@@ -717,7 +721,10 @@ internal static class AccesosAAsignaciones
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex AlteraObjeto = new(
-        @"\bALTER\s+(?<clase>FUNCTION|PROCEDURE|ROUTINE|TABLE|(?:MATERIALIZED\s+)?VIEW)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        @"\bALTER\s+(?<clase>FUNCTION|PROCEDURE|ROUTINE|TABLE|SCHEMA|(?:MATERIALIZED\s+)?VIEW)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Una regla lee tablas sin función, vista ni política; el inventario no la sigue.</summary>
+    private static readonly Regex CreaRegla = new(@"\bCREATE\s+(?:OR\s+REPLACE\s+)?RULE\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex Traslada = new(@"\b(?<como>RENAME\s+TO|SET\s+SCHEMA)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -877,9 +884,17 @@ internal static class AccesosAAsignaciones
 
         var inicio = clausula.Index + clausula.Length;
         while (inicio < fin && char.IsWhiteSpace(limpio[inicio])) inicio++;
-        var literal = EscanerSql.NoCodigo(sql).FirstOrDefault(t => t.Clase == EscanerSql.Clase.Literal && t.Inicio == inicio);
+        var tokens = EscanerSql.NoCodigo(sql);
+        var literal = tokens.FirstOrDefault(t => t.Clase == EscanerSql.Clase.Literal && t.Inicio == inicio);
         if (literal.Fin <= literal.Inicio)
             throw NoAnalizable(id, sql, codigo, creacion.Index, "tras AS no empieza un literal con el cuerpo");
+
+        // Dos literales seguidos separados por un salto de línea son, en PostgreSQL, uno solo: el cuerpo
+        // no sería solo el primero.
+        var siguiente = literal.Fin;
+        while (siguiente < fin && char.IsWhiteSpace(limpio[siguiente])) siguiente++;
+        if (tokens.Any(t => t.Clase == EscanerSql.Clase.Literal && t.Inicio == siguiente))
+            throw NoAnalizable(id, sql, codigo, creacion.Index, "el cuerpo sigue en otro literal concatenado");
 
         var cuerpo = sql[literal.ContenidoInicio..literal.ContenidoFin];
         return literal.ConDolar ? cuerpo : cuerpo.Replace("''", "'", StringComparison.Ordinal);
@@ -900,9 +915,9 @@ internal static class AccesosAAsignaciones
 
     /// <summary>
     /// Falla cerrado ante lo que el inventario no sabe seguir: una <c>CREATE FUNCTION</c> o <c>VIEW</c>
-    /// que <see cref="CreaFuncion"/> o <see cref="CreaVista"/> no reconocen, una <c>CREATE PROCEDURE</c>
-    /// (no se inventaría), y una sentencia que traslada un objeto sin que el estado lo siga: <c>ALTER
-    /// FUNCTION|PROCEDURE|ROUTINE|TABLE … RENAME TO</c> o <c>SET SCHEMA</c>, y <c>ALTER [MATERIALIZED]
+    /// que <see cref="CreaFuncion"/> o <see cref="CreaVista"/> no reconocen, una <c>CREATE PROCEDURE</c> o
+    /// <c>CREATE RULE</c> (no se inventarían), y una sentencia que traslada un objeto sin que el estado lo
+    /// siga: <c>ALTER FUNCTION|PROCEDURE|ROUTINE|TABLE|SCHEMA … RENAME TO</c> o <c>SET SCHEMA</c>, y <c>ALTER [MATERIALIZED]
     /// VIEW … SET SCHEMA</c> (el <c>RENAME TO</c> de una vista sí se sigue). Hoy ninguna migración usa
     /// ninguna de ellas en código: dentro de un <c>DO $$ … $$</c> no se ven (hueco declarado).
     /// </summary>
@@ -915,6 +930,9 @@ internal static class AccesosAAsignaciones
         var vistas = EscanerSql.CoincidenciasEnCodigo(CreaVista, sql).Select(m => m.Index).ToHashSet();
         foreach (var m in EscanerSql.CoincidenciasEnCodigo(CreaVistaCualquiera, sql).Where(m => !vistas.Contains(m.Index)))
             throw NoAnalizable(id, sql, codigo, m.Index, "una CREATE VIEW cuyo nombre no se reconoce");
+
+        foreach (var m in EscanerSql.CoincidenciasEnCodigo(CreaRegla, sql))
+            throw NoAnalizable(id, sql, codigo, m.Index, "CREATE RULE: el inventario no sigue reglas");
 
         foreach (var m in EscanerSql.CoincidenciasEnCodigo(AlteraObjeto, sql))
         {
