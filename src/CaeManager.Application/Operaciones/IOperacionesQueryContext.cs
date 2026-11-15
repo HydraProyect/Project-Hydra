@@ -1,5 +1,4 @@
 using CaeManager.Domain.Operaciones;
-using CaeManager.Domain.Tenants;
 
 namespace CaeManager.Application.Operaciones;
 
@@ -29,11 +28,4 @@ public interface IOperacionesQueryContext
 
     /// <summary>Tenants en suspensión operativa: ninguna Asignación de Operación abre uno (decisión D-3).</summary>
     IQueryable<Guid> TenantsSuspendidosIds { get; }
-
-    /// <summary>
-    /// Las delegaciones, solo para comprobar que una Asignación de Operación externa con origen sigue
-    /// amparada por su DelegacionTenant de origen (<see cref="AmparoDeOrigen"/>). Su RLS deja ver
-    /// las filas de las que el Tenant activo o el de origen es uno de los dos extremos.
-    /// </summary>
-    IQueryable<DelegacionTenant> DelegacionesTenant { get; }
 }

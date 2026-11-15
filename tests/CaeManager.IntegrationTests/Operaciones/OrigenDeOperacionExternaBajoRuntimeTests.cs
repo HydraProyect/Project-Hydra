@@ -46,7 +46,7 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// <c>cae_app_runtime</c>.
 /// </para>
 /// </summary>
-public class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
+public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 {
     private const string Contrasena = "Arnes#2026Seguro";
 
@@ -107,6 +107,39 @@ public class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             .OrigenId.Should().BeNull("la raíz es interna: no nace de ninguna DelegacionTenant");
         (await CarterasAutorizadasDelOperadorAsync()).Should().Contain(acotada,
             "con su DelegacionTenant de origen vigente, la operación autoriza");
+    }
+
+    /// <summary>
+    /// La deducción del trigger bajo la identidad real que inserta en producción. La ranura anterior no conoce
+    /// <c>OrigenId</c> y su INSERT no lo nombra; este modelo lo envía a NULL, y para el trigger es lo mismo
+    /// (<c>NEW."OrigenId" IS NULL</c> en los dos casos). Como el trigger no es SECURITY DEFINER, lo que se prueba es que
+    /// <c>cae_app_runtime</c> en el Tenant propietario ve la DelegacionTenant del par bajo su RLS y puede bloquearla
+    /// con <c>FOR SHARE</c>; sin eso la operación nacería sin origen.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_cae_app_runtime_la_insercion_sin_origen_de_la_ranura_anterior_lo_deduce()
+    {
+        Guid acotada;
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            FijarSesion(_administradorPropietario, Roles.Administrador);
+            using (AmbitoTenantExplicito.Establecer(_propietario))
+            {
+                var ahora = DateTime.UtcNow;
+                var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+                    AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
+                operacion.OrigenId.Should().BeNull("control: la inserción no trae origen, como la de la ranura anterior");
+                contexto.AsignacionesOperacion.Add(operacion);
+                await contexto.SaveChangesAsync();
+                acotada = operacion.Id;
+            }
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == acotada);
+        guardada.OrigenId.Should().Be(_delegacion, "el par tiene una sola DelegacionTenant de Operador CAE externo activa");
+        guardada.RevocacionesDelOrigen.Should().Be(0);
     }
 
     [Fact]
@@ -315,7 +348,7 @@ public class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         FijarSesion(_administradorPropietario, Roles.Administrador);
         using (AmbitoTenantExplicito.Establecer(_propietario))
-            return await TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, DateTime.UtcNow)
+            return await TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, contexto, DateTime.UtcNow)
                 .Where(o => o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador)
                 .Select(o => o.Id)
                 .ToListAsync();
@@ -338,12 +371,12 @@ public class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     /// Una operación Outbound acotada al Cliente empresarial con la cartera de la Gestora CAE, sembrada sin origen
     /// como la escribiría la ranura anterior. Devuelve el Id de la operación.
     /// </summary>
-    private async Task<Guid> SembrarAcotadaConCarteraAsync()
+    private async Task<Guid> SembrarAcotadaConCarteraAsync(Guid? clienteEmpresarial = null)
     {
         await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
         var ahora = DateTime.UtcNow;
         var acotada = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
-            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
+            AmbitoAsignacion.DeRelacionCliente(clienteEmpresarial ?? _cliente), ahora.AddDays(-1), null, ahora);
         propietarioDeLaBase.AsignacionesOperacion.Add(acotada);
         await propietarioDeLaBase.SaveChangesAsync();
         propietarioDeLaBase.AsignacionesCartera.Add(AsignacionCartera.Externa(

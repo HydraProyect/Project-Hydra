@@ -463,7 +463,7 @@ public class DirectorioUsuariosTenant(
             // enseña qué otros Operadores CAE operan el tenant activo.
             var operadorIds = delegados.Select(d => d.OperadorTenantId).Distinct().ToList();
             var operadoresDelTenantEntero = (await TenantsBeneficiariosAutorizados
-                    .OperacionesDelTenantEntero(identidad, DateTime.UtcNow)
+                    .OperacionesDelTenantEntero(identidad, identidad, DateTime.UtcNow)
                     .Where(o => o.PropietarioTenantId == tenantId && operadorIds.Contains(o.OperadorTenantId))
                     .Select(o => o.OperadorTenantId)
                     .Distinct()
@@ -863,7 +863,7 @@ public class DirectorioUsuariosTenant(
                 .ToListAsync(cancellationToken);
 
             var delTenantEntero = await (
-                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, tenantId, ahora)
+                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, identidad, tenantId, ahora)
                 join tenant in identidad.Tenants on operacion.PropietarioTenantId equals tenant.Id
                 select new { TenantId = tenant.Id, tenant.Nombre })
                 .Distinct()

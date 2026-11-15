@@ -153,7 +153,7 @@ public class ResponsableBuzonElegible(
 
         if (TenantsBeneficiariosAutorizados.RolesConAccesoPorOperacion.Contains(perfil)
             && await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
-                operaciones, operadorTenantId, propietarioTenantId, ahora, cancellationToken))
+                operaciones, tenants, operadorTenantId, propietarioTenantId, ahora, cancellationToken))
             return new(perfil, TenantEnteroPorOperacion: true);
 
         if (perfil == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera
@@ -188,7 +188,7 @@ public class ResponsableBuzonElegible(
             personas = [usuarioId, .. (await equipoCoordinador.ObtenerEquipoAsync(usuarioId, cancellationToken)).Select(m => m.Id)];
 
         var ambitos = await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
-            operaciones, personas, propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+            operaciones, tenants, personas, propietarioTenantId, operadorTenantId, ahora, cancellationToken);
 
         // Basta un ámbito del Tenant entero para que sea ese el alcance, también si otra cartera nombra esta Empresa:
         // AlcanceDatosService.ObtenerCarteraAsync no suma las listas a una cartera universal.

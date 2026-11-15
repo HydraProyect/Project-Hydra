@@ -1,5 +1,7 @@
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tests.Comercial;
+using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
@@ -111,25 +113,80 @@ public class AmparoDeOrigenTests
         var origen = new DelegacionTenant(Operador, Propietario);
         var conOrigen = ConOrigen(origen);
         var sinOrigen = Externa();
-        var contexto = new OperacionesEnMemoria([conOrigen, sinOrigen], [origen]);
+        var contexto = new OperacionesEnMemoria([conOrigen, sinOrigen], []);
+        var tenants = Delegaciones(origen);
 
-        TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, Ahora).Select(o => o.Id)
+        TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, tenants, Ahora).Select(o => o.Id)
             .Should().BeEquivalentTo([conOrigen.Id, sinOrigen.Id], "control: las dos vigentes");
 
         origen.Desactivar();
         origen.Reactivar();
 
-        TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, Ahora).Select(o => o.Id)
+        TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(contexto, tenants, Ahora).Select(o => o.Id)
             .Should().BeEquivalentTo([sinOrigen.Id],
                 "la de origen revocado deja de autorizar; la sin origen sigue como antes de la fase de expansión");
     }
 
-    private sealed class OperacionesEnMemoria(List<AsignacionOperacion> operaciones, List<DelegacionTenant> delegaciones)
+    /// <summary>
+    /// <c>AmbitosEfectivosDeCarteraAsync</c> (el ámbito efectivo que el buzón calcula desde el Tenant propietario) aplica
+    /// el amparo de origen en su join. Dos operaciones acotadas del mismo par, cada una a un Cliente empresarial y con la
+    /// cartera de la Gestora CAE: una nació de la delegación y otra no tiene origen. Tras revocar y reactivar la
+    /// delegación, el resto del predicado del lector se sigue cumpliendo para las dos (carteras y operaciones vigentes,
+    /// de Outbound, del par, sin dimensiones diferidas; este lector no mira ninguna delegación), así que solo el filtro
+    /// de origen puede quitar el Cliente empresarial de la operación con origen. Sin ese filtro el lector devolvería los
+    /// dos, y la prueba falla; la operación sin origen es el control de que lo demás no ha cambiado.
+    /// </summary>
+    [Fact]
+    public async Task Los_ambitos_efectivos_de_cartera_no_cuentan_la_operacion_cuyo_origen_se_revoco_y_reactivo()
+    {
+        var gestora = Guid.NewGuid();
+        var clienteConOrigen = Guid.NewGuid();
+        var clienteSinOrigen = Guid.NewGuid();
+        var origen = new DelegacionTenant(Operador, Propietario);
+        var conOrigen = Vigente(Acotada(clienteConOrigen));
+        conOrigen.FijarOrigen(origen);
+        var sinOrigen = Vigente(Acotada(clienteSinOrigen));
+        var contexto = new OperacionesEnMemoria([conOrigen, sinOrigen], [Cartera(conOrigen, gestora), Cartera(sinOrigen, gestora)]);
+        var tenants = Delegaciones(origen);
+
+        Task<List<Guid?>> AmbitosAsync() => TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
+            contexto, tenants, [gestora], Propietario, Operador, Ahora, CancellationToken.None);
+
+        (await AmbitosAsync()).Should().BeEquivalentTo(new Guid?[] { clienteConOrigen, clienteSinOrigen },
+            "control: con su delegación de origen vigente, las dos operaciones cuentan");
+
+        origen.Desactivar();
+        origen.Reactivar();
+
+        (await AmbitosAsync()).Should().BeEquivalentTo(new Guid?[] { clienteSinOrigen },
+            "la operación con origen sobrevivió a una revocación y no vuelve a contar al reactivarse; la sin origen sigue");
+    }
+
+    private static AsignacionOperacion Acotada(Guid clienteEmpresarial) => AsignacionOperacion.Externa(
+        Propietario, Operador, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteEmpresarial),
+        Ahora.AddDays(-1), null, Ahora);
+
+    private static AsignacionCartera Cartera(AsignacionOperacion operacion, Guid usuario) => Vigente(AsignacionCartera.Externa(
+        operacion, usuario, "GestorCae", AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora));
+
+    private static T Vigente<T>(T asignacion) where T : class
+    {
+        typeof(T).GetProperty("Estado")!.SetValue(asignacion, EstadoAsignacion.Vigente);
+        return asignacion;
+    }
+
+    private static TenantsQueryContextFalso Delegaciones(params DelegacionTenant[] delegaciones)
+    {
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaDelegacionesTenant.AddRange(delegaciones);
+        return tenants;
+    }
+
+    private sealed class OperacionesEnMemoria(List<AsignacionOperacion> operaciones, List<AsignacionCartera> carteras)
         : IOperacionesQueryContext
     {
-        public IQueryable<AsignacionOperacion> AsignacionesOperacion => operaciones.AsQueryable();
-        public IQueryable<AsignacionCartera> AsignacionesCartera => new List<AsignacionCartera>().AsQueryable();
+        public IQueryable<AsignacionOperacion> AsignacionesOperacion => new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
+        public IQueryable<AsignacionCartera> AsignacionesCartera => new TestAsyncQueryable<AsignacionCartera>(carteras.AsQueryable());
         public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
-        public IQueryable<DelegacionTenant> DelegacionesTenant => delegaciones.AsQueryable();
     }
 }
