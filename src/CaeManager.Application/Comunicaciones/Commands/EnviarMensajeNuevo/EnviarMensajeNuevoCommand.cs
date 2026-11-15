@@ -119,9 +119,13 @@ public class EnviarMensajeNuevoCommandHandler(
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
 
-        // Antes de enviar: un texto copiado de una propuesta revisada de esos mismos hilos lleva su marca (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelMensajeNuevoAsync(
-            alcanceDatos, conexion.Id, request.Destinatarios.Concat(request.Copia ?? []), request.CuerpoHtml, cancellationToken);
+        // Antes de enviar: un texto copiado de una propuesta de Vega revisada de cualquier hilo visible del buzón lleva su
+        // marca (issue #2007). Un mensaje nuevo no sale del redactor de una conversación: no hay id que validar.
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, respuestaSugeridaId: null, conversacionId: null, conexion.Id, request.CuerpoHtml, cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo<Guid>(origen.Error);
+        var sugerencia = origen.Valor;
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 

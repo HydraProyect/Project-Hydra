@@ -78,11 +78,17 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             LlamadasSinTextoDeUnaPersona, "una llamada de más en un fichero exceptuado es un envío nuevo sin bloqueo");
     }
 
-    [GeneratedRegex(@"\.SugerenciaDel(Envio|MensajeNuevo)Async\(")]
+    [GeneratedRegex(@"\.OrigenDelEnvioAsync\(")]
     private static partial Regex ResolucionDelOrigen();
 
     [GeneratedRegex(@"OrigenContenidoEnvio\.RegistrarEn\(")]
     private static partial Regex RegistroDelOrigen();
+
+    [GeneratedRegex(@"\.(EnviarRespuestaAsync|EnviarNuevoMensajeAsync)\(")]
+    private static partial Regex LlamadaAGraph();
+
+    [GeneratedRegex(@"contenidoIaRevisada[:,)]")]
+    private static partial Regex PasoDeLaMarca();
 
     /// <summary>
     /// Issue #2007: todo envío de texto de una persona resuelve el origen del contenido antes de enviar (para que la marca
@@ -105,9 +111,13 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
                 continue;
 
             ficherosQueEnvian.Add(ruta);
+            // Como el bloqueo: cada envío tiene su propia resolución antes, no basta una para varios.
             var resoluciones = ResolucionDelOrigen().Matches(texto);
-            var primeraResolucion = resoluciones.Count == 0 ? int.MaxValue : resoluciones[0].Index;
-            if (envios.Any(envio => envio.Index < primeraResolucion) || !RegistroDelOrigen().IsMatch(texto))
+            var enviosPorCorreo = LlamadaAGraph().Matches(texto).Count;
+            if (envios.Select((envio, indice) => (envio, indice)).Any(e => resoluciones.Count(r => r.Index < e.envio.Index) <= e.indice) ||
+                !RegistroDelOrigen().IsMatch(texto) ||
+                // Un envío por Graph sin el argumento saldría con el valor por defecto, sin marca.
+                PasoDeLaMarca().Matches(texto).Count < enviosPorCorreo)
                 sinOrigen.Add(ruta);
         }
 

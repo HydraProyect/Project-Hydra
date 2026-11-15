@@ -18,9 +18,10 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Application.Tests.Comunicaciones;
 
 /// <summary>
-/// Origen del texto y marca de IA en cada comando de envío (issue #2007): lo resuelve el servidor desde las sugerencias
-/// revisadas del hilo (o, en un mensaje nuevo, de los hilos del buzón con ese destinatario). El doble de Graph guarda si se pidió la cabecera;
-/// ninguno de estos tests saca correo de verdad.
+/// Origen del texto y marca de IA en cada comando de envío (issue #2007, regla A): el id de la sugerencia de Vega que
+/// insertó el redactor, validado en servidor; sin id, el texto comparado con las sugerencias de Vega revisadas de los
+/// hilos visibles del buzón; si no, Persona. El doble de Graph guarda si se pidió la cabecera; ninguno de estos tests
+/// saca correo de verdad.
 /// </summary>
 public class OrigenContenidoEnvioTests
 {
@@ -40,14 +41,20 @@ public class OrigenContenidoEnvioTests
     private readonly RegistroExportacionFalso _registro = new();
 
     private RespuestaSugerida Revisada(
-        Conversacion conversacion, bool deVega = true, Guid? mensajeOrigenId = null, DateTime? revisadaEnUtc = null, string texto = TextoSugerido)
+        Conversacion conversacion, bool deVega = true, DateTime? revisadaEnUtc = null, string texto = TextoSugerido)
     {
-        var origen = mensajeOrigenId ?? UltimoEntrante(conversacion).Id;
+        var sugerencia = Propuesta(conversacion, deVega, texto);
+        sugerencia.Insertar();
+        sugerencia.Confirmar(Guid.NewGuid(), revisadaEnUtc ?? DateTime.UtcNow);
+        return sugerencia;
+    }
+
+    private RespuestaSugerida Propuesta(Conversacion conversacion, bool deVega = true, string texto = TextoSugerido)
+    {
+        var origen = UltimoEntrante(conversacion).Id;
         var sugerencia = deVega
             ? RespuestaSugerida.DeVega(conversacion.Id, origen, texto, Guid.NewGuid(), DateTime.UtcNow)
             : RespuestaSugerida.DesdeMacro(conversacion.Id, origen, Guid.NewGuid(), texto, Guid.NewGuid(), DateTime.UtcNow);
-        sugerencia.Insertar();
-        sugerencia.Confirmar(Guid.NewGuid(), revisadaEnUtc ?? DateTime.UtcNow);
         _comunicaciones.ListaRespuestasSugeridas.Add(sugerencia);
         return sugerencia;
     }
@@ -67,12 +74,13 @@ public class OrigenContenidoEnvioTests
         return conexion;
     }
 
-    private Conversacion HiloDeCorreo(ConexionIntegracion conexion)
+    private Conversacion HiloDeCorreo(ConexionIntegracion conexion, Guid? clienteId = null, string remitente = Ana)
     {
-        var conversacion = new Conversacion("Documentación", clienteId: Guid.NewGuid());
+        var conversacion = new Conversacion("Documentación", clienteId: clienteId ?? Guid.NewGuid());
         conversacion.AsociarConexion(conexion.Id, "hilo-" + Guid.NewGuid());
         _comunicaciones.ListaMensajes.Add(conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, CanalConversacion.Correo, Ana, "<p>Adjunto</p>", DateTime.UtcNow.AddMinutes(-10), "msg-1"));
+            DireccionMensaje.Entrante, CanalConversacion.Correo, remitente, "<p>Adjunto</p>", DateTime.UtcNow.AddMinutes(-10),
+            "msg-" + Guid.NewGuid()));
         _conversaciones.Agregar(conversacion);
         _comunicaciones.ListaConversaciones.Add(conversacion);
         return conversacion;
@@ -93,25 +101,26 @@ public class OrigenContenidoEnvioTests
         return conversacion;
     }
 
-    private Task<Result> Responder(Conversacion conversacion, string cuerpo) =>
+    private Task<Result> Responder(
+        Conversacion conversacion, string cuerpo, Guid? respuestaSugeridaId = null, IAlcanceDatosService? alcance = null) =>
         new ResponderConversacionCommandHandler(
-                _conversaciones, _comunicaciones, _conexiones, new AlcanceDatosServiceFalso(), _graph,
+                _conversaciones, _comunicaciones, _conexiones, alcance ?? new AlcanceDatosServiceFalso(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
                 Options.Create(new ComunicacionesRemitenteOptions()), _unidad, NullLogger<ResponderConversacionCommandHandler>.Instance,
                 _registro, new DescarteCambiosPendientesFalso())
-            .Handle(new ResponderConversacionCommand(conversacion.Id, cuerpo), CancellationToken.None);
+            .Handle(new ResponderConversacionCommand(conversacion.Id, cuerpo, RespuestaSugeridaId: respuestaSugeridaId), CancellationToken.None);
 
-    private Task<Result> ResponderPorWhatsApp(Conversacion conversacion, string texto) =>
+    private Task<Result> ResponderPorWhatsApp(Conversacion conversacion, string texto, Guid? respuestaSugeridaId = null) =>
         new ResponderConversacionWhatsAppCommandHandler(
                 _conversaciones, _comunicaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, _unidad,
                 NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance, _registro, new DescarteCambiosPendientesFalso())
-            .Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, texto), CancellationToken.None);
+            .Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, texto, respuestaSugeridaId), CancellationToken.None);
 
-    private Task<Result> MigrarACorreo(Conversacion conversacion, string cuerpo) =>
+    private Task<Result> MigrarACorreo(Conversacion conversacion, string cuerpo, Guid? respuestaSugeridaId = null) =>
         new MigrarConversacionACorreoCommandHandler(
                 _conversaciones, _comunicaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
-            .Handle(new MigrarConversacionACorreoCommand(conversacion.Id, Ana, cuerpo), CancellationToken.None);
+            .Handle(new MigrarConversacionACorreoCommand(conversacion.Id, Ana, cuerpo, respuestaSugeridaId), CancellationToken.None);
 
     private Task<Result<Guid>> EnviarNuevo(ConexionIntegracion conexion, string cuerpo) =>
         new EnviarMensajeNuevoCommandHandler(
@@ -120,13 +129,21 @@ public class OrigenContenidoEnvioTests
                 new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
             .Handle(new EnviarMensajeNuevoCommand(conexion.Id, [Ana], "Documentación", cuerpo), CancellationToken.None);
 
+    private void SinEnvio(Conversacion conversacion)
+    {
+        _graph.UltimaMarcaIaRevisada.Should().BeNull("no se llamó a Graph");
+        conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
+    }
+
+    // ---- 1. Con el id del redactor ----
+
     [Fact]
-    public async Task Responder_tras_una_sugerencia_de_Vega_revisada_pide_la_cabecera_y_guarda_VegaRevisada()
+    public async Task Con_el_id_de_una_sugerencia_de_Vega_revisada_pide_la_cabecera_y_guarda_VegaRevisada()
     {
         var conversacion = HiloDeCorreo(Buzon());
         var sugerencia = Revisada(conversacion);
 
-        var resultado = await Responder(conversacion, TextoSugerido);
+        var resultado = await Responder(conversacion, TextoSugerido, sugerencia.Id);
 
         resultado.EsExitoso.Should().BeTrue();
         _graph.UltimaMarcaIaRevisada.Should().BeTrue();
@@ -137,30 +154,152 @@ public class OrigenContenidoEnvioTests
         _graph.UltimoCuerpoRespondido.Should().Be(TextoSugerido);
     }
 
-    /// <summary>No hace falta parecido: una propuesta de Vega revisada y no enviada, muy editada, sigue partiendo de Vega.</summary>
+    /// <summary>Con el id no hace falta parecido: el texto salió del redactor con la sugerencia de Vega dentro.</summary>
     [Fact]
-    public async Task Un_texto_de_Vega_muy_editado_sigue_marcado_como_de_IA()
+    public async Task Con_el_id_un_texto_de_Vega_muy_editado_sigue_marcado_como_de_IA()
     {
         var conversacion = HiloDeCorreo(Buzon());
-        Revisada(conversacion);
+        var sugerencia = Revisada(conversacion);
 
-        await Responder(conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>");
+        await Responder(conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>", sugerencia.Id);
 
         _graph.UltimaMarcaIaRevisada.Should().BeTrue();
         UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
     }
 
     [Fact]
-    public async Task Responder_tras_una_macro_revisada_guarda_MacroRevisada_sin_cabecera()
+    public async Task El_id_de_una_macro_se_rechaza_sin_enviar()
     {
         var conversacion = HiloDeCorreo(Buzon());
-        var sugerencia = Revisada(conversacion, deVega: false);
+        var macro = Revisada(conversacion, deVega: false);
+
+        var resultado = await Responder(conversacion, TextoSugerido, macro.Id);
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
+    [Fact]
+    public async Task El_id_de_una_sugerencia_de_Vega_sin_revisar_se_rechaza_sin_enviar()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var propuesta = Propuesta(conversacion, texto: "<p>Una propuesta que nadie ha revisado todavía en este hilo.</p>");
+
+        var resultado = await Responder(conversacion, "<p>Te contesto yo.</p>", propuesta.Id);
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
+    [Fact]
+    public async Task Un_id_que_no_existe_se_rechaza_sin_enviar()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+
+        var resultado = await Responder(conversacion, TextoSugerido, Guid.NewGuid());
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
+    /// <summary>Regla A: la sugerencia del id pertenece a un hilo que quien envía ve; uno fuera de su cartera se rechaza.</summary>
+    [Fact]
+    public async Task El_id_de_una_sugerencia_de_un_hilo_no_visible_se_rechaza_sin_enviar()
+    {
+        var buzon = Buzon();
+        var clienteVisible = Guid.NewGuid();
+        var conversacion = HiloDeCorreo(buzon, clienteVisible);
+        var ajena = Revisada(HiloDeCorreo(buzon, Guid.NewGuid()));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
+
+        var resultado = await Responder(conversacion, TextoSugerido, ajena.Id, alcance);
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
+    [Fact]
+    public async Task El_id_de_una_sugerencia_de_Vega_de_otro_hilo_visible_vale()
+    {
+        var buzon = Buzon();
+        var conversacion = HiloDeCorreo(buzon);
+        var deOtroHilo = Revisada(HiloDeCorreo(buzon));
+
+        var resultado = await Responder(conversacion, TextoSugerido, deOtroHilo.Id);
+
+        resultado.EsExitoso.Should().BeTrue();
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(deOtroHilo.Id);
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+    }
+
+    // ---- 2. Sin id: el texto ----
+
+    [Fact]
+    public async Task Sin_id_el_texto_de_una_sugerencia_de_Vega_revisada_del_hilo_lleva_la_cabecera()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var sugerencia = Revisada(conversacion);
+
+        await Responder(conversacion, TextoSugerido + "<p>Un saludo.</p>");
+
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sugerencia.Id);
+    }
+
+    /// <summary>Revisión Codex r2 de la #2007 (alta): copiar la propuesta de Vega de otro hilo del buzón no sale como Persona.</summary>
+    [Fact]
+    public async Task Sin_id_el_texto_de_Vega_de_otro_hilo_visible_del_buzon_lleva_la_cabecera()
+    {
+        var buzon = Buzon();
+        var conversacion = HiloDeCorreo(buzon, remitente: "luis@otra.test");
+        var deOtroHilo = Revisada(HiloDeCorreo(buzon));
+
+        await Responder(conversacion, TextoSugerido);
+
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(deOtroHilo.Id);
+    }
+
+    [Fact]
+    public async Task Sin_id_el_texto_de_Vega_de_un_hilo_no_visible_no_cuenta()
+    {
+        var buzon = Buzon();
+        var clienteVisible = Guid.NewGuid();
+        var conversacion = HiloDeCorreo(buzon, clienteVisible);
+        Revisada(HiloDeCorreo(buzon, Guid.NewGuid()));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
+
+        await Responder(conversacion, TextoSugerido, alcance: alcance);
+
+        _graph.UltimaMarcaIaRevisada.Should().BeFalse();
+        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.Persona);
+    }
+
+    /// <summary>Regla A: se elimina la heurística de «no consumida»; una propuesta de Vega revisada no marca un texto distinto.</summary>
+    [Fact]
+    public async Task Sin_id_un_texto_distinto_de_la_sugerencia_de_Vega_revisada_es_Persona()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Revisada(conversacion);
+
+        await Responder(conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>");
+
+        _graph.UltimaMarcaIaRevisada.Should().BeFalse();
+        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.Persona);
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sin_id_el_texto_de_una_macro_revisada_es_Persona_sin_cabecera()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Revisada(conversacion, deVega: false);
 
         await Responder(conversacion, TextoSugerido);
 
         _graph.UltimaMarcaIaRevisada.Should().BeFalse();
-        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.MacroRevisada);
-        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sugerencia.Id);
+        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.Persona);
     }
 
     [Fact]
@@ -175,66 +314,19 @@ public class OrigenContenidoEnvioTests
         UltimoSaliente(conversacion).RespuestaSugeridaId.Should().BeNull();
     }
 
-    [Fact]
-    public async Task Una_sugerencia_que_ya_origino_un_mensaje_no_marca_un_texto_distinto()
-    {
-        var conversacion = HiloDeCorreo(Buzon());
-        Revisada(conversacion);
-        await Responder(conversacion, TextoSugerido);
-        _comunicaciones.ListaMensajes.Add(UltimoSaliente(conversacion));
-
-        await Responder(conversacion, "<p>Y una cosa más.</p>");
-
-        _graph.UltimaMarcaIaRevisada.Should().BeFalse();
-        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.Persona);
-    }
-
     /// <summary>Revisión Codex de la #2007: reenviar el texto de Vega ya enviado sigue siendo texto de Vega.</summary>
     [Fact]
     public async Task Reenviar_el_texto_de_una_sugerencia_de_Vega_ya_enviada_vuelve_a_marcarlo()
     {
         var conversacion = HiloDeCorreo(Buzon());
         var sugerencia = Revisada(conversacion);
-        await Responder(conversacion, TextoSugerido);
+        await Responder(conversacion, TextoSugerido, sugerencia.Id);
         _comunicaciones.ListaMensajes.Add(UltimoSaliente(conversacion));
 
-        await Responder(conversacion, TextoSugerido + "<p>Un saludo.</p>");
-
-        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
-        UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
-        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sugerencia.Id);
-    }
-
-    /// <summary>
-    /// Revisión Codex de la #2007: la propuesta revisada sigue en el redactor aunque la contraparte escriba otra vez; no
-    /// depende del último entrante.
-    /// </summary>
-    [Fact]
-    public async Task Una_sugerencia_de_Vega_revisada_de_un_entrante_anterior_sigue_marcando()
-    {
-        var conversacion = HiloDeCorreo(Buzon());
-        var sugerencia = Revisada(conversacion);
-        _comunicaciones.ListaMensajes.Add(conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, CanalConversacion.Correo, Ana, "<p>Otra cosa</p>", DateTime.UtcNow, "msg-2"));
-
         await Responder(conversacion, TextoSugerido);
 
         _graph.UltimaMarcaIaRevisada.Should().BeTrue();
         UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sugerencia.Id);
-    }
-
-    /// <summary>Revisión Codex de la #2007: una macro revisada después no tapa una propuesta de Vega revisada.</summary>
-    [Fact]
-    public async Task Una_macro_revisada_despues_no_tapa_la_sugerencia_de_Vega()
-    {
-        var conversacion = HiloDeCorreo(Buzon());
-        var vega = Revisada(conversacion, revisadaEnUtc: DateTime.UtcNow.AddMinutes(-5));
-        Revisada(conversacion, deVega: false, revisadaEnUtc: DateTime.UtcNow);
-
-        await Responder(conversacion, TextoSugerido);
-
-        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(vega.Id);
-        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
     }
 
     [Fact]
@@ -253,22 +345,24 @@ public class OrigenContenidoEnvioTests
     public async Task Un_envio_que_falla_en_Graph_no_registra_mensaje()
     {
         var conversacion = HiloDeCorreo(Buzon());
-        Revisada(conversacion);
+        var sugerencia = Revisada(conversacion);
         _graph.FallaEnvio = true;
 
-        var resultado = await Responder(conversacion, TextoSugerido);
+        var resultado = await Responder(conversacion, TextoSugerido, sugerencia.Id);
 
         resultado.EsFallido.Should().BeTrue();
         conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
     }
 
+    // ---- WhatsApp, migración a correo y mensaje nuevo ----
+
     [Fact]
-    public async Task Por_WhatsApp_el_origen_queda_en_el_mensaje()
+    public async Task Por_WhatsApp_con_el_id_el_origen_queda_en_el_mensaje()
     {
         var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1));
         var sugerencia = Revisada(conversacion);
 
-        var resultado = await ResponderPorWhatsApp(conversacion, "Ya hemos recibido su documentación.");
+        var resultado = await ResponderPorWhatsApp(conversacion, "Ya hemos recibido su documentación.", sugerencia.Id);
 
         resultado.EsExitoso.Should().BeTrue();
         UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
@@ -276,19 +370,67 @@ public class OrigenContenidoEnvioTests
     }
 
     [Fact]
-    public async Task Al_migrar_a_correo_la_sugerencia_de_Vega_lleva_la_cabecera()
+    public async Task Por_WhatsApp_sin_id_cuenta_el_texto()
+    {
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1));
+        var sugerencia = Revisada(conversacion, texto: "Ya hemos recibido su documentación, gracias.");
+
+        await ResponderPorWhatsApp(conversacion, "Ya hemos recibido su documentación, gracias.");
+
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sugerencia.Id);
+    }
+
+    [Fact]
+    public async Task Por_WhatsApp_un_id_no_valido_se_rechaza_sin_enviar()
+    {
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1));
+        var macro = Revisada(conversacion, deVega: false);
+
+        var resultado = await ResponderPorWhatsApp(conversacion, "Ya hemos recibido su documentación.", macro.Id);
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
+    }
+
+    [Fact]
+    public async Task Al_migrar_a_correo_con_el_id_la_sugerencia_de_Vega_lleva_la_cabecera()
     {
         Buzon();
         var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddDays(-2));
         var sugerencia = Revisada(conversacion);
 
-        var resultado = await MigrarACorreo(conversacion, TextoSugerido);
+        var resultado = await MigrarACorreo(conversacion, "<p>Te escribo por correo con mis palabras.</p>", sugerencia.Id);
 
         resultado.EsExitoso.Should().BeTrue();
         _graph.UltimaMarcaIaRevisada.Should().BeTrue();
         var mensaje = conversacion.Mensajes.Last(m => m.Canal == CanalConversacion.Correo);
         mensaje.OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
         mensaje.RespuestaSugeridaId.Should().Be(sugerencia.Id);
+    }
+
+    [Fact]
+    public async Task Al_migrar_a_correo_un_id_no_valido_se_rechaza_sin_enviar()
+    {
+        Buzon();
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddDays(-2));
+
+        var resultado = await MigrarACorreo(conversacion, TextoSugerido, Guid.NewGuid());
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
+    [Fact]
+    public async Task Al_migrar_a_correo_sin_id_cuenta_el_texto()
+    {
+        Buzon();
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddDays(-2));
+        var sugerencia = Revisada(conversacion);
+
+        await MigrarACorreo(conversacion, TextoSugerido);
+
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+        conversacion.Mensajes.Last(m => m.Canal == CanalConversacion.Correo).RespuestaSugeridaId.Should().Be(sugerencia.Id);
     }
 
     [Fact]
@@ -305,15 +447,14 @@ public class OrigenContenidoEnvioTests
     }
 
     /// <summary>
-    /// Revisión Codex y revisor-puente de la #2007: copiar a un mensaje nuevo el texto de una propuesta de Vega revisada
-    /// en un hilo del buzón con ese destinatario lo marca, porque Graph puede agruparlo en ese hilo.
+    /// Revisión Codex r2 de la #2007 (alta): el texto de una propuesta de Vega revisada de cualquier hilo visible del
+    /// buzón, también con otro destinatario, lleva la marca en un mensaje nuevo.
     /// </summary>
     [Fact]
-    public async Task Un_mensaje_nuevo_con_el_texto_de_una_sugerencia_de_Vega_revisada_lleva_la_cabecera()
+    public async Task Un_mensaje_nuevo_con_el_texto_de_Vega_de_un_hilo_con_otro_destinatario_lleva_la_cabecera()
     {
         var conexion = Buzon();
-        var hilo = HiloDeCorreo(conexion);
-        var sugerencia = Revisada(hilo);
+        var sugerencia = Revisada(HiloDeCorreo(conexion, remitente: "luis@otra.test"));
 
         var resultado = await EnviarNuevo(conexion, TextoSugerido);
 
@@ -323,22 +464,5 @@ public class OrigenContenidoEnvioTests
             .Single(m => m.Direccion == DireccionMensaje.Saliente);
         mensaje.OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
         mensaje.RespuestaSugeridaId.Should().Be(sugerencia.Id);
-    }
-
-    [Fact]
-    public async Task Un_mensaje_nuevo_no_se_marca_por_una_sugerencia_de_un_hilo_con_otro_destinatario()
-    {
-        var conexion = Buzon();
-        var hilo = new Conversacion("Otra", clienteId: Guid.NewGuid());
-        hilo.AsociarConexion(conexion.Id, "hilo-otro");
-        _comunicaciones.ListaMensajes.Add(hilo.AgregarMensaje(
-            DireccionMensaje.Entrante, CanalConversacion.Correo, "luis@otra.test", "<p>Hola</p>", DateTime.UtcNow.AddMinutes(-10), "msg-otro"));
-        _conversaciones.Agregar(hilo);
-        _comunicaciones.ListaConversaciones.Add(hilo);
-        Revisada(hilo);
-
-        await EnviarNuevo(conexion, TextoSugerido);
-
-        _graph.UltimaMarcaIaRevisada.Should().BeFalse();
     }
 }

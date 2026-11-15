@@ -483,7 +483,9 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindAll(".rs-sinrevisar").Should().BeEmpty();
         EnviarDeshabilitado(cut).Should().BeFalse();
         await Enviar(cut);
-        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+        // Issue #2007: el envío dice qué sugerencia de Vega estaba en el redactor, para que el servidor marque el correo.
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle()
+            .Which.RespuestaSugeridaId.Should().Be(escenario.Sugerencia!.Id);
     }
 
     [Fact]
@@ -553,7 +555,8 @@ public class ComunicacionesGen2Tests : BunitContext
         await Escribir(cut, "Recibido, gracias.");
         EnviarDeshabilitado(cut).Should().BeFalse("la IA es opcional: escribir a mano sigue funcionando");
         await Enviar(cut);
-        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle()
+            .Which.RespuestaSugeridaId.Should().BeNull("nada se insertó en el redactor");
     }
 
     [Fact]

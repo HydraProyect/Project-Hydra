@@ -11,9 +11,14 @@ using Microsoft.Extensions.Options;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 
+/// <param name="RespuestaSugeridaId">
+/// La sugerencia de Vega que el redactor insertó, si la hay (issue #2007). El servidor la valida
+/// (<see cref="OrigenContenidoEnvio.OrigenDelEnvioAsync"/>); sin ella, el origen sale de comparar el texto.
+/// </param>
 [AreaDelEncargo("Comunicaciones")]
 public record ResponderConversacionCommand(
-    Guid ConversacionId, string CuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null) : ICommand;
+    Guid ConversacionId, string CuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? RespuestaSugeridaId = null)
+    : ICommand;
 
 public class ResponderConversacionCommandValidator : AbstractValidator<ResponderConversacionCommand>
 {
@@ -79,7 +84,12 @@ public class ResponderConversacionCommandHandler(
             return bloqueo;
 
         // Antes de enviar: la marca de contenido de IA tiene que ir ya en el correo (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, request.RespuestaSugeridaId, conversacion.Id, conversacion.ConexionIntegracionId, request.CuerpoHtml,
+            cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo(origen.Error);
+        var sugerencia = origen.Valor;
 
         Mensaje mensajeCreado;
         var huboEnvioReal = false;
@@ -121,8 +131,8 @@ public class ResponderConversacionCommandHandler(
         catch (Exception ex) when (huboEnvioReal)
         {
             logger.LogError(ex,
-                "El mensaje se envió por Graph pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
-                request.ConversacionId);
+                "El mensaje se envió por Graph pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual. Origen del contenido {OrigenContenido}, respuesta sugerida {RespuestaSugeridaId}.",
+                request.ConversacionId, mensajeCreado.OrigenContenido, mensajeCreado.RespuestaSugeridaId);
             descarteCambios.DescartarCambiosPendientes();
             return Result.Exito();
         }

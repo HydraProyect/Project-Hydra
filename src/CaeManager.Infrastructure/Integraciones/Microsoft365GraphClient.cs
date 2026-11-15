@@ -405,6 +405,9 @@ public class Microsoft365GraphClient(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
     {
+        if (contenidoIaRevisada)
+            return await EnviarRespuestaConMarcaAsync(accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken);
+
         // /reply preserva conversationId/threading automáticamente — nunca
         // reconstruir In-Reply-To/References a mano (ver
         // Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.2). Los adjuntos van dentro de
@@ -432,6 +435,90 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al responder al mensaje {MensajeId} vía Microsoft Graph.", mensajeExternoIdOrigen);
             return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+    }
+
+    /// <summary>
+    /// Respuesta con la marca de contenido de Vega revisado (issue #2007, D-5). No se usa /reply porque, si Graph ignorara
+    /// en silencio las cabeceras de su «message», el correo saldría sin marca y el Mensaje diría lo contrario. Se crea el
+    /// borrador de respuesta (createReply, que conserva el hilo igual que /reply), se lee y solo se envía si lleva la
+    /// cabecera. Si no la lleva, o no se puede leer, falla cerrado: se borra el borrador y no sale nada.
+    /// </summary>
+    private async Task<Result> EnviarRespuestaConMarcaAsync(
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+    {
+        var errorEnvio = Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar la respuesta.");
+        try
+        {
+            using var peticionBorrador = NuevaPeticionGraph(
+                HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/createReply", accessToken);
+            peticionBorrador.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            peticionBorrador.Content = JsonContent.Create(new SolicitudRespuestaGraph(
+                cuerpoHtml, ConstruirMensajeDeRespuesta(adjuntos, contenidoIaRevisada: true)));
+
+            using var respuestaBorrador = await httpClient.SendAsync(peticionBorrador, cancellationToken);
+            if (!respuestaBorrador.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuestaBorrador.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError(
+                    "Microsoft Graph devolvió {StatusCode} al crear la respuesta al mensaje {MensajeId}: {CodigoError}",
+                    (int)respuestaBorrador.StatusCode, mensajeExternoIdOrigen, CodigoErrorGraph.Extraer(cuerpoError));
+                return Result.Fallo(errorEnvio);
+            }
+
+            var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
+            if (string.IsNullOrWhiteSpace(borrador?.Id))
+            {
+                logger.LogError("Microsoft Graph no devolvió un Id al crear la respuesta al mensaje {MensajeId}.", mensajeExternoIdOrigen);
+                return Result.Fallo(errorEnvio);
+            }
+
+            var borradorId = borrador.Id!;
+            if (!await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken))
+            {
+                logger.LogError(
+                    "El borrador de respuesta {MensajeId} no lleva la cabecera {Cabecera}: no se envía.",
+                    borradorId, OrigenContenidoEnvio.NombreCabecera);
+                await EliminarBorradorAsync(accessToken, buzon, borradorId, cancellationToken);
+                return Result.Fallo(errorEnvio);
+            }
+
+            using var peticionEnvio = NuevaPeticionGraph(
+                HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(borradorId)}/send", accessToken);
+            peticionEnvio.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            using var respuestaEnvio = await httpClient.SendAsync(peticionEnvio, cancellationToken);
+            if (respuestaEnvio.IsSuccessStatusCode)
+                return Result.Exito();
+
+            var errorDeEnvio = await respuestaEnvio.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogError(
+                "Microsoft Graph devolvió {StatusCode} al enviar la respuesta {MensajeId}: {CodigoError}",
+                (int)respuestaEnvio.StatusCode, borradorId, CodigoErrorGraph.Extraer(errorDeEnvio));
+            await EliminarBorradorAsync(accessToken, buzon, borradorId, cancellationToken);
+            return Result.Fallo(errorEnvio);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al responder al mensaje {MensajeId} vía Microsoft Graph.", mensajeExternoIdOrigen);
+            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+    }
+
+    /// <summary>Lee las cabeceras del borrador; cualquier fallo de lectura cuenta como que no la lleva.</summary>
+    private async Task<bool> BorradorLlevaLaMarcaAsync(
+        string accessToken, BuzonGraph buzon, string borradorId, CancellationToken cancellationToken)
+    {
+        using var peticion = NuevaPeticionGraph(
+            HttpMethod.Get, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(borradorId)}?$select=internetMessageHeaders", accessToken);
+        peticion.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+        if (!respuesta.IsSuccessStatusCode)
+            return false;
+
+        var mensaje = await respuesta.Content.ReadFromJsonAsync<CabecerasDeMensajeGraph>(cancellationToken);
+        return mensaje?.InternetMessageHeaders?.Any(c =>
+            string.Equals(c.Name, OrigenContenidoEnvio.NombreCabecera, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(c.Value?.Trim(), OrigenContenidoEnvio.ValorCabeceraIaRevisada, StringComparison.Ordinal)) == true;
     }
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
@@ -572,8 +659,9 @@ public class Microsoft365GraphClient(
     }
 
     /// <summary>
-    /// El «message» de /reply: solo si hay adjuntos o la marca de origen, porque sin él Graph responde con el comentario tal
-    /// cual. Las cabeceras propias se fijan al crear el mensaje, y /reply crea la respuesta.
+    /// El «message» de /reply o de createReply: solo si hay adjuntos o la marca de origen, porque sin él Graph responde con
+    /// el comentario tal cual. La marca solo va por createReply (<see cref="EnviarRespuestaConMarcaAsync"/>), que comprueba
+    /// en el borrador que Graph la guardó.
     /// </summary>
     private static MensajeConAdjuntosGraph? ConstruirMensajeDeRespuesta(
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, bool contenidoIaRevisada)
@@ -1103,6 +1191,9 @@ public class Microsoft365GraphClient(
     private sealed record RespuestaCrearMensajeGraph(
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("conversationId")] string? ConversationId);
+
+    private sealed record CabecerasDeMensajeGraph(
+        [property: JsonPropertyName("internetMessageHeaders")] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders);
 
     private sealed record MensajeNuevoGraph(
         [property: JsonPropertyName("subject")] string Subject,

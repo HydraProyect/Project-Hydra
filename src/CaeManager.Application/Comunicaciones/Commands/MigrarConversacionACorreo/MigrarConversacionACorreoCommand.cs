@@ -29,7 +29,9 @@ namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorr
 /// Conversation Matching Engine (§ 13.2, paso 4, sin construir).
 /// </summary>
 [AreaDelEncargo("Comunicaciones")]
-public record MigrarConversacionACorreoCommand(Guid ConversacionId, string EmailDestino, string CuerpoHtml) : ICommand;
+/// <param name="RespuestaSugeridaId">La sugerencia de Vega que insertó el redactor, si la hay; la valida el servidor (issue #2007).</param>
+public record MigrarConversacionACorreoCommand(
+    Guid ConversacionId, string EmailDestino, string CuerpoHtml, Guid? RespuestaSugeridaId = null) : ICommand;
 
 public class MigrarConversacionACorreoCommandValidator : AbstractValidator<MigrarConversacionACorreoCommand>
 {
@@ -76,7 +78,13 @@ public class MigrarConversacionACorreoCommandHandler(
             return bloqueo;
 
         // La respuesta sugerida del hilo de WhatsApp puede salir por correo: lleva la misma marca (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        // Los hilos que se miran son los de la línea de WhatsApp de la conversación.
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, request.RespuestaSugeridaId, conversacion.Id, conversacion.ConexionIntegracionId, request.CuerpoHtml,
+            cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo(origen.Error);
+        var sugerencia = origen.Valor;
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también

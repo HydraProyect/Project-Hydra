@@ -13,62 +13,79 @@ namespace CaeManager.Web.Tests.Integraciones;
 
 /// <summary>
 /// La marca de contenido de Vega revisado por una persona (issue #2007, D-5) viaja en <c>internetMessageHeaders</c> del
-/// mensaje que crea Graph, en /reply y en el borrador de un mensaje nuevo, y solo cuando se pide: sin ella la propiedad
-/// no se envía y la petición queda como antes. El cuerpo no cambia. Sin red: un manejador captura las peticiones.
+/// mensaje que crea Graph. Una respuesta con marca no usa /reply: crea el borrador (createReply), comprueba que lleva la
+/// cabecera y solo entonces lo envía; si no la lleva, lo borra y falla. Sin marca, la petición queda como antes. El cuerpo
+/// no cambia. Sin red: un manejador captura las peticiones y simula a Graph.
 /// </summary>
 public class Microsoft365CabeceraOrigenContenidoTests
 {
     private const string Cuerpo = "<p>Ya hemos recibido su documentación.</p>";
 
-    private sealed class CapturaHandler : HttpMessageHandler
+    private sealed class GraphSimulado : HttpMessageHandler
     {
+        /// <summary>Lo que Graph devuelve al leer las cabeceras del borrador; null, que no las guardó.</summary>
+        public string? CabecerasDelBorrador { get; set; } =
+            $$"""{"internetMessageHeaders":[{"name":"{{OrigenContenidoEnvio.NombreCabecera}}","value":"{{OrigenContenidoEnvio.ValorCabeceraIaRevisada}}"}]}""";
+
+        public List<string> Llamadas { get; } = [];
         public string? CuerpoRespuesta { get; private set; }
+        public string? CuerpoCrearRespuesta { get; private set; }
         public string? CuerpoBorrador { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var ruta = request.RequestUri!.AbsolutePath;
-            if (ruta.EndsWith("/reply", StringComparison.Ordinal))
+            Llamadas.Add($"{request.Method} {ruta.Split('/').Last()}");
+
+            if (request.Method == HttpMethod.Post && ruta.EndsWith("/reply", StringComparison.Ordinal))
             {
                 CuerpoRespuesta = await request.Content!.ReadAsStringAsync(cancellationToken);
                 return new HttpResponseMessage(HttpStatusCode.Accepted);
             }
 
-            if (ruta.EndsWith("/me/messages", StringComparison.Ordinal))
+            if (request.Method == HttpMethod.Post && ruta.EndsWith("/createReply", StringComparison.Ordinal))
+            {
+                CuerpoCrearRespuesta = await request.Content!.ReadAsStringAsync(cancellationToken);
+                return Json(HttpStatusCode.Created, """{"id":"borrador-1","conversationId":"c1"}""");
+            }
+
+            if (request.Method == HttpMethod.Post && ruta.EndsWith("/me/messages", StringComparison.Ordinal))
             {
                 CuerpoBorrador = await request.Content!.ReadAsStringAsync(cancellationToken);
-                return new HttpResponseMessage(HttpStatusCode.Created)
-                {
-                    Content = new StringContent("""{"id":"m1","conversationId":"c1"}""", Encoding.UTF8, "application/json"),
-                };
+                return Json(HttpStatusCode.Created, """{"id":"m1","conversationId":"c1"}""");
+            }
+
+            if (request.Method == HttpMethod.Get)
+            {
+                return CabecerasDelBorrador is null
+                    ? Json(HttpStatusCode.OK, """{"internetMessageHeaders":null}""")
+                    : Json(HttpStatusCode.OK, CabecerasDelBorrador);
             }
 
             return new HttpResponseMessage(HttpStatusCode.Accepted);
         }
+
+        private static HttpResponseMessage Json(HttpStatusCode estado, string json) =>
+            new(estado) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
-    private static Microsoft365GraphClient Cliente(CapturaHandler handler) =>
-        new(new HttpClient(handler), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
+    private static Microsoft365GraphClient Cliente(GraphSimulado graph) =>
+        new(new HttpClient(graph), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
 
-    private static async Task<JsonElement> ResponderAsync(bool contenidoIaRevisada, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos = null)
-    {
-        var handler = new CapturaHandler();
-        var resultado = await Cliente(handler).EnviarRespuestaAsync(
+    private static Task<CaeManager.Domain.Common.Result> ResponderAsync(
+        GraphSimulado graph, bool contenidoIaRevisada, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos = null) =>
+        Cliente(graph).EnviarRespuestaAsync(
             "token", new BuzonGraph("buzon@tenant.example", false), "origen-1", Cuerpo, adjuntos, CancellationToken.None, contenidoIaRevisada);
-
-        resultado.EsExitoso.Should().BeTrue();
-        return JsonDocument.Parse(handler.CuerpoRespuesta!).RootElement.Clone();
-    }
 
     private static async Task<JsonElement> EnviarNuevoAsync(bool contenidoIaRevisada)
     {
-        var handler = new CapturaHandler();
-        var resultado = await Cliente(handler).EnviarNuevoMensajeAsync(
+        var graph = new GraphSimulado();
+        var resultado = await Cliente(graph).EnviarNuevoMensajeAsync(
             "token", new BuzonGraph("buzon@tenant.example", false), ["contrata@empresa.example"], "Asunto", Cuerpo, null,
             _ => Task.FromResult(true), CancellationToken.None, contenidoIaRevisada: contenidoIaRevisada);
 
         resultado.EsExitoso.Should().BeTrue();
-        return JsonDocument.Parse(handler.CuerpoBorrador!).RootElement.Clone();
+        return JsonDocument.Parse(graph.CuerpoBorrador!).RootElement.Clone();
     }
 
     private static IEnumerable<(string? Nombre, string? Valor)> Cabeceras(JsonElement mensaje) =>
@@ -76,31 +93,68 @@ public class Microsoft365CabeceraOrigenContenidoTests
             .Select(c => (c.GetProperty("name").GetString(), c.GetProperty("value").GetString()));
 
     [Fact]
-    public async Task La_respuesta_de_Vega_revisada_lleva_la_cabecera_y_el_mismo_cuerpo()
+    public async Task La_respuesta_de_Vega_revisada_crea_el_borrador_con_la_cabecera_lo_comprueba_y_lo_envia()
     {
-        var json = await ResponderAsync(contenidoIaRevisada: true);
+        var graph = new GraphSimulado();
 
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: true);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "POST send");
+        var json = JsonDocument.Parse(graph.CuerpoCrearRespuesta!).RootElement;
         Cabeceras(json.GetProperty("message")).Should().Equal(("X-TALVEG-Origen-Contenido", "ia-revisada"));
         json.GetProperty("message").TryGetProperty("attachments", out _).Should().BeFalse();
         json.GetProperty("comment").GetString().Should().Be(Cuerpo);
     }
 
+    /// <summary>Si Graph no guardó la cabecera, el correo no sale sin marca: se borra el borrador y el envío falla.</summary>
     [Fact]
-    public async Task La_respuesta_sin_marca_no_lleva_message_como_antes()
+    public async Task Si_el_borrador_no_lleva_la_cabecera_no_se_envia_y_se_borra()
     {
-        var json = await ResponderAsync(contenidoIaRevisada: false);
+        var graph = new GraphSimulado { CabecerasDelBorrador = null };
 
-        json.TryGetProperty("message", out var mensaje).Should().BeTrue();
-        mensaje.ValueKind.Should().Be(JsonValueKind.Null);
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: true);
+
+        resultado.EsFallido.Should().BeTrue();
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+    }
+
+    [Fact]
+    public async Task Si_el_borrador_lleva_otro_valor_tampoco_se_envia()
+    {
+        var graph = new GraphSimulado
+        {
+            CabecerasDelBorrador = $$"""{"internetMessageHeaders":[{"name":"{{OrigenContenidoEnvio.NombreCabecera}}","value":"otra"}]}""",
+        };
+
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: true);
+
+        resultado.EsFallido.Should().BeTrue();
+        graph.Llamadas.Should().NotContain("POST send");
+    }
+
+    [Fact]
+    public async Task La_respuesta_sin_marca_va_por_reply_sin_message_como_antes()
+    {
+        var graph = new GraphSimulado();
+
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: false);
+
+        resultado.EsExitoso.Should().BeTrue();
+        graph.Llamadas.Should().Equal("POST reply");
+        var json = JsonDocument.Parse(graph.CuerpoRespuesta!).RootElement;
+        json.GetProperty("message").ValueKind.Should().Be(JsonValueKind.Null);
         json.GetProperty("comment").GetString().Should().Be(Cuerpo);
     }
 
     [Fact]
     public async Task La_respuesta_con_adjuntos_y_marca_lleva_las_dos_cosas()
     {
-        var json = await ResponderAsync(true, [new AdjuntoParaEnviarDto("a.pdf", "application/pdf", [1, 2, 3])]);
+        var graph = new GraphSimulado();
 
-        var mensaje = json.GetProperty("message");
+        await ResponderAsync(graph, true, [new AdjuntoParaEnviarDto("a.pdf", "application/pdf", [1, 2, 3])]);
+
+        var mensaje = JsonDocument.Parse(graph.CuerpoCrearRespuesta!).RootElement.GetProperty("message");
         mensaje.GetProperty("attachments").GetArrayLength().Should().Be(1);
         Cabeceras(mensaje).Should().ContainSingle();
     }
@@ -108,9 +162,12 @@ public class Microsoft365CabeceraOrigenContenidoTests
     [Fact]
     public async Task La_respuesta_con_adjuntos_sin_marca_no_lleva_cabeceras()
     {
-        var json = await ResponderAsync(false, [new AdjuntoParaEnviarDto("a.pdf", "application/pdf", [1, 2, 3])]);
+        var graph = new GraphSimulado();
 
-        json.GetProperty("message").TryGetProperty("internetMessageHeaders", out _).Should().BeFalse();
+        await ResponderAsync(graph, false, [new AdjuntoParaEnviarDto("a.pdf", "application/pdf", [1, 2, 3])]);
+
+        JsonDocument.Parse(graph.CuerpoRespuesta!).RootElement.GetProperty("message")
+            .TryGetProperty("internetMessageHeaders", out _).Should().BeFalse();
     }
 
     [Fact]
