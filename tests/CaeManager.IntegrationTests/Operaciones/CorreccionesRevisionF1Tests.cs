@@ -606,7 +606,8 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     private DesactivarDelegacionTenantCommandHandler CrearDesactivar(CaeManagerDbContext contexto) =>
         new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(), CrearWriter(contexto), contexto,
             new TenantActualAmbiental { TenantId = _propietario }, new CuentasQueSiguenSiendoGestorCae(), contexto,
-            new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())));
+            new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
+            new TransaccionDeComando(contexto));
 
     private ReactivarDelegacionTenantCommandHandler CrearReactivar(CaeManagerDbContext contexto) =>
         new(new DelegacionTenantRepository(contexto), AdministradorDelPropietario(),

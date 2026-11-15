@@ -459,7 +459,7 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
             new DelegacionTenantRepository(contexto), usuarioActual,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual), contexto, tenant,
             Directorio(servicios, contexto, tenant, usuarioActual), contexto,
-            new CatalogoIncorporacionCartera(contexto, usuarioActual));
+            new CatalogoIncorporacionCartera(contexto, usuarioActual), new TransaccionDeComando(contexto));
 
         using (AmbitoTenantExplicito.Establecer(usuario.TenantId))
             return await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);

@@ -647,7 +647,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto), usuarioActual,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual), contexto, tenant,
             Directorio(servicios, contexto, tenant, usuarioActual), contexto,
-            new CatalogoIncorporacionCartera(contexto, usuarioActual));
+            new CatalogoIncorporacionCartera(contexto, usuarioActual), new TransaccionDeComando(contexto));
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
         {

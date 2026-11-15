@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -251,6 +252,121 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
         }
 
         return (resultado!, filaHeredada);
+    }
+
+    // ── Ronda 3: la revocación por el comando, ordenada frente al catálogo ───
+
+    /// <summary>
+    /// La carrera simétrica de la de arriba, con el comando de producción y dos conexiones. La incorporación, dentro de
+    /// su transacción, bloquea con <c>FOR SHARE</c> la DelegacionTenant del par, emite la cartera y su fila heredada, las
+    /// guarda y no confirma. <see cref="DesactivarDelegacionTenantCommand"/> llega entonces y tiene que quedarse esperando
+    /// en el <c>FOR UPDATE</c> de esa delegación, bloqueado por la conexión del catálogo (se observa en
+    /// <c>pg_stat_activity</c>, no con una espera fija), antes de leer la operación y las carteras que cierra. Al
+    /// confirmarse la incorporación, la revocación cierra también la cartera recién emitida.
+    ///
+    /// <para>
+    /// Sin el bloqueo previo (la revocación anterior a la ronda 3), el comando leía la operación y las carteras sin
+    /// esperar y solo se detenía en el <c>UPDATE</c> de la delegación al guardar: la espera que aquí se exige nunca
+    /// aparece, y la cartera confirmada por el catálogo quedaba vigente bajo una operación cerrada.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task La_revocacion_que_llega_con_una_incorporacion_en_vuelo_espera_en_la_delegacion_y_cierra_su_cartera()
+    {
+        var delTenantEntero = await OperacionDelTenantEnteroAsync();
+        var emitida = new TaskCompletionSource<(Guid CarteraId, int Pid)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var incorporacion = Task.Run(() => IncorporarYConfirmarAlSoltarAsync(delTenantEntero, emitida, soltar.Task));
+        var (carteraId, pidDelCatalogo) = await emitida.Task.WaitAsync(TimeSpan.FromSeconds(60));
+
+        var revocacion = Task.Run(() => RevocarAsync());
+        try
+        {
+            await EsperarEnElBloqueoDeLaDelegacionPorAsync(pidDelCatalogo, revocacion);
+        }
+        finally
+        {
+            soltar.TrySetResult();
+        }
+
+        (await incorporacion).EsExitoso.Should().BeTrue("la incorporación confirma su cartera antes que la revocación");
+        var revocada = await revocacion;
+        revocada.EsExitoso.Should().BeTrue(revocada.EsFallido ? revocada.Error.Codigo : string.Empty);
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == delTenantEntero)).Estado
+            .Should().Be(EstadoAsignacion.Cerrada);
+        var cartera = await verificacion.AsignacionesCartera.IgnoreQueryFilters().SingleAsync(c => c.Id == carteraId);
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada,
+            "la revocación leyó las carteras después de esperar al catálogo, con la suya ya confirmada");
+        cartera.MotivoCierre.Should().Be(MotivoCierreAsignacion.Revocada);
+    }
+
+    /// <summary>
+    /// La incorporación como la hace <c>AsignarCarteraGestorCaeCommand</c>: la transacción se abre en el Operador CAE
+    /// externo, el catálogo decide y emite, y el guardado se hace en el ámbito del Tenant propietario. Avisa por
+    /// <paramref name="emitida"/> con la cartera y el pid de su conexión, y no confirma hasta <paramref name="soltar"/>.
+    /// </summary>
+    private async Task<Result> IncorporarYConfirmarAlSoltarAsync(
+        Guid operacionId, TaskCompletionSource<(Guid CarteraId, int Pid)> emitida, Task soltar)
+    {
+        try
+        {
+            using var ambito = _arnes.Servicios.CreateScope();
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var gestora = FijarSesion(_gestoraOperador, Roles.GestorCae);
+            using (AmbitoTenantExplicito.Establecer(_operador))
+            {
+                return await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+                {
+                    var resultado = await new CatalogoIncorporacionCartera(contexto, gestora)
+                        .IncorporarAsync(_propietario, _operador, operacionId, _gestoraOperador.Id, ct);
+                    resultado.Cartera.Should().NotBeNull("control: sin revocación confirmada, el catálogo emite");
+                    using (AmbitoTenantExplicito.Establecer(_propietario))
+                        await contexto.SaveChangesAsync(ct);
+
+                    emitida.TrySetResult((resultado.Cartera!.Id, ((NpgsqlConnection)contexto.Database.GetDbConnection()).ProcessID));
+                    await soltar;
+                    return Result.Exito();
+                }, CancellationToken.None);
+            }
+        }
+        catch (Exception excepcion)
+        {
+            emitida.TrySetException(excepcion);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Vuelve cuando una sesión bloqueada por <paramref name="pidBloqueante"/> está detenida en el <c>FOR UPDATE</c> de
+    /// la DelegacionTenant. Falla si <paramref name="comando"/> termina antes (no llegó a esperar ese bloqueo) o si en
+    /// 60 s nadie espera ahí; el <c>UPDATE</c> del guardado no cuenta.
+    /// </summary>
+    private async Task EsperarEnElBloqueoDeLaDelegacionPorAsync(int pidBloqueante, Task comando)
+    {
+        await using var observador = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await observador.OpenAsync();
+        await using var consulta = new NpgsqlCommand(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE @pid = ANY(pg_blocking_pids(pid))
+                  AND query ILIKE '%FOR UPDATE%' AND query LIKE '%"DelegacionesTenant"%')
+            """, observador);
+        consulta.Parameters.AddWithValue("pid", pidBloqueante);
+
+        var limite = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < limite)
+        {
+            comando.IsCompleted.Should().BeFalse("la revocación tenía que esperar en el bloqueo de la delegación");
+            if ((bool)(await consulta.ExecuteScalarAsync())!)
+                return;
+            await Task.Delay(50);
+        }
+
+        throw new TimeoutException("La revocación no llegó a esperar en el FOR UPDATE de la delegación.");
     }
 
     // ── Alta 3: sellado al escribir la delegación ────────────────────────────

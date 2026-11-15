@@ -104,6 +104,53 @@ public class RevocacionDelegacionTests
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
     }
 
+    /// <summary>
+    /// Ronda 3 de la PR #2253: la revocación bloquea la DelegacionTenant dentro de su transacción, abierta ya en el
+    /// Tenant propietario, y antes de que el writer lea y cierre la operación y sus carteras. Es el orden de la
+    /// revocación por Soporte TALVEG y el que el <c>FOR SHARE</c> del catálogo necesita para ordenarla; bajo PostgreSQL
+    /// lo prueba <c>OrigenDeOperacionExternaBajoRuntimeTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task La_revocacion_bloquea_la_delegacion_en_su_transaccion_antes_de_cerrar_la_operacion()
+    {
+        var (delegacion, interno, unitOfWork) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var transaccion = new TransaccionQueAnotaElAmbito();
+        var repositorio = new RepositorioQueAnotaElBloqueo(interno, transaccion, writer);
+        var handler = Desactivar(repositorio, ElGestorCae(), OperadorCae, writer, unitOfWork, transaccion: transaccion);
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        repositorio.Bloqueos.Should().Equal((true, 0));
+        transaccion.Ambitos.Should().Equal(TenantPropietario);
+        writer.OperacionesCerradas.Should().ContainSingle();
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// El estado se decide con la fila bloqueada, no con la lectura de autoridad: si otra revocación confirmó mientras
+    /// se esperaba el bloqueo, esta sale por «ya revocada» sin cerrar ni guardar nada.
+    /// </summary>
+    [Fact]
+    public async Task La_revocacion_que_encuentra_la_delegacion_revocada_al_bloquearla_no_cierra_nada()
+    {
+        var (delegacion, interno, unitOfWork) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var transaccion = new TransaccionQueAnotaElAmbito();
+        var repositorio = new RepositorioQueAnotaElBloqueo(interno, transaccion, writer)
+        {
+            AlBloquear = delegacion.Desactivar,
+        };
+        var handler = Desactivar(repositorio, ElGestorCae(), OperadorCae, writer, unitOfWork, transaccion: transaccion);
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.YaInactiva");
+        writer.OperacionesCerradas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task El_Gestor_CAE_tambien_revoca_desde_el_Workspace_operativo_derivado_del_Tenant_propietario()
     {
@@ -964,11 +1011,12 @@ public class RevocacionDelegacionTests
             autorizacion ?? new AutorizacionDelegacionFalsa(autoriza: false));
 
     private DesactivarDelegacionTenantCommandHandler Desactivar(
-        DelegacionTenantRepositorioFalso repositorio, CurrentUserServiceFalso quien, Guid? tenantActivo,
+        IDelegacionTenantRepository repositorio, CurrentUserServiceFalso quien, Guid? tenantActivo,
         AsignacionesOperativasWriterFalso? writer = null, IUnitOfWork? unitOfWork = null,
-        TenantsQueryContextFalso? tenants = null) =>
+        TenantsQueryContextFalso? tenants = null, ITransaccionDeComando? transaccion = null) =>
         new(repositorio, quien, writer ?? new AsignacionesOperativasWriterFalso(), unitOfWork ?? new UnitOfWorkFalso(),
-            new TenantActualFijo(tenantActivo), _cuentas, tenants ?? new TenantsQueryContextFalso(), _catalogo);
+            new TenantActualFijo(tenantActivo), _cuentas, tenants ?? new TenantsQueryContextFalso(), _catalogo,
+            transaccion ?? new TransaccionDeComandoFalsa());
 
     private ReactivarDelegacionTenantCommandHandler Reactivar(
         DelegacionTenantRepositorioFalso repositorio, CurrentUserServiceFalso quien, Guid? tenantActivo,
@@ -1007,12 +1055,48 @@ public class RevocacionDelegacionTests
     private sealed class TransaccionQueAnotaElAmbito : ITransaccionDeComando
     {
         public List<Guid?> Ambitos { get; } = [];
+        public bool Abierta { get; private set; }
 
-        public Task<Result> EjecutarAsync(
+        public async Task<Result> EjecutarAsync(
             Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
         {
             Ambitos.Add(AmbitoTenantExplicito.TenantIdActual);
-            return operacion(cancellationToken);
+            Abierta = true;
+            try
+            {
+                return await operacion(cancellationToken);
+            }
+            finally
+            {
+                Abierta = false;
+            }
         }
+    }
+
+    /// <summary>
+    /// Anota, en cada bloqueo de la delegación, si la transacción estaba abierta y cuántas operaciones había cerrado ya
+    /// el writer; <see cref="AlBloquear"/> simula lo que otra transacción confirmó mientras se esperaba el bloqueo.
+    /// </summary>
+    private sealed class RepositorioQueAnotaElBloqueo(
+        DelegacionTenantRepositorioFalso interno, TransaccionQueAnotaElAmbito transaccion,
+        AsignacionesOperativasWriterFalso writer) : IDelegacionTenantRepository
+    {
+        public List<(bool DentroDeLaTransaccion, int OperacionesYaCerradas)> Bloqueos { get; } = [];
+        public Action? AlBloquear { get; init; }
+
+        public Task<DelegacionTenant?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            interno.ObtenerPorIdAsync(id, cancellationToken);
+
+        public Task<bool> BloquearYReleerAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            Bloqueos.Add((transaccion.Abierta, writer.OperacionesCerradas.Count));
+            AlBloquear?.Invoke();
+            return interno.BloquearYReleerAsync(id, cancellationToken);
+        }
+
+        public Task<bool> ExisteActivaAsync(Guid tenantConsultoraId, Guid tenantClienteId, CancellationToken cancellationToken = default) =>
+            interno.ExisteActivaAsync(tenantConsultoraId, tenantClienteId, cancellationToken);
+
+        public void Agregar(DelegacionTenant delegacion) => interno.Agregar(delegacion);
     }
 }

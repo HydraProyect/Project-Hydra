@@ -581,8 +581,9 @@ public class CatalogoIncorporacionCartera(
     /// sus carteras. En el relevo del principal no: la transacción ya guardó el cierre o el apagado de una cartera antes
     /// de llegar aquí, y frente a una revocación de Soporte concurrente puede acabar en interbloqueo (40P01), que
     /// PostgreSQL resuelve abortando una de las dos; falla cerrado. La revocación por <c>DesactivarDelegacionTenantCommand</c>
-    /// no bloquea la delegación antes de leer lo que cierra, así que este bloqueo no la ordena (hueco declarado en la PR
-    /// #2253). Bajo la RLS de quien escribe, como el trigger: las lecturas que deciden se hacen con la misma visibilidad, y
+    /// sigue el mismo orden que la de Soporte: bloquea la delegación con <c>FOR UPDATE</c> antes de leer la operación y las
+    /// carteras que cierra, así que este bloqueo también la ordena (ronda 3 de la PR #2253). Bajo la RLS de quien escribe,
+    /// como el trigger: las lecturas que deciden se hacen con la misma visibilidad, y
     /// una delegación invisible tampoco ampara nada.
     /// </para>
     ///
