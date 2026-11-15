@@ -625,13 +625,25 @@ public class CaminosDeAltaAcreditacionesTests
     [InlineData("11111111111111111111111111111111/", false)]
     [InlineData("11111111111111111111111111111111/sub/archivo.pdf", false)]
     [InlineData("11111111111111111111111111111111/..archivo.pdf", false)]
+    [InlineData("11111111111111111111111111111111/archivo..pdf", false)]
+    [InlineData("11111111111111111111111111111111\\archivo.pdf", false)]
+    // Deuda conocida: la barra invertida no cuenta como separador. Se fija tal cual para que mover la regla no la cambie.
+    [InlineData("11111111111111111111111111111111/sub\\archivo.pdf", true)]
+    [InlineData("11111111-1111-1111-1111-111111111111/archivo.pdf", false)]
     [InlineData("22222222222222222222222222222222/archivo.pdf", false)]
     [InlineData("11111111111111111111111111111111archivo.pdf", false)]
     [InlineData("archivo.pdf", false)]
-    public void Una_clave_es_del_tenant_solo_si_es_un_archivo_directo_de_su_carpeta(string clave, bool esDelTenant) =>
+    public void Una_clave_es_del_tenant_solo_si_es_un_archivo_directo_de_su_carpeta(string clave, bool esDelTenant)
+    {
+        var tenant = Guid.Parse("11111111111111111111111111111111");
+
+        // ADR-013 M2 (K-1): el requisito del Centro usa la regla del Núcleo y los originales Inbound delegan en ella; las
+        // dos tienen que seguir dando lo mismo que daba la de Inbound antes del cambio.
+        CaeManager.Application.Common.Archivos.ClavesDeAlmacen.EsDeLaCarpetaDelTenant(clave, tenant).Should().Be(esDelTenant);
         CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.OriginalesInbound
-            .EsDelTenant(clave, Guid.Parse("11111111111111111111111111111111"))
+            .EsDelTenant(clave, tenant)
             .Should().Be(esDelTenant);
+    }
 
     private static void AsignarTenant(CaeManager.Domain.Common.EntidadConTenant entidad, Guid tenantId) =>
         typeof(CaeManager.Domain.Common.EntidadConTenant).GetProperty(nameof(entidad.TenantId))!.SetValue(entidad, tenantId);

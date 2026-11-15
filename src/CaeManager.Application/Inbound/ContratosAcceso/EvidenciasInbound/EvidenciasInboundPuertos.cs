@@ -1,3 +1,4 @@
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using CaeManager.Domain.Inbound.EvidenciasInbound;
 
@@ -33,13 +34,11 @@ public static class OriginalesInbound
     /// <summary>
     /// ¿Es la referencia de la carpeta del Tenant de la Empresa contratista? Las referencias del almacenamiento empiezan por
     /// la carpeta de su Tenant propietario (<c>{tenantId:N}/archivo</c>). Una que no lo cumple no se abre: la función de
-    /// la base devolvió algo que no es del Tenant del contrato, y servirla sería leer otra cosa con su autorización.
+    /// la base devolvió algo que no es del Tenant del contrato, y servirla sería leer otra cosa con su autorización. La forma
+    /// de la clave es la del almacén del Núcleo (<see cref="ClavesDeAlmacen.EsDeLaCarpetaDelTenant"/>).
     /// </summary>
     public static bool EsDelTenant(string referencia, Guid tenantPropietarioId) =>
-        referencia.StartsWith($"{tenantPropietarioId:N}/", StringComparison.Ordinal)
-        && referencia.Length > 33
-        && referencia.IndexOf('/', 33) < 0
-        && !referencia.Contains("..", StringComparison.Ordinal);
+        ClavesDeAlmacen.EsDeLaCarpetaDelTenant(referencia, tenantPropietarioId);
 
     /// <summary>
     /// ¿Se puede abrir esta apertura para el contrato cuyo Tenant de la Empresa contratista es
