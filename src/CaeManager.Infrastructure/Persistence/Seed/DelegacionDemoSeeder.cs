@@ -846,7 +846,8 @@ public static class DelegacionDemoSeeder
         ApplicationUser administradorConsultora,
         ILogger logger,
         string nombreTenantCliente,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DateTime? inicioDeLaOperacion = null)
     {
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
@@ -870,13 +871,15 @@ public static class DelegacionDemoSeeder
         // La Asignación de Operación del Tenant entero nace aquí, con el alta de la delegación y desde ella como
         // origen, igual que en el alta por comando. Antes la abría el backfill en el arranque siguiente, y el backfill ya
         // no crea operaciones externas (ronda 2 de Codex en la PR #2237, alta 5). Solo en el alta: si la delegación ya
-        // existía, se salió arriba y nada se repone.
+        // existía, se salió arriba y nada se repone. Quien siembra una historia con fecha propia (el piloto Outbound,
+        // las ramas de escenarios) la pasa en inicioDeLaOperacion: su apertura posterior devuelve esta operación, y con
+        // la hora del arranque los Centros y la vigencia de la demo nacerían antes que la operación.
         using (AmbitoTenantExplicito.Establecer(tenantClienteId))
         {
             var writer = new AsignacionesOperativasWriter(
                 dbContext, new TenantActualAmbiental { TenantId = tenantClienteId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
             await writer.AbrirOperacionDelegadaAsync(
-                tenantClienteId, tenantConsultoraId, DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
+                tenantClienteId, tenantConsultoraId, inicioDeLaOperacion ?? DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

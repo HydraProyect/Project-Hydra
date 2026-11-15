@@ -174,12 +174,15 @@ public class AsignacionesOperativasWriter(
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        // La operación nace de la única DelegacionTenant de Operador CAE externo activa y vigente del par, y
-        // la guarda como origen (AmparoDeOrigen): sin ella, o con más de una, no se abre nada.
-        var delegacion = await OrigenUnicoDelParAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
-
+        // Una operación vigente y amparada por su DelegacionTenant de origen ya autoriza: se devuelve sin mirar
+        // cuántas delegaciones tiene hoy el par (abrir de nuevo es idempotente; la base no impide una segunda
+        // delegación activa del par, y eso no debe tumbar a quien solo reabre).
         var existente = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, operadorTenantId, cancellationToken);
         if (existente is not null) return existente;
+
+        // Solo para abrir una nueva: nace de la única DelegacionTenant de Operador CAE externo activa y vigente
+        // del par, y la guarda como origen (AmparoDeOrigen); sin ella, o con más de una, no se abre nada.
+        var delegacion = await OrigenUnicoDelParAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
 
         // Una operación del Tenant entero vigente que ya no está amparada por su delegación de origen (sin
         // origen, o revocada desde que nació) no autoriza nada, pero ocupa el índice único de delegación

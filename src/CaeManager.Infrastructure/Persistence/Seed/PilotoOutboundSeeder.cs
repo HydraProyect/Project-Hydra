@@ -690,7 +690,8 @@ public static class PilotoOutboundSeeder
         Equipo equipo, DateOnly fechaDemostracion, ILogger logger, CancellationToken cancellationToken)
     {
         await DelegacionDemoSeeder.CrearDelegacionAsync(
-            dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador, logger, tenant.Nombre, cancellationToken);
+            dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador, logger, tenant.Nombre, cancellationToken,
+            inicioDeLaOperacion: InicioDeLaOperacionExterna(fechaDemostracion));
 
         var gestores = equipo.GestoresDe(tenant);
 

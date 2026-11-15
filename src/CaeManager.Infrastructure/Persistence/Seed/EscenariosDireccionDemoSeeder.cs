@@ -127,7 +127,8 @@ public static class EscenariosDireccionDemoSeeder
             await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(
-                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken);
+                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken,
+                inicioDeLaOperacion: InicioDeLaOperacionDeRama());
 
             await SembrarRamaAsync(
                 dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy: DiaDeNegocio.Hoy(),
@@ -190,6 +191,12 @@ public static class EscenariosDireccionDemoSeeder
     }
 
     /// <summary>
+    /// Desde cuándo rige la Asignación de Operación del Tenant entero de una rama: treinta días antes del arranque.
+    /// La usan el alta de la delegación y la apertura de la rama, que devuelve la que abrió el alta.
+    /// </summary>
+    internal static DateTime InicioDeLaOperacionDeRama() => DateTime.UtcNow.AddDays(-30);
+
+    /// <summary>
     /// La rama de un Tenant propietario: su delegación al Operador CAE (abierta
     /// y con el equipo asignado), sus Clientes empresariales con todos los
     /// datos, y las carteras. Idempotente; sin la guarda de entorno de
@@ -215,7 +222,7 @@ public static class EscenariosDireccionDemoSeeder
                 dbContext, new TenantActualAmbiental { TenantId = tenantPropietarioId }, new ActorDeSiembra());
 
             await writer.AbrirOperacionDelegadaAsync(
-                tenantPropietarioId, tenantOperadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                tenantPropietarioId, tenantOperadorId, InicioDeLaOperacionDeRama(), vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             // La única Empresa propia del Tenant (D-P11): de ella cuelgan los Centros y la plantilla de todos los

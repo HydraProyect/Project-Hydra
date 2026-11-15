@@ -555,8 +555,9 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     /// <summary>
     /// La guarda del writer (ronda 2 de Codex, alta 1): el trigger exige la delegación ya guardada y su contador real,
     /// y EF no ordena el UPDATE de la delegación por delante del INSERT de la operación. Con la delegación de origen
-    /// modificada sin guardar, <c>AbrirOperacionDelegadaAsync</c> lanza en vez de abrir. Control: sin cambios pendientes
-    /// devuelve la operación que abrió el alta.
+    /// modificada sin guardar, <c>AbrirOperacionDelegadaAsync</c> lanza en vez de abrir una nueva. Controles: con la
+    /// operación del alta amparada la devuelve sin abrir nada; tras revocar y reactivar, sin cambios pendientes, abre
+    /// una nueva sellada con el contador actual.
     /// </summary>
     [Fact]
     public async Task El_writer_no_abre_una_operacion_que_nace_de_una_delegacion_con_cambios_sin_guardar()
@@ -569,14 +570,67 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(_propietario))
         {
             (await writer.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null)).OrigenId
-                .Should().Be(_delegacion, "control: sin cambios pendientes devuelve la del alta");
+                .Should().Be(_delegacion, "control: la operación del alta sigue amparada y se devuelve");
+        }
 
+        // Revocar y reactivar deja sin amparo a la del alta: abrir ya tiene que crear una nueva.
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
             var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+            await contexto.Entry(delegacion).ReloadAsync();
             contexto.Entry(delegacion).Property(d => d.ExpiraEnUtc).CurrentValue = DateTime.UtcNow.AddDays(30);
             contexto.Entry(delegacion).State.Should().Be(EntityState.Modified, "control");
 
             await writer.Invoking(w => w.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null))
                 .Should().ThrowAsync<InvalidOperationException>().WithMessage("*cambios sin guardar*");
+
+            await contexto.Entry(delegacion).ReloadAsync();
+            var nueva = await writer.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null);
+            nueva.OrigenId.Should().Be(_delegacion, "control: sin cambios pendientes abre una nueva desde la misma delegación");
+            nueva.RevocacionesDelOrigen.Should().Be(delegacion.Revocaciones, "control: sellada con el contador actual");
+            contexto.Entry(nueva).State.Should().Be(EntityState.Added, "control: es nueva, no la del alta");
+        }
+    }
+
+    /// <summary>
+    /// Reabrir es idempotente aunque el par tenga hoy dos delegaciones de Operador CAE externo activas (la base no lo
+    /// impide): con una operación vigente y amparada por su origen, <c>AbrirOperacionDelegadaAsync</c> la devuelve y no
+    /// lanza. Sin ella, con dos delegaciones activas, no abre nada (origen ambiguo).
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_devuelve_la_operacion_amparada_aunque_el_par_tenga_dos_delegaciones_activas()
+    {
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            propietarioDeLaBase.DelegacionesTenant.Add(new DelegacionTenant(_operador, _propietario));
+            await propietarioDeLaBase.SaveChangesAsync();
+            (await propietarioDeLaBase.DelegacionesTenant
+                    .CountAsync(d => d.TenantConsultoraId == _operador && d.TenantClienteId == _propietario && d.Activa
+                                     && d.Proposito == PropositoDelegacion.OperadorExterno))
+                .Should().Be(2, "control: el par tiene dos delegaciones de Operador CAE externo activas");
+        }
+
+        using var ambito = _arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var usuarioActual = FijarSesion(_administradorPropietario, Roles.Administrador);
+        var writer = new AsignacionesOperativasWriter(contexto, ambito.ServiceProvider.GetRequiredService<ITenantActual>(), usuarioActual);
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
+            (await writer.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null)).OrigenId
+                .Should().Be(_delegacion, "la operación del alta sigue amparada por su origen");
+        }
+
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
+            await writer.Invoking(w => w.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null))
+                .Should().ThrowAsync<InvalidOperationException>().WithMessage("*2 delegaciones activas*");
         }
     }
 
