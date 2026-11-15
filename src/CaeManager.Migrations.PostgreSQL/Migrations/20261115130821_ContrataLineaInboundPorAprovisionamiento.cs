@@ -10,9 +10,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// <c>GRANT INSERT</c> sobre <c>ProductosContratados</c> solo a <c>cae_app_aprovisionamiento</c>, el rol que adopta el
     /// handler de un comando de aprovisionamiento dentro de una Sesión Privilegiada de Aprovisionamiento sobre el Tenant
-    /// beneficiario (<c>ElevacionEscrituraAprovisionamientoBehavior</c>). Ni SELECT, ni UPDATE, ni DELETE: contratar es
-    /// insertar, y la regla de un solo Producto Contratado de la línea Inbound vigente por Tenant la impone el índice, no
-    /// una lectura. <c>cae_app_runtime</c> y <c>cae_app_soporte</c> siguen solo con SELECT: un INSERT del runtime bajo
+    /// beneficiario (<c>ElevacionEscrituraAprovisionamientoBehavior</c>). Esta migración no le concede SELECT, UPDATE ni
+    /// DELETE: contratar es insertar, y la regla de un solo Producto Contratado de la línea Inbound vigente por Tenant la
+    /// impone el índice, no una lectura. <c>FinalizaLineaInboundPorAprovisionamiento</c> le añade después, para la baja y
+    /// la corrección, SELECT sobre las columnas del WHERE (<c>Id</c>, <c>TenantId</c>, <c>Linea</c>, <c>Estado</c>,
+    /// <c>EstaEliminado</c>) y UPDATE solo sobre <c>Estado</c> y <c>VigenteHastaUtc</c>; DELETE sigue sin tenerlo. <c>cae_app_runtime</c> y <c>cae_app_soporte</c> siguen solo con SELECT: un INSERT del runtime bajo
     /// <c>aislamiento_tenant</c> dejaría a un Tenant concederse su propia línea Inbound, y con ella la lectura entre Tenants
     /// (gate DN-7). El INSERT pasa igualmente por el <c>WITH CHECK</c> de esa política, así que solo entra en el Tenant del
     /// contexto firmado, que es el objetivo de la Sesión Privilegiada.
@@ -23,8 +25,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// el rol elevado lo adoptan todos los comandos de aprovisionamiento, así que el GRANT solo no basta para que lo único
     /// que inserte tenga la forma de lo que hace <c>ContratarLineaInboundCommand</c>: una fila de la línea Inbound,
     /// vigente, sin fin de vigencia, no eliminada, del Tenant del contexto firmado y con la vigencia empezando al contratar.
-    /// Una fila de <c>OutboundGestionPropia</c>, una ya finalizada o una con la vigencia empezada antes, se rechaza en la
-    /// base aunque el código lo intentara (hallazgo 2 de Codex, ronda 1, y hallazgo 4, ronda 2). «Al contratar» es el
+    /// Una fila de <c>OutboundGestionPropia</c>, una ya finalizada o una con la vigencia empezada más de 5 minutos antes
+    /// o después del <c>now()</c> de la transacción se rechaza en la base aunque el código lo intentara (hallazgo 2 de Codex, ronda 1, y hallazgo 4, ronda 2). «Al contratar» es el
     /// <c>now()</c> de la transacción con 5 minutos de margen en los dos sentidos, la ventana de
     /// <c>sesion_privilegiada_apertura</c> para el reloj de la aplicación. La política no comprueba el resto de valores
     /// (Pagador, tramo, modalidad), que ya restringen las restricciones CHECK de la tabla. Repite la condición de Tenant de
