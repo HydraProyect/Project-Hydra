@@ -23,12 +23,13 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
 {
     public Task<Result> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([]))
-            return interno.EnviarRespuestaAsync(accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken);
+            return interno.EnviarRespuestaAsync(
+                accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken, contenidoIaRevisada);
 
         AnotarBloqueo(config, "respuesta");
         return Task.FromResult(Result.Fallo(config.ErrorEnvioCerrado()));
@@ -37,13 +38,14 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([.. destinatarios, .. copia ?? []]))
             return interno.EnviarNuevoMensajeAsync(
-                accessToken, buzon, destinatarios, asunto, cuerpoHtml, adjuntos, puertaAntesDeEnviar, cancellationToken, copia);
+                accessToken, buzon, destinatarios, asunto, cuerpoHtml, adjuntos, puertaAntesDeEnviar, cancellationToken, copia,
+                contenidoIaRevisada);
 
         AnotarBloqueo(config, "mensaje nuevo");
         return Task.FromResult(Result.Fallo<MensajeEnviadoGraphDto>(config.ErrorEnvioCerrado()));

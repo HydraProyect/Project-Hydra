@@ -350,7 +350,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
 
         public Task<Result> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
         {
             Respuestas.Add(mensajeExternoIdOrigen);
             return Task.FromResult(Result.Exito());
@@ -370,7 +370,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
             string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null) =>
+            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false) =>
             throw new NotSupportedException();
 
         public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(

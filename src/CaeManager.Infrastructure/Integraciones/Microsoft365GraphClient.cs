@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
@@ -402,7 +403,7 @@ public class Microsoft365GraphClient(
 
     public async Task<Result> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
     {
         // /reply preserva conversationId/threading automáticamente — nunca
         // reconstruir In-Reply-To/References a mano (ver
@@ -412,7 +413,7 @@ public class Microsoft365GraphClient(
         using var peticion = NuevaPeticionGraph(
             HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/reply", accessToken);
         peticion.Content = JsonContent.Create(new SolicitudRespuestaGraph(
-            cuerpoHtml, ConstruirMensajeConAdjuntos(adjuntos)));
+            cuerpoHtml, ConstruirMensajeDeRespuesta(adjuntos, contenidoIaRevisada)));
 
         try
         {
@@ -436,7 +437,7 @@ public class Microsoft365GraphClient(
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false)
     {
         // En un buzón compartido el borrador se crea en SUS Borradores: Exchange lo envía entonces
         // como el compartido (Send As) o en su nombre (Send on Behalf), según el permiso que tenga
@@ -459,7 +460,8 @@ public class Microsoft365GraphClient(
                 new CuerpoMensajeGraphConTipo("HTML", cuerpoHtml),
                 destinatarios.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList(),
                 ConstruirAdjuntosGraph(adjuntos),
-                copia is { Count: > 0 } ? copia.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList() : null));
+                copia is { Count: > 0 } ? copia.Select(d => new EmailAddressGraph(new DireccionGraph(d))).ToList() : null,
+                CabecerasDeOrigen(contenidoIaRevisada)));
 
         try
         {
@@ -569,8 +571,27 @@ public class Microsoft365GraphClient(
         }
     }
 
-    private static MensajeConAdjuntosGraph? ConstruirMensajeConAdjuntos(IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos) =>
-        adjuntos is { Count: > 0 } ? new MensajeConAdjuntosGraph(ConstruirAdjuntosGraph(adjuntos)) : null;
+    /// <summary>
+    /// El «message» de /reply: solo si hay adjuntos o la marca de origen, porque sin él Graph responde con el comentario tal
+    /// cual. Las cabeceras propias se fijan al crear el mensaje, y /reply crea la respuesta.
+    /// </summary>
+    private static MensajeConAdjuntosGraph? ConstruirMensajeDeRespuesta(
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, bool contenidoIaRevisada)
+    {
+        var cabeceras = CabecerasDeOrigen(contenidoIaRevisada);
+        return adjuntos is { Count: > 0 } || cabeceras is not null
+            ? new MensajeConAdjuntosGraph(ConstruirAdjuntosGraph(adjuntos), cabeceras)
+            : null;
+    }
+
+    /// <summary>
+    /// <c>internetMessageHeaders</c> con la marca de contenido redactado por Vega y revisado por una persona (issue #2007,
+    /// D-5); null sin ella, para no mandar la propiedad. Ninguna otra cabecera propia sale de aquí.
+    /// </summary>
+    private static IReadOnlyList<CabeceraGraph>? CabecerasDeOrigen(bool contenidoIaRevisada) =>
+        contenidoIaRevisada
+            ? [new CabeceraGraph(OrigenContenidoEnvio.NombreCabecera, OrigenContenidoEnvio.ValorCabeceraIaRevisada)]
+            : null;
 
     private static IReadOnlyList<AdjuntoEnvioGraph>? ConstruirAdjuntosGraph(IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos) =>
         adjuntos is { Count: > 0 }
@@ -1067,7 +1088,8 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("message")] MensajeConAdjuntosGraph? Message = null);
 
     private sealed record MensajeConAdjuntosGraph(
-        [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments);
+        [property: JsonPropertyName("attachments"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AdjuntoEnvioGraph>? Attachments,
+        [property: JsonPropertyName("internetMessageHeaders"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders = null);
 
     private sealed record AdjuntoEnvioGraph(
         [property: JsonPropertyName("name")] string Name,
@@ -1087,7 +1109,8 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("body")] CuerpoMensajeGraphConTipo Body,
         [property: JsonPropertyName("toRecipients")] IReadOnlyList<EmailAddressGraph> ToRecipients,
         [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoEnvioGraph>? Attachments,
-        [property: JsonPropertyName("ccRecipients"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<EmailAddressGraph>? CcRecipients = null);
+        [property: JsonPropertyName("ccRecipients"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<EmailAddressGraph>? CcRecipients = null,
+        [property: JsonPropertyName("internetMessageHeaders"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders = null);
 
     /// <summary>sendMail exige "contentType" explícito en el body (a diferencia de /reply, que no lo pide) — de ahí este envoltorio en vez de reutilizar CuerpoMensajeGraph tal cual.</summary>
     private sealed record CuerpoMensajeGraphConTipo(

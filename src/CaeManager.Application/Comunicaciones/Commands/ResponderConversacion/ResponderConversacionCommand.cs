@@ -78,12 +78,17 @@ public class ResponderConversacionCommandHandler(
         if (bloqueo.EsFallido)
             return bloqueo;
 
+        // Antes de enviar: la marca de contenido de IA tiene que ir ya en el correo (issue #2007).
+        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, cancellationToken);
+
         Mensaje mensajeCreado;
         var huboEnvioReal = false;
 
         if (conversacion.ConexionIntegracionId is { } conexionId)
         {
-            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, request.Adjuntos, cancellationToken);
+            var envioResultado = await EnviarPorGraphAsync(
+                conversacion, conexionId, request.CuerpoHtml, request.Adjuntos,
+                contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega, cancellationToken);
             if (envioResultado.EsFallido)
                 return Result.Fallo(envioResultado.Error);
             mensajeCreado = envioResultado.Valor;
@@ -99,6 +104,8 @@ public class ResponderConversacionCommandHandler(
                 "Conversacion.SinBuzonConectado",
                 "Esta conversación no tiene un buzón de correo conectado — conecta un buzón de Microsoft 365 antes de responder."));
         }
+
+        OrigenContenidoEnvio.RegistrarEn(mensajeCreado, sugerencia);
 
         // Los adjuntos se guardan en el propio storage independientemente de
         // si hubo envío real por Graph — el registro de "qué se adjuntó en
@@ -135,7 +142,8 @@ public class ResponderConversacionCommandHandler(
     }
 
     private async Task<Result<Mensaje>> EnviarPorGraphAsync(
-        Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos,
+        bool contenidoIaRevisada, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
         if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
@@ -168,7 +176,8 @@ public class ResponderConversacionCommandHandler(
             return Result.Fallo<Mensaje>(ErroresBuzonSinVerificar.Crear());
 
         var envioResultado = await graphClient.EnviarRespuestaAsync(
-            accessTokenResultado.Valor, BuzonGraph.De(conexion), ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken);
+            accessTokenResultado.Valor, BuzonGraph.De(conexion), ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken,
+            contenidoIaRevisada);
         if (envioResultado.EsFallido)
             return Result.Fallo<Mensaje>(envioResultado.Error);
 

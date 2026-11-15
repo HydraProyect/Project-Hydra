@@ -376,7 +376,7 @@ public class GuardaEnvioCorreoTests
 
         public Task<Result> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
         {
             Respuestas++;
             return Task.FromResult(Result.Exito());
@@ -385,7 +385,7 @@ public class GuardaEnvioCorreoTests
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
             string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
+            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false)
         {
             MensajesNuevos++;
             return Task.FromResult(Result.Exito(new MensajeEnviadoGraphDto("mensaje", "hilo")));

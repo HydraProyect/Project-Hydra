@@ -75,6 +75,9 @@ public class MigrarConversacionACorreoCommandHandler(
         if (bloqueo.EsFallido)
             return bloqueo;
 
+        // La respuesta sugerida del hilo de WhatsApp puede salir por correo: lleva la misma marca (issue #2007).
+        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, cancellationToken);
+
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también
         // tiene ClienteId null, y la migración a correo debe salir por un
@@ -121,13 +124,15 @@ public class MigrarConversacionACorreoCommandHandler(
         // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
-            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken);
+            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken,
+            contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
 
-        conversacion.AgregarMensaje(
+        var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+        OrigenContenidoEnvio.RegistrarEn(mensaje, sugerencia);
         var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
             request.EmailDestino, conversacion.ClienteId, cancellationToken);
         conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);

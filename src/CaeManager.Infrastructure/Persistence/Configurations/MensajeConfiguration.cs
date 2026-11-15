@@ -59,6 +59,14 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         // IConversacionRepository.ExisteMensajeExternoAsync/ObtenerMensajePorExternoIdAsync.
         builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
+        // Origen del contenido (issue #2007): columnas nullable, null en entrantes, automáticos y mensajes anteriores.
+        // RespuestaSugeridaId es una referencia histórica sin FK a propósito: el Mensaje enviado es el registro de lo que
+        // salió y no debe impedir ni seguir la purga de la sugerencia. Lo resuelve el servidor dentro del Tenant
+        // (OrigenContenidoEnvio), nunca el cliente. El índice sirve a «sugerencia revisada que aún no originó ningún
+        // mensaje»; no es único, porque un choque al registrar un correo que ya salió perdería su registro local.
+        builder.HasIndex(m => new { m.TenantId, m.RespuestaSugeridaId })
+            .HasFilter("\"RespuestaSugeridaId\" IS NOT NULL");
+
         // Colección de solo lectura respaldada por campo privado — mismo
         // patrón que Conversacion.Mensajes/Participantes, con FK compuesta.
         builder.HasMany(m => m.Adjuntos)

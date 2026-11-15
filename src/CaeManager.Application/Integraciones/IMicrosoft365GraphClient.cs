@@ -137,10 +137,13 @@ public interface IMicrosoft365GraphClient
     /// va inline en base64 (sin sesión de subida) — respeta
     /// <see cref="LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes"/>
     /// del lado del llamador antes de invocar esto.
+    /// <paramref name="contenidoIaRevisada"/> añade la cabecera
+    /// <c>OrigenContenidoEnvio.NombreCabecera</c> con <c>ia-revisada</c>: el texto lo redactó Vega y lo revisó una persona
+    /// (issue #2007). No añade nada visible al cuerpo.
     /// </summary>
     Task<Result> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false);
 
     /// <summary>
     /// Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).
@@ -152,11 +155,12 @@ public interface IMicrosoft365GraphClient
     /// borrador no se envía, se intenta borrar y el resultado es <see cref="ErroresBuzonSinVerificar"/>. Infrastructure
     /// no lee repositorios: la regla sigue en Application y aquí solo se respeta el orden.
     /// </para>
+    /// <paramref name="contenidoIaRevisada"/>: la misma cabecera que en <see cref="EnviarRespuestaAsync"/>, en el borrador.
     /// </summary>
     Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null);
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false);
 
     /// <summary>Incluye los adjuntos del mensaje (metadatos, no el contenido — ver <see cref="ObtenerContenidoAdjuntoAsync"/>).</summary>
     Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(

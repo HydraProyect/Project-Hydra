@@ -2138,10 +2138,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<int?>("OrigenContenido")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Remitente")
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
+
+                    b.Property<Guid?>("RespuestaSugeridaId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -2156,6 +2162,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "MensajeExternoId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "RespuestaSugeridaId")
+                        .HasFilter("\"RespuestaSugeridaId\" IS NOT NULL");
 
                     b.ToTable("Mensajes", (string)null);
                 });

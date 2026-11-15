@@ -170,6 +170,8 @@ public class EnviarMensajeNuevoCommandHandler(
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+        // Un mensaje nuevo no parte de ninguna respuesta sugerida (OrigenContenidoEnvio, issue #2007).
+        mensaje.RegistrarOrigenPersona();
         // Los destinatarios (Para) y las copias (Cc) son participantes del hilo igual: cambia solo el rol.
         foreach (var (destinatario, rol) in request.Destinatarios.Select(d => (d, RolParticipante.Para))
                      .Concat((request.Copia ?? []).Select(c => (c, RolParticipante.Cc))))

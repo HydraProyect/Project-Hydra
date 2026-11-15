@@ -61,6 +61,22 @@ public class Mensaje : EntidadConTenant
     /// <summary>Motivo del fallo cuando EstadoEntrega == Fallido (errors[].title de Meta).</summary>
     public string? ErrorEntrega { get; private set; }
 
+    /// <summary>
+    /// Origen del texto (issue #2007): solo en un saliente que envía una persona, fijado una sola vez por
+    /// <see cref="RegistrarOrigenPersona"/> o <see cref="RegistrarOrigenDesde"/>. Null en entrantes, en salientes
+    /// automáticos y en los mensajes anteriores a esta columna.
+    /// </summary>
+    public OrigenContenidoMensaje? OrigenContenido { get; private set; }
+
+    /// <summary>
+    /// La <see cref="RespuestaSugerida"/> revisada de la que parte el texto, cuando <see cref="OrigenContenido"/> es
+    /// <see cref="OrigenContenidoMensaje.MacroRevisada"/> o <see cref="OrigenContenidoMensaje.VegaRevisada"/>; null en el resto.
+    /// </summary>
+    public Guid? RespuestaSugeridaId { get; private set; }
+
+    /// <summary>El texto lo redactó Vega y una persona lo revisó: el correo saliente lleva la marca de contenido de IA.</summary>
+    public bool ContenidoGeneradoPorIa => OrigenContenido == OrigenContenidoMensaje.VegaRevisada;
+
     public IReadOnlyList<AdjuntoMensaje> Adjuntos => _adjuntos.AsReadOnly();
 
     private Mensaje()
@@ -106,6 +122,41 @@ public class Mensaje : EntidadConTenant
         ErrorEntrega = nuevoEstado == EstadoEntregaMensaje.Fallido && error is not null
             ? (error.Length > LongitudMaximaErrorEntrega ? error[..LongitudMaximaErrorEntrega] : error)
             : null;
+    }
+
+    /// <summary>La persona que envía escribió el texto sin partir de una respuesta sugerida.</summary>
+    public void RegistrarOrigenPersona()
+    {
+        ComprobarQueAdmiteOrigen();
+        OrigenContenido = OrigenContenidoMensaje.Persona;
+    }
+
+    /// <summary>
+    /// El texto parte de <paramref name="sugerencia"/>, que una persona revisó: <see cref="OrigenContenidoMensaje.VegaRevisada"/>
+    /// si la redactó Vega, <see cref="OrigenContenidoMensaje.MacroRevisada"/> si sale de una macro. Solo una sugerencia
+    /// <see cref="EstadoRespuestaSugerida.Revisada"/> de esta misma conversación: una sin revisar no puede salir.
+    /// </summary>
+    public void RegistrarOrigenDesde(RespuestaSugerida sugerencia)
+    {
+        ArgumentNullException.ThrowIfNull(sugerencia);
+        ComprobarQueAdmiteOrigen();
+        if (sugerencia.Estado != EstadoRespuestaSugerida.Revisada)
+            throw new InvalidOperationException("Solo una respuesta sugerida revisada puede ser el origen de un mensaje enviado.");
+        if (sugerencia.ConversacionId != ConversacionId)
+            throw new InvalidOperationException("La respuesta sugerida es de otra conversación.");
+
+        OrigenContenido = sugerencia.Origen == OrigenRespuestaSugerida.Vega
+            ? OrigenContenidoMensaje.VegaRevisada
+            : OrigenContenidoMensaje.MacroRevisada;
+        RespuestaSugeridaId = sugerencia.Id;
+    }
+
+    private void ComprobarQueAdmiteOrigen()
+    {
+        if (Direccion != DireccionMensaje.Saliente || EsAutomatico)
+            throw new InvalidOperationException("Solo un mensaje saliente que envía una persona tiene origen del contenido.");
+        if (OrigenContenido is not null)
+            throw new InvalidOperationException("El origen del contenido de un mensaje se fija una sola vez.");
     }
 
     public AdjuntoMensaje AgregarAdjunto(string nombreArchivo, string tipoContenido, long tamanoBytes, string archivoUrl)
