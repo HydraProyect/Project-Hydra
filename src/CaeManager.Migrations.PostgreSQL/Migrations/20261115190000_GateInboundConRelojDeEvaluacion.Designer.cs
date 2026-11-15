@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115190000_GateInboundConInstanteDeSentencia")]
-    partial class GateInboundConInstanteDeSentencia
+    [Migration("20261115190000_GateInboundConRelojDeEvaluacion")]
+    partial class GateInboundConRelojDeEvaluacion
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

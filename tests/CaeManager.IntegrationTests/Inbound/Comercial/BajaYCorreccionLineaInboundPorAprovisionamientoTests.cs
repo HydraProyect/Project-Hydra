@@ -486,7 +486,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
 
     /// <summary>
     /// El predicado del gate DN-7 de <c>app_inbound_tenant_contratista_del_contrato</c>, para el Tenant TCE. La función real,
-    /// con una transacción lectora anterior a la corrección, la prueba <c>LecturaInboundBajoRuntimeTests</c>.
+    /// con una transacción o una consulta interna lectoras anteriores a la corrección, la prueba <c>LecturaInboundBajoRuntimeTests</c>.
     /// </summary>
     private async Task<bool> GateInboundVeVigenteAsync(NpgsqlConnection conexion)
     {
@@ -495,7 +495,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
             SELECT EXISTS (SELECT 1 FROM public."ProductosContratados" pc
                             WHERE pc."TenantId" = @tenant AND pc."Linea" = 'Inbound'
                               AND pc."Estado" = 'Vigente' AND NOT pc."EstaEliminado"
-                              AND pc."VigenteDesdeUtc" <= pg_catalog.statement_timestamp());
+                              AND pc."VigenteDesdeUtc" <= pg_catalog.clock_timestamp());
             """, conexion);
         comando.Parameters.AddWithValue("tenant", _tce.Id);
         return (bool)(await comando.ExecuteScalarAsync())!;

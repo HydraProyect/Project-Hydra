@@ -108,8 +108,9 @@ public class CorregirLineaInboundCommandHandler(
             // now() de esta transacción en la base, que devuelve la finalización. No el reloj de la aplicación: con él
             // adelantado, la nueva empezaría después del instante con el que el gate DN-7 compara, y tras el COMMIT no
             // habría línea Inbound que el gate viera vigente (hallazgo 1 de Codex, ronda 1). El gate compara con el
-            // statement_timestamp() de la sentencia lectora (GateInboundConInstanteDeSentencia), posterior a este COMMIT
-            // si su instantánea lo ve: también una transacción lectora iniciada antes que esta ve la nueva (ronda 3).
+            // clock_timestamp() del momento en que se evalúa (GateInboundConRelojDeEvaluacion): now() de esta transacción
+            // < COMMIT < instantánea lectora ≤ clock_timestamp(), así que toda lectura cuya instantánea ve este COMMIT ve
+            // la nueva vigente, aunque su transacción o su sentencia exterior empezaran antes (rondas 3 y 4).
             var ahora = finalizacion.VigenteHastaUtc
                         ?? throw new InvalidOperationException("La finalización no devolvió su fin de vigencia.");
 

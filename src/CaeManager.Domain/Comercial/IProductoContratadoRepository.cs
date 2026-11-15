@@ -27,9 +27,9 @@ public interface IProductoContratadoRepository
     /// Finaliza el Producto Contratado de la línea Inbound vigente del Tenant activo y deja su registro de auditoría. El
     /// fin de vigencia es el <c>now()</c> de la transacción de la base, no el reloj de la aplicación: es el mismo instante
     /// con el que la base comprueba el margen de las políticas, y es anterior al COMMIT, así que el gate DN-7, que compara
-    /// el inicio de una contratación con el <c>statement_timestamp()</c> de la sentencia lectora, cuenta como vigente la
+    /// el inicio de una contratación con el <c>clock_timestamp()</c> del momento en que se evalúa, cuenta como vigente la
     /// que lo use como inicio en cuanto la vea confirmada. La corrección lo usa así, sin que un desfase de relojes la deje
-    /// fuera del gate (hallazgo 1 de Codex, rondas 1 y 3). Lo devuelve en <see cref="FinalizacionInbound.VigenteHastaUtc"/>.
+    /// fuera del gate (hallazgo 1 de Codex, rondas 1, 3 y 4). Lo devuelve en <see cref="FinalizacionInbound.VigenteHastaUtc"/>.
     /// Escribe en el acto, así que el llamador lo envuelve en una transacción si tiene que ir junto con otra escritura. El
     /// contexto no puede tener cambios pendientes: si los tiene, no escribe nada y lanza
     /// <see cref="InvalidOperationException"/>. No pasa por <see cref="ProductoContratado.Finalizar"/> porque el rol

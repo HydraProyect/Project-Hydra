@@ -1047,7 +1047,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
 
-        // La auxiliar vigente ya no es la de esta migración: GateInboundConInstanteDeSentencia le cambió el reloj del gate, y
+        // La auxiliar vigente ya no es la de esta migración: GateInboundConRelojDeEvaluacion le cambió el reloj del gate, y
         // su propia prueba comprueba que solo cambia eso. Aquí se parte del cuerpo que deja el Up de B-05.
         await EjecutarAsync(conexion, transaccion, DeLaAuxiliar(migracion.UpOperations));
         var vigente = await TenantContratistaDelContratoAsync(conexion, transaccion);
@@ -1082,22 +1082,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             await fijar.ExecuteNonQueryAsync();
         (await EvaluarTenantContratistaAsync(lectora, lectura)).Should().Be(_contratista.Id, "control: antes, la línea vigente cuenta");
 
-        await using (var escritora = new NpgsqlConnection(_cadena))
-        {
-            await escritora.OpenAsync();
-            await using var escritura = await escritora.BeginTransactionAsync();
-            await EjecutarAsync(escritora, escritura,
-                $"""UPDATE public."ProductosContratados" SET "Estado" = 'Finalizado', "VigenteHastaUtc" = now() WHERE "Id" = '{_lineaInbound}';""");
-            if (corregir)
-                await EjecutarAsync(escritora, escritura,
-                    $"""
-                    INSERT INTO public."ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
-                        "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
-                    VALUES ('{Guid.NewGuid()}', 'Inbound', '{PagadorDelLector}', 'De11A40', 'Anual', now(), NULL, 'Vigente',
-                        '{_lector.Id}', '{Guid.NewGuid()}', now(), false);
-                    """);
-            await escritura.CommitAsync();
-        }
+        await CorregirODarDeBajaConfirmadoAsync(corregir);
 
         await using (var vigentes = new NpgsqlCommand(
                          $"""
@@ -1115,11 +1100,182 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         await lectura.RollbackAsync();
     }
 
-    [Fact]
-    public async Task La_migracion_del_instante_de_sentencia_solo_cambia_el_reloj_del_gate_y_su_Down_lo_restaura()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Una_lectura_publica_cuya_consulta_interna_se_evalua_tras_la_correccion_sigue_autorizada_y_tras_una_baja_no(bool corregir)
     {
-        // Opción B del 2026-11-15 (hallazgo 1 de Codex, ronda 3, en la #2256): el gate compara con statement_timestamp().
-        var migracion = new GateInboundConInstanteDeSentencia();
+        // Hallazgo 1 de Codex, ronda 4, en la #2256: la función pública real, bajo cae_app_runtime con contexto firmado.
+        // Una sentencia exterior (el DO) empieza, se retiene en un candado consultivo, y mientras tanto la escritora corrige
+        // o da de baja y confirma. Solo entonces la consulta interna llama a app_inbound_documentos_autorizados, que es
+        // PL/pgSQL VOLATILE: su instantánea ve el COMMIT, pero statement_timestamp() sigue siendo el inicio del DO, anterior
+        // al inicio de la corregida. Con statement_timestamp() (o now()) en el gate, la corrección dejaría la lectura vacía.
+        // Sin tiempos: la escritora solo empieza cuando la lectora ya espera el candado (pg_locks).
+        var clave = Random.Shared.NextInt64(1, long.MaxValue);
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        await contexto.Database.OpenConnectionAsync();
+        var lectora = (NpgsqlConnection)contexto.Database.GetDbConnection();
+        var documentosAntes = await DocumentosAutorizadosEnSesionAsync(lectora);
+        documentosAntes.Should().BePositive("control: antes, el contrato vigente con la línea Inbound da lectura");
+        int pidLectora;
+        await using (var pid = new NpgsqlCommand("SELECT pg_backend_pid()", lectora))
+            pidLectora = (int)(await pid.ExecuteScalarAsync())!;
+
+        await using var bloqueo = new NpgsqlConnection(_cadena);
+        await bloqueo.OpenAsync();
+        await EjecutarSinTransaccionAsync(bloqueo, $"SELECT pg_advisory_lock({clave})");
+
+        var lectura = EjecutarSinTransaccionAsync(lectora,
+            $"""
+            DO $$
+            BEGIN
+              PERFORM pg_catalog.pg_advisory_lock({clave});
+              PERFORM pg_catalog.set_config('prueba.inicio_sentencia', pg_catalog.statement_timestamp()::text, false);
+              PERFORM pg_catalog.set_config('prueba.documentos',
+                  (SELECT count(*)::text FROM public.app_inbound_documentos_autorizados('{_vigente.Id}'::uuid)), false);
+              PERFORM pg_catalog.pg_advisory_unlock({clave});
+            END
+            $$;
+            """);
+        await EsperarAQueEspereElCandadoAsync(bloqueo, pidLectora, lectura);
+
+        var nueva = await CorregirODarDeBajaConfirmadoAsync(corregir);
+        await EjecutarSinTransaccionAsync(bloqueo, $"SELECT pg_advisory_unlock({clave})");
+        await lectura;
+
+        if (nueva is { } id)
+            (await EmpiezaDespuesDeAsync(id, await LeerAjusteAsync(lectora, "prueba.inicio_sentencia"))).Should().BeTrue(
+                "control: la corregida empieza después del statement_timestamp() de la sentencia exterior");
+        long.Parse(await LeerAjusteAsync(lectora, "prueba.documentos"), System.Globalization.CultureInfo.InvariantCulture)
+            .Should().Be(corregir ? documentosAntes : 0,
+                corregir
+                    ? "sin hueco: la consulta interna que ve la corrección confirmada cuenta la corregida"
+                    : "tras la baja confirmada, ninguna línea vigente da lectura");
+    }
+
+    [Fact]
+    public async Task Una_instantanea_que_aun_no_ve_la_correccion_sigue_viendo_la_sustituida_vigente_y_no_la_nueva()
+    {
+        // Caso inverso (contrato de la coordinadora, ronda 5): clock_timestamp() no concede nada que la instantánea no vea.
+        // La lectora en REPEATABLE READ fija su instantánea antes de la corrección; tras el COMMIT, la hora ya pasó el inicio
+        // de la corregida, pero para esa instantánea la corrección no existe. Cuenta la sustituida porque la ve Vigente, y
+        // no la nueva porque no está confirmada para ella: la razón es la visibilidad, no la hora.
+        await using var lectora = new NpgsqlConnection(_cadena);
+        await lectora.OpenAsync();
+        await using var lectura = await lectora.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        (await EvaluarTenantContratistaAsync(lectora, lectura)).Should().Be(_contratista.Id, "control: la instantánea queda fijada aquí");
+
+        var nueva = await CorregirODarDeBajaConfirmadoAsync(corregir: true);
+
+        (await LineasInboundVigentesAsync(lectora, lectura)).Should().Equal(new[] { _lineaInbound },
+            "la instantánea anterior ve la sustituida Vigente y no ve la corregida");
+        (await EvaluarTenantContratistaAsync(lectora, lectura)).Should().Be(_contratista.Id,
+            "cuenta la sustituida, que para esta instantánea sigue vigente");
+        await lectura.RollbackAsync();
+
+        await using var despues = new NpgsqlConnection(_cadena);
+        await despues.OpenAsync();
+        await using var nuevaLectura = await despues.BeginTransactionAsync();
+        (await LineasInboundVigentesAsync(despues, nuevaLectura)).Should().Equal(new[] { nueva!.Value },
+            "control: una instantánea posterior al COMMIT solo ve la corregida");
+        await nuevaLectura.RollbackAsync();
+    }
+
+    /// <summary>
+    /// Lo que hacen <c>CorregirLineaInboundCommand</c> y <c>DarDeBajaLineaInboundCommand</c>, en una transacción propia
+    /// confirmada: fin de la línea vigente del lector y, al corregir, la nueva con el inicio en el <c>now()</c> de esa
+    /// transacción. Devuelve el Id de la nueva, o null tras una baja.
+    /// </summary>
+    private async Task<Guid?> CorregirODarDeBajaConfirmadoAsync(bool corregir)
+    {
+        Guid? nueva = corregir ? Guid.NewGuid() : null;
+        await using var escritora = new NpgsqlConnection(_cadena);
+        await escritora.OpenAsync();
+        await using var escritura = await escritora.BeginTransactionAsync();
+        await EjecutarAsync(escritora, escritura,
+            $"""UPDATE public."ProductosContratados" SET "Estado" = 'Finalizado', "VigenteHastaUtc" = now() WHERE "Id" = '{_lineaInbound}';""");
+        if (nueva is { } id)
+            await EjecutarAsync(escritora, escritura,
+                $"""
+                INSERT INTO public."ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
+                    "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
+                VALUES ('{id}', 'Inbound', '{PagadorDelLector}', 'De11A40', 'Anual', now(), NULL, 'Vigente',
+                    '{_lector.Id}', '{Guid.NewGuid()}', now(), false);
+                """);
+        await escritura.CommitAsync();
+        return nueva;
+    }
+
+    private async Task<List<Guid>> LineasInboundVigentesAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            $"""
+            SELECT "Id" FROM public."ProductosContratados"
+             WHERE "TenantId" = '{_lector.Id}' AND "Linea" = 'Inbound' AND "Estado" = 'Vigente' AND NOT "EstaEliminado"
+            """, conexion, transaccion);
+        var ids = new List<Guid>();
+        await using var filas = await comando.ExecuteReaderAsync();
+        while (await filas.ReadAsync())
+            ids.Add(filas.GetGuid(0));
+        return ids;
+    }
+
+    private async Task<bool> EmpiezaDespuesDeAsync(Guid producto, string instante)
+    {
+        // La comparación la hace la base, con los dos instantes en timestamptz: sin conversiones de texto en .NET.
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            """SELECT "VigenteDesdeUtc" > @instante::timestamptz FROM public."ProductosContratados" WHERE "Id" = @producto""", conexion);
+        comando.Parameters.AddWithValue("instante", instante);
+        comando.Parameters.AddWithValue("producto", producto);
+        return (bool)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private async Task<long> DocumentosAutorizadosEnSesionAsync(NpgsqlConnection conexion)
+    {
+        await using var comando = new NpgsqlCommand(
+            $"SELECT count(*) FROM public.app_inbound_documentos_autorizados('{_vigente.Id}'::uuid)", conexion);
+        return (long)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private static async Task EjecutarSinTransaccionAsync(NpgsqlConnection conexion, string sql)
+    {
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<string> LeerAjusteAsync(NpgsqlConnection conexion, string nombre)
+    {
+        await using var comando = new NpgsqlCommand($"SELECT current_setting('{nombre}')", conexion);
+        return (string)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private static async Task EsperarAQueEspereElCandadoAsync(NpgsqlConnection observadora, int pid, Task lectura)
+    {
+        // Sondeo del catálogo, no un tiempo fijo: termina en cuanto la lectora espera el candado consultivo.
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        while (true)
+        {
+            if (lectura.IsCompleted)
+            {
+                await lectura; // propaga el error de la lectora, si lo hubo
+                throw new InvalidOperationException("La lectora terminó sin quedar retenida en el candado consultivo.");
+            }
+            await using (var espera = new NpgsqlCommand(
+                             $"SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND pid = {pid}", observadora))
+                if ((long)(await espera.ExecuteScalarAsync())! == 1)
+                    return;
+            DateTime.UtcNow.Should().BeBefore(limite, "la lectora no llegó a esperar el candado");
+            await Task.Delay(20);
+        }
+    }
+
+    [Fact]
+    public async Task La_migracion_del_reloj_de_evaluacion_solo_cambia_el_reloj_del_gate_y_su_Down_lo_restaura()
+    {
+        // Opción B del 2026-11-15 (hallazgo 1 de Codex, rondas 3 y 4, en la #2256): el gate compara con clock_timestamp().
+        var migracion = new GateInboundConRelojDeEvaluacion();
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
@@ -1135,8 +1291,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         anterior.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
         GateLineaInbound.Matches(anterior.Definicion).Should().HaveCount(1, "el Down vuelve al gate con el now() de B-05");
         GateLineaInbound.Matches(vigente.Definicion).Should().BeEmpty("el gate vigente ya no compara con now()");
-        vigente.Definicion.Should().Contain("""pc."VigenteDesdeUtc" <= pg_catalog.statement_timestamp());""");
-        vigente.Definicion.Replace("pg_catalog.statement_timestamp()", "pg_catalog.now()").Should().Be(anterior.Definicion,
+        vigente.Definicion.Should().Contain("""pc."VigenteDesdeUtc" <= pg_catalog.clock_timestamp());""");
+        vigente.Definicion.Should().Contain(" STABLE", "la función del gate sigue siendo STABLE: usa la instantánea de quien la llama");
+        vigente.Definicion.Replace("pg_catalog.clock_timestamp()", "pg_catalog.now()").Should().Be(anterior.Definicion,
             "fuera del reloj del gate, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
 
         await transaccion.RollbackAsync();

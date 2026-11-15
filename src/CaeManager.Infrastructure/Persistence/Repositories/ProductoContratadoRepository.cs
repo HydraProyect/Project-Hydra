@@ -98,7 +98,7 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
             return new FinalizacionInbound(ResultadoFinalizacionInbound.SinInboundVigente, null);
 
         // El fin es el now() de la transacción (el inicio de la transacción en PostgreSQL): el mismo que usa el WITH CHECK
-        // de las políticas, y anterior a cualquier statement_timestamp() lector que vea el COMMIT (gate DN-7). Dentro de la
+        // de las políticas, y anterior a cualquier clock_timestamp() lector que vea el COMMIT (gate DN-7). Dentro de la
         // transacción del comando, la corrección inserta la nueva con ese mismo instante como inicio.
         var vigenteHastaUtc = DateTime.SpecifyKind(
             await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),
