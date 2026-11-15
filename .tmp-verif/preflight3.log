@@ -1,0 +1,34 @@
+﻿OK  La rama contiene el ultimo origin/main.
+>>> Restaurar dependencias
+OK  Restaurar dependencias (3 s)
+>>> Compilar (warnings como errores)
+OK  Compilar (warnings como errores) (83 s)
+>>> Formato (verify-no-changes)
+OK  Formato (verify-no-changes) (275 s)
+>>> Tests de Domain
+OK  Tests de Domain [2350 pruebas] (5 s)
+>>> Tests de Application
+OK  Tests de Application [7531 pruebas] (42 s)
+>>> Tests de Architecture (ratchets)
+OK  Tests de Architecture (ratchets) [1596 pruebas] (268 s)
+>>> Tests de Web (bUnit)
+OK  Tests de Web (bUnit) [12409 pruebas] (139 s)
+>>> Gobernanza del cuerpo de la PR
+OK        No toca deploy/bootstrap/roles-de-cluster.sql : la regla no aplica.
+PROBLEMA  La seccion 'Revision Codex' no da el veredicto contable: falta 'sin hallazgos' o 'aceptados N, rechazados M' (con numeros, en una sola linea).
+
+Problemas: 1
+
+=== Resumen preflight-pr ===
+Restaurar dependencias                   PASA            3 s
+Compilar (warnings como errores)         PASA           83 s
+Formato (verify-no-changes)              PASA          275 s
+Tests de Domain [2350 pruebas]           PASA            5 s
+Tests de Application [7531 pruebas]      PASA           42 s
+Tests de Architecture (ratchets) [1596 pruebas] PASA          268 s
+Tests de Web (bUnit) [12409 pruebas]     PASA          139 s
+Gobernanza del cuerpo de la PR           FALLA           0 s
+Tiempo total: 13:37 (818 s)
+Logs de esta ejecucion: C:\Users\chris\AppData\Local\Temp\preflight-pr\agent-af2f65eb4cc0949b7-20261112-224710-38324
+
+PREFLIGHT-PR: FALLA - Gobernanza del cuerpo de la PR (1 problema/s)

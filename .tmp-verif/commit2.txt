@@ -1,0 +1,5 @@
+test(drawer): la prueba de dialogo-foco carga el módulo por data: URL; TestResults/ fuera de git
+
+Revisión puente: el import por URL de fichero dependía de cómo trate Node un .js con export fuera de un paquete module (mismo patrón que trazaSoporte.test.mjs), y las trazas de Playwright de un E2E fallido en local no deben poder colarse en un commit.
+
+Refs #2194

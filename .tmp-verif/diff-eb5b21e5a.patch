@@ -1,0 +1,534 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c539556d3..e9875c929 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1689,7 +1689,9 @@ jobs:
+             >> /tmp/diagnostico-e2e/manifiesto.txt
+ 
+       # TestResults entero, no solo el .trx: tras un cuelgue cortado por
+-      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
++      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>, y los
++      # tests que usan TrazaAlFallar dejan su traza de Playwright (capturas e
++      # instantáneas del DOM) en TestResults/trazas-playwright/ (#2194).
+       # cancelled() se suma a failure() para cubrir también el job cortado
+       # por su timeout-minutes o cancelado a mano, como el del 2026-10-26.
+       - name: Publicar logs de CaeManager.Web si el E2E falla
+diff --git a/src/CaeManager.Web/wwwroot/js/dialogo-foco.js b/src/CaeManager.Web/wwwroot/js/dialogo-foco.js
+index fc3abca51..5c2d2aea6 100644
+--- a/src/CaeManager.Web/wwwroot/js/dialogo-foco.js
++++ b/src/CaeManager.Web/wwwroot/js/dialogo-foco.js
+@@ -17,7 +17,15 @@ export function atraparFoco(contenedor, devolverFila = false) {
+     // formulario) si existe; si el diálogo no tiene ninguno (solo texto y el
+     // botón de cerrar, que sí cuenta), cae al propio contenedor gracias al
+     // tabindex="-1" que ya trae el div del diálogo.
+-    (enfocables()[0] ?? contenedor).focus();
++    //
++    // Solo si el foco aún no está dentro: la trampa se activa en
++    // OnAfterRenderAsync, tras un viaje de ida y vuelta al servidor, y para
++    // entonces el usuario (o Playwright, que rellena un campo de texto en dos
++    // pasos: enfocar y luego insertar) puede estar ya escribiendo en un campo
++    // del diálogo. Moverle el foco al primer enfocable le quitaría el campo a
++    // media escritura y el texto se perdería (#2194).
++    if (!contenedor.contains(document.activeElement))
++        (enfocables()[0] ?? contenedor).focus();
+ 
+     function manejarTab(evento) {
+         // Un manejador interno que ya gestionó el Tab (p. ej. el salto de grupo del buscador global) manda.
+diff --git a/tests/CaeManager.E2ETests/AtajosFicha360Tests.cs b/tests/CaeManager.E2ETests/AtajosFicha360Tests.cs
+index 3ae17ab2d..5e73516a4 100644
+--- a/tests/CaeManager.E2ETests/AtajosFicha360Tests.cs
++++ b/tests/CaeManager.E2ETests/AtajosFicha360Tests.cs
+@@ -167,8 +167,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
+                     .SelectOptionAsync(new SelectOptionValue { Label = $"{centro} ({clienteEmpresarial})" });
+                 await selectorTipo.SelectOptionAsync(tipos[i]);
+                 await drawer.GetByLabel("Resultado", new() { Exact = true }).SelectOptionAsync("NoEncontrado");
+-                await drawer.GetByLabel("Fecha de verificación", new() { Exact = true })
+-                    .FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
++                await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de verificación", new() { Exact = true }), Ayudas.HoyDeNegocio());
+                 await drawer.Locator("input[type='file']").SetInputFilesAsync(rutaPdf);
+                 // La evidencia se lee a memoria por el circuito: el formulario enseña su nombre cuando ya llegó.
+                 await Assertions.Expect(drawer).ToContainTextAsync($"Adjunto: {Path.GetFileName(rutaPdf)}");
+diff --git a/tests/CaeManager.E2ETests/Ayudas.cs b/tests/CaeManager.E2ETests/Ayudas.cs
+index 7146ec035..072f69284 100644
+--- a/tests/CaeManager.E2ETests/Ayudas.cs
++++ b/tests/CaeManager.E2ETests/Ayudas.cs
+@@ -49,6 +49,19 @@ public static class Ayudas
+     public static DateOnly HoyDeNegocio() =>
+         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid")).DateTime);
+ 
++    /// <summary>
++    /// Rellena un CampoFecha (texto dd/mm/aaaa con máscara, #2185) con la fecha en ISO, como hacían los tests con el
++    /// antiguo <c>input type="date"</c>, y comprueba que el campo muestra la fecha ya enmascarada. Con un campo de texto
++    /// Playwright rellena en dos pasos (enfocar y luego insertar); si algo mueve el foco entre ambos (la trampa de foco de
++    /// un Drawer o un Modal que se activa tarde, #2194) el texto se pierde, y esta comprobación lo dice en el paso en que
++    /// ocurre en vez de dejarlo para un «Las fechas no son válidas» al guardar.
++    /// </summary>
++    public static async Task RellenarFechaAsync(ILocator campo, DateOnly fecha)
++    {
++        await campo.FillAsync(fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
++        await Assertions.Expect(campo).ToHaveValueAsync(fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
++    }
++
+     /// <summary>
+     /// Nombre del tenant Cliente Delegante que DelegacionDemoSeeder siembra
+     /// para el Administrador inicial (ver esa clase en
+diff --git a/tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs b/tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs
+index 73b9f0c1c..854d9458d 100644
+--- a/tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs
++++ b/tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs
+@@ -73,7 +73,7 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
+             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+             // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe
+             // después. La vigencia queda sin confirmar, que no impide guardar; la corrección es el archivo nuevo.
+-            await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
++            await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
+             await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+             try
+             {
+diff --git a/tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs b/tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs
+index 34b6cbb3c..4151bc408 100644
+--- a/tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs
++++ b/tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs
+@@ -218,8 +218,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
+         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+ 
+         var hoy = Ayudas.HoyDeNegocio();
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(180));
+ 
+         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+         try
+diff --git a/tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs b/tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs
+index 519c5b3a3..0f0436be2 100644
+--- a/tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs
++++ b/tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs
+@@ -76,8 +76,8 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
+         await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
+ 
+         var hoy = Ayudas.HoyDeNegocio();
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
+ 
+         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+         try
+diff --git a/tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs b/tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs
+index de5587971..fc11c0f2a 100644
+--- a/tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs
++++ b/tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs
+@@ -156,8 +156,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
+         await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), nombreTipoDocumento);
+ 
+         var hoy = Ayudas.HoyDeNegocio();
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
+ 
+         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+         try
+@@ -336,8 +336,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
+         // emisión es ANTERIOR). Se extiende el vencimiento, muy por encima del
+         // umbral ámbar (30 días, ver ParametroSistemaSeedData) para que el
+         // badge cambie de verdad a "Vigente" y no se quede en "Próximo".
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(400).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(400));
+         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+ 
+diff --git a/tests/CaeManager.E2ETests/FlujoCriticoTests.cs b/tests/CaeManager.E2ETests/FlujoCriticoTests.cs
+index fd22acdd1..bd0ed44d6 100644
+--- a/tests/CaeManager.E2ETests/FlujoCriticoTests.cs
++++ b/tests/CaeManager.E2ETests/FlujoCriticoTests.cs
+@@ -117,8 +117,8 @@ public class FlujoCriticoTests(WebAppFixture fixture)
+         // Exact: true — sin esto, GetByLabel hace match por substring y también
+         // resuelve el botón "Copiar fecha de emisión a vencimiento" (mismo
+         // patrón que "Trabajador" más arriba, ver DrawerGestionDocumento.razor).
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(10).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(10));
+ 
+         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco();
+         try
+diff --git a/tests/CaeManager.E2ETests/FlujoRetencionTests.cs b/tests/CaeManager.E2ETests/FlujoRetencionTests.cs
+index 586bd6f6e..b407c35ae 100644
+--- a/tests/CaeManager.E2ETests/FlujoRetencionTests.cs
++++ b/tests/CaeManager.E2ETests/FlujoRetencionTests.cs
+@@ -73,7 +73,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
+ 
+         var modalAutorizar = page.GetByRole(AriaRole.Dialog, new() { Name = "Autorizar la destrucción", Exact = true });
+         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+-        await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(modalAutorizar.GetByLabel("Fecha de ejecución"), Ayudas.HoyDeNegocio());
+         await modalAutorizar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
+         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+ 
+diff --git a/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs b/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs
+index 2ff5799be..b63d813f0 100644
+--- a/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs
++++ b/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs
+@@ -174,6 +174,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
+         var vencidaEnPlataformaB = await IdAcreditacionAsync(TrabajadorB, estado: 2);
+ 
+         await using var contexto = await fixture.Browser.NewContextAsync();
++        await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
+         var page = await contexto.NewPageAsync();
+         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+ 
+@@ -220,7 +221,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
+         await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(Ayudas.GenerarPdfDePruebaEnDisco("formacion-corregida.pdf"));
+         await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync();
+         // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe después.
+-        await drawer.GetByLabel("Fecha de emisión", new() { Exact = true }).FillAsync(hoy.AddDays(-1).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new() { Exact = true }), hoy.AddDays(-1));
+         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+         await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
+         // Renovar con archivo crea un Documento nuevo (D8): la acreditación Rechazada es del anterior, que pasa al
+@@ -241,8 +242,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
+         var selectCentro = drawerVisita.GetByLabel("Centro", new() { Exact = true });
+         var valorCentro = await selectCentro.GetByRole(AriaRole.Option, new() { Name = CentroB }).GetAttributeAsync("value");
+         await selectCentro.SelectOptionAsync(new SelectOptionValue { Value = valorCentro! });
+-        await drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
+-        await drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }), fechaVisita);
++        await Ayudas.RellenarFechaAsync(drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }), fechaVisita);
+         // CrearVisitaCommandValidator exige al menos un Trabajador que entre.
+         await drawerVisita.GetByLabel(NombreCompletoTrabajadorB, new() { Exact = true }).CheckAsync();
+         await drawerVisita.GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+@@ -273,7 +274,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
+         var dialogoVigencia = page.GetByRole(AriaRole.Dialog, new() { Name = "Anotar vigencia", Exact = true });
+         await dialogoVigencia.GetByLabel("¿Hasta cuándo vale en esta plataforma?", new() { Exact = true })
+             .SelectOptionAsync(new SelectOptionValue { Value = "VenceEnFecha" });
+-        await dialogoVigencia.GetByLabel("Fecha de vencimiento", new() { Exact = true }).FillAsync(hoy.AddMonths(6).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(dialogoVigencia.GetByLabel("Fecha de vencimiento", new() { Exact = true }), hoy.AddMonths(6));
+         await dialogoVigencia.GetByRole(AriaRole.Button, new() { Name = "Guardar vigencia", Exact = true }).ClickAsync();
+         await Expect(dialogoVigencia).ToBeHiddenAsync();
+ 
+@@ -290,6 +291,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
+         // La cola sigue siendo de toda la cartera: la Rechazada de A no se ha tocado.
+         await FiltrarColaAsync(page, TrabajadorA);
+         await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
++        traza.Superada();
+     }
+ 
+     [Fact]
+diff --git a/tests/CaeManager.E2ETests/SubidaMasivaTests.cs b/tests/CaeManager.E2ETests/SubidaMasivaTests.cs
+index 826ae4b79..34451a245 100644
+--- a/tests/CaeManager.E2ETests/SubidaMasivaTests.cs
++++ b/tests/CaeManager.E2ETests/SubidaMasivaTests.cs
+@@ -116,7 +116,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
+             await Expect(item).ToContainTextAsync("Pendiente de confirmar");
+             await Expect(item).Not.ToContainTextAsync("Creado tras confirmar");
+ 
+-            await confirmacion.GetByLabel("Fecha de emisión").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
++            await Ayudas.RellenarFechaAsync(confirmacion.GetByLabel("Fecha de emisión"), Ayudas.HoyDeNegocio());
+             await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Confirmar y crear", Exact = true }).ClickAsync();
+ 
+             await Expect(item).ToContainTextAsync("Creado", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+diff --git a/tests/CaeManager.E2ETests/TrazaAlFallar.cs b/tests/CaeManager.E2ETests/TrazaAlFallar.cs
+new file mode 100644
+index 000000000..49cba30f4
+--- /dev/null
++++ b/tests/CaeManager.E2ETests/TrazaAlFallar.cs
+@@ -0,0 +1,76 @@
++using System.Runtime.CompilerServices;
++using Microsoft.Playwright;
++
++namespace CaeManager.E2ETests;
++
++/// <summary>
++/// Traza de Playwright (capturas, instantáneas del DOM y acciones) que solo se conserva si el test falla (#2194). Se
++/// declara justo después del contexto, para que se libere antes que él, y el test llama a <see cref="Superada"/> en
++/// su última línea:
++/// <code>
++/// await using var contexto = await fixture.Browser.NewContextAsync();
++/// await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
++/// ...
++/// traza.Superada();
++/// </code>
++/// Si el test no llega a esa línea (una aserción o una excepción lo cortan), la traza se escribe en
++/// tests/CaeManager.E2ETests/TestResults/trazas-playwright/, que el paso «Publicar logs de CaeManager.Web si el E2E
++/// falla» de ci.yml ya sube como artefacto (sube TestResults entero). Se abre con
++/// <c>pwsh bin/Debug/net10.0/playwright.ps1 show-trace &lt;zip&gt;</c> o en trace.playwright.dev.
++/// </summary>
++public sealed class TrazaAlFallar : IAsyncDisposable
++{
++    private readonly IBrowserContext _contexto;
++    private readonly string _nombre;
++    private bool _superada;
++
++    private TrazaAlFallar(IBrowserContext contexto, string nombre)
++    {
++        _contexto = contexto;
++        _nombre = nombre;
++    }
++
++    public static async Task<TrazaAlFallar> IniciarAsync(
++        IBrowserContext contexto, [CallerMemberName] string prueba = "", [CallerFilePath] string archivo = "")
++    {
++        var nombre = $"{Path.GetFileNameWithoutExtension(archivo)}.{prueba}";
++        await contexto.Tracing.StartAsync(new TracingStartOptions { Title = nombre, Screenshots = true, Snapshots = true });
++        return new TrazaAlFallar(contexto, nombre);
++    }
++
++    /// <summary>El test llegó al final: la traza se descarta.</summary>
++    public void Superada() => _superada = true;
++
++    /// <summary>Ruta en la que se escribe la traza de un test fallido.</summary>
++    public static string Directorio()
++    {
++        var dir = AppContext.BaseDirectory;
++        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx"))) dir = Path.GetDirectoryName(dir);
++        return dir is null
++            ? Path.Combine(AppContext.BaseDirectory, "TestResults", "trazas-playwright")
++            : Path.Combine(dir, "tests", "CaeManager.E2ETests", "TestResults", "trazas-playwright");
++    }
++
++    public async ValueTask DisposeAsync()
++    {
++        try
++        {
++            if (_superada)
++            {
++                await _contexto.Tracing.StopAsync();
++                return;
++            }
++
++            var directorio = Directorio();
++            Directory.CreateDirectory(directorio);
++            var ruta = Path.Combine(directorio, $"{_nombre}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip");
++            await _contexto.Tracing.StopAsync(new TracingStopOptions { Path = ruta });
++            Console.WriteLine($"Traza de Playwright del test fallido: {ruta}");
++        }
++        catch (Exception excepcion) when (excepcion is PlaywrightException or IOException or UnauthorizedAccessException)
++        {
++            // El contexto o el navegador ya se cerraron (p. ej. el test falló porque se cayó el navegador) o no se pudo
++            // escribir el fichero: tapar con esto la excepción original del test sería peor que perder la traza.
++        }
++    }
++}
+diff --git a/tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs b/tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs
+index b2b76d128..bbd4895eb 100644
+--- a/tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs
++++ b/tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs
+@@ -34,6 +34,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
+         var correoCentro = $"acceso.{sufijo}@correo-simulado.local";
+ 
+         await using var contexto = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
++        await using var traza = await TrazaAlFallar.IniciarAsync(contexto);
+         await contexto.GrantPermissionsAsync(["clipboard-read", "clipboard-write"]);
+         var page = await contexto.NewPageAsync();
+ 
+@@ -162,8 +163,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
+         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+ 
+         var hoy = Ayudas.HoyDeNegocio();
+-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
+-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }), hoy);
++        await Ayudas.RellenarFechaAsync(drawer.GetByLabel("Fecha de vencimiento"), hoy.AddDays(180));
+         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco($"porcorreo-{sufijo}.pdf");
+         try
+         {
+@@ -309,6 +310,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
+         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
+         await Expect(filasTrabajador).ToHaveCountAsync(1);
+         await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);
++        traza.Superada();
+     }
+ 
+     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
+diff --git a/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.FilaSeRefresca.cs b/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.FilaSeRefresca.cs
+index 3f9ebc62a..783bc1c4b 100644
+--- a/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.FilaSeRefresca.cs
++++ b/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.FilaSeRefresca.cs
+@@ -29,7 +29,7 @@ public partial class VisitasFilaSinMenuE2ETests
+         await page.Keyboard.PressAsync("e");
+         var formulario = FormularioEdicion(page);
+         await Expect(formulario).ToBeVisibleAsync();
+-        await formulario.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fin.ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(formulario.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fin);
+         await formulario.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
+         await Expect(formulario).ToBeHiddenAsync();
+ 
+diff --git a/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs b/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs
+index 4d88c9ebb..104b1f235 100644
+--- a/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs
++++ b/tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs
+@@ -44,8 +44,8 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
+         var alta = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva visita", Exact = true });
+         await Expect(alta).ToBeVisibleAsync();
+         await alta.GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }).SelectOptionAsync(new SelectOptionValue { Index = 1 });
+-        await alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
+-        await alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }).FillAsync(fecha.ToString("yyyy-MM-dd"));
++        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }), fecha);
++        await Ayudas.RellenarFechaAsync(alta.GetByLabel("Fecha de fin", new LocatorGetByLabelOptions { Exact = true }), fecha);
+         // CrearVisitaCommandValidator exige al menos un Trabajador que entre, y no vale cualquiera: solo
+         // entran los de la Empresa del Centro o de sus Subcontratas (TrabajadoresAdmisiblesEnVisita). El
+         // selector ofrece toda la cartera hasta que, ya elegido el Centro, llega la consulta de sus
+diff --git a/tests/CaeManager.Web.Tests/DialogoFocoJsTests.cs b/tests/CaeManager.Web.Tests/DialogoFocoJsTests.cs
+new file mode 100644
+index 000000000..0b140c3e6
+--- /dev/null
++++ b/tests/CaeManager.Web.Tests/DialogoFocoJsTests.cs
+@@ -0,0 +1,47 @@
++using FluentAssertions;
++
++namespace CaeManager.Web.Tests;
++
++/// <summary>
++/// La trampa de foco de Modal, Drawer, Context Workspace, buscador global y diálogo de restablecer el menú
++/// (wwwroot/js/dialogo-foco.js) no corre en bUnit. js/dialogoFoco.test.mjs la evalúa con un document falso: al
++/// abrirse, el foco entra en el diálogo si estaba fuera y se queda donde está si ya estaba dentro (#2194).
++/// </summary>
++public class DialogoFocoJsTests
++{
++    [Fact]
++    public async Task La_trampa_de_foco_no_roba_el_foco_si_ya_esta_dentro_del_dialogo()
++    {
++        // Mismo patrón que CampoFechaTests: necesita Node; sin él esta prueba falla en vez de saltarse.
++        var dir = AppContext.BaseDirectory;
++        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx"))) dir = Path.GetDirectoryName(dir);
++        dir.Should().NotBeNull("se necesita la raíz del repositorio");
++        var prueba = Path.Combine(dir!, "tests", "CaeManager.Web.Tests", "js", "dialogoFoco.test.mjs");
++        File.Exists(prueba).Should().BeTrue();
++        var info = new System.Diagnostics.ProcessStartInfo("node", $"--test \"{prueba}\"")
++        {
++            RedirectStandardOutput = true,
++            RedirectStandardError = true,
++            UseShellExecute = false,
++        };
++        System.Diagnostics.Process proceso;
++        try { proceso = System.Diagnostics.Process.Start(info)!; }
++        catch (System.ComponentModel.Win32Exception ex)
++        {
++            throw new InvalidOperationException("Hace falta Node en el PATH para ejecutar js/dialogoFoco.test.mjs: " + ex.Message, ex);
++        }
++
++        using (proceso)
++        {
++            var salida = proceso.StandardOutput.ReadToEndAsync();
++            var error = proceso.StandardError.ReadToEndAsync();
++            var termino = proceso.WaitForExit(TimeSpan.FromSeconds(60));
++            if (!termino) proceso.Kill(entireProcessTree: true);
++            termino.Should().BeTrue("node --test no debe colgarse");
++            var textoSalida = await salida;
++            var textoError = await error;
++            proceso.ExitCode.Should().Be(0, "las pruebas de Node fallaron:\n" + textoSalida + textoError);
++            textoSalida.Should().MatchRegex(@"(?m)\bpass [1-9]\d*\s*$", "node --test debe haber ejecutado casos");
++        }
++    }
++}
+diff --git a/tests/CaeManager.Web.Tests/js/dialogoFoco.test.mjs b/tests/CaeManager.Web.Tests/js/dialogoFoco.test.mjs
+new file mode 100644
+index 000000000..d7166a65b
+--- /dev/null
++++ b/tests/CaeManager.Web.Tests/js/dialogoFoco.test.mjs
+@@ -0,0 +1,101 @@
++// Pruebas de src/CaeManager.Web/wwwroot/js/dialogo-foco.js con un document falso: al abrir un diálogo el foco entra en él,
++// pero si ya está dentro (el usuario o Playwright escribiendo en un campo antes de que la trampa se active) no se mueve (#2194).
++// Las ejecuta DialogoFocoJsTests (dotnet test) con el Node de la máquina, sin dependencias.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { pathToFileURL, fileURLToPath } from 'node:url';
++
++const ruta = fileURLToPath(new URL('../../../src/CaeManager.Web/wwwroot/js/dialogo-foco.js', import.meta.url));
++
++// El módulo lee `document` al llamarse, no al importarse: basta con fijar el global antes de cada llamada.
++const { atraparFoco } = await import(pathToFileURL(ruta).href);
++
++function elemento(nombre, documento, padre = null) {
++    const el = {
++        nombre,
++        padre,
++        hijos: [],
++        offsetParent: {},
++        oyentes: {},
++        focus() { documento.activeElement = el; },
++        contains(otro) {
++            for (let actual = otro; actual; actual = actual.padre) if (actual === el) return true;
++            return false;
++        },
++        addEventListener(tipo, f) { el.oyentes[tipo] = f; },
++        removeEventListener(tipo) { delete el.oyentes[tipo]; },
++        querySelectorAll() {
++            const todos = [];
++            const recorrer = (n) => { for (const h of n.hijos) { if (h.enfocable) todos.push(h); recorrer(h); } };
++            recorrer(el);
++            return todos;
++        },
++    };
++    if (padre) padre.hijos.push(el);
++    return el;
++}
++
++function escena({ conCampos = true } = {}) {
++    const documento = { activeElement: null, querySelector: () => null };
++    const cuerpo = elemento('body', documento);
++    documento.body = cuerpo;
++    documento.contains = (otro) => cuerpo.contains(otro);
++    const abridor = elemento('abridor', documento, cuerpo);
++    abridor.enfocable = true;
++    const dialogo = elemento('dialogo', documento, cuerpo);
++    let primero = null;
++    let fecha = null;
++    if (conCampos) {
++        primero = elemento('primero', documento, dialogo);
++        primero.enfocable = true;
++        fecha = elemento('fecha', documento, dialogo);
++        fecha.enfocable = true;
++    }
++    globalThis.document = documento;
++    globalThis.HTMLElement = Object;
++    return { documento, abridor, dialogo, primero, fecha };
++}
++
++test('con el foco fuera, al abrir el diálogo el foco entra en el primer enfocable', () => {
++    const { documento, abridor, dialogo, primero } = escena();
++    abridor.focus();
++    atraparFoco(dialogo);
++    assert.equal(documento.activeElement, primero);
++});
++
++test('con el foco ya en un campo del diálogo, la trampa no se lo quita (#2194)', () => {
++    const { documento, dialogo, fecha } = escena();
++    fecha.focus();
++    atraparFoco(dialogo);
++    assert.equal(documento.activeElement, fecha);
++});
++
++test('con el foco en el propio contenedor, no se mueve al primer campo', () => {
++    const { documento, dialogo } = escena();
++    dialogo.focus();
++    atraparFoco(dialogo);
++    assert.equal(documento.activeElement, dialogo);
++});
++
++test('sin enfocables y con el foco fuera, el foco cae en el contenedor', () => {
++    const { documento, abridor, dialogo } = escena({ conCampos: false });
++    abridor.focus();
++    atraparFoco(dialogo);
++    assert.equal(documento.activeElement, dialogo);
++});
++
++test('sin elemento activo, el foco entra en el diálogo', () => {
++    const { documento, dialogo, primero } = escena();
++    documento.activeElement = null;
++    atraparFoco(dialogo);
++    assert.equal(documento.activeElement, primero);
++});
++
++test('al liberar la trampa, el foco vuelve a quien abrió el diálogo', () => {
++    const { documento, abridor, dialogo } = escena();
++    abridor.focus();
++    const trampa = atraparFoco(dialogo);
++    trampa.dispose();
++    assert.equal(documento.activeElement, abridor);
++    assert.equal(dialogo.oyentes.keydown, undefined);
++});

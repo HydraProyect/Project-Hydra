@@ -1,0 +1,15 @@
+fix(drawer): la trampa de foco no roba el foco si ya está dentro; E2E de fechas comprueban el valor y guardan traza al fallar
+
+- dialogo-foco.js: atraparFoco solo mueve el foco al primer enfocable si
+  document.activeElement no está ya dentro del contenedor. La trampa se
+  activa tras un viaje al servidor y Playwright rellena un campo de texto
+  en dos pasos; entre ambos el foco saltaba y la fecha se perdía.
+  Prueba de Node (js/dialogoFoco.test.mjs) lanzada desde DialogoFocoJsTests.
+- E2E: Ayudas.RellenarFechaAsync rellena el CampoFecha y comprueba el valor
+  dd/mm/aaaa en el mismo paso, en todos los E2E que rellenan una fecha.
+- E2E: TrazaAlFallar guarda la traza de Playwright (capturas e instantáneas)
+  solo si el test falla, en TestResults/trazas-playwright/, que el artefacto
+  de logs del E2E ya publica. Activada en GestorCaeCarteraMultiTenantTests
+  (recorrido de cartera) y VisitaCentroGestionadoPorCorreoE2ETests.
+
+Refs #2194

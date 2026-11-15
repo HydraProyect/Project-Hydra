@@ -1,0 +1,6 @@
+﻿AVISO: la rama NO contiene el ultimo origin/main (le faltan 1 commits). Integralo antes de encolar: git merge origin/main (o git rebase origin/main si la rama aun no esta publicada) y repite el preflight.
+>>> Restaurar dependencias
+OK  Restaurar dependencias (13 s)
+>>> Compilar (warnings como errores)
+OK  Compilar (warnings como errores) (134 s)
+>>> Formato (verify-no-changes)
