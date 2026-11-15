@@ -8,7 +8,9 @@ namespace CaeManager.Application.ContratosAcceso.LecturaInbound;
 /// las funciones <c>SECURITY DEFINER</c> <c>app_inbound_*</c> de la base, que son las que garantizan las dos mitades del
 /// apretón de manos: el contrato es del Tenant lector del contexto firmado, está vigente hoy y está vinculado con el
 /// Tenant de la Empresa contratista, y ese Tenant concedió una autorización no revocada y vigente hoy a este lector y para
-/// este contrato. El Tenant lector y el usuario salen del contexto firmado de la conexión, nunca de un parámetro.
+/// este contrato. Además, el gate comercial DN-7: el Tenant lector, como Tenant beneficiario, tiene un Producto Contratado
+/// de la línea Inbound vigente; sin él no hay lectura (vacío o null, como sin autorización). El Tenant lector y el usuario
+/// salen del contexto firmado de la conexión, nunca de un parámetro.
 ///
 /// <para>
 /// <b>La función no sustituye a la cartera.</b> Quien llama decide antes la autoridad del usuario dentro de su Tenant
@@ -35,7 +37,8 @@ public interface ILectorDocumentosInbound
     /// <summary>
     /// La autorización del Tenant de la Empresa contratista para este contrato (la vigente si la hay; si no, la última
     /// concedida), para saber si se puede validar. Null si el contrato no es del Tenant lector, no está vigente hoy, no
-    /// está vinculado o no hay autorización para él. No deja traza: no lee ningún Documento.
+    /// está vinculado, el Tenant lector no tiene la línea Inbound vigente (DN-7) o no hay autorización para él. No deja
+    /// traza: no lee ningún Documento.
     /// </summary>
     Task<AutorizacionInboundDto?> AutorizacionDelContratoAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default);
 
