@@ -16,7 +16,7 @@ namespace CaeManager.Application.ContratosAcceso.Commands.VincularTenantContrati
 /// <b>Cómo conoce el Tenant del Cliente empresarial ese identificador está sin decidir (DN-1).</b> El comando lo recibe
 /// como parámetro y no hay pantalla que lo pida; este Tenant tampoco puede comprobar que el Tenant exista, porque no
 /// lo ve. Vincular solo no da lectura: la dan las funciones <c>app_inbound_*</c>, y solo con la autorización expresa y vigente del Tenant de la
-/// Empresa contratista.
+/// Empresa contratista y con la línea Inbound vigente en el Producto Contratado del Tenant del Cliente empresarial (DN-7).
 /// </para>
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]

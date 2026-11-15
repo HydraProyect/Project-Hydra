@@ -83,7 +83,7 @@ public class ModeloProductoContratadoTests
 
         var esperado = $"\"{columna}\" IN ({string.Join(", ", Enum.GetNames(enumeracion).Select(n => $"'{n}'"))})";
         check.Sql.Should().Be(esperado);
-        TextoUp().Should().Contain($"\"{restriccion}\"").And.Contain(esperado.Replace("\"", "\\\""));
+        TextoUpDeLaUltimaQueCrea(restriccion).Should().Contain(esperado.Replace("\"", "\\\""));
     }
 
     [Fact]
@@ -129,9 +129,27 @@ public class ModeloProductoContratadoTests
             "aditiva y compatible con la ranura anterior: solo una tabla nueva");
     }
 
-    private static string TextoUp()
+    /// <summary>
+    /// El Up de la última migración que crea el CHECK <paramref name="restriccion"/>: la que lo creó o la que lo amplió
+    /// después (AnadeLineaInboundProductoContratado, la línea Inbound). Un CHECK cambiado en el modelo sin migración nueva
+    /// sigue fallando, porque el Up más reciente no contiene la expresión nueva.
+    /// </summary>
+    private static string TextoUpDeLaUltimaQueCrea(string restriccion)
     {
-        var ruta = Path.Combine(Raiz(), "src", "CaeManager.Migrations.PostgreSQL", "Migrations", Migracion);
+        var carpeta = Path.Combine(Raiz(), "src", "CaeManager.Migrations.PostgreSQL", "Migrations");
+        var ultima = Directory.GetFiles(carpeta, "2*.cs")
+            .Where(f => !f.EndsWith(".Designer.cs", StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .Where(f => string.CompareOrdinal(Path.GetFileName(f), Migracion) >= 0)
+            .Where(f => File.ReadAllText(f).Contains($"\"{restriccion}\"", StringComparison.Ordinal))
+            .Select(f => Path.GetFileName(f))
+            .Last();
+        return TextoUp(ultima);
+    }
+
+    private static string TextoUp(string migracion = Migracion)
+    {
+        var ruta = Path.Combine(Raiz(), "src", "CaeManager.Migrations.PostgreSQL", "Migrations", migracion);
         var texto = File.ReadAllText(ruta);
         var inicio = texto.IndexOf("protected override void Up(", StringComparison.Ordinal);
         var fin = texto.IndexOf("protected override void Down(", StringComparison.Ordinal);

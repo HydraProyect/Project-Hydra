@@ -2,8 +2,10 @@ using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using CaeManager.Domain.Documentos;
@@ -90,6 +92,9 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             _contrato = ContratoAcceso.Crear(cliente.Id, centro.Id, contratistaLocal.Id, _hoy.AddDays(-10), null, null);
             _contrato.VincularTenantContratista(_contratista.Id);
             contexto.ContratosAcceso.Add(_contrato);
+            // DN-7: la lectura entre Tenants exige la línea Inbound vigente en X (LecturaInboundBajoRuntimeTests prueba el gate).
+            contexto.ProductosContratados.Add(ProductoContratado.Contratar(LineaProductoContratado.Inbound, "cus_PagadorDelLector",
+                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow));
             await contexto.SaveChangesAsync();
             (_cliente, _tipoFormacionX, _tipoAptitudX) = (cliente.Id, formacionX.Id, aptitudX.Id);
         }
