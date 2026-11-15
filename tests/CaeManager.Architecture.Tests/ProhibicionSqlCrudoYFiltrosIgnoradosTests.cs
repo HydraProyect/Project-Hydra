@@ -99,6 +99,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
+        // Reactivar una delegación bloquea su fila con FOR UPDATE antes de decidir por su estado (issue #2232): EF no
+        // expresa el bloqueo. Solo por Id, devuelve el Id; la tabla no lleva filtro global de EF y RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DelegacionTenantRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
