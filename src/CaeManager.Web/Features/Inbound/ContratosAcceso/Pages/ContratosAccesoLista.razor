@@ -160,8 +160,11 @@
                             </td>
                             <td>
                                 <SoloConEscritura>
-                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Href="@($"/inbound/contratos/{contrato.Id}?editar=true")" aria-label="@Textos["AccionEditarAria", fila.EmpresaNombre ?? Textos["EmpresaNoDisponible"].Value]">@Textos["AccionEditar"]</Boton>
-                                    @if (contrato.Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido)
+                                    @if (PuedeEditar(contrato))
+                                    {
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Href="@($"/inbound/contratos/{contrato.Id}?editar=true")" aria-label="@Textos["AccionEditarAria", fila.EmpresaNombre ?? Textos["EmpresaNoDisponible"].Value]">@Textos["AccionEditar"]</Boton>
+                                    }
+                                    @if (PuedeRenovar(contrato))
                                     {
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRenovar(fila)">@Textos["AccionRenovar"]</Boton>
                                     }
@@ -203,7 +206,7 @@
 
 <DialogoRenovarContrato Visible="_renovando is not null" VisibleChanged="CerrarRenovar" ContratoId="@(_renovando?.Contrato.Id ?? Guid.Empty)"
                         Version="@(_renovando?.Contrato.Version ?? Guid.Empty)" FinActual="@_renovando?.Contrato.FechaFin"
-                        Empresa="@_renovando?.EmpresaNombre" OnRenovado="RenovadoAsync" />
+                        Empresa="@_renovando?.EmpresaNombre" OnRenovado="RenovadoAsync" OnFallo="RefrescarTrasFalloAsync" />
 
 <AltaContratoAccesoDrawer Visible="_altaVisible" VisibleChanged="CerrarAlta" Origen="_origenAlta" OnCreado="AltaCreadaAsync" />
 </LimiteDeErrores>

@@ -74,6 +74,9 @@
     /// <summary>Se invoca cuando el comando salió bien; el padre recarga el contrato y avisa.</summary>
     [Parameter] public EventCallback OnGuardado { get; set; }
 
+    /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer el contrato para tener la Version vigente.</summary>
+    [Parameter] public EventCallback OnFallo { get; set; }
+
     private readonly Dictionary<string, string> _errores = [];
     private string _tipo = string.Empty;
     private string _propiaActividad = string.Empty;
@@ -137,6 +140,7 @@
             if (!resultado.EsExitoso)
             {
                 _mensajeError = resultado.Error.Mensaje;
+                await OnFallo.InvokeAsync();
                 return;
             }
 

@@ -346,7 +346,7 @@
     <value>Subcontractes</value>
   </data>
   <data name="KpiHastaNiveles" xml:space="preserve">
-    <value>Fins a {0} nivells</value>
+    <value>Fins al nivell {0}</value>
   </data>
   <data name="KpiNivelSinFijar" xml:space="preserve">
     <value>Nivell sense fixar</value>

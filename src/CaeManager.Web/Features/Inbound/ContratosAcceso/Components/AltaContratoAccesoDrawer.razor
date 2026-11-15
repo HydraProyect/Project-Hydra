@@ -199,9 +199,22 @@
         ];
 
         // Cada apertura parte de cero (o del contrato de origen) y vuelve a leer las opciones.
-        if (Visible && !_eraVisible)
-            await IniciarAsync();
+        // _eraVisible se fija antes del await: un re-render durante la carga no debe volver a iniciar el alta y borrar lo escrito.
+        var abriendo = Visible && !_eraVisible;
         _eraVisible = Visible;
+        if (abriendo)
+            await IniciarAsync();
+    }
+
+    // Un error de campo en un paso que no está a la vista no se puede corregir: se vuelve al paso del primer campo con error.
+    private void IrAlPasoDelError()
+    {
+        if (_errores.Count == 0)
+            return;
+
+        _paso = _errores.ContainsKey(nameof(CrearContratoAccesoCommand.EmpresaContratistaId)) ? PasoEmpresa
+            : _errores.Keys.Any(k => k is nameof(CrearContratoAccesoCommand.CentroId) or nameof(CrearContratoAccesoCommand.FechaInicio) or nameof(CrearContratoAccesoCommand.FechaFin)) ? PasoContrato
+            : _paso;
     }
 
     private async Task IniciarAsync()
@@ -331,6 +344,7 @@
             foreach (var grupo in ex.Errors.GroupBy(e => e.PropertyName))
                 _errores[grupo.Key] = grupo.First().ErrorMessage;
             _mensajeError = _errores.Count == 0 ? Textos["ErrorGuardar"].Value : null;
+            IrAlPasoDelError();
         }
         catch (Exception)
         {

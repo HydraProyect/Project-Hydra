@@ -177,6 +177,21 @@ public partial class ContratosAccesoLista
 
     private void AbrirRenovar(ContratoAccesoFila fila) => _renovando = fila;
 
+    // Editar condiciones solo vale en un contrato Pendiente de confirmar o Activo (FijarCondicionesContratoAccesoCommand).
+    private static bool PuedeEditar(ContratoAccesoDto c) => c.Estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Activo;
+
+    // Renovar mueve la fecha de fin: un Activo o Suspendido con fin contratado.
+    private static bool PuedeRenovar(ContratoAccesoDto c) => c.Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido && c.FechaFin is not null;
+
+    // Tras un error del comando (típicamente un conflicto de versión) se vuelve a leer la lista y el diálogo sigue con la Version vigente.
+    private async Task RefrescarTrasFalloAsync()
+    {
+        var id = _renovando?.Contrato.Id;
+        await CargarAsync();
+        if (id is { } contratoId && _todas.FirstOrDefault(f => f.Contrato.Id == contratoId) is { } vigente)
+            _renovando = vigente;
+    }
+
     private void CerrarRenovar(bool visible)
     {
         if (!visible)

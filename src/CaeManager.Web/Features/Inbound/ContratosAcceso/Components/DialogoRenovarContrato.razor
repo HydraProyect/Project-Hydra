@@ -31,6 +31,9 @@
     /// <summary>Se invoca con la nueva fecha cuando el comando salió bien; el padre recarga y avisa.</summary>
     [Parameter] public EventCallback<DateOnly> OnRenovado { get; set; }
 
+    /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer el contrato para tener la Version vigente.</summary>
+    [Parameter] public EventCallback OnFallo { get; set; }
+
     private DateOnly? _nuevaFecha;
     private bool _fechaNoValida;
     private string? _error;
@@ -77,6 +80,7 @@
             if (!resultado.EsExitoso)
             {
                 _error = resultado.Error.Mensaje;
+                await OnFallo.InvokeAsync();
                 return;
             }
 

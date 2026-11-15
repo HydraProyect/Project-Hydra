@@ -68,16 +68,19 @@
                     {
                         <Boton Variante="VarianteBoton.Secundario" OnClick="() => PedirAccion(AccionContrato.Finalizar)">@Textos["BotonFinalizar"]</Boton>
                     }
-                    <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
-                        @if (PuedeCancelar)
-                        {
-                            <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Cancelar)">@Textos["BotonCancelarContrato"]</ItemMenuAccion>
-                        }
-                        @if (PuedeEliminar)
-                        {
-                            <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Eliminar)">@Textos["BotonEliminar"]</ItemMenuAccion>
-                        }
-                    </MenuAcciones>
+                    @if (PuedeCancelar || PuedeEliminar)
+                    {
+                        <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
+                            @if (PuedeCancelar)
+                            {
+                                <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Cancelar)">@Textos["BotonCancelarContrato"]</ItemMenuAccion>
+                            }
+                            @if (PuedeEliminar)
+                            {
+                                <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Eliminar)">@Textos["BotonEliminar"]</ItemMenuAccion>
+                            }
+                        </MenuAcciones>
+                    }
                 </SoloConEscritura>
             </Acciones>
         </CabeceraIdentidad>
@@ -127,10 +130,10 @@
 @if (_fila is { } f)
 {
     <DialogoRenovarContrato Visible="_renovando" VisibleChanged="v => _renovando = v" ContratoId="@f.Contrato.Id" Version="@f.Contrato.Version"
-                            FinActual="@f.Contrato.FechaFin" Empresa="@f.EmpresaNombre" OnRenovado="RenovadoAsync" />
+                            FinActual="@f.Contrato.FechaFin" Empresa="@f.EmpresaNombre" OnRenovado="RenovadoAsync" OnFallo="RefrescarTrasFalloAsync" />
 
     <EditarCondicionesContratoDrawer Visible="_editandoCondiciones" VisibleChanged="v => _editandoCondiciones = v" Contrato="@f.Contrato"
-                                     OnGuardado="CondicionesGuardadasAsync" />
+                                     OnGuardado="CondicionesGuardadasAsync" OnFallo="RefrescarTrasFalloAsync" />
 
     <DialogoConfirmacion Visible="_accion != AccionContrato.Ninguna" VisibleChanged="CerrarAccion" Titulo="@TituloAccion" Mensaje="@MensajeAccion"
                          TextoBotonConfirmar="@TextoConfirmarAccion" TextoBotonDescartar="@Textos["BotonCancelar"]"

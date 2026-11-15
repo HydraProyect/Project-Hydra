@@ -2,7 +2,7 @@ namespace CaeManager.Web.Components.Layout;
 
 /// <summary>
 /// ¿Tiene el Tenant beneficiario activa la línea Inbound en su Producto Contratado? Es el gate de la sección «Inbound» del
-/// menú y de las pantallas de Inbound.
+/// menú lateral; las páginas de Inbound no lo comprueban y se apoyan en la autorización de sus Commands y Queries.
 ///
 /// <para>
 /// Puerto del Núcleo: el menú lateral no conoce a Inbound (ADR-013 § 4.1, regla 3), así que la interfaz vive aquí y Inbound

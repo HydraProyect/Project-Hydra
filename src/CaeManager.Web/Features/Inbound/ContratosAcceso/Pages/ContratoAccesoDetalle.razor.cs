@@ -34,6 +34,8 @@ public partial class ContratoAccesoDetalle
     /// <summary>Viene del botón «Editar» del listado: abre la edición de condiciones al cargar.</summary>
     [SupplyParameterFromQuery(Name = "editar")] public bool? Editar { get; set; }
 
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ResolutorContratosAcceso Resolutor { get; set; } = default!;
     [Inject] private IActividadDeContratoAcceso Actividad { get; set; } = default!;
@@ -70,11 +72,12 @@ public partial class ContratoAccesoDetalle
     // FijarCondiciones solo en un contrato Pendiente de confirmar o Activo (comentario de FijarCondicionesContratoAccesoCommand).
     private bool PuedeEditarCondiciones => Estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Activo;
 
-    private bool PuedeFinalizar => Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido;
+    // Finalizar solo desde Activo y con el contrato ya empezado (el cierre no puede ser anterior al inicio); un Suspendido no se finaliza.
+    private bool PuedeFinalizar => Estado == EstadoContratoAcceso.Activo && _fila is { } f && f.Contrato.FechaInicio <= DiaDeNegocio.Hoy();
 
-    // Cancelar es para un contrato que aún no empezó (el dominio lo exige); uno que ya empezó se finaliza.
+    // Cancelar es para un contrato Pendiente de confirmar o Activo que aún no empezó (el dominio lo exige); uno que ya empezó se finaliza.
     private bool PuedeCancelar =>
-        Estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido
+        Estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Activo
         && _fila is { } f && f.Contrato.FechaInicio > DiaDeNegocio.Hoy();
 
     // DN1 (DECISION_LOG): un contrato solo se elimina si está Cancelado o no ha empezado.
@@ -170,9 +173,16 @@ public partial class ContratoAccesoDetalle
             }
 
             _fila = (await Resolutor.ResolverAsync([contrato])).FirstOrDefault();
+            if (_fila is null)
+            {
+                _errorCarga = true;
+                return;
+            }
+
             _actividad = (await Actividad.ObtenerAsync([contrato.Id])).TryGetValue(contrato.Id, out var actividad) ? actividad : null;
 
-            if (Editar == true && !_editarYaAbierto && PuedeEditarCondiciones)
+            // ?editar=true solo abre la edición a quien puede escribir: la autoridad es la del Command, pero la pantalla no ofrece lo que no puede ejecutar.
+            if (Editar == true && !_editarYaAbierto && PuedeEditarCondiciones && await PuedeEscribirAsync())
             {
                 _editarYaAbierto = true;
                 _editandoCondiciones = true;
@@ -185,6 +195,26 @@ public partial class ContratoAccesoDetalle
         finally
         {
             _cargando = false;
+        }
+    }
+
+    private Task<bool> PuedeEscribirAsync() => SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+
+    /// <summary>
+    /// Tras un error del Command (típicamente un conflicto de versión) se vuelve a leer el contrato sin tocar el esqueleto: el
+    /// siguiente intento parte de la <c>Version</c> vigente y no del valor caducado que provocó el rechazo.
+    /// </summary>
+    private async Task RefrescarTrasFalloAsync()
+    {
+        try
+        {
+            var contrato = await Mediator.Send(new ObtenerContratoAccesoPorIdQuery(Id));
+            if (contrato is not null)
+                _fila = (await Resolutor.ResolverAsync([contrato])).FirstOrDefault() ?? _fila;
+        }
+        catch (Exception)
+        {
+            // Se conserva la lectura anterior: el mensaje del error ya está en pantalla.
         }
     }
 
@@ -242,6 +272,7 @@ public partial class ContratoAccesoDetalle
             if (!resultado.EsExitoso)
             {
                 _errorAccion = resultado.Error.Mensaje;
+                await RefrescarTrasFalloAsync();
                 return;
             }
 
