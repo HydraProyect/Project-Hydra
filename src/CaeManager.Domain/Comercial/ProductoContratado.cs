@@ -27,10 +27,10 @@ namespace CaeManager.Domain.Comercial;
 /// La base repite los CHECK de valores y de coherencia entre estado y vigencia.
 /// </para>
 /// <para>
-/// Un solo flujo lo crea hoy: <c>ContratarLineaInboundCommand</c> (B-04a), que contrata la línea Inbound bajo una
-/// Sesión Privilegiada de Aprovisionamiento sobre el Tenant beneficiario, con un Producto Contratado de esa línea
-/// vigente como mucho por Tenant (D-B). Bajo la misma sesión, <c>DarDeBajaLineaInboundCommand</c> la finaliza y
-/// <c>CorregirLineaInboundCommand</c> la finaliza y contrata otra con los datos corregidos, en una transacción: la
+/// Dos flujos lo crean hoy, los dos bajo una Sesión Privilegiada de Aprovisionamiento sobre el Tenant beneficiario y con
+/// un Producto Contratado de la línea Inbound vigente como mucho por Tenant (D-B): <c>ContratarLineaInboundCommand</c>
+/// (B-04a), que contrata la línea Inbound, y <c>CorregirLineaInboundCommand</c>, que finaliza la vigente y contrata otra
+/// con los datos corregidos, en una transacción. Bajo la misma sesión, <c>DarDeBajaLineaInboundCommand</c> la finaliza. La
 /// corrección no sobrescribe la fila (opción B del 2026-11-15). Las dos finalizan en la base, sin pasar por
 /// <see cref="Finalizar"/>, porque el rol elevado no lee la fila entera. La base repite casi todas sus reglas: solo
 /// Vigente a Finalizado, fin no anterior al inicio (CHECK) y Finalizado como final. Difiere en una: <see cref="Finalizar"/>

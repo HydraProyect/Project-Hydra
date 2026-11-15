@@ -136,6 +136,11 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
     {
         var anterior = await ContratarAsync("cus_PagadorErroneo");
 
+        // Hallazgo 2 de Codex (ronda 2): el reloj de la aplicación va 4 minutos por delante del de PostgreSQL, dentro del
+        // margen de las políticas. Si la corrección volviera a tomar el instante de la aplicación, la corregida empezaría
+        // después del now() del gate y la comprobación tras el COMMIT fallaría.
+        _relojDeLaAplicacion = new RelojDesfasado(TimeSpan.FromMinutes(4));
+
         // Determinista, sin depender de tiempos: el propietario bloquea las inserciones en RegistrosAuditoria. La
         // corrección finaliza (UPDATE) y se queda esperando al guardar la auditoría de la baja, con la transacción abierta.
         // En ese instante, otra conexión tiene que seguir viendo la línea Inbound vigente: el UPDATE no es visible hasta
@@ -184,6 +189,8 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         corregida.Modalidad.Should().Be(ModalidadSuscripcionAlta.Mensual);
         corregida.TenantId.Should().Be(_tce.Id);
         sustituida.VigenteHastaUtc.Should().Be(corregida.VigenteDesdeUtc, "sin hueco ni solape entre las dos vigencias");
+        corregida.VigenteDesdeUtc.Should().BeBefore(DateTime.UtcNow.AddMinutes(1),
+            "el inicio es el now() de la transacción de PostgreSQL, no el reloj de la aplicación adelantado 4 minutos");
 
         (await AuditoriaComoPropietarioAsync(anterior)).Select(r => r.Accion).Should().BeEquivalentTo(["Creado", "Modificado"]);
         (await AuditoriaComoPropietarioAsync(corregida.Id)).Should().ContainSingle().Which.Accion.Should().Be("Creado");
@@ -411,6 +418,14 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         return alta.Valor;
     }
 
+    /// <summary>El reloj de la aplicación que reciben los handlers; un test lo desfasa frente al de PostgreSQL.</summary>
+    private TimeProvider _relojDeLaAplicacion = TimeProvider.System;
+
+    private sealed class RelojDesfasado(TimeSpan desfase) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => TimeProvider.System.GetUtcNow() + desfase;
+    }
+
     private async Task<Result<Guid>> EnviarAsync(Guid? sesion, string? rol, IRequest<Result<Guid>> comando)
     {
         await using var proveedor = ConstruirProveedor(sesion, rol);
@@ -572,7 +587,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         servicios.AddSingleton<ITenantActual>(tenantActual);
         servicios.AddSingleton<IClienteActivoSeleccionado>(seleccion);
         servicios.AddSingleton(dbContext);
-        servicios.AddSingleton(TimeProvider.System);
+        servicios.AddSingleton(_relojDeLaAplicacion);
 
         servicios.AddSingleton<IPlataformaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ISesionPrivilegiadaActual>(sp => new SesionPrivilegiadaActual(
