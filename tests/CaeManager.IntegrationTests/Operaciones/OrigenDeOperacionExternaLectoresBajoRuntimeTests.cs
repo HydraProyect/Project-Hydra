@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
@@ -9,6 +11,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -65,20 +68,32 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
     }
 
     /// <summary>
-    /// <c>DirectorioUsuariosTenant.TieneVinculoOperativoAsync</c>: la única cartera de la Gestora CAE cuelga de una
-    /// operación con origen. Este lector no mira ninguna delegación y la Gestora no tiene otro vínculo (ni Operador
-    /// Delegado, ni línea, ni buzón, ni pool: lo prueba el control), así que sin el filtro seguiría siendo cierto.
+    /// <c>DirectorioUsuariosTenant.TieneVinculoOperativoAsync</c> es una guarda de integridad y no aplica el filtro de
+    /// origen (ronda 1 de Codex en la PR #2253, media 4): la Asignación de Cartera vigente sigue existiendo aunque su
+    /// operación haya perdido el amparo, y borrar la cuenta pendiente la dejaría apuntando a un Id sin cuenta. Se
+    /// ejerce por <see cref="EliminarUsuarioPendienteCommandHandler"/> desde el Operador CAE externo, la casa de la
+    /// Gestora CAE. Esa cartera es su único vínculo: con el filtro de amparo en la guarda, el borrado pasaría. El control
+    /// borra otra cuenta pendiente sin cartera por el mismo camino.
     /// </summary>
     [Fact]
-    public async Task El_vinculo_operativo_no_lo_da_una_cartera_bajo_una_operacion_cuyo_origen_se_revoco_y_reactivo()
+    public async Task La_cuenta_pendiente_con_cartera_bajo_una_operacion_cuyo_origen_se_revoco_y_reactivo_no_se_elimina()
     {
-        var conOrigen = await SembrarAcotadaConCarteraAsync();
-        (await TieneVinculoOperativoEnElPropietarioAsync()).Should().BeTrue("control: su cartera es el único vínculo");
+        var pendiente = await SembrarUsuarioAsync("gestora-pendiente", _operador, Roles.GestorCae, conContrasena: false);
+        var sinCartera = await SembrarUsuarioAsync("gestora-sin-cartera", _operador, Roles.GestorCae, conContrasena: false);
+        var administradorOperador = await SembrarUsuarioAsync("admin-operador", _operador, Roles.Administrador);
+        var conOrigen = await SembrarAcotadaConCarteraAsync(usuario: pendiente.Id);
 
         await RevocarYReactivarPorLaRanuraAnteriorAsync();
         await AfirmarVigentesAsync(conOrigen);
+        (await CarterasAutorizadasDelOperadorAsync()).Should().NotContain(conOrigen,
+            "control: la operación ya no autoriza; lo que se mide es la guarda, no la autorización");
 
-        (await TieneVinculoOperativoEnElPropietarioAsync()).Should().BeFalse();
+        var control = await EliminarCuentaPendienteAsync(administradorOperador, sinCartera.Id);
+        control.EsExitoso.Should().BeTrue(control.EsFallido ? control.Error.Codigo : string.Empty);
+
+        var resultado = await EliminarCuentaPendienteAsync(administradorOperador, pendiente.Id);
+        resultado.EsFallido.Should().BeTrue("su Asignación de Cartera sigue vigente aunque la operación ya no autorice");
+        resultado.Error.Codigo.Should().Be(EliminarUsuarioPendienteCommandHandler.CarteraVigente.Codigo);
     }
 
     /// <summary>
@@ -143,15 +158,22 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
                 .ObtenerCarterasVigentesAsync();
     }
 
-    private async Task<bool> TieneVinculoOperativoEnElPropietarioAsync()
+    /// <summary>Por el Command real, en el Operador CAE externo, como cada pulsación de «Eliminar».</summary>
+    private async Task<Result> EliminarCuentaPendienteAsync(ApplicationUser administradorOperador, Guid usuarioId)
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var servicios = ambito.ServiceProvider;
         var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
-        var administrador = FijarSesion(_administradorPropietario, Roles.Administrador);
-        using (AmbitoTenantExplicito.Establecer(_propietario))
-            return await Directorio(servicios, contexto, servicios.GetRequiredService<ITenantActual>(), administrador)
-                .TieneVinculoOperativoAsync(_gestoraOperador.Id);
+        var administrador = FijarSesion(administradorOperador, Roles.Administrador);
+        var tenant = servicios.GetRequiredService<ITenantActual>();
+        var directorio = Directorio(servicios, contexto, tenant, administrador);
+        using (AmbitoTenantExplicito.Establecer(_operador))
+            return await new EliminarUsuarioPendienteCommandHandler(
+                    new GestionCuentasUsuarioIdentity(
+                        servicios.GetRequiredService<UserManager<ApplicationUser>>(), new PuertaAccesoDatos(), directorio, contexto),
+                    administrador, tenant, new TransaccionDeComando(contexto),
+                    new AdministradoresDelTenant(contexto, directorio), new BloqueoCarteraUsuario(contexto))
+                .Handle(new EliminarUsuarioPendienteCommand(usuarioId), CancellationToken.None);
     }
 
     private async Task<OperacionDeConversacion?> ResolverContextoOperativoAsync()

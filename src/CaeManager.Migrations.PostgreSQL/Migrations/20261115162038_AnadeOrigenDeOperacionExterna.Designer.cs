@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115124839_AnadeOrigenDeOperacionExterna")]
+    [Migration("20261115162038_AnadeOrigenDeOperacionExterna")]
     partial class AnadeOrigenDeOperacionExterna
     {
         /// <inheritdoc />
@@ -1520,6 +1520,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductosContratados_InboundVigentePorTenant")
+                        .HasFilter("\"Linea\" = 'Inbound' AND \"Estado\" = 'Vigente' AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "Estado")
                         .HasDatabaseName("IX_ProductosContratados_TenantId_Estado");

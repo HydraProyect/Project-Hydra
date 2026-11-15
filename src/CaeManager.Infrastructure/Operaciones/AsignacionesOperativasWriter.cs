@@ -180,7 +180,9 @@ public class AsignacionesOperativasWriter(
     /// de la base de datos que no estén en él; <c>null</c> con ninguna o con varias. También <c>null</c> si esa
     /// delegación tiene cambios sin guardar: el trigger <c>asignacion_operacion_sella_origen</c> comprueba el
     /// origen contra la fila de la base al insertar la operación, y EF no ordena el UPDATE del principal por
-    /// delante del INSERT del dependiente (una delegación nueva sí, por la clave foránea).
+    /// delante del INSERT del dependiente (una delegación nueva sí, por la clave foránea). Esa operación sin origen la
+    /// sella después, en la misma transacción, el trigger <c>operacion_externa_sella_origen_de_su_transaccion</c> al
+    /// guardarse la delegación activa.
     /// </summary>
     private async Task<Domain.Tenants.DelegacionTenant?> OrigenUnicoDelParAsync(
         Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)

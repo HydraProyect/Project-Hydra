@@ -389,7 +389,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     /// Una operación Outbound acotada al Cliente empresarial con la cartera de la Gestora CAE, sembrada sin origen
     /// como la escribiría la ranura anterior. Devuelve el Id de la operación.
     /// </summary>
-    private async Task<Guid> SembrarAcotadaConCarteraAsync(Guid? clienteEmpresarial = null)
+    private async Task<Guid> SembrarAcotadaConCarteraAsync(Guid? clienteEmpresarial = null, Guid? usuario = null)
     {
         await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
         var ahora = DateTime.UtcNow;
@@ -398,7 +398,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         propietarioDeLaBase.AsignacionesOperacion.Add(acotada);
         await propietarioDeLaBase.SaveChangesAsync();
         propietarioDeLaBase.AsignacionesCartera.Add(AsignacionCartera.Externa(
-            acotada, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
+            acotada, usuario ?? _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
         await propietarioDeLaBase.SaveChangesAsync();
         return acotada.Id;
     }
@@ -510,7 +510,8 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         IServiceProvider servicios, CaeManagerDbContext contexto, ITenantActual tenant, ICurrentUserService usuario) =>
         new(servicios.GetRequiredService<UserManager<ApplicationUser>>(), contexto, tenant, new PuertaAccesoDatos(), contexto, usuario);
 
-    private async Task<ApplicationUser> SembrarUsuarioAsync(string alias, Guid tenant, string rol)
+    /// <param name="conContrasena">Sin contraseña (ni login externo), la cuenta queda pendiente de activación.</param>
+    private async Task<ApplicationUser> SembrarUsuarioAsync(string alias, Guid tenant, string rol, bool conContrasena = true)
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -526,7 +527,8 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
         using (AmbitoTenantExplicito.Establecer(tenant))
         {
-            (await userManager.CreateAsync(usuario, Contrasena)).Succeeded.Should().BeTrue();
+            var alta = conContrasena ? await userManager.CreateAsync(usuario, Contrasena) : await userManager.CreateAsync(usuario);
+            alta.Succeeded.Should().BeTrue();
             (await userManager.AddToRoleAsync(usuario, rol)).Succeeded.Should().BeTrue();
         }
 

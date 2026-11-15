@@ -290,9 +290,13 @@ public class DirectorioUsuariosTenant(
                       && cartera.Estado == EstadoAsignacion.Vigente
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                // Una operación externa con origen sin el amparo de su DelegacionTenant de origen no es vínculo
-                // operativo; sin origen, como antes (fase de expansión, AmparoDeOrigen).
-                join operacion in identidad.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
+                // Sin el filtro de amparo (AmparoDeOrigen), a propósito: esta es una guarda de integridad, no de
+                // autorización. Su consumidor, EliminarUsuarioPendienteCommand, impide borrar una cuenta pendiente
+                // cuya Asignación de Cartera vigente quedaría apuntando a un Id sin cuenta (AsignacionCartera.UsuarioId
+                // no lleva FK), y esa fila sigue existiendo aunque su operación haya perdido el amparo de su
+                // DelegacionTenant de origen (ronda 1 de Codex en la PR #2253, media 4). El filtro de autorización
+                // vive en ObtenerCarterasVigentesAsync.
+                join operacion in identidad.AsignacionesOperacion
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       && operacion.VigenciaDesde <= ahora

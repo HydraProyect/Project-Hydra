@@ -29,7 +29,10 @@ namespace CaeManager.Application.Operaciones;
 /// Lo aplican los lectores de alcance que leen operaciones externas: las dos primitivas de
 /// <c>TenantsBeneficiariosAutorizados</c> (con cartera y del Tenant entero), <c>AmbitosEfectivosDeCarteraAsync</c>,
 /// <c>AlcanceDatosService.ObtenerCarteraAsync</c>, <c>ContextoOperativoConversacionService</c>,
-/// <c>DirectorioUsuariosTenant</c> y <c>VistaDemoActual</c>.
+/// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c> y <c>VistaDemoActual</c>; y el escritor que parte de
+/// una operación para emitir una cartera y su fila heredada, <c>CatalogoIncorporacionCartera</c>. No lo aplica
+/// <c>DirectorioUsuariosTenant.TieneVinculoOperativoAsync</c>: es una guarda de integridad (no borrar una cuenta con
+/// una Asignación de Cartera vigente) y no de autorización.
 /// </para>
 /// </summary>
 public static class AmparoDeOrigen
