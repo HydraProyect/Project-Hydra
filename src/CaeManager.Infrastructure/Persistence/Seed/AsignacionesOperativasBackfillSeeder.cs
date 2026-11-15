@@ -265,6 +265,27 @@ public static class AsignacionesOperativasBackfillSeeder
                 "la reasigna un acto explícito.");
         }
 
+        // --- 2b. Ninguna Asignación de Cartera queda abierta bajo una operación Outbound externa cerrada ---
+        //
+        // Residuo de la ronda 3 de Codex en la PR #2253: durante un despliegue azul-verde cuya ranura anterior sea
+        // anterior a esa PR, su revocación lee las carteras antes de bloquear la DelegacionTenant, y una cartera que la
+        // ranura nueva emite entre medias queda abierta bajo la operación que la revocación cierra. No autoriza (todo
+        // lector de alcance exige la operación vigente y amparada por su origen, y la revocación cambió el contador),
+        // pero no debe quedar abierta: se cierra en el arranque por la misma cascada.
+        var operacionesCerradas = operaciones
+            .Where(o => !o.EsOperacionInterna && o.Servicio == ServicioCae.Outbound && o.Estado == EstadoAsignacion.Cerrada)
+            .Select(o => o.Id)
+            .ToHashSet();
+        foreach (var huerfana in carteras.Where(c =>
+                     operacionesCerradas.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada))
+        {
+            huerfana.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, ahora);
+            cerradas++;
+            incidencias.Add(
+                $"Asignación de Cartera {huerfana.Id} abierta bajo la Asignación de Operación cerrada " +
+                $"{huerfana.AsignacionOperacionId}: cerrada por la cascada de la operación.");
+        }
+
         var idsComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
         var operadoresDelegados = await dbContext.AsignacionesOperadorDelegado
             .Where(a => idsComerciales.Contains(a.DelegacionTenantId))

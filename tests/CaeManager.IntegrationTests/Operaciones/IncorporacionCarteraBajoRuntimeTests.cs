@@ -666,7 +666,8 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     private AceptarSolicitudIncorporacionCarteraCommandHandler Aceptar(CaeManagerDbContext contexto) =>
         new(UsuarioDe(contexto), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),
             Directorio(), new NotificacionUsuarioRepository(contexto), contexto, contexto,
-            NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance);
+            NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance,
+            new CaeManager.Infrastructure.Persistence.TransaccionDeComando(contexto));
 
     private RevocarIncorporacionCarteraCommandHandler Revocar(CaeManagerDbContext contexto) =>
         new(UsuarioDe(contexto), Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),

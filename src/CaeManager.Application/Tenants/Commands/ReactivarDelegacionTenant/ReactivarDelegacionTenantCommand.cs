@@ -203,9 +203,10 @@ public class ReactivarDelegacionTenantCommandHandler(
 
         delegacion.Reactivar();
 
-        // La reactivación se guarda antes de abrir la operación, dentro de la misma transacción: el trigger
-        // asignacion_operacion_sella_origen exige la delegación ya activa en la base y su contador real, y EF no ordena
-        // el UPDATE de la delegación por delante del INSERT de la operación (ronda 2 de Codex en la PR #2237, alta 1).
+        // La reactivación se guarda antes de abrir la operación, dentro de la misma transacción: la operación
+        // nueva nace con esta delegación como origen (AmparoDeOrigen), y el trigger asignacion_operacion_sella_origen
+        // la comprueba contra la fila de la base, ya activa y con su contador real. EF no ordena el UPDATE de la
+        // delegación por delante del INSERT de la operación; sin este guardado, el writer la abre sin origen.
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Append-only: no se reabre la operación cerrada, se abre una nueva.

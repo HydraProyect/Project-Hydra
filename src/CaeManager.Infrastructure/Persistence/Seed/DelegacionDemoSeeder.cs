@@ -457,14 +457,14 @@ public static class DelegacionDemoSeeder
                 await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacionDemo1, operadorGestor.Id, cancellationToken))
             {
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                    new AsignacionOperadorDelegado(delegacionDemo1.Id, operadorGestor.Id, Roles.GestorCae));
+                    new AsignacionOperadorDelegado(delegacionDemo1.Id, operadorGestor.Id, Roles.GestorCae, delegacionDemo1.Revocaciones));
             }
 
             if (operadorConsulta is not null && delegacionDemo2 is not null &&
                 await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacionDemo2, operadorConsulta.Id, cancellationToken))
             {
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                    new AsignacionOperadorDelegado(delegacionDemo2.Id, operadorConsulta.Id, Roles.Consulta));
+                    new AsignacionOperadorDelegado(delegacionDemo2.Id, operadorConsulta.Id, Roles.Consulta, delegacionDemo2.Revocaciones));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);

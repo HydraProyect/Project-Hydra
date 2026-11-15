@@ -114,12 +114,9 @@ public static class TenantsBeneficiariosAutorizados
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
-        // La operación externa solo autoriza mientras la DelegacionTenant concreta de la que nació siga
-        // activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen): otra
-        // delegación vigente del par no la sostiene, y una que sobrevivió a una revocación no vuelve al
-        // reactivarse. Sin origen, falla cerrada. La RLS de DelegacionesTenant deja leerla desde las dos
-        // posiciones que llaman aquí (el Operador CAE es extremo de la delegación, como Tenant de origen o
-        // como Tenant activo).
+        // Una operación externa solo autoriza mientras la DelegacionTenant concreta de la que nació siga activa,
+        // sin caducar y sin revocaciones desde entonces (AmparoDeOrigen): otra delegación vigente del par no la
+        // sostiene, y una que sobrevivió a una revocación no vuelve al reactivarse. Sin origen, falla cerrada.
         join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora)
             on cartera.AsignacionOperacionId equals operacion.Id
         where cartera.Estado == EstadoAsignacion.Vigente
@@ -154,11 +151,11 @@ public static class TenantsBeneficiariosAutorizados
     /// Asignación de Operación Inbound del Tenant entero no convierte en entero el ámbito de una Outbound acotada.
     /// </summary>
     public static Task<List<Guid?>> AmbitosEfectivosDeCarteraAsync(
-        IOperacionesQueryContext operaciones, IReadOnlyCollection<Guid> usuarioIds, Guid propietarioTenantId,
-        Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, IReadOnlyCollection<Guid> usuarioIds,
+        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        // Una operación externa solo cuenta amparada por su DelegacionTenant de origen (sin origen, no cuenta);
+        // la raíz y las internas pasan siempre (AmparoDeOrigen).
         (from cartera in operaciones.AsignacionesCartera
-         // Una operación externa solo cuenta amparada por su DelegacionTenant de origen; la raíz y las
-         // internas pasan siempre (AmparoDeOrigen).
          join operacion in operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora)
              on cartera.AsignacionOperacionId equals operacion.Id
          where usuarioIds.Contains(cartera.UsuarioId)
@@ -215,8 +212,8 @@ public static class TenantsBeneficiariosAutorizados
     /// ese alcance excedería el de la operación: fallo cerrado.
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEnteroDeLaOrganizacion(
-        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
-        OperacionesDelTenantEntero(operaciones, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, DateTime ahora) =>
+        OperacionesDelTenantEntero(operaciones, tenants, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
 
     /// <summary>
     /// ¿Opera <paramref name="tenantOrigenId"/> entero, y vigente, el Tenant propietario indicado en
@@ -225,9 +222,9 @@ public static class TenantsBeneficiariosAutorizados
     /// aplica <see cref="OperacionesDelTenantEntero"/>.
     /// </summary>
     public static Task<bool> OperaElTenantEnteroAsync(
-        IOperacionesQueryContext operaciones, Guid tenantOrigenId, Guid propietarioTenantId, DateTime ahora,
-        CancellationToken cancellationToken) =>
-        OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid tenantOrigenId, Guid propietarioTenantId,
+        DateTime ahora, CancellationToken cancellationToken) =>
+        OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenants, tenantOrigenId, ahora)
             .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
     /// <summary>
@@ -241,14 +238,13 @@ public static class TenantsBeneficiariosAutorizados
     /// acceso no diverjan: una Asignación de Operación Inbound del Tenant entero no rotula un rol ni una
     /// Empresa gestionada entera que en Outbound no se ejercen.
     /// <para>
-    /// La vía sin cartera exige también la DelegacionTenant de origen de la operación, activa, sin caducar
-    /// y sin revocaciones desde que nació (<see cref="AmparoDeOrigen"/>): antes no miraba
-    /// ninguna, y una operación del Tenant entero que sobreviviera a la revocación (la ranura anterior solo
-    /// cerraba la vigente, no la Programada) volvía a autorizar al activarse (hallazgo de Codex en la PR #2223).
+    /// La vía sin cartera exige también la DelegacionTenant de origen de la operación, activa, sin caducar y sin
+    /// revocaciones desde que nació (<see cref="AmparoDeOrigen"/>): una operación del Tenant entero que
+    /// sobreviviera a la revocación no vuelve a autorizar al activarse, y una sin origen falla cerrada.
     /// </para>
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
-        IOperacionesQueryContext operaciones, DateTime ahora) =>
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, DateTime ahora) =>
         operaciones.AsignacionesOperacion.AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahora).Where(operacion =>
             !operacion.EsRaiz
             && operacion.PropietarioTenantId != operacion.OperadorTenantId
@@ -290,7 +286,7 @@ public static class TenantsBeneficiariosAutorizados
         DateTime ahora)
     {
         if (rolDeOrigen is not null && RolesConAccesoPorOperacion.Contains(rolDeOrigen))
-            return OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora);
+            return OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenants, tenantOrigenId, ahora);
 
         if (rolDeOrigen == RolAcotadoPorCartera)
             return CarterasPorOperacion(operaciones, tenants, usuarioId, tenantOrigenId, ahora).Select(v => v.Operacion);

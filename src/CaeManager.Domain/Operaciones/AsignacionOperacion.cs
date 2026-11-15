@@ -52,12 +52,12 @@ public class AsignacionOperacion : AsignacionResponsabilidad
 
     /// <summary>
     /// El contador <see cref="DelegacionTenant.Revocaciones"/> de la delegación de origen en el
-    /// momento en que nació la operación. Cada revocación lo incrementa (y en la base de datos lo
+    /// momento en que nació la operación. Cada revocación lo incrementa (en la base de datos lo
     /// incrementa un trigger, también para la ranura anterior y la función de Soporte), así que una
     /// operación que sobrevivió a una revocación deja de coincidir para siempre, aunque la
     /// delegación se reactive: reactivar no repone nada (opción A, decisión de Chris del 2026-11-14).
-    /// En la base de datos un trigger lo comprueba al insertar contra la fila real bloqueada (y lo sella él
-    /// cuando deduce el origen de una inserción de la ranura anterior, que no conoce la columna).
+    /// El trigger <c>asignacion_operacion_sella_origen</c> lo comprueba al insertar contra la fila
+    /// real bloqueada, o lo sella él cuando deduce el origen de una inserción que no lo trae.
     /// </summary>
     public int? RevocacionesDelOrigen { get; private set; }
 

@@ -18,8 +18,8 @@ internal static class HistoriaDelParEnSiembra
 {
     /// <summary>
     /// Si el par de <paramref name="delegacion"/> tiene historia que la siembra no puede reponer: alguna revocación
-    /// contada en cualquier delegación del par, alguna fila heredada revocada, o alguna Asignación de Operación Outbound
-    /// externa sin ninguna abierta amparada por su origen. No mira si la delegación está activa: eso lo decide quien
+    /// contada en cualquier delegación del par, alguna fila heredada revocada, alguna Asignación de Operación Outbound
+    /// externa cerrada, o alguna sin ninguna abierta amparada por su origen. No mira si la delegación está activa: eso lo decide quien
     /// llama. Una siembra ya hecha (filas vivas y la operación amparada) no tiene historia, y la siembra sigue siendo
     /// idempotente.
     /// </summary>
@@ -41,8 +41,12 @@ internal static class HistoriaDelParEnSiembra
                 a => a.RevocadaEnUtc != null && delegacionesDelPar.Contains(a.DelegacionTenantId), cancellationToken))
             return true;
 
+        // Una operación cerrada del par es historia aunque quede otra abierta y amparada: ninguna siembra cierra
+        // operaciones, así que la cerró una revocación, una caducidad o el arranque, y reabrir la del Tenant entero
+        // junto a una acotada viva repondría lo cerrado (ronda 4 de Codex en la PR #2237, media 3).
         return await LeerOperacionesDelParAsync(dbContext, propietario, operador, async operaciones =>
-            await operaciones.AnyAsync(cancellationToken)
+            await operaciones.AnyAsync(o => o.Estado == EstadoAsignacion.Cerrada, cancellationToken)
+            || await operaciones.AnyAsync(cancellationToken)
             && !await operaciones
                 .Where(o => o.Estado != EstadoAsignacion.Cerrada)
                 .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)

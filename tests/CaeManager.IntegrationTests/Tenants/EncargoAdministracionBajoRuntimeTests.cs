@@ -20,6 +20,7 @@ using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.IntegrationTests.Arranque;
+using CaeManager.IntegrationTests.Operaciones;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -427,14 +428,88 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             contexto.EncargosAdministracion.Add(Encargar(operacion, Guid.NewGuid(), DateTime.UtcNow));
             await contexto.SaveChangesAsync();
         });
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        insercion.IsCompleted.Should().BeFalse("la inserción del encargo espera a que la revocación en vuelo termine");
+        await EsperaDeBloqueoEnPostgres.BloqueadaPorAsync(_arnes.CadenaPropietario, revocacion.ProcessID, insercion,
+            "la inserción del encargo espera a que la revocación en vuelo termine");
 
         await transaccion.CommitAsync();
 
         (await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<DbUpdateException>())
             .Which.InnerException.Should().BeOfType<PostgresException>()
             .Which.ConstraintName.Should().Be("TR_EncargosAdministracion_ExigeAmparoDeOrigen");
+    }
+
+    /// <summary>
+    /// Ronda 4 de Codex en la PR #2237, media 1: el orden de bloqueo frente a la revocación por Soporte TALVEG. El encargo
+    /// en vuelo ya tiene <c>FOR KEY SHARE</c> sobre la operación (su clave foránea) y espera a la DelegacionTenant, que
+    /// la revocación retiene; la revocación pide entonces la operación como
+    /// <c>app_revocar_operador_cae_externo_por_soporte</c>, con <c>FOR NO KEY UPDATE</c>, y la actualiza sin tocar
+    /// ninguna clave. Con <c>FOR UPDATE</c> (la función anterior) las dos sesiones se esperarían mutuamente y Postgres
+    /// abortaría una con 40P01: el encargo saldría con un interbloqueo en vez de con el rechazo del amparo, o la
+    /// revocación fallaría. La función desplegada se comprueba aparte por su definición.
+    /// </summary>
+    [Fact]
+    public async Task La_revocacion_por_Soporte_no_se_interbloquea_con_un_encargo_en_vuelo_sobre_su_operacion()
+    {
+        Guid origen;
+        await using (var contexto = ContextoPropietarioDeLaBase())
+            origen = (await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo))
+                .OrigenId!.Value;
+
+        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await revocacion.OpenAsync();
+        await using var transaccion = await revocacion.BeginTransactionAsync();
+        async Task EjecutarEnLaRevocacionAsync(string sql)
+        {
+            await using var comando = new NpgsqlCommand(sql, revocacion, transaccion);
+            await comando.ExecuteNonQueryAsync();
+        }
+        await EjecutarEnLaRevocacionAsync("SET LOCAL lock_timeout = '20s'");
+        await EjecutarEnLaRevocacionAsync(
+            $"""SELECT 1 FROM "DelegacionesTenant" WHERE "Id" = '{origen}' FOR UPDATE""");
+        await EjecutarEnLaRevocacionAsync(
+            $"""UPDATE "DelegacionesTenant" SET "Activa" = false, "ExpiraEnUtc" = NULL WHERE "Id" = '{origen}'""");
+
+        var insercion = Task.Run(async () =>
+        {
+            await using var contexto = ContextoPropietarioDeLaBase();
+            var operacion = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo);
+            contexto.EncargosAdministracion.Add(Encargar(operacion, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        });
+        await EsperaDeBloqueoEnPostgres.BloqueadaPorAsync(_arnes.CadenaPropietario, revocacion.ProcessID, insercion,
+            "el encargo, con la clave foránea ya tomada, espera a la DelegacionTenant que retiene la revocación");
+
+        await EjecutarEnLaRevocacionAsync(
+            $"""SELECT 1 FROM "AsignacionesOperacion" WHERE "Id" = '{_operacionSinEncargo}' FOR NO KEY UPDATE""");
+        await EjecutarEnLaRevocacionAsync(
+            $"""UPDATE "AsignacionesOperacion" SET "Version" = uuidv7() WHERE "Id" = '{_operacionSinEncargo}'""");
+        await transaccion.CommitAsync();
+
+        (await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.ConstraintName.Should().Be("TR_EncargosAdministracion_ExigeAmparoDeOrigen",
+                "el encargo lee la delegación revocada y se rechaza; no sale por interbloqueo");
+    }
+
+    /// <summary>
+    /// La función de Soporte desplegada bloquea las operaciones con <c>FOR NO KEY UPDATE</c> (la prueba anterior ejerce el
+    /// orden con esas sentencias): si una migración posterior la reescribiera con <c>FOR UPDATE</c>, volvería el
+    /// interbloqueo con el encargo en vuelo.
+    /// </summary>
+    [Fact]
+    public async Task La_revocacion_por_Soporte_bloquea_sus_operaciones_sin_chocar_con_la_clave_foranea()
+    {
+        await using var conexion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            "SELECT pg_get_functiondef('public.app_revocar_operador_cae_externo_por_soporte(uuid, uuid, text)'::regprocedure)",
+            conexion);
+        var definicion = (string)(await comando.ExecuteScalarAsync())!;
+
+        var inicio = definicion.IndexOf("FOR v_operacion IN", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0, "la función recorre las operaciones del par");
+        var bucle = definicion[inicio..definicion.IndexOf("LOOP", inicio, StringComparison.Ordinal)];
+        bucle.Should().Contain("FOR NO KEY UPDATE");
     }
 
     // ── Los disparadores: lo que los privilegios por columna no cierran ───

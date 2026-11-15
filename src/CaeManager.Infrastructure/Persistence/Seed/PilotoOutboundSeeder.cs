@@ -719,7 +719,7 @@ public static class PilotoOutboundSeeder
                 if (!await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuarioId, cancellationToken))
                     continue;
 
-                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuarioId, rol));
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuarioId, rol, delegacion.Revocaciones));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);

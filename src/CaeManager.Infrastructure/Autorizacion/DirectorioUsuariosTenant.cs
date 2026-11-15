@@ -288,14 +288,14 @@ public class DirectorioUsuariosTenant(
                 from cartera in identidad.AsignacionesCartera
                 where cartera.UsuarioId == usuarioId
                       && cartera.Estado == EstadoAsignacion.Vigente
-                      && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                // Una operación externa sin el amparo de su DelegacionTenant de origen no es vínculo operativo.
-                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
-                    on cartera.AsignacionOperacionId equals operacion.Id
-                where operacion.Estado == EstadoAsignacion.Vigente
-                      && operacion.VigenciaDesde <= ahora
-                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                // Sin mirar la operación ni su amparo (AmparoDeOrigen), a propósito: esta es una guarda de
+                // integridad, no de autorización. Su consumidor, EliminarUsuarioPendienteCommand, impide borrar una
+                // cuenta pendiente cuya Asignación de Cartera no cerrada quedaría apuntando a un Id sin cuenta
+                // (AsignacionCartera.UsuarioId no lleva FK), y esa fila sigue existiendo aunque su operación haya
+                // perdido el amparo de su DelegacionTenant de origen o esté cerrada, o aunque la cartera empiece más
+                // tarde (ronda 1 de Codex en la PR #2253, media 4; ronda 4 de Codex en la PR #2237, media 5). El filtro
+                // de autorización vive en ObtenerCarterasVigentesAsync.
                 select cartera.Id)
                 .AnyAsync(cancellationToken);
 
@@ -462,7 +462,7 @@ public class DirectorioUsuariosTenant(
             // enseña qué otros Operadores CAE operan el tenant activo.
             var operadorIds = delegados.Select(d => d.OperadorTenantId).Distinct().ToList();
             var operadoresDelTenantEntero = (await TenantsBeneficiariosAutorizados
-                    .OperacionesDelTenantEntero(identidad, DateTime.UtcNow)
+                    .OperacionesDelTenantEntero(identidad, identidad, DateTime.UtcNow)
                     .Where(o => o.PropietarioTenantId == tenantId && operadorIds.Contains(o.OperadorTenantId))
                     .Select(o => o.OperadorTenantId)
                     .Distinct()
@@ -862,7 +862,7 @@ public class DirectorioUsuariosTenant(
                 .ToListAsync(cancellationToken);
 
             var delTenantEntero = await (
-                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, tenantId, ahora)
+                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, identidad, tenantId, ahora)
                 join tenant in identidad.Tenants on operacion.PropietarioTenantId equals tenant.Id
                 select new { TenantId = tenant.Id, tenant.Nombre })
                 .Distinct()

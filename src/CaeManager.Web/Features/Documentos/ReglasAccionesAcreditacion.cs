@@ -28,10 +28,10 @@ public enum AccionAcreditacion
 public static class ReglasAccionesAcreditacion
 {
     /// <summary>
-    /// Quien puede recibir «Abrir portal» y ver el motivo literal de rechazo: todos los roles del Tenant salvo Cliente, el mismo
-    /// corte que ObtenerCentroIdsParaGestionAsync. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
-    /// Excepción: en la vista rápida de un Documento (DocumentoWorkspacePanel, ObtenerAcreditacionesDelDocumentoQuery) el motivo
-    /// lo leen solo los roles de RolesComunicaciones.LecturaReclamaciones; Consulta no lo recibe (decisión 2026-11-14).
+    /// Quien puede recibir «Abrir portal»: todos los roles del Tenant salvo Cliente, el mismo corte que
+    /// ObtenerCentroIdsParaGestionAsync. El rol Cliente sí ve el estado en la plataforma (opción B, 2026-11-12).
+    /// El motivo literal de rechazo es más estricto: lo leen solo los roles de RolesComunicaciones.LecturaReclamaciones, y el
+    /// servidor ya lo devuelve a null para Consulta en todas sus lecturas (decisiones 2026-11-14 y 2026-11-15).
     /// </summary>
     public const string RolesQueAbrenPortal = $"{Roles.ConEscrituraCsv},{Roles.Consulta}";
 

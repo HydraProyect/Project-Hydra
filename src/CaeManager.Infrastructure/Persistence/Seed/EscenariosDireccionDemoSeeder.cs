@@ -315,7 +315,7 @@ public static class EscenariosDireccionDemoSeeder
                 if (!await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                     continue;
 
-                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol));
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol, delegacion.Revocaciones));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);

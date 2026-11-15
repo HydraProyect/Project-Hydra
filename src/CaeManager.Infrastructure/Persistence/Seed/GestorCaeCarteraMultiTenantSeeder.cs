@@ -234,7 +234,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 return true;
 
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae));
+                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae, delegacion.Revocaciones));
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }

@@ -288,6 +288,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":69 rechaza suscribir al tenant de plataforma. D-4: SE CONSERVA — es el invariante que " +
                 "impide que el tenant #1 salga de SinSuscripcion, y sin él la retirada de la exención sí " +
                 "tendría delta de comportamiento"),
+        ["src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs"] =
+            new(2, CategoriaUso.ReglaComercial,
+                ":137 (proyección) y :144 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
+                "como RegistrarSuscripcionTenant rechaza suscribirlo: no concede nada. Defensa en profundidad, porque " +
+                "ReglaTenantObjetivoAjeno ya impide abrir la Sesión Privilegiada de Aprovisionamiento sobre la casa propia"),
         ["src/CaeManager.Application/Comercial/Queries/ObtenerEstadoComercialTenants/ObtenerEstadoComercialTenantsQuery.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":53 filtro de presentación; la autorización real está tres líneas antes, en " +
@@ -481,6 +486,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "comentario y predicado de app_revocar_operador_cae_externo_por_soporte en el Up y el mismo predicado en " +
                 "el Down (cuerpo de 20261026120000): la función se reescribe para cerrar también las Asignaciones de " +
                 "Operación Outbound acotadas (decisión de Chris del 2026-11-14) y no cambia qué cuenta admite. Solo restringe"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261115210000_AnadeProcedenciaDeOperacionExterna.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "el mismo predicado de app_revocar_operador_cae_externo_por_soporte (cuerpo de 20261114120000) en el Up y " +
+                "en el Down: la función se reescribe solo para bloquear sus operaciones con FOR NO KEY UPDATE en vez de " +
+                "FOR UPDATE (interbloqueo con el Encargo de Administración, ronda 4 de Codex en la PR #2237) y no cambia " +
+                "qué cuenta admite. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
             new(2, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +

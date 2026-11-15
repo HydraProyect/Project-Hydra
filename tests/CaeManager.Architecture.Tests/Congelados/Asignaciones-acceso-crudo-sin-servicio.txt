@@ -15,7 +15,6 @@ src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs ::
 src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs :: AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync · AsignacionesOperacion = 1
 src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantsBeneficiariosAutorizados.OperacionesPorPerfil · AsignacionesOperacion = 1
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: DirectorioUsuariosTenant.TieneVinculoOperativoAsync · AsignacionesCartera = 1
-src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: DirectorioUsuariosTenant.TieneVinculoOperativoAsync · AsignacionesOperacion = 1
 src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs :: RetiradaTenantDemoService.RetirarAsync · AsignacionesCartera = 1
 src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs :: RetiradaTenantDemoService.RetirarAsync · AsignacionesOperacion = 1
 src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionesOperativasWriter.AbrirCarteraOperadorAsync · AsignacionesCartera = 2

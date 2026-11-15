@@ -274,8 +274,8 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
         // El sellado espera al cerrojo de la revocación: no puede leer el contador anterior a ella.
         var insercion = Task.Run(() => InsertarConOrigenAsync(_delegacion));
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        insercion.IsCompleted.Should().BeFalse("el sellado espera a que la revocación en vuelo termine");
+        await EsperaDeBloqueoEnPostgres.BloqueadaPorAsync(_arnes.CadenaPropietario, revocacion.ProcessID, insercion,
+            "el sellado espera a que la revocación en vuelo termine");
 
         await transaccion.CommitAsync();
 
@@ -631,8 +631,8 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         }
 
         var insercion = Task.Run(() => InsertarFilaHeredadaAsync(leido));
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        insercion.IsCompleted.Should().BeFalse("la inserción espera a que la revocación en vuelo termine");
+        await EsperaDeBloqueoEnPostgres.BloqueadaPorAsync(_arnes.CadenaPropietario, revocacion.ProcessID, insercion,
+            "la inserción espera a que la revocación en vuelo termine");
 
         await transaccion.CommitAsync();
 

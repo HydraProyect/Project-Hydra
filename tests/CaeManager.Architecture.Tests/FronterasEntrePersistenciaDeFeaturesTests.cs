@@ -325,6 +325,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.CambiarAddOnSubidaAutomaticaCommandHandler", "ITenantsQueryContext"),
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
+        // Línea Inbound (B-04a): solo comprueba que el Tenant beneficiario existe y no es el de plataforma antes de
+        // contratarle el Producto Contratado. No escribe en Tenants.
+        ("Comercial.ContratarLineaInboundCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
         // Rellena variables con los sujetos y la visita del hilo; solo lee otras features.
         ("Comunicaciones.RellenoMacroRespuesta", "ICentrosQueryContext"),
@@ -435,6 +438,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IVisitasQueryContext"),
         // Solo comprueba que el Operador CAE opera hoy al Tenant beneficiario antes de fijarle una tarifa.
         ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
+        // Y que esa operación sigue amparada por su DelegacionTenant de origen (AmparoDeOrigen).
+        ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "ITenantsQueryContext"),
         // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
         ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
         ("Dashboard.ObtenerFacturacionOperadorCaeQueryHandler", "IOperacionesQueryContext"),

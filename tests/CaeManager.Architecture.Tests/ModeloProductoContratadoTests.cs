@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Configurations;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ namespace CaeManager.Architecture.Tests;
 public class ModeloProductoContratadoTests
 {
     private const string Migracion = "20261109150000_AnadeProductosContratados.cs";
+    private const string MigracionDeLaLineaInbound = "20261115130821_ContrataLineaInboundPorAprovisionamiento.cs";
+    private const string MigracionDeLaBajaInbound = "20261115170000_FinalizaLineaInboundPorAprovisionamiento.cs";
 
     private static readonly IModel Modelo = CrearContextoSinConexion().Model;
 
@@ -103,11 +106,69 @@ public class ModeloProductoContratadoTests
             .Should().Be("\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'", "el mismo alfabeto que valida el dominio");
     }
 
+    /// <summary>
+    /// D-B (2026-11-15): un solo Producto Contratado de la línea Inbound vigente por Tenant beneficiario, y nada más. Las
+    /// demás líneas siguen sin cardinalidad decidida, así que el único índice único es este, parcial.
+    /// </summary>
     [Fact]
-    public void Ningun_indice_unico_decide_cuantos_Productos_Contratados_tiene_un_Tenant()
+    public void El_unico_indice_unico_es_el_de_un_Producto_Contratado_Inbound_vigente_por_Tenant()
     {
-        Modelo.FindEntityType(typeof(ProductoContratado))!.GetIndexes().Should().OnlyContain(i => !i.IsUnique,
-            "la cardinalidad por Tenant beneficiario no está decidida; añadirla después es aditivo");
+        var unico = Modelo.FindEntityType(typeof(ProductoContratado))!.GetIndexes()
+            .Should().ContainSingle(i => i.IsUnique, "la cardinalidad de las demás líneas no está decidida").Subject;
+
+        unico.GetDatabaseName().Should().Be(ProductoContratadoConfiguration.IndiceInboundVigentePorTenant);
+        unico.Properties.Select(p => p.Name).Should().Equal(nameof(EntidadConTenant.TenantId));
+        unico.GetFilter().Should().Be("\"Linea\" = 'Inbound' AND \"Estado\" = 'Vigente' AND NOT \"EstaEliminado\"",
+            "una fila finalizada o eliminada no cuenta, como en el gate DN-7");
+
+        var up = TextoUp(MigracionDeLaLineaInbound);
+        up.Should().Contain("\"UX_ProductosContratados_InboundVigentePorTenant\"").And.Contain("unique: true");
+    }
+
+    /// <summary>
+    /// D-C (2026-11-15): la migración del alta de la línea Inbound concede INSERT, y nada más, a
+    /// <c>cae_app_aprovisionamiento</c>; la baja añade después sus columnas (test siguiente). El runtime y el soporte no ganan nada: con INSERT bajo
+    /// <c>aislamiento_tenant</c>, un Tenant podría concederse su propia línea Inbound.
+    /// </summary>
+    [Fact]
+    public void La_via_de_la_linea_Inbound_solo_concede_INSERT_a_aprovisionamiento()
+    {
+        var up = Regex.Replace(TextoUp(MigracionDeLaLineaInbound), @"\s+", " ");
+
+        Regex.Matches(up, @"\bGRANT\b").Should().ContainSingle();
+        up.Should().Contain("GRANT INSERT ON TABLE public.\"ProductosContratados\" TO cae_app_aprovisionamiento;");
+        up.Should().NotContain("cae_app_runtime").And.NotContain("cae_app_soporte").And.NotContain("REVOKE",
+            "aditiva: no quita nada a la ranura anterior");
+        up.Should().NotContain("UpdateData").And.NotContain("InsertData").And.NotContain("AddColumn");
+    }
+
+    /// <summary>
+    /// Opción B (2026-11-15): la baja y la corrección de la línea Inbound conceden a <c>cae_app_aprovisionamiento</c> solo
+    /// UPDATE de <c>Estado</c> y <c>VigenteHastaUtc</c> y SELECT de las columnas del WHERE, nunca de la tabla entera, y
+    /// crean las dos RESTRICTIVE antes que los privilegios. El runtime y el soporte no ganan nada. Lo que la base hace con
+    /// ello lo prueba <c>BajaYCorreccionLineaInboundPorAprovisionamientoTests</c> en integración.
+    /// </summary>
+    [Fact]
+    public void La_baja_de_la_linea_Inbound_solo_concede_columnas_a_aprovisionamiento_y_despues_de_sus_politicas()
+    {
+        var up = Regex.Replace(TextoUp(MigracionDeLaBajaInbound), @"\s+", " ");
+
+        Regex.Matches(up, @"\bGRANT\b").Should().HaveCount(2);
+        up.Should().Contain("GRANT SELECT (\"Id\", \"TenantId\", \"Linea\", \"Estado\", \"EstaEliminado\") " +
+                            "ON TABLE public.\"ProductosContratados\" TO cae_app_aprovisionamiento;")
+            .And.Contain("GRANT UPDATE (\"Estado\", \"VigenteHastaUtc\") " +
+                         "ON TABLE public.\"ProductosContratados\" TO cae_app_aprovisionamiento;");
+        up.Should().NotContain("cae_app_runtime").And.NotContain("cae_app_soporte").And.NotContain("REVOKE",
+            "aditiva: no quita nada a la ranura anterior");
+        up.Should().NotContain("UpdateData").And.NotContain("InsertData").And.NotContain("AddColumn")
+            .And.NotContain("SECURITY DEFINER");
+
+        var politicaUpdate = up.IndexOf("AS RESTRICTIVE FOR UPDATE TO cae_app_aprovisionamiento", StringComparison.Ordinal);
+        var politicaSelect = up.IndexOf("AS RESTRICTIVE FOR SELECT TO cae_app_aprovisionamiento", StringComparison.Ordinal);
+        politicaUpdate.Should().BePositive();
+        politicaSelect.Should().BePositive();
+        up.IndexOf("GRANT", StringComparison.Ordinal).Should().BeGreaterThan(Math.Max(politicaUpdate, politicaSelect),
+            "nunca hay un instante en que el rol elevado actualice o lea sin las restrictivas");
     }
 
     [Fact]
@@ -124,7 +185,7 @@ public class ModeloProductoContratadoTests
             .And.Contain("GRANT SELECT ON TABLE public.\"ProductosContratados\" TO cae_app_runtime, cae_app_soporte;");
 
         Regex.Matches(up, @"\bGRANT\b").Should().HaveCount(1,
-            "ningún rol de la aplicación escribe el Producto Contratado hasta que A6 abra la vía");
+            "la migración que crea la tabla solo concede lectura; la única escritura la abre ContrataLineaInboundPorAprovisionamiento");
         up.Should().NotContain("UpdateData").And.NotContain("InsertData").And.NotContain("AddColumn",
             "aditiva y compatible con la ranura anterior: solo una tabla nueva");
     }

@@ -187,6 +187,7 @@ public class DetectorEstadoMaterializadoTests
             "RetiradaTenantDemoService.cs",  // tarifas, filtros y órdenes de cajas de otro Tenant; el Tenant se retira entero
             "AvatarDeCuentasIdentity.cs",    // avatar de la cuenta de Identity
             "RegistroSesionesUsuario.cs",    // revocación de sesiones de cookie (SesionesUsuario): idempotente con «RevocadaEnUtc IS NULL»; no es entrada del cálculo
+            "ProductoContratadoRepository.cs", // baja de la línea Inbound (ProductosContratados, plano comercial): el rol elevado no lee la fila entera; no es entrada del cálculo
         };
 
         var fuera = FicherosDeSrc()

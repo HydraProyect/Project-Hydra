@@ -139,7 +139,7 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
                 operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, operacion.Id, Ahora, default))
             .Should().BeNull("tampoco hay rol de cartera ({0})", caso);
         (await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
-                operaciones, [Gestor], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
+                operaciones, tenants, [Gestor], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
             .Should().BeEmpty("sin amparo la cartera no da ámbito efectivo ({0})", caso);
     }
 
@@ -154,13 +154,13 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
         var (operaciones, _) = Escenario(delTenantEntero: true, o => Preparar(caso, o));
         var tenants = new TenantsQueryContextFalso();
 
-        (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(operaciones, Ahora).ToListAsync())
+        (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero(operaciones, tenants, Ahora).ToListAsync())
             .Should().BeEmpty("la vía sin cartera exige también la delegación de origen ({0})", caso);
         (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
                 operaciones, tenants, Gestor, OperadorCaeExterno, TenantBeneficiario, RolSinCartera, Ahora, default))
             .Should().BeNull("el perfil sin cartera no abre el Tenant beneficiario ({0})", caso);
         (await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
-                operaciones, OperadorCaeExterno, TenantBeneficiario, Ahora, default))
+                operaciones, tenants, OperadorCaeExterno, TenantBeneficiario, Ahora, default))
             .Should().BeFalse("vista desde el propietario tampoco lo opera ({0})", caso);
     }
 
