@@ -18,8 +18,9 @@ public interface IContribucionReferenciasArchivo
 }
 
 /// <summary>
-/// Los módulos que, según la composición, tienen que aportar sus campos a los barridos del Núcleo. Sin esta declaración,
-/// o con un módulo declarado sin contribución, la reparación de adjuntos no se ejecuta (falla cerrada).
+/// Los módulos que, según la composición, tienen que aportar sus campos a los barridos del Núcleo. Se registra una sola
+/// vez: sin declaración, con más de una, con una vacía o con un módulo declarado sin contribución, la reparación de
+/// adjuntos no se ejecuta (falla cerrada).
 /// </summary>
 public sealed record ModulosConReferenciasArchivo(IReadOnlyCollection<string> Modulos);
 

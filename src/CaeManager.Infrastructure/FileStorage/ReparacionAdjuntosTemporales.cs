@@ -58,15 +58,24 @@ public sealed class ReparacionAdjuntosTemporales
 
     /// <summary>
     /// La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>. Falla cerrada
-    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> o si a un módulo declarado le falta su
-    /// contribución: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
+    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> exactamente una vez y no vacía, o si a un
+    /// módulo declarado le falta su contribución: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
     /// referencia quedaría rota.
     /// </summary>
     public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null)
     {
-        var declarados = servicios.GetService<ModulosConReferenciasArchivo>()
-            ?? throw new InvalidOperationException(
+        // Todas las declaraciones, no la última: con GetService, un segundo registro taparía al primero.
+        var declaraciones = servicios.GetServices<ModulosConReferenciasArchivo>().ToList();
+        if (declaraciones.Count == 0)
+            throw new InvalidOperationException(
                 "La composición no declara qué módulos aportan referencias de archivo: la reparación no se ejecuta.");
+        if (declaraciones.Count > 1)
+            throw new InvalidOperationException(
+                "La composición declara más de una vez qué módulos aportan referencias de archivo: la reparación no se ejecuta.");
+        var declarados = declaraciones[0];
+        if (declarados.Modulos.Count == 0)
+            throw new InvalidOperationException(
+                "La composición declara vacía la lista de módulos que aportan referencias de archivo: la reparación no se ejecuta.");
         var contribuciones = servicios.GetServices<IContribucionReferenciasArchivo>().ToList();
         var faltan = declarados.Modulos.Except(contribuciones.Select(c => c.Modulo), StringComparer.Ordinal).ToList();
         if (faltan.Count > 0)

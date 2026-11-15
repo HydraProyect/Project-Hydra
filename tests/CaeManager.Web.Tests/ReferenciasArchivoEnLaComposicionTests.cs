@@ -61,14 +61,75 @@ public class ReferenciasArchivoEnLaComposicionTests
         crear.Should().Throw<InvalidOperationException>().WithMessage("*no declara*");
     }
 
+    /// <summary>Revisión Codex de la #2247, ronda 2: una declaración vacía no deja pasar la reparación sin contribuciones.</summary>
     [Fact]
-    public void La_composicion_real_declara_Inbound_entre_los_modulos_que_aportan_referencias()
+    public void Con_la_declaracion_de_modulos_vacia_la_reparacion_no_se_crea()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddSingleton(new ModulosConReferenciasArchivo([]));
+        using var proveedor = servicios.BuildServiceProvider();
+        using var db = new DbContext(new DbContextOptionsBuilder().Options);
+
+        var crear = () => ReparacionAdjuntosTemporales.Crear(proveedor, db);
+
+        crear.Should().Throw<InvalidOperationException>().WithMessage("*vacía*no se ejecuta*");
+    }
+
+    /// <summary>
+    /// Revisión Codex de la #2247, ronda 2: un segundo registro de la declaración no tapa al primero. Aquí el segundo,
+    /// vacío, dejaría fuera a Inbound si solo contara el último.
+    /// </summary>
+    [Fact]
+    public void Con_dos_declaraciones_de_modulos_la_reparacion_no_se_crea()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddSingleton(new ModulosConReferenciasArchivo(["Inbound"]));
+        servicios.AddSingleton<IContribucionReferenciasArchivo, CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        servicios.AddSingleton(new ModulosConReferenciasArchivo([]));
+        using var proveedor = servicios.BuildServiceProvider();
+        using var db = new DbContext(new DbContextOptionsBuilder().Options);
+
+        var crear = () => ReparacionAdjuntosTemporales.Crear(proveedor, db);
+
+        crear.Should().Throw<InvalidOperationException>().WithMessage("*más de una vez*no se ejecuta*");
+    }
+
+    /// <summary>
+    /// La composición real declara una sola vez, con Inbound, y cada módulo declarado aporta su contribución. El proyecto
+    /// no expone un <c>WebApplicationFactory</c>: el contenedor se arma con <c>AddInfrastructure</c>, y el barrido de
+    /// <c>src</c> de abajo fija que ninguna otra pieza de la composición (Program.cs incluido) registra la declaración ni
+    /// contribuciones.
+    /// </summary>
+    [Fact]
+    public void La_composicion_real_declara_una_sola_vez_los_modulos_y_cada_uno_aporta()
     {
         var servicios = new ServiceCollection();
         servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
         using var proveedor = servicios.BuildServiceProvider();
 
-        proveedor.GetRequiredService<ModulosConReferenciasArchivo>().Modulos.Should().Contain("Inbound");
+        var declaracion = proveedor.GetServices<ModulosConReferenciasArchivo>().Should().ContainSingle().Subject;
+        declaracion.Modulos.Should().Contain("Inbound");
+        var aportan = proveedor.GetServices<IContribucionReferenciasArchivo>().Select(c => c.Modulo).ToList();
+        declaracion.Modulos.Should().OnlyContain(m => aportan.Contains(m));
+    }
+
+    [Fact]
+    public void Solo_la_composicion_de_Infrastructure_registra_la_declaracion_y_las_contribuciones()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio para leer src");
+        var registro = new System.Text.RegularExpressions.Regex(
+            @"new\s+[\w.]*ModulosConReferenciasArchivo\s*\(|Add\w+<[\w.]*(ModulosConReferenciasArchivo|IContribucionReferenciasArchivo)\b");
+
+        var lugares = Directory.EnumerateFiles(Path.Combine(dir!, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .SelectMany(f => registro.Matches(File.ReadAllText(f)).Select(m => (Fichero: Path.GetFileName(f), m.Value)))
+            .ToList();
+
+        lugares.Should().HaveCount(2, "una declaración y la contribución de Inbound, nada más");
+        lugares.Should().OnlyContain(l => l.Fichero == "InfrastructureServiceCollectionExtensions.cs");
     }
 
     private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
