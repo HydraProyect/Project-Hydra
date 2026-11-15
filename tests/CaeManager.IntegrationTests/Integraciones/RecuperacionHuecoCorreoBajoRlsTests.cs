@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Auditing;
@@ -103,6 +104,42 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
             (await new EventoWebhookRepository(runtime).ExistenRecuperacionesSinIngerirAsync(_buzonPropio)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Ronda 5 de la revisión: lo que la recuperación salta al encolar. Solo los payloads de recuperación Pendientes o
+    /// Procesando de la conexión, y solo los Ids ingeridos en conversaciones de la conexión, ambos dentro del Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Lo_que_la_recuperacion_salta_al_encolar_solo_sale_de_la_conexion_y_del_Tenant()
+    {
+        var pendiente = EventoWebhook.CrearRecuperacion(_buzonPropio, "{\"pendiente\":1}", _marca);
+        var procesando = EventoWebhook.CrearRecuperacion(_buzonPropio, "{\"procesando\":1}", _marca);
+        procesando.MarcarEnProceso();
+        var procesado = EventoWebhook.CrearRecuperacion(_buzonPropio, "{\"procesado\":1}", _marca);
+        procesado.MarcarEnProceso();
+        procesado.MarcarProcesado();
+        await SembrarEventoAsync(_tenantPropio, pendiente);
+        await SembrarEventoAsync(_tenantPropio, procesando);
+        await SembrarEventoAsync(_tenantPropio, procesado);
+        await SembrarEventoAsync(_tenantPropio, new EventoWebhook(_buzonPropio, "{\"normal\":1}"));
+        await SembrarEventoAsync(_tenantAjeno, EventoWebhook.CrearRecuperacion(_buzonAjeno, "{\"ajeno\":1}", _marca));
+        await SembrarMensajeAsync(_tenantPropio, _buzonPropio, "ingerido-propio");
+        await SembrarMensajeAsync(_tenantAjeno, _buzonAjeno, "ingerido-ajeno");
+
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        await using var runtime = CrearRuntime();
+
+        (await new EventoWebhookRepository(runtime).ObtenerPayloadsDeRecuperacionesEnCursoAsync(_buzonPropio))
+            .Should().BeEquivalentTo(["{\"pendiente\":1}", "{\"procesando\":1}"]);
+        (await new EventoWebhookRepository(runtime).ObtenerPayloadsDeRecuperacionesEnCursoAsync(_buzonAjeno))
+            .Should().BeEmpty("los eventos de otro Tenant no se ven");
+
+        var conversaciones = new ConversacionRepository(runtime);
+        (await conversaciones.ObtenerMensajesExternosExistentesAsync(_buzonPropio, ["ingerido-propio", "ingerido-ajeno", "nuevo"]))
+            .Should().BeEquivalentTo(["ingerido-propio"]);
+        (await conversaciones.ObtenerMensajesExternosExistentesAsync(_buzonAjeno, ["ingerido-ajeno"]))
+            .Should().BeEmpty("los mensajes de otro Tenant no se ven");
+    }
+
     [Fact]
     public async Task Una_perdida_guardada_despues_de_leer_impide_guardar_la_limpieza()
     {
@@ -152,6 +189,17 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
         _propietario.EventosWebhook.Add(evento);
+        await _propietario.SaveChangesAsync();
+    }
+
+    private async Task SembrarMensajeAsync(Guid tenantId, Guid conexionId, string mensajeExternoId)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var conversacion = new Conversacion("Duda sobre CAE");
+        conversacion.AsociarConexion(conexionId, "hilo-" + mensajeExternoId);
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>ya estaba</p>",
+            mensajeExternoId: mensajeExternoId);
+        _propietario.Conversaciones.Add(conversacion);
         await _propietario.SaveChangesAsync();
     }
 

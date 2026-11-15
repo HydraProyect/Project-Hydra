@@ -25,5 +25,12 @@ public sealed class EventoWebhookRepositorioFalso : IEventoWebhookRepository
         Task.FromResult(Eventos.Any(e => e.ConexionIntegracionId == conexionId && e.EsRecuperacionHueco
             && e.Estado is EstadoEventoWebhook.Pendiente or EstadoEventoWebhook.Procesando or EstadoEventoWebhook.Retenido));
 
+    public Task<IReadOnlyList<string>> ObtenerPayloadsDeRecuperacionesEnCursoAsync(Guid conexionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<string>>(Eventos
+            .Where(e => e.ConexionIntegracionId == conexionId && e.EsRecuperacionHueco
+                && e.Estado is EstadoEventoWebhook.Pendiente or EstadoEventoWebhook.Procesando)
+            .Select(e => e.PayloadCrudo)
+            .ToList());
+
     public void Agregar(EventoWebhook evento) => Eventos.Add(evento);
 }

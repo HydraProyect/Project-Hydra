@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,6 +32,7 @@ public class RecuperacionHuecoCorreoServiceTests
         public ConexionIntegracionRepositorioFalso Conexiones { get; } = new();
         public EventoWebhookRepositorioFalso Eventos { get; } = new();
         public SuscripcionWebhookRepositorioFalso Suscripciones { get; } = new();
+        public ConversacionRepositorioFalso Conversaciones { get; } = new();
         public Microsoft365GraphClientFalso Graph { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
         public CerrojoVerificacionBuzonFalso Cerrojo { get; } = new();
@@ -46,8 +49,8 @@ public class RecuperacionHuecoCorreoServiceTests
         }
 
         public RecuperacionHuecoCorreoService Servicio() =>
-            new(Conexiones, Eventos, Suscripciones, Graph, new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), Graph),
-                UnitOfWork, Cerrojo, Descarte, NullLogger<RecuperacionHuecoCorreoService>.Instance);
+            new(Conexiones, Eventos, Conversaciones, Suscripciones, Graph,
+                new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), Graph), UnitOfWork, Cerrojo, Descarte, NullLogger<RecuperacionHuecoCorreoService>.Instance);
 
         public Task<ResultadoRecuperacionHueco> PasadaAsync(CancellationToken cancellationToken = default) =>
             Servicio().RecuperarConexionAsync(Conexion.Id, cancellationToken);
@@ -111,6 +114,58 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal(
             ["recuperacion:a,b,c", "recuperacion:d,e"], "cada Id se encola una sola vez en la pasada; una página solo de repeticiones no encola nada");
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Ronda 5 de la revisión de #2124: un Id ya ingerido en la conexión no se vuelve a encolar. Sin este salto, cada
+    /// reinicio tras un descarte creaba eventos para todo lo ya ingerido.
+    /// </summary>
+    [Fact]
+    public async Task Un_id_ya_ingerido_en_la_conexion_no_se_vuelve_a_encolar()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var conversacion = new Conversacion("Duda sobre CAE");
+        conversacion.AsociarConexion(escenario.Conexion.Id, "hilo-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>ya estaba</p>", mensajeExternoId: "a");
+        escenario.Conversaciones.Agregar(conversacion);
+        var otraConexion = new Conversacion("Otro buzón");
+        otraConexion.AsociarConexion(Guid.NewGuid(), "hilo-2");
+        otraConexion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>otro</p>", mensajeExternoId: "b");
+        escenario.Conversaciones.Agregar(otraConexion);
+        escenario.Pagina(hayMas: false, escenario.Mensaje("a", 10), escenario.Mensaje("b", 11), escenario.Mensaje("c", 12));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+
+        escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal(
+            ["recuperacion:b,c"], "a ya está en esta conexión; b solo está en otra conexión y se encola");
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue("el salto no cambia el avance del listado");
+    }
+
+    /// <summary>
+    /// Ronda 5 de la revisión de #2124: un Id que ya está en un evento de recuperación Pendiente o Procesando (aquí, de una
+    /// recuperación anulada) no se vuelve a encolar; uno de un evento ya procesado o descartado, sí. La marca sigue sin
+    /// limpiarse mientras ese evento esté sin ingerir.
+    /// </summary>
+    [Fact]
+    public async Task Un_id_en_un_evento_de_recuperacion_pendiente_o_procesando_no_se_vuelve_a_encolar()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var pendiente = EventoWebhook.CrearRecuperacion(escenario.Conexion.Id, "recuperacion:a", escenario.Marca);
+        var procesando = EventoWebhook.CrearRecuperacion(escenario.Conexion.Id, "recuperacion:b", escenario.Marca);
+        procesando.MarcarEnProceso();
+        var procesado = EventoWebhook.CrearRecuperacion(escenario.Conexion.Id, "recuperacion:c", escenario.Marca);
+        procesado.MarcarEnProceso();
+        procesado.MarcarProcesado();
+        var deOtraConexion = EventoWebhook.CrearRecuperacion(Guid.NewGuid(), "recuperacion:d", escenario.Marca);
+        escenario.Eventos.Eventos.AddRange([pendiente, procesando, procesado, deOtraConexion]);
+        escenario.Pagina(hayMas: false,
+            escenario.Mensaje("a", 10), escenario.Mensaje("b", 11), escenario.Mensaje("c", 12), escenario.Mensaje("d", 13));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta, "a y b siguen sin ingerir");
+
+        escenario.Eventos.Eventos.Except([pendiente, procesando, procesado, deOtraConexion]).Select(e => e.PayloadCrudo)
+            .Should().Equal(["recuperacion:c,d"], "a y b ya están en un evento en curso de esta conexión");
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
     }
 
     [Fact]
@@ -211,7 +266,8 @@ public class RecuperacionHuecoCorreoServiceTests
 
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
         escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull();
-        escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal("recuperacion:a", "recuperacion:a,b,c");
+        escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal(
+            ["recuperacion:a", "recuperacion:b,c"], "a ya está en un evento de recuperación pendiente");
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
     }
 
@@ -433,7 +489,7 @@ public class RecuperacionHuecoCorreoServiceTests
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
         escenario.Graph.ListadosRecibidosPedidos[paginas].DesdeUtc.Should().Be(cursor);
         escenario.Eventos.Eventos.Last().PayloadCrudo.Should().Be(
-            $"recuperacion:p{paginas - 1}-{porPagina - 1},nuevo", "lo releído de otra pasada lo deduplica la ingesta");
+            "recuperacion:nuevo", "lo releído de otra pasada ya está en un evento de recuperación pendiente");
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
     }
 

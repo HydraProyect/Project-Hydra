@@ -49,5 +49,12 @@ public interface IEventoWebhookRepository
     /// </summary>
     Task<bool> ExistenRecuperacionesSinIngerirAsync(Guid conexionId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Los payloads de los eventos de recuperación del hueco de la conexión <paramref name="conexionId"/>, del Tenant de la
+    /// sesión, que siguen Pendientes o Procesando. Sus Ids no se vuelven a encolar: o se ingieren, o el evento se descarta,
+    /// y entonces la marca retrocede y la recuperación se anula. Lee la base, no lo rastreado.
+    /// </summary>
+    Task<IReadOnlyList<string>> ObtenerPayloadsDeRecuperacionesEnCursoAsync(Guid conexionId, CancellationToken cancellationToken = default);
+
     void Agregar(EventoWebhook evento);
 }

@@ -37,6 +37,13 @@ public interface IConversacionRepository
     Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// De <paramref name="mensajeExternoIds"/>, los que ya están ingeridos en una conversación de la conexión
+    /// <paramref name="conexionIntegracionId"/>: el mismo criterio que <see cref="ExisteMensajeExternoAsync"/>, por lotes.
+    /// </summary>
+    Task<IReadOnlySet<string>> ObtenerMensajesExternosExistentesAsync(
+        Guid conexionIntegracionId, IReadOnlyCollection<string> mensajeExternoIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reserva el acuse automático de este buzón a este remitente, sin distinguir mayúsculas, y devuelve si la obtuvo:
     /// no la obtiene si hay otra dentro del <paramref name="intervalo"/>. Queda confirmada al volver, sin esperar a
     /// SaveChanges, y de varias llamadas simultáneas solo una la obtiene.

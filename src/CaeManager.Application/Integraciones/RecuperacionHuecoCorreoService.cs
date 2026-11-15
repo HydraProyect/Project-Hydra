@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using Microsoft.Extensions.Logging;
 
@@ -58,7 +59,8 @@ public enum ResultadoRecuperacionHueco
 /// salta uno sin leer. Su presencia solo dice que hay más; el listado queda completo con una página sin ella. Un 200
 /// ilegible es un fallo (lo decide el adaptador), y la marca y el cursor se quedan.</item>
 /// <item><b>Empates.</b> Cada página repite los mensajes del segundo del cursor: dentro de la pasada se descartan por Id
-/// antes de encolar, y entre pasadas los deduplica la ingesta por <c>MensajeExternoId</c>. Si una página con más detrás
+/// antes de encolar. Entre pasadas no se encola lo ya ingerido ni lo que ya está en un evento de recuperación Pendiente
+/// o Procesando, y la ingesta deduplica el resto por <c>MensajeExternoId</c>. Si una página con más detrás
 /// no sale de ese mismo segundo, el cursor no puede avanzar: la página no se encola, la recuperación se queda
 /// <see cref="ResultadoRecuperacionHueco.Atascada"/> en ese segundo y la marca no se limpia.</item>
 /// <item><b>Una página, un guardado.</b> Lo nuevo de cada página se encola en eventos de recuperación
@@ -82,6 +84,7 @@ public enum ResultadoRecuperacionHueco
 public class RecuperacionHuecoCorreoService(
     IConexionIntegracionRepository conexionRepositorio,
     IEventoWebhookRepository eventoRepositorio,
+    IConversacionRepository conversacionRepositorio,
     ISuscripcionWebhookRepository suscripcionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
@@ -304,7 +307,8 @@ public class RecuperacionHuecoCorreoService(
                 return;
             }
 
-            var unicos = nuevos.DistinctBy(m => m.MensajeExternoId, StringComparer.Ordinal).ToList();
+            var unicos = await SinYaIngeridosNiEnCursoAsync(
+                conexionId, nuevos.DistinctBy(m => m.MensajeExternoId, StringComparer.Ordinal).ToList(), ct);
             foreach (var lote in unicos.Chunk(MaximoMensajesPorEvento))
                 eventoRepositorio.Agregar(EventoWebhook.CrearRecuperacion(
                     conexionId, graphClient.ConstruirPayloadRecuperacion([.. lote.Select(m => m.MensajeExternoId)]),
@@ -316,6 +320,33 @@ public class RecuperacionHuecoCorreoService(
         }, cancellationToken);
 
         return ejecutado ? listado! : new Listado(ResultadoRecuperacionHueco.Ocupada);
+    }
+
+    /// <summary>
+    /// Lo que de verdad hay que encolar de una página, leído bajo el cerrojo y después de comprobar la recuperación: fuera
+    /// los Ids ya ingeridos en la conexión (el mismo criterio con que la ingesta los descarta) y los que ya están en un
+    /// evento de recuperación Pendiente o Procesando, de esta recuperación o de una anulada. Ninguno de los dos saltos
+    /// cambia la limpieza: el primero ya está en la aplicación; el segundo se ingerirá o, si su evento se descarta, la marca
+    /// retrocede y la recuperación se anula, así que esta pasada no llega a guardar ni a limpiar sobre él.
+    /// <para>
+    /// Límite declarado (issue #2124, ronda 5 de la revisión): los Ids de un evento de recuperación DescartadoDefinitivo sí
+    /// se vuelven a encolar cuando la recuperación vuelve a empezar. Saltarlos permitiría limpiar la marca con un mensaje sin
+    /// ingerir, protegido solo por el aviso de correo descartado, así que se prefiere repetir el intento. Con un GET de Graph
+    /// que falla siempre, cada reinicio crea un evento por lote de esos Ids; un mensaje fijo sale del tope de antigüedad.
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<MensajeRecibidoGraphDto>> SinYaIngeridosNiEnCursoAsync(
+        Guid conexionId, IReadOnlyList<MensajeRecibidoGraphDto> unicos, CancellationToken cancellationToken)
+    {
+        if (unicos.Count == 0)
+            return unicos;
+
+        var ingeridos = await conversacionRepositorio.ObtenerMensajesExternosExistentesAsync(
+            conexionId, [.. unicos.Select(m => m.MensajeExternoId)], cancellationToken);
+        var enCurso = (await eventoRepositorio.ObtenerPayloadsDeRecuperacionesEnCursoAsync(conexionId, cancellationToken))
+            .SelectMany(graphClient.ExtraerMensajeIdsDeNotificacion)
+            .ToHashSet(StringComparer.Ordinal);
+        return [.. unicos.Where(m => !ingeridos.Contains(m.MensajeExternoId) && !enCurso.Contains(m.MensajeExternoId))];
     }
 
     /// <summary>

@@ -54,6 +54,15 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             .SelectMany(c => c.Mensajes)
             .Any(m => m.MensajeExternoId == mensajeExternoId));
 
+    public Task<IReadOnlySet<string>> ObtenerMensajesExternosExistentesAsync(
+        Guid conexionIntegracionId, IReadOnlyCollection<string> mensajeExternoIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlySet<string>>(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
+            .SelectMany(c => c.Mensajes)
+            .Where(m => m.MensajeExternoId != null && mensajeExternoIds.Contains(m.MensajeExternoId))
+            .Select(m => m.MensajeExternoId!)
+            .ToHashSet(StringComparer.Ordinal));
+
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones
