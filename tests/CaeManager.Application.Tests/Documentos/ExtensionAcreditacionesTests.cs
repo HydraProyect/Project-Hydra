@@ -46,7 +46,7 @@ public class ExtensionAcreditacionesTests
         proveedores.ListaProveedores.Add(proveedor);
         tipos.ListaTiposDocumento.Add(tipo);
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
-            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
+            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: extension), CancellationToken.None);
 
@@ -80,7 +80,7 @@ public class ExtensionAcreditacionesTests
             documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canal.Id));
         }
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
-            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
+            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var sinPedirlos = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true), CancellationToken.None);
         sinPedirlos.Should().OnlyContain(p => p.Dominios == null || p.Dominios.Count == 0,
@@ -134,7 +134,7 @@ public class ExtensionAcreditacionesTests
             documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canal.Id));
         }
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
-            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
+            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var resultado = await handler.Handle(
             new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true, IncluirDominios: true), CancellationToken.None);

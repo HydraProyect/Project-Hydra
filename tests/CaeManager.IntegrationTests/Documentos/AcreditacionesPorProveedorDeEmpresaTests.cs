@@ -76,7 +76,7 @@ public class AcreditacionesPorProveedorDeEmpresaTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, alcance ?? new AlcanceDatosServiceFalso());
+            contexto, contexto, contexto, contexto, contexto, contexto, alcance ?? new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
         return await handler.Handle(consulta, CancellationToken.None);
     }
 

@@ -38,17 +38,13 @@ public record CambioEstadoPlataformaCentroDto(
 /// Es la regla de <b>trazabilidad interna</b> del rol Consulta (opción C, DECISION_LOG 2026-11-14, «Tanda 1 de decisiones
 /// pendientes», punto 1), y el corte es sobre el <b>registro del cambio</b>: la nota, el motivo y el Gestor CAE autor de un
 /// cambio de estado anotado a mano no se enseñan a Consulta en esta sección ni en las anotaciones de la situación del Centro.
-/// No es un corte del dato: cuando el cambio anotado a mano es un rechazo, <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c>
-/// guarda ese mismo motivo también en el historial de rechazos (causa «Otro», sin autor ni nota; esa tabla no distingue si el
-/// rechazo lo devolvió la Plataforma CAE o se anotó a mano), y ese historial sí le llega a Consulta por la regla operativa
-/// (<c>ObtenerCentroIdsParaGestionAsync</c>) como <c>UltimoMotivoRechazo</c>: <c>ObtenerDocumentosQuery</c> lo devuelve solo si la
-/// acreditación está rechazada; <c>ObtenerAcreditacionesPorProveedorQuery</c> (pestaña Plataformas de Empresa 360, donde la
-/// presentación lo filtra, y <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por rol) lo devuelve sin
-/// condicionarlo al estado actual de la acreditación (y de ella cuelga también la Bandeja del Gestor, que llega a Inicio, además de la pestaña
-/// Plataforma de Documentos, entre otras vías: ver el comentario de esa lista). La vista rápida de un Documento
-/// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>) sí lo corta para Consulta, con la misma lista que esta sección. Son dos reglas
-/// por tipo de dato y no se unifican, y el DECISION_LOG solo nombra esa vista rápida: el motivo de un rechazo anotado a mano sigue
-/// siendo legible para Consulta por esas otras vías, sin corte decidido; la nota y el autor, no.</para>
+/// Cuando el cambio anotado a mano es un rechazo, <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c> guarda ese mismo
+/// motivo también en el historial de rechazos (causa «Otro», sin autor ni nota; esa tabla no distingue si el rechazo lo devolvió
+/// la Plataforma CAE o se anotó a mano). Ese historial se corta con la misma lista en las tres Queries que lo leen como
+/// <c>UltimoMotivoRechazo</c>: <c>ObtenerAcreditacionesDelDocumentoQuery</c> (vista rápida de un Documento),
+/// <c>ObtenerDocumentosQuery</c> (listado de Documentos) y <c>ObtenerAcreditacionesPorProveedorQuery</c> (Bandeja del Gestor,
+/// pestaña Plataformas de Empresa 360, pestaña Plataforma de Documentos y <c>GET /extension/acreditaciones-pendientes</c>;
+/// decisiones del 2026-11-14 y del 2026-11-15, ver el comentario de esa lista).</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
