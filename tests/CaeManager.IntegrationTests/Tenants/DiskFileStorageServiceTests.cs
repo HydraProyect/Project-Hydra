@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;

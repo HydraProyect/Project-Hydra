@@ -1,5 +1,5 @@
 using System.Reflection;
-using CaeManager.Application.AutorizacionesLectura;
+using CaeManager.Application.Inbound.AutorizacionesLectura;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using FluentAssertions;

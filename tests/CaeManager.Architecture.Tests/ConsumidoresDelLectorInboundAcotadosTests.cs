@@ -1,6 +1,6 @@
-using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
-using CaeManager.Application.ContratosAcceso.LecturaInbound;
-using CaeManager.Application.ContratosAcceso.Queries.ObtenerLecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerLecturaInbound;
 using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
 

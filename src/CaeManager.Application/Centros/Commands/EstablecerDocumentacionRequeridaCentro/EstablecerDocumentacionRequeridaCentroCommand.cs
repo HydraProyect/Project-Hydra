@@ -1,7 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
-using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;

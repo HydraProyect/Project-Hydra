@@ -146,7 +146,7 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
         {
             linea.Lugar.Should().Be("Application.Importacion.Queries.AnalizarPlantillaMaestraQueryHandler",
                 "Outbound -> Inbound solo admite K-2 (la autoridad de lectura que usa el análisis de la plantilla maestra)");
-            linea.Simbolo.Should().Be("Inbound: Application.AutorizacionesLectura.AutorizacionLecturaAutoridad");
+            linea.Simbolo.Should().Be("Inbound: Application.Inbound.AutorizacionesLectura.AutorizacionLecturaAutoridad");
         }
     }
 

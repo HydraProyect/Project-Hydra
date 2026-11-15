@@ -30,12 +30,12 @@ AsistenteIa.Tareas.Queries :: ObtenerTareaAsistenteQueryHandler[AsistenteIa.Tare
 Auditoria.Queries :: ObtenerAccesosDocumentosSensiblesQueryHandler[Auditoria.Queries.ObtenerAccesosDocumentosSensiblesQuery] = 1
 Auditoria.Queries :: ObtenerAuditoriaQueryHandler[Auditoria.Queries.ObtenerAuditoriaQuery] = 1
 Auditoria.Queries :: ObtenerRegistroAuditoriaPorIdQueryHandler[Auditoria.Queries.ObtenerRegistroAuditoriaPorIdQuery] = 1
-AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
+Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
 Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
 Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1
 BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1
 Calendario.Queries :: ObtenerCapasCalendarioQueryHandler[Calendario.Queries.ObtenerCapasCalendarioQuery] = 1
-CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[CatalogoBase.Queries.ObtenerCatalogoBaseQuery] = 1
+Inbound.CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[Inbound.CatalogoBase.Queries.ObtenerCatalogoBaseQuery] = 1
 Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1

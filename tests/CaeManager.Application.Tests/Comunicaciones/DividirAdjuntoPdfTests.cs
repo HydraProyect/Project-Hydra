@@ -8,7 +8,7 @@ using CaeManager.Application.HerramientasPdf;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
-using CaeManager.Application.Tests.ContratosAcceso;
+using CaeManager.Application.Tests.Inbound.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Domain.Common;

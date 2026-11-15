@@ -629,7 +629,7 @@ public class CaminosDeAltaAcreditacionesTests
     [InlineData("11111111111111111111111111111111archivo.pdf", false)]
     [InlineData("archivo.pdf", false)]
     public void Una_clave_es_del_tenant_solo_si_es_un_archivo_directo_de_su_carpeta(string clave, bool esDelTenant) =>
-        CaeManager.Application.ContratosAcceso.EvidenciasInbound.OriginalesInbound
+        CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.OriginalesInbound
             .EsDelTenant(clave, Guid.Parse("11111111111111111111111111111111"))
             .Should().Be(esDelTenant);
 

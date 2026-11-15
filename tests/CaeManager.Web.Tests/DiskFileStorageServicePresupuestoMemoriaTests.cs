@@ -202,7 +202,7 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
         var servicio = Servicio(presupuesto);
         var contenido = Contenido(4096);
         var identificador = await servicio.GuardarAsync(new MemoryStream(contenido), "archivo.pdf");
-        var archivo = new CaeManager.Application.ContratosAcceso.LecturaInbound.ArchivoInboundDto(Guid.NewGuid(), _tenant, identificador, false);
+        var archivo = new CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ArchivoInboundDto(Guid.NewGuid(), _tenant, identificador, false);
         await using (var flujo = await servicio.AbrirOriginalAsync(archivo))
         {
             presupuesto.Reservado.Should().BeGreaterThan(0);

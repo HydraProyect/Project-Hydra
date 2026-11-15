@@ -1,4 +1,4 @@
-using CaeManager.Application.AutorizacionesLectura;
+using CaeManager.Application.Inbound.AutorizacionesLectura;
 using CaeManager.Application.Common;
 using CaeManager.Application.Importacion.Maestra;
 using CaeManager.Application.Tenants.Encargo;

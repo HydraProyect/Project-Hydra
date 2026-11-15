@@ -1,4 +1,4 @@
 # Aristas Outbound -> Inbound leídas del IL (ADR-013 § 4.1 regla 2 y § 4.3 test 2; DependenciasEntreModulosTests).
 # CERRADA: no admite altas; el objetivo es vacía. Hoy solo K-2 (AnalizarPlantillaMaestraQuery usa AutorizacionLecturaAutoridad;
 # el registro clasifica Application.Importacion en Outbound). Formato: tipo de origen :: Módulo: tipo de destino = 1. Solo baja.
-Application.Importacion.Queries.AnalizarPlantillaMaestraQueryHandler :: Inbound: Application.AutorizacionesLectura.AutorizacionLecturaAutoridad = 1
+Application.Importacion.Queries.AnalizarPlantillaMaestraQueryHandler :: Inbound: Application.Inbound.AutorizacionesLectura.AutorizacionLecturaAutoridad = 1

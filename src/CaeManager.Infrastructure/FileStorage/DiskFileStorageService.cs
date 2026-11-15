@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Application.Common;
-using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
-using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

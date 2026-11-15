@@ -56,12 +56,8 @@ area Domain.Reportes                 = Outbound    provisional  # § 3: idem
 area Domain.VigilanciaNormativa      = Outbound    provisional  # § 3: idem
 area Domain.Importacion              = Outbound    provisional  # § 3: idem
 area Domain.Comunicaciones           = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
-area Domain.ContratosAcceso          = Inbound
-area Domain.AutorizacionesLectura    = Inbound
-area Domain.EvidenciasInbound        = Inbound
-area Domain.CatalogoBase             = Inbound     provisional  # § 3, M-6
 area Domain.Facturacion              = Facturacion provisional  # D-M1: registrado sin mover; el corte definitivo depende de D-F14
-area Domain.Inbound                  = Inbound     reservada    # § 4.7: lo nuevo de Inbound nace aquí
+area Domain.Inbound                  = Inbound                  # § 4.7 y M1; Inbound.CatalogoBase sigue provisional (§ 3, M-6)
 
 # Documentos: estado de un Documento frente a una plataforma destino (EstadoAcreditacion.cs:3-8). § 3 nombra cinco tipos;
 # los otros cinco son el mismo agregado de acreditación (su historial, su origen, su rechazo, su repositorio y su vigencia).
@@ -147,11 +143,8 @@ area Application.VigilanciaNormativa      = Outbound    provisional  # § 3: ide
 area Application.Importacion              = Outbound    provisional  # § 3: idem
 area Application.VistaDemo                = Outbound    provisional  # § 3: idem
 area Application.Comunicaciones           = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
-area Application.ContratosAcceso          = Inbound
-area Application.AutorizacionesLectura    = Inbound
-area Application.CatalogoBase             = Inbound     provisional  # § 3, M-6
 area Application.Facturacion              = Facturacion provisional  # D-M1
-area Application.Inbound                  = Inbound     reservada    # § 4.7
+area Application.Inbound                  = Inbound                  # § 4.7 y M1; Inbound.CatalogoBase sigue provisional (§ 3, M-6)
 area Application.DependencyInjection      = Composicion
 
 # Documentos: lo que solo existe para la acreditación frente a una plataforma destino (§ 3, M-3: «sucio en Application»).
@@ -243,7 +236,7 @@ area Infrastructure.Tenants              = Nucleo
 area Infrastructure.Comercial            = Nucleo
 area Infrastructure.AltaAutonoma         = Nucleo      provisional  # § 3: hoy solo vende Outbound (INFERENCE)
 area Infrastructure.Cumplimiento         = Nucleo      provisional  # § 3: firme solo el Producto Contratado
-area Infrastructure.Autorizacion         = Nucleo      provisional  # § 3, B-2; el lector Inbound en excepción
+area Infrastructure.Autorizacion         = Nucleo      provisional  # § 3, B-2; el lector Inbound se movió a Inbound.Autorizacion (M1)
 area Infrastructure.Firmas               = Nucleo      provisional  # § 3, B-2
 area Infrastructure.Auditing             = Nucleo      provisional  # § 3, B-2
 area Infrastructure.Operaciones          = Nucleo      provisional  # § 3, M-4
@@ -269,7 +262,7 @@ area Infrastructure.AlertasOperativas    = Outbound    provisional  # § 3: cuad
 area Infrastructure.Importacion          = Outbound    provisional  # § 3: idem
 area Infrastructure.VigilanciaNormativa  = Outbound    provisional  # § 3: idem
 area Infrastructure.Comunicaciones       = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
-area Infrastructure.Inbound              = Inbound     reservada    # § 4.7: Infrastructure/Inbound/Persistence para lo nuevo
+area Infrastructure.Inbound              = Inbound                  # § 4.7 y M1: Inbound/Persistence (configuraciones y repositorios) e Inbound/Autorizacion
 area Infrastructure.Facturacion          = Facturacion reservada    # análisis de módulos § 5.2: Infrastructure/Facturacion/Persistence
 area Infrastructure.DependencyInjection  = Composicion
 
@@ -278,7 +271,6 @@ derivar Infrastructure.Persistence.Repositories     # B-1: el repositorio sigue 
 
 excepcion Infrastructure.Persistence.CaeManagerDbContext            = Composicion   # § 4.1, regla 4
 excepcion Infrastructure.Persistence.Migraciones                    = Composicion   # § 4.1, regla 4: transición de la línea base de migraciones
-excepcion Infrastructure.Autorizacion.LectorDocumentosInboundEnBase = Inbound       # § 3: excepción por tipo
 excepcion Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa = Outbound provisional  # M-3: implementa ISerializacionAltasAcreditacionEmpresa (Application.Documentos.Acreditacion)
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService = Outbound provisional  # M-3
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions       = Outbound provisional  # M-3

@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using CaeManager.Domain.CatalogoBase;
+using CaeManager.Domain.Inbound.CatalogoBase;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
