@@ -59,6 +59,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "src/CaeManager.Application/Trabajadores/Queries/ObtenerDocumentacionPorCentroDeTrabajador/ObtenerDocumentacionPorCentroDeTrabajadorQuery.cs",
         "src/CaeManager.Application/Trabajadores/Queries/ObtenerTrabajadores/ObtenerTrabajadoresQuery.cs",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor.cs",
+        "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",
         "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs",
     ];
@@ -86,6 +87,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     private static readonly string[] ServiciosSinPersonaQueTocanAlTrabajador =
     [
         "src/CaeManager.Infrastructure/Alertas/EnvioAlertasVencimientoHostedService.cs", // resumen por correo: sin efecto de estado
+        "src/CaeManager.Infrastructure/Documentos/ConciliacionAcreditacionesEmpresaHostedService.cs", // crea acreditaciones pendientes de Empresa (actor Sistema, apagado por defecto); un pendiente de tipo bloqueante bloquea a los Trabajadores de la Empresa (DEFECTO a decidir, ver PR)
         "src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs", // crea revisión pendiente de persona
     ];
 
@@ -100,7 +102,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     {
         var raiz = RaizDelRepositorio();
 
-        var encontrados = FicherosDeCodigo(raiz)
+        var encontrados = FicherosDeCodigo(raiz, incluirRazor: true)
             .Where(f => ReferenciasAlBloqueo.Any(r => CodigoSinComentarios(f).Contains(r, StringComparison.Ordinal)))
             .Select(f => Relativa(raiz, f))
             .OrderBy(f => f, StringComparer.Ordinal)
@@ -147,7 +149,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     [InlineData(SituacionDeRequisitoBloqueante.SinValidarEnPlataforma, 0, "BloqueoSituacionSinValidarEnPlataforma")]
     [InlineData(SituacionDeRequisitoBloqueante.Vencido, 0, "BloqueoSituacionVencido")]
     [InlineData(SituacionDeRequisitoBloqueante.Vencido, 15, "BloqueoSituacionFinTolerancia")]
-    public void El_motivo_de_cada_situacion_bloqueante_es_visible_en_las_superficies_del_Centro(
+    public void El_texto_del_motivo_de_cada_situacion_bloqueante_es_propio_de_esa_situacion(
         SituacionDeRequisitoBloqueante situacion, int toleranciaDias, string claveEsperada)
     {
         ReglaBloqueoDeAcceso.Bloquea(situacion).Should().BeTrue();
@@ -160,6 +162,15 @@ public class InventarioDeEfectosSobreTrabajadorTests
         var linea = TextoBloqueoDeAcceso.LineaDeDocumento(new LocalizadorQueDevuelveLaClave(), dto);
 
         linea.Should().Be($"PSS: {claveEsperada}", "toda situación que bloquea tiene su motivo propio, no un texto genérico");
+    }
+
+    [Fact]
+    public void El_vencido_sin_fecha_tiene_su_propio_texto()
+    {
+        var dto = new DocumentacionBloqueantePendienteDto(
+            Guid.NewGuid(), "Centro", Guid.NewGuid(), "Ana", Guid.NewGuid(), "PSS", Situacion: SituacionDeRequisitoBloqueante.Vencido);
+
+        TextoBloqueoDeAcceso.LineaDeDocumento(new LocalizadorQueDevuelveLaClave(), dto).Should().Be("PSS: BloqueoSituacionVencidoSinFecha");
     }
 
     [Fact]
@@ -198,7 +209,8 @@ public class InventarioDeEfectosSobreTrabajadorTests
         var infraestructura = Path.Combine(raiz, "src", "CaeManager.Infrastructure");
 
         var encontrados = Directory.EnumerateFiles(infraestructura, "*HostedService.cs", SearchOption.AllDirectories)
-            .Where(f => CodigoSinComentarios(f).Contains("Trabajador", StringComparison.OrdinalIgnoreCase))
+            .Where(f => CodigoSinComentarios(f).Contains("Trabajador", StringComparison.OrdinalIgnoreCase)
+                || CodigoSinComentarios(f).Contains("Acreditaci", StringComparison.OrdinalIgnoreCase))
             .Select(f => Relativa(raiz, f))
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
@@ -264,7 +276,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     {
         if (CacheDeCodigo.TryGetValue(fichero, out var guardado)) return guardado;
 
-        var texto = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(fichero), @"@\*.*?\*@|/\*.*?\*/", string.Empty,
+        var texto = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(fichero), @"@\*.*?\*@|(?m)^[ \t]*/\*.*?\*/", string.Empty,
             System.Text.RegularExpressions.RegexOptions.Singleline);
         var codigo = string.Join('\n', texto.Split('\n').Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
         lock (CacheDeCodigo) CacheDeCodigo[fichero] = codigo;
