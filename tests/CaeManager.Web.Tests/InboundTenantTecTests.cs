@@ -243,7 +243,8 @@ public sealed class InboundTenantTecTests : BunitContext
         subida.Recibida.NombreArchivo.Should().Be("aptitud.pdf");
         var dialogo = cut.Find("[role=dialog]").TextContent;
         dialogo.Should().Contain("Pendiente de validar");
-        dialogo.Should().Contain("Lo validará el Gestor CAE de Logística Delta Sur S.A.");
+        dialogo.Should().Contain("Lo validará Logística Delta Sur S.A.");
+        dialogo.Should().NotContain("Gestor CAE");
         dialogo.Should().Contain("Siguiente pendiente: Formación en altura");
         cut.Find("[role=dialog]").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain(["Más tarde", "Continuar"]);
     }

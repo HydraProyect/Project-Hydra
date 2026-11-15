@@ -538,7 +538,7 @@
     <value>Document pujat</value>
   </data>
   <data name="SbLoValidara" xml:space="preserve">
-    <value>El validarà el Gestor CAE de {0}. Si el rebutja o el marca com a incomplet, t&apos;avisarem amb el motiu.</value>
+    <value>El validarà {0}. Si el rebutja o el marca com a incomplet, t&apos;avisarem amb el motiu.</value>
   </data>
   <data name="SbNoAceptado" xml:space="preserve">
     <value>No acceptat: conté dades de salut</value>

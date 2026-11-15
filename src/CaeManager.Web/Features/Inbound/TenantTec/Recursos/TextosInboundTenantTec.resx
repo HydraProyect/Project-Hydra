@@ -538,7 +538,7 @@
     <value>Documento subido</value>
   </data>
   <data name="SbLoValidara" xml:space="preserve">
-    <value>Lo validará el Gestor CAE de {0}. Si lo rechaza o lo marca incompleto, te avisaremos con el motivo.</value>
+    <value>Lo validará {0}. Si lo rechaza o lo marca incompleto, te avisaremos con el motivo.</value>
   </data>
   <data name="SbNoAceptado" xml:space="preserve">
     <value>No aceptado: contiene datos de salud</value>
