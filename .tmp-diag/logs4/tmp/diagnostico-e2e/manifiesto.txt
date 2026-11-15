@@ -1,0 +1,15 @@
+src/CaeManager.Web/bin/Debug/net10.0/App_Data
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/documentos
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/documentos/01a1d17c471970ab95a472bbbb8ebfcb
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/documentos/01a1d17c471970ab95a472bbbb8ebfcb/9301b107568849fba2bb03b03b842347.pdf
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/log-WebAppFixtureConCatalan-20261112.txt
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/log-WebAppFixtureConRevalidacionRapida-20261112.txt
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/log-WebAppFixtureEscenariosDireccion-20261112.txt
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/log-WebAppFixtureParaSoporte-20261112.txt
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/log-WebAppFixtureGestorCaeCarteraMultiTenant-20261112.txt
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/dataprotection-keys
+src/CaeManager.Web/bin/Debug/net10.0/App_Data/dataprotection-keys/key-b2a7ad7a-b229-4b04-a72b-32a8d3f9be45.xml
+tests/CaeManager.E2ETests/TestResults
+tests/CaeManager.E2ETests/TestResults/43eb9af3-d50d-420a-91cf-c5e319788b12
+tests/CaeManager.E2ETests/TestResults/e2e-bloque-4.trx

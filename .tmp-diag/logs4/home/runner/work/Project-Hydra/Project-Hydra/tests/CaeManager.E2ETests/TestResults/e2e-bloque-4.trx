@@ -1,0 +1,1017 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="69e05795-90dc-4aae-81b9-c31b0c6f8e16" name="@runnervmwuk1x 2026-11-12 20:37:57" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-11-12T20:37:57.3750988+00:00" queuing="2026-11-12T20:37:57.3750989+00:00" start="2026-11-12T20:36:23.4248816+00:00" finish="2026-11-12T20:49:36.9155961+00:00" />
+  <TestSettings name="default" id="0cc5b6b9-35bf-4158-bb11-3a872c3f5572">
+    <Deployment runDeploymentRoot="_runnervmwuk1x_2026-11-12_20_37_57" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="3cb7258b-7376-472a-81e1-540294ee4543" testId="e39924f2-9e73-7565-1cfa-c0bfa1ea02e1" testName="CaeManager.E2ETests.AtajosSuperficiesTests.La_e_suelta_es_de_la_lista_y_la_de_g_e_es_del_atajo_global" computerName="runnervmwuk1x" duration="00:00:00.0102969" startTime="2026-11-12T20:49:36.6345210+00:00" endTime="2026-11-12T20:49:36.7595982+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3cb7258b-7376-472a-81e1-540294ee4543" />
+    <UnitTestResult executionId="f4fff12d-013c-49e2-95a1-5bc773dbf4e1" testId="f66b3ba3-f353-fddb-374d-c44c371c9261" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/visitas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.3184598" startTime="2026-11-12T20:41:06.3064777+00:00" endTime="2026-11-12T20:41:10.6211613+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f4fff12d-013c-49e2-95a1-5bc773dbf4e1" />
+    <UnitTestResult executionId="8d2dd1e5-2bba-4f9e-8d8c-0b5708264bcd" testId="fa5a47f3-f304-6e0b-9743-f50cad944517" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Control+x&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0079040" startTime="2026-11-12T20:49:34.3865122+00:00" endTime="2026-11-12T20:49:34.5129659+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8d2dd1e5-2bba-4f9e-8d8c-0b5708264bcd" />
+    <UnitTestResult executionId="923fae8a-4d54-4b41-8dec-000f57ca9fff" testId="8a2aa28c-9f24-97ba-9297-005d7739d622" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/gestiones&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4627922" startTime="2026-11-12T20:41:19.4721424+00:00" endTime="2026-11-12T20:41:23.9353341+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="923fae8a-4d54-4b41-8dec-000f57ca9fff" />
+    <UnitTestResult executionId="775092a6-51a3-4e59-9122-fb1f6566d79b" testId="6076f587-2075-eb93-a303-e7d1d0ff300e" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_centros_por_URL_y_a_recargar" computerName="runnervmwuk1x" duration="00:00:06.9651182" startTime="2026-11-12T20:40:27.2071701+00:00" endTime="2026-11-12T20:40:34.1555521+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="775092a6-51a3-4e59-9122-fb1f6566d79b" />
+    <UnitTestResult executionId="3691d6cb-8996-47b3-af9e-0ccaf7d0d5e1" testId="9cfce066-9634-55cf-71ac-4628949594b0" testName="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Con_el_circuito_abierto_la_sesion_cae_al_pasar_el_plazo_del_Tenant_sin_interaccion" computerName="runnervmwuk1x" duration="00:00:10.5649613" startTime="2026-11-12T20:44:42.4782888+00:00" endTime="2026-11-12T20:44:53.0421203+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3691d6cb-8996-47b3-af9e-0ccaf7d0d5e1" />
+    <UnitTestResult executionId="b1ec04dc-bef0-42eb-952d-db364cb2cacc" testId="568f18d6-a742-ef71-4473-a88efb89b9f6" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;borde-pastilla&quot;, clavesEsperadas: [&quot;pastilla[Vencido].border-top-color&quot;], valorMutado: &quot;#b42318ff&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1663990" startTime="2026-11-12T20:47:47.6567808+00:00" endTime="2026-11-12T20:47:47.8215093+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b1ec04dc-bef0-42eb-952d-db364cb2cacc" />
+    <UnitTestResult executionId="3f63466d-e932-4501-a6c7-273728d7f37e" testId="7fd36113-a72e-2184-3cd2-463314cb47fc" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termina_a_mitad_del_sondeo_deja_de_reintentar" computerName="runnervmwuk1x" duration="00:00:00.0010364" startTime="2026-11-12T20:49:33.2329375+00:00" endTime="2026-11-12T20:49:33.2333702+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3f63466d-e932-4501-a6c7-273728d7f37e" />
+    <UnitTestResult executionId="e21e96d0-0b0f-4411-baa7-990aafc8924e" testId="d76db121-4ed5-e083-c9a2-36237982b4bb" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;sombra&quot;, clavesEsperadas: [&quot;tarjeta.box-shadow&quot;], valorMutado: &quot;rgba(0, 0, 0, 0.1) 0px 1px 2px 0px&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1819776" startTime="2026-11-12T20:47:46.9733609+00:00" endTime="2026-11-12T20:47:47.1537848+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e21e96d0-0b0f-4411-baa7-990aafc8924e" />
+    <UnitTestResult executionId="738967a3-96ba-47fb-bb69-e2641af4f40e" testId="b0873fd4-1bd7-e431-6312-3cea0ca3d9b9" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Un_dialogo_oculto_no_bloquea_la_pagina_y_el_prefijo_no_cruza_el_dialogo" computerName="runnervmwuk1x" duration="00:00:00.0159084" startTime="2026-11-12T20:49:35.4242893+00:00" endTime="2026-11-12T20:49:35.5318730+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="738967a3-96ba-47fb-bb69-e2641af4f40e" />
+    <UnitTestResult executionId="15991043-9c4a-4452-96f1-afdbda98c09d" testId="e0e521b8-2e69-1a17-10b7-6aa89fb05f12" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma" computerName="runnervmwuk1x" duration="00:00:00.0010000" startTime="2026-11-12T20:47:48.3212963+00:00" endTime="2026-11-12T20:47:48.3218846+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="15991043-9c4a-4452-96f1-afdbda98c09d">
+      <Output>
+        <ErrorInfo>
+          <Message>Necesita los mockups: define FIDELIDAD360_MOCKUPS con la carpeta de mockups de Project-Hydra-Negocio.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="0a8f7b79-8bf2-4f89-9b9f-f6953c557e8d" testId="faf5ab17-29eb-382d-cde2-cb4c367ed93f" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola" computerName="runnervmwuk1x" duration="00:00:13.4845907" startTime="2026-11-12T20:40:13.7076775+00:00" endTime="2026-11-12T20:40:27.1896790+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0a8f7b79-8bf2-4f89-9b9f-f6953c557e8d">
+      <Output>
+        <ErrorInfo>
+          <Message>Microsoft.Playwright.PlaywrightException : Locator expected to be visible
+Error: element(s) not found 
+Call log:
+  - Expect "ToBeVisibleAsync" GetByText("Visita creada correctamente.") with timeout 5000ms
+  - waiting for GetByText("Visita creada correctamente.")
+Aria snapshot:
+- link "Saltar al contenido":
+  - /url: "#contenido-principal"
+- complementary:
+  - link "TALVEG Acredita":
+    - /url: /
+    - text: TALVEG ACREDITA
+  - 'button "Contexto operativo actual: Talleres Boreal S.A. (Tenant beneficiario E2E)"': Empresa gestionada Talleres Boreal S.A. (Tenant beneficiario E2E)
+  - navigation "Navegación principal":
+    - search:
+      - searchbox "Buscar en el menú"
+      - button "Compactar la barra lateral"
+    - link "Inicio":
+      - /url: ""
+    - group:
+      - text: Negocio
+      - link "Empresas":
+        - /url: empresas
+      - link "Subcontratas":
+        - /url: subcontratas
+      - link "Trabajadores":
+        - /url: trabajadores
+      - link "Clientes":
+        - /url: clientes
+      - link "Centros":
+        - /url: centros
+      - link "Documentos":
+        - /url: documentos
+      - link "Vehículos":
+        - /url: vehiculos
+      - link "Proyectos":
+        - /url: proyectos
+    - group:
+      - text: Operación
+      - link "Mi trabajo":
+        - /url: mi-trabajo
+      - link "Comunicaciones":
+        - /url: comunicaciones
+      - link "Gestiones":
+        - /url: gestiones
+      - link "Visitas":
+        - /url: visitas
+      - link "Herramientas PDF":
+        - /url: herramientas-pdf
+    - group:
+      - text: Control
+      - link "Alertas":
+        - /url: alertas
+      - link "Calendario":
+        - /url: calendario
+      - link "Reportes":
+        - /url: reportes
+      - link "Conectar extensión":
+        - /url: cuenta/extension
+- banner:
+  - navigation "Ruta de la página":
+    - list:
+      - listitem: Operación
+      - listitem: Visitas
+  - link "Subir documentos":
+    - /url: /documentos/subida-masiva
+    - text: Subir
+  - button "Buscar": Buscar Ctrl+K
+  - button "Avisos pendientes"
+  - switch "Tema oscuro"
+  - button "Menú de usuario"
+- main:
+  - heading "Visitas" [level=1]
+  - text: "1"
+  - button "Selección múltiple"
+  - link "Exportar a Excel":
+    - /url: /visitas/exportar.xlsx?activas=true
+  - button "Atajos de teclado"
+  - button "Más acciones"
+  - button "+ Nueva visita"
+  - region "Filtros":
+    - textbox "Filtrar esta pantalla":
+      - /placeholder: Buscar por centro, titular o empresa…
+    - button "Cliente"
+    - button "Empresa"
+    - button "Ventana"
+    - button "Más filtros"
+    - button "Filtros guardados"
+    - 'button "Agrupar: no"'
+    - button "Expandir todo"
+    - text: Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+    - group "Documentación":
+      - button "Todas 1" [pressed]
+      - button "1 Por gestionar"
+  - table "Visitas":
+    - rowgroup:
+      - row "Desplegar la preparación Centro Cliente · Empresa Fechas Preparación Estado documental Acciones":
+        - columnheader "Desplegar la preparación"
+        - columnheader "Centro":
+          - button "Centro"
+        - columnheader "Cliente · Empresa":
+          - button "Cliente · Empresa"
+        - columnheader "Fechas":
+          - button "Fechas"
+        - columnheader "Preparación"
+        - columnheader "Estado documental"
+        - columnheader "Acciones"
+    - rowgroup:
+      - 'row "Desplegar preparación de Planta Boreal Burgos Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma Harinas del Duero S.A. Talleres Boreal S.A. Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana Trabajadores asignados: 1 Por gestionar Pendiente Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026"':
+        - cell "Desplegar preparación de Planta Boreal Burgos":
+          - button "Desplegar preparación de Planta Boreal Burgos"
+        - cell "Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma":
+          - button "Planta Boreal Burgos"
+          - button "Copiar la referencia de la visita a Planta Boreal Burgos": VIS-C38C183D
+          - text: Plataforma
+        - cell "Harinas del Duero S.A. Talleres Boreal S.A.":
+          - button "Harinas del Duero S.A."
+          - button "Talleres Boreal S.A."
+        - cell "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana":
+          - button "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026": 13/11/2026
+          - text: Mañana
+        - 'cell "Trabajadores asignados: 1 Por gestionar"':
+          - 'button "Trabajadores asignados: 1"': 0/1
+          - text: Por gestionar
+        - cell "Pendiente"
+        - cell "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+          - link "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+            - /url: /visitas/01a1d17c-4b7b-7907-947f-ea6ec38c183d
+  - text: Mostrando 1 de 1
+  - list "Atajos de teclado de esta lista":
+    - listitem "Fila siguiente / anterior": j k moverse
+    - listitem "Abrir la fila enfocada": · Enter abrir
+    - listitem "Editar la fila enfocada desde su vista rápida": · e editar
+    - listitem "Marcar/desmarcar la fila enfocada": · x marcar
+    - listitem "Ir al filtro de esta pantalla": · f filtrar
+    - 'listitem "Pulsar y soltar: enseña una letra sobre cada control"': · Alt KeyTips
+    - listitem "Ver todos los atajos de teclado": · ? todos
+  - group "Filas por página:":
+    - text: "Filas por página:"
+    - button "20" [pressed]
+    - button "50"
+    - button "100"
+  - dialog "Nueva visita":
+    - heading "Nueva visita" [level=2]
+    - button "Cerrar"
+    - alert: Las fechas no son válidas.
+    - text: Centro
+    - combobox "Centro":
+      - option "Selecciona un centro…"
+      - option "Planta Boreal Burgos (Harinas del Duero S.A. — Talleres Boreal S.A.)" [selected]
+    - text: Fecha de inicio
+    - textbox "Fecha de inicio":
+      - /placeholder: dd/mm/aaaa
+    - button "Abrir el calendario"
+    - text: Fecha de fin
+    - textbox "Fecha de fin":
+      - /placeholder: dd/mm/aaaa
+      - text: 22/11/2026
+    - button "Abrir el calendario"
+    - text: Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)
+    - textbox "Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)"
+    - group "Trabajadores que entran":
+      - text: Trabajadores que entran
+      - textbox "Buscar…"
+      - checkbox "Solo mostrar relacionados" [checked]
+      - text: Solo mostrar relacionados
+      - checkbox "Bruno Ledesma Pardo" [checked]
+      - text: Bruno Ledesma Pardo
+    - checkbox "Marcar como avisado al titular del Centro (no envía nada)"
+    - text: Marcar como avisado al titular del Centro (no envía nada) Notas
+    - textbox "Notas"
+    - button "Cancelar"
+    - button "Guardar"
+- status</Message>
+          <StackTrace>   at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title) in /_/src/Playwright/Core/AssertionsBase.cs:line 95
+   at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options) in /_/src/Playwright/Core/AssertionsBase.cs:line 69
+   at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs:line 249
+   at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs:line 292
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="2b1bedcc-d024-4b3f-8b02-116b623c895d" testId="ebdaae0b-e8da-02ed-8776-2bf7988930d6" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Enter_activa_el_boton_y_la_casilla_no_bloquea_la_lista" computerName="runnervmwuk1x" duration="00:00:00.0439484" startTime="2026-11-12T20:49:35.0489758+00:00" endTime="2026-11-12T20:49:35.1966086+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2b1bedcc-d024-4b3f-8b02-116b623c895d" />
+    <UnitTestResult executionId="a43665f2-e2d7-4949-ab3f-3fcb8b688c1e" testId="1f1ebd10-adee-f9c9-2e98-044a994c3006" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Las_filas_envueltas_una_a_una_siguen_siendo_una_lista_para_medir_la_columna" computerName="runnervmwuk1x" duration="00:00:00.1655264" startTime="2026-11-12T20:47:48.3253588+00:00" endTime="2026-11-12T20:47:48.4859793+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a43665f2-e2d7-4949-ab3f-3fcb8b688c1e" />
+    <UnitTestResult executionId="026dc55e-e1a5-4ec7-8e45-759a60680e54" testId="7bde2b77-116e-b06c-9516-c1bf1e06f068" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/empresas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.6824401" startTime="2026-11-12T20:40:48.5765537+00:00" endTime="2026-11-12T20:40:53.2555917+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="026dc55e-e1a5-4ec7-8e45-759a60680e54" />
+    <UnitTestResult executionId="daac2854-d8af-4ad0-8d24-58a9561cb6b3" testId="d82ad389-bfbc-ce0a-8791-d8c453276484" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pastilla_fuera_de_su_columna_se_ve_como_dispersion" computerName="runnervmwuk1x" duration="00:00:00.1610618" startTime="2026-11-12T20:47:47.9935182+00:00" endTime="2026-11-12T20:47:48.1545818+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="daac2854-d8af-4ad0-8d24-58a9561cb6b3" />
+    <UnitTestResult executionId="b05a259b-9488-4d2e-b86f-d08ddd60f4aa" testId="dbe8e431-668c-f34e-6800-804ef5eecfe7" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_sin_tarjetas_ni_lateral_son_un_instrumento_ciego_no_un_verde" computerName="runnervmwuk1x" duration="00:00:00.1832235" startTime="2026-11-12T20:47:49.4393826+00:00" endTime="2026-11-12T20:47:49.6219602+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b05a259b-9488-4d2e-b86f-d08ddd60f4aa" />
+    <UnitTestResult executionId="5c4cebc4-a179-4875-abb9-28b25ef84b35" testId="b749f400-db6e-3882-8e69-992fafd1a6ce" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Tras_g_g_el_prefijo_esta_consumido_en_los_dos_modulos" computerName="runnervmwuk1x" duration="00:00:00.0102249" startTime="2026-11-12T20:49:36.5118213+00:00" endTime="2026-11-12T20:49:36.6302882+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5c4cebc4-a179-4875-abb9-28b25ef84b35" />
+    <UnitTestResult executionId="b2feecf9-992c-410e-945c-be77337e0a86" testId="569ffa0b-5c48-2a13-b979-7a84717f3af1" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_con_respuestas_503_el_mensaje_nombra_el_codigo_HTTP" computerName="runnervmwuk1x" duration="00:00:00.0010169" startTime="2026-11-12T20:49:33.2320807+00:00" endTime="2026-11-12T20:49:33.2322918+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b2feecf9-992c-410e-945c-be77337e0a86" />
+    <UnitTestResult executionId="4712bcaa-3c20-4793-ac10-7b57de81a897" testId="45ec6edd-3df3-fb64-b0b6-df388c30ca2e" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/vehiculos&quot;)" computerName="runnervmwuk1x" duration="00:00:04.7587655" startTime="2026-11-12T20:41:50.1777061+00:00" endTime="2026-11-12T20:41:54.9365713+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4712bcaa-3c20-4793-ac10-7b57de81a897" />
+    <UnitTestResult executionId="b14ad1bd-f2af-4fd2-8c06-297c23be07f6" testId="a7e9f93a-abd6-5ad4-adef-749f65303dc2" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle" computerName="runnervmwuk1x" duration="00:00:05.1973587" startTime="2026-11-12T20:40:43.3798859+00:00" endTime="2026-11-12T20:40:48.5735427+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b14ad1bd-f2af-4fd2-8c06-297c23be07f6" />
+    <UnitTestResult executionId="bc32eb3c-e6e4-4328-9387-0ecc26bbfae9" testId="3a9f696d-ad82-27ad-cb5b-c17241ef0ee4" testName="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Una_interaccion_reinicia_el_plazo_y_la_sesion_cae_contando_desde_la_ultima" computerName="runnervmwuk1x" duration="00:00:11.1445610" startTime="2026-11-12T20:44:19.2320370+00:00" endTime="2026-11-12T20:44:30.3809950+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bc32eb3c-e6e4-4328-9387-0ecc26bbfae9" />
+    <UnitTestResult executionId="1ca2076f-452f-4861-9238-272cfca78b5e" testId="ef415e20-993d-4b64-063b-6b63663b90a2" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pieza_que_falta_en_la_ficha_se_dice_ausente_y_no_se_calla" computerName="runnervmwuk1x" duration="00:00:00.1793308" startTime="2026-11-12T20:47:49.0738862+00:00" endTime="2026-11-12T20:47:49.2546610+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1ca2076f-452f-4861-9238-272cfca78b5e" />
+    <UnitTestResult executionId="2bc9cb6b-b064-4eee-a227-857c433f09b3" testId="93d579aa-23a7-7a64-7617-adcdb274fbe8" testName="CaeManager.E2ETests.IdiomaPorCuentaTests.Cambiar_de_idioma_sin_token_antiforgery_se_rechaza_y_no_toca_nada" computerName="runnervmwuk1x" duration="00:00:02.6569359" startTime="2026-11-12T20:49:10.2018052+00:00" endTime="2026-11-12T20:49:12.8615267+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2bc9cb6b-b064-4eee-a227-857c433f09b3" />
+    <UnitTestResult executionId="d5f107c9-f81b-4385-b671-c99e3e4e3959" testId="5221b026-1302-d44a-82b9-46acee998b07" testName="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#editor&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0183957" startTime="2026-11-12T20:49:35.6523765+00:00" endTime="2026-11-12T20:49:35.7641962+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d5f107c9-f81b-4385-b671-c99e3e4e3959" />
+    <UnitTestResult executionId="8a238638-2607-4d83-9f19-eb396e30348d" testId="244e09eb-e5dc-9452-58bc-5044bac6f71a" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: &quot;Meta&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0326433" startTime="2026-11-12T20:49:34.9103616+00:00" endTime="2026-11-12T20:49:35.0448178+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8a238638-2607-4d83-9f19-eb396e30348d" />
+    <UnitTestResult executionId="20b362b6-181d-41b4-bce0-e774c0f63e21" testId="ae15632f-d914-98a1-6718-38f4e028d48c" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#casilla&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0119467" startTime="2026-11-12T20:49:36.1153818+00:00" endTime="2026-11-12T20:49:36.2437657+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="20b362b6-181d-41b4-bce0-e774c0f63e21" />
+    <UnitTestResult executionId="de05f3f0-bc1e-48b5-9702-222212b543f3" testId="ef74ce1f-157f-3973-6856-c45c48a90875" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/trabajadores&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4658023" startTime="2026-11-12T20:41:23.9391820+00:00" endTime="2026-11-12T20:41:28.4022520+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="de05f3f0-bc1e-48b5-9702-222212b543f3" />
+    <UnitTestResult executionId="283a0379-d001-4339-8c7a-6d9a2c4a8e00" testId="ef752268-d1fa-b2a8-b739-c29aaf08aa6a" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;sin-degradado&quot;, clavesEsperadas: [&quot;fila-con-problema[peligro].degradado&quot;], valorMutado: &quot;no&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1663674" startTime="2026-11-12T20:47:47.1552572+00:00" endTime="2026-11-12T20:47:47.3211009+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="283a0379-d001-4339-8c7a-6d9a2c4a8e00" />
+    <UnitTestResult executionId="81fc3091-ee83-4a8b-99c4-02d98fb4b5d7" testId="c0b9e703-e662-0d63-d050-c0ab5cb55653" testName="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.El_Tenant_beneficiario_elegido_sobrevive_al_menu_lateral_del_Coordinador_CAE" computerName="runnervmwuk1x" duration="00:00:37.0446594" startTime="2026-11-12T20:47:03.1838609+00:00" endTime="2026-11-12T20:47:40.2285714+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="81fc3091-ee83-4a8b-99c4-02d98fb4b5d7" />
+    <UnitTestResult executionId="6616edd5-aa06-4c78-8f5d-6dd278e5c0aa" testId="4d721f1d-5564-b444-e79e-47961270c729" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/incidencias&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4250750" startTime="2026-11-12T20:41:10.6263767+00:00" endTime="2026-11-12T20:41:15.0476629+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6616edd5-aa06-4c78-8f5d-6dd278e5c0aa" />
+    <UnitTestResult executionId="8f265595-6236-41da-845b-1d9bbf3ca2c5" testId="6aab24f5-6d3e-0b90-6140-5f3cd3386f34" testName="CaeManager.E2ETests.IdiomaPorCuentaTests.El_login_con_2FA_proyecta_el_idioma_de_la_cuenta_en_la_cookie" computerName="runnervmwuk1x" duration="00:00:01.1757369" startTime="2026-11-12T20:49:31.3915883+00:00" endTime="2026-11-12T20:49:32.5670103+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8f265595-6236-41da-845b-1d9bbf3ca2c5" />
+    <UnitTestResult executionId="e9df11f3-9cbd-472d-a349-674f44b03808" testId="5375998d-b0a1-70d8-ba7c-a99ece94e01e" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/subcontratas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.3485072" startTime="2026-11-12T20:40:57.6732442+00:00" endTime="2026-11-12T20:41:02.0193122+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e9df11f3-9cbd-472d-a349-674f44b03808" />
+    <UnitTestResult executionId="5bd79273-e8f0-4d8a-959b-a5daec349211" testId="b555725d-994f-24b4-14f9-33a81373de17" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termino_falla_con_su_codigo_de_salida_sin_pedir_nada" computerName="runnervmwuk1x" duration="00:00:00.0007909" startTime="2026-11-12T20:49:33.2350294+00:00" endTime="2026-11-12T20:49:33.2352409+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5bd79273-e8f0-4d8a-959b-a5daec349211" />
+    <UnitTestResult executionId="3d0398af-8c53-4eec-8629-7d1bb6ddbeef" testId="c233c293-ac2a-ddcf-97ec-c24ff4c4b2a1" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas" computerName="runnervmwuk1x" duration="00:00:17.9357949" startTime="2026-11-12T20:39:48.0450467+00:00" endTime="2026-11-12T20:40:05.9706281+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3d0398af-8c53-4eec-8629-7d1bb6ddbeef" />
+    <UnitTestResult executionId="6351c754-c38d-4bd8-8e66-964ed8106ec7" testId="c8fe71d3-c86d-1b76-de4e-ddfee1860ed2" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/visitas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.9281992" startTime="2026-11-12T20:42:29.1344939+00:00" endTime="2026-11-12T20:42:34.0608033+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6351c754-c38d-4bd8-8e66-964ed8106ec7" />
+    <UnitTestResult executionId="05dcd0be-7304-46cc-8d47-cd1ed463ad01" testId="e9dafdbb-a13b-6070-4d3a-7b4693772fa4" testName="CaeManager.E2ETests.PropuestaApoyoCarteraE2ETests.La_principal_propone_el_apoyo_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_abre_el_Tenant_y_al_desasignarse_lo_pierde" computerName="runnervmwuk1x" duration="00:00:19.2307634" startTime="2026-11-12T20:39:11.6050400+00:00" endTime="2026-11-12T20:39:30.8318824+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="05dcd0be-7304-46cc-8d47-cd1ed463ad01" />
+    <UnitTestResult executionId="46c25aaf-6f5d-49b8-8a78-2c76f5eb3556" testId="cf9a9e00-fd3a-d024-3712-b49f94e0cf5a" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;native&quot;, focoFuera: False)" computerName="runnervmwuk1x" duration="00:00:00.0534769" startTime="2026-11-12T20:49:34.2303820+00:00" endTime="2026-11-12T20:49:34.3845316+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="46c25aaf-6f5d-49b8-8a78-2c76f5eb3556" />
+    <UnitTestResult executionId="61e4afe0-03fc-4b61-8087-ebb504493379" testId="1e196a60-2f3b-a8fc-424b-a49b97e3e71c" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#editor&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0143949" startTime="2026-11-12T20:49:36.0032663+00:00" endTime="2026-11-12T20:49:36.1140378+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="61e4afe0-03fc-4b61-8087-ebb504493379" />
+    <UnitTestResult executionId="e5bf9ef0-e39e-4d1d-bc09-810dd955c155" testId="465e1962-4309-a4ba-ae3b-e12e770b91ea" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/incidencias&quot;)" computerName="runnervmwuk1x" duration="00:00:04.9038872" startTime="2026-11-12T20:42:39.0342493+00:00" endTime="2026-11-12T20:42:43.9386975+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e5bf9ef0-e39e-4d1d-bc09-810dd955c155" />
+    <UnitTestResult executionId="7112d1ae-ec1f-4b34-92f9-46e06d598edd" testId="ee73ece9-1306-2eee-8982-e5cf01dc7d8e" testName="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_corto_no_cae_por_el_del_visitado_sino_por_el_de_la_cuenta" computerName="runnervmwuk1x" duration="00:00:21.4785660" startTime="2026-11-12T20:43:57.7541867+00:00" endTime="2026-11-12T20:44:19.2310731+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7112d1ae-ec1f-4b34-92f9-46e06d598edd" />
+    <UnitTestResult executionId="ef03ea84-2d26-4719-9e1c-2eaa8adb3bc3" testId="be03efea-a4b3-a8a6-527e-decd7d0e05ae" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Alt+j&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0092488" startTime="2026-11-12T20:49:34.5138704+00:00" endTime="2026-11-12T20:49:34.6419851+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ef03ea84-2d26-4719-9e1c-2eaa8adb3bc3" />
+    <UnitTestResult executionId="7e98e324-389e-4db5-9361-6a6767fd01a0" testId="27b0dfc9-fcf2-aa5a-3f41-282c6f22b6a6" testName="CaeManager.E2ETests.FlujoSoporteTests.Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar" computerName="runnervmwuk1x" duration="00:00:19.5088164" startTime="2026-11-12T20:37:36.4018669+00:00" endTime="2026-11-12T20:37:55.8688062+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7e98e324-389e-4db5-9361-6a6767fd01a0" />
+    <UnitTestResult executionId="8e6c8336-55b3-470e-9f7a-f4d4692cc9f6" testId="93520556-23d0-a6a1-2056-782b003fb4ae" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.La_norma_se_cumple_en_la_pagina_de_referencia_y_falla_en_la_fila_mutada" computerName="runnervmwuk1x" duration="00:00:00.1831360" startTime="2026-11-12T20:47:49.2571113+00:00" endTime="2026-11-12T20:47:49.4383007+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8e6c8336-55b3-470e-9f7a-f4d4692cc9f6" />
+    <UnitTestResult executionId="2ba75b1c-2efa-43b4-a521-5f586cee5876" testId="1f596d95-5f3a-90d3-2852-e49e3cf34238" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/documentos&quot;)" computerName="runnervmwuk1x" duration="00:00:05.0952556" startTime="2026-11-12T20:42:09.4940716+00:00" endTime="2026-11-12T20:42:14.5872759+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2ba75b1c-2efa-43b4-a521-5f586cee5876" />
+    <UnitTestResult executionId="bdfd76b1-4780-43fc-8888-9940a3430bb1" testId="3a1e8515-bd10-1cd8-311c-5aa8b94a9aab" testName="CaeManager.E2ETests.IdiomaPorCuentaTests.Dos_usuarios_consecutivos_en_el_mismo_navegador_no_heredan_el_idioma" computerName="runnervmwuk1x" duration="00:00:08.2461766" startTime="2026-11-12T20:49:23.1479780+00:00" endTime="2026-11-12T20:49:31.3905947+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bdfd76b1-4780-43fc-8888-9940a3430bb1" />
+    <UnitTestResult executionId="cf83d49d-d80b-40d8-8956-95ebd1957e20" testId="4fd62fab-859c-4085-99db-32d97d4ac491" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/bandeja&quot;)" computerName="runnervmwuk1x" duration="00:00:04.8114331" startTime="2026-11-12T20:42:19.5044863+00:00" endTime="2026-11-12T20:42:24.3145770+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cf83d49d-d80b-40d8-8956-95ebd1957e20" />
+    <UnitTestResult executionId="37fa2e3e-395f-40f5-92e4-8284972e7dae" testId="7b6de758-5f72-bd93-5a9d-4d227dc8cecc" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_con_clases_propias_mide_lo_mismo_que_la_ficha_con_data_pieza" computerName="runnervmwuk1x" duration="00:00:00.2646102" startTime="2026-11-12T20:47:49.6229814+00:00" endTime="2026-11-12T20:47:49.8874681+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="37fa2e3e-395f-40f5-92e4-8284972e7dae" />
+    <UnitTestResult executionId="977b993b-4e07-4497-81e0-18b5197cc581" testId="32bb3878-004c-ebfb-9429-53decb28a895" testName="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#selector&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0201088" startTime="2026-11-12T20:49:35.5328175+00:00" endTime="2026-11-12T20:49:35.6515216+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="977b993b-4e07-4497-81e0-18b5197cc581" />
+    <UnitTestResult executionId="3ae50eec-9c97-4fa5-b061-1f4dd059ac52" testId="324ff271-604d-ca17-cd08-aaa588b54208" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_identicos_no_dan_diferencias_y_el_medidor_ha_visto_todas_las_piezas" computerName="runnervmwuk1x" duration="00:00:00.1647991" startTime="2026-11-12T20:47:48.1559771+00:00" endTime="2026-11-12T20:47:48.3198146+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3ae50eec-9c97-4fa5-b061-1f4dd059ac52" />
+    <UnitTestResult executionId="7d84da00-7e7f-445d-b3bd-44e441c5a6cc" testId="097ad28b-107b-9d99-6edc-bd1ffb9f9e26" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: &quot;Alt&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0061856" startTime="2026-11-12T20:49:35.3092635+00:00" endTime="2026-11-12T20:49:35.4205193+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7d84da00-7e7f-445d-b3bd-44e441c5a6cc" />
+    <UnitTestResult executionId="94427a42-2ee7-487b-9011-d21ed32ab5e1" testId="ba242ae7-25a0-756e-e5b8-89b31b148cc1" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Meta+x&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0069172" startTime="2026-11-12T20:49:34.6440719+00:00" endTime="2026-11-12T20:49:34.7674185+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="94427a42-2ee7-487b-9011-d21ed32ab5e1" />
+    <UnitTestResult executionId="8618c059-7094-4505-9603-adb851ea594d" testId="bd07e70d-f8c4-8747-84ff-ad1baad0a7b0" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;lateral&quot;, clavesEsperadas: [&quot;lateral.width&quot;], valorMutado: &quot;320&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1674633" startTime="2026-11-12T20:47:47.4873732+00:00" endTime="2026-11-12T20:47:47.6545169+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8618c059-7094-4505-9603-adb851ea594d" />
+    <UnitTestResult executionId="b1377dd8-d8a9-42f4-8f4d-8b4ca4e09515" testId="d1d30e8b-b1e8-5194-a9aa-9e056348e409" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Conexion_rechazada_y_despues_200_vuelve" computerName="runnervmwuk1x" duration="00:00:00.0008828" startTime="2026-11-12T20:49:33.0206760+00:00" endTime="2026-11-12T20:49:33.0207781+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b1377dd8-d8a9-42f4-8f4d-8b4ca4e09515" />
+    <UnitTestResult executionId="0971ba75-2a4b-4bd0-bf4e-dda43502677b" testId="c329d116-5136-80ec-539d-b967cf6051e7" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/centros&quot;)" computerName="runnervmwuk1x" duration="00:00:04.9403664" startTime="2026-11-12T20:41:54.9383037+00:00" endTime="2026-11-12T20:41:59.8772434+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0971ba75-2a4b-4bd0-bf4e-dda43502677b" />
+    <UnitTestResult executionId="e1df8e50-dbbc-42ea-a612-22fdab0c780e" testId="3e34fbe1-9bf5-5815-54f2-d58b37dfc035" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_linea_base_no_contiene_rutas_que_ya_no_se_analizan" computerName="runnervmwuk1x" duration="00:00:00.0005449" startTime="2026-11-12T20:42:43.9397545+00:00" endTime="2026-11-12T20:42:43.9398024+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e1df8e50-dbbc-42ea-a612-22fdab0c780e" />
+    <UnitTestResult executionId="ad2cbdff-f7ff-4041-b34a-491b9e6c5834" testId="1e947e10-b724-5e5c-6cf8-f7d21ccb59e8" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/vehiculos&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4206413" startTime="2026-11-12T20:41:15.0524941+00:00" endTime="2026-11-12T20:41:19.4695750+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ad2cbdff-f7ff-4041-b34a-491b9e6c5834" />
+    <UnitTestResult executionId="d7d3f262-db45-4ef0-8de5-1e024b4fd43d" testId="e7c421b3-dcc7-2e61-fb80-2ce8c32b1b30" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Lo_que_queda_fuera_de_la_cartera_no_aparece_ni_se_abre_por_enlace_directo" computerName="runnervmwuk1x" duration="00:00:07.7305768" startTime="2026-11-12T20:40:05.9739136+00:00" endTime="2026-11-12T20:40:13.7015358+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d7d3f262-db45-4ef0-8de5-1e024b4fd43d" />
+    <UnitTestResult executionId="7e4f8f1d-6fe9-4510-babc-f777e37cd36d" testId="b534764f-eb57-da47-eeec-3857e047f23d" testName="CaeManager.E2ETests.AtajosSuperficiesTests.La_e_no_edita_mientras_se_escribe_en_un_campo" computerName="runnervmwuk1x" duration="00:00:00.0107747" startTime="2026-11-12T20:49:36.3989733+00:00" endTime="2026-11-12T20:49:36.5102018+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7e4f8f1d-6fe9-4510-babc-f777e37cd36d" />
+    <UnitTestResult executionId="e2710797-d0fd-4630-9a4c-b76936255489" testId="02902fee-02d1-42fa-3bd5-2e0c6825d430" testName="CaeManager.E2ETests.IdiomaPorCuentaTests.El_circuito_interactivo_usa_la_cultura_de_la_cuenta" computerName="runnervmwuk1x" duration="00:00:12.1978326" startTime="2026-11-12T20:48:58.0044653+00:00" endTime="2026-11-12T20:49:10.2003841+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e2710797-d0fd-4630-9a4c-b76936255489" />
+    <UnitTestResult executionId="0ecb656a-0b68-42ce-8c8e-84d168abed8f" testId="0d74deed-0046-adac-a1bc-4fe2189524de" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta" computerName="runnervmwuk1x" duration="00:00:00.3366694" startTime="2026-11-12T20:47:48.7365415+00:00" endTime="2026-11-12T20:47:49.0727240+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0ecb656a-0b68-42ce-8c8e-84d168abed8f" />
+    <UnitTestResult executionId="175a7bfe-db04-44ed-895e-5c82fd965469" testId="54987247-4a50-9f32-49f6-a161f9defbd8" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/trabajadores&quot;)" computerName="runnervmwuk1x" duration="00:00:04.8587986" startTime="2026-11-12T20:41:59.8795429+00:00" endTime="2026-11-12T20:42:04.7365619+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="175a7bfe-db04-44ed-895e-5c82fd965469" />
+    <UnitTestResult executionId="f53fcb3c-713d-4b4f-9643-b4d73dbf325e" testId="3eee7c4e-47cd-0185-29ad-380960b82819" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_buscador_global_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" computerName="runnervmwuk1x" duration="00:00:06.4575367" startTime="2026-11-12T20:41:42.5582119+00:00" endTime="2026-11-12T20:41:49.0147248+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f53fcb3c-713d-4b4f-9643-b4d73dbf325e" />
+    <UnitTestResult executionId="cf3fadcc-eeb8-49fb-9756-8a254338dbae" testId="b734e802-3638-75ed-d3da-f22b4ca4c048" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Si_la_peticion_siempre_agota_su_tiempo_el_plazo_vence_y_el_mensaje_dice_la_causa_y_los_intentos" computerName="runnervmwuk1x" duration="00:00:00.0009991" startTime="2026-11-12T20:49:33.2339940+00:00" endTime="2026-11-12T20:49:33.2344129+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cf3fadcc-eeb8-49fb-9756-8a254338dbae" />
+    <UnitTestResult executionId="d2991c1c-6f62-4484-8ff1-c75082802368" testId="ae9a3fe6-d53c-4dd7-ebbb-60d6b9655c92" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/subcontratas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.8162987" startTime="2026-11-12T20:42:24.3167788+00:00" endTime="2026-11-12T20:42:29.1325763+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d2991c1c-6f62-4484-8ff1-c75082802368" />
+    <UnitTestResult executionId="998eb355-cf26-469b-8b46-8f5dd1b6829e" testId="ec43e0ac-0ba4-8db8-3cd0-0d0a76cbfe37" testName="CaeManager.E2ETests.IdiomaPorCuentaTests.El_idioma_vive_en_la_cuenta_y_cada_inicio_de_sesion_reconstruye_la_cookie" computerName="runnervmwuk1x" duration="00:00:10.2819793" startTime="2026-11-12T20:49:12.8629736+00:00" endTime="2026-11-12T20:49:23.1455667+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="998eb355-cf26-469b-8b46-8f5dd1b6829e" />
+    <UnitTestResult executionId="23b6f9b9-324d-4db8-bef3-d96b4f2a3f73" testId="0bdc6225-a73e-9ae5-2ce4-acddef7160a7" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#texto&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0151289" startTime="2026-11-12T20:49:35.8857288+00:00" endTime="2026-11-12T20:49:36.0019783+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="23b6f9b9-324d-4db8-bef3-d96b4f2a3f73" />
+    <UnitTestResult executionId="b1f7f17b-4756-43df-8f8b-afc02277bb2e" testId="dba1e3ee-e930-3f66-fe3a-e61fe4571419" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;borde-tarjeta&quot;, clavesEsperadas: [&quot;tarjeta.border-top-color&quot;], valorMutado: &quot;#cfd8e8ff&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1642919" startTime="2026-11-12T20:47:46.6070601+00:00" endTime="2026-11-12T20:47:46.7706173+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b1f7f17b-4756-43df-8f8b-afc02277bb2e" />
+    <UnitTestResult executionId="8bf46720-ef93-4182-83f0-d8da8d3bf0d5" testId="54144338-4132-a8b0-65b3-7d97ef11e252" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Dos_peticiones_que_agotan_su_tiempo_y_despues_200_vuelve_al_tercer_intento" computerName="runnervmwuk1x" duration="00:00:00.0006441" startTime="2026-11-12T20:49:33.0214561+00:00" endTime="2026-11-12T20:49:33.0214956+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8bf46720-ef93-4182-83f0-d8da8d3bf0d5" />
+    <UnitTestResult executionId="e5024cf3-aa81-44b1-ad66-973dcb1636e8" testId="e6d30fbb-8517-c3ba-a2cd-5784a8dd59e6" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/mi-trabajo&quot;)" computerName="runnervmwuk1x" duration="00:00:04.9701460" startTime="2026-11-12T20:42:34.0619780+00:00" endTime="2026-11-12T20:42:39.0316511+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e5024cf3-aa81-44b1-ad66-973dcb1636e8" />
+    <UnitTestResult executionId="8aef2071-a7bc-4d03-95d4-d650f50675cb" testId="15f0106d-4bb0-5fc1-7feb-ae661cb10875" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;divisor&quot;, clavesEsperadas: [&quot;fila.border-top-color&quot;], valorMutado: &quot;#cfd8e3ff&quot;)" computerName="runnervmwuk1x" duration="00:00:00.2002663" startTime="2026-11-12T20:47:46.7723006+00:00" endTime="2026-11-12T20:47:46.9713338+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8aef2071-a7bc-4d03-95d4-d650f50675cb" />
+    <UnitTestResult executionId="4dbf5487-c8ee-43c1-8a96-1e7598e578ce" testId="2bff9a73-5cd2-dc05-e745-f5b64ffa75f5" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_inicio_de_sesion_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" computerName="runnervmwuk1x" duration="00:00:01.1598831" startTime="2026-11-12T20:41:49.0175347+00:00" endTime="2026-11-12T20:41:50.1756796+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4dbf5487-c8ee-43c1-8a96-1e7598e578ce" />
+    <UnitTestResult executionId="5d666e3a-5473-4e5a-909e-7a059cba5b32" testId="383b351b-c252-8877-6935-8748dd238a88" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;alertdialog&quot;, focoFuera: False)" computerName="runnervmwuk1x" duration="00:00:00.0478956" startTime="2026-11-12T20:49:34.0670298+00:00" endTime="2026-11-12T20:49:34.2289198+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5d666e3a-5473-4e5a-909e-7a059cba5b32" />
+    <UnitTestResult executionId="9cedb7e0-f694-4179-b739-12ae5475ca9e" testId="3ce9dd89-4b75-ea4b-c4a2-25cd0479f6c5" testName="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_largo_rige_el_plazo_del_Tenant_propietario_de_la_cuenta" computerName="runnervmwuk1x" duration="00:00:12.0813988" startTime="2026-11-12T20:44:30.3840241+00:00" endTime="2026-11-12T20:44:42.4745236+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9cedb7e0-f694-4179-b739-12ae5475ca9e" />
+    <UnitTestResult executionId="90c6131e-6016-4e41-8377-da357009c85e" testId="0bf5870e-b536-fb81-dabc-6a21c1e1d41b" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_sin_conexion_el_mensaje_nombra_la_conexion_rechazada" computerName="runnervmwuk1x" duration="00:00:00.0007127" startTime="2026-11-12T20:49:33.2358427+00:00" endTime="2026-11-12T20:49:33.2359862+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="90c6131e-6016-4e41-8377-da357009c85e" />
+    <UnitTestResult executionId="930bbb8a-4e6b-45ea-9d7e-078c550758d3" testId="8a0bc9d2-29cc-92a0-16d8-a140077d31c9" testName="CaeManager.E2ETests.DesactivarCortaLaSesionTests.Desactivar_una_cuenta_corta_su_cookie_y_su_circuito_y_reactivar_no_los_resucita" computerName="runnervmwuk1x" duration="00:00:18.7132117" startTime="2026-11-12T20:44:53.0436167+00:00" endTime="2026-11-12T20:45:11.7578533+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="930bbb8a-4e6b-45ea-9d7e-078c550758d3" />
+    <UnitTestResult executionId="0c52e016-8087-457d-8d99-57f4595f3e10" testId="38f0b3b8-eae8-f0cd-4711-f81a068fe738" testName="CaeManager.E2ETests.AsumirPrincipalDeOperacionE2ETests.Un_Coordinador_CAE_asume_una_empresa_sin_principal_y_la_abre" computerName="runnervmwuk1x" duration="00:00:05.2306140" startTime="2026-11-12T20:47:40.2310831+00:00" endTime="2026-11-12T20:47:45.4643744+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0c52e016-8087-457d-8d99-57f4595f3e10" />
+    <UnitTestResult executionId="7e85c4dd-53d5-48c3-900c-26f22e1b648f" testId="d2964ddd-3604-c6c1-adec-2dfcc51488d4" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Un_enlace_profundo_a_un_Centro_de_otra_empresa_vuelve_a_la_lista_exista_o_no_y_la_pista_solo_ofrece_un_POST" computerName="runnervmwuk1x" duration="00:00:17.1979337" startTime="2026-11-12T20:39:30.8377935+00:00" endTime="2026-11-12T20:39:48.0357758+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7e85c4dd-53d5-48c3-900c-26f22e1b648f" />
+    <UnitTestResult executionId="30e2262c-1b1a-422e-a642-f84f528686a6" testId="784cdc11-5752-60c6-e50f-d8875a5bb105" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;anillo&quot;, clavesEsperadas: [&quot;anillo.height&quot;, &quot;anillo.width&quot;], valorMutado: &quot;84&quot;)" computerName="runnervmwuk1x" duration="00:00:00.2396161" startTime="2026-11-12T20:47:46.3662553+00:00" endTime="2026-11-12T20:47:46.6057529+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="30e2262c-1b1a-422e-a642-f84f528686a6" />
+    <UnitTestResult executionId="fe1a1a4b-8b76-4460-ae47-ccfbc71de209" testId="e2c7c541-b86d-5d3c-bec4-a5574076baf2" testName="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.La_landing_del_Coordinador_CAE_mantiene_el_circuito_vivo_y_el_selector_abre_con_la_pantalla_ya_asentada" computerName="runnervmwuk1x" duration="00:00:10.4042382" startTime="2026-11-12T20:46:52.7744129+00:00" endTime="2026-11-12T20:47:03.1807707+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fe1a1a4b-8b76-4460-ae47-ccfbc71de209" />
+    <UnitTestResult executionId="ef576380-a0fc-47a1-865d-2721007aaf73" testId="ee18ae58-9951-bd09-1ab1-728760896732" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.El_divisor_de_las_filas_envueltas_una_a_una_tambien_se_mide" computerName="runnervmwuk1x" duration="00:00:00.2491005" startTime="2026-11-12T20:47:48.4870263+00:00" endTime="2026-11-12T20:47:48.7355439+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ef576380-a0fc-47a1-865d-2721007aaf73" />
+    <UnitTestResult executionId="2d656f9a-24c8-41c2-be78-5eaba87def80" testId="27795947-1f54-31cc-0fb2-1a72ec31d460" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;dialog&quot;, focoFuera: True)" computerName="runnervmwuk1x" duration="00:00:00.0535928" startTime="2026-11-12T20:49:33.8857422+00:00" endTime="2026-11-12T20:49:34.0656527+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2d656f9a-24c8-41c2-be78-5eaba87def80" />
+    <UnitTestResult executionId="059ecb6b-fea6-4fd6-8a61-415e37b11f05" testId="be940057-205a-25e9-2419-fb6360882fe8" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;dialog&quot;, focoFuera: False)" computerName="runnervmwuk1x" duration="00:00:00.0694695" startTime="2026-11-12T20:49:33.6427918+00:00" endTime="2026-11-12T20:49:33.8847132+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="059ecb6b-fea6-4fd6-8a61-415e37b11f05" />
+    <UnitTestResult executionId="cf0fdbd6-b4c7-4ecf-8aea-c7233c44fa2e" testId="29304ce8-e17b-f70c-919a-f10038c3fe14" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/bandeja&quot;)" computerName="runnervmwuk1x" duration="00:00:04.2829753" startTime="2026-11-12T20:41:02.0232732+00:00" endTime="2026-11-12T20:41:06.3022024+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cf0fdbd6-b4c7-4ecf-8aea-c7233c44fa2e" />
+    <UnitTestResult executionId="bdafcec9-0dc5-42c1-9d31-08a8826c94d8" testId="6a07a1b8-007c-5cf7-2794-f8f6b887892f" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Respuestas_503_y_despues_200_vuelve" computerName="runnervmwuk1x" duration="00:00:00.0020568" startTime="2026-11-12T20:49:33.0183924+00:00" endTime="2026-11-12T20:49:33.0198652+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bdafcec9-0dc5-42c1-9d31-08a8826c94d8" />
+    <UnitTestResult executionId="6fece82f-5384-4c45-8f58-f0180153aab3" testId="dcfe8aaa-d932-ebda-284a-366493823420" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/centros&quot;)" computerName="runnervmwuk1x" duration="00:00:04.5114167" startTime="2026-11-12T20:41:28.4063919+00:00" endTime="2026-11-12T20:41:32.9138326+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6fece82f-5384-4c45-8f58-f0180153aab3" />
+    <UnitTestResult executionId="8571b681-1615-4043-80d0-4abbdaec5766" testId="7a529728-c462-6849-48a5-6fdf329a8a02" testName="CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: &quot;Control&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0332079" startTime="2026-11-12T20:49:34.7686784+00:00" endTime="2026-11-12T20:49:34.9092142+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8571b681-1615-4043-80d0-4abbdaec5766" />
+    <UnitTestResult executionId="17beb395-7f9b-4d52-97a9-b03db1fbca26" testId="4ea83a5f-f7f4-0a1f-e04c-3035f2c8cd5d" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: &quot;Control&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0066356" startTime="2026-11-12T20:49:35.1976836+00:00" endTime="2026-11-12T20:49:35.3064625+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="17beb395-7f9b-4d52-97a9-b03db1fbca26" />
+    <UnitTestResult executionId="94101061-9ab6-4086-aa25-1b982861c10f" testId="8e848949-3a3d-e752-0da1-20ef5f419ff2" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/documentos&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4670189" startTime="2026-11-12T20:41:32.9181692+00:00" endTime="2026-11-12T20:41:37.3817079+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="94101061-9ab6-4086-aa25-1b982861c10f" />
+    <UnitTestResult executionId="81552f31-5162-4549-b9dc-e7b7d1a854bf" testId="4cb1c164-a38b-9507-2c72-05a77598482e" testName="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior" computerName="runnervmwuk1x" duration="00:00:09.2187702" startTime="2026-11-12T20:40:34.1589192+00:00" endTime="2026-11-12T20:40:43.3765940+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="81552f31-5162-4549-b9dc-e7b7d1a854bf" />
+    <UnitTestResult executionId="8cff1928-bfe4-4286-8a07-bf9c93f6929a" testId="d338f3b8-3460-967d-2851-e3807b27b77f" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Las_lineas_base_no_contienen_rutas_que_ya_no_se_analizan" computerName="runnervmwuk1x" duration="00:00:00.0046369" startTime="2026-11-12T20:41:37.3845278+00:00" endTime="2026-11-12T20:41:37.3875160+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8cff1928-bfe4-4286-8a07-bf9c93f6929a" />
+    <UnitTestResult executionId="7ffa5f86-8fdc-443c-85b7-8663ce4e9628" testId="00d3db1b-a3c5-882e-44b9-d3af00de3396" testName="CaeManager.E2ETests.AtajosSuperficiesTests.Una_respuesta_de_lista_tardia_no_roba_el_foco_del_dialogo" computerName="runnervmwuk1x" duration="00:00:00.0505555" startTime="2026-11-12T20:49:36.2448209+00:00" endTime="2026-11-12T20:49:36.3969471+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7ffa5f86-8fdc-443c-85b7-8663ce4e9628" />
+    <UnitTestResult executionId="76d90127-dd0d-48ad-8acb-9f863aff3b98" testId="b0735f1a-3185-1139-11f4-62f5cf8523c3" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;pastilla&quot;, clavesEsperadas: [&quot;pastilla-de-fila.font-size&quot;, &quot;pastilla.font-size&quot;], valorMutado: &quot;14&quot;)" computerName="runnervmwuk1x" duration="00:00:00.1651106" startTime="2026-11-12T20:47:47.3222783+00:00" endTime="2026-11-12T20:47:47.4862373+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="76d90127-dd0d-48ad-8acb-9f863aff3b98" />
+    <UnitTestResult executionId="5ba77e5b-4741-4614-b299-f03b923f1b7e" testId="9c2dd06c-92c2-dcb5-fbbf-52fddcc39e58" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/gestiones&quot;)" computerName="runnervmwuk1x" duration="00:00:04.7545383" startTime="2026-11-12T20:42:04.7421388+00:00" endTime="2026-11-12T20:42:09.4911505+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5ba77e5b-4741-4614-b299-f03b923f1b7e" />
+    <UnitTestResult executionId="c611c5fb-8482-4f94-b67a-3823eaff202e" testId="4c411499-7934-951b-2623-5434efbadb76" testName="CaeManager.E2ETests.DesactivarCortaLaSesionTests.Un_circuito_que_ignora_la_orden_de_salir_tampoco_recibe_datos" computerName="runnervmwuk1x" duration="00:00:17.2749412" startTime="2026-11-12T20:45:11.7596296+00:00" endTime="2026-11-12T20:45:29.0326135+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c611c5fb-8482-4f94-b67a-3823eaff202e" />
+    <UnitTestResult executionId="19173fba-bda8-4d34-a81b-85168e89ee29" testId="931dd588-42c0-337e-7019-198fe09ff0e0" testName="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Lo_que_cae_dentro_de_la_tolerancia_no_es_diferencia" computerName="runnervmwuk1x" duration="00:00:00.1710652" startTime="2026-11-12T20:47:47.8230741+00:00" endTime="2026-11-12T20:47:47.9925505+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="19173fba-bda8-4d34-a81b-85168e89ee29" />
+    <UnitTestResult executionId="6cc13fe1-633e-4b98-b3a9-a1d614a0f4f3" testId="43300bc4-8511-8d32-6878-977ed01fe81f" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Un_Drawer_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" computerName="runnervmwuk1x" duration="00:00:05.1692549" startTime="2026-11-12T20:41:37.3884344+00:00" endTime="2026-11-12T20:41:42.5565858+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6cc13fe1-633e-4b98-b3a9-a1d614a0f4f3" />
+    <UnitTestResult executionId="17a2e96e-19c9-457b-8cd5-c12decf3ad10" testId="311f87fa-d4b9-2c83-b29e-35cb81339cfe" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/empresas&quot;)" computerName="runnervmwuk1x" duration="00:00:04.9141417" startTime="2026-11-12T20:42:14.5914023+00:00" endTime="2026-11-12T20:42:19.5019578+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="17a2e96e-19c9-457b-8cd5-c12decf3ad10" />
+    <UnitTestResult executionId="59615687-5a00-49c3-9176-8d96ed7a1ade" testId="5c2bc99c-672b-c1b3-1c41-5c0dfc082b3b" testName="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#texto&quot;)" computerName="runnervmwuk1x" duration="00:00:00.0185973" startTime="2026-11-12T20:49:35.7650989+00:00" endTime="2026-11-12T20:49:35.8837361+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="59615687-5a00-49c3-9176-8d96ed7a1ade" />
+    <UnitTestResult executionId="d5604d0e-0274-4e86-8389-46c2fc4ac645" testId="738e565d-aaec-9d04-8278-9f5d31b9f81d" testName="CaeManager.E2ETests.SondeoDeArranqueTests.Un_servidor_que_acepta_la_conexion_y_no_contesta_agota_el_HttpClient_real_y_se_reintenta" computerName="runnervmwuk1x" duration="00:00:00.2093552" startTime="2026-11-12T20:49:33.0220980+00:00" endTime="2026-11-12T20:49:33.2312217+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d5604d0e-0274-4e86-8389-46c2fc4ac645" />
+    <UnitTestResult executionId="33946e22-18f3-4aaf-9703-579588eb3f75" testId="f4ddcec0-0dbf-1331-0e67-c50083fe8924" testName="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/mi-trabajo&quot;)" computerName="runnervmwuk1x" duration="00:00:04.4104430" startTime="2026-11-12T20:40:53.2578965+00:00" endTime="2026-11-12T20:40:57.6695948+00:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="33946e22-18f3-4aaf-9703-579588eb3f75" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: &quot;Alt&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="097ad28b-107b-9d99-6edc-bd1ffb9f9e26">
+      <Execution id="7d84da00-7e7f-445d-b3bd-44e441c5a6cc" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/empresas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="7bde2b77-116e-b06c-9516-c1bf1e06f068">
+      <Execution id="026dc55e-e1a5-4ec7-8e45-759a60680e54" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Si_la_peticion_siempre_agota_su_tiempo_el_plazo_vence_y_el_mensaje_dice_la_causa_y_los_intentos" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b734e802-3638-75ed-d3da-f22b4ca4c048">
+      <Execution id="cf3fadcc-eeb8-49fb-9756-8a254338dbae" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Si_la_peticion_siempre_agota_su_tiempo_el_plazo_vence_y_el_mensaje_dice_la_causa_y_los_intentos" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Lo_que_queda_fuera_de_la_cartera_no_aparece_ni_se_abre_por_enlace_directo" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e7c421b3-dcc7-2e61-fb80-2ce8c32b1b30">
+      <Execution id="d7d3f262-db45-4ef0-8de5-1e024b4fd43d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="Lo_que_queda_fuera_de_la_cartera_no_aparece_ni_se_abre_por_enlace_directo" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/trabajadores&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ef74ce1f-157f-3973-6856-c45c48a90875">
+      <Execution id="de05f3f0-bc1e-48b5-9702-222212b543f3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#editor&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="1e196a60-2f3b-a8fc-424b-a49b97e3e71c">
+      <Execution id="61e4afe0-03fc-4b61-8087-ebb504493379" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Alt+j&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="be03efea-a4b3-a8a6-527e-decd7d0e05ae">
+      <Execution id="ef03ea84-2d26-4719-9e1c-2eaa8adb3bc3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Las_combinaciones_no_se_convierten_en_atajos_de_lista" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/incidencias&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="465e1962-4309-a4ba-ae3b-e12e770b91ea">
+      <Execution id="e5bf9ef0-e39e-4d1d-bc09-810dd955c155" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/incidencias&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="4d721f1d-5564-b444-e79e-47961270c729">
+      <Execution id="6616edd5-aa06-4c78-8f5d-6dd278e5c0aa" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: &quot;Control&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="7a529728-c462-6849-48a5-6fdf329a8a02">
+      <Execution id="8571b681-1615-4043-80d0-4abbdaec5766" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_buscador_no_mueve_la_fila_con_su_modificador" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_con_respuestas_503_el_mensaje_nombra_el_codigo_HTTP" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="569ffa0b-5c48-2a13-b979-7a84717f3af1">
+      <Execution id="b2feecf9-992c-410e-945c-be77337e0a86" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Si_el_plazo_vence_con_respuestas_503_el_mensaje_nombra_el_codigo_HTTP" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_con_clases_propias_mide_lo_mismo_que_la_ficha_con_data_pieza" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="7b6de758-5f72-bd93-5a9d-4d227dc8cecc">
+      <Execution id="37fa2e3e-395f-40f5-92e4-8284972e7dae" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Un_mockup_con_clases_propias_mide_lo_mismo_que_la_ficha_con_data_pieza" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/bandeja&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="4fd62fab-859c-4085-99db-32d97d4ac491">
+      <Execution id="cf83d49d-d80b-40d8-8956-95ebd1957e20" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;dialog&quot;, focoFuera: False)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="be940057-205a-25e9-2419-fb6360882fe8">
+      <Execution id="059ecb6b-fea6-4fd6-8a61-415e37b11f05" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="0d74deed-0046-adac-a1bc-4fe2189524de">
+      <Execution id="0ecb656a-0b68-42ce-8c8e-84d168abed8f" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: &quot;Meta&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="244e09eb-e5dc-9452-58bc-5044bac6f71a">
+      <Execution id="8a238638-2607-4d83-9f19-eb396e30348d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_buscador_no_mueve_la_fila_con_su_modificador" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.FlujoSoporteTests.Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="27b0dfc9-fcf2-aa5a-3f41-282c6f22b6a6">
+      <Execution id="7e98e324-389e-4db5-9361-6a6767fd01a0" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.FlujoSoporteTests" name="Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AsumirPrincipalDeOperacionE2ETests.Un_Coordinador_CAE_asume_una_empresa_sin_principal_y_la_abre" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="38f0b3b8-eae8-f0cd-4711-f81a068fe738">
+      <Execution id="0c52e016-8087-457d-8d99-57f4595f3e10" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AsumirPrincipalDeOperacionE2ETests" name="Un_Coordinador_CAE_asume_una_empresa_sin_principal_y_la_abre" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Conexion_rechazada_y_despues_200_vuelve" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="d1d30e8b-b1e8-5194-a9aa-9e056348e409">
+      <Execution id="b1377dd8-d8a9-42f4-8f4d-8b4ca4e09515" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Conexion_rechazada_y_despues_200_vuelve" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/bandeja&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="29304ce8-e17b-f70c-919a-f10038c3fe14">
+      <Execution id="cf0fdbd6-b4c7-4ecf-8aea-c7233c44fa2e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_centros_por_URL_y_a_recargar" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="6076f587-2075-eb93-a303-e7d1d0ff300e">
+      <Execution id="775092a6-51a3-4e59-9122-fb1f6566d79b" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="El_Tenant_beneficiario_elegido_sobrevive_a_abrir_centros_por_URL_y_a_recargar" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/trabajadores&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="54987247-4a50-9f32-49f6-a161f9defbd8">
+      <Execution id="175a7bfe-db04-44ed-895e-5c82fd965469" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/documentos&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="8e848949-3a3d-e752-0da1-20ef5f419ff2">
+      <Execution id="94101061-9ab6-4086-aa25-1b982861c10f" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Las_lineas_base_no_contienen_rutas_que_ya_no_se_analizan" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="d338f3b8-3460-967d-2851-e3807b27b77f">
+      <Execution id="8cff1928-bfe4-4286-8a07-bf9c93f6929a" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Las_lineas_base_no_contienen_rutas_que_ya_no_se_analizan" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;anillo&quot;, clavesEsperadas: [&quot;anillo.height&quot;, &quot;anillo.width&quot;], valorMutado: &quot;84&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="784cdc11-5752-60c6-e50f-d8875a5bb105">
+      <Execution id="30e2262c-1b1a-422e-a642-f84f528686a6" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Un_enlace_profundo_a_un_Centro_de_otra_empresa_vuelve_a_la_lista_exista_o_no_y_la_pista_solo_ofrece_un_POST" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="d2964ddd-3604-c6c1-adec-2dfcc51488d4">
+      <Execution id="7e85c4dd-53d5-48c3-900c-26f22e1b648f" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="Un_enlace_profundo_a_un_Centro_de_otra_empresa_vuelve_a_la_lista_exista_o_no_y_la_pista_solo_ofrece_un_POST" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_buscador_global_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="3eee7c4e-47cd-0185-29ad-380960b82819">
+      <Execution id="f53fcb3c-713d-4b4f-9643-b4d73dbf325e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="El_buscador_global_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;sin-degradado&quot;, clavesEsperadas: [&quot;fila-con-problema[peligro].degradado&quot;], valorMutado: &quot;no&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ef752268-d1fa-b2a8-b739-c29aaf08aa6a">
+      <Execution id="283a0379-d001-4339-8c7a-6d9a2c4a8e00" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/documentos&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="1f596d95-5f3a-90d3-2852-e49e3cf34238">
+      <Execution id="2ba75b1c-2efa-43b4-a521-5f586cee5876" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.IdiomaPorCuentaTests.El_circuito_interactivo_usa_la_cultura_de_la_cuenta" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="02902fee-02d1-42fa-3bd5-2e0c6825d430">
+      <Execution id="e2710797-d0fd-4630-9a4c-b76936255489" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.IdiomaPorCuentaTests" name="El_circuito_interactivo_usa_la_cultura_de_la_cuenta" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/mi-trabajo&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="f4ddcec0-0dbf-1331-0e67-c50083fe8924">
+      <Execution id="33946e22-18f3-4aaf-9703-579588eb3f75" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e0e521b8-2e69-1a17-10b7-6aa89fb05f12">
+      <Execution id="15991043-9c4a-4452-96f1-afdbda98c09d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="c233c293-ac2a-ddcf-97ec-c24ff4c4b2a1">
+      <Execution id="3d0398af-8c53-4eec-8629-7d1bb6ddbeef" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.El_divisor_de_las_filas_envueltas_una_a_una_tambien_se_mide" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ee18ae58-9951-bd09-1ab1-728760896732">
+      <Execution id="ef576380-a0fc-47a1-865d-2721007aaf73" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="El_divisor_de_las_filas_envueltas_una_a_una_tambien_se_mide" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/centros&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="dcfe8aaa-d932-ebda-284a-366493823420">
+      <Execution id="6fece82f-5384-4c45-8f58-f0180153aab3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.La_e_suelta_es_de_la_lista_y_la_de_g_e_es_del_atajo_global" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e39924f2-9e73-7565-1cfa-c0bfa1ea02e1">
+      <Execution id="3cb7258b-7376-472a-81e1-540294ee4543" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="La_e_suelta_es_de_la_lista_y_la_de_g_e_es_del_atajo_global" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Un_Drawer_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="43300bc4-8511-8d32-6878-977ed01fe81f">
+      <Execution id="6cc13fe1-633e-4b98-b3a9-a1d614a0f4f3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Un_Drawer_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/visitas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="c8fe71d3-c86d-1b76-de4e-ddfee1860ed2">
+      <Execution id="6351c754-c38d-4bd8-8e66-964ed8106ec7" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_sin_tarjetas_ni_lateral_son_un_instrumento_ciego_no_un_verde" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="dbe8e431-668c-f34e-6800-804ef5eecfe7">
+      <Execution id="b05a259b-9488-4d2e-b86f-d08ddd60f4aa" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Dos_lados_sin_tarjetas_ni_lateral_son_un_instrumento_ciego_no_un_verde" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;native&quot;, focoFuera: False)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="cf9a9e00-fd3a-d024-3712-b49f94e0cf5a">
+      <Execution id="46c25aaf-6f5d-49b8-8a78-2c76f5eb3556" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.IdiomaPorCuentaTests.Dos_usuarios_consecutivos_en_el_mismo_navegador_no_heredan_el_idioma" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="3a1e8515-bd10-1cd8-311c-5aa8b94a9aab">
+      <Execution id="bdfd76b1-4780-43fc-8888-9940a3430bb1" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.IdiomaPorCuentaTests" name="Dos_usuarios_consecutivos_en_el_mismo_navegador_no_heredan_el_idioma" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_largo_rige_el_plazo_del_Tenant_propietario_de_la_cuenta" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="3ce9dd89-4b75-ea4b-c4a2-25cd0479f6c5">
+      <Execution id="9cedb7e0-f694-4179-b739-12ae5475ca9e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests" name="Visitando_un_Tenant_con_plazo_mas_largo_rige_el_plazo_del_Tenant_propietario_de_la_cuenta" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/visitas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="f66b3ba3-f353-fddb-374d-c44c371c9261">
+      <Execution id="f4fff12d-013c-49e2-95a1-5bc773dbf4e1" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="a7e9f93a-abd6-5ad4-adef-749f65303dc2">
+      <Execution id="b14ad1bd-f2af-4fd2-8c06-297c23be07f6" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;lateral&quot;, clavesEsperadas: [&quot;lateral.width&quot;], valorMutado: &quot;320&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="bd07e70d-f8c4-8747-84ff-ad1baad0a7b0">
+      <Execution id="8618c059-7094-4505-9603-adb851ea594d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Meta+x&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ba242ae7-25a0-756e-e5b8-89b31b148cc1">
+      <Execution id="94427a42-2ee7-487b-9011-d21ed32ab5e1" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Las_combinaciones_no_se_convierten_en_atajos_de_lista" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_sin_conexion_el_mensaje_nombra_la_conexion_rechazada" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="0bf5870e-b536-fb81-dabc-6a21c1e1d41b">
+      <Execution id="90c6131e-6016-4e41-8377-da357009c85e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Si_el_plazo_vence_sin_conexion_el_mensaje_nombra_la_conexion_rechazada" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;pastilla&quot;, clavesEsperadas: [&quot;pastilla-de-fila.font-size&quot;, &quot;pastilla.font-size&quot;], valorMutado: &quot;14&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b0735f1a-3185-1139-11f4-62f5cf8523c3">
+      <Execution id="76d90127-dd0d-48ad-8acb-9f863aff3b98" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#texto&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="0bdc6225-a73e-9ae5-2ce4-acddef7160a7">
+      <Execution id="23b6f9b9-324d-4db8-bef3-d96b4f2a3f73" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/empresas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="311f87fa-d4b9-2c83-b29e-35cb81339cfe">
+      <Execution id="17a2e96e-19c9-457b-8cd5-c12decf3ad10" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/centros&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="c329d116-5136-80ec-539d-b967cf6051e7">
+      <Execution id="0971ba75-2a4b-4bd0-bf4e-dda43502677b" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="4cb1c164-a38b-9507-2c72-05a77598482e">
+      <Execution id="81552f31-5162-4549-b9dc-e7b7d1a854bf" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Dos_peticiones_que_agotan_su_tiempo_y_despues_200_vuelve_al_tercer_intento" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="54144338-4132-a8b0-65b3-7d97ef11e252">
+      <Execution id="8bf46720-ef93-4182-83f0-d8da8d3bf0d5" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Dos_peticiones_que_agotan_su_tiempo_y_despues_200_vuelve_al_tercer_intento" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Un_dialogo_oculto_no_bloquea_la_pagina_y_el_prefijo_no_cruza_el_dialogo" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b0873fd4-1bd7-e431-6312-3cea0ca3d9b9">
+      <Execution id="738967a3-96ba-47fb-bb69-e2641af4f40e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Un_dialogo_oculto_no_bloquea_la_pagina_y_el_prefijo_no_cruza_el_dialogo" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Con_el_circuito_abierto_la_sesion_cae_al_pasar_el_plazo_del_Tenant_sin_interaccion" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="9cfce066-9634-55cf-71ac-4628949594b0">
+      <Execution id="3691d6cb-8996-47b3-af9e-0ccaf7d0d5e1" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests" name="Con_el_circuito_abierto_la_sesion_cae_al_pasar_el_plazo_del_Tenant_sin_interaccion" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.La_norma_se_cumple_en_la_pagina_de_referencia_y_falla_en_la_fila_mutada" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="93520556-23d0-a6a1-2056-782b003fb4ae">
+      <Execution id="8e6c8336-55b3-470e-9f7a-f4d4692cc9f6" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="La_norma_se_cumple_en_la_pagina_de_referencia_y_falla_en_la_fila_mutada" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Enter_activa_el_boton_y_la_casilla_no_bloquea_la_lista" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ebdaae0b-e8da-02ed-8776-2bf7988930d6">
+      <Execution id="2b1bedcc-d024-4b3f-8b02-116b623c895d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Enter_activa_el_boton_y_la_casilla_no_bloquea_la_lista" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/gestiones&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="8a2aa28c-9f24-97ba-9297-005d7739d622">
+      <Execution id="923fae8a-4d54-4b41-8dec-000f57ca9fff" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.DesactivarCortaLaSesionTests.Desactivar_una_cuenta_corta_su_cookie_y_su_circuito_y_reactivar_no_los_resucita" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="8a0bc9d2-29cc-92a0-16d8-a140077d31c9">
+      <Execution id="930bbb8a-4e6b-45ea-9d7e-078c550758d3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.DesactivarCortaLaSesionTests" name="Desactivar_una_cuenta_corta_su_cookie_y_su_circuito_y_reactivar_no_los_resucita" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/vehiculos&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="1e947e10-b724-5e5c-6cf8-f7d21ccb59e8">
+      <Execution id="ad2cbdff-f7ff-4041-b34a-491b9e6c5834" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Respuestas_503_y_despues_200_vuelve" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="6a07a1b8-007c-5cf7-2794-f8f6b887892f">
+      <Execution id="bdafcec9-0dc5-42c1-9d31-08a8826c94d8" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Respuestas_503_y_despues_200_vuelve" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.IdiomaPorCuentaTests.Cambiar_de_idioma_sin_token_antiforgery_se_rechaza_y_no_toca_nada" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="93d579aa-23a7-7a64-7617-adcdb274fbe8">
+      <Execution id="2bc9cb6b-b064-4eee-a227-857c433f09b3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.IdiomaPorCuentaTests" name="Cambiar_de_idioma_sin_token_antiforgery_se_rechaza_y_no_toca_nada" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/gestiones&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="9c2dd06c-92c2-dcb5-fbbf-52fddcc39e58">
+      <Execution id="5ba77e5b-4741-4614-b299-f03b923f1b7e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.IdiomaPorCuentaTests.El_idioma_vive_en_la_cuenta_y_cada_inicio_de_sesion_reconstruye_la_cookie" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ec43e0ac-0ba4-8db8-3cd0-0d0a76cbfe37">
+      <Execution id="998eb355-cf26-469b-8b46-8f5dd1b6829e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.IdiomaPorCuentaTests" name="El_idioma_vive_en_la_cuenta_y_cada_inicio_de_sesion_reconstruye_la_cookie" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.IdiomaPorCuentaTests.El_login_con_2FA_proyecta_el_idioma_de_la_cuenta_en_la_cookie" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="6aab24f5-6d3e-0b90-6140-5f3cd3386f34">
+      <Execution id="8f265595-6236-41da-845b-1d9bbf3ca2c5" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.IdiomaPorCuentaTests" name="El_login_con_2FA_proyecta_el_idioma_de_la_cuenta_en_la_cookie" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/vehiculos&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="45ec6edd-3df3-fb64-b0b6-df388c30ca2e">
+      <Execution id="4712bcaa-3c20-4793-ac10-7b57de81a897" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_linea_base_no_contiene_rutas_que_ya_no_se_analizan" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="3e34fbe1-9bf5-5815-54f2-d58b37dfc035">
+      <Execution id="e1df8e50-dbbc-42ea-a612-22fdab0c780e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_linea_base_no_contiene_rutas_que_ya_no_se_analizan" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.El_Tenant_beneficiario_elegido_sobrevive_al_menu_lateral_del_Coordinador_CAE" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="c0b9e703-e662-0d63-d050-c0ab5cb55653">
+      <Execution id="81fc3091-ee83-4a8b-99c4-02d98fb4b5d7" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests" name="El_Tenant_beneficiario_elegido_sobrevive_al_menu_lateral_del_Coordinador_CAE" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Una_interaccion_reinicia_el_plazo_y_la_sesion_cae_contando_desde_la_ultima" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="3a9f696d-ad82-27ad-cb5b-c17241ef0ee4">
+      <Execution id="bc32eb3c-e6e4-4328-9387-0ecc26bbfae9" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests" name="Una_interaccion_reinicia_el_plazo_y_la_sesion_cae_contando_desde_la_ultima" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: &quot;Control+x&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="fa5a47f3-f304-6e0b-9743-f50cad944517">
+      <Execution id="8d2dd1e5-2bba-4f9e-8d8c-0b5708264bcd" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Las_combinaciones_no_se_convierten_en_atajos_de_lista" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.La_landing_del_Coordinador_CAE_mantiene_el_circuito_vivo_y_el_selector_abre_con_la_pantalla_ya_asentada" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e2c7c541-b86d-5d3c-bec4-a5574076baf2">
+      <Execution id="fe1a1a4b-8b76-4460-ae47-ccfbc71de209" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests" name="La_landing_del_Coordinador_CAE_mantiene_el_circuito_vivo_y_el_selector_abre_con_la_pantalla_ya_asentada" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="faf5ab17-29eb-382d-cde2-cb4c367ed93f">
+      <Execution id="0a8f7b79-8bf2-4f89-9b9f-f6953c557e8d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests" name="El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termino_falla_con_su_codigo_de_salida_sin_pedir_nada" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b555725d-994f-24b4-14f9-33a81373de17">
+      <Execution id="5bd79273-e8f0-4d8a-959b-a5daec349211" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Si_el_proceso_termino_falla_con_su_codigo_de_salida_sin_pedir_nada" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#selector&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="32bb3878-004c-ebfb-9429-53decb28a895">
+      <Execution id="977b993b-4e07-4497-81e0-18b5197cc581" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="La_edicion_y_los_selectores_conservan_sus_teclas" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Tras_g_g_el_prefijo_esta_consumido_en_los_dos_modulos" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b749f400-db6e-3882-8e69-992fafd1a6ce">
+      <Execution id="5c4cebc4-a179-4875-abb9-28b25ef84b35" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Tras_g_g_el_prefijo_esta_consumido_en_los_dos_modulos" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;dialog&quot;, focoFuera: True)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="27795947-1f54-31cc-0fb2-1a72ec31d460">
+      <Execution id="2d656f9a-24c8-41c2-be78-5eaba87def80" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;sombra&quot;, clavesEsperadas: [&quot;tarjeta.box-shadow&quot;], valorMutado: &quot;rgba(0, 0, 0, 0.1) 0px 1px 2px 0px&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="d76db121-4ed5-e083-c9a2-36237982b4bb">
+      <Execution id="e21e96d0-0b0f-4411-baa7-990aafc8924e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Las_filas_envueltas_una_a_una_siguen_siendo_una_lista_para_medir_la_columna" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="1f1ebd10-adee-f9c9-2e98-044a994c3006">
+      <Execution id="a43665f2-e2d7-4949-ab3f-3fcb8b688c1e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Las_filas_envueltas_una_a_una_siguen_siendo_una_lista_para_medir_la_columna" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.PropuestaApoyoCarteraE2ETests.La_principal_propone_el_apoyo_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_abre_el_Tenant_y_al_desasignarse_lo_pierde" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e9dafdbb-a13b-6070-4d3a-7b4693772fa4">
+      <Execution id="05dcd0be-7304-46cc-8d47-cd1ed463ad01" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.PropuestaApoyoCarteraE2ETests" name="La_principal_propone_el_apoyo_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_abre_el_Tenant_y_al_desasignarse_lo_pierde" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pastilla_fuera_de_su_columna_se_ve_como_dispersion" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="d82ad389-bfbc-ce0a-8791-d8c453276484">
+      <Execution id="daac2854-d8af-4ad0-8d24-58a9561cb6b3" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_pastilla_fuera_de_su_columna_se_ve_como_dispersion" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termina_a_mitad_del_sondeo_deja_de_reintentar" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="7fd36113-a72e-2184-3cd2-463314cb47fc">
+      <Execution id="3f63466d-e932-4501-a6c7-273728d7f37e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Si_el_proceso_termina_a_mitad_del_sondeo_deja_de_reintentar" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#editor&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="5221b026-1302-d44a-82b9-46acee998b07">
+      <Execution id="d5f107c9-f81b-4385-b671-c99e3e4e3959" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="La_edicion_y_los_selectores_conservan_sus_teclas" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;borde-tarjeta&quot;, clavesEsperadas: [&quot;tarjeta.border-top-color&quot;], valorMutado: &quot;#cfd8e8ff&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="dba1e3ee-e930-3f66-fe3a-e61fe4571419">
+      <Execution id="b1f7f17b-4756-43df-8f8b-afc02277bb2e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pieza_que_falta_en_la_ficha_se_dice_ausente_y_no_se_calla" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ef415e20-993d-4b64-063b-6b63663b90a2">
+      <Execution id="1ca2076f-452f-4861-9238-272cfca78b5e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_pieza_que_falta_en_la_ficha_se_dice_ausente_y_no_se_calla" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: &quot;#casilla&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ae15632f-d914-98a1-6718-38f4e028d48c">
+      <Execution id="20b362b6-181d-41b4-bce0-e774c0f63e21" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.SondeoDeArranqueTests.Un_servidor_que_acepta_la_conexion_y_no_contesta_agota_el_HttpClient_real_y_se_reintenta" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="738e565d-aaec-9d04-8278-9f5d31b9f81d">
+      <Execution id="d5604d0e-0274-4e86-8389-46c2fc4ac645" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.SondeoDeArranqueTests" name="Un_servidor_que_acepta_la_conexion_y_no_contesta_agota_el_HttpClient_real_y_se_reintenta" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/mi-trabajo&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="e6d30fbb-8517-c3ba-a2cd-5784a8dd59e6">
+      <Execution id="e5024cf3-aa81-44b1-ad66-973dcb1636e8" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Una_respuesta_de_lista_tardia_no_roba_el_foco_del_dialogo" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="00d3db1b-a3c5-882e-44b9-d3af00de3396">
+      <Execution id="7ffa5f86-8fdc-443c-85b7-8663ce4e9628" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Una_respuesta_de_lista_tardia_no_roba_el_foco_del_dialogo" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: &quot;Control&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="4ea83a5f-f7f4-0a1f-e04c-3035f2c8cd5d">
+      <Execution id="17beb395-7f9b-4d52-97a9-b03db1fbca26" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_corto_no_cae_por_el_del_visitado_sino_por_el_de_la_cuenta" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ee73ece9-1306-2eee-8982-e5cf01dc7d8e">
+      <Execution id="7112d1ae-ec1f-4b34-92f9-46e06d598edd" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.ExpiracionPorInactividadE2ETests" name="Visitando_un_Tenant_con_plazo_mas_corto_no_cae_por_el_del_visitado_sino_por_el_de_la_cuenta" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;divisor&quot;, clavesEsperadas: [&quot;fila.border-top-color&quot;], valorMutado: &quot;#cfd8e3ff&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="15f0106d-4bb0-5fc1-7feb-ae661cb10875">
+      <Execution id="8aef2071-a7bc-4d03-95d4-d650f50675cb" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: &quot;borde-pastilla&quot;, clavesEsperadas: [&quot;pastilla[Vencido].border-top-color&quot;], valorMutado: &quot;#b42318ff&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="568f18d6-a742-ef71-4473-a88efb89b9f6">
+      <Execution id="b1ec04dc-bef0-42eb-952d-db364cb2cacc" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: &quot;/subcontratas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="5375998d-b0a1-70d8-ba7c-a99ece94e01e">
+      <Execution id="e9df11f3-9cbd-472d-a349-674f44b03808" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.La_e_no_edita_mientras_se_escribe_en_un_campo" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="b534764f-eb57-da47-eeec-3857e047f23d">
+      <Execution id="7e4f8f1d-6fe9-4510-babc-f777e37cd36d" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="La_e_no_edita_mientras_se_escribe_en_un_campo" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: &quot;#texto&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="5c2bc99c-672b-c1b3-1c41-5c0dfc082b3b">
+      <Execution id="59615687-5a00-49c3-9176-8d96ed7a1ade" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="La_edicion_y_los_selectores_conservan_sus_teclas" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: &quot;alertdialog&quot;, focoFuera: False)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="383b351b-c252-8877-6935-8748dd238a88">
+      <Execution id="5d666e3a-5473-4e5a-909e-7a059cba5b32" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AtajosSuperficiesTests" name="El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.DesactivarCortaLaSesionTests.Un_circuito_que_ignora_la_orden_de_salir_tampoco_recibe_datos" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="4c411499-7934-951b-2623-5434efbadb76">
+      <Execution id="c611c5fb-8482-4f94-b67a-3823eaff202e" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.DesactivarCortaLaSesionTests" name="Un_circuito_que_ignora_la_orden_de_salir_tampoco_recibe_datos" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_identicos_no_dan_diferencias_y_el_medidor_ha_visto_todas_las_piezas" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="324ff271-604d-ca17-cd08-aaa588b54208">
+      <Execution id="3ae50eec-9c97-4fa5-b061-1f4dd059ac52" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Dos_lados_identicos_no_dan_diferencias_y_el_medidor_ha_visto_todas_las_piezas" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_inicio_de_sesion_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="2bff9a73-5cd2-dc05-e745-f5b64ffa75f5">
+      <Execution id="4dbf5487-c8ee-43c1-8a96-1e7598e578ce" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests" name="El_inicio_de_sesion_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Lo_que_cae_dentro_de_la_tolerancia_no_es_diferencia" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="931dd588-42c0-337e-7019-198fe09ff0e0">
+      <Execution id="19173fba-bda8-4d34-a81b-85168e89ee29" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests" name="Lo_que_cae_dentro_de_la_tolerancia_no_es_diferencia" />
+    </UnitTest>
+    <UnitTest name="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: &quot;/subcontratas&quot;)" storage="/home/runner/work/project-hydra/project-hydra/tests/caemanager.e2etests/bin/debug/net10.0/caemanager.e2etests.dll" id="ae9a3fe6-d53c-4dd7-ebbb-60d6b9655c92">
+      <Execution id="d2991c1c-6f62-4484-8ff1-c75082802368" />
+      <TestMethod codeBase="/home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests" name="La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="e39924f2-9e73-7565-1cfa-c0bfa1ea02e1" executionId="3cb7258b-7376-472a-81e1-540294ee4543" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f66b3ba3-f353-fddb-374d-c44c371c9261" executionId="f4fff12d-013c-49e2-95a1-5bc773dbf4e1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fa5a47f3-f304-6e0b-9743-f50cad944517" executionId="8d2dd1e5-2bba-4f9e-8d8c-0b5708264bcd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a2aa28c-9f24-97ba-9297-005d7739d622" executionId="923fae8a-4d54-4b41-8dec-000f57ca9fff" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6076f587-2075-eb93-a303-e7d1d0ff300e" executionId="775092a6-51a3-4e59-9122-fb1f6566d79b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9cfce066-9634-55cf-71ac-4628949594b0" executionId="3691d6cb-8996-47b3-af9e-0ccaf7d0d5e1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="568f18d6-a742-ef71-4473-a88efb89b9f6" executionId="b1ec04dc-bef0-42eb-952d-db364cb2cacc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7fd36113-a72e-2184-3cd2-463314cb47fc" executionId="3f63466d-e932-4501-a6c7-273728d7f37e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d76db121-4ed5-e083-c9a2-36237982b4bb" executionId="e21e96d0-0b0f-4411-baa7-990aafc8924e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b0873fd4-1bd7-e431-6312-3cea0ca3d9b9" executionId="738967a3-96ba-47fb-bb69-e2641af4f40e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e0e521b8-2e69-1a17-10b7-6aa89fb05f12" executionId="15991043-9c4a-4452-96f1-afdbda98c09d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="faf5ab17-29eb-382d-cde2-cb4c367ed93f" executionId="0a8f7b79-8bf2-4f89-9b9f-f6953c557e8d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ebdaae0b-e8da-02ed-8776-2bf7988930d6" executionId="2b1bedcc-d024-4b3f-8b02-116b623c895d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1f1ebd10-adee-f9c9-2e98-044a994c3006" executionId="a43665f2-e2d7-4949-ab3f-3fcb8b688c1e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7bde2b77-116e-b06c-9516-c1bf1e06f068" executionId="026dc55e-e1a5-4ec7-8e45-759a60680e54" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d82ad389-bfbc-ce0a-8791-d8c453276484" executionId="daac2854-d8af-4ad0-8d24-58a9561cb6b3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dbe8e431-668c-f34e-6800-804ef5eecfe7" executionId="b05a259b-9488-4d2e-b86f-d08ddd60f4aa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b749f400-db6e-3882-8e69-992fafd1a6ce" executionId="5c4cebc4-a179-4875-abb9-28b25ef84b35" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="569ffa0b-5c48-2a13-b979-7a84717f3af1" executionId="b2feecf9-992c-410e-945c-be77337e0a86" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="45ec6edd-3df3-fb64-b0b6-df388c30ca2e" executionId="4712bcaa-3c20-4793-ac10-7b57de81a897" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a7e9f93a-abd6-5ad4-adef-749f65303dc2" executionId="b14ad1bd-f2af-4fd2-8c06-297c23be07f6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3a9f696d-ad82-27ad-cb5b-c17241ef0ee4" executionId="bc32eb3c-e6e4-4328-9387-0ecc26bbfae9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ef415e20-993d-4b64-063b-6b63663b90a2" executionId="1ca2076f-452f-4861-9238-272cfca78b5e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="93d579aa-23a7-7a64-7617-adcdb274fbe8" executionId="2bc9cb6b-b064-4eee-a227-857c433f09b3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5221b026-1302-d44a-82b9-46acee998b07" executionId="d5f107c9-f81b-4385-b671-c99e3e4e3959" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="244e09eb-e5dc-9452-58bc-5044bac6f71a" executionId="8a238638-2607-4d83-9f19-eb396e30348d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ae15632f-d914-98a1-6718-38f4e028d48c" executionId="20b362b6-181d-41b4-bce0-e774c0f63e21" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ef74ce1f-157f-3973-6856-c45c48a90875" executionId="de05f3f0-bc1e-48b5-9702-222212b543f3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ef752268-d1fa-b2a8-b739-c29aaf08aa6a" executionId="283a0379-d001-4339-8c7a-6d9a2c4a8e00" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c0b9e703-e662-0d63-d050-c0ab5cb55653" executionId="81fc3091-ee83-4a8b-99c4-02d98fb4b5d7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4d721f1d-5564-b444-e79e-47961270c729" executionId="6616edd5-aa06-4c78-8f5d-6dd278e5c0aa" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6aab24f5-6d3e-0b90-6140-5f3cd3386f34" executionId="8f265595-6236-41da-845b-1d9bbf3ca2c5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5375998d-b0a1-70d8-ba7c-a99ece94e01e" executionId="e9df11f3-9cbd-472d-a349-674f44b03808" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b555725d-994f-24b4-14f9-33a81373de17" executionId="5bd79273-e8f0-4d8a-959b-a5daec349211" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c233c293-ac2a-ddcf-97ec-c24ff4c4b2a1" executionId="3d0398af-8c53-4eec-8629-7d1bb6ddbeef" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c8fe71d3-c86d-1b76-de4e-ddfee1860ed2" executionId="6351c754-c38d-4bd8-8e66-964ed8106ec7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e9dafdbb-a13b-6070-4d3a-7b4693772fa4" executionId="05dcd0be-7304-46cc-8d47-cd1ed463ad01" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="cf9a9e00-fd3a-d024-3712-b49f94e0cf5a" executionId="46c25aaf-6f5d-49b8-8a78-2c76f5eb3556" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1e196a60-2f3b-a8fc-424b-a49b97e3e71c" executionId="61e4afe0-03fc-4b61-8087-ebb504493379" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="465e1962-4309-a4ba-ae3b-e12e770b91ea" executionId="e5bf9ef0-e39e-4d1d-bc09-810dd955c155" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee73ece9-1306-2eee-8982-e5cf01dc7d8e" executionId="7112d1ae-ec1f-4b34-92f9-46e06d598edd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="be03efea-a4b3-a8a6-527e-decd7d0e05ae" executionId="ef03ea84-2d26-4719-9e1c-2eaa8adb3bc3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="27b0dfc9-fcf2-aa5a-3f41-282c6f22b6a6" executionId="7e98e324-389e-4db5-9361-6a6767fd01a0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="93520556-23d0-a6a1-2056-782b003fb4ae" executionId="8e6c8336-55b3-470e-9f7a-f4d4692cc9f6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1f596d95-5f3a-90d3-2852-e49e3cf34238" executionId="2ba75b1c-2efa-43b4-a521-5f586cee5876" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3a1e8515-bd10-1cd8-311c-5aa8b94a9aab" executionId="bdfd76b1-4780-43fc-8888-9940a3430bb1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4fd62fab-859c-4085-99db-32d97d4ac491" executionId="cf83d49d-d80b-40d8-8956-95ebd1957e20" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7b6de758-5f72-bd93-5a9d-4d227dc8cecc" executionId="37fa2e3e-395f-40f5-92e4-8284972e7dae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="32bb3878-004c-ebfb-9429-53decb28a895" executionId="977b993b-4e07-4497-81e0-18b5197cc581" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="324ff271-604d-ca17-cd08-aaa588b54208" executionId="3ae50eec-9c97-4fa5-b061-1f4dd059ac52" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="097ad28b-107b-9d99-6edc-bd1ffb9f9e26" executionId="7d84da00-7e7f-445d-b3bd-44e441c5a6cc" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ba242ae7-25a0-756e-e5b8-89b31b148cc1" executionId="94427a42-2ee7-487b-9011-d21ed32ab5e1" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bd07e70d-f8c4-8747-84ff-ad1baad0a7b0" executionId="8618c059-7094-4505-9603-adb851ea594d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d1d30e8b-b1e8-5194-a9aa-9e056348e409" executionId="b1377dd8-d8a9-42f4-8f4d-8b4ca4e09515" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c329d116-5136-80ec-539d-b967cf6051e7" executionId="0971ba75-2a4b-4bd0-bf4e-dda43502677b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3e34fbe1-9bf5-5815-54f2-d58b37dfc035" executionId="e1df8e50-dbbc-42ea-a612-22fdab0c780e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1e947e10-b724-5e5c-6cf8-f7d21ccb59e8" executionId="ad2cbdff-f7ff-4041-b34a-491b9e6c5834" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e7c421b3-dcc7-2e61-fb80-2ce8c32b1b30" executionId="d7d3f262-db45-4ef0-8de5-1e024b4fd43d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b534764f-eb57-da47-eeec-3857e047f23d" executionId="7e4f8f1d-6fe9-4510-babc-f777e37cd36d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="02902fee-02d1-42fa-3bd5-2e0c6825d430" executionId="e2710797-d0fd-4630-9a4c-b76936255489" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0d74deed-0046-adac-a1bc-4fe2189524de" executionId="0ecb656a-0b68-42ce-8c8e-84d168abed8f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="54987247-4a50-9f32-49f6-a161f9defbd8" executionId="175a7bfe-db04-44ed-895e-5c82fd965469" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3eee7c4e-47cd-0185-29ad-380960b82819" executionId="f53fcb3c-713d-4b4f-9643-b4d73dbf325e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b734e802-3638-75ed-d3da-f22b4ca4c048" executionId="cf3fadcc-eeb8-49fb-9756-8a254338dbae" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ae9a3fe6-d53c-4dd7-ebbb-60d6b9655c92" executionId="d2991c1c-6f62-4484-8ff1-c75082802368" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ec43e0ac-0ba4-8db8-3cd0-0d0a76cbfe37" executionId="998eb355-cf26-469b-8b46-8f5dd1b6829e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0bdc6225-a73e-9ae5-2ce4-acddef7160a7" executionId="23b6f9b9-324d-4db8-bef3-d96b4f2a3f73" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dba1e3ee-e930-3f66-fe3a-e61fe4571419" executionId="b1f7f17b-4756-43df-8f8b-afc02277bb2e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="54144338-4132-a8b0-65b3-7d97ef11e252" executionId="8bf46720-ef93-4182-83f0-d8da8d3bf0d5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e6d30fbb-8517-c3ba-a2cd-5784a8dd59e6" executionId="e5024cf3-aa81-44b1-ad66-973dcb1636e8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="15f0106d-4bb0-5fc1-7feb-ae661cb10875" executionId="8aef2071-a7bc-4d03-95d4-d650f50675cb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2bff9a73-5cd2-dc05-e745-f5b64ffa75f5" executionId="4dbf5487-c8ee-43c1-8a96-1e7598e578ce" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="383b351b-c252-8877-6935-8748dd238a88" executionId="5d666e3a-5473-4e5a-909e-7a059cba5b32" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3ce9dd89-4b75-ea4b-c4a2-25cd0479f6c5" executionId="9cedb7e0-f694-4179-b739-12ae5475ca9e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0bf5870e-b536-fb81-dabc-6a21c1e1d41b" executionId="90c6131e-6016-4e41-8377-da357009c85e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a0bc9d2-29cc-92a0-16d8-a140077d31c9" executionId="930bbb8a-4e6b-45ea-9d7e-078c550758d3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="38f0b3b8-eae8-f0cd-4711-f81a068fe738" executionId="0c52e016-8087-457d-8d99-57f4595f3e10" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d2964ddd-3604-c6c1-adec-2dfcc51488d4" executionId="7e85c4dd-53d5-48c3-900c-26f22e1b648f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="784cdc11-5752-60c6-e50f-d8875a5bb105" executionId="30e2262c-1b1a-422e-a642-f84f528686a6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e2c7c541-b86d-5d3c-bec4-a5574076baf2" executionId="fe1a1a4b-8b76-4460-ae47-ccfbc71de209" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee18ae58-9951-bd09-1ab1-728760896732" executionId="ef576380-a0fc-47a1-865d-2721007aaf73" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="27795947-1f54-31cc-0fb2-1a72ec31d460" executionId="2d656f9a-24c8-41c2-be78-5eaba87def80" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="be940057-205a-25e9-2419-fb6360882fe8" executionId="059ecb6b-fea6-4fd6-8a61-415e37b11f05" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="29304ce8-e17b-f70c-919a-f10038c3fe14" executionId="cf0fdbd6-b4c7-4ecf-8aea-c7233c44fa2e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6a07a1b8-007c-5cf7-2794-f8f6b887892f" executionId="bdafcec9-0dc5-42c1-9d31-08a8826c94d8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dcfe8aaa-d932-ebda-284a-366493823420" executionId="6fece82f-5384-4c45-8f58-f0180153aab3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7a529728-c462-6849-48a5-6fdf329a8a02" executionId="8571b681-1615-4043-80d0-4abbdaec5766" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4ea83a5f-f7f4-0a1f-e04c-3035f2c8cd5d" executionId="17beb395-7f9b-4d52-97a9-b03db1fbca26" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8e848949-3a3d-e752-0da1-20ef5f419ff2" executionId="94101061-9ab6-4086-aa25-1b982861c10f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4cb1c164-a38b-9507-2c72-05a77598482e" executionId="81552f31-5162-4549-b9dc-e7b7d1a854bf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d338f3b8-3460-967d-2851-e3807b27b77f" executionId="8cff1928-bfe4-4286-8a07-bf9c93f6929a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="00d3db1b-a3c5-882e-44b9-d3af00de3396" executionId="7ffa5f86-8fdc-443c-85b7-8663ce4e9628" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b0735f1a-3185-1139-11f4-62f5cf8523c3" executionId="76d90127-dd0d-48ad-8acb-9f863aff3b98" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9c2dd06c-92c2-dcb5-fbbf-52fddcc39e58" executionId="5ba77e5b-4741-4614-b299-f03b923f1b7e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4c411499-7934-951b-2623-5434efbadb76" executionId="c611c5fb-8482-4f94-b67a-3823eaff202e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="931dd588-42c0-337e-7019-198fe09ff0e0" executionId="19173fba-bda8-4d34-a81b-85168e89ee29" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="43300bc4-8511-8d32-6878-977ed01fe81f" executionId="6cc13fe1-633e-4b98-b3a9-a1d614a0f4f3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="311f87fa-d4b9-2c83-b29e-35cb81339cfe" executionId="17a2e96e-19c9-457b-8cd5-c12decf3ad10" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="5c2bc99c-672b-c1b3-1c41-5c0dfc082b3b" executionId="59615687-5a00-49c3-9176-8d96ed7a1ade" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="738e565d-aaec-9d04-8278-9f5d31b9f81d" executionId="d5604d0e-0274-4e86-8389-46c2fc4ac645" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f4ddcec0-0dbf-1331-0e67-c50083fe8924" executionId="33946e22-18f3-4aaf-9703-579588eb3f75" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="101" executed="100" passed="99" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.15)
+[xUnit.net 00:00:00.12]   Discovering: CaeManager.E2ETests
+[xUnit.net 00:00:00.21]   Discovered:  CaeManager.E2ETests
+[xUnit.net 00:00:00.26]   Starting:    CaeManager.E2ETests
+[xUnit.net 00:04:03.22]       Microsoft.Playwright.PlaywrightException : Locator expected to be visible
+[xUnit.net 00:04:03.22]       Error: element(s) not found 
+[xUnit.net 00:04:03.22]       Call log:
+[xUnit.net 00:04:03.22]         - Expect "ToBeVisibleAsync" GetByText("Visita creada correctamente.") with timeout 5000ms
+[xUnit.net 00:04:03.22]         - waiting for GetByText("Visita creada correctamente.")
+[xUnit.net 00:04:03.22]       Aria snapshot:
+[xUnit.net 00:04:03.22]       - link "Saltar al contenido":
+[xUnit.net 00:04:03.22]         - /url: "#contenido-principal"
+[xUnit.net 00:04:03.22]       - complementary:
+[xUnit.net 00:04:03.22]         - link "TALVEG Acredita":
+[xUnit.net 00:04:03.22]           - /url: /
+[xUnit.net 00:04:03.22]           - text: TALVEG ACREDITA
+[xUnit.net 00:04:03.22]         - 'button "Contexto operativo actual: Talleres Boreal S.A. (Tenant beneficiario E2E)"': Empresa gestionada Talleres Boreal S.A. (Tenant beneficiario E2E)
+[xUnit.net 00:04:03.22]         - navigation "Navegación principal":
+[xUnit.net 00:04:03.22]           - search:
+[xUnit.net 00:04:03.22]             - searchbox "Buscar en el menú"
+[xUnit.net 00:04:03.22]             - button "Compactar la barra lateral"
+[xUnit.net 00:04:03.22]           - link "Inicio":
+[xUnit.net 00:04:03.22]             - /url: ""
+[xUnit.net 00:04:03.22]           - group:
+[xUnit.net 00:04:03.22]             - text: Negocio
+[xUnit.net 00:04:03.22]             - link "Empresas":
+[xUnit.net 00:04:03.22]               - /url: empresas
+[xUnit.net 00:04:03.22]             - link "Subcontratas":
+[xUnit.net 00:04:03.22]               - /url: subcontratas
+[xUnit.net 00:04:03.22]             - link "Trabajadores":
+[xUnit.net 00:04:03.22]               - /url: trabajadores
+[xUnit.net 00:04:03.22]             - link "Clientes":
+[xUnit.net 00:04:03.22]               - /url: clientes
+[xUnit.net 00:04:03.22]             - link "Centros":
+[xUnit.net 00:04:03.22]               - /url: centros
+[xUnit.net 00:04:03.22]             - link "Documentos":
+[xUnit.net 00:04:03.22]               - /url: documentos
+[xUnit.net 00:04:03.22]             - link "Vehículos":
+[xUnit.net 00:04:03.22]               - /url: vehiculos
+[xUnit.net 00:04:03.22]             - link "Proyectos":
+[xUnit.net 00:04:03.22]               - /url: proyectos
+[xUnit.net 00:04:03.22]           - group:
+[xUnit.net 00:04:03.22]             - text: Operación
+[xUnit.net 00:04:03.22]             - link "Mi trabajo":
+[xUnit.net 00:04:03.22]               - /url: mi-trabajo
+[xUnit.net 00:04:03.22]             - link "Comunicaciones":
+[xUnit.net 00:04:03.22]               - /url: comunicaciones
+[xUnit.net 00:04:03.22]             - link "Gestiones":
+[xUnit.net 00:04:03.22]               - /url: gestiones
+[xUnit.net 00:04:03.22]             - link "Visitas":
+[xUnit.net 00:04:03.22]               - /url: visitas
+[xUnit.net 00:04:03.22]             - link "Herramientas PDF":
+[xUnit.net 00:04:03.22]               - /url: herramientas-pdf
+[xUnit.net 00:04:03.22]           - group:
+[xUnit.net 00:04:03.22]             - text: Control
+[xUnit.net 00:04:03.22]             - link "Alertas":
+[xUnit.net 00:04:03.22]               - /url: alertas
+[xUnit.net 00:04:03.22]             - link "Calendario":
+[xUnit.net 00:04:03.22]               - /url: calendario
+[xUnit.net 00:04:03.22]             - link "Reportes":
+[xUnit.net 00:04:03.22]               - /url: reportes
+[xUnit.net 00:04:03.22]             - link "Conectar extensión":
+[xUnit.net 00:04:03.22]               - /url: cuenta/extension
+[xUnit.net 00:04:03.22]       - banner:
+[xUnit.net 00:04:03.22]         - navigation "Ruta de la página":
+[xUnit.net 00:04:03.22]           - list:
+[xUnit.net 00:04:03.22]             - listitem: Operación
+[xUnit.net 00:04:03.22]             - listitem: Visitas
+[xUnit.net 00:04:03.22]         - link "Subir documentos":
+[xUnit.net 00:04:03.22]           - /url: /documentos/subida-masiva
+[xUnit.net 00:04:03.22]           - text: Subir
+[xUnit.net 00:04:03.22]         - button "Buscar": Buscar Ctrl+K
+[xUnit.net 00:04:03.22]         - button "Avisos pendientes"
+[xUnit.net 00:04:03.22]         - switch "Tema oscuro"
+[xUnit.net 00:04:03.22]         - button "Menú de usuario"
+[xUnit.net 00:04:03.22]       - main:
+[xUnit.net 00:04:03.22]         - heading "Visitas" [level=1]
+[xUnit.net 00:04:03.22]         - text: "1"
+[xUnit.net 00:04:03.22]         - button "Selección múltiple"
+[xUnit.net 00:04:03.22]         - link "Exportar a Excel":
+[xUnit.net 00:04:03.22]           - /url: /visitas/exportar.xlsx?activas=true
+[xUnit.net 00:04:03.22]         - button "Atajos de teclado"
+[xUnit.net 00:04:03.22]         - button "Más acciones"
+[xUnit.net 00:04:03.22]         - button "+ Nueva visita"
+[xUnit.net 00:04:03.22]         - region "Filtros":
+[xUnit.net 00:04:03.22]           - textbox "Filtrar esta pantalla":
+[xUnit.net 00:04:03.22]             - /placeholder: Buscar por centro, titular o empresa…
+[xUnit.net 00:04:03.22]           - button "Cliente"
+[xUnit.net 00:04:03.23]           - button "Empresa"
+[xUnit.net 00:04:03.23]           - button "Ventana"
+[xUnit.net 00:04:03.23]           - button "Más filtros"
+[xUnit.net 00:04:03.23]           - button "Filtros guardados"
+[xUnit.net 00:04:03.23]           - 'button "Agrupar: no"'
+[xUnit.net 00:04:03.23]           - button "Expandir todo"
+[xUnit.net 00:04:03.23]           - text: Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+[xUnit.net 00:04:03.23]           - group "Documentación":
+[xUnit.net 00:04:03.23]             - button "Todas 1" [pressed]
+[xUnit.net 00:04:03.23]             - button "1 Por gestionar"
+[xUnit.net 00:04:03.23]         - table "Visitas":
+[xUnit.net 00:04:03.23]           - rowgroup:
+[xUnit.net 00:04:03.23]             - row "Desplegar la preparación Centro Cliente · Empresa Fechas Preparación Estado documental Acciones":
+[xUnit.net 00:04:03.23]               - columnheader "Desplegar la preparación"
+[xUnit.net 00:04:03.23]               - columnheader "Centro":
+[xUnit.net 00:04:03.23]                 - button "Centro"
+[xUnit.net 00:04:03.23]               - columnheader "Cliente · Empresa":
+[xUnit.net 00:04:03.23]                 - button "Cliente · Empresa"
+[xUnit.net 00:04:03.23]               - columnheader "Fechas":
+[xUnit.net 00:04:03.23]                 - button "Fechas"
+[xUnit.net 00:04:03.23]               - columnheader "Preparación"
+[xUnit.net 00:04:03.23]               - columnheader "Estado documental"
+[xUnit.net 00:04:03.23]               - columnheader "Acciones"
+[xUnit.net 00:04:03.23]           - rowgroup:
+[xUnit.net 00:04:03.23]             - 'row "Desplegar preparación de Planta Boreal Burgos Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma Harinas del Duero S.A. Talleres Boreal S.A. Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana Trabajadores asignados: 1 Por gestionar Pendiente Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026"':
+[xUnit.net 00:04:03.23]               - cell "Desplegar preparación de Planta Boreal Burgos":
+[xUnit.net 00:04:03.23]                 - button "Desplegar preparación de Planta Boreal Burgos"
+[xUnit.net 00:04:03.23]               - cell "Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma":
+[xUnit.net 00:04:03.23]                 - button "Planta Boreal Burgos"
+[xUnit.net 00:04:03.23]                 - button "Copiar la referencia de la visita a Planta Boreal Burgos": VIS-C38C183D
+[xUnit.net 00:04:03.23]                 - text: Plataforma
+[xUnit.net 00:04:03.23]               - cell "Harinas del Duero S.A. Talleres Boreal S.A.":
+[xUnit.net 00:04:03.23]                 - button "Harinas del Duero S.A."
+[xUnit.net 00:04:03.23]                 - button "Talleres Boreal S.A."
+[xUnit.net 00:04:03.23]               - cell "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana":
+[xUnit.net 00:04:03.23]                 - button "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026": 13/11/2026
+[xUnit.net 00:04:03.23]                 - text: Mañana
+[xUnit.net 00:04:03.23]               - 'cell "Trabajadores asignados: 1 Por gestionar"':
+[xUnit.net 00:04:03.23]                 - 'button "Trabajadores asignados: 1"': 0/1
+[xUnit.net 00:04:03.23]                 - text: Por gestionar
+[xUnit.net 00:04:03.23]               - cell "Pendiente"
+[xUnit.net 00:04:03.23]               - cell "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+[xUnit.net 00:04:03.23]                 - link "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+[xUnit.net 00:04:03.23]                   - /url: /visitas/01a1d17c-4b7b-7907-947f-ea6ec38c183d
+[xUnit.net 00:04:03.23]         - text: Mostrando 1 de 1
+[xUnit.net 00:04:03.23]         - list "Atajos de teclado de esta lista":
+[xUnit.net 00:04:03.23]           - listitem "Fila siguiente / anterior": j k moverse
+[xUnit.net 00:04:03.23]           - listitem "Abrir la fila enfocada": · Enter abrir
+[xUnit.net 00:04:03.23]           - listitem "Editar la fila enfocada desde su vista rápida": · e editar
+[xUnit.net 00:04:03.23]           - listitem "Marcar/desmarcar la fila enfocada": · x marcar
+[xUnit.net 00:04:03.23]           - listitem "Ir al filtro de esta pantalla": · f filtrar
+[xUnit.net 00:04:03.23]           - 'listitem "Pulsar y soltar: enseña una letra sobre cada control"': · Alt KeyTips
+[xUnit.net 00:04:03.23]           - listitem "Ver todos los atajos de teclado": · ? todos
+[xUnit.net 00:04:03.23]         - group "Filas por página:":
+[xUnit.net 00:04:03.23]           - text: "Filas por página:"
+[xUnit.net 00:04:03.23]           - button "20" [pressed]
+[xUnit.net 00:04:03.23]           - button "50"
+[xUnit.net 00:04:03.23]           - button "100"
+[xUnit.net 00:04:03.23]         - dialog "Nueva visita":
+[xUnit.net 00:04:03.23]           - heading "Nueva visita" [level=2]
+[xUnit.net 00:04:03.23]           - button "Cerrar"
+[xUnit.net 00:04:03.23]           - alert: Las fechas no son válidas.
+[xUnit.net 00:04:03.23]           - text: Centro
+[xUnit.net 00:04:03.23]           - combobox "Centro":
+[xUnit.net 00:04:03.23]             - option "Selecciona un centro…"
+[xUnit.net 00:04:03.23]             - option "Planta Boreal Burgos (Harinas del Duero S.A. — Talleres Boreal S.A.)" [selected]
+[xUnit.net 00:04:03.23]           - text: Fecha de inicio
+[xUnit.net 00:04:03.23]           - textbox "Fecha de inicio":
+[xUnit.net 00:04:03.23]             - /placeholder: dd/mm/aaaa
+[xUnit.net 00:04:03.23]           - button "Abrir el calendario"
+[xUnit.net 00:04:03.23]           - text: Fecha de fin
+[xUnit.net 00:04:03.23]           - textbox "Fecha de fin":
+[xUnit.net 00:04:03.23]             - /placeholder: dd/mm/aaaa
+[xUnit.net 00:04:03.23]             - text: 22/11/2026
+[xUnit.net 00:04:03.23]           - button "Abrir el calendario"
+[xUnit.net 00:04:03.23]           - text: Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)
+[xUnit.net 00:04:03.23]           - textbox "Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)"
+[xUnit.net 00:04:03.23]           - group "Trabajadores que entran":
+[xUnit.net 00:04:03.23]             - text: Trabajadores que entran
+[xUnit.net 00:04:03.23]             - textbox "Buscar…"
+[xUnit.net 00:04:03.23]             - checkbox "Solo mostrar relacionados" [checked]
+[xUnit.net 00:04:03.23]             - text: Solo mostrar relacionados
+[xUnit.net 00:04:03.23]             - checkbox "Bruno Ledesma Pardo" [checked]
+[xUnit.net 00:04:03.23]             - text: Bruno Ledesma Pardo
+[xUnit.net 00:04:03.23]           - checkbox "Marcar como avisado al titular del Centro (no envía nada)"
+[xUnit.net 00:04:03.23]           - text: Marcar como avisado al titular del Centro (no envía nada) Notas
+[xUnit.net 00:04:03.23]           - textbox "Notas"
+[xUnit.net 00:04:03.23]           - button "Cancelar"
+[xUnit.net 00:04:03.23]           - button "Guardar"
+[xUnit.net 00:04:03.23]       - status
+[xUnit.net 00:04:03.23]       Stack Trace:
+[xUnit.net 00:04:03.23]         /_/src/Playwright/Core/AssertionsBase.cs(95,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title)
+[xUnit.net 00:04:03.23]         /_/src/Playwright/Core/AssertionsBase.cs(69,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options)
+[xUnit.net 00:04:03.23]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs(249,0): at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
+[xUnit.net 00:04:03.23]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs(292,0): at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
+[xUnit.net 00:04:03.23]         --- End of stack trace from previous location ---
+[xUnit.net 00:11:24.35]       Necesita los mockups: define FIDELIDAD360_MOCKUPS con la carpeta de mockups de Project-Hydra-Negocio.
+Test 'CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma' was skipped in the test run.
+[xUnit.net 00:13:12.83]   Finished:    CaeManager.E2ETests
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="runnervmwuk1x" outcome="Error" timestamp="2026-11-12T20:40:27.1935245+00:00">
+        <Text>[xUnit.net 00:04:03.22]     CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="runnervmwuk1x" outcome="Warning" timestamp="2026-11-12T20:47:48.3238449+00:00">
+        <Text>[xUnit.net 00:11:24.35]     CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="runnervmwuk1x" outcome="Warning" timestamp="2026-11-12T20:49:36.8685701+00:00">
+        <Text>Data collector 'Blame' message: All tests finished running, Sequence file will not be generated.</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

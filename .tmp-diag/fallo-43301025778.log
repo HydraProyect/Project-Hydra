@@ -1,0 +1,541 @@
+﻿Tests E2E (bloque 4 de 4)	Tests E2E	﻿2026-11-12T20:36:22.7059032Z ##[group]Run dotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E" --logger "console;verbosity=normal" --logger "trx;LogFileName=e2e-bloque-4.trx" --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7060630Z ^[[36;1mdotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E" --logger "console;verbosity=normal" --logger "trx;LogFileName=e2e-bloque-4.trx" --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none^[[0m
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7109385Z shell: /usr/bin/bash -e {0}
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7109642Z env:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7109832Z   DOTNET_NOLOGO: true
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7110068Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7110332Z   MINIMO_CLASES: 120
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7110553Z   DOTNET_ROOT: /usr/share/dotnet
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7110856Z   CAEMANAGER_TESTS_CLUSTER_DESECHABLE: 7707386253301956651
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7114961Z   FILTRO_E2E: FullyQualifiedName~CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.|FullyQualifiedName~CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.|FullyQualifiedName~CaeManager.E2ETests.AsumirPrincipalDeOperacionE2ETests.|FullyQualifiedName~CaeManager.E2ETests.AtajosSuperficiesTests.|FullyQualifiedName~CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.|FullyQualifiedName~CaeManager.E2ETests.DesactivarCortaLaSesionTests.|FullyQualifiedName~CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.|FullyQualifiedName~CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.|FullyQualifiedName~CaeManager.E2ETests.FlujoSoporteTests.|FullyQualifiedName~CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.|FullyQualifiedName~CaeManager.E2ETests.IdiomaPorCuentaTests.|FullyQualifiedName~CaeManager.E2ETests.PropuestaApoyoCarteraE2ETests.|FullyQualifiedName~CaeManager.E2ETests.SondeoDeArranqueTests.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:22.7118830Z ##[endgroup]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:23.2579718Z Test run for /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll (.NETCoreApp,Version=v10.0)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:23.4364822Z A total of 1 test files matched the specified pattern.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:23.9872657Z [xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.15)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:24.0904561Z [xUnit.net 00:00:00.12]   Discovering: CaeManager.E2ETests
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:24.1829846Z [xUnit.net 00:00:00.21]   Discovered:  CaeManager.E2ETests
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:36:24.2286194Z [xUnit.net 00:00:00.26]   Starting:    CaeManager.E2ETests
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:37:57.3716370Z   Passed CaeManager.E2ETests.FlujoSoporteTests.Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar [19 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:39:30.8406689Z   Passed CaeManager.E2ETests.PropuestaApoyoCarteraE2ETests.La_principal_propone_el_apoyo_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_abre_el_Tenant_y_al_desasignarse_lo_pierde [19 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:39:48.0457400Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Un_enlace_profundo_a_un_Centro_de_otra_empresa_vuelve_a_la_lista_exista_o_no_y_la_pista_solo_ofrece_un_POST [17 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:05.9776841Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas [17 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:13.7102693Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.Lo_que_queda_fuera_de_la_cartera_no_aparece_ni_se_abre_por_enlace_directo [7 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.1944919Z [xUnit.net 00:04:03.22]       Microsoft.Playwright.PlaywrightException : Locator expected to be visible
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.1946973Z [xUnit.net 00:04:03.22]     CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola [FAIL]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.1970441Z [xUnit.net 00:04:03.22]       Error: element(s) not found 
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2005756Z [xUnit.net 00:04:03.22]       Call log:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2007399Z [xUnit.net 00:04:03.22]         - Expect "ToBeVisibleAsync" GetByText("Visita creada correctamente.") with timeout 5000ms
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2009856Z [xUnit.net 00:04:03.22]         - waiting for GetByText("Visita creada correctamente.")
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2010907Z [xUnit.net 00:04:03.22]       Aria snapshot:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2011946Z [xUnit.net 00:04:03.22]       - link "Saltar al contenido":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2012883Z [xUnit.net 00:04:03.22]         - /url: "#contenido-principal"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2013717Z [xUnit.net 00:04:03.22]       - complementary:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2014827Z [xUnit.net 00:04:03.22]         - link "TALVEG Acredita":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2015827Z [xUnit.net 00:04:03.22]           - /url: /
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2016813Z [xUnit.net 00:04:03.22]           - text: TALVEG ACREDITA
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2019200Z [xUnit.net 00:04:03.22]         - 'button "Contexto operativo actual: Talleres Boreal S.A. (Tenant beneficiario E2E)"': Empresa gestionada Talleres Boreal S.A. (Tenant beneficiario E2E)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2021347Z [xUnit.net 00:04:03.22]         - navigation "Navegación principal":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2022229Z [xUnit.net 00:04:03.22]           - search:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2023147Z [xUnit.net 00:04:03.22]             - searchbox "Buscar en el menú"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2024090Z [xUnit.net 00:04:03.22]             - button "Compactar la barra lateral"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2025264Z [xUnit.net 00:04:03.22]           - link "Inicio":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2026106Z [xUnit.net 00:04:03.22]             - /url: ""
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2026849Z [xUnit.net 00:04:03.22]           - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2027612Z [xUnit.net 00:04:03.22]             - text: Negocio
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2028424Z [xUnit.net 00:04:03.22]             - link "Empresas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2029334Z [xUnit.net 00:04:03.22]               - /url: empresas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2030255Z [xUnit.net 00:04:03.22]             - link "Subcontratas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2031273Z [xUnit.net 00:04:03.22]               - /url: subcontratas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2032233Z [xUnit.net 00:04:03.22]             - link "Trabajadores":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2033174Z [xUnit.net 00:04:03.22]               - /url: trabajadores
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2034106Z [xUnit.net 00:04:03.22]             - link "Clientes":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2035269Z [xUnit.net 00:04:03.22]               - /url: clientes
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2036233Z [xUnit.net 00:04:03.22]             - link "Centros":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2037199Z [xUnit.net 00:04:03.22]               - /url: centros
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2038139Z [xUnit.net 00:04:03.22]             - link "Documentos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2039118Z [xUnit.net 00:04:03.22]               - /url: documentos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2040179Z [xUnit.net 00:04:03.22]             - link "Vehículos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2041096Z [xUnit.net 00:04:03.22]               - /url: vehiculos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2041996Z [xUnit.net 00:04:03.22]             - link "Proyectos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2042846Z [xUnit.net 00:04:03.22]               - /url: proyectos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2043791Z [xUnit.net 00:04:03.22]           - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2095870Z [xUnit.net 00:04:03.22]             - text: Operación
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2098256Z [xUnit.net 00:04:03.22]             - link "Mi trabajo":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2099575Z [xUnit.net 00:04:03.22]               - /url: mi-trabajo
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2100686Z [xUnit.net 00:04:03.22]             - link "Comunicaciones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2101681Z [xUnit.net 00:04:03.22]               - /url: comunicaciones
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2102675Z [xUnit.net 00:04:03.22]             - link "Gestiones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2105488Z [xUnit.net 00:04:03.22]               - /url: gestiones
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2108573Z [xUnit.net 00:04:03.22]             - link "Visitas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2109607Z [xUnit.net 00:04:03.22]               - /url: visitas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2110582Z [xUnit.net 00:04:03.22]             - link "Herramientas PDF":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2111623Z [xUnit.net 00:04:03.22]               - /url: herramientas-pdf
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2112564Z [xUnit.net 00:04:03.22]           - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2136917Z [xUnit.net 00:04:03.22]             - text: Control
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2137586Z [xUnit.net 00:04:03.22]             - link "Alertas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2138170Z [xUnit.net 00:04:03.22]               - /url: alertas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2138786Z [xUnit.net 00:04:03.22]             - link "Calendario":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2139440Z [xUnit.net 00:04:03.22]               - /url: calendario
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2139836Z [xUnit.net 00:04:03.22]             - link "Reportes":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2140250Z [xUnit.net 00:04:03.22]               - /url: reportes
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2140853Z [xUnit.net 00:04:03.22]             - link "Conectar extensión":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2141297Z [xUnit.net 00:04:03.22]               - /url: cuenta/extension
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2141657Z [xUnit.net 00:04:03.22]       - banner:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2142085Z [xUnit.net 00:04:03.22]         - navigation "Ruta de la página":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2142463Z [xUnit.net 00:04:03.22]           - list:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2143002Z [xUnit.net 00:04:03.22]             - listitem: Operación
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2143508Z [xUnit.net 00:04:03.22]             - listitem: Visitas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2144107Z [xUnit.net 00:04:03.22]         - link "Subir documentos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2145581Z [xUnit.net 00:04:03.22]           - /url: /documentos/subida-masiva
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2146429Z [xUnit.net 00:04:03.22]           - text: Subir
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2147384Z [xUnit.net 00:04:03.22]         - button "Buscar": Buscar Ctrl+K
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2148367Z [xUnit.net 00:04:03.22]         - button "Avisos pendientes"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2149279Z [xUnit.net 00:04:03.22]         - switch "Tema oscuro"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2150493Z [xUnit.net 00:04:03.22]         - button "Menú de usuario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2151292Z [xUnit.net 00:04:03.22]       - main:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2152114Z [xUnit.net 00:04:03.22]         - heading "Visitas" [level=1]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2152580Z [xUnit.net 00:04:03.22]         - text: "1"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2153272Z [xUnit.net 00:04:03.22]         - button "Selección múltiple"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2153814Z [xUnit.net 00:04:03.22]         - link "Exportar a Excel":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2154381Z [xUnit.net 00:04:03.22]           - /url: /visitas/exportar.xlsx?activas=true
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2155565Z [xUnit.net 00:04:03.22]         - button "Atajos de teclado"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2156480Z [xUnit.net 00:04:03.22]         - button "Más acciones"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2157452Z [xUnit.net 00:04:03.22]         - button "+ Nueva visita"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2158229Z [xUnit.net 00:04:03.22]         - region "Filtros":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2159302Z [xUnit.net 00:04:03.22]           - textbox "Filtrar esta pantalla":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2160458Z [xUnit.net 00:04:03.22]             - /placeholder: Buscar por centro, titular o empresa…
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2161516Z [xUnit.net 00:04:03.22]           - button "Cliente"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2162414Z [xUnit.net 00:04:03.23]           - button "Empresa"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2163201Z [xUnit.net 00:04:03.23]           - button "Ventana"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2164327Z [xUnit.net 00:04:03.23]           - button "Más filtros"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2175845Z [xUnit.net 00:04:03.23]           - button "Filtros guardados"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2176889Z [xUnit.net 00:04:03.23]           - 'button "Agrupar: no"'
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2178332Z [xUnit.net 00:04:03.23]           - button "Expandir todo"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2179561Z [xUnit.net 00:04:03.23]           - text: Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2181189Z [xUnit.net 00:04:03.23]           - group "Documentación":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2182167Z [xUnit.net 00:04:03.23]             - button "Todas 1" [pressed]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2185854Z [xUnit.net 00:04:03.23]             - button "1 Por gestionar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2187186Z [xUnit.net 00:04:03.23]         - table "Visitas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2188120Z [xUnit.net 00:04:03.23]           - rowgroup:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2190783Z [xUnit.net 00:04:03.23]             - row "Desplegar la preparación Centro Cliente · Empresa Fechas Preparación Estado documental Acciones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2192900Z [xUnit.net 00:04:03.23]               - columnheader "Desplegar la preparación"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2193937Z [xUnit.net 00:04:03.23]               - columnheader "Centro":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2195032Z [xUnit.net 00:04:03.23]                 - button "Centro"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2196085Z [xUnit.net 00:04:03.23]               - columnheader "Cliente · Empresa":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2197204Z [xUnit.net 00:04:03.23]                 - button "Cliente · Empresa"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2198073Z [xUnit.net 00:04:03.23]               - columnheader "Fechas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2199069Z [xUnit.net 00:04:03.23]                 - button "Fechas"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2200170Z [xUnit.net 00:04:03.23]               - columnheader "Preparación"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2201204Z [xUnit.net 00:04:03.23]               - columnheader "Estado documental"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2202386Z [xUnit.net 00:04:03.23]               - columnheader "Acciones"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2203234Z [xUnit.net 00:04:03.23]           - rowgroup:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2207748Z [xUnit.net 00:04:03.23]             - 'row "Desplegar preparación de Planta Boreal Burgos Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma Harinas del Duero S.A. Talleres Boreal S.A. Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana Trabajadores asignados: 1 Por gestionar Pendiente Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026"':
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2211407Z [xUnit.net 00:04:03.23]               - cell "Desplegar preparación de Planta Boreal Burgos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2212787Z [xUnit.net 00:04:03.23]                 - button "Desplegar preparación de Planta Boreal Burgos"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2214329Z [xUnit.net 00:04:03.23]               - cell "Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2215886Z [xUnit.net 00:04:03.23]                 - button "Planta Boreal Burgos"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2217272Z [xUnit.net 00:04:03.23]                 - button "Copiar la referencia de la visita a Planta Boreal Burgos": VIS-C38C183D
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2218404Z [xUnit.net 00:04:03.23]                 - text: Plataforma
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2219422Z [xUnit.net 00:04:03.23]               - cell "Harinas del Duero S.A. Talleres Boreal S.A.":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2220396Z [xUnit.net 00:04:03.23]                 - button "Harinas del Duero S.A."
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2221448Z [xUnit.net 00:04:03.23]                 - button "Talleres Boreal S.A."
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2223228Z [xUnit.net 00:04:03.23]               - cell "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2225066Z [xUnit.net 00:04:03.23]                 - button "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026": 13/11/2026
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2226442Z [xUnit.net 00:04:03.23]                 - text: Mañana
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2227468Z [xUnit.net 00:04:03.23]               - 'cell "Trabajadores asignados: 1 Por gestionar"':
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2228586Z [xUnit.net 00:04:03.23]                 - 'button "Trabajadores asignados: 1"': 0/1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2229592Z [xUnit.net 00:04:03.23]                 - text: Por gestionar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2230411Z [xUnit.net 00:04:03.23]               - cell "Pendiente"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2231715Z [xUnit.net 00:04:03.23]               - cell "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2233081Z [xUnit.net 00:04:03.23]                 - link "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2234388Z [xUnit.net 00:04:03.23]                   - /url: /visitas/01a1d17c-4b7b-7907-947f-ea6ec38c183d
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2235730Z [xUnit.net 00:04:03.23]         - text: Mostrando 1 de 1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2236587Z [xUnit.net 00:04:03.23]         - list "Atajos de teclado de esta lista":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2238219Z [xUnit.net 00:04:03.23]           - listitem "Fila siguiente / anterior": j k moverse
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2239491Z [xUnit.net 00:04:03.23]           - listitem "Abrir la fila enfocada": · Enter abrir
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2240977Z [xUnit.net 00:04:03.23]           - listitem "Editar la fila enfocada desde su vista rápida": · e editar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2242401Z [xUnit.net 00:04:03.23]           - listitem "Marcar/desmarcar la fila enfocada": · x marcar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2243766Z [xUnit.net 00:04:03.23]           - listitem "Ir al filtro de esta pantalla": · f filtrar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2245499Z [xUnit.net 00:04:03.23]           - 'listitem "Pulsar y soltar: enseña una letra sobre cada control"': · Alt KeyTips
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2247104Z [xUnit.net 00:04:03.23]           - listitem "Ver todos los atajos de teclado": · ? todos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2248266Z [xUnit.net 00:04:03.23]         - group "Filas por página:":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2249306Z [xUnit.net 00:04:03.23]           - text: "Filas por página:"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2250233Z [xUnit.net 00:04:03.23]           - button "20" [pressed]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2251091Z [xUnit.net 00:04:03.23]           - button "50"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2251933Z [xUnit.net 00:04:03.23]           - button "100"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2252849Z [xUnit.net 00:04:03.23]         - dialog "Nueva visita":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2253714Z [xUnit.net 00:04:03.23]           - heading "Nueva visita" [level=2]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2254834Z [xUnit.net 00:04:03.23]           - button "Cerrar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2255786Z [xUnit.net 00:04:03.23]           - alert: Las fechas no son válidas.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2256677Z [xUnit.net 00:04:03.23]           - text: Centro
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2257573Z [xUnit.net 00:04:03.23]           - combobox "Centro":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2258679Z [xUnit.net 00:04:03.23]             - option "Selecciona un centro…"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2261130Z [xUnit.net 00:04:03.23]             - option "Planta Boreal Burgos (Harinas del Duero S.A. — Talleres Boreal S.A.)" [selected]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2262810Z [xUnit.net 00:04:03.23]           - text: Fecha de inicio
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2263855Z [xUnit.net 00:04:03.23]           - textbox "Fecha de inicio":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2264968Z [xUnit.net 00:04:03.23]             - /placeholder: dd/mm/aaaa
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2265838Z [xUnit.net 00:04:03.23]           - button "Abrir el calendario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2266804Z [xUnit.net 00:04:03.23]           - text: Fecha de fin
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2267690Z [xUnit.net 00:04:03.23]           - textbox "Fecha de fin":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2268665Z [xUnit.net 00:04:03.23]             - /placeholder: dd/mm/aaaa
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2269505Z [xUnit.net 00:04:03.23]             - text: 22/11/2026
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2270344Z [xUnit.net 00:04:03.23]           - button "Abrir el calendario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2271853Z [xUnit.net 00:04:03.23]           - text: Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2273685Z [xUnit.net 00:04:03.23]           - textbox "Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2275249Z [xUnit.net 00:04:03.23]           - group "Trabajadores que entran":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2276285Z [xUnit.net 00:04:03.23]             - text: Trabajadores que entran
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2277276Z [xUnit.net 00:04:03.23]             - textbox "Buscar…"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2278331Z [xUnit.net 00:04:03.23]             - checkbox "Solo mostrar relacionados" [checked]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2279493Z [xUnit.net 00:04:03.23]             - text: Solo mostrar relacionados
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2280543Z [xUnit.net 00:04:03.23]             - checkbox "Bruno Ledesma Pardo" [checked]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2281524Z [xUnit.net 00:04:03.23]             - text: Bruno Ledesma Pardo
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2282987Z [xUnit.net 00:04:03.23]           - checkbox "Marcar como avisado al titular del Centro (no envía nada)"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2285174Z [xUnit.net 00:04:03.23]           - text: Marcar como avisado al titular del Centro (no envía nada) Notas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2286737Z [xUnit.net 00:04:03.23]           - textbox "Notas"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2287598Z [xUnit.net 00:04:03.23]           - button "Cancelar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2288405Z [xUnit.net 00:04:03.23]           - button "Guardar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2289270Z [xUnit.net 00:04:03.23]       - status
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2289975Z [xUnit.net 00:04:03.23]       Stack Trace:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2292068Z [xUnit.net 00:04:03.23]         /_/src/Playwright/Core/AssertionsBase.cs(95,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2296056Z [xUnit.net 00:04:03.23]         /_/src/Playwright/Core/AssertionsBase.cs(69,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2300141Z [xUnit.net 00:04:03.23]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs(249,0): at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2304901Z [xUnit.net 00:04:03.23]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs(292,0): at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2307537Z [xUnit.net 00:04:03.23]         --- End of stack trace from previous location ---
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2309335Z   Failed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola [13 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2310945Z   Error Message:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2311805Z    Microsoft.Playwright.PlaywrightException : Locator expected to be visible
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2312935Z Error: element(s) not found 
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2313509Z Call log:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2314749Z   - Expect "ToBeVisibleAsync" GetByText("Visita creada correctamente.") with timeout 5000ms
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2315957Z   - waiting for GetByText("Visita creada correctamente.")
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2316721Z Aria snapshot:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2317393Z - link "Saltar al contenido":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2318156Z   - /url: "#contenido-principal"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2318884Z - complementary:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2319504Z   - link "TALVEG Acredita":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2320311Z     - /url: /
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2321183Z     - text: TALVEG ACREDITA
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2322828Z   - 'button "Contexto operativo actual: Talleres Boreal S.A. (Tenant beneficiario E2E)"': Empresa gestionada Talleres Boreal S.A. (Tenant beneficiario E2E)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2324824Z   - navigation "Navegación principal":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2325554Z     - search:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2326346Z       - searchbox "Buscar en el menú"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2326974Z       - button "Compactar la barra lateral"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2327545Z     - link "Inicio":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2327949Z       - /url: ""
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2328361Z     - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2328750Z       - text: Negocio
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2329229Z       - link "Empresas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2329695Z         - /url: empresas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2330158Z       - link "Subcontratas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2330628Z         - /url: subcontratas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2331103Z       - link "Trabajadores":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2331604Z         - /url: trabajadores
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2332055Z       - link "Clientes":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2332484Z         - /url: clientes
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2332898Z       - link "Centros":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2333317Z         - /url: centros
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2333792Z       - link "Documentos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2334229Z         - /url: documentos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2334910Z       - link "Vehículos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2335808Z         - /url: vehiculos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2336227Z       - link "Proyectos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2336717Z         - /url: proyectos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2337143Z     - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2337572Z       - text: Operación
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2337987Z       - link "Mi trabajo":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2338463Z         - /url: mi-trabajo
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2338914Z       - link "Comunicaciones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2339376Z         - /url: comunicaciones
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2339882Z       - link "Gestiones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2340352Z         - /url: gestiones
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2340760Z       - link "Visitas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2341152Z         - /url: visitas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2341609Z       - link "Herramientas PDF":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2342092Z         - /url: herramientas-pdf
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2342529Z     - group:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2342907Z       - text: Control
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2343350Z       - link "Alertas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2343788Z         - /url: alertas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2344234Z       - link "Calendario":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2346509Z         - /url: calendario
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2347014Z       - link "Reportes":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2347458Z         - /url: reportes
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2348052Z       - link "Conectar extensión":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2348593Z         - /url: cuenta/extension
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2349012Z - banner:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2349482Z   - navigation "Ruta de la página":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2349906Z     - list:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2350358Z       - listitem: Operación
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2350793Z       - listitem: Visitas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2351293Z   - link "Subir documentos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2351775Z     - /url: /documentos/subida-masiva
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2352247Z     - text: Subir
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2352659Z   - button "Buscar": Buscar Ctrl+K
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2353208Z   - button "Avisos pendientes"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2353680Z   - switch "Tema oscuro"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2354194Z   - button "Menú de usuario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2354803Z - main:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2355195Z   - heading "Visitas" [level=1]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2355600Z   - text: "1"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2356065Z   - button "Selección múltiple"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2356553Z   - link "Exportar a Excel":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2357135Z     - /url: /visitas/exportar.xlsx?activas=true
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2357715Z   - button "Atajos de teclado"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2358230Z   - button "Más acciones"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2358709Z   - button "+ Nueva visita"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2359133Z   - region "Filtros":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2359591Z     - textbox "Filtrar esta pantalla":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2360316Z       - /placeholder: Buscar por centro, titular o empresa…
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2360958Z     - button "Cliente"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2361355Z     - button "Empresa"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2361775Z     - button "Ventana"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2362246Z     - button "Más filtros"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2362724Z     - button "Filtros guardados"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2363242Z     - 'button "Agrupar: no"'
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2363724Z     - button "Expandir todo"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2364624Z     - text: Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2365474Z     - group "Documentación":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2365952Z       - button "Todas 1" [pressed]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2366448Z       - button "1 Por gestionar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2366917Z   - table "Visitas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2367283Z     - rowgroup:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2368339Z       - row "Desplegar la preparación Centro Cliente · Empresa Fechas Preparación Estado documental Acciones":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2369461Z         - columnheader "Desplegar la preparación"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2370064Z         - columnheader "Centro":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2370547Z           - button "Centro"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2371143Z         - columnheader "Cliente · Empresa":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2371755Z           - button "Cliente · Empresa"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2372273Z         - columnheader "Fechas":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2373031Z           - button "Fechas"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2373789Z         - columnheader "Preparación"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2374332Z         - columnheader "Estado documental"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2375132Z         - columnheader "Acciones"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2375579Z     - rowgroup:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2378863Z       - 'row "Desplegar preparación de Planta Boreal Burgos Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma Harinas del Duero S.A. Talleres Boreal S.A. Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana Trabajadores asignados: 1 Por gestionar Pendiente Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026"':
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2381659Z         - cell "Desplegar preparación de Planta Boreal Burgos":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2382591Z           - button "Desplegar preparación de Planta Boreal Burgos"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2383706Z         - cell "Planta Boreal Burgos Copiar la referencia de la visita a Planta Boreal Burgos Plataforma":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2384833Z           - button "Planta Boreal Burgos"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2385702Z           - button "Copiar la referencia de la visita a Planta Boreal Burgos": VIS-C38C183D
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2386505Z           - text: Plataforma
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2387087Z         - cell "Harinas del Duero S.A. Talleres Boreal S.A.":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2387721Z           - button "Harinas del Duero S.A."
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2388289Z           - button "Talleres Boreal S.A."
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2389212Z         - cell "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026 Mañana":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2390487Z           - button "Abrir la vista rápida de la visita a Planta Boreal Burgos, 13/11/2026": 13/11/2026
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2391325Z           - text: Mañana
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2391860Z         - 'cell "Trabajadores asignados: 1 Por gestionar"':
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2392524Z           - 'button "Trabajadores asignados: 1"': 0/1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2393070Z           - text: Por gestionar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2393523Z         - cell "Pendiente"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2394203Z         - cell "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2395263Z           - link "Abrir la ficha 360 de la visita a Planta Boreal Burgos, 13/11/2026":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2396095Z             - /url: /visitas/01a1d17c-4b7b-7907-947f-ea6ec38c183d
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2396662Z   - text: Mostrando 1 de 1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2397121Z   - list "Atajos de teclado de esta lista":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2397717Z     - listitem "Fila siguiente / anterior": j k moverse
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2398438Z     - listitem "Abrir la fila enfocada": · Enter abrir
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2399286Z     - listitem "Editar la fila enfocada desde su vista rápida": · e editar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2400179Z     - listitem "Marcar/desmarcar la fila enfocada": · x marcar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2400958Z     - listitem "Ir al filtro de esta pantalla": · f filtrar
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2401922Z     - 'listitem "Pulsar y soltar: enseña una letra sobre cada control"': · Alt KeyTips
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2402845Z     - listitem "Ver todos los atajos de teclado": · ? todos
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2403478Z   - group "Filas por página:":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2403982Z     - text: "Filas por página:"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2406326Z     - button "20" [pressed]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2406799Z     - button "50"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2407158Z     - button "100"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2407528Z   - dialog "Nueva visita":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2407973Z     - heading "Nueva visita" [level=2]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2408436Z     - button "Cerrar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2408970Z     - alert: Las fechas no son válidas.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2409470Z     - text: Centro
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2409831Z     - combobox "Centro":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2410352Z       - option "Selecciona un centro…"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2411311Z       - option "Planta Boreal Burgos (Harinas del Duero S.A. — Talleres Boreal S.A.)" [selected]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2412100Z     - text: Fecha de inicio
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2413750Z     - textbox "Fecha de inicio":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2414213Z       - /placeholder: dd/mm/aaaa
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2414860Z     - button "Abrir el calendario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2415319Z     - text: Fecha de fin
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2415726Z     - textbox "Fecha de fin":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2416164Z       - /placeholder: dd/mm/aaaa
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2416589Z       - text: 22/11/2026
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2417002Z     - button "Abrir el calendario"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2417919Z     - text: Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2419170Z     - textbox "Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2419997Z     - group "Trabajadores que entran":
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2420506Z       - text: Trabajadores que entran
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2421032Z       - textbox "Buscar…"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2421530Z       - checkbox "Solo mostrar relacionados" [checked]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2422140Z       - text: Solo mostrar relacionados
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2422692Z       - checkbox "Bruno Ledesma Pardo" [checked]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2423223Z       - text: Bruno Ledesma Pardo
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2423990Z     - checkbox "Marcar como avisado al titular del Centro (no envía nada)"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2426014Z     - text: Marcar como avisado al titular del Centro (no envía nada) Notas
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2426755Z     - textbox "Notas"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2428715Z     - button "Cancelar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2429117Z     - button "Guardar"
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2429481Z - status
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2429839Z   Stack Trace:
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2431544Z      at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title) in /_/src/Playwright/Core/AssertionsBase.cs:line 95
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2446211Z    at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options) in /_/src/Playwright/Core/AssertionsBase.cs:line 69
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2449931Z    at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs:line 249
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2453528Z    at CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs:line 292
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:27.2463971Z --- End of stack trace from previous location ---
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:34.1603585Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Tenant_beneficiario_elegido_sobrevive_a_abrir_centros_por_URL_y_a_recargar [6 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:43.3828961Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior [9 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:48.5760849Z   Passed CaeManager.E2ETests.GestorCaeCarteraMultiTenantTests.El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle [5 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:53.2601644Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/empresas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:40:57.6774638Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/mi-trabajo") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:02.0254276Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/subcontratas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:06.3070261Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/bandeja") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:10.6245522Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/visitas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:15.0577100Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/incidencias") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:19.4732183Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/vehiculos") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:23.9397502Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/gestiones") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:28.4079717Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/trabajadores") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:32.9174744Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/centros") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:37.3841691Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Los_objetivos_de_24_px_de_la_pantalla_Outbound_no_empeoran_ni_mejoran_sin_anotar_la_linea_base(ruta: "/documentos") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:38.8840477Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Las_lineas_base_no_contienen_rutas_que_ya_no_se_analizan [4 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:42.5604944Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.Un_Drawer_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe [5 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:49.0207046Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_buscador_global_abierto_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe [6 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:50.5171171Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundSuperficiesE2ETests.El_inicio_de_sesion_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe [1 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:54.9394113Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/vehiculos") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:41:59.8826930Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/centros") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:04.7429492Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/trabajadores") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:09.4960131Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/gestiones") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:14.5921927Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/documentos") [5 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:19.5072935Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/empresas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:24.3184953Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/bandeja") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:29.1358131Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/subcontratas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:34.0626896Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/visitas") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:39.0336389Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/mi-trabajo") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:43.9408490Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(ruta: "/incidencias") [4 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:42:45.4417667Z   Passed CaeManager.E2ETests.AccesibilidadAxeOutboundE2ETests.La_linea_base_no_contiene_rutas_que_ya_no_se_analizan [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:44:19.2337023Z   Passed CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_corto_no_cae_por_el_del_visitado_sino_por_el_de_la_cuenta [21 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:44:30.3856969Z   Passed CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Una_interaccion_reinicia_el_plazo_y_la_sesion_cae_contando_desde_la_ultima [11 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:44:42.4805495Z   Passed CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Visitando_un_Tenant_con_plazo_mas_largo_rige_el_plazo_del_Tenant_propietario_de_la_cuenta [12 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:44:53.0451729Z   Passed CaeManager.E2ETests.ExpiracionPorInactividadE2ETests.Con_el_circuito_abierto_la_sesion_cae_al_pasar_el_plazo_del_Tenant_sin_interaccion [10 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:45:11.7636572Z   Passed CaeManager.E2ETests.DesactivarCortaLaSesionTests.Desactivar_una_cuenta_corta_su_cookie_y_su_circuito_y_reactivar_no_los_resucita [18 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:45:29.7595693Z   Passed CaeManager.E2ETests.DesactivarCortaLaSesionTests.Un_circuito_que_ignora_la_orden_de_salir_tampoco_recibe_datos [17 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:03.1841191Z   Passed CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.La_landing_del_Coordinador_CAE_mantiene_el_circuito_vivo_y_el_selector_abre_con_la_pantalla_ya_asentada [10 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:40.2309436Z   Passed CaeManager.E2ETests.CoordinadorCaeTenantBeneficiarioTests.El_Tenant_beneficiario_elegido_sobrevive_al_menu_lateral_del_Coordinador_CAE [37 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:46.2307356Z   Passed CaeManager.E2ETests.AsumirPrincipalDeOperacionE2ETests.Un_Coordinador_CAE_asume_una_empresa_sin_principal_y_la_abre [5 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7317999Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "anillo", clavesEsperadas: ["anillo.height", "anillo.width"], valorMutado: "84") [239 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7321491Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "borde-tarjeta", clavesEsperadas: ["tarjeta.border-top-color"], valorMutado: "#cfd8e8ff") [164 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7323958Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "divisor", clavesEsperadas: ["fila.border-top-color"], valorMutado: "#cfd8e3ff") [200 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7327406Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "sombra", clavesEsperadas: ["tarjeta.box-shadow"], valorMutado: "rgba(0, 0, 0, 0.1) 0px 1px 2px 0px") [181 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7331011Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "sin-degradado", clavesEsperadas: ["fila-con-problema[peligro].degradado"], valorMutado: "no") [166 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7334738Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "pastilla", clavesEsperadas: ["pastilla-de-fila.font-size", "pastilla.font-size"], valorMutado: "14") [165 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:47.7338194Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "lateral", clavesEsperadas: ["lateral.width"], valorMutado: "320") [167 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:48.3240363Z [xUnit.net 00:11:24.35]     CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma [SKIP]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:48.3243890Z [xUnit.net 00:11:24.35]       Necesita los mockups: define FIDELIDAD360_MOCKUPS con la carpeta de mockups de Project-Hydra-Negocio.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2315211Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_mutacion_de_la_ficha_pone_en_rojo_su_fila_y_solo_la_suya(mutacion: "borde-pastilla", clavesEsperadas: ["pastilla[Vencido].border-top-color"], valorMutado: "#b42318ff") [166 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2320260Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Lo_que_cae_dentro_de_la_tolerancia_no_es_diferencia [171 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2322946Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pastilla_fuera_de_su_columna_se_ve_como_dispersion [161 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2325737Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_identicos_no_dan_diferencias_y_el_medidor_ha_visto_todas_las_piezas [164 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2328188Z   Skipped CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma [1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2330450Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Las_filas_envueltas_una_a_una_siguen_siendo_una_lista_para_medir_la_columna [165 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2332945Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.El_divisor_de_las_filas_envueltas_una_a_una_tambien_se_mide [249 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:49.2338113Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta [336 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:50.7321234Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Una_pieza_que_falta_en_la_ficha_se_dice_ausente_y_no_se_calla [179 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:50.7324121Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.La_norma_se_cumple_en_la_pagina_de_referencia_y_falla_en_la_fila_mutada [183 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:50.7326761Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Dos_lados_sin_tarjetas_ni_lateral_son_un_instrumento_ciego_no_un_verde [183 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:47:50.7329107Z   Passed CaeManager.E2ETests.Fidelidad360.ComparadorFidelidad360Tests.Un_mockup_con_clases_propias_mide_lo_mismo_que_la_ficha_con_data_pieza [264 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:10.2030967Z   Passed CaeManager.E2ETests.IdiomaPorCuentaTests.El_circuito_interactivo_usa_la_cultura_de_la_cuenta [12 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:12.8630668Z   Passed CaeManager.E2ETests.IdiomaPorCuentaTests.Cambiar_de_idioma_sin_token_antiforgery_se_rechaza_y_no_toca_nada [2 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:23.1475991Z   Passed CaeManager.E2ETests.IdiomaPorCuentaTests.El_idioma_vive_en_la_cuenta_y_cada_inicio_de_sesion_reconstruye_la_cookie [10 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:31.3927736Z   Passed CaeManager.E2ETests.IdiomaPorCuentaTests.Dos_usuarios_consecutivos_en_el_mismo_navegador_no_heredan_el_idioma [8 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:32.8920414Z   Passed CaeManager.E2ETests.IdiomaPorCuentaTests.El_login_con_2FA_proyecta_el_idioma_de_la_cuenta_en_la_cookie [1 s]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6410536Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Respuestas_503_y_despues_200_vuelve [2 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6412419Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Conexion_rechazada_y_despues_200_vuelve [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6414690Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Dos_peticiones_que_agotan_su_tiempo_y_despues_200_vuelve_al_tercer_intento [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6417000Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Un_servidor_que_acepta_la_conexion_y_no_contesta_agota_el_HttpClient_real_y_se_reintenta [209 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6419124Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_con_respuestas_503_el_mensaje_nombra_el_codigo_HTTP [1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6421650Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termina_a_mitad_del_sondeo_deja_de_reintentar [1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6423787Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Si_la_peticion_siempre_agota_su_tiempo_el_plazo_vence_y_el_mensaje_dice_la_causa_y_los_intentos [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6426122Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_proceso_termino_falla_con_su_codigo_de_salida_sin_pedir_nada [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:33.6429515Z   Passed CaeManager.E2ETests.SondeoDeArranqueTests.Si_el_plazo_vence_sin_conexion_el_mensaje_nombra_la_conexion_rechazada [< 1 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0479385Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: "dialog", focoFuera: False) [69 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0492079Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: "dialog", focoFuera: True) [53 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0495608Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: "alertdialog", focoFuera: False) [47 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0498975Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_dialogo_suspende_atajos_aunque_el_foco_siga_fuera(tipo: "native", focoFuera: False) [53 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0501655Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: "Control+x") [7 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0503616Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: "Alt+j") [9 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0505625Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Las_combinaciones_no_se_convierten_en_atajos_de_lista(tecla: "Meta+x") [6 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0507471Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: "Control") [33 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:35.0509266Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.El_buscador_no_mueve_la_fila_con_su_modificador(modificador: "Meta") [32 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1165583Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Enter_activa_el_boton_y_la_casilla_no_bloquea_la_lista [43 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1170113Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: "Control") [6 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1172283Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(modificador: "Alt") [6 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1174765Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Un_dialogo_oculto_no_bloquea_la_pagina_y_el_prefijo_no_cruza_el_dialogo [15 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1176936Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: "#selector") [20 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1178778Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: "#editor") [18 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1180778Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.La_edicion_y_los_selectores_conservan_sus_teclas(selector: "#texto") [18 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1195396Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: "#texto") [15 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.1197858Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: "#editor") [14 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.8021755Z [xUnit.net 00:13:12.83]   Finished:    CaeManager.E2ETests
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.8687436Z Data collector 'Blame' message: All tests finished running, Sequence file will not be generated.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9045459Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(selector: "#casilla") [11 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9047543Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Una_respuesta_de_lista_tardia_no_roba_el_foco_del_dialogo [50 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9050044Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.La_e_no_edita_mientras_se_escribe_en_un_campo [10 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9051720Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.Tras_g_g_el_prefijo_esta_consumido_en_los_dos_modulos [10 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9053370Z   Passed CaeManager.E2ETests.AtajosSuperficiesTests.La_e_suelta_es_de_la_lista_y_la_de_g_e_es_del_atajo_global [10 ms]
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9111430Z 
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9148862Z Test Run Failed.
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9149306Z Total tests: 101
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9149669Z      Passed: 99
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9150002Z      Failed: 1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9150324Z     Skipped: 1
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9150887Z  Total time: 13.2246 Minutes
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9488492Z Results File: /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/TestResults/e2e-bloque-4.trx
+Tests E2E (bloque 4 de 4)	Tests E2E	2026-11-12T20:49:36.9872242Z ##[error]Process completed with exit code 1.
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	﻿2026-11-12T20:51:09.7607170Z ##[group]Run bash scripts/ci-exigir-dependencias.sh
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7607695Z ^[[36;1mbash scripts/ci-exigir-dependencias.sh^[[0m
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7662134Z shell: /usr/bin/bash -e {0}
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7662419Z env:
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7662622Z   DOTNET_NOLOGO: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7663189Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7663464Z   MINIMO_CLASES: 120
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7663682Z   SOLO_E2E: 1
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7663891Z   EVENTO: merge_group
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7664099Z   R_E2E: failure
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7664311Z   R_ALCANCE: success
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7664549Z   ALCANCE_E2E: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7664806Z ##[endgroup]
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7775974Z Evento: merge_group
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7776755Z Compilación y tests unitarios: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7777340Z Verificar formato: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7777807Z Arneses de la extensión: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7778192Z Tests de integración (4 bloques): <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7778551Z Tests E2E: failure
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7778995Z Alcance del CI: success (integracion=<vacío>, e2e=true)
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7798080Z ##[error]En el grupo de fusión los bloques de tests E2E tienen que terminar en success (terminaron en «failure»). Este check obligatorio falla a propósito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado.
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:51:09.7809188Z ##[error]Process completed with exit code 1.
+Build, format y tests	Exigir que las dependencias hayan pasado	﻿2026-11-12T20:51:24.2789658Z ##[group]Run bash scripts/ci-exigir-dependencias.sh
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2790102Z ^[[36;1mbash scripts/ci-exigir-dependencias.sh^[[0m
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2845093Z shell: /usr/bin/bash -e {0}
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2845568Z env:
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2845780Z   DOTNET_NOLOGO: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2846031Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2846305Z   MINIMO_CLASES: 120
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2846534Z   EVENTO: merge_group
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2846798Z   R_COMPILACION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2847049Z   R_FORMATO: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2847272Z   R_EXTENSION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2847527Z   R_INTEGRACION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2847759Z   R_E2E: failure
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2847973Z   R_ALCANCE: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2848202Z   ALCANCE_INTEGRACION: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2848446Z   ALCANCE_E2E: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2848671Z ##[endgroup]
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2939397Z Evento: merge_group
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2940142Z Compilación y tests unitarios: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2940702Z Verificar formato: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2941138Z Arneses de la extensión: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2941640Z Tests de integración (4 bloques): success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2942069Z Tests E2E: failure
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2942444Z Alcance del CI: success (integracion=true, e2e=true)
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2962886Z ##[error]En el grupo de fusión los tests E2E tienen que terminar en success (terminaron en «failure»). Este check obligatorio falla a propósito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado.
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:24.2972718Z ##[error]Process completed with exit code 1.

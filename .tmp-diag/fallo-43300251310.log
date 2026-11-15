@@ -1,0 +1,223 @@
+﻿Tests E2E (bloque 2 de 4)	Tests E2E	﻿2026-11-12T20:31:21.3076631Z ##[group]Run dotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E" --logger "console;verbosity=normal" --logger "trx;LogFileName=e2e-bloque-2.trx" --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3078265Z ^[[36;1mdotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E" --logger "console;verbosity=normal" --logger "trx;LogFileName=e2e-bloque-2.trx" --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none^[[0m
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3128014Z shell: /usr/bin/bash -e {0}
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3128293Z env:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3128505Z   DOTNET_NOLOGO: true
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3128769Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3129055Z   MINIMO_CLASES: 120
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3129300Z   DOTNET_ROOT: /usr/share/dotnet
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3129638Z   CAEMANAGER_TESTS_CLUSTER_DESECHABLE: 7707384939134451755
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3141950Z   FILTRO_E2E: FullyQualifiedName~CaeManager.E2ETests.AcordeonAsignacionesCentroTecladoTests.|FullyQualifiedName~CaeManager.E2ETests.AlcanceRolesTests.|FullyQualifiedName~CaeManager.E2ETests.AltaGuiadaTests.|FullyQualifiedName~CaeManager.E2ETests.AtajosFicha360Tests.|FullyQualifiedName~CaeManager.E2ETests.BucleCorreccionPlataformaTests.|FullyQualifiedName~CaeManager.E2ETests.CabeceraTests.|FullyQualifiedName~CaeManager.E2ETests.CentrosAgruparE2ETests.|FullyQualifiedName~CaeManager.E2ETests.CentrosGestionarEnVivoE2ETests.|FullyQualifiedName~CaeManager.E2ETests.DeepLinksTests.|FullyQualifiedName~CaeManager.E2ETests.DobleEnvioAccesoTests.|FullyQualifiedName~CaeManager.E2ETests.EncargoAdministracionE2ETests.|FullyQualifiedName~CaeManager.E2ETests.F3bSubcontrataSmokeTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoAltaYRevocacionDelegacionTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoBandejaPriorizadaTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoCicloDocumentalTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoCriticoTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoDelegatedWorkspaceTests.|FullyQualifiedName~CaeManager.E2ETests.FlujoRetencionTests.|FullyQualifiedName~CaeManager.E2ETests.IdiomaConCatalanApagadoTests.|FullyQualifiedName~CaeManager.E2ETests.ImportMapCspHashTests.|FullyQualifiedName~CaeManager.E2ETests.ImportacionTests.|FullyQualifiedName~CaeManager.E2ETests.ImportarClientesTests.|FullyQualifiedName~CaeManager.E2ETests.ImportarCombinadoTests.|FullyQualifiedName~CaeManager.E2ETests.ImportarDocumentosTests.|FullyQualifiedName~CaeManager.E2ETests.IncidenciasExportarAutorizacionE2ETests.|FullyQualifiedName~CaeManager.E2ETests.KeyTipsSuperficieTests.|FullyQualifiedName~CaeManager.E2ETests.LogPorFixtureAppCollectionTests.|FullyQualifiedName~CaeManager.E2ETests.LogPorFixtureRetencionTests.|FullyQualifiedName~CaeManager.E2ETests.MiTrabajoGen2Tests.|FullyQualifiedName~CaeManager.E2ETests.NoIndexacionTests.|FullyQualifiedName~CaeManager.E2ETests.RegresionesTests.|FullyQualifiedName~CaeManager.E2ETests.SaludExponeLaRevisionTests.|FullyQualifiedName~CaeManager.E2ETests.SeleccionSobreviveAlCircuitoTests.|FullyQualifiedName~CaeManager.E2ETests.SelectorTemaPrerenderTests.|FullyQualifiedName~CaeManager.E2ETests.SelectorTemaTests.|FullyQualifiedName~CaeManager.E2ETests.SubidaMasivaDelegadaTests.|FullyQualifiedName~CaeManager.E2ETests.SubidaMasivaTests.|FullyQualifiedName~CaeManager.E2ETests.TokenDeExtensionSinCookieTests.|FullyQualifiedName~CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.|FullyQualifiedName~CaeManager.E2ETests.VisitaCentroGestionadoPorCorreoE2ETests.
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.3152917Z ##[endgroup]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:21.8822354Z Test run for /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll (.NETCoreApp,Version=v10.0)
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:22.0636136Z A total of 1 test files matched the specified pattern.
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:22.6587596Z [xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.15)
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:22.7663797Z [xUnit.net 00:00:00.12]   Discovering: CaeManager.E2ETests
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:22.8734849Z [xUnit.net 00:00:00.23]   Discovered:  CaeManager.E2ETests
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:31:22.9325333Z [xUnit.net 00:00:00.29]   Starting:    CaeManager.E2ETests
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:32:44.6550492Z   Passed CaeManager.E2ETests.EncargoAdministracionE2ETests.Sin_Asignacion_de_Operacion_el_Administrador_del_Operador_CAE_externo_no_entra_en_el_Tenant [7 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:32:50.6993054Z   Passed CaeManager.E2ETests.EncargoAdministracionE2ETests.El_Administrador_del_Operador_CAE_externo_cambia_la_configuracion_del_Tenant_beneficiario_con_o_sin_encargo(tenant: "Transportes Planet Express S.A. (Cliente Delegante"···, otroTenant: "Laboratorios Dexter S.L. (Cliente Delegante demo)") [6 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:33:05.3853903Z   Passed CaeManager.E2ETests.EncargoAdministracionE2ETests.El_Administrador_del_Operador_CAE_externo_cambia_la_configuracion_del_Tenant_beneficiario_con_o_sin_encargo(tenant: "Laboratorios Dexter S.L. (Cliente Delegante demo)", otroTenant: "Transportes Planet Express S.A. (Cliente Delegante"···) [14 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:33:35.3812283Z   Passed CaeManager.E2ETests.EncargoAdministracionE2ETests.Sin_encargo_el_Administrador_del_Operador_CAE_externo_da_de_alta_un_Administrador_del_Tenant_propietario_que_opera [29 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:34:47.8896022Z   Passed CaeManager.E2ETests.LogPorFixtureRetencionTests.La_fixture_de_retencion_escribe_en_su_propio_fichero_de_log [20 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:34:55.2286066Z   Passed CaeManager.E2ETests.FlujoRetencionTests.El_Administrador_del_Operador_CAE_externo_administra_la_retencion_del_Tenant_beneficiario_que_opera [8 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:35:02.7288698Z   Passed CaeManager.E2ETests.FlujoRetencionTests.Detectar_avisar_autorizar_y_ejecutar_una_purga_y_descartar_la_otra [6 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:36:51.2384572Z   Passed CaeManager.E2ETests.VisitaCentroGestionadoPorCorreoE2ETests.La_visita_copia_la_solicitud_de_acceso_y_descarga_el_zip_con_la_documentacion [36 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3399835Z [xUnit.net 00:05:48.68]     CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente [FAIL]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3402004Z [xUnit.net 00:05:48.69]       Microsoft.Playwright.PlaywrightException : Locator expected not to be visible 
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3416455Z [xUnit.net 00:05:48.69]       Call log:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3418672Z [xUnit.net 00:05:48.69]         - Expect "ToBeVisibleAsync" Locator(".tarjeta-fila-acordeon").Filter(new() { HasText = "F4.2a Contrapiso d9a356b2" }) with timeout 5000ms
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3420823Z [xUnit.net 00:05:48.69]         - waiting for Locator(".tarjeta-fila-acordeon").Filter(new() { HasText = "F4.2a Contrapiso d9a356b2" })
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3425430Z [xUnit.net 00:05:48.69]           14 × locator resolved to <div b-v2sukpgjqy="" class="tarjeta-fila-acordeon">…</div>
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3427056Z [xUnit.net 00:05:48.69]              - unexpected value "visible"
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3428324Z [xUnit.net 00:05:48.69]       Aria snapshot:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3429301Z [xUnit.net 00:05:48.69]       - button "Abrir la vista rápida de F4.2a Contrapiso d9a356b2":
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3430159Z [xUnit.net 00:05:48.69]         - mark: F4.2a Contrapiso d9a356b2
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3430996Z [xUnit.net 00:05:48.69]       - button "Copiar el CIF B99950057": B99950057
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3432487Z [xUnit.net 00:05:48.69]       - note "Trabajadores de F4.2a Contrapiso d9a356b2": 0 trabajadores
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3433881Z [xUnit.net 00:05:48.69]       - text: F4.2a Refrielectric d9a356b2 Gestionada
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3435460Z [xUnit.net 00:05:48.69]       - img "Sin trabajadores con documentos exigidos por algún centro activo"
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3436677Z [xUnit.net 00:05:48.69]       - text: Sin incidencias
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3437630Z [xUnit.net 00:05:48.69]       - link "Abrir la ficha 360 de F4.2a Contrapiso d9a356b2":
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3439014Z [xUnit.net 00:05:48.69]         - /url: /subcontratas/01a1d17a-5aeb-784b-a218-4bb1789609fe
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3441517Z [xUnit.net 00:05:48.69]       Stack Trace:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3444317Z [xUnit.net 00:05:48.69]         /_/src/Playwright/Core/AssertionsBase.cs(95,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title)
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3448306Z [xUnit.net 00:05:48.69]         /_/src/Playwright/Core/AssertionsBase.cs(69,0): at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options)
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3452873Z [xUnit.net 00:05:48.69]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs(220,0): at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente()
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3457724Z [xUnit.net 00:05:48.69]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs(220,0): at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente()
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3462594Z [xUnit.net 00:05:48.69]         /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs(220,0): at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente()
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3465466Z [xUnit.net 00:05:48.69]         --- End of stack trace from previous location ---
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3467345Z   Failed CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente [20 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3468901Z   Error Message:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3469775Z    Microsoft.Playwright.PlaywrightException : Locator expected not to be visible 
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3470647Z Call log:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3472079Z   - Expect "ToBeVisibleAsync" Locator(".tarjeta-fila-acordeon").Filter(new() { HasText = "F4.2a Contrapiso d9a356b2" }) with timeout 5000ms
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3473699Z   - waiting for Locator(".tarjeta-fila-acordeon").Filter(new() { HasText = "F4.2a Contrapiso d9a356b2" })
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3475492Z     14 × locator resolved to <div b-v2sukpgjqy="" class="tarjeta-fila-acordeon">…</div>
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3476428Z        - unexpected value "visible"
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3476967Z Aria snapshot:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3477827Z - button "Abrir la vista rápida de F4.2a Contrapiso d9a356b2":
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3478703Z   - mark: F4.2a Contrapiso d9a356b2
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3479430Z - button "Copiar el CIF B99950057": B99950057
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3480271Z - note "Trabajadores de F4.2a Contrapiso d9a356b2": 0 trabajadores
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3481093Z - text: F4.2a Refrielectric d9a356b2 Gestionada
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3482540Z - img "Sin trabajadores con documentos exigidos por algún centro activo"
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3483408Z - text: Sin incidencias
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3484173Z - link "Abrir la ficha 360 de F4.2a Contrapiso d9a356b2":
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3485138Z   - /url: /subcontratas/01a1d17a-5aeb-784b-a218-4bb1789609fe
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3485876Z   Stack Trace:
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3487830Z      at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, FrameExpectOptions expectOptions, Object expected, String message, String title) in /_/src/Playwright/Core/AssertionsBase.cs:line 95
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3491223Z    at Microsoft.Playwright.Core.AssertionsBase.ExpectImplAsync(String expression, ExpectedTextValue[] expectedText, Object expected, String message, String title, FrameExpectOptions options) in /_/src/Playwright/Core/AssertionsBase.cs:line 69
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3495441Z    at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs:line 220
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3499984Z    at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs:line 220
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3504776Z    at CaeManager.E2ETests.VinculacionUsuarioClienteRelacionEmpresarialE2ETests.Usuario_Cliente_creado_por_CIF_ve_su_alcance_real_y_no_el_de_otro_cliente() in /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/VinculacionUsuarioClienteRelacionEmpresarialE2ETests.cs:line 220
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:11.3507409Z --- End of stack trace from previous location ---
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:15.4135513Z   Passed CaeManager.E2ETests.TokenDeExtensionSinCookieTests.Un_token_de_extension_sin_cookie_ve_lo_mismo_que_con_cookie [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:18.1194063Z   Passed CaeManager.E2ETests.SubidaMasivaTests.Un_archivo_de_mas_de_10_MB_se_avisa_y_el_valido_del_mismo_lote_sigue_adelante [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:20.1235072Z   Passed CaeManager.E2ETests.SubidaMasivaTests.Subida_multiple_no_es_alcanzable_por_el_rol_Cliente [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:28.2715521Z   Passed CaeManager.E2ETests.SubidaMasivaTests.Subida_multiple_deja_el_archivo_pendiente_de_confirmar_y_crea_el_Documento_al_confirmar [8 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:31.2404600Z   Passed CaeManager.E2ETests.SubidaMasivaTests.Subida_multiple_es_alcanzable_por_un_rol_interno_que_no_es_Administrador [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:34.9830818Z   Passed CaeManager.E2ETests.SubidaMasivaDelegadaTests.Gestor_CAE_delegado_abre_la_subida_multiple_con_carga_fria_sin_500 [3 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:39.3286096Z   Passed CaeManager.E2ETests.SubidaMasivaDelegadaTests.Consulta_delegada_no_ve_el_enlace_a_la_subida_multiple_en_Documentos [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:44.3253951Z   Passed CaeManager.E2ETests.SubidaMasivaDelegadaTests.Gestor_CAE_delegado_llega_a_la_subida_multiple_con_el_enlace_de_Documentos [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:37:47.5458985Z   Passed CaeManager.E2ETests.SubidaMasivaDelegadaTests.Consulta_delegada_abre_la_subida_multiple_con_carga_fria_sin_500 [3 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:38:01.8435140Z   Passed CaeManager.E2ETests.SelectorTemaTests.La_seleccion_y_el_hover_del_item_activo_se_leen_y_el_fondo_del_logo_es_blanco_en_oscuro_y_en_claro [14 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:38:32.4304983Z   Passed CaeManager.E2ETests.SelectorTemaTests.El_tema_elegido_se_aplica_al_documento_y_sobrevive_a_la_recarga [30 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:39:01.7194040Z   Passed CaeManager.E2ETests.SelectorTemaTests.Las_iniciales_del_avatar_del_selector_de_empresa_se_leen_en_oscuro_y_en_claro [29 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:39:32.6527355Z   Passed CaeManager.E2ETests.SelectorTemaTests.El_tema_sobrevive_a_una_navegacion_mejorada_sin_recargar_el_documento [30 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:01.8866284Z   Passed CaeManager.E2ETests.SelectorTemaPrerenderTests.El_HTML_prerenderizado_no_lleva_data_theme_cuando_la_cuenta_esta_en_Sistema [29 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:03.3838350Z   Passed CaeManager.E2ETests.SelectorTemaPrerenderTests.El_login_no_lleva_data_theme_aunque_el_navegador_tenga_la_cookie_de_tema [21 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:31.8848223Z   Passed CaeManager.E2ETests.SelectorTemaPrerenderTests.El_HTML_prerenderizado_ya_lleva_data_theme_para_una_cuenta_con_tema_explicito [29 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:34.1081342Z   Passed CaeManager.E2ETests.SeleccionSobreviveAlCircuitoTests.Control_positivo_la_navegacion_por_clic_en_el_menu_SI_genera_una_peticion_http [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:44.4096951Z   Passed CaeManager.E2ETests.SeleccionSobreviveAlCircuitoTests.La_seleccion_de_workspace_sigue_viva_tras_navegar_dentro_del_circuito [10 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:45.9140810Z   Passed CaeManager.E2ETests.SaludExponeLaRevisionTests.Salud_sigue_siendo_200_Healthy_y_lleva_la_cabecera_de_revision [11 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4107123Z   Passed CaeManager.E2ETests.RegresionesTests.Seleccionar_texto_dentro_del_drawer_no_lo_cierra_pero_clic_fuera_si [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4114162Z   Passed CaeManager.E2ETests.NoIndexacionTests.Toda_respuesta_lleva_noindex_nofollow(ruta: "/robots.txt", estadoEsperado: OK) [4 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4125004Z   Passed CaeManager.E2ETests.NoIndexacionTests.Toda_respuesta_lleva_noindex_nofollow(ruta: "/ruta-que-no-existe-noindex", estadoEsperado: Found) [2 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4127634Z   Passed CaeManager.E2ETests.NoIndexacionTests.Toda_respuesta_lleva_noindex_nofollow(ruta: "/cuenta/iniciar-sesion", estadoEsperado: OK) [5 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4129842Z   Passed CaeManager.E2ETests.NoIndexacionTests.Toda_respuesta_lleva_noindex_nofollow(ruta: "/favicon.png", estadoEsperado: OK) [1 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4133557Z   Passed CaeManager.E2ETests.NoIndexacionTests.Toda_respuesta_lleva_noindex_nofollow(ruta: "/salud", estadoEsperado: OK) [2 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:40:47.4135891Z   Passed CaeManager.E2ETests.NoIndexacionTests.Robots_txt_permite_el_rastreo [4 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:00.8510274Z   Passed CaeManager.E2ETests.MiTrabajoGen2Tests.Con_varias_organizaciones_el_menu_lleva_a_la_cola_de_toda_la_cartera [13 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:02.9926406Z   Passed CaeManager.E2ETests.MiTrabajoGen2Tests.Con_una_sola_organizacion_el_menu_sigue_yendo_a_la_bandeja [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:31.8360829Z   Passed CaeManager.E2ETests.MiTrabajoGen2Tests.El_POST_cross_Tenant_con_returnUrl_profundo_aterriza_en_esa_pantalla_con_la_organizacion_activa [28 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:33.3413816Z   Passed CaeManager.E2ETests.LogPorFixtureAppCollectionTests.La_fixture_compartida_escribe_en_su_propio_fichero_de_log [2 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:33.3416278Z   Passed CaeManager.E2ETests.IncidenciasExportarAutorizacionE2ETests.Rol_Cliente_no_puede_descargar_el_excel_de_incidencias [1 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:36.0333189Z   Passed CaeManager.E2ETests.IncidenciasExportarAutorizacionE2ETests.Rol_GestorCae_si_puede_descargar_el_excel_de_incidencias [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:37.5327538Z   Passed CaeManager.E2ETests.ImportMapCspHashTests.El_hash_de_script_src_coincide_con_el_importmap_servido_en_la_misma_pagina [12 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:45.5664506Z   Passed CaeManager.E2ETests.ImportarDocumentosTests.Importar_documentos_crea_el_documento_valido_y_omite_el_DNI_inexistente [9 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:41:53.4324552Z   Passed CaeManager.E2ETests.ImportarCombinadoTests.Importacion_combinada_crea_Cliente_Empresa_Centro_y_Trabajador_y_omite_la_fila_con_CIF_invalido [7 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:42:05.2555041Z   Passed CaeManager.E2ETests.ImportarClientesTests.Importar_clientes_el_plan_ya_omite_la_fila_nueva_sin_CIF_y_no_crea_nada_al_confirmar [11 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:42:36.5545213Z   Passed CaeManager.E2ETests.ImportacionTests.Importacion_CAE_crea_Empresa_Trabajador_y_Documento_y_registra_la_Asignacion_omitida_con_su_motivo [31 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:01.7594444Z   Passed CaeManager.E2ETests.ImportacionTests.Importacion_archivo_ilegible_deja_rastro_de_la_excepcion_en_el_log_de_Serilog [25 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:06.8249433Z   Passed CaeManager.E2ETests.IdiomaConCatalanApagadoTests.Con_una_cookie_ca_ES_la_aplicacion_sale_en_es_ES_y_sin_selector_de_idioma [5 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:08.9300171Z   Passed CaeManager.E2ETests.IdiomaConCatalanApagadoTests.Cambiar_a_ca_ES_con_token_valido_se_rechaza_y_la_cuenta_sigue_en_es_ES [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:13.6874562Z   Passed CaeManager.E2ETests.FlujoDelegatedWorkspaceTests.Cambiar_entre_dos_workspaces_delegados_sin_pasar_por_el_origen [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:17.8809891Z   Passed CaeManager.E2ETests.FlujoDelegatedWorkspaceTests.Cambiar_al_workspace_delegado_y_volver_al_origen_actualiza_el_selector [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:43:37.6825781Z   Passed CaeManager.E2ETests.FlujoCriticoTests.Flujo_completo_login_cliente_empresa_trabajador_documento_semaforo [19 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:44:23.7363905Z   Passed CaeManager.E2ETests.FlujoCicloDocumentalTests.Ciclo_documental_subida_ia_validacion_vencimiento_reclamacion_renovacion [46 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:44:41.8407305Z   Passed CaeManager.E2ETests.FlujoBandejaPriorizadaTests.Bandeja_agrega_un_documento_urgente_filtra_y_permite_resolverlo [18 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:10.8922336Z   Passed CaeManager.E2ETests.FlujoAltaYRevocacionDelegacionTests.Alta_de_delegacion_operar_el_workspace_y_revocacion [29 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:33.6534270Z   Passed CaeManager.E2ETests.F3bSubcontrataSmokeTests.Crear_subcontrata_y_operaciones_criticas_de_F3b_funcionan [22 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:35.1573626Z   Passed CaeManager.E2ETests.DobleEnvioAccesoTests.El_doble_clic_en_olvide_contrasena_en_una_pestana_solo_llega_como_una_peticion_POST [350 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:35.1633168Z   Passed CaeManager.E2ETests.DobleEnvioAccesoTests.Control_positivo_el_reenvio_explicito_SI_dispara_una_segunda_peticion_POST [554 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:36.6567661Z   Passed CaeManager.E2ETests.DobleEnvioAccesoTests.Dos_pestanas_distintas_producen_dos_peticiones_POST_comportamiento_aceptado [762 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:40.3100705Z   Passed CaeManager.E2ETests.DeepLinksTests.Copiar_enlace_de_Trabajador_360_responde_tras_navegacion_mejorada [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:45.6173788Z   Passed CaeManager.E2ETests.DeepLinksTests.Deep_link_de_Conversacion_reconstruye_el_detalle_en_frio_copia_el_enlace_y_actualiza_la_url_al_cambiar_de_hilo [5 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:51.0353803Z   Passed CaeManager.E2ETests.DeepLinksTests.Deep_link_de_Trabajador_reconstruye_el_panel_en_frio_copia_el_enlace_y_se_limpia_al_cerrar [5 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:45:56.8694596Z   Passed CaeManager.E2ETests.DeepLinksTests.Deep_link_de_Centro_reconstruye_el_panel_en_frio [5 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:00.7893100Z   Passed CaeManager.E2ETests.DeepLinksTests.Deep_link_de_Documento_reconstruye_el_panel_en_frio [3 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:13.5004214Z   Passed CaeManager.E2ETests.CentrosGestionarEnVivoE2ETests.Centro_expandido_muestra_el_semaforo_y_el_documento_subido_en_Trabajador_360_cambia_el_estado_al_volver [12 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:20.0178731Z   Passed CaeManager.E2ETests.CentrosAgruparE2ETests.El_desplegable_pone_y_quita_la_agrupacion_y_la_direccion_la_reproduce_al_recargar [6 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:22.0215042Z   Passed CaeManager.E2ETests.CabeceraTests.Un_clic_fuera_cierra_el_menu_de_usuario [1 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:25.5536765Z   Passed CaeManager.E2ETests.CabeceraTests.En_movil_la_cabecera_deja_solo_iconos_y_el_menu_de_usuario_sigue_ofreciendo_cerrar_sesion [3 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:27.7645667Z   Passed CaeManager.E2ETests.CabeceraTests.El_menu_de_usuario_abre_con_el_avatar_y_cierra_con_Esc_devolviendo_el_foco [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:29.9828421Z   Passed CaeManager.E2ETests.CabeceraTests.La_cabecera_gana_sombra_al_desplazar_la_pagina_y_la_pierde_arriba [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:34.7013159Z   Passed CaeManager.E2ETests.BucleCorreccionPlataformaTests.Corregir_una_rechazada_desde_la_bandeja_la_devuelve_a_pendiente_de_subir [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:46:44.6314249Z   Passed CaeManager.E2ETests.AtajosFicha360Tests.Las_teclas_de_ficha_cambian_de_pestana_recorren_filas_y_pulsan_la_accion_de_la_fila_en_Subcontrata_360 [9 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:04.5415249Z   Passed CaeManager.E2ETests.AltaGuiadaTests.Asistente_de_alta_guiada_crea_Empresa_Cliente_Centro_y_Trabajador_encadenados [19 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:07.4973152Z   Passed CaeManager.E2ETests.AlcanceRolesTests.GestorCae_con_cartera_del_Tenant_entero_ve_todos_los_Clientes_y_no_solo_aquellos_de_los_que_es_la_referencia [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:11.7766270Z   Passed CaeManager.E2ETests.AlcanceRolesTests.El_Administrador_del_Operador_CAE_externo_ve_el_Tenant_beneficiario_entero_con_su_rol_de_origen [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:14.5123720Z   Passed CaeManager.E2ETests.AlcanceRolesTests.Consulta_ve_todo_pero_no_puede_crear_un_cliente [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:16.8789864Z   Passed CaeManager.E2ETests.AlcanceRolesTests.Rol_Cliente_ve_un_menu_reducido_a_lo_que_puede_consultar_de_si_mismo [2 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:22.5970180Z   Passed CaeManager.E2ETests.AcordeonAsignacionesCentroTecladoTests.Trabajadores_del_acordeon_entran_en_j_k_y_e_pulsa_la_accion_que_la_fila_ofrece [4 s]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0971914Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_barra_usa_los_nombres_de_tecla_que_recibe_ya_localizados [10 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0974464Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Con_el_foco_en_un_desplegable_Alt_enciende_y_su_letra_le_da_el_foco [20 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0976203Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.El_dispose_de_un_registro_viejo_no_desmonta_el_registro_nuevo [16 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0977510Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.No_se_enciende_dentro_de_un_campo_de_texto_ni_cancela_su_Alt [11 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0978858Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_letra_de_un_menu_espera_a_que_llegue_el_panel_y_etiqueta_solo_las_opciones_habilitadas [119 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0980296Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_letra_de_un_campo_lo_enfoca_sin_escribir_en_el [14 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0982222Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.No_se_enciende_con_un_dialogo_modal_abierto_salvo_que_lo_declare [18 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:24.0984324Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Salir_o_subir_antes_de_que_llegue_el_panel_lo_cierra_cuando_llega(tecla: "Backspace", nivelEsperado: "raiz") [189 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4444185Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Salir_o_subir_antes_de_que_llegue_el_panel_lo_cierra_cuando_llega(tecla: "Escape", nivelEsperado: "apagado") [180 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4448088Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Alt_mas_clic_no_enciende_y_el_clic_conserva_su_modificador [48 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4452055Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Un_clic_o_perder_el_foco_la_ventana_apagan [46 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4454842Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Una_letra_ejecuta_el_control_y_apaga [14 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4456919Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Alt_sola_enciende_con_las_letras_declaradas_y_las_deducidas_sin_tocar_las_estables [14 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4458985Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_letra_de_un_grupo_baja_un_nivel_Retroceso_sube_y_Escape_sale [22 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4461019Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_entrada_sin_teclado_enciende_el_mismo_modo [9 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4462842Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Con_el_modo_encendido_los_atajos_de_una_tecla_no_ven_la_tecla_y_al_apagarlo_vuelven [20 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:25.4464846Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Alt_con_otra_tecla_en_medio_no_enciende(combinacion: "Alt+j") [5 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.3435306Z [xUnit.net 00:16:03.70]   Finished:    CaeManager.E2ETests
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4090684Z Data collector 'Blame' message: All tests finished running, Sequence file will not be generated.
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4437833Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Alt_con_otra_tecla_en_medio_no_enciende(combinacion: "Shift+Alt") [5 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4439889Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Alt_con_otra_tecla_en_medio_no_enciende(combinacion: "Control+Alt") [4 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4441988Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Retroceso_en_un_menu_lo_cierra_y_vuelve_a_la_raiz [272 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4443752Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.Otra_Alt_apaga_y_una_combinacion_con_el_modo_encendido_tambien [13 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4445635Z   Passed CaeManager.E2ETests.KeyTipsSuperficieTests.La_region_de_estado_existe_vacia_desde_el_registro_y_no_anuncia_un_apagado_sin_encendido [13 ms]
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4513291Z 
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4552820Z Test Run Failed.
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4553560Z Total tests: 100
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4553978Z      Passed: 99
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4554341Z      Failed: 1
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4554972Z  Total time: 16.0731 Minutes
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.4938471Z Results File: /home/runner/work/Project-Hydra/Project-Hydra/tests/CaeManager.E2ETests/TestResults/e2e-bloque-2.trx
+Tests E2E (bloque 2 de 4)	Tests E2E	2026-11-12T20:47:26.5307366Z ##[error]Process completed with exit code 1.
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	﻿2026-11-12T20:47:38.2210696Z ##[group]Run bash scripts/ci-exigir-dependencias.sh
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2211122Z ^[[36;1mbash scripts/ci-exigir-dependencias.sh^[[0m
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2258525Z shell: /usr/bin/bash -e {0}
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2258768Z env:
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2258928Z   DOTNET_NOLOGO: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259106Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259298Z   MINIMO_CLASES: 120
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259497Z   SOLO_E2E: 1
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259652Z   EVENTO: pull_request
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259810Z   R_E2E: failure
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2259971Z   R_ALCANCE: success
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2260128Z   ALCANCE_E2E: true
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2260292Z ##[endgroup]
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2353241Z Evento: pull_request
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2353961Z Compilación y tests unitarios: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2354315Z Verificar formato: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2354653Z Arneses de la extensión: <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2355001Z Tests de integración (4 bloques): <vacío>
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2355293Z Tests E2E: failure
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2355687Z Alcance del CI: success (integracion=<vacío>, e2e=true)
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2368526Z ##[error]Los bloques de tests E2E no terminaron en success (terminaron en «failure»). Este check obligatorio falla a propósito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado.
+Tests E2E (Playwright)	Exigir que los bloques de E2E terminaron como deben	2026-11-12T20:47:38.2375511Z ##[error]Process completed with exit code 1.
+Build, format y tests	Exigir que las dependencias hayan pasado	﻿2026-11-12T20:51:19.6991534Z ##[group]Run bash scripts/ci-exigir-dependencias.sh
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.6991987Z ^[[36;1mbash scripts/ci-exigir-dependencias.sh^[[0m
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7040788Z shell: /usr/bin/bash -e {0}
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7041090Z env:
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7041323Z   DOTNET_NOLOGO: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7041635Z   DOTNET_CLI_TELEMETRY_OPTOUT: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7041953Z   MINIMO_CLASES: 120
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7042216Z   EVENTO: pull_request
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7042492Z   R_COMPILACION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7042790Z   R_FORMATO: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7043057Z   R_EXTENSION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7043320Z   R_INTEGRACION: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7043583Z   R_E2E: failure
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7043823Z   R_ALCANCE: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7044085Z   ALCANCE_INTEGRACION: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7044366Z   ALCANCE_E2E: true
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7044614Z ##[endgroup]
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7125056Z Evento: pull_request
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7126018Z Compilación y tests unitarios: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7127050Z Verificar formato: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7127546Z Arneses de la extensión: success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7128091Z Tests de integración (4 bloques): success
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7128607Z Tests E2E: failure
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7129223Z Alcance del CI: success (integracion=true, e2e=true)
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7155151Z ##[error]Los tests E2E no terminaron en success (terminaron en «failure»). Este check obligatorio falla a propósito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado.
+Build, format y tests	Exigir que las dependencias hayan pasado	2026-11-12T20:51:19.7167792Z ##[error]Process completed with exit code 1.
