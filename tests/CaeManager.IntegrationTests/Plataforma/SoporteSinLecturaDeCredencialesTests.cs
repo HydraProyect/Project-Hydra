@@ -98,7 +98,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             // sin 42501.
             "ConsentidoPorUsuarioId", "DirectorioEntraId", "EsBuzonCompartido", "HuecoPendienteDesdeUtc", "IdentidadBuzon",
             "IdentidadVerificadaUtc", "MarcaHuecoPorRegistrarDesdeUtc", "ReintentoVerificacionNoAntesDeUtc",
-            // Recuperación del hueco (migración 20261115190723): detención, generación, cobertura, cursor y fin del
+            // Recuperación del hueco (migración 20261115210000): detención, generación, cobertura, cursor y fin del
             // listado; ninguna es un secreto.
             "RecuperacionHuecoAtascadaEnUtc", "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
             "RecuperacionHuecoListadoCompleto"] },
