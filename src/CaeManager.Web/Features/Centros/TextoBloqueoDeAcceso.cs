@@ -5,8 +5,8 @@ using Microsoft.Extensions.Localization;
 namespace CaeManager.Web.Features.Centros;
 
 /// <summary>
-/// Cómo se dice, en las superficies del Centro (Centro 360 y su panel lateral), por qué un Trabajador está bloqueado en ese
-/// Centro. Vive en un solo sitio para que las dos superficies lo digan igual. «Bloqueado» es un estado del Trabajador, nunca
+/// Cómo se dice, en las superficies del Centro (Centro 360 y su panel lateral) y en la ficha del Trabajador (por Centro), por qué
+/// un Trabajador está bloqueado en ese Centro. Vive en un solo sitio para que las dos superficies lo digan igual. «Bloqueado» es un estado del Trabajador, nunca
 /// del Centro (decisión del propietario, 2026-10-03): el Centro enseña el detalle por Trabajador.
 /// </summary>
 public static class TextoBloqueoDeAcceso

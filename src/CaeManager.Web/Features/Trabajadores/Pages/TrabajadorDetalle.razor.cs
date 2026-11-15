@@ -583,10 +583,20 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _centros = centros;
 
             // Por qué está bloqueado en cada Centro (regla única por Centro): el mismo texto que las pantallas del Centro.
+            // Es contexto, no la ficha (como en CentroDetalle): si falla, la ficha se pinta sin esa línea. En serie: el DbContext
+            // del circuito no admite consultas concurrentes. Cada consulta evalúa el Centro entero (deuda de coste conocida).
             var bloqueos = new List<DocumentacionBloqueantePendienteDto>();
-            foreach (var centro in centros.Where(c => c.Documentos.Count > 0))
-                bloqueos.AddRange((await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centro.CentroId), _ciclo.Token))
-                    .Where(b => b.TrabajadorId == trabajadorId));
+            try
+            {
+                foreach (var centro in centros.Where(c => c.Documentos.Count > 0))
+                    bloqueos.AddRange((await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centro.CentroId), _ciclo.Token))
+                        .Where(b => b.TrabajadorId == trabajadorId));
+            }
+            catch (Exception) when (!_ciclo.IsCancellationRequested)
+            {
+                bloqueos.Clear();
+            }
+
             if (!EsVigente(carga))
                 return;
 

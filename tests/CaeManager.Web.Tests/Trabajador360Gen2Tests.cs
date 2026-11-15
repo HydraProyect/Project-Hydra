@@ -91,6 +91,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         /// <summary>Los bloqueos de acceso que evalúa la regla única por Centro (ObtenerDocumentacionBloqueantePendienteQuery).</summary>
         public List<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
+        public bool FallarBloqueos { get; set; }
 
         /// <summary>Lo que ofrece el selector de «Asignar a un centro» y los documentos que faltarían en el Centro elegido.</summary>
         public List<CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector.CentroSelectorDto> CentrosParaAsignar { get; } = [];
@@ -159,6 +160,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
+            CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.ObtenerDocumentacionBloqueantePendienteQuery when FallarBloqueos =>
+                throw new InvalidOperationException("Fallo simulado de la evaluación de bloqueos."),
             CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.ObtenerDocumentacionBloqueantePendienteQuery q =>
                 (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto>)
                     Bloqueos.Where(b => q.CentroId is null || b.CentroId == q.CentroId).ToList(),
