@@ -437,7 +437,9 @@ internal static class AccesosAAsignaciones
                     break;
 
                 case LambdaExpressionSyntax lambda when lambda.Body == actual && LlamadaQueRecibe(lambda) is { } llamada && Filtra(llamada):
-                    if (propia.Contains(llamada)) return true;
+                    if (propia.Contains(llamada))
+                        return llamada.Expression is not MemberAccessExpressionSyntax { Expression: var receptorDeLaCartera }
+                               || !EnMemoria(receptorDeLaCartera);
                     padre = llamada;
                     break;
 
@@ -449,7 +451,8 @@ internal static class AccesosAAsignaciones
 
                 case WhereClauseSyntax w when w.Condition == actual:
                     if (w.FirstAncestorOrSelf<QueryExpressionSyntax>() is not { } consulta) return false;
-                    if (FuentesDeRango(consulta).Any(propia.Contains)) return true;
+                    if (FuentesDeRango(consulta).Where(propia.Contains).ToList() is { Count: > 0 } deLaCartera)
+                        return !deLaCartera.Any(EnMemoria);
                     padre = consulta;
                     break;
 
@@ -462,6 +465,18 @@ internal static class AccesosAAsignaciones
 
         return false;
     }
+
+    /// <summary>
+    /// La cadena de la cartera ya ha salido a memoria antes del predicado (<c>AsEnumerable()</c>,
+    /// <c>ToList()</c>…): la lectura de la tabla trae las filas de todos los servicios y solo el resultado
+    /// queda restringido, así que no cuenta. Mira toda la expresión, también sus lambdas (falso positivo
+    /// si una de ellas materializa otra cosa).
+    /// </summary>
+    private static bool EnMemoria(SyntaxNode receptor) =>
+        receptor.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Any(i =>
+            i.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: var metodo }
+            && (metodo.EndsWith("Async", StringComparison.Ordinal) ? metodo[..^"Async".Length] : metodo) is
+                "AsEnumerable" or "ToList" or "ToArray" or "ToDictionary" or "ToHashSet" or "ToLookup");
 
     /// <summary>Las llamadas cuyo predicado restringe las filas que leen (con o sin <c>Async</c>).</summary>
     private static bool Filtra(InvocationExpressionSyntax llamada) =>

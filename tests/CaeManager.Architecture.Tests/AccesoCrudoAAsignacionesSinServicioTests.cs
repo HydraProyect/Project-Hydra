@@ -64,14 +64,19 @@ namespace CaeManager.Architecture.Tests;
 /// cadena de esa operación que no comparte con la de la cartera (tras el <c>Join</c> que las une, la fila
 /// es una proyección y no cuenta). La igualdad tiene que restringir las filas de la cartera: subiendo
 /// desde ella solo puede pasar por <c>&amp;&amp;</c>, paréntesis, predicados de llamadas que filtran
-/// (<c>Where</c>, <c>Any</c>, <c>Count</c>, <c>First</c>…) y la condición de un <c>where</c>, hasta un
-/// predicado de la propia cartera; una proyección, <c>!</c> o <c>||</c> la dejan cruda. Un
-/// <c>GroupJoin</c> (o <c>join … into</c>) conserva las filas exteriores con el grupo vacío, así que solo
-/// correlaciona con la cartera como lado unido. Cualquier otra forma (una clave compuesta, <c>Equals</c>,
+/// (<c>Where</c>, <c>Any</c>, <c>Count</c>, <c>First</c>, <c>Single</c>, <c>Last</c> y sus <c>Async</c>;
+/// no <c>All</c>, que con el conjunto vacío es cierto), el receptor de otra de esas llamadas
+/// (<c>ops.Where(…).Any()</c>) y la condición de un <c>where</c>, hasta un predicado de la propia
+/// cartera que no haya salido a memoria antes (<c>AsEnumerable()</c>, <c>ToList()</c>…); una proyección,
+/// <c>!</c> o <c>||</c> la dejan cruda. Un <c>GroupJoin</c> (o <c>join … into</c>) conserva las filas
+/// exteriores con el grupo vacío, así que solo correlaciona con la cartera como lado unido, y en un
+/// <c>join</c> integrado con la cartera fuera, su fila tiene que ser de rango de esa misma consulta. La
+/// salida a memoria solo se mira en ese predicado de la cartera: un <c>Join</c> de método o la comparación
+/// de Servicio de la operación tras un <c>AsEnumerable()</c> siguen contando (falso negativo). Cualquier otra forma (una clave compuesta, <c>Equals</c>,
 /// una variable <c>ops</c> que no se sabe qué recorre, una comparación del resultado como
 /// <c>Count(…) &gt; 0</c>) deja la lectura cruda (falso positivo, va a la lista). La
 /// fila se reconoce por la cadena y el nombre de la propiedad: una proyección anterior a la clave
-/// (<c>.Select(c =&gt; otra)</c>) que devuelva una entidad con <c>AsignacionOperacionId</c> o <c>Id</c>
+/// (<c>.Select(c =&gt; otra)</c>, o el selector de resultado de un <c>Join</c>, <c>(c, x) =&gt; x</c>) que devuelva una entidad con <c>AsignacionOperacionId</c> o <c>Id</c>
 /// haría de fila de la cartera o de la operación (falso negativo).</item>
 /// <item>Cuando el acceso está dentro de una cláusula (<c>where</c>, <c>select</c>) de una consulta
 /// integrada exterior, cuentan las variables de <b>todos</b> sus <c>from</c> y <c>join</c>, también las de
@@ -227,6 +232,10 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var l = ctx.AsignacionesCartera.Select(c => new { c, Ok = ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) }).ToList(); }")]
     [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera select new { c, Ok = ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) }).ToList(); }")]
     [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera select (from x in otros join o in ctx.AsignacionesOperacion.Where(y => y.Servicio == s) on c.AsignacionOperacionId equals o.Id select o).Any()).ToList(); }")]
+    [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera select (from o in ctx.AsignacionesOperacion where o.Id == c.AsignacionOperacionId && o.Servicio == s select o).Any()).ToList(); }")]
+    // El predicado correlacionado sobre una cartera que ya salió a memoria: la tabla se lee entera.
+    [InlineData("void A() { var l = ctx.AsignacionesCartera.AsEnumerable().Where(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)).ToList(); }")]
+    [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera.ToList() where ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) select c).ToList(); }")]
     // Una negación o una disyunción alrededor de la subconsulta correlacionada tampoco restringe.
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => !ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => x || ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
@@ -284,6 +293,10 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     // Un GroupJoin con la cartera como lado unido: sus filas son las de los grupos de las operaciones del servicio.
     [InlineData("void A() { var l = ctx.AsignacionesOperacion.Where(o => o.Servicio == s).GroupJoin(ctx.AsignacionesCartera, o => o.Id, c => c.AsignacionOperacionId, (o, cs) => cs).ToList(); }")]
     [InlineData("void A() { var l = (from o in ctx.AsignacionesOperacion where o.Servicio == s join c in ctx.AsignacionesCartera on o.Id equals c.AsignacionOperacionId into g select g).ToList(); }")]
+    // La igualdad en el Where receptor de un Any, en un predicado Async o en el where de una subconsulta integrada.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Where(o => o.Id == c.AsignacionOperacionId && o.Servicio == s).Any()); }")]
+    [InlineData("Task<int> A() => ctx.AsignacionesCartera.CountAsync(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s));")]
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera where (from o in ctx.AsignacionesOperacion where o.Id == c.AsignacionOperacionId && o.Servicio == s select o).Any() select c).Count(); }")]
     // La proyección posterior al predicado correlacionado no le quita el filtro.
     [InlineData("void A() { var l = ctx.AsignacionesCartera.Where(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)).Select(c => c.UsuarioId).ToList(); }")]
     // El predicado se aplica a la fuente del join, que es parte de la consulta de la cartera.
