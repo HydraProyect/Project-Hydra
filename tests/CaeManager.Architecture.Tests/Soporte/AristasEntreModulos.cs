@@ -127,13 +127,15 @@ internal sealed class AristasEntreModulos
         foreach (var fuente in new[] { this, otra })
         {
             foreach (var (par, porOrigen) in fuente._pares)
-            foreach (var (origen, destinos) in porOrigen)
             {
-                if (!suma._pares.TryGetValue(par, out var p))
-                    suma._pares[par] = p = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
-                if (!p.TryGetValue(origen, out var d))
-                    p[origen] = d = new SortedSet<string>(StringComparer.Ordinal);
-                d.UnionWith(destinos);
+                foreach (var (origen, destinos) in porOrigen)
+                {
+                    if (!suma._pares.TryGetValue(par, out var p))
+                        suma._pares[par] = p = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                    if (!p.TryGetValue(origen, out var d))
+                        p[origen] = d = new SortedSet<string>(StringComparer.Ordinal);
+                    d.UnionWith(destinos);
+                }
             }
 
             foreach (var (origen, modulo) in fuente._moduloDeOrigen)
