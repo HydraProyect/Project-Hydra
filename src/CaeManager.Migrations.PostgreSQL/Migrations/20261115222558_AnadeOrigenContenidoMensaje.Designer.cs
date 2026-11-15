@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115173904_AnadeOrigenContenidoMensaje")]
+    [Migration("20261115222558_AnadeOrigenContenidoMensaje")]
     partial class AnadeOrigenContenidoMensaje
     {
         /// <inheritdoc />
@@ -9351,8 +9351,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("OperadorTenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OrigenId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PropietarioTenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("RevocacionesDelOrigen")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Servicio")
                         .IsRequired()
@@ -9370,6 +9376,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrigenId")
+                        .HasFilter("\"OrigenId\" IS NOT NULL");
 
                     b.HasIndex("OperadorTenantId", "Estado");
 
@@ -11458,6 +11467,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int>("Revocaciones")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("TenantClienteId")
                         .HasColumnType("uuid");
 
@@ -13213,6 +13226,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionOperacion", b =>
                 {
+                    b.HasOne("CaeManager.Domain.Tenants.DelegacionTenant", null)
+                        .WithMany()
+                        .HasForeignKey("OrigenId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
                         .WithMany()
                         .HasForeignKey("PropietarioTenantId", "AmbitoCentroId")
