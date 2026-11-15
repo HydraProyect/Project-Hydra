@@ -59,10 +59,11 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         var operacion = AsignacionOperacion.Externa(
             _empresa.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
             vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora);
-        contexto.AsignacionesOperacion.Add(operacion);
 
         var vinculo = new DelegacionTenant(_operador.Id, _empresa.Id);
         contexto.DelegacionesTenant.Add(vinculo);
+        // Con su origen sellado, como la abre el alta: la FK ordena el INSERT de la delegación por delante.
+        OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
 
         await contexto.SaveChangesAsync();
         _operacionId = operacion.Id;
@@ -282,9 +283,10 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     /// La bandeja no la ofrece como vigente ni, por tanto, como revocable.
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Una_cartera_cuya_operacion_ya_no_esta_vigente_no_cuenta_como_vigente(bool caducada)
+    [InlineData("caducada")]
+    [InlineData("suspendida")]
+    [InlineData("sin amparo")]
+    public async Task Una_cartera_cuya_operacion_ya_no_esta_vigente_no_cuenta_como_vigente(string causa)
     {
         var solicitudId = await SolicitarAsync();
         await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
@@ -309,10 +311,20 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         await using (var propietario = ContextoPropietario())
         {
             var operacion = propietario.AsignacionesOperacion.Where(o => o.Id == _operacionId);
-            if (caducada)
+            if (causa == "caducada")
                 await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.VigenciaHasta, DateTime.UtcNow.AddMinutes(-1)));
-            else
+            else if (causa == "suspendida")
                 await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.Estado, EstadoAsignacion.Suspendida));
+            else
+            {
+                // Codex r2 en la PR #2237, baja 9: la DelegacionTenant de origen se revoca y se reactiva (como la ranura
+                // anterior, solo Activa). La operación y la cartera siguen vigentes, pero el origen ya no las ampara.
+                var vinculo = propietario.DelegacionesTenant.Where(d => d.Id == _vinculoId);
+                await vinculo.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+                await vinculo.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+                (await propietario.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionId)).Estado
+                    .Should().Be(EstadoAsignacion.Vigente, "control: la operación sigue vigente; solo falta su amparo");
+            }
 
             (await propietario.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraId))
                 .Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera sigue abierta: nadie la ha cerrado aún");
