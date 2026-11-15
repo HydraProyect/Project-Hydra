@@ -206,6 +206,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // disposición de una ETT son requisitos de plantilla según la modalidad (D-27), sin modelo de datos nuevo. Se crean
             // inactivos y pendientes de revisión legal: ninguna plantilla los adopta hasta que la revisión los active. La
             // lectura del catálogo (ObtenerCatalogoBaseQuery) solo devuelve los activos, así que sigue vacía para el runtime.
+            // El catálogo base no tiene escritor fuera de las migraciones. Si alguien hubiera dado de alta a mano uno de estos
+            // códigos con otro Id, ni se respeta su estado (podría estar activo, contra R-14) ni se pisa (el Down no podría
+            // restaurarlo): la migración falla y obliga a mirarlo.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM public."CatalogoRequisitosBase"
+                               WHERE "Codigo" IN ('a1-trabajador-desplazado', 'puesta-a-disposicion-ett')
+                                 AND "Id" NOT IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1')) THEN
+                        RAISE EXCEPTION 'R-14: el catálogo base ya tiene A1 o ETT con otro Id; revísalo antes de migrar.';
+                    END IF;
+                END $$;
+                """);
             migrationBuilder.Sql("""
                 INSERT INTO public."CatalogoRequisitosBase" ("Id", "Codigo", "Nombre", "Fundamento", "Nivel", "Activo", "PendienteRevisionLegal")
                 VALUES
@@ -215,17 +228,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     ('b1400000-0000-4000-8000-0000000000e1', 'puesta-a-disposicion-ett', 'Contrato de puesta a disposición de la ETT',
                      'Ley 14/1994, de empresas de trabajo temporal, arts. 6 y 28, y RD 216/1999. Pendiente de revisión legal (R-14).',
                      'N1', false, true)
-                ON CONFLICT ("Codigo") DO UPDATE SET "Activo" = false, "PendienteRevisionLegal" = true;
+                ON CONFLICT ("Id") DO NOTHING;
                 """);
-            // Si el código ya existía (alta manual en otra ranura), no se respeta su estado: R-14 lo deja inactivo y
-            // pendiente hasta la revisión legal, igual que a la fila sembrada.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Primero las tablas: RequisitosPlantilla tiene una FK RESTRICT al catálogo base, y un A1 o ETT ya adoptado
-            // impediría borrar la semilla.
+            // Primero lo que cita la semilla con FK RESTRICT: las tablas de esta migración (un A1 o ETT ya adoptado) y las
+            // reglas de riesgo que la propongan. Esas reglas solo pueden apuntar a filas que esta reversión retira.
             migrationBuilder.DropTable(
                 name: "RequisitosPlantilla");
 
@@ -233,6 +244,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "PlantillasRequisitos");
 
             migrationBuilder.Sql("""
+                DELETE FROM public."CatalogoReglasRiesgoRequisito" WHERE "RequisitoId" IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1');
                 DELETE FROM public."CatalogoRequisitosBase" WHERE "Id" IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1');
                 """);
 

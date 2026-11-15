@@ -10,12 +10,13 @@ using MediatR;
 namespace CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla;
 
 /// <summary>
-/// Edita los atributos de un requisito de plantilla. El tipo de documento no cambia. Solo vale para lo que se pida a
-/// partir de ahora: el «también los N ya dados de alta» de la tarjeta 9 es la revalidación (B-23).
+/// Edita los atributos de un requisito de plantilla. Ni el tipo de documento ni el requisito de base que adopta cambian:
+/// los dos se toman del requisito guardado, no de quien llama. Solo vale para lo que se pida a partir de ahora: el
+/// «también los N ya dados de alta» de la tarjeta 9 es la revalidación (B-23).
 /// </summary>
 [AreaDelEncargo("TiposDocumento")]
 public record EditarRequisitoPlantillaCommand(
-    Guid PlantillaId, Guid RequisitoId, Guid? RequisitoBaseId, AtributosRequisito Atributos, Guid Version = default) : ICommand;
+    Guid PlantillaId, Guid RequisitoId, AtributosRequisito Atributos, Guid Version = default) : ICommand;
 
 public class EditarRequisitoPlantillaCommandValidator : AbstractValidator<EditarRequisitoPlantillaCommand>
 {
@@ -47,7 +48,7 @@ public class EditarRequisitoPlantillaCommandHandler(
             return Result.Fallo(PlantillaRequisitosErrores.NoEncontrada);
 
         var (tipo, requisitoBase, error) = await CargaRequisito.CargarAsync(
-            tipos, catalogo, requisito.TipoDocumentoId, request.RequisitoBaseId, cancellationToken);
+            tipos, catalogo, requisito.TipoDocumentoId, requisito.RequisitoBaseId, cancellationToken);
         if (error is not null)
             return Result.Fallo(error);
 

@@ -173,7 +173,7 @@ public class PlantillaRequisitosHandlersTests
         var id = Guid.NewGuid();
         new AnadirRequisitoAPlantillaCommandValidator().Validate(new AnadirRequisitoAPlantillaCommand(id, id, null, Basicos))
             .Errors.Should().Contain(e => e.PropertyName == "Version");
-        new EditarRequisitoPlantillaCommandValidator().Validate(new EditarRequisitoPlantillaCommand(id, id, null, Basicos))
+        new EditarRequisitoPlantillaCommandValidator().Validate(new EditarRequisitoPlantillaCommand(id, id, Basicos))
             .Errors.Should().Contain(e => e.PropertyName == "Version");
         new RetirarRequisitoPlantillaCommandValidator().Validate(new RetirarRequisitoPlantillaCommand(id, id))
             .Errors.Should().Contain(e => e.PropertyName == "Version");
@@ -251,7 +251,7 @@ public class PlantillaRequisitosHandlersTests
         {
             (Result)await Anadir(alcance).Handle(new AnadirRequisitoAPlantillaCommand(plantilla.Id, TipoGuardado().Id, null, Basicos), CancellationToken.None),
             await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, alcance, _unitOfWork).Handle(
-                new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, null, Basicos with { BloqueaAcceso = false }), CancellationToken.None),
+                new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { BloqueaAcceso = false }), CancellationToken.None),
             await new RetirarRequisitoPlantillaCommandHandler(_plantillas, alcance, _unitOfWork).Handle(
                 new RetirarRequisitoPlantillaCommand(plantilla.Id, requisito.Id), CancellationToken.None),
             await new RetirarPlantillaRequisitosCommandHandler(_plantillas, alcance, _unitOfWork).Handle(
@@ -316,13 +316,34 @@ public class PlantillaRequisitosHandlersTests
     }
 
     [Fact]
+    public async Task Editar_un_requisito_que_adopto_una_base_retirada_despues_conserva_la_base_y_guarda()
+    {
+        // La base sale del requisito guardado, no del comando, y su carga no filtra por Activo: si alguien la filtrara,
+        // la edición volvería a quedar bloqueada con RequisitoBaseNoEncontrado.
+        var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
+        var requisitoBase = new RequisitoBase("requisito-luego-retirado", "Luego retirado", "Fundamento", NivelExigencia.N1);
+        _catalogo.Requisitos.Add(requisitoBase);
+        var requisito = plantilla.AnadirRequisito(TipoGuardado(), requisitoBase, Basicos);
+        requisitoBase.Retirar();
+
+        var resultado = await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork).Handle(
+            new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { Criterio = "Criterio nuevo" }, plantilla.Version),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        requisito.Criterio.Should().Be("Criterio nuevo");
+        requisito.RequisitoBaseId.Should().Be(requisitoBase.Id);
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Editar_y_retirar_un_requisito_cambian_lo_suyo()
     {
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
         var requisito = plantilla.AnadirRequisito(TipoGuardado(), null, Basicos);
 
         (await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork).Handle(
-                new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, null, Basicos with { BloqueaAcceso = false }), CancellationToken.None))
+                new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { BloqueaAcceso = false }), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
         requisito.BloqueaAcceso.Should().BeFalse();
 
