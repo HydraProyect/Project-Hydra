@@ -79,7 +79,7 @@ public class PlantillaRequisitosTests
 
         var requisito = plantilla.AnadirRequisito(tipo, null, Basicos);
 
-        plantilla.Version.Should().NotBe(version, "la fila del requisito vive en otra tabla y sin tocar la raÃ­z no se verÃ­a el conflicto");
+        plantilla.Version.Should().NotBe(version, "la fila del requisito vive en otra tabla y sin tocar la raíz no se vería el conflicto");
         requisito.Entidad.Should().Be(EntidadRequisito.Empresa);
         requisito.PlantillaId.Should().Be(plantilla.Id);
         requisito.TipoDocumentoId.Should().Be(tipo.Id);
@@ -377,7 +377,7 @@ public class PlantillaRequisitosTests
         FluentActions.Invoking(() => DeCentro().AnadirRequisito(vehiculo, null, Basicos with { SePideA = DestinatarioRequisito.Extranjeros }))
             .Should().Throw<ArgumentException>();
         FluentActions.Invoking(() => DeCentro().AnadirRequisito(empresa, null, Basicos with { TiposContratacion = TiposContratacion.Autonomo }))
-            .Should().Throw<ArgumentException>("el tipo de contrataciÃ³n solo acota Trabajadores");
+            .Should().Throw<ArgumentException>("el tipo de contratación solo acota Trabajadores");
         FluentActions.Invoking(() => DeCentro().AnadirRequisito(Tipo(), null, Basicos with { TiposContratacion = TiposContratacion.Ninguno }))
             .Should().Throw<ArgumentException>();
         FluentActions.Invoking(() => DeCentro().AnadirRequisito(Tipo(), null, Basicos with { TiposContratacion = (TiposContratacion)64 }))
@@ -391,9 +391,9 @@ public class PlantillaRequisitosTests
     public void Las_equivalencias_se_limpian_y_no_valen_si_solo_se_pide_a_nacionales()
     {
         var requisito = DeCentro().AnadirRequisito(Tipo(), null,
-            Basicos with { SePideA = DestinatarioRequisito.Extranjeros, Equivalencias = ["  Certificado del paÃ­s de origen ", "certificado del paÃ­s de origen", " "] });
+            Basicos with { SePideA = DestinatarioRequisito.Extranjeros, Equivalencias = ["  Certificado del país de origen ", "certificado del país de origen", " "] });
 
-        requisito.Equivalencias.Should().Equal("Certificado del paÃ­s de origen");
+        requisito.Equivalencias.Should().Equal("Certificado del país de origen");
 
         FluentActions.Invoking(() => DeCentro().AnadirRequisito(Tipo(), null,
                 Basicos with { SePideA = DestinatarioRequisito.Nacionales, Equivalencias = ["Algo"] }))
