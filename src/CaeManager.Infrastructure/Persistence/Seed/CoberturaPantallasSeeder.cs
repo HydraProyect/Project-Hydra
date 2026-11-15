@@ -195,19 +195,35 @@ public static class CoberturaPantallasSeeder
                         $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
             }
 
+        // La fila viva de la primera persona es la prueba de que la delegación sigue activa: revocarla revoca sus filas
+        // heredadas (PR #2237). Revocada desde la interfaz, la siembra no reabre la operación (el writer lanzaría sin
+        // delegación vigente y el arranque caería).
+        bool delegacionActiva;
+        using (AmbitoTenantExplicito.Establecer(operadorId))
+            delegacionActiva = await dbContext.AsignacionesOperadorDelegado.AnyAsync(
+                a => a.UsuarioId == gestorConCartera.Id, cancellationToken);
+        if (!delegacionActiva)
+            logger.LogWarning("Siembra de cobertura: la delegación de {Tenant} está revocada; no se reabre su operación externa.", NombreTenantAlfa);
+
         using (AmbitoTenantExplicito.Establecer(alfaId))
         {
             var writer = new AsignacionesOperativasWriter(
                 dbContext, new TenantActualAmbiental { TenantId = alfaId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
-            await writer.AbrirOperacionDelegadaAsync(alfaId, operadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (delegacionActiva)
+            {
+                await writer.AbrirOperacionDelegadaAsync(alfaId, operadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             if (!await dbContext.Empresas.AnyAsync(e => e.RazonSocial == EmpresaPropiaAlfa, cancellationToken))
                 await new ConstructorAlfa(dbContext, hoy, administradorAlfa.Id).ConstruirAsync(cancellationToken);
 
             // Solo el Gestor CAE con cartera la recibe: el otro queda con operación abierta y sin cartera.
-            await writer.AsegurarCarteraTenantEnteroAsync(alfaId, gestorConCartera.Id, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (delegacionActiva)
+            {
+                await writer.AsegurarCarteraTenantEnteroAsync(alfaId, gestorConCartera.Id, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             // La cuenta de Usuario de Cliente queda ligada a su Cliente empresarial fuera de la rama de construcción, para que
             // un arranque interrumpido se repare en el siguiente; y solo se escribe si cambia.
