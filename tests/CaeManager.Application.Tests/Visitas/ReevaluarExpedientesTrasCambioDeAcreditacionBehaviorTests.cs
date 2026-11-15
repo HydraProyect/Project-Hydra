@@ -4,6 +4,7 @@ using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -42,8 +43,41 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
     }
 
     private static ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, Result> Behavior<TRequest>(
-        DocumentosQueryContextFalso documentos, IEvaluadorExpedienteVisitaService evaluador) where TRequest : notnull =>
-        new(documentos, evaluador, NullLogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, Result>>.Instance);
+        DocumentosQueryContextFalso documentos, IEvaluadorExpedienteVisitaService evaluador) where TRequest : notnull
+    {
+        var servicios = new ServiceCollection()
+            .AddSingleton<IDocumentosQueryContext>(documentos)
+            .AddSingleton(evaluador)
+            .BuildServiceProvider();
+        return new(servicios, NullLogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, Result>>.Instance);
+    }
+
+    [Fact]
+    public async Task Una_peticion_sin_el_marcador_no_exige_la_persistencia_de_visitas()
+    {
+        // MediatR construye todos los behaviors en cada envío: una consulta en un contenedor que no registra ni
+        // Documentos ni el evaluador (como las pruebas de integración que montan AddApplication a mano) tiene que pasar.
+        var vacio = new ServiceCollection().BuildServiceProvider();
+        var behavior = new ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>(
+            vacio, NullLogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>>.Instance);
+
+        var respuesta = await behavior.Handle(new OrdenCualquiera(Guid.NewGuid()), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        respuesta.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_behavior_se_construye_sin_la_persistencia_de_visitas()
+    {
+        // El contenedor de AddApplication sin IVisitaRepository: construir el behavior no puede exigirlo.
+        var servicios = new ServiceCollection();
+        servicios.AddLogging();
+        var proveedor = servicios.BuildServiceProvider();
+
+        var accion = () => ActivatorUtilities.CreateInstance<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>>(proveedor);
+
+        accion.Should().NotThrow();
+    }
 
     [Fact]
     public async Task Tras_una_orden_de_acreditacion_con_exito_reevalua_las_visitas_de_su_documento()
