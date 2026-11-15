@@ -23,8 +23,15 @@ namespace CaeManager.Architecture.Tests
     /// </summary>
     public class AreaDelEncargoPorTipoTests
     {
-        private static readonly List<Type> Peticiones = typeof(ActosExcluidosDelEncargo).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IBaseRequest).IsAssignableFrom(t))
+        private static readonly Type[] TiposDeApplication = typeof(ActosExcluidosDelEncargo).Assembly.GetTypes();
+
+        /// <summary>
+        /// Las peticiones concretas e instanciables. Una definición genérica abierta no se puede instanciar sin
+        /// inicializar (no es un tipo cerrado); la vigila aparte <see cref="Ninguna_peticion_generica_abierta_queda_sin_marca"/>.
+        /// </summary>
+        private static readonly List<Type> Peticiones = TiposDeApplication
+            .Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
+                        && typeof(IBaseRequest).IsAssignableFrom(t))
             .ToList();
 
         /// <summary>
@@ -232,6 +239,137 @@ namespace CaeManager.Architecture.Tests
                 "clasificar un módulo como área abriría de golpe lo que se mueva a él (ADR-013 § 5, corrección A-3)");
         }
 
+        /// <summary>
+        /// Una petición que deriva de otra petición tiene la misma área resuelta que su base o queda excluida: nunca
+        /// menos restringida que la base. Hoy puede no haber ninguna en Application; los tipos sintéticos de abajo
+        /// prueban que la regla y este predicado distinguen los casos.
+        /// </summary>
+        [Fact]
+        public void Toda_peticion_derivada_de_otra_tiene_el_area_de_su_base_o_queda_excluida()
+        {
+            var derivadas = TiposDeApplication
+                .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: false }
+                            && typeof(IBaseRequest).IsAssignableFrom(t)
+                            && t.BaseType is { } b && typeof(IBaseRequest).IsAssignableFrom(b))
+                .ToList();
+
+            derivadas.Where(p => !HeredaSinAbrirse(p)).Select(p => p.FullName).Should().BeEmpty(
+                "una petición derivada no puede quedar menos restringida que su base");
+
+            // Sensibilidad del predicado: una derivada de una base permitida que declara otra área permitida lo incumple.
+            HeredaSinAbrirse(typeof(CaeManager.Application.Centros.SimulacionM0c.DerivadaConOtraAreaSimulada)).Should().BeFalse();
+            HeredaSinAbrirse(typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeExcluidaSimulada)).Should().BeTrue();
+            HeredaSinAbrirse(typeof(CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c.DerivadaDePermitidaSimulada)).Should().BeTrue();
+        }
+
+        /// <summary>
+        /// Hallazgo de Codex r1 (#2241): la marca de la base no se hereda sola (<c>Inherited = false</c>), y con la regla
+        /// de c24529cfe una derivada de una excluida, declarada en un área permitida, quedaba permitida.
+        /// </summary>
+        [Fact]
+        public void Una_peticion_derivada_de_una_excluida_queda_excluida_aunque_declare_un_area_permitida()
+        {
+            var baseExcluida = typeof(CaeManager.Application.AutorizacionesLectura.SimulacionM0c.PeticionBaseExcluidaSimulada);
+            var derivada = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeExcluidaSimulada);
+            var derivadaSinMarca = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaSinMarcaDeExcluidaSimulada);
+
+            // Control de sensibilidad: con la regla de c24529cfe (marca propia, si no la carpeta) las dos derivadas tendrían
+            // un área permitida.
+            Marca(derivada).Should().Be("ContratosAcceso");
+            Marca(derivadaSinMarca).Should().BeNull();
+            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(derivadaSinMarca).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreasPermitidas.Should().Contain("ContratosAcceso");
+            ExcluyeSinInicializar(baseExcluida).Should().BeTrue();
+
+            ActosExcluidosDelEncargo.AreaDe(derivada).Should().Be("AutorizacionesLectura", "prevalece la exclusión de la base");
+            ActosExcluidosDelEncargo.AreaDe(derivadaSinMarca).Should().Be("AutorizacionesLectura");
+            ExcluyeSinInicializar(derivada).Should().BeTrue("una derivada nunca queda menos restringida que su base");
+            ExcluyeSinInicializar(derivadaSinMarca).Should().BeTrue();
+
+            // Base sin área resuelta: la derivada tampoco la tiene y falla cerrado.
+            var derivadaDeSinArea = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeBaseSinAreaSimulada);
+            Marca(derivadaDeSinArea).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreaDe(derivadaDeSinArea).Should().BeNull();
+            ExcluyeSinInicializar(derivadaDeSinArea).Should().BeTrue();
+        }
+
+        /// <summary>
+        /// Control positivo: heredar de una base permitida no excluye nada; sin marca propia, la derivada toma la marca más
+        /// cercana de la cadena, así que moverla a <c>Inbound.*</c> no la deja sin área.
+        /// </summary>
+        [Fact]
+        public void Una_peticion_derivada_de_una_permitida_sigue_permitida()
+        {
+            var derivada = typeof(CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c.DerivadaDePermitidaSimulada);
+
+            Marca(derivada).Should().BeNull();
+            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(derivada).Should().Be("Inbound");
+            ActosExcluidosDelEncargo.AreaDe(derivada).Should().Be("ContratosAcceso", "la marca más cercana es la de la base");
+            ExcluyeSinInicializar(derivada).Should().BeFalse();
+        }
+
+        /// <summary>
+        /// <see cref="ActosExcluidosDelEncargo.PeticionesExcluidas"/> va por tipo: una derivada de una de ellas también queda
+        /// excluida. Las de hoy son selladas o sin derivadas; lo que se comprueba es la cadena entera de cada petición.
+        /// </summary>
+        [Fact]
+        public void Una_peticion_que_hereda_de_una_excluida_por_tipo_queda_excluida()
+        {
+            ActosExcluidosDelEncargo.PeticionesExcluidas.Should().HaveCountGreaterThan(15, "control positivo: la lista se ve");
+
+            Peticiones
+                .Where(p => Cadena(p).Any(ActosExcluidosDelEncargo.PeticionesExcluidas.Contains))
+                .Where(p => !ExcluyeSinInicializar(p))
+                .Select(p => p.FullName).Should().BeEmpty("ninguna derivada de una petición excluida por tipo queda abierta");
+
+            // Sintética: deriva de una excluida por tipo (no sellada) y declara otra área permitida. Ni su área ni la de la
+            // base están excluidas: solo la cadena de tipos la deja fuera. Con la comparación por tipo exacto quedaba abierta.
+            var derivada = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeExcluidaPorTipoSimulada);
+            var baseExcluida = typeof(CaeManager.Application.Integraciones.Commands.RepararMarcaHueco.RepararMarcaHuecoCommand);
+            ActosExcluidosDelEncargo.PeticionesExcluidas.Should().Contain(baseExcluida).And.NotContain(derivada);
+            ActosExcluidosDelEncargo.AreaDe(baseExcluida).Should().Be("Integraciones");
+            ActosExcluidosDelEncargo.AreaDe(derivada).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreasExcluidas.Should().NotContain(["Integraciones", "ContratosAcceso"]);
+            ExcluyeSinInicializar(derivada).Should().BeTrue("una derivada nunca queda menos restringida que su base");
+        }
+
+        /// <summary>
+        /// Una petición genérica abierta no se instancia en el test del conjunto congelado; si alguna vez existe, su área se
+        /// declara en la definición. Hoy no hay ninguna: el recuento lo fija para que la primera sea una decisión visible.
+        /// </summary>
+        [Fact]
+        public void Ninguna_peticion_generica_abierta_queda_sin_marca()
+        {
+            var genericasAbiertas = TiposDeApplication
+                .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: true } && typeof(IBaseRequest).IsAssignableFrom(t))
+                .ToList();
+
+            genericasAbiertas.Where(t => !t.IsAbstract && Marca(t) is null).Select(t => t.FullName).Should().BeEmpty(
+                "una petición genérica declara su área con [AreaDelEncargo(\"…\")] en la definición");
+            genericasAbiertas.Select(t => t.FullName).Should().BeEmpty(
+                "hoy no hay peticiones genéricas abiertas en Application; la primera se clasifica y se anota aquí");
+        }
+
+        private static IEnumerable<Type> Cadena(Type t)
+        {
+            for (var actual = t; actual is not null; actual = actual.BaseType)
+                yield return actual;
+        }
+
+        /// <summary>
+        /// Excluida por su tipo, sin instanciarla (vale también para una base abstracta): lo mismo que
+        /// <see cref="ActosExcluidosDelEncargo.Excluye"/> salvo la variante por instancia del registro de auditoría.
+        /// </summary>
+        private static bool ExcluidaPorTipo(Type t) =>
+            ActosExcluidosDelEncargo.AreaDe(t) is not { } area
+            || ActosExcluidosDelEncargo.AreasExcluidas.Contains(area)
+            || Cadena(t).Any(ActosExcluidosDelEncargo.PeticionesExcluidas.Contains);
+
+        private static bool HeredaSinAbrirse(Type derivada) =>
+            derivada.BaseType is not { } b
+            || ActosExcluidosDelEncargo.AreaDe(derivada) == ActosExcluidosDelEncargo.AreaDe(b)
+            || ExcluidaPorTipo(derivada);
+
         private static string? Marca(Type t) =>
             t.GetCustomAttributes(typeof(AreaDelEncargoAttribute), inherit: false).Cast<AreaDelEncargoAttribute>().SingleOrDefault()?.Area;
 
@@ -248,6 +386,23 @@ namespace CaeManager.Application.AutorizacionesLectura.SimulacionM0c
 {
     [AreaDelEncargo("AutorizacionesLectura")]
     public sealed record PeticionExcluidaSimulada : IRequest;
+
+    /// <summary>Base excluida por área, no sellada, para las derivadas sintéticas.</summary>
+    [AreaDelEncargo("AutorizacionesLectura")]
+    public record PeticionBaseExcluidaSimulada : IRequest;
+}
+
+namespace CaeManager.Application.SinAreaM0c.SimulacionM0c
+{
+    /// <summary>Base sin marca fuera de un área clasificada: sin área resuelta.</summary>
+    public record PeticionBaseSinAreaSimulada : IRequest;
+}
+
+namespace CaeManager.Application.Centros.SimulacionM0c
+{
+    /// <summary>Incumple la regla de herencia: base permitida en «ContratosAcceso», derivada en otra área permitida.</summary>
+    [AreaDelEncargo("Centros")]
+    public sealed record DerivadaConOtraAreaSimulada : CaeManager.Application.ContratosAcceso.SimulacionM0c.PeticionBasePermitidaSimulada;
 }
 
 namespace CaeManager.Application.Inbound.AutorizacionesLectura.SimulacionM0c
@@ -262,6 +417,23 @@ namespace CaeManager.Application.ContratosAcceso.SimulacionM0c
     public sealed record PeticionPermitidaSimulada : IRequest;
 
     public sealed record PeticionSinMarcaSimulada : IRequest;
+
+    /// <summary>Base permitida, no sellada, para las derivadas sintéticas.</summary>
+    [AreaDelEncargo("ContratosAcceso")]
+    public record PeticionBasePermitidaSimulada : IRequest;
+
+    // Hallazgo de Codex r1 (#2241): derivadas de una excluida declaradas en un área permitida.
+    [AreaDelEncargo("ContratosAcceso")]
+    public sealed record DerivadaDeExcluidaSimulada : CaeManager.Application.AutorizacionesLectura.SimulacionM0c.PeticionBaseExcluidaSimulada;
+
+    public sealed record DerivadaSinMarcaDeExcluidaSimulada : CaeManager.Application.AutorizacionesLectura.SimulacionM0c.PeticionBaseExcluidaSimulada;
+
+    [AreaDelEncargo("ContratosAcceso")]
+    public sealed record DerivadaDeBaseSinAreaSimulada : CaeManager.Application.SinAreaM0c.SimulacionM0c.PeticionBaseSinAreaSimulada;
+
+    [AreaDelEncargo("ContratosAcceso")]
+    public sealed record DerivadaDeExcluidaPorTipoSimulada()
+        : CaeManager.Application.Integraciones.Commands.RepararMarcaHueco.RepararMarcaHuecoCommand(Guid.Empty);
 }
 
 namespace CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c
@@ -270,4 +442,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c
     public sealed record PeticionPermitidaSimulada : IRequest;
 
     public sealed record PeticionSinMarcaSimulada : IRequest;
+
+    /// <summary>Control positivo: sin marca propia, en «Inbound», hereda de una permitida y toma su marca.</summary>
+    public sealed record DerivadaDePermitidaSimulada : CaeManager.Application.ContratosAcceso.SimulacionM0c.PeticionBasePermitidaSimulada;
 }

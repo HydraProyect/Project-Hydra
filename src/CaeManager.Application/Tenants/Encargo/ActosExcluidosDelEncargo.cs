@@ -19,6 +19,7 @@ using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajad
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarPerfilDocumentoOficialGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal;
+using MediatR;
 
 namespace CaeManager.Application.Tenants.Encargo;
 
@@ -181,8 +182,24 @@ public static class ActosExcluidosDelEncargo
 
         return AreaDe(tipo) is not { } area
                || AreasExcluidas.Contains(area)
-               || PeticionesExcluidas.Contains(tipo)
+               || DerivaDeUnaPeticionExcluida(tipo)
                || peticion is ObtenerAuditoriaQuery { EntidadId: null };
+    }
+
+    /// <summary>
+    /// La petición o alguno de sus tipos base está en <see cref="PeticionesExcluidas"/>. La lista va por
+    /// tipo, y comparar solo el exacto abriría una petición que heredase de una excluida: una derivada
+    /// nunca queda menos restringida que su base.
+    /// </summary>
+    private static bool DerivaDeUnaPeticionExcluida(Type tipo)
+    {
+        for (var t = tipo; t is not null; t = t.BaseType)
+        {
+            if (PeticionesExcluidas.Contains(t))
+                return true;
+        }
+
+        return false;
     }
 
     private static readonly ConcurrentDictionary<Type, string?> AreasResueltas = new();
@@ -193,13 +210,21 @@ public static class ActosExcluidosDelEncargo
     ///   <item>la de su <see cref="AreaDelEncargoAttribute"/>, si la lleva: no depende
     ///   de dónde viva el tipo, así que moverlo de carpeta o de espacio de nombres no
     ///   cambia si queda excluido;</item>
-    ///   <item>si no la lleva, el segmento de su espacio de nombres que sigue a
+    ///   <item>si no la lleva, la marca más cercana de su cadena de tipos base (la marca no se
+    ///   hereda sola: <c>Inherited = false</c>);</item>
+    ///   <item>si ninguno la lleva, el segmento de su espacio de nombres que sigue a
     ///   <c>CaeManager.Application.</c>.</item>
     /// </list>
-    /// En los dos casos solo vale un área clasificada (<see cref="AreasExcluidas"/> o
+    /// En todos los casos solo vale un área clasificada (<see cref="AreasExcluidas"/> o
     /// <see cref="AreasPermitidas"/>); cualquier otra cosa —un segmento de módulo como
     /// <c>Inbound</c>, un tipo fuera de la raíz, una marca con un área inexistente— da
     /// <c>null</c>, y <see cref="Excluye"/> la excluye.
+    ///
+    /// <para>
+    /// <b>Una derivada nunca queda menos restringida que su base</b>: si su tipo base es a su vez
+    /// una petición y esa base está excluida por área o no tiene área, la derivada toma el área de
+    /// la base (o <c>null</c>) aunque declare otra marca o viva en la carpeta de un área permitida.
+    /// </para>
     /// </summary>
     public static string? AreaDe(Type tipoPeticion)
     {
@@ -209,11 +234,26 @@ public static class ActosExcluidosDelEncargo
 
     private static string? ResolverArea(Type tipoPeticion)
     {
-        var area = tipoPeticion.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false) is { } marca
-            ? marca.Area
-            : AreaPorEspacioDeNombres(tipoPeticion);
+        if (tipoPeticion.BaseType is { } tipoBase && typeof(IBaseRequest).IsAssignableFrom(tipoBase))
+        {
+            var areaDeLaBase = AreaDe(tipoBase);
+            if (areaDeLaBase is null || AreasExcluidas.Contains(areaDeLaBase))
+                return areaDeLaBase;
+        }
 
+        var area = MarcaMasCercana(tipoPeticion) ?? AreaPorEspacioDeNombres(tipoPeticion);
         return area is not null && (AreasExcluidas.Contains(area) || AreasPermitidas.Contains(area)) ? area : null;
+    }
+
+    private static string? MarcaMasCercana(Type tipoPeticion)
+    {
+        for (var t = tipoPeticion; t is not null; t = t.BaseType)
+        {
+            if (t.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false) is { } marca)
+                return marca.Area;
+        }
+
+        return null;
     }
 
     /// <summary>
