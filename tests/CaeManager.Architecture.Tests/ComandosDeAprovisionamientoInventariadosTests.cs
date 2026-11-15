@@ -12,13 +12,15 @@ namespace CaeManager.Architecture.Tests;
 /// declarados que deje de hacerlo, tiene que verse en la revisión de ESTE test, no
 /// perderse entre cientos de archivos.
 ///
-/// <b>Por qué seis y no menos.</b> Los tres del alta de contenido
+/// <b>Por qué once.</b> Los tres del alta de contenido
 /// (Empresa/Centro/Trabajador) más los tres de importación —incluido
 /// <c>RegistrarHistorialImportacionCommand</c>, que no es opcional: sin él el
 /// alta quedaría hecha con su historial sin registrar, ver el propio comando.
 /// Más los dos del logo del Tenant (selector de Tenant, lote 1), que no son alta
 /// de contenido: su única escritura son las tres columnas del logo de
 /// <c>Tenants</c>, lo único de esa tabla que el rol elevado puede actualizar.
+/// Más los dos del encargo de administración y el de la línea Inbound del
+/// Producto Contratado, cada uno con su comentario en la lista.
 /// </summary>
 public class ComandosDeAprovisionamientoInventariadosTests
 {
@@ -39,6 +41,10 @@ public class ComandosDeAprovisionamientoInventariadosTests
         // de la retirada. Quién puede lo decide AutoridadSobreElEncargo, nunca el rol efectivo.
         "RegistrarEncargoAdministracionCommand",
         "RetirarEncargoAdministracionCommand",
+        // Línea Inbound del Producto Contratado (B-04a, decisiones D-A y D-C, 2026-11-15): el Actor de Plataforma TALVEG la
+        // contrata con Aprovisionamiento sobre ese Tenant; el rol elevado solo inserta en ProductosContratados. El handler
+        // exige además la Sesión Privilegiada, porque sin ella el rol efectivo pasaría AutorizacionEscrituraBehavior.
+        "ContratarLineaInboundCommand",
     ];
 
     [Fact]

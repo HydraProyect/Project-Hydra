@@ -101,6 +101,34 @@ public class ProductoContratadoTests
     }
 
     [Theory]
+    [InlineData("cus_Abc123", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData(" cus_X", false)]
+    [InlineData("cus-X", false)]
+    [InlineData("cus_ñ", false)]
+    public void EsPagadorStripeCustomerIdValido_acepta_lo_mismo_que_Contratar(string? pagador, bool esperado)
+    {
+        var contratar = () => ProductoContratado.Contratar(LineaProductoContratado.Inbound, pagador!,
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, Desde, Desde);
+
+        ProductoContratado.EsPagadorStripeCustomerIdValido(pagador).Should().Be(esperado);
+        if (esperado)
+            contratar.Should().NotThrow();
+        else
+            contratar.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("pagadorStripeCustomerId");
+    }
+
+    [Fact]
+    public void EsPagadorStripeCustomerIdValido_rechaza_mas_de_la_longitud_maxima()
+    {
+        var limite = "cus_" + new string('a', ProductoContratado.LongitudMaximaPagadorStripeCustomerId - 4);
+
+        ProductoContratado.EsPagadorStripeCustomerIdValido(limite).Should().BeTrue();
+        ProductoContratado.EsPagadorStripeCustomerIdValido(limite + "a").Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData(DateTimeKind.Local)]
     [InlineData(DateTimeKind.Unspecified)]
     public void Las_fechas_de_vigencia_van_en_UTC(DateTimeKind tipo)
