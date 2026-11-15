@@ -103,16 +103,24 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         operaciones.Should().HaveCount(2, "control: la del Tenant entero del alta y la acotada sembrada");
         operaciones.Should().OnlyContain(o => o.OrigenId == _delegacion && o.RevocacionesDelOrigen == 0,
             "el writer fija el origen en el alta y el trigger lo deduce en la inserción que no lo trae");
-        // El Tenant sembrado no tiene raíz (sin datos de prueba nadie le aprovisiona el producto): se inserta aquí, como
-        // propietario de la base, para ver que el trigger la deja sin origen aunque el par tenga una delegación activa.
+        // Rama «interna → sin origen» del trigger. El Tenant sembrado no tiene raíz (sin datos de prueba nadie le
+        // aprovisiona el producto): se inserta aquí, como propietario de la base, una raíz (propietario = operador) que
+        // trae explícitos el origen y el contador de la delegación del alta. El trigger tiene que borrarlos. Sin esa rama,
+        // la inserción caería en la de origen explícito, que la rechaza porque la delegación no es del par (P, P): el
+        // SaveChanges fallaría y el test con él.
         await using (var sembrado = ContextoPropietarioDeLaBase(_propietario))
         {
             var ahora = DateTime.UtcNow;
-            sembrado.AsignacionesOperacion.Add(AsignacionOperacion.Raiz(_propietario, ServicioCae.Outbound, ahora, ahora));
+            var raiz = AsignacionOperacion.Raiz(_propietario, ServicioCae.Outbound, ahora, ahora);
+            sembrado.AsignacionesOperacion.Add(raiz);
+            sembrado.Entry(raiz).Property(o => o.OrigenId).CurrentValue = _delegacion;
+            sembrado.Entry(raiz).Property(o => o.RevocacionesDelOrigen).CurrentValue = 0;
             await sembrado.SaveChangesAsync();
         }
-        (await verificacion.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario))
-            .OrigenId.Should().BeNull("la raíz es interna: no nace de ninguna DelegacionTenant");
+        var raizGuardada = await verificacion.AsignacionesOperacion.AsNoTracking()
+            .SingleAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario);
+        raizGuardada.OrigenId.Should().BeNull("la raíz es interna: no nace de ninguna DelegacionTenant");
+        raizGuardada.RevocacionesDelOrigen.Should().BeNull("sin origen tampoco hay contador que sellar");
         (await CarterasAutorizadasDelOperadorAsync()).Should().Contain(acotada,
             "con su DelegacionTenant de origen vigente, la operación autoriza");
     }
