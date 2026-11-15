@@ -294,6 +294,13 @@ public class PlantillaRequisitosTests
             .Should().Throw<ArgumentException>();
         propio.Origen.Should().Be(OrigenRequisito.PropioTenant);
 
+        // Un requisito propio ya conserva su origen al editar: el camino que solo para D2 es una exigencia N3 sin base.
+        var tipoN3 = Tipo();
+        var exigencia = plantilla.AnadirRequisito(tipoN3, null, Basicos with { Origen = OrigenRequisito.ExigenciaN3 });
+        FluentActions.Invoking(() => plantilla.EditarRequisito(exigencia.Id, tipoN3, null, Basicos with { Origen = origen }))
+            .Should().Throw<ArgumentException>();
+        exigencia.Origen.Should().Be(OrigenRequisito.ExigenciaN3, "sin base no sube a legal, de convenio o de Actividad");
+
         var requisitoBase = new RequisitoBase("requisito-n1", "Con base N1", "Fundamento", NivelExigencia.N1);
         DeCentro().AnadirRequisito(Tipo(), requisitoBase, Basicos with { Origen = origen }).Origen
             .Should().Be(origen, "adoptando una base del catálogo revisado sí se admite");

@@ -216,8 +216,9 @@ public class PlantillasRequisitosBajoRuntimeTests : IAsyncLifetime
     public async Task D1_un_acceso_total_en_su_Tenant_no_escribe_la_plantilla_de_otro_Tenant()
     {
         // D1 (DECISION_LOG 2026-11-15): las escrituras de plantillas se autorizan con IAlcanceDatosService hasta B-03, así que
-        // un Gestor CAE con acceso total en su Tenant pasa la autorización del handler. El límite de Tenant lo sostiene RLS:
-        // la plantilla ajena no se encuentra y no se toca.
+        // un Gestor CAE con acceso total en su Tenant pasa la autorización del handler. El límite de Tenant lo sostienen el
+        // filtro de EF y RLS (que el primer test de este fichero prueba sin el filtro): la plantilla ajena no se encuentra y
+        // no se toca.
         await using (var contexto = Contexto(_propietario.Id, _administrador))
         {
             var handler = new RetirarPlantillaRequisitosCommandHandler(
