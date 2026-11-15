@@ -1,0 +1,903 @@
+@*
+    Reparto de los adjuntos de un correo (maqueta 2026-11-01, `Adjuntos.dc.html`, bloque «Adjuntos del correo»; incremento I4 del
+    plan de Comunicaciones). Cada adjunto recibido enseña su estado y su destino; la persona fija el destino y el tipo de
+    documento, rechaza o descarta lo que no es documentación y asigna de una vez lo que está listo. NO envía nada al remitente:
+    asignar da de alta el Documento con las guardas del alta normal (AsignarAdjuntosLoteCommand → ActualizarDocumentoDesdeAdjunto).
+
+    Los comandos y la lectura son los de I4 (Fijar destino, Resolver, Asignar lote, Obtener reparto): el rol y el alcance de
+    cartera los deciden ellos en el servidor y no se repiten aquí. Esta pantalla solo ofrece lo que el servidor va a aceptar:
+    Consulta lo ve, con las acciones desactivadas como en la maqueta (`disabled={{soloConsulta}}`); quien no puede leer el
+    reparto interno (rol Cliente de portal, hilo fuera de la cartera) recibe una lista vacía y no ve el bloque.
+
+    Si una lectura del reparto falla con filas ya pintadas (por ejemplo, la de después de una acción), las filas se quedan como
+    estaban pero con el aviso a la vista y todas las acciones desactivadas hasta volver a leerlo con éxito: pueden estar desfasadas.
+
+    «Listo» es lo único que se asigna de una vez: destino, tipo de documento y fechas ya revisadas. Las fechas las escribe una
+    persona (el alta no las inventa), y por eso un adjunto con destino y tipo pero sin fecha de emisión queda «Revisar». Tampoco
+    se aprueba lo que no se puede identificar: si el destino o el tipo no se pueden mostrar por su nombre (un selector no se pudo
+    leer, o el valor no está en él), el adjunto queda «Revisar» y no se asigna ni uno a uno ni en el lote; si fue un selector,
+    se avisa con «Reintentar».
+*@
+@using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote
+@using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto
+@using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosRepartoAdjuntos> Textos
+@inject ILogger<RepartoAdjuntosPanel> Logger
+
+@if (_filas.Count > 0)
+{
+    var resumen = ClasificacionReparto.Resumir(_filas);
+    var enCurso = resumen.EnCurso != 0;
+    var cuerpoVisible = !_plegado && (enCurso || _verResueltos);
+    <section class="adjb" aria-label="@Textos["Titulo"]" data-reparto="@(enCurso ? "en-curso" : "hecho")">
+        <div class="adjb-c">
+            <strong>@Textos["Titulo"]</strong>
+            <span class="adjb-r">@Cabecera(resumen)</span>
+            <button type="button" class="tx-b" aria-expanded="@(BotonCabeceraPulsado(enCurso) ? "true" : "false")"
+                    @onclick="() => AlternarCabecera(enCurso)">@TextoBotonCabecera(enCurso)</button>
+        </div>
+
+        @if (!_puedeEscribir)
+        {
+            <div class="adjb-nota" role="status">@Textos["SoloConsulta"]</div>
+        }
+
+        @if (_errorCarga is not null)
+        {
+            @* Las filas son las de la última lectura buena: pueden estar desfasadas, así que se avisa y nada se toca hasta releer. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert">
+                <span>@_errorCarga</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
+        }
+        else if (_selectorFallo && enCurso && _puedeEscribir)
+        {
+            @* Sin los nombres de destino y tipo no se sabe qué se aprobaría: esas filas no están listas hasta leerlos. Sin nada
+               pendiente, o sin poder escribir, no hay nada que asignar y el aviso solo confundiría. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert" data-selectores="fallo">
+                <span>@Textos["ErrorSelectores"]</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
+        }
+        else if (enCurso && _puedeEscribir && _filas.Any(f => f.Pendiente && !f.NombresConocidos))
+        {
+            @* Las lecturas salieron bien pero un destino o un tipo propuesto no está entre los que se pueden elegir (o no es de la clase
+               del destino): además de elegir otro en la fila, se ofrece releer las listas por si el destino o el tipo es posterior a la lectura. *@
+            <div class="adjb-aviso adjb-aviso-bloque" role="alert" data-selectores="no-identificados">
+                <span>@Textos["AvisoNoIdentificados"]</span>
+                <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+            </div>
+        }
+
+        @if (cuerpoVisible)
+        {
+            @if (_enFoco && FilaEnFoco is { } foco)
+            {
+                @UnoAUno(foco)
+            }
+            else
+            {
+                <div class="adjb-l">
+                    @foreach (var grupo in Grupos(resumen, enCurso))
+                    {
+                        <div class="adjb-h" data-grupo>
+                            <span>@grupo.Titulo</span>
+                            <span class="adjb-hc">
+                                @if (grupo.Plegable)
+                                {
+                                    <button type="button" class="tx-b" aria-expanded="@(grupo.Abierto ? "true" : "false")"
+                                            @onclick="() => _listosAbiertos = !_listosAbiertos">@(grupo.Abierto ? Textos["Plegar"] : Textos["Mostrar"])</button>
+                                }
+                                @if (grupo.Conmuta)
+                                {
+                                    <button type="button" class="ch @(_agruparPorTrabajador ? null : "on")" aria-pressed="@(_agruparPorTrabajador ? "false" : "true")"
+                                            @onclick="() => _agruparPorTrabajador = false">@Textos["AgruparPorRevisar"]</button>
+                                    <button type="button" class="ch @(_agruparPorTrabajador ? "on" : null)" aria-pressed="@(_agruparPorTrabajador ? "true" : "false")"
+                                            @onclick="() => _agruparPorTrabajador = true">@Textos["AgruparPorTrabajador"]</button>
+                                    @if (resumen.Hechos > 0 && enCurso)
+                                    {
+                                        <button type="button" class="ch @(_verResueltos ? "on" : null)"
+                                                @onclick="() => _verResueltos = !_verResueltos">@(_verResueltos ? Textos["OcultarResueltos"] : Textos["VerResueltos", resumen.Hechos])</button>
+                                    }
+                                }
+                            </span>
+                        </div>
+                        @if (!grupo.Plegable || grupo.Abierto)
+                        {
+                            @foreach (var fila in grupo.Filas)
+                            {
+                                @FilaUi(fila)
+                            }
+                        }
+                    }
+                </div>
+            }
+        }
+
+        @if (enCurso && !_plegado && !_enFoco)
+        {
+            var listos = FilasListas();
+            var esperanFecha = EsperanFecha();
+            <div class="adjb-p">
+                @if (listos.Count > 0)
+                {
+                    <span class="adjb-s" title="@ResumenDestinos(listos)">@ResumenDestinos(listos)</span>
+                }
+                @if (esperanFecha > 0)
+                {
+                    <span class="adjb-s" role="status">@Plural("EsperanFechas_1", "EsperanFechas_N", esperanFecha)</span>
+                }
+                <div class="adjb-g">
+                    @BotonAsignarListos(listos)
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                           Deshabilitado="@(Bloqueado || resumen.ParaRevisarUnoAUno == 0)"
+                           OnClick="() => AbrirUnoAUno(null)">@Textos["RevisarUnoAUno", resumen.ParaRevisarUnoAUno]</Boton>
+                </div>
+            </div>
+        }
+    </section>
+}
+else if (_errorCarga is not null)
+{
+    <div class="adjb-aviso adjb-aviso-bloque" role="alert">
+        <span>@_errorCarga</span>
+        <button type="button" class="tx-b" disabled="@_ocupado" @onclick="ReintentarCargaAsync">@Textos["Reintentar"]</button>
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
+
+    /// <summary>
+    /// El hilo tal como la página lo leyó: cuando la página lo relee llega otra instancia y el reparto se vuelve a leer, que es
+    /// cuando pudo moverse desde otra sesión o por la ruta antigua del chip «Actualizar documentación» de la línea de tiempo,
+    /// que asigna un adjunto sin que cambie ningún otro dato del hilo.
+    /// </summary>
+    [Parameter] public object? Recarga { get; set; }
+
+    /// <summary>Se rechazó, descartó, reabrió o asignó algo: la página relee el hilo (sus eventos y sus Documentos).</summary>
+    [Parameter] public EventCallback OnCambiado { get; set; }
+
+    private sealed record GrupoUi(string Titulo, IReadOnlyList<FilaReparto> Filas, bool Plegable = false, bool Abierto = true, bool Conmuta = false);
+
+    private List<FilaReparto> _filas = [];
+    private readonly Dictionary<Guid, EdicionAdjunto> _ediciones = [];
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadores = [];
+    private IReadOnlyList<EmpresaSelectorDto> _empresas = [];
+    private IReadOnlyList<TipoDocumentoListaDto> _tipos = [];
+    private Dictionary<Guid, string> _nombresTrabajadores = [];
+    private Dictionary<Guid, string> _nombresEmpresas = [];
+    private Dictionary<Guid, string> _nombresTipos = [];
+    private bool _selectoresCargados;
+    private bool _selectorFallo;
+    private IReadOnlyList<EtiquetaTrabajador> _etiquetasTrabajadores = [];
+    private bool _filaSinAsignar;
+
+    private bool _puedeEscribir;
+    private bool _ocupado;
+    private bool _plegado;
+    private bool _verResueltos;
+    // Los «Listos» se ven por defecto: la fila pasa a ser Listo al escribir su fecha de emisión, y esconderla en ese momento
+    // le quitaría a quien la está rellenando el vencimiento y «No caduca» de debajo del cursor.
+    private bool _listosAbiertos = true;
+    private bool _agruparPorTrabajador;
+    private bool _enFoco;
+    private List<Guid> _cola = [];
+    private int _posicion;
+    private string? _errorCarga;
+    private Guid _conversacionCargada;
+    private object? _recargaCargada;
+
+    // Sin la última lectura del reparto las filas pueden estar desfasadas (un adjunto ya asignado seguiría como «Listo»): ninguna
+    // acción se ofrece hasta volver a leerlo con éxito.
+    private bool Bloqueado => !_puedeEscribir || _ocupado || _errorCarga is not null;
+
+    private FilaReparto? FilaEnFoco => _posicion >= 0 && _posicion < _cola.Count ? _filas.FirstOrDefault(f => f.Adjunto.Id == _cola[_posicion]) : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_conversacionCargada == ConversacionId && ReferenceEquals(_recargaCargada, Recarga)) return;
+
+        var cambioConversacion = _conversacionCargada != ConversacionId;
+        _conversacionCargada = ConversacionId;
+        _recargaCargada = Recarga;
+        if (cambioConversacion) Reiniciar();
+
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarAsync(ConversacionId);
+    }
+
+    private void Reiniciar()
+    {
+        _filas = [];
+        _ediciones.Clear();
+        _selectoresCargados = false;
+        _selectorFallo = false;
+        _plegado = _verResueltos = _agruparPorTrabajador = _enFoco = false;
+        _listosAbiertos = true;
+        _cola = [];
+        _posicion = 0;
+        _errorCarga = null;
+    }
+
+    // Dos lecturas de la misma conversación pueden acabar en orden inverso (la de la recarga de la página y la de después de una
+    // acción): solo vale la última que salió.
+    private int _generacionCarga;
+
+    private async Task CargarAsync(Guid conversacionId)
+    {
+        var generacion = ++_generacionCarga;
+        try
+        {
+            var adjuntos = await Mediator.Send(new ObtenerRepartoAdjuntosQuery(conversacionId));
+            if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
+
+            if (adjuntos.Count > 0 && !_selectoresCargados)
+                await CargarSelectoresAsync(conversacionId, generacion);
+            if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
+
+            _filas = adjuntos.Select(a => new FilaReparto(a, EdicionDe(a.Id), NombresConocidos(a))).ToList();
+            // Un destino o un tipo que no está en los selectores pudo crearse o proponerse después de leerlos: se releen en la
+            // próxima carga (la de después de una acción, la de «Reintentar» o la recarga del hilo) en vez de esperar a cambiar de hilo.
+            if (_filas.Any(f => f.Pendiente && !f.NombresConocidos)) _selectoresCargados = false;
+            _errorCarga = null;
+            // Sin filas pendientes, o con el adjunto en foco ya fuera de la lista, no hay nada que mostrar «uno a uno»: se vuelve a la lista.
+            if (_enFoco && (!_filas.Any(f => f.Pendiente) || FilaEnFoco is null)) _enFoco = false;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Sin el reparto el resto de la conversación sigue funcionando: se avisa en el sitio, no se tumba la página.
+            Logger.LogError(ex, "Error al cargar el reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
+            if (conversacionId == ConversacionId && generacion == _generacionCarga)
+                _errorCarga = (_filas.Count > 0 ? Textos["ErrorRecargar"] : Textos["ErrorCargar"]).Value;
+        }
+    }
+
+    private async Task ReintentarCargaAsync()
+    {
+        if (_ocupado) return;
+        _ocupado = true;
+        try { await CargarAsync(ConversacionId); }
+        finally { _ocupado = false; }
+    }
+
+    // Los desplegables de destino y tipo salen de los selectores del resto de la aplicación, que ya acotan por cartera y Tenant. Si
+    // alguno no se puede leer, el reparto se ve igual (el destino se nombra como «Destino actual» y no se ofrece cambiarlo), pero
+    // lo que no se puede nombrar no queda «Listo» (NombresConocidos) y se avisa con «Reintentar».
+    private async Task CargarSelectoresAsync(Guid conversacionId, int generacion)
+    {
+        var fallo = false;
+        async Task<IReadOnlyList<T>> LeerOVacioAsync<T>(Func<Task<IReadOnlyList<T>>> lectura)
+        {
+            try { return await lectura(); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Logger.LogError(ex, "Error al leer un selector del reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
+                fallo = true;
+                return [];
+            }
+        }
+
+        var trabajadores = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera)));
+        // Las Empresas propias que la persona gestiona (su cartera), sin acotar al Cliente empresarial del hilo: el destino de un
+        // Documento es la Empresa que lo aporta, y el comando de fijar destino vuelve a comprobar su alcance en el servidor.
+        var empresas = await LeerOVacioAsync(() => Mediator.Send(new ObtenerEmpresasParaSelectorQuery()));
+        var tipos = await LeerOVacioAsync(() => Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true)));
+
+        // Una lectura que ya no es la última (empezó otra después, o se cambió de conversación) no pisa los selectores: si acabara
+        // fallando tras otra que fue bien, dejaría filas «Listo» construidas con nombres que ya no se ven.
+        if (conversacionId != ConversacionId || generacion != _generacionCarga) return;
+
+        _selectorFallo = fallo;
+        _trabajadores = trabajadores;
+        _empresas = empresas;
+        _tipos = tipos.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa).ToList();
+
+        // La etiqueta de cada Trabajador sale del único constructor de etiquetas de selector, que desempata a los homónimos
+        // (empleador, alias o sufijo): el nombre a secas dejaría elegir al Trabajador equivocado y los mezclaría al agrupar.
+        _etiquetasTrabajadores = EtiquetasSelectorTrabajador.Construir(_trabajadores);
+        _nombresTrabajadores = _etiquetasTrabajadores.GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First().Texto);
+        _nombresEmpresas = _empresas.GroupBy(e => e.Id).ToDictionary(g => g.Key, g => g.First().RazonSocial);
+        _nombresTipos = tipos.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First().Nombre);
+
+        // Si alguna lectura falló, no se da por cargado: se reintenta en la siguiente recarga en vez de dejar todos los destinos
+        // como «Destino actual» hasta cambiar de conversación.
+        _selectoresCargados = !fallo;
+    }
+
+    private EdicionAdjunto EdicionDe(Guid adjuntoId)
+    {
+        if (!_ediciones.TryGetValue(adjuntoId, out var edicion))
+            _ediciones[adjuntoId] = edicion = new EdicionAdjunto();
+        return edicion;
+    }
+
+    // ---------- Cabecera y grupos ----------
+
+    private string Plural(string clave1, string claveN, int n) => (n == 1 ? Textos[clave1, n] : Textos[claveN, n]).Value;
+
+    private string Cabecera(ResumenReparto r)
+    {
+        var hechos = new[]
+        {
+            r.Asignados > 0 ? Plural("Cab_Asignado_1", "Cab_Asignado_N", r.Asignados) : null,
+            r.Rechazados > 0 ? Plural("Cab_Rechazado_1", "Cab_Rechazado_N", r.Rechazados) : null,
+            r.Descartados > 0 ? Plural("Cab_Descartado_1", "Cab_Descartado_N", r.Descartados) : null,
+            r.Divididos > 0 ? Plural("Cab_Dividido_1", "Cab_Dividido_N", r.Divididos) : null
+        }.OfType<string>().ToList();
+        if (r.EnCurso == 0) return string.Join(", ", hechos);
+
+        var partes = hechos
+            .Concat(new[]
+            {
+                r.Listos > 0 ? Plural("Cab_Listos_1", "Cab_Listos_N", r.Listos) : null,
+                r.PorRevisar > 0 ? Textos["Cab_PorRevisar", r.PorRevisar].Value : null,
+                r.SinDestino > 0 ? Textos["Cab_SinDestino", r.SinDestino].Value : null
+            }.OfType<string>());
+        return $"{Plural("Cab_Adjuntos_1", "Cab_Adjuntos_N", r.Total)}: {string.Join(", ", partes)}";
+    }
+
+    private bool BotonCabeceraPulsado(bool enCurso) => enCurso ? !_plegado : _verResueltos;
+
+    private string TextoBotonCabecera(bool enCurso) => enCurso
+        ? (_plegado ? Textos["Desplegar"] : Textos["Plegar"]).Value
+        : (_verResueltos ? Textos["OcultarDetalle"] : Textos["VerDetalle"]).Value;
+
+    private void AlternarCabecera(bool enCurso)
+    {
+        if (enCurso) _plegado = !_plegado;
+        else _verResueltos = !_verResueltos;
+    }
+
+    private IReadOnlyList<GrupoUi> Grupos(ResumenReparto resumen, bool enCurso)
+    {
+        var grupos = new List<GrupoUi>();
+        var pendientes = _filas.Where(f => f.Pendiente).ToList();
+
+        if (!_agruparPorTrabajador)
+        {
+            var decisiones = pendientes.Where(f => f.Situacion == SituacionAdjunto.PorRevisar)
+                .Concat(pendientes.Where(f => f.Situacion == SituacionAdjunto.SinDestino)).ToList();
+            var listos = pendientes.Where(f => f.Situacion == SituacionAdjunto.Listo).ToList();
+            if (decisiones.Count > 0) grupos.Add(new GrupoUi(Textos["CabRequierenDecision", decisiones.Count].Value, decisiones));
+            if (listos.Count > 0) grupos.Add(new GrupoUi(Textos["CabListos", listos.Count].Value, listos, Plegable: true, Abierto: _listosAbiertos));
+        }
+        else
+        {
+            var porDestino = pendientes.GroupBy(f => NombreDestino(f.Adjunto) ?? string.Empty)
+                .OrderBy(g => g.Key.Length == 0).ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase);
+            foreach (var g in porDestino)
+                grupos.Add(new GrupoUi(Textos["CabGrupo", g.Key.Length == 0 ? Textos["GrupoSinDestino"].Value : g.Key, g.Count()].Value, g.ToList()));
+        }
+
+        var hechas = _filas.Where(f => !f.Pendiente).ToList();
+        if (_verResueltos && hechas.Count > 0)
+            grupos.Add(new GrupoUi(Textos["CabResueltos", hechas.Count].Value, hechas));
+
+        // Los conmutadores de agrupación y de resueltos van en la cabecera del primer grupo, como en la maqueta, mientras haya trabajo.
+        if (grupos.Count > 0 && enCurso && !_plegado)
+            grupos[0] = grupos[0] with { Conmuta = true };
+        return grupos;
+    }
+
+    // ---------- Nombres ----------
+
+    private string? NombreDestino(AdjuntoRepartoDto a)
+    {
+        if (a.DestinoTrabajadorId is { } trabajadorId)
+            return _nombresTrabajadores.TryGetValue(trabajadorId, out var t) ? t : Textos["DestinoActual"].Value;
+        if (a.DestinoEmpresaId is { } empresaId)
+            return Textos["EmpresaEntreParentesis", _nombresEmpresas.TryGetValue(empresaId, out var e) ? e : Textos["DestinoActual"].Value].Value;
+        return null;
+    }
+
+    // El destino y el tipo que tenga el adjunto se pueden mostrar por su nombre: sin eso, aprobarlo sería a ciegas. El tipo, además,
+    // ha de estar entre los que se ofrecen para la clase del destino (TiposPara): un tipo de Empresa sobre un Trabajador no es listo.
+    private bool NombresConocidos(AdjuntoRepartoDto a) =>
+        (a.DestinoTrabajadorId is not { } t || _nombresTrabajadores.ContainsKey(t))
+        && (a.DestinoEmpresaId is not { } e || _nombresEmpresas.ContainsKey(e))
+        && (a.TipoDocumentoId is not { } tipo || TiposPara(a).Any(x => x.Id == tipo));
+
+    private string? NombreTipo(AdjuntoRepartoDto a) =>
+        a.TipoDocumentoId is { } tipoId ? (_nombresTipos.TryGetValue(tipoId, out var n) ? n : Textos["TipoActual"].Value) : null;
+
+    private string TextoEstado(SituacionAdjunto s) => s switch
+    {
+        SituacionAdjunto.Listo => Textos["Estado_Listo"].Value,
+        SituacionAdjunto.PorRevisar => Textos["Estado_Revisar"].Value,
+        SituacionAdjunto.SinDestino => Textos["Estado_SinDestino"].Value,
+        SituacionAdjunto.Asignado => Textos["Estado_Asignado"].Value,
+        SituacionAdjunto.Rechazado => Textos["Estado_Rechazado"].Value,
+        SituacionAdjunto.Descartado => Textos["Estado_Descartado"].Value,
+        _ => Textos["Estado_Dividido"].Value
+    };
+
+    private static string ClaseEstado(SituacionAdjunto s) => s switch
+    {
+        SituacionAdjunto.Listo => "e-ok",
+        SituacionAdjunto.PorRevisar => "e-av",
+        SituacionAdjunto.SinDestino => "e-mal",
+        _ => string.Empty
+    };
+
+    private string? NotaDeFila(FilaReparto f)
+    {
+        if (!f.Pendiente || f.Situacion == SituacionAdjunto.Listo) return null;
+        if (!f.TieneDestino) return Textos["FaltaDestino"].Value;
+        if (!f.NombresConocidos) return (_selectorFallo ? Textos["NombresSinCargar"] : Textos["NombresNoIdentificados"]).Value;
+        if (f.Adjunto.TipoDocumentoId is null) return Textos["FaltaTipo"].Value;
+        return f.Edicion.FechasContradictorias ? Textos["FechaNoValida"].Value : Textos["FaltaFecha"].Value;
+    }
+
+    // ---------- Pie ----------
+
+    private List<FilaReparto> FilasListas() => _filas.Where(f => f.Situacion == SituacionAdjunto.Listo).ToList();
+
+    // Con destino y tipo elegidos, lo único que les falta es la fecha de emisión (o que se corrija la que se contradice).
+    private int EsperanFecha() => _filas.Count(f => f.Pendiente && f.TieneDestino && f.Adjunto.TipoDocumentoId is not null && f.NombresConocidos && !f.Edicion.FechasValidas);
+
+    private RenderFragment BotonAsignarListos(IReadOnlyList<FilaReparto> listos) =>
+        BotonAsignar(TextoAsignarListos(listos), listos.Count == 0, AsignarListosAsync);
+
+    private Task AsignarListosAsync() => AsignarAsync(FilasListas(), avanzar: false);
+
+    private Task AsignarEnFocoAsync() => FilaEnFoco is { } foco ? AsignarAsync([foco], avanzar: true) : Task.CompletedTask;
+
+    private string ResumenDestinos(IReadOnlyList<FilaReparto> listos) =>
+        string.Join(" · ", listos.GroupBy(f => NombreDestino(f.Adjunto) ?? string.Empty)
+            .Select(g => $"{g.Key}: {string.Join(", ", g.Select(f => NombreTipo(f.Adjunto)))}"));
+
+    private string TextoAsignarListos(IReadOnlyList<FilaReparto> listos)
+    {
+        var cuantos = Plural("Cab_Listos_1", "Cab_Listos_N", listos.Count);
+        if (listos.Count == 0) return Textos["AsignarListos", cuantos].Value;
+
+        var trabajadores = listos.Where(f => f.Adjunto.DestinoTrabajadorId is not null).Select(f => f.Adjunto.DestinoTrabajadorId).Distinct().Count();
+        var empresas = listos.Where(f => f.Adjunto.DestinoEmpresaId is not null).Select(f => f.Adjunto.DestinoEmpresaId).Distinct().Count();
+        var destinos = new[]
+        {
+            trabajadores > 0 ? Plural("Destinos_Trabajador_1", "Destinos_Trabajador_N", trabajadores) : null,
+            empresas > 0 ? Plural("Destinos_Empresa_1", "Destinos_Empresa_N", empresas) : null
+        }.OfType<string>().ToList();
+        return Textos["AsignarListosA", cuantos, destinos.Count == 2 ? Textos["UnirY", destinos[0], destinos[1]].Value : destinos[0]].Value;
+    }
+
+    // ---------- Fila ----------
+
+    private RenderFragment<FilaReparto> FilaUi => f => @<div class="adjb-w" data-adjunto="@f.Adjunto.Id" data-situacion="@f.Situacion">
+        <div class="adjb-f">
+            <div class="adjb-x">
+                <div class="adjb-1">
+                    <span class="adjb-e @ClaseEstado(f.Situacion)">@TextoEstado(f.Situacion)</span>
+                    <a class="link adjb-nm" href="@UrlArchivo(f)" target="_blank" rel="noopener"
+                       title="@Textos["Abrir", f.Adjunto.NombreArchivo]">@f.Adjunto.NombreArchivo</a>
+                    <span class="m-d adjb-tp" title="@NombreTipo(f.Adjunto)">@NombreTipo(f.Adjunto)</span>
+                </div>
+                <div class="adjb-2">
+                    @if (f.Pendiente)
+                    {
+                        @Campos(f)
+                    }
+                    else
+                    {
+                        <span class="m-d adjb-v">@NombreDestino(f.Adjunto)@(f.Adjunto.MotivoRechazo is { Length: > 0 } motivo ? $" · {motivo}" : null)</span>
+                    }
+                </div>
+            </div>
+            <span class="adjb-a">
+                @if (f.Pendiente)
+                {
+                    @if (f.Situacion is SituacionAdjunto.PorRevisar or SituacionAdjunto.SinDestino)
+                    {
+                        <button type="button" class="mini" aria-label="@Textos["ElegirDe", f.Adjunto.NombreArchivo]"
+                                disabled="@(Bloqueado)" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["Elegir"]</button>
+                    }
+                    <button type="button" class="mini" aria-expanded="@(f.Edicion.MenuAbierto ? "true" : "false")"
+                            aria-label="@Textos["MasAcciones", f.Adjunto.NombreArchivo]" disabled="@(Bloqueado)"
+                            @onclick="() => f.Edicion.MenuAbierto = !f.Edicion.MenuAbierto">@Textos["Mas"]</button>
+                }
+                else if (f.Adjunto.Estado is EstadoRepartoAdjunto.Rechazado or EstadoRepartoAdjunto.Descartado)
+                {
+                    <button type="button" class="mini" disabled="@(Bloqueado)" @onclick="() => ReabrirAsync(f)">@Textos["Deshacer"]</button>
+                }
+            </span>
+        </div>
+        @if (f.Pendiente && f.Edicion.MenuAbierto)
+        {
+            <div class="adjb-m">
+                @if (NotaDeFila(f) is { } nota)
+                {
+                    <span class="m-d adjb-nota-fila">@nota</span>
+                }
+                @* El menú puede seguir abierto de antes de una recarga fallida: sus acciones también esperan a releer. *@
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => AbrirUnoAUno(f.Adjunto.Id)">@Textos["CambiarDestino"]</button>
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => PedirMotivo(f)">@Textos["Rechazar"]</button>
+                <button type="button" class="mini" disabled="@Bloqueado" @onclick="() => DescartarAsync(f)">@Textos["Descartar"]</button>
+            </div>
+        }
+        @if (f.Pendiente && !f.Edicion.MenuAbierto && NotaDeFila(f) is { } notaFila)
+        {
+            <div class="adjb-m"><span class="m-d adjb-nota-fila">@notaFila</span></div>
+        }
+        @MotivoYAviso(f)
+    </div>;
+
+    private RenderFragment<FilaReparto> MotivoYAviso => f => @<text>
+        @if (f.Pendiente && f.Edicion.PideMotivo)
+        {
+            <div class="adjb-m">
+                <input type="text" class="adjb-motivo" maxlength="@AdjuntoMensaje.LongitudMaximaMotivoRechazo"
+                       aria-label="@Textos["MotivoRechazoDe", f.Adjunto.NombreArchivo]" placeholder="@Textos["MotivoRechazo"]"
+                       value="@f.Edicion.Motivo" @oninput="e => f.Edicion.Motivo = e.Value?.ToString() ?? string.Empty" />
+                <button type="button" class="mini" disabled="@(Bloqueado || string.IsNullOrWhiteSpace(f.Edicion.Motivo))"
+                        @onclick="() => RechazarAsync(f)">@Textos["Confirmar"]</button>
+                <button type="button" class="mini" @onclick="() => f.Edicion.PideMotivo = false">@Textos["Cancelar"]</button>
+            </div>
+        }
+        @if (f.Pendiente && f.Edicion.Aviso is { } aviso)
+        {
+            <div class="adjb-aviso" role="alert">@aviso</div>
+        }
+    </text>;
+
+    private static string UrlArchivo(FilaReparto f) => $"/comunicaciones/adjuntos/{f.Adjunto.Id}/archivo";
+
+    // Destino, tipo y fechas de un adjunto pendiente. En la maqueta solo el destino es elegible; el tipo y las fechas salen de la
+    // lectura del PDF, que aquí no existe (la detección con IA está apagada por defecto): los pone una persona.
+    private RenderFragment<FilaReparto> Campos => f => @<text>
+        <select class="sel-m" aria-label="@Textos["DestinoDe", f.Adjunto.NombreArchivo]" value="@ValorDestino(f.Adjunto)"
+                disabled="@(Bloqueado)" @onchange="e => CambiarDestinoAsync(f, e.Value?.ToString())">
+            <option value="">@(f.TieneDestino ? Textos["SinDestinoOpcion"] : Textos["EligeDestino"])</option>
+            @if (_trabajadores.Count > 0)
+            {
+                <optgroup label="@Textos["GrupoTrabajadores"]">
+                    @foreach (var t in _etiquetasTrabajadores)
+                    {
+                        <option value="t:@t.Id">@t.Texto</option>
+                    }
+                </optgroup>
+            }
+            @if (_empresas.Count > 0)
+            {
+                <optgroup label="@Textos["GrupoEmpresas"]">
+                    @foreach (var empresa in _empresas)
+                    {
+                        <option value="e:@empresa.Id">@empresa.RazonSocial</option>
+                    }
+                </optgroup>
+            }
+            @if (DestinoFueraDeLista(f.Adjunto))
+            {
+                <option value="@ValorDestino(f.Adjunto)">@Textos["DestinoActual"]</option>
+            }
+        </select>
+        <select class="sel-m" aria-label="@Textos["TipoDe", f.Adjunto.NombreArchivo]" value="@(f.Adjunto.TipoDocumentoId?.ToString() ?? string.Empty)"
+                disabled="@(Bloqueado || !f.TieneDestino)" @onchange="e => CambiarTipoAsync(f, e.Value?.ToString())">
+            <option value="">@Textos["EligeTipo"]</option>
+            @foreach (var tipo in TiposPara(f.Adjunto))
+            {
+                <option value="@tipo.Id">@tipo.Nombre</option>
+            }
+            @if (f.Adjunto.TipoDocumentoId is { } actual && !TiposPara(f.Adjunto).Any(t => t.Id == actual))
+            {
+                <option value="@actual">@NombreTipo(f.Adjunto)</option>
+            }
+        </select>
+        <input type="date" class="adjb-fecha" aria-label="@Textos["EmisionDe", f.Adjunto.NombreArchivo]" title="@Textos["Emision"]"
+               value="@f.Edicion.FechaEmision" disabled="@(Bloqueado)"
+               @onchange="e => f.Edicion.FechaEmision = e.Value?.ToString() ?? string.Empty" />
+        <input type="date" class="adjb-fecha" aria-label="@Textos["VencimientoDe", f.Adjunto.NombreArchivo]" title="@Textos["Vencimiento"]"
+               value="@f.Edicion.FechaVencimiento" disabled="@(Bloqueado || f.Edicion.NoCaduca)"
+               @onchange="e => f.Edicion.FechaVencimiento = e.Value?.ToString() ?? string.Empty" />
+        <label class="adjb-chk">
+            <input type="checkbox" aria-label="@Textos["NoCaducaDe", f.Adjunto.NombreArchivo]" checked="@f.Edicion.NoCaduca"
+                   disabled="@(Bloqueado)" @onchange="e => CambiarNoCaduca(f, e.Value)" />
+            <span>@Textos["NoCaduca"]</span>
+        </label>
+    </text>;
+
+    private static string ValorDestino(AdjuntoRepartoDto a) =>
+        a.DestinoTrabajadorId is { } t ? $"t:{t}" : a.DestinoEmpresaId is { } e ? $"e:{e}" : string.Empty;
+
+    private bool DestinoFueraDeLista(AdjuntoRepartoDto a) =>
+        (a.DestinoTrabajadorId is { } t && !_nombresTrabajadores.ContainsKey(t))
+        || (a.DestinoEmpresaId is { } e && !_nombresEmpresas.ContainsKey(e));
+
+    // El tipo ha de ser del ámbito del destino: un Documento de Trabajador no cuelga de una Empresa.
+    private IEnumerable<TipoDocumentoListaDto> TiposPara(AdjuntoRepartoDto a) => _tipos.Where(t =>
+        a.DestinoTrabajadorId is not null ? t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+        : a.DestinoEmpresaId is not null ? t.AmbitoAplicacion == AmbitoAplicacion.Empresa
+        : true);
+
+    private void CambiarNoCaduca(FilaReparto f, object? valor)
+    {
+        f.Edicion.NoCaduca = valor is true;
+        if (f.Edicion.NoCaduca) f.Edicion.FechaVencimiento = string.Empty;
+    }
+
+    // ---------- Uno a uno ----------
+
+    private RenderFragment<FilaReparto> UnoAUno => f => @<div class="adjb-uno" role="group" aria-label="@Textos["RevisionUnoAUno"]" data-adjunto="@f.Adjunto.Id">
+        <div class="adjb-uno-cab">
+            <div class="adjb-uno-titulos">
+                <strong>@f.Adjunto.NombreArchivo</strong>
+                <span class="m-d">@Textos["AdjuntoNDeM", _posicion + 1, _cola.Count, TextoEstado(f.Situacion)]</span>
+            </div>
+            <button type="button" class="tx-b" @onclick="CerrarUnoAUno">@Textos["Cerrar"]</button>
+        </div>
+        <div class="adjb-uno-cuerpo">
+            <a class="link" href="@UrlArchivo(f)" target="_blank" rel="noopener">@Textos["AbrirEnVisor"]</a>
+            @if (f.Pendiente)
+            {
+                <div class="adjb-2">@Campos(f)</div>
+                @if (NotaDeFila(f) is { } nota)
+                {
+                    <span class="m-d adjb-nota-fila">@nota</span>
+                }
+            }
+            else
+            {
+                <span class="m-d">@NombreDestino(f.Adjunto)</span>
+            }
+            @MotivoYAviso(f)
+        </div>
+        <div class="adjb-uno-pie">
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_posicion <= 0)" OnClick="() => _posicion--">@Textos["Anterior"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(_posicion >= _cola.Count - 1)" OnClick="() => _posicion++">@Textos["Siguiente"]</Boton>
+            <span class="adjb-esp"></span>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || !f.Pendiente)"
+                   OnClick="() => PedirMotivo(f)">@Textos["Rechazar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(Bloqueado || !f.Pendiente)"
+                   OnClick="() => DescartarAsync(f)">@Textos["Descartar"]</Boton>
+            @BotonAsignar(Textos["Asignar"].Value, f.Situacion != SituacionAdjunto.Listo, AsignarEnFocoAsync)
+        </div>
+    </div>;
+
+    // Un único primario de la superficie: el del pie de la lista o el de la revisión uno a uno, que nunca conviven.
+    private RenderFragment BotonAsignar(string texto, bool sinNada, Func<Task> alPulsar) => @<Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                                                                                   title="@Textos["AsignarAyuda"]"
+                                                                                                   Deshabilitado="@(Bloqueado || sinNada)"
+                                                                                                   OnClick="alPulsar">@texto</Boton>;
+
+    private void AbrirUnoAUno(Guid? desde)
+    {
+        if (Bloqueado) return;
+        _cola = ClasificacionReparto.Cola(_filas, desde).ToList();
+        if (_cola.Count == 0) return;
+        foreach (var fila in _filas) fila.Edicion.MenuAbierto = false;
+        _posicion = desde is { } id ? Math.Max(0, _cola.IndexOf(id)) : 0;
+        _enFoco = true;
+    }
+
+    private void CerrarUnoAUno()
+    {
+        _enFoco = false;
+        _cola = [];
+        _posicion = 0;
+    }
+
+    // Tras resolver o asignar el adjunto en foco, pasa al siguiente que siga pendiente; si no queda ninguno, vuelve a la lista.
+    private void AvanzarUnoAUno()
+    {
+        for (var i = _posicion + 1; i < _cola.Count; i++)
+        {
+            if (_filas.Any(f => f.Adjunto.Id == _cola[i] && f.Pendiente))
+            {
+                _posicion = i;
+                return;
+            }
+        }
+
+        CerrarUnoAUno();
+    }
+
+    // ---------- Acciones ----------
+
+    private async Task EjecutarAsync(EdicionAdjunto? sobre, Func<Task<string?>> accion, bool notificar, bool avanzar = false)
+    {
+        if (_ocupado || _errorCarga is not null) return;
+
+        var conversacionId = ConversacionId;
+        _ocupado = true;
+        _filaSinAsignar = false;
+        string? aviso;
+        try
+        {
+            aviso = await accion();
+        }
+        catch (ValidationException ex)
+        {
+            aviso = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGenerico"].Value;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogError(ex, "Error en el reparto de adjuntos de la conversación {ConversacionId}.", conversacionId);
+            aviso = Textos["ErrorGenerico"].Value;
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+
+        if (conversacionId != ConversacionId) return;
+
+        if (sobre is not null) sobre.Aviso = aviso;
+        else if (aviso is not null) ToastService.Mostrar(aviso, TonoToast.Error);
+
+        await CargarAsync(conversacionId);
+        // En «uno a uno» solo se pasa al siguiente si el actual salió del reparto: si el servidor lo dejó con un motivo, se queda.
+        if (aviso is null && avanzar && _enFoco && !_filaSinAsignar) AvanzarUnoAUno();
+        if (aviso is null && notificar) await OnCambiado.InvokeAsync();
+    }
+
+    // Fijar destino y tipo no cambia nada que la página muestre fuera de este bloque: no se le avisa.
+    private Task FijarAsync(FilaReparto f, Guid? trabajadorId, Guid? empresaId, Guid? tipoId) =>
+        EjecutarAsync(f.Edicion, async () =>
+        {
+            var resultado = await Mediator.Send(new FijarDestinoAdjuntoCommand(f.Adjunto.Id, trabajadorId, empresaId, tipoId));
+            return resultado.EsFallido ? resultado.Error.Mensaje : null;
+        }, notificar: false);
+
+    private Task CambiarDestinoAsync(FilaReparto f, string? valor)
+    {
+        Guid? trabajadorId = null, empresaId = null;
+        if (valor is not { Length: 0 })
+        {
+            // Solo una cadena vacía quita el destino: un valor que no es «t:<id>» ni «e:<id>» no se interpreta como «quitar».
+            if (valor is null || valor.Length <= 2 || !Guid.TryParse(valor.AsSpan(2), out var id)) return Task.CompletedTask;
+            if (valor.StartsWith("t:", StringComparison.Ordinal)) trabajadorId = id;
+            else if (valor.StartsWith("e:", StringComparison.Ordinal)) empresaId = id;
+            else return Task.CompletedTask;
+        }
+
+        // Un tipo elegido para una clase de destino no sirve a la otra: si cambia de Trabajador a Empresa (o al revés, o a nada),
+        // el tipo se quita en vez de dejar una propuesta que el alta rechazaría. Dentro de la misma clase se conserva.
+        var cambiaDeClase = (f.Adjunto.DestinoTrabajadorId is not null) != (trabajadorId is not null)
+            || (f.Adjunto.DestinoEmpresaId is not null) != (empresaId is not null);
+        var tipoId = cambiaDeClase ? null : f.Adjunto.TipoDocumentoId;
+
+        return FijarAsync(f, trabajadorId, empresaId, trabajadorId is null && empresaId is null ? null : tipoId);
+    }
+
+    private Task CambiarTipoAsync(FilaReparto f, string? valor) =>
+        FijarAsync(f, f.Adjunto.DestinoTrabajadorId, f.Adjunto.DestinoEmpresaId, Guid.TryParse(valor, out var tipoId) ? tipoId : null);
+
+    private void PedirMotivo(FilaReparto f)
+    {
+        if (Bloqueado) return;
+        f.Edicion.MenuAbierto = false;
+        f.Edicion.PideMotivo = true;
+    }
+
+    private Task RechazarAsync(FilaReparto f) =>
+        EjecutarAsync(f.Edicion, async () =>
+        {
+            var resultado = await Mediator.Send(new ResolverAdjuntoCommand(f.Adjunto.Id, ResolucionAdjunto.Rechazar, f.Edicion.Motivo.Trim()));
+            if (resultado.EsFallido) return resultado.Error.Mensaje;
+            f.Edicion.PideMotivo = false;
+            f.Edicion.Motivo = string.Empty;
+            ToastService.Mostrar(Textos["ToastRechazado", f.Adjunto.NombreArchivo].Value, TonoToast.Exito);
+            return null;
+        }, notificar: true, avanzar: true);
+
+    private Task DescartarAsync(FilaReparto f) =>
+        EjecutarAsync(f.Edicion, async () =>
+        {
+            var resultado = await Mediator.Send(new ResolverAdjuntoCommand(f.Adjunto.Id, ResolucionAdjunto.Descartar));
+            if (resultado.EsFallido) return resultado.Error.Mensaje;
+            f.Edicion.MenuAbierto = false;
+            ToastService.Mostrar(Textos["ToastDescartado", f.Adjunto.NombreArchivo].Value, TonoToast.Exito);
+            return null;
+        }, notificar: true, avanzar: true);
+
+    private Task ReabrirAsync(FilaReparto f) =>
+        EjecutarAsync(f.Edicion, async () =>
+        {
+            var resultado = await Mediator.Send(new ResolverAdjuntoCommand(f.Adjunto.Id, ResolucionAdjunto.Reabrir));
+            if (resultado.EsFallido) return resultado.Error.Mensaje;
+            ToastService.Mostrar(Textos["ToastReabierto", f.Adjunto.NombreArchivo].Value, TonoToast.Exito);
+            return null;
+        }, notificar: true);
+
+    /// <summary>
+    /// Asigna de una vez los adjuntos listos. El servidor no es todo o nada: dice qué pasó con cada uno, y lo que no se asignó
+    /// se queda en su fila con el motivo. El lote admite un máximo de adjuntos; más de esos se mandan en tandas, y una tanda
+    /// rechazada entera no impide ver lo que las anteriores asignaron.
+    /// </summary>
+    private Task AsignarAsync(IReadOnlyList<FilaReparto> filas, bool avanzar)
+    {
+        // Solo sale lo que está «Listo» al pulsar: un adjunto cuyo destino o tipo no se puede nombrar no se aprueba aunque
+        // llegue aquí por otra vía que la del botón (que ya está desactivado para él).
+        var listas = filas.Where(f => f.Situacion == SituacionAdjunto.Listo).ToList();
+        return listas.Count == 0 ? Task.CompletedTask : AsignarListasAsync(listas, avanzar);
+    }
+
+    private Task AsignarListasAsync(IReadOnlyList<FilaReparto> filas, bool avanzar) =>
+        EjecutarAsync(null, async () =>
+        {
+            var conversacionId = ConversacionId;
+            var asignados = 0;
+            var avisado = false;
+            var revisiones = filas.ToDictionary(f => f.Adjunto.Id, f => f.Edicion.Revision);
+            try
+            {
+            foreach (var tanda in filas.Chunk(AsignarAdjuntosLoteCommandValidator.MaximoAdjuntos))
+            {
+                // Si la persona cambió de conversación a mitad de las tandas, no se manda el resto con otro hilo.
+                if (conversacionId != ConversacionId)
+                {
+                    if (asignados > 0) AvisarAsignados(asignados);
+                    return null;
+                }
+                // Con el destino y el tipo que la persona ve: si en el servidor ya son otros, ese adjunto vuelve como conflicto.
+                var lote = tanda.Select(f => new AdjuntoAAsignar(
+                    f.Adjunto.Id, f.Adjunto.TipoDocumentoId, f.Adjunto.DestinoTrabajadorId, f.Adjunto.DestinoEmpresaId,
+                    f.Edicion.Emision!.Value, f.Edicion.Vencimiento, f.Edicion.NoCaduca)).ToList();
+                var resultado = await Mediator.Send(new AsignarAdjuntosLoteCommand(conversacionId, lote));
+                if (resultado.EsFallido)
+                {
+                    // Lo que las tandas anteriores ya asignaron existe: se dice y la página se entera aunque esta tanda falle.
+                    if (asignados > 0)
+                    {
+                        avisado = true;
+                        AvisarAsignados(asignados);
+                        await OnCambiado.InvokeAsync();
+                    }
+                    return resultado.Error.Mensaje;
+                }
+
+                foreach (var r in resultado.Valor)
+                {
+                    var edicion = EdicionDe(r.AdjuntoId);
+                    if (r.Estado == EstadoAsignacionAdjunto.Asignado)
+                    {
+                        asignados++;
+                        edicion.Aviso = null;
+                    }
+                    else if (r.Estado == EstadoAsignacionAdjunto.Indeterminado)
+                    {
+                        // No se sabe si llegó a guardarse: no se pinta como un rechazo corriente ni se invita a reintentar a ciegas.
+                        // La duda sobre si se guardó no depende de las fechas: no pasa por la guarda de revisión.
+                        _filaSinAsignar = true;
+                        edicion.Aviso = Textos["AsignacionIndeterminada"].Value;
+                    }
+                    else
+                    {
+                        _filaSinAsignar = true;
+                        // Si la persona cambió las fechas mientras tanto, el motivo es de las anteriores: no se pinta.
+                        if (!revisiones.TryGetValue(r.AdjuntoId, out var revision) || revision == edicion.Revision)
+                            edicion.Aviso = r.Detalle ?? Textos["NoAsignado"].Value;
+                    }
+                }
+            }
+
+            if (asignados > 0) AvisarAsignados(asignados);
+            return null;
+            }
+            catch (Exception) when (asignados > 0 && !avisado)
+            {
+                // Una tanda lanzó tras otras ya asignadas: se cuenta lo asignado antes de que EjecutarAsync pinte el error.
+                AvisarAsignados(asignados);
+                await OnCambiado.InvokeAsync();
+                throw;
+            }
+        }, notificar: true, avanzar: avanzar);
+
+    private void AvisarAsignados(int n) =>
+        ToastService.Mostrar(Plural("ToastAsignados_1", "ToastAsignados_N", n), TonoToast.Exito);
+}

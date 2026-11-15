@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Adjuntos del correo</value>
+  </data>
+  <data name="SoloConsulta" xml:space="preserve">
+    <value>Con el rol Consulta puedes ver el reparto, pero no cambiarlo.</value>
+  </data>
+  <data name="Cab_Adjuntos_1" xml:space="preserve">
+    <value>{0} adjunto</value>
+  </data>
+  <data name="Cab_Adjuntos_N" xml:space="preserve">
+    <value>{0} adjuntos</value>
+  </data>
+  <data name="Cab_Listos_1" xml:space="preserve">
+    <value>{0} listo</value>
+  </data>
+  <data name="Cab_Listos_N" xml:space="preserve">
+    <value>{0} listos</value>
+  </data>
+  <data name="Cab_PorRevisar" xml:space="preserve">
+    <value>{0} por revisar</value>
+  </data>
+  <data name="Cab_SinDestino" xml:space="preserve">
+    <value>{0} sin destino</value>
+  </data>
+  <data name="Cab_Asignado_1" xml:space="preserve">
+    <value>{0} asignado</value>
+  </data>
+  <data name="Cab_Asignado_N" xml:space="preserve">
+    <value>{0} asignados</value>
+  </data>
+  <data name="Cab_Rechazado_1" xml:space="preserve">
+    <value>{0} rechazado</value>
+  </data>
+  <data name="Cab_Rechazado_N" xml:space="preserve">
+    <value>{0} rechazados</value>
+  </data>
+  <data name="Cab_Descartado_1" xml:space="preserve">
+    <value>{0} descartado</value>
+  </data>
+  <data name="Cab_Descartado_N" xml:space="preserve">
+    <value>{0} descartados</value>
+  </data>
+  <data name="Cab_Dividido_1" xml:space="preserve">
+    <value>{0} dividido</value>
+  </data>
+  <data name="Cab_Dividido_N" xml:space="preserve">
+    <value>{0} divididos</value>
+  </data>
+  <data name="Plegar" xml:space="preserve">
+    <value>Plegar</value>
+  </data>
+  <data name="Desplegar" xml:space="preserve">
+    <value>Desplegar</value>
+  </data>
+  <data name="VerDetalle" xml:space="preserve">
+    <value>Ver detalle</value>
+  </data>
+  <data name="OcultarDetalle" xml:space="preserve">
+    <value>Ocultar detalle</value>
+  </data>
+  <data name="AgruparPorRevisar" xml:space="preserve">
+    <value>Por revisar primero</value>
+  </data>
+  <data name="AgruparPorTrabajador" xml:space="preserve">
+    <value>Por Trabajador</value>
+  </data>
+  <data name="VerResueltos" xml:space="preserve">
+    <value>Ver resueltos ({0})</value>
+  </data>
+  <data name="OcultarResueltos" xml:space="preserve">
+    <value>Ocultar resueltos</value>
+  </data>
+  <data name="Mostrar" xml:space="preserve">
+    <value>Mostrar</value>
+  </data>
+  <data name="CabRequierenDecision" xml:space="preserve">
+    <value>Requieren decisión · {0}</value>
+  </data>
+  <data name="CabListos" xml:space="preserve">
+    <value>Listos · {0}</value>
+  </data>
+  <data name="CabResueltos" xml:space="preserve">
+    <value>Resueltos · {0}</value>
+  </data>
+  <data name="CabGrupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="GrupoSinDestino" xml:space="preserve">
+    <value>Sin destino</value>
+  </data>
+  <data name="Estado_Listo" xml:space="preserve">
+    <value>Listo</value>
+  </data>
+  <data name="Estado_Revisar" xml:space="preserve">
+    <value>Revisar</value>
+  </data>
+  <data name="Estado_SinDestino" xml:space="preserve">
+    <value>Sin destino</value>
+  </data>
+  <data name="Estado_Asignado" xml:space="preserve">
+    <value>Asignado</value>
+  </data>
+  <data name="Estado_Rechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="Estado_Descartado" xml:space="preserve">
+    <value>Descartado</value>
+  </data>
+  <data name="Estado_Dividido" xml:space="preserve">
+    <value>Dividido</value>
+  </data>
+  <data name="Elegir" xml:space="preserve">
+    <value>Elegir</value>
+  </data>
+  <data name="ElegirDe" xml:space="preserve">
+    <value>Elegir destino de {0}</value>
+  </data>
+  <data name="Mas" xml:space="preserve">
+    <value>Más</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Más acciones de {0}</value>
+  </data>
+  <data name="CambiarDestino" xml:space="preserve">
+    <value>Cambiar destino</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rechazar</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Deshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="Confirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Asignar" xml:space="preserve">
+    <value>Asignar</value>
+  </data>
+  <data name="Anterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Siguiente" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="AsignarListos" xml:space="preserve">
+    <value>Asignar {0}</value>
+  </data>
+  <data name="AsignarListosA" xml:space="preserve">
+    <value>Asignar {0} a {1}</value>
+  </data>
+  <data name="RevisarUnoAUno" xml:space="preserve">
+    <value>Revisar {0} uno a uno</value>
+  </data>
+  <data name="Destinos_Trabajador_1" xml:space="preserve">
+    <value>{0} Trabajador</value>
+  </data>
+  <data name="Destinos_Trabajador_N" xml:space="preserve">
+    <value>{0} Trabajadores</value>
+  </data>
+  <data name="Destinos_Empresa_1" xml:space="preserve">
+    <value>{0} Empresa</value>
+  </data>
+  <data name="Destinos_Empresa_N" xml:space="preserve">
+    <value>{0} Empresas</value>
+  </data>
+  <data name="UnirY" xml:space="preserve">
+    <value>{0} y {1}</value>
+  </data>
+  <data name="AsignarAyuda" xml:space="preserve">
+    <value>Una sola aprobación. No envía nada al remitente.</value>
+  </data>
+  <data name="DestinoDe" xml:space="preserve">
+    <value>Destino de {0}</value>
+  </data>
+  <data name="TipoDe" xml:space="preserve">
+    <value>Tipo de documento de {0}</value>
+  </data>
+  <data name="EligeDestino" xml:space="preserve">
+    <value>Elige destino</value>
+  </data>
+  <data name="SinDestinoOpcion" xml:space="preserve">
+    <value>Sin destino</value>
+  </data>
+  <data name="EligeTipo" xml:space="preserve">
+    <value>Elige el tipo</value>
+  </data>
+  <data name="GrupoTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="GrupoEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="DestinoActual" xml:space="preserve">
+    <value>Destino actual</value>
+  </data>
+  <data name="TipoActual" xml:space="preserve">
+    <value>Tipo actual</value>
+  </data>
+  <data name="EmpresaEntreParentesis" xml:space="preserve">
+    <value>{0} (Empresa)</value>
+  </data>
+  <data name="EmisionDe" xml:space="preserve">
+    <value>Fecha de emisión de {0}</value>
+  </data>
+  <data name="VencimientoDe" xml:space="preserve">
+    <value>Fecha de vencimiento de {0}</value>
+  </data>
+  <data name="Emision" xml:space="preserve">
+    <value>Emisión</value>
+  </data>
+  <data name="Vencimiento" xml:space="preserve">
+    <value>Vencimiento</value>
+  </data>
+  <data name="NoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="NoCaducaDe" xml:space="preserve">
+    <value>No caduca: {0}</value>
+  </data>
+  <data name="Abrir" xml:space="preserve">
+    <value>Abrir {0}</value>
+  </data>
+  <data name="AbrirEnVisor" xml:space="preserve">
+    <value>Abrir en el visor</value>
+  </data>
+  <data name="MotivoRechazo" xml:space="preserve">
+    <value>Motivo del rechazo</value>
+  </data>
+  <data name="MotivoRechazoDe" xml:space="preserve">
+    <value>Motivo del rechazo de {0}</value>
+  </data>
+  <data name="AdjuntoNDeM" xml:space="preserve">
+    <value>Adjunto {0} de {1} · {2}</value>
+  </data>
+  <data name="RevisionUnoAUno" xml:space="preserve">
+    <value>Revisar adjuntos uno a uno</value>
+  </data>
+  <data name="FaltaDestino" xml:space="preserve">
+    <value>Elige a quién va para poder asignarlo.</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>Elige el tipo de documento para poder asignarlo.</value>
+  </data>
+  <data name="FaltaFecha" xml:space="preserve">
+    <value>Indica la fecha de emisión para poder asignarlo.</value>
+  </data>
+  <data name="FechaNoValida" xml:space="preserve">
+    <value>Revisa las fechas: la de vencimiento no puede ir con «No caduca».</value>
+  </data>
+  <data name="EsperanFechas_1" xml:space="preserve">
+    <value>{0} adjunto con destino y tipo espera su fecha de emisión.</value>
+  </data>
+  <data name="EsperanFechas_N" xml:space="preserve">
+    <value>{0} adjuntos con destino y tipo esperan su fecha de emisión.</value>
+  </data>
+  <data name="ToastAsignados_1" xml:space="preserve">
+    <value>{0} documento asignado · no se envía nada al remitente</value>
+  </data>
+  <data name="ToastAsignados_N" xml:space="preserve">
+    <value>{0} documentos asignados · no se envía nada al remitente</value>
+  </data>
+  <data name="ToastRechazado" xml:space="preserve">
+    <value>«{0}» rechazado</value>
+  </data>
+  <data name="ToastDescartado" xml:space="preserve">
+    <value>«{0}» descartado</value>
+  </data>
+  <data name="ToastReabierto" xml:space="preserve">
+    <value>«{0}» vuelve a estar pendiente</value>
+  </data>
+  <data name="ErrorCargar" xml:space="preserve">
+    <value>No pudimos cargar el reparto de adjuntos. Vuelve a intentarlo en unos segundos.</value>
+  </data>
+  <data name="ErrorRecargar" xml:space="preserve">
+    <value>No pudimos volver a cargar el reparto de adjuntos, y lo que ves puede estar desactualizado. Las acciones quedan desactivadas hasta cargarlo de nuevo.</value>
+  </data>
+  <data name="ErrorSelectores" xml:space="preserve">
+    <value>No pudimos cargar los nombres de los destinos o de los tipos de documento. Hasta cargarlos, los adjuntos que no se pueden identificar no se pueden asignar.</value>
+  </data>
+  <data name="NombresSinCargar" xml:space="preserve">
+    <value>No se puede asignar hasta cargar los nombres del destino y del tipo.</value>
+  </data>
+  <data name="NombresNoIdentificados" xml:space="preserve">
+    <value>El destino o el tipo actual no está entre los que puedes elegir: elige uno de la lista para poder asignarlo.</value>
+  </data>
+  <data name="AvisoNoIdentificados" xml:space="preserve">
+    <value>Hay adjuntos cuyo destino o tipo propuesto no está entre los que puedes elegir. Elige otro en la fila o vuelve a cargar las listas por si cambiaron.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No pudimos completar la acción. Comprueba el estado de los adjuntos y vuelve a intentarlo.</value>
+  </data>
+  <data name="NoAsignado" xml:space="preserve">
+    <value>No se pudo asignar este adjunto.</value>
+  </data>
+  <data name="AsignacionIndeterminada" xml:space="preserve">
+    <value>No se pudo confirmar si este adjunto llegó a asignarse. Se vuelve a leer el reparto: comprueba si sigue pendiente antes de volver a intentarlo.</value>
+  </data>
+</root>

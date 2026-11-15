@@ -10,8 +10,14 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
 
-/// <summary>Las fechas las revisa una persona; destino y tipo son los que el adjunto ya tiene fijados.</summary>
-public record AdjuntoAAsignar(Guid AdjuntoId, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, bool NoCaduca);
+/// <summary>
+/// Un adjunto que una persona aprobó: el tipo y el destino (Trabajador o Empresa) son los que vio en pantalla, y las fechas
+/// las revisó ella. El lote no los usa para cambiar la propuesta: si ya no coinciden con la del adjunto, ese adjunto sale
+/// como <see cref="EstadoAsignacionAdjunto.Conflicto"/> sin Documento.
+/// </summary>
+public record AdjuntoAAsignar(
+    Guid AdjuntoId, Guid? TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
+    DateOnly FechaEmision, DateOnly? FechaVencimientoManual, bool NoCaduca);
 
 public enum EstadoAsignacionAdjunto
 {
@@ -20,7 +26,10 @@ public enum EstadoAsignacionAdjunto
     /// <summary><see cref="ResultadoAsignacionAdjunto.Detalle"/> dice por qué no se asignó.</summary>
     NoAsignado = 1,
 
-    /// <summary>Otra sesión cambió el adjunto o su Documento durante el alta: no se guardó nada.</summary>
+    /// <summary>
+    /// La propuesta del adjunto ya no es la aprobada, o otra sesión cambió el adjunto o su Documento durante el alta: no se
+    /// guardó nada.
+    /// </summary>
     Conflicto = 2,
 
     /// <summary>
@@ -56,6 +65,13 @@ public class AsignarAdjuntosLoteCommandValidator : AbstractValidator<AsignarAdju
         RuleFor(c => c.Adjuntos)
             .Must(a => a is null || a.Select(x => x.AdjuntoId).Distinct().Count() == a.Count)
             .WithMessage("Un adjunto aparece dos veces en el lote.");
+        // Sin la propuesta aprobada no hay con qué contrastar la vigente: el lote no adivina qué vio la persona. Un elemento
+        // sin tipo o sin un único destino rechaza el lote entero (no es un «no asignado» por elemento): solo se aprueba lo
+        // que está «Listo», y aprobar algo incompleto es un error del llamador, no un estado del adjunto.
+        RuleForEach(c => c.Adjuntos)
+            .Must(a => a is not null && a.TipoDocumentoId is { } tipo && tipo != Guid.Empty
+                && (a.TrabajadorId is null) != (a.EmpresaId is null))
+            .WithMessage("Hay un adjunto sin destino o sin tipo de documento revisados. Revísalo antes de asignar.");
     }
 }
 
@@ -67,8 +83,11 @@ public class AsignarAdjuntosLoteCommandValidator : AbstractValidator<AsignarAdju
 /// No es todo o nada: cada Documento confirma por separado, así que un adjunto rechazado no deshace los anteriores y
 /// el resultado dice qué pasó con cada uno.
 ///
-/// Destino y tipo se leen justo antes de cada alta y se mandan como propuesta vista: si otra sesión los cambia antes
-/// del guardado, ese adjunto sale como <see cref="EstadoAsignacionAdjunto.Conflicto"/>, sin Documento.
+/// Cada elemento lleva el destino y el tipo que la persona aprobó. Justo antes de cada alta se lee la propuesta vigente
+/// del adjunto: si no es la aprobada (otra sesión la cambió desde que se pintó la pantalla), ese adjunto sale como
+/// <see cref="EstadoAsignacionAdjunto.Conflicto"/> sin llegar al alta. Si coincide, el alta recibe la aprobada como
+/// propuesta vista y vuelve a contrastarla en el guardado, así que un cambio posterior también acaba en conflicto, sin
+/// Documento.
 /// </summary>
 public class AsignarAdjuntosLoteCommandHandler(
     IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, IMediator mediator,
@@ -105,9 +124,13 @@ public class AsignarAdjuntosLoteCommandHandler(
             var candidato = await LeerAsync(conversacionId, item.AdjuntoId, cancellationToken);
             if (MotivoParaNoAsignar(candidato) is { } motivo)
                 return NoAsignado(item, motivo);
+            if (!EsLaAprobada(candidato!, item))
+                return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Conflicto, null, PropuestaCambiada);
+            if (MotivoSinPropuesta(candidato!) is { } sinPropuesta)
+                return NoAsignado(item, sinPropuesta);
 
             var asignado = await mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
-                item.AdjuntoId, candidato!.TipoDocumentoId!.Value, candidato.TrabajadorId, candidato.EmpresaId,
+                item.AdjuntoId, item.TipoDocumentoId!.Value, item.TrabajadorId, item.EmpresaId,
                 item.FechaEmision, item.FechaVencimientoManual, null, item.NoCaduca, AplicaPropuestaFijada: true), cancellationToken);
 
             if (asignado.EsExitoso)
@@ -138,11 +161,27 @@ public class AsignarAdjuntosLoteCommandHandler(
         }
     }
 
+    public const string PropuestaCambiada =
+        "El destino o el tipo de este adjunto cambiaron después de revisarlo, y no se ha asignado. Revisa la propuesta y vuelve a asignarlo.";
+
     private static string? MotivoParaNoAsignar(Candidato? candidato)
     {
         if (candidato is null) return "Este adjunto no pertenece a la conversación.";
         if (candidato.Direccion != DireccionMensaje.Entrante) return "Solo se reparten los adjuntos recibidos.";
         if (candidato.Estado != EstadoRepartoAdjunto.Pendiente) return "Este adjunto ya está resuelto.";
+        return null;
+    }
+
+    // Se comparan los tres valores tal cual, nulos incluidos: quitar el destino o el tipo también cambia la propuesta.
+    private static bool EsLaAprobada(Candidato candidato, AdjuntoAAsignar item) =>
+        candidato.TipoDocumentoId == item.TipoDocumentoId
+        && candidato.TrabajadorId == item.TrabajadorId
+        && candidato.EmpresaId == item.EmpresaId;
+
+    // Solo se llega con la propuesta igual a la aprobada: falta algo únicamente si la aprobada ya venía incompleta, que el
+    // validador rechaza antes. Queda como defensa para quien llame al handler sin la tubería de validación.
+    private static string? MotivoSinPropuesta(Candidato candidato)
+    {
         if (candidato.TrabajadorId is null && candidato.EmpresaId is null) return "Este adjunto no tiene destino.";
         if (candidato.TipoDocumentoId is null) return "Este adjunto no tiene tipo de documento.";
         return null;
