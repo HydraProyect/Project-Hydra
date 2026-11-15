@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Inbound.Requisitos;
+using CaeManager.Application.Inbound.Requisitos.Commands.RetirarPlantillaRequisitos;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -8,6 +10,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Inbound.Persistence;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -207,6 +210,28 @@ public class PlantillasRequisitosBajoRuntimeTests : IAsyncLifetime
         escribir.CommandText = "UPDATE \"RequisitosPlantilla\" SET \"Activo\" = false;";
         (await FluentActions.Awaiting(() => escribir.ExecuteNonQueryAsync()).Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "la migración solo concede SELECT a cae_app_soporte");
+    }
+
+    [Fact]
+    public async Task D1_un_acceso_total_en_su_Tenant_no_escribe_la_plantilla_de_otro_Tenant()
+    {
+        // D1 (DECISION_LOG 2026-11-15): las escrituras de plantillas se autorizan con IAlcanceDatosService hasta B-03, así que
+        // un Gestor CAE con acceso total en su Tenant pasa la autorización del handler. El límite de Tenant lo sostiene RLS:
+        // la plantilla ajena no se encuentra y no se toca.
+        await using (var contexto = Contexto(_propietario.Id, _administrador))
+        {
+            var handler = new RetirarPlantillaRequisitosCommandHandler(
+                new PlantillaRequisitosRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
+
+            var resultado = await handler.Handle(new RetirarPlantillaRequisitosCommand(_plantillaAjena, Guid.NewGuid()), default);
+
+            resultado.EsExitoso.Should().BeFalse();
+            resultado.Error.Codigo.Should().Be(PlantillaRequisitosErrores.NoEncontrada.Codigo);
+        }
+
+        await using var contextoAjeno = Contexto(_ajeno.Id, _administradorAjeno);
+        (await contextoAjeno.PlantillasRequisitos.SingleAsync(p => p.Id == _plantillaAjena)).Activa
+            .Should().BeTrue("la plantilla del otro Tenant sigue activa");
     }
 
     private static void Cuenta(CaeManagerDbContext contexto, Guid id, Guid tenantId, Guid rolId)

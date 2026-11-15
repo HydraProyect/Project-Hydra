@@ -37,6 +37,7 @@ public class EditarRequisitoPlantillaCommandHandler(
     public async Task<Result> Handle(EditarRequisitoPlantillaCommand request, CancellationToken cancellationToken)
     {
         var plantilla = await repositorio.ObtenerPorIdAsync(request.PlantillaId, cancellationToken);
+        // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
         if (plantilla is null || !await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(plantilla, alcanceDatos, cancellationToken))
             return Result.Fallo(PlantillaRequisitosErrores.NoEncontrada);
 

@@ -35,6 +35,7 @@ public class CrearPlantillaRequisitosCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearPlantillaRequisitosCommand request, CancellationToken cancellationToken)
     {
+        // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
         // Fuera de la cartera, la referencia «no existe»: el mismo error que si no existiera.
         if (!await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(request.Tipo, request.ReferenciaId, alcanceDatos, cancellationToken))
             return Result.Fallo<Guid>(PlantillaRequisitosErrores.ReferenciaNoEncontrada);

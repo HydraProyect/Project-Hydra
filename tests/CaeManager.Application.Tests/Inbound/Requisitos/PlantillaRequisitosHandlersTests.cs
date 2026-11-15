@@ -32,9 +32,12 @@ namespace CaeManager.Application.Tests.Inbound.Requisitos;
 public class PlantillaRequisitosHandlersTests
 {
     private static readonly AtributosRequisito Basicos = new(
-        OrigenRequisito.Actividad, ModoVigenciaRequisito.LaPoneElDocumento, VigenciaMeses: null, ToleranciaDias: null,
+        OrigenRequisito.PropioTenant, ModoVigenciaRequisito.LaPoneElDocumento, VigenciaMeses: null, ToleranciaDias: null,
         BloqueaAcceso: true, Criterio: null, DestinatarioRequisito.Todos, TiposContratacion.Todos, [],
         AmbitoDocumentoRequisito.GeneralTec);
+
+    /// <summary>Con una base del catálogo, el origen puede ser de Actividad (D2: sin base solo propio o N3).</summary>
+    private static readonly AtributosRequisito ConBase = Basicos with { Origen = OrigenRequisito.Actividad };
 
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente empresarial de la cartera", "B10380186", false, null, null);
     private readonly Empresa _otroCliente = Empresa.CrearComoCliente("Cliente empresarial de otra cartera", "B10380202", false, null, null);
@@ -303,6 +306,21 @@ public class PlantillaRequisitosHandlersTests
     }
 
     [Fact]
+    public async Task D2_un_requisito_legal_sin_base_se_rechaza_en_el_comando_y_no_guarda()
+    {
+        var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
+
+        var resultado = await Anadir(Total()).Handle(
+            new AnadirRequisitoAPlantillaCommand(plantilla.Id, TipoGuardado().Id, null, Basicos with { Origen = OrigenRequisito.LegalN1 },
+                plantilla.Version),
+            CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("PlantillaRequisitos.Invalido");
+        plantilla.Requisitos.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task R6_una_tolerancia_en_formacion_PRL_se_rechaza_en_el_comando()
     {
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
@@ -323,11 +341,11 @@ public class PlantillaRequisitosHandlersTests
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
         var requisitoBase = new RequisitoBase("requisito-luego-retirado", "Luego retirado", "Fundamento", NivelExigencia.N1);
         _catalogo.Requisitos.Add(requisitoBase);
-        var requisito = plantilla.AnadirRequisito(TipoGuardado(), requisitoBase, Basicos);
+        var requisito = plantilla.AnadirRequisito(TipoGuardado(), requisitoBase, ConBase);
         requisitoBase.Retirar();
 
         var resultado = await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork).Handle(
-            new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { Criterio = "Criterio nuevo" }, plantilla.Version),
+            new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, ConBase with { Criterio = "Criterio nuevo" }, plantilla.Version),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();

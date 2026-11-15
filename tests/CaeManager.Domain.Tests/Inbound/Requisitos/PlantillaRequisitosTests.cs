@@ -15,9 +15,12 @@ namespace CaeManager.Domain.Tests.Inbound.Requisitos;
 public class PlantillaRequisitosTests
 {
     private static readonly AtributosRequisito Basicos = new(
-        OrigenRequisito.Actividad, ModoVigenciaRequisito.LaPoneElDocumento, VigenciaMeses: null, ToleranciaDias: null,
+        OrigenRequisito.PropioTenant, ModoVigenciaRequisito.LaPoneElDocumento, VigenciaMeses: null, ToleranciaDias: null,
         BloqueaAcceso: true, Criterio: "Firmado y vigente", DestinatarioRequisito.Todos, TiposContratacion.Todos, [],
         AmbitoDocumentoRequisito.GeneralTec);
+
+    /// <summary>Con una base del catálogo, el origen puede ser de Actividad (D2: sin base solo propio o N3).</summary>
+    private static readonly AtributosRequisito ConBase = Basicos with { Origen = OrigenRequisito.Actividad };
 
     private static TipoDocumento Tipo(
         AmbitoAplicacion ambito = AmbitoAplicacion.Trabajador, GrupoTipoDocumento? grupo = GrupoTipoDocumento.FormacionPrl,
@@ -273,6 +276,52 @@ public class PlantillaRequisitosTests
         propio.BloqueaAcceso.Should().BeFalse("el resto de atributos de uno propio sí se edita");
     }
 
+    [Theory]
+    [InlineData(OrigenRequisito.LegalN1)]
+    [InlineData(OrigenRequisito.Convenio)]
+    [InlineData(OrigenRequisito.Actividad)]
+    public void D2_sin_base_un_origen_legal_de_convenio_o_de_Actividad_se_rechaza_al_anadir_y_al_editar(OrigenRequisito origen)
+    {
+        var plantilla = DeCentro();
+        var tipo = Tipo();
+
+        FluentActions.Invoking(() => plantilla.AnadirRequisito(tipo, null, Basicos with { Origen = origen }))
+            .Should().Throw<ArgumentException>();
+        plantilla.Requisitos.Should().BeEmpty();
+
+        var propio = plantilla.AnadirRequisito(tipo, null, Basicos);
+        FluentActions.Invoking(() => plantilla.EditarRequisito(propio.Id, tipo, null, Basicos with { Origen = origen }))
+            .Should().Throw<ArgumentException>();
+        propio.Origen.Should().Be(OrigenRequisito.PropioTenant);
+
+        var requisitoBase = new RequisitoBase("requisito-n1", "Con base N1", "Fundamento", NivelExigencia.N1);
+        DeCentro().AnadirRequisito(Tipo(), requisitoBase, Basicos with { Origen = origen }).Origen
+            .Should().Be(origen, "adoptando una base del catálogo revisado sí se admite");
+    }
+
+    [Fact]
+    public void D2_retirar_un_requisito_propio_y_volver_a_anadir_su_tipo_no_lo_convierte_en_legal()
+    {
+        var plantilla = DeCentro();
+        var tipo = Tipo();
+        var propio = plantilla.AnadirRequisito(tipo, null, Basicos);
+        plantilla.RetirarRequisito(propio.Id);
+
+        FluentActions.Invoking(() => plantilla.AnadirRequisito(tipo, null, Basicos with { Origen = OrigenRequisito.LegalN1 }))
+            .Should().Throw<ArgumentException>();
+        plantilla.Requisitos.Where(r => r.Activo).Should().BeEmpty();
+
+        plantilla.AnadirRequisito(tipo, null, Basicos).Origen.Should().Be(OrigenRequisito.PropioTenant, "sigue pudiendo volver como propio");
+    }
+
+    [Fact]
+    public void D2_sin_base_un_requisito_propio_o_una_exigencia_N3_se_admiten()
+    {
+        DeCentro().AnadirRequisito(Tipo(), null, Basicos).Origen.Should().Be(OrigenRequisito.PropioTenant);
+        PlantillaRequisitos.ParaExigenciasDe(Guid.NewGuid()).AnadirRequisito(Tipo(), null, Basicos with { Origen = OrigenRequisito.ExigenciaN3 })
+            .Origen.Should().Be(OrigenRequisito.ExigenciaN3);
+    }
+
     [Fact]
     public void Editar_no_desadopta_el_requisito_de_base_ni_sube_su_origen()
     {
@@ -280,14 +329,14 @@ public class PlantillaRequisitosTests
         var tipo = Tipo();
         var n3 = new RequisitoBase("requisito-n3", "Exigencia N3", "Fundamento", NivelExigencia.N3);
         var otro = new RequisitoBase("requisito-otro", "Otro", "Fundamento", NivelExigencia.N1);
-        var requisito = plantilla.AnadirRequisito(tipo, n3, Basicos);
+        var requisito = plantilla.AnadirRequisito(tipo, n3, ConBase);
 
         FluentActions.Invoking(() => plantilla.EditarRequisito(requisito.Id, tipo, null, Basicos with { Origen = OrigenRequisito.LegalN1 }))
             .Should().Throw<ArgumentException>("omitir la base la desadoptaría y saltaría la guarda de nivel");
         FluentActions.Invoking(() => plantilla.EditarRequisito(requisito.Id, tipo, otro, Basicos with { Origen = OrigenRequisito.LegalN1 }))
             .Should().Throw<ArgumentException>("cambiar de base es otro requisito");
         requisito.RequisitoBaseId.Should().Be(n3.Id);
-        requisito.Origen.Should().Be(OrigenRequisito.Actividad);
+        requisito.Origen.Should().Be(OrigenRequisito.Actividad, "la edición rechazada no lo cambia");
     }
 
     [Fact]
@@ -296,13 +345,13 @@ public class PlantillaRequisitosTests
         var plantilla = DeCentro();
         var tipo = Tipo();
         var requisitoBase = new RequisitoBase("requisito-luego-retirado", "Luego retirado", "Fundamento", NivelExigencia.N1);
-        var requisito = plantilla.AnadirRequisito(tipo, requisitoBase, Basicos);
+        var requisito = plantilla.AnadirRequisito(tipo, requisitoBase, ConBase);
         requisitoBase.Retirar();
 
-        plantilla.EditarRequisito(requisito.Id, tipo, requisitoBase, Basicos with { Criterio = "Criterio nuevo" });
+        plantilla.EditarRequisito(requisito.Id, tipo, requisitoBase, ConBase with { Criterio = "Criterio nuevo" });
 
         requisito.Criterio.Should().Be("Criterio nuevo");
-        FluentActions.Invoking(() => DeCentro().AnadirRequisito(tipo, requisitoBase, Basicos))
+        FluentActions.Invoking(() => DeCentro().AnadirRequisito(tipo, requisitoBase, ConBase))
             .Should().Throw<InvalidOperationException>("adoptarla de nuevo sí exige que siga activa");
     }
 

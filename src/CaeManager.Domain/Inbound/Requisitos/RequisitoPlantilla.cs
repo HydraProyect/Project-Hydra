@@ -195,8 +195,18 @@ public sealed class RequisitoPlantilla : EntidadConTenant
         if (plantilla.Tipo == TipoPlantillaRequisitos.ExigenciasClienteEmpresarial && origen != OrigenRequisito.ExigenciaN3)
             throw new ArgumentException("En la plantilla de exigencias del Cliente empresarial todo requisito es una exigencia N3.", nameof(origen));
 
+        // Sin base del catálogo revisado por el técnico habilitado (CA-3, CA-7) no hay norma, convenio ni práctica de
+        // Actividad que respalde el requisito: es propio del Tenant TCE o exigencia del Cliente empresarial (CA-6;
+        // DECISION_LOG 2026-11-15, D2 de B-14). Como se aplica al añadir y al editar, retirar un requisito propio y
+        // volver a añadir su tipo no lo convierte en legal.
         if (requisitoBase is null)
+        {
+            if (origen is not (OrigenRequisito.PropioTenant or OrigenRequisito.ExigenciaN3))
+                throw new ArgumentException(
+                    "Un requisito legal, de convenio o de Actividad adopta uno del catálogo base: sin él es propio del Tenant TCE " +
+                    "o exigencia del Cliente empresarial.", nameof(origen));
             return;
+        }
 
         if (adopta && !requisitoBase.Activo)
             throw new InvalidOperationException("Un requisito retirado del catálogo base no se adopta.");
