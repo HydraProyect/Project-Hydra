@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Identity;
@@ -903,6 +904,14 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     /// abrir la operación; la otra llega entonces. Sin bloqueo, la segunda decidía con la delegación
     /// revocada que leyó, abría la operación y confirmaba; la primera, al seguir, encontraba esa
     /// operación ya confirmada, la tomaba por suya y también daba éxito.
+    ///
+    /// <para>
+    /// Sin tiempos: la primera no se suelta hasta que <c>pg_stat_activity</c> enseña a la segunda
+    /// esperando el <c>FOR UPDATE</c> de la delegación. Mientras la primera siga en pausa no ha
+    /// confirmado nada, así que la segunda leyó, fuera de la transacción, la delegación revocada: llega
+    /// al bloqueo con la misma lectura que antes la dejaba pasar. Sin el bloqueo nunca aparece esa
+    /// espera: la segunda termina sola y el test falla, tarde lo que tarde en llegar.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Una_reactivacion_que_llega_mientras_otra_decide_espera_a_que_confirme_y_pierde()
@@ -914,12 +923,17 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         await enPausa.Alcanzada;
 
         var segunda = ReactivarDelegacion();
-        var segundaNoEspero = await Task.WhenAny(segunda, Task.Delay(TimeSpan.FromSeconds(3))) == segunda;
+        try
+        {
+            await EsperarEnElBloqueoDeLaDelegacionAsync(segunda);
+        }
+        finally
+        {
+            enPausa.Soltar();
+        }
 
-        enPausa.Soltar();
         var resultados = await Task.WhenAll(primera, segunda);
         resultados.Count(r => r.EsExitoso).Should().Be(1, "una reactiva; la otra pierde, como fallo o como excepción, sin escribir");
-        segundaNoEspero.Should().BeFalse("la segunda decide por la misma delegación y tiene que esperar a que la primera confirme");
         resultados[0].EsExitoso.Should().BeTrue("la primera tenía la delegación bloqueada");
         resultados[1].Error.Codigo.Should().Be("DelegacionTenant.YaActiva",
             "cuando la segunda puede decidir, la delegación ya está activa");
@@ -968,6 +982,32 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             .Where(o => !o.EsRaiz && o.PropietarioTenantId == _beneficiario.Id && o.OperadorTenantId == _operador.Id
                         && o.Estado == EstadoAsignacion.Vigente)
             .Select(o => o.Id).SingleAsync();
+    }
+
+    /// <summary>
+    /// Vuelve cuando, vista desde una conexión aparte, una sesión de <c>cae_app_runtime</c> de esta
+    /// base (única por instancia del test) está detenida en el <c>FOR UPDATE</c> de la delegación.
+    /// Falla si el comando que se espera termina antes, porque entonces no esperó al bloqueo, o si no
+    /// llega a esperarlo dentro de un tope holgado.
+    /// </summary>
+    private async Task EsperarEnElBloqueoDeLaDelegacionAsync(Task comando)
+    {
+        await using var observador = new NpgsqlConnection(_cadenaConexion);
+        await observador.OpenAsync();
+        await using var esperando = new NpgsqlCommand(
+            """
+            SELECT count(*) FROM pg_stat_activity
+            WHERE datname = current_database() AND usename = 'cae_app_runtime' AND wait_event_type = 'Lock'
+              AND query ILIKE '%FOR UPDATE%' AND query LIKE '%"DelegacionesTenant"%'
+            """, observador);
+        var limite = DateTime.UtcNow.AddSeconds(60);
+        while ((long)(await esperando.ExecuteScalarAsync())! == 0)
+        {
+            comando.IsCompleted.Should().BeFalse(
+                "la segunda reactivación decide por la misma delegación: tiene que quedarse esperando su bloqueo, no terminar sola");
+            DateTime.UtcNow.Should().BeBefore(limite, "la segunda reactivación debe llegar a esperar el bloqueo de la delegación");
+            await Task.Delay(25);
+        }
     }
 
 
