@@ -25,27 +25,47 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "ReglaBloqueoDeAcceso.Evaluar",
         "ReglaBloqueoDeAcceso.AplicarPendiente",
         "EvaluarCentrosAsync",
+        "IRequisitosObligatoriosIncumplidosService",
+        "ILectorEstadoMaterializado",
+        "ReglaBloqueoDeAcceso.ValidoParaAcceder",
+        "PendientesEnPlataformaDeCentros",
+        "ObtenerDocumentacionBloqueantePendienteQuery",
     ];
 
     /// <summary>
-    /// Ruta 1 y 2 del inventario (bloqueo calculado por regla y por estado de acreditación en plataforma): todos los ficheros de
-    /// código que calculan o consumen el bloqueo. Son lecturas, proyecciones o el recálculo del estado materializado; ninguno es un comando.
+    /// Ruta 1 y 2 del inventario (bloqueo calculado por regla y por estado de acreditación en plataforma): los ficheros .cs de
+    /// src que nombran en código el cálculo, el servicio de evaluación, sus lectores (estado materializado, requisitos incumplidos,
+    /// pendientes en plataforma) o la query del bloqueo (comentarios excluidos). Son lecturas, proyecciones o el recálculo del estado materializado; ninguno es un comando.
     /// </summary>
     private static readonly string[] ConsumidoresDelCalculo =
     [
+        "src/CaeManager.Application/Asignaciones/Queries/ObtenerAsignacionesDocumentacionPorCentro/ObtenerAsignacionesDocumentacionPorCentroQuery.cs",
+        "src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs",
+        "src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs",
+        "src/CaeManager.Application/Calendario/Queries/ObtenerSemanaPorEmpresaQuery.cs",
         "src/CaeManager.Application/Centros/CalculoBloqueoDeAccesoDeTrabajadores.cs",
+        "src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs",
         "src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs",
         "src/CaeManager.Application/Centros/PendientesEnPlataformaDeCentros.cs",
-        "src/CaeManager.Application/Centros/RequisitosObligatoriosIncumplidos.cs",
         "src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs",
+        "src/CaeManager.Application/Centros/RequisitosObligatoriosIncumplidos.cs",
         "src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs",
         "src/CaeManager.Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs",
+        "src/CaeManager.Application/Empresas/Queries/ObtenerEmpresas/ObtenerEmpresasQuery.cs",
+        "src/CaeManager.Application/EstadoMaterializado/LectorEstadoMaterializado.cs",
         "src/CaeManager.Application/EstadoMaterializado/RecalculoEstadoMaterializadoService.cs",
+        "src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionAEmpresaEmpleadora/ObtenerReclamacionAEmpresaEmpleadoraQuery.cs",
+        "src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs",
+        "src/CaeManager.Application/Trabajadores/Queries/ObtenerDocumentacionPorCentroDeTrabajador/ObtenerDocumentacionPorCentroDeTrabajadorQuery.cs",
+        "src/CaeManager.Application/Trabajadores/Queries/ObtenerTrabajadores/ObtenerTrabajadoresQuery.cs",
+        "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor.cs",
+        "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",
+        "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs",
     ];
-
     /// <summary>
-    /// Quién enseña el bloqueo a una persona: Bandeja y Mi trabajo del Gestor CAE (vía de revisión: ahí se ve y se resuelve la
-    /// causa), Alertas, Reclamación, Calendario y las pantallas de Centro y de Cliente empresarial.
+    /// Desde dónde se despacha la query que lleva el bloqueo y su causa a una persona: Bandeja y Mi trabajo del Gestor CAE (la vía de
+    /// revisión: el test solo prueba que ese envío existe, no lo que la pantalla hace con él), Calendario, Reclamación y las pantallas de
+    /// Centro y de Cliente empresarial.
     /// </summary>
     private static readonly string[] SuperficiesQueMuestranElBloqueo =
     [
@@ -55,7 +75,6 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionAEmpresaEmpleadora/ObtenerReclamacionAEmpresaEmpleadoraQuery.cs",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor.cs",
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
-        "src/CaeManager.Web/Features/Centros/Components/MotivoBloqueoTrabajador.razor",
         "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",
         "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs",
     ];
@@ -108,24 +127,18 @@ public class InventarioDeEfectosSobreTrabajadorTests
     }
 
     [Fact]
-    public void La_via_de_revision_del_Gestor_CAE_existe_Bandeja_y_Mi_trabajo_enseñan_el_bloqueo_y_su_causa()
+    public void La_query_del_bloqueo_se_despacha_solo_desde_las_superficies_inventariadas_incluidas_Bandeja_y_Mi_trabajo_del_Gestor_CAE()
     {
         var raiz = RaizDelRepositorio();
 
         var encontrados = FicherosDeCodigo(raiz, incluirRazor: true)
             .Where(f => CodigoSinComentarios(f).Contains("ObtenerDocumentacionBloqueantePendienteQuery", StringComparison.Ordinal)
-                && !f.EndsWith("ObtenerDocumentacionBloqueantePendienteQuery.cs", StringComparison.Ordinal)
-                && !f.EndsWith("EvaluacionDeAccesoPorCentroService.cs", StringComparison.Ordinal))
+                && !f.EndsWith("ObtenerDocumentacionBloqueantePendienteQuery.cs", StringComparison.Ordinal))
             .Select(f => Relativa(raiz, f))
             .OrderBy(f => f, StringComparer.Ordinal)
             .ToList();
 
         encontrados.Should().Equal(SuperficiesQueMuestranElBloqueo.OrderBy(f => f, StringComparer.Ordinal));
-        encontrados.Should().Contain(
-        [
-            "src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs",
-            "src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs",
-        ]);
     }
 
     [Theory]
@@ -146,8 +159,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
 
         var linea = TextoBloqueoDeAcceso.LineaDeDocumento(new LocalizadorQueDevuelveLaClave(), dto);
 
-        linea.Should().Contain(claveEsperada, "toda situación que bloquea tiene su motivo propio, no un texto genérico");
-        linea.Should().StartWith("PSS: ");
+        linea.Should().Be($"PSS: {claveEsperada}", "toda situación que bloquea tiene su motivo propio, no un texto genérico");
     }
 
     [Fact]
@@ -180,7 +192,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
     }
 
     [Fact]
-    public void Los_servicios_sin_persona_que_tocan_al_Trabajador_son_los_inventariados_y_ninguno_produce_aprobaciones_automaticas()
+    public void Los_servicios_sin_persona_que_nombran_al_Trabajador_o_dan_de_baja_son_los_inventariados()
     {
         var raiz = RaizDelRepositorio();
         var infraestructura = Path.Combine(raiz, "src", "CaeManager.Infrastructure");
@@ -206,6 +218,25 @@ public class InventarioDeEfectosSobreTrabajadorTests
             "una baja sin persona es una decisión automatizada: cada servicio que la produce está inventariado");
     }
 
+    [Fact]
+    public void Los_servicios_en_segundo_plano_que_recalculan_el_estado_derivado_del_bloqueo_son_los_inventariados()
+    {
+        var raiz = RaizDelRepositorio();
+
+        var encontrados = Directory.EnumerateFiles(Path.Combine(raiz, "src", "CaeManager.Infrastructure"), "*HostedService.cs", SearchOption.AllDirectories)
+            .Where(f => CodigoSinComentarios(f).Contains("EstadoMaterializado", StringComparison.Ordinal))
+            .Select(f => Relativa(raiz, f))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToList();
+
+        // Recalculan el rojo persistido de Trabajadores y Empresas (ruta 1 del inventario) sin persona: cola tras cada cambio y cambio de día.
+        encontrados.Should().Equal(
+        [
+            "src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializadoHostedService.cs",
+            "src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializadoHostedService.cs",
+        ]);
+    }
+
     // ---------- soporte ----------
 
     private sealed class LocalizadorQueDevuelveLaClave : IStringLocalizer
@@ -226,8 +257,19 @@ public class InventarioDeEfectosSobreTrabajadorTests
                 && !f.Contains("CaeManager.Migrations.PostgreSQL"));
     }
 
-    private static string CodigoSinComentarios(string fichero) =>
-        string.Join('\n', File.ReadLines(fichero).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+    private static readonly Dictionary<string, string> CacheDeCodigo = new();
+
+    /// <summary>El código del fichero sin comentarios de línea (<c>//</c>, <c>///</c>), de bloque (<c>/* */</c>) ni de Razor (<c>@* *@</c>).</summary>
+    private static string CodigoSinComentarios(string fichero)
+    {
+        if (CacheDeCodigo.TryGetValue(fichero, out var guardado)) return guardado;
+
+        var texto = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(fichero), @"@\*.*?\*@|/\*.*?\*/", string.Empty,
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        var codigo = string.Join('\n', texto.Split('\n').Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
+        lock (CacheDeCodigo) CacheDeCodigo[fichero] = codigo;
+        return codigo;
+    }
 
     private static string Relativa(string raiz, string fichero) =>
         Path.GetRelativePath(raiz, fichero).Replace('\\', '/');
