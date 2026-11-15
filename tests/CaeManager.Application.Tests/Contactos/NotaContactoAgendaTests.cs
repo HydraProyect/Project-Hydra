@@ -7,7 +7,7 @@ using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
-using CaeManager.Application.Tests.ContratosAcceso;
+using CaeManager.Application.Tests.Inbound.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;

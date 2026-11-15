@@ -46,6 +46,8 @@ using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
+using CaeManager.Infrastructure.Inbound.Autorizacion;
+using CaeManager.Infrastructure.Inbound.Persistence;
 using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -448,15 +450,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IProyectoRequisitoRepository, ProyectoRequisitoRepository>();
-        services.AddScoped<CaeManager.Domain.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
-        services.AddScoped<CaeManager.Domain.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
+        services.AddScoped<CaeManager.Domain.Inbound.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
+        services.AddScoped<CaeManager.Domain.Inbound.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
         services.AddScoped<IPlantillaRequisitosEventoRepository, PlantillaRequisitosEventoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
         services.AddScoped<CaeManager.Domain.VigilanciaNormativa.IAvisoRevisionNormativaRepository, CaeManager.Infrastructure.Persistence.Repositories.AvisoRevisionNormativaRepository>();
         services.AddScoped<CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Calendario.ICalendarioLaboralQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IEncargoAdministracionRepository, EncargoAdministracionRepository>();
@@ -587,8 +589,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -703,9 +705,15 @@ public static class InfrastructureServiceCollectionExtensions
             AdministradorDelTenantPropietarioEnBase>();
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
-        services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
-        services.AddScoped<CaeManager.Domain.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
-        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        services.AddScoped<CaeManager.Domain.Inbound.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // ADR-013, mecanismo 10 (K-17): Inbound aporta sus claves de archivo a los barridos del Núcleo. La declaración de
+        // módulos hace que la reparación de adjuntos falle cerrada si a uno le falta su contribución.
+        services.AddSingleton(new CaeManager.Infrastructure.FileStorage.ModulosConReferenciasArchivo(
+            [CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound.NombreDelModulo]));
+        services.AddSingleton<CaeManager.Infrastructure.FileStorage.IContribucionReferenciasArchivo,
+            CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -765,10 +773,16 @@ public static class InfrastructureServiceCollectionExtensions
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
         services.AddScoped<DiskFileStorageService>();
         services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
-        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
-        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
-        // (ConsumidoresDelLectorInboundAcotadosTests).
-        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // La lectura que cruza Tenants, con la carpeta y la clave del Tenant propietario indicado. Va en una instancia
+        // distinta de la de IFileStorageService (DiskFileStorageService no implementa el puerto y su método es internal),
+        // para que un consumidor del almacenamiento del Tenant activo no la alcance con un cast. Solo la consume el
+        // adaptador de Inbound de abajo (AlmacenDeDiscoSoloPorSusPuertosTests).
+        services.AddScoped<CaeManager.Application.Common.Archivos.IAlmacenArchivosDelTenantPropietario, LecturaDeDiscoDelTenantPropietario>();
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. Desde
+        // ADR-013 M2 (K-3) la implementa un adaptador del módulo Inbound sobre el almacén del Núcleo, no el almacén de
+        // disco; solo la consumen los handlers que deciden antes la autoridad (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound,
+            CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound>();
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la

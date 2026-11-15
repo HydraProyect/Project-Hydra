@@ -24,15 +24,11 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
 {
     /// <summary>
     /// Las entradas Inbound que viven fuera de <c>*.Inbound.*</c>: las carpetas y la excepción que ya existían al crear
-    /// el registro (ADR-013 § 2.2) y que M1 moverá. Lista cerrada: lo nuevo de Inbound nace bajo <c>*.Inbound.*</c>
-    /// (§ 4.7), así que una línea Inbound nueva fuera de ahí da rojo aunque el tipo quede clasificado.
+    /// el registro (ADR-013 § 2.2). M1 las movió bajo <c>*.Inbound.*</c> y la lista quedó vacía. Lista cerrada: lo
+    /// nuevo de Inbound nace bajo <c>*.Inbound.*</c> (§ 4.7), así que una línea Inbound fuera de ahí da rojo aunque el
+    /// tipo quede clasificado.
     /// </summary>
-    private static readonly HashSet<string> InboundHeredado = new(StringComparer.Ordinal)
-    {
-        "Domain.ContratosAcceso", "Domain.AutorizacionesLectura", "Domain.EvidenciasInbound", "Domain.CatalogoBase",
-        "Application.ContratosAcceso", "Application.AutorizacionesLectura", "Application.CatalogoBase",
-        "Infrastructure.Autorizacion.LectorDocumentosInboundEnBase",
-    };
+    private static readonly HashSet<string> InboundHeredado = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Anclas de intención: tipos cuyo módulo fija ADR-013 § 3 o D-M1, y una de cada regla (área, excepción, derivación
@@ -45,19 +41,19 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
         { "CaeManager.Domain.Documentos.TipoDocumento", Modulo.Nucleo },
         { "CaeManager.Domain.Documentos.EstadoAcreditacion", Modulo.Outbound },
         { "CaeManager.Domain.Documentos.CausaRechazoAcreditacion", Modulo.Outbound },
-        { "CaeManager.Domain.ContratosAcceso.ContratoAcceso", Modulo.Inbound },
-        { "CaeManager.Domain.EvidenciasInbound.EvidenciaInbound", Modulo.Inbound },
+        { "CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", Modulo.Inbound },
+        { "CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound", Modulo.Inbound },
         { "CaeManager.Domain.Facturacion.TarifaCliente", Modulo.Facturacion },
         { "CaeManager.Domain.Dashboard.TarifaOperadorCae", Modulo.Facturacion },
         { "CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario", Modulo.Facturacion },
         { "CaeManager.Domain.Operaciones.AsignacionOperacion", Modulo.Nucleo },
         { "CaeManager.Domain.Operaciones.ServicioCae", Modulo.Nucleo },
         { "CaeManager.Application.Common.IAlcanceDatosService", Modulo.Nucleo },
-        { "CaeManager.Infrastructure.Autorizacion.LectorDocumentosInboundEnBase", Modulo.Inbound },
+        { "CaeManager.Infrastructure.Inbound.Autorizacion.LectorDocumentosInboundEnBase", Modulo.Inbound },
         { "CaeManager.Infrastructure.Persistence.CaeManagerDbContext", Modulo.Composicion },
         { "CaeManager.Infrastructure.Persistence.Configurations.TarifaClienteConfiguration", Modulo.Facturacion },
         { "CaeManager.Infrastructure.Persistence.Configurations.TipoDocumentoConfiguration", Modulo.Nucleo },
-        { "CaeManager.Infrastructure.Persistence.Repositories.ContratoAccesoRepository", Modulo.Inbound },
+        { "CaeManager.Infrastructure.Inbound.Persistence.ContratoAccesoRepository", Modulo.Inbound },
         { "CaeManager.Infrastructure.Persistence.Repositories.AcreditacionDocumentoPlataformaRepository", Modulo.Outbound },
         { "CaeManager.Infrastructure.Persistence.Interceptors.TenantRlsConnectionInterceptor", Modulo.Nucleo },
         { "Program", Modulo.Composicion },

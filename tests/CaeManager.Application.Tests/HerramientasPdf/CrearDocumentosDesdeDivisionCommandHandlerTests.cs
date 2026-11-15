@@ -561,23 +561,26 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     ];
 
     /// <summary>
-    /// Fuera del flujo que tiene la puerta: la puerta es reentrante por flujo asíncrono, y una operación lanzada desde dentro
-    /// del lote entraría sin esperar. Así es como llega la revalidación del circuito, desde su propio temporizador.
+    /// El contexto de ejecución de antes de lanzar el lote, sin la marca que la puerta pone en el flujo de la operación que la
+    /// tiene. Se captura al empezar el test, antes del lote.
     /// </summary>
-    private static Task DesdeOtroFlujo(Func<Task> operacion)
+    private static ExecutionContext FlujoFueraDeLaPuerta() =>
+        ExecutionContext.Capture() ?? throw new InvalidOperationException("El flujo del contexto de ejecución está suprimido.");
+
+    /// <summary>
+    /// Lanza una operación fuera del flujo que tiene la puerta, como llegan la revalidación del circuito (desde su propio
+    /// temporizador) y el cierre del circuito: la puerta es reentrante por flujo asíncrono, y una operación lanzada desde el
+    /// flujo del lote entraría sin esperar. Corre en este mismo hilo con el contexto de <paramref name="fueraDeLaPuerta"/> y
+    /// vuelve en cuanto la operación llega a su primera espera (en la puerta, si el lote la tiene), así que el orden no depende
+    /// de que el planificador conceda un hilo. Con Task.Run y esperas de 5 s, un grupo de hilos saturado en CI dejaba seguir al
+    /// lote antes de que la operación llegase a la puerta (#2244).
+    /// </summary>
+    private static T DesdeOtroFlujo<T>(ExecutionContext fueraDeLaPuerta, Func<T> lanzar)
+        where T : Task
     {
-        var lanzada = new ManualResetEventSlim();
-        Task tarea;
-        using (ExecutionContext.SuppressFlow())
-            tarea = Task.Run(() =>
-            {
-                lanzada.Set();
-                return operacion();
-            });
-        lanzada.Wait(TimeSpan.FromSeconds(5));
-        // Lo que separa la señal de la espera en el semáforo son unas pocas instrucciones síncronas.
-        Thread.Sleep(100);
-        return tarea;
+        T? tarea = null;
+        ExecutionContext.Run(fueraDeLaPuerta, _ => tarea = lanzar(), null);
+        return tarea!;
     }
 
     [Fact]
@@ -586,22 +589,27 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         var tenant = new TenantCambiante(_tenantId);
         var puerta = new PuertaAccesoDatos();
         var pantalla = new PantallaPorLaPuerta(puerta, Handler(tenantActual: tenant));
+        var fueraDelLote = FlujoFueraDeLaPuerta();
         Task? revalidacion = null;
+        var revalidacionEsperandoEnLaPuerta = false;
         // Mientras el primer tramo tiene la puerta, vence el intervalo de la revalidación del circuito: espera en la puerta y,
         // al entrar, retira la selección porque la cartera se revocó.
         _divisor.DuranteLaExtraccion = pagina =>
         {
-            if (pagina == 1)
-                revalidacion = DesdeOtroFlujo(() => puerta.EjecutarAsync(() =>
-                {
-                    tenant.TenantId = null;
-                    return Task.CompletedTask;
-                }));
+            if (pagina != 1)
+                return;
+            revalidacion = DesdeOtroFlujo(fueraDelLote, () => puerta.EjecutarAsync(() =>
+            {
+                tenant.TenantId = null;
+                return Task.CompletedTask;
+            }));
+            revalidacionEsperandoEnLaPuerta = !revalidacion.IsCompleted && tenant.TenantId is not null;
         };
 
         var resultado = await CreacionDivisionPdfPorTramos.CrearAsync(
             pantalla, [1, 2, 3], "paquete.pdf", _tenantId, _empresaId, TresTramos(), NullLogger.Instance, CancellationToken.None);
 
+        revalidacionEsperandoEnLaPuerta.Should().BeTrue("la revalidación llegó a la puerta mientras el primer tramo la tenía");
         await revalidacion!;
         resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
         resultado.Valor.Skip(1).Should().OnlyContain(r => r.CodigoError ==
@@ -616,20 +624,24 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     {
         var puerta = new PuertaAccesoDatos();
         var pantalla = new PantallaPorLaPuerta(puerta, Handler());
+        var fueraDelLote = FlujoFueraDeLaPuerta();
         Task<bool>? cierre = null;
+        var cierreEsperandoAlLote = false;
         _divisor.DuranteLaExtraccion = pagina =>
         {
             if (pagina != 2)
                 return;
-            // Como LiberacionDeAccesoADatosAlCerrarCircuito: cancela AlCerrarse y espera a la operación en vuelo.
-            using (ExecutionContext.SuppressFlow())
-                cierre = Task.Run(() => puerta.CerrarAsync(TimeSpan.FromSeconds(10)));
-            SpinWait.SpinUntil(() => puerta.AlCerrarse.IsCancellationRequested, TimeSpan.FromSeconds(5));
+            // Como LiberacionDeAccesoADatosAlCerrarCircuito, que llama a CerrarAsync desde el flujo del circuito: cancela
+            // AlCerrarse antes de su primera espera y se queda esperando a la operación en vuelo, así que el cierre llega
+            // mientras se extrae el tramo 2.
+            cierre = DesdeOtroFlujo(fueraDelLote, () => puerta.CerrarAsync(TimeSpan.FromSeconds(10)));
+            cierreEsperandoAlLote = puerta.AlCerrarse.IsCancellationRequested && !cierre.IsCompleted;
         };
 
         var resultado = await CreacionDivisionPdfPorTramos.CrearAsync(
             pantalla, [1, 2, 3], "paquete.pdf", _tenantId, _empresaId, TresTramos(), NullLogger.Instance, puerta.AlCerrarse);
 
+        cierreEsperandoAlLote.Should().BeTrue("el cierre canceló AlCerrarse y quedó esperando al lote mientras se extraía el tramo 2");
         (await cierre!).Should().BeTrue("el lote soltó la puerta antes de que el cierre dispusiera el scope");
         resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado, EstadoTramoCreado.Rechazado);
         resultado.Valor.Skip(1).Should().OnlyContain(r => r.CodigoError ==

@@ -16,6 +16,27 @@ public static class ReflexionArquitecturaHelper
     public static IEnumerable<Type> TiposQueReferencianNamespace(Assembly origen, string namespaceProhibido) =>
         TiposDe(origen).Where(t => !EsComposicionRoot(t) && ReferenciaNamespace(t, namespaceProhibido));
 
+    /// <summary>
+    /// Los tipos de <paramref name="origen"/>, contados como su tipo exterior, que nombran <paramref name="tipo"/> en
+    /// cualquier parte que lee <see cref="ReferenciasIl"/>: firmas, interfaces implementadas y el IL de los cuerpos. A
+    /// diferencia de <see cref="TiposQueReferencianTipo"/>, ve un <c>GetRequiredService&lt;T&gt;()</c> o un cast dentro de
+    /// un método, y no excluye Program ni la composición: cada test declara a quién autoriza, implementaciones y registro
+    /// incluidos. Hereda los límites de <see cref="ReferenciasIl"/> (resolución por cadena, constantes, <c>cref</c>).
+    /// </summary>
+    public static IEnumerable<Type> TiposQueNombranTipoEnIl(Assembly origen, Type tipo) =>
+        TiposDe(origen)
+            .Where(t => t != tipo && ReferenciasIl.De(t).Contains(tipo))
+            .Select(Exterior)
+            .Distinct();
+
+    // Los tipos que genera el compilador (máquinas de estado, clausuras) se cuentan como su tipo exterior.
+    private static Type Exterior(Type tipo)
+    {
+        while (tipo.DeclaringType is not null)
+            tipo = tipo.DeclaringType;
+        return tipo;
+    }
+
     // Program.cs (top-level statements, async Main) compila a una clase
     // "Program" cuyo estado entre awaits el compilador hospeda en structs
     // anidados (p. ej. "Program+<<Main>$>d__0") con un campo por variable local

@@ -37,8 +37,8 @@ public class DetectorEstadoMaterializadoTests
         // reclamaciones, verificaciones, detecciones, vehículos y visitas. Si alguna pasa a leerse, sale de aquí y entra
         // en InventarioDisparadoresEstado.
         "CaeManager.Domain.Auditoria.RegistroAccesoDocumentoSensible",
-        "CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound",
-        "CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador",
+        "CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound",
+        "CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador",
         "CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss",
         "CaeManager.Domain.Comunicaciones.AdjuntoMensaje",
         "CaeManager.Domain.Comunicaciones.Conversacion",
@@ -47,7 +47,7 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Comunicaciones.SugerenciaVisitaCorreo",
         "CaeManager.Domain.Contactos.ContactoAgenda",
         "CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento",
-        "CaeManager.Domain.ContratosAcceso.ContratoAcceso",
+        "CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso",
         "CaeManager.Domain.Documentos.AprobacionDocumento",
         "CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente",
         "CaeManager.Domain.Documentos.FirmaDigitalDocumento",
@@ -64,7 +64,7 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Empresas.DelegacionEmpresa",
         "CaeManager.Domain.Empresas.OficioEmpresa",
         "CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial",
-        "CaeManager.Domain.EvidenciasInbound.EvidenciaInbound",
+        "CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound",
         "CaeManager.Domain.Gestiones.Gestion",
         // La Gestión automática solo agrupa acreditaciones ya existentes; su estado se deriva de ellas, no al revés.
         "CaeManager.Domain.Gestiones.GestionAutomatica",

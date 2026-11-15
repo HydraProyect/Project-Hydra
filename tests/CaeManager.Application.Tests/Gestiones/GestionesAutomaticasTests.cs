@@ -1,7 +1,7 @@
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 using CaeManager.Application.Tests.Clientes;
-using CaeManager.Application.Tests.ContratosAcceso;
+using CaeManager.Application.Tests.Inbound.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;

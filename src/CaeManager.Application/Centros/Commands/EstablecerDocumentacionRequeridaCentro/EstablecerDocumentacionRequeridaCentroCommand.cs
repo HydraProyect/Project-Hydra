@@ -1,7 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
-using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
@@ -120,7 +119,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
                 return false;
             if (!cambiaClave)
                 return true;
-            if (centro.TenantId == Guid.Empty || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId))
+            if (centro.TenantId == Guid.Empty || !ClavesDeAlmacen.EsDeLaCarpetaDelTenant(archivoUrl, centro.TenantId))
                 return false;
             return await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
         }

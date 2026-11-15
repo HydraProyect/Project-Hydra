@@ -9,7 +9,7 @@ using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
-using CaeManager.Application.Tests.ContratosAcceso;
+using CaeManager.Application.Tests.Inbound.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
@@ -27,7 +27,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using TenantActualFijo = CaeManager.Application.Tests.AutorizacionesLectura.TenantActualFijo;
+using TenantActualFijo = CaeManager.Application.Tests.Inbound.AutorizacionesLectura.TenantActualFijo;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 

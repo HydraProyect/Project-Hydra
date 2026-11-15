@@ -86,9 +86,9 @@ public class CaeManagerDbContext(
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
         IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
         CaeManager.Application.Plataforma.IPlataformaQueryContext,
-        CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext,
-        CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext,
-        CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext,
+        CaeManager.Application.Inbound.ContratosAcceso.IContratosAccesoQueryContext,
+        CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext,
+        CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
@@ -98,19 +98,19 @@ public class CaeManagerDbContext(
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
         CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext,
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
-        CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext
+        CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext
 {
     // Catálogo base de Plataforma (B-13): global, sin Tenant ni RLS; el runtime solo tiene SELECT.
-    public DbSet<CaeManager.Domain.CatalogoBase.ActividadCatalogo> CatalogoActividades => Set<CaeManager.Domain.CatalogoBase.ActividadCatalogo>();
-    public DbSet<CaeManager.Domain.CatalogoBase.CodigoOficialActividad> CatalogoActividadesCodigosOficiales => Set<CaeManager.Domain.CatalogoBase.CodigoOficialActividad>();
-    public DbSet<CaeManager.Domain.CatalogoBase.RiesgoCatalogo> CatalogoRiesgos => Set<CaeManager.Domain.CatalogoBase.RiesgoCatalogo>();
-    public DbSet<CaeManager.Domain.CatalogoBase.RequisitoBase> CatalogoRequisitosBase => Set<CaeManager.Domain.CatalogoBase.RequisitoBase>();
-    public DbSet<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito> CatalogoReglasRiesgoRequisito => Set<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito>();
-    IQueryable<CaeManager.Domain.CatalogoBase.ActividadCatalogo> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividades => CatalogoActividades.AsNoTracking();
-    IQueryable<CaeManager.Domain.CatalogoBase.CodigoOficialActividad> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividadesCodigosOficiales => CatalogoActividadesCodigosOficiales.AsNoTracking();
-    IQueryable<CaeManager.Domain.CatalogoBase.RiesgoCatalogo> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRiesgos => CatalogoRiesgos.AsNoTracking();
-    IQueryable<CaeManager.Domain.CatalogoBase.RequisitoBase> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRequisitosBase => CatalogoRequisitosBase.AsNoTracking();
-    IQueryable<CaeManager.Domain.CatalogoBase.ReglaRiesgoRequisito> CaeManager.Application.CatalogoBase.ICatalogoBaseQueryContext.CatalogoReglasRiesgoRequisito => CatalogoReglasRiesgoRequisito.AsNoTracking();
+    public DbSet<CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo> CatalogoActividades => Set<CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo>();
+    public DbSet<CaeManager.Domain.Inbound.CatalogoBase.CodigoOficialActividad> CatalogoActividadesCodigosOficiales => Set<CaeManager.Domain.Inbound.CatalogoBase.CodigoOficialActividad>();
+    public DbSet<CaeManager.Domain.Inbound.CatalogoBase.RiesgoCatalogo> CatalogoRiesgos => Set<CaeManager.Domain.Inbound.CatalogoBase.RiesgoCatalogo>();
+    public DbSet<CaeManager.Domain.Inbound.CatalogoBase.RequisitoBase> CatalogoRequisitosBase => Set<CaeManager.Domain.Inbound.CatalogoBase.RequisitoBase>();
+    public DbSet<CaeManager.Domain.Inbound.CatalogoBase.ReglaRiesgoRequisito> CatalogoReglasRiesgoRequisito => Set<CaeManager.Domain.Inbound.CatalogoBase.ReglaRiesgoRequisito>();
+    IQueryable<CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo> CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividades => CatalogoActividades.AsNoTracking();
+    IQueryable<CaeManager.Domain.Inbound.CatalogoBase.CodigoOficialActividad> CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext.CatalogoActividadesCodigosOficiales => CatalogoActividadesCodigosOficiales.AsNoTracking();
+    IQueryable<CaeManager.Domain.Inbound.CatalogoBase.RiesgoCatalogo> CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRiesgos => CatalogoRiesgos.AsNoTracking();
+    IQueryable<CaeManager.Domain.Inbound.CatalogoBase.RequisitoBase> CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext.CatalogoRequisitosBase => CatalogoRequisitosBase.AsNoTracking();
+    IQueryable<CaeManager.Domain.Inbound.CatalogoBase.ReglaRiesgoRequisito> CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext.CatalogoReglasRiesgoRequisito => CatalogoReglasRiesgoRequisito.AsNoTracking();
 
     public DbSet<CaeManager.Domain.CalendarioLaboral.FestivoOficial> FestivosOficiales => Set<CaeManager.Domain.CalendarioLaboral.FestivoOficial>();
     IQueryable<CaeManager.Domain.CalendarioLaboral.FestivoOficial> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.FestivosOficiales => FestivosOficiales.AsNoTracking();
@@ -283,21 +283,21 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoTecnico> IProyectosQueryContext.ProyectosTecnicos => ProyectosTecnicos;
     public DbSet<ProyectoRequisito> ProyectosRequisitos => Set<ProyectoRequisito>();
     IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
-    public DbSet<CaeManager.Domain.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.ContratosAcceso.ContratoAcceso>();
-    IQueryable<CaeManager.Domain.ContratosAcceso.ContratoAcceso> CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
-    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> AutorizacionesLecturaDocumental => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental>();
-    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
-    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador>();
-    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
+    public DbSet<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso>();
+    IQueryable<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso> CaeManager.Application.Inbound.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
+    public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental> AutorizacionesLecturaDocumental => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental>();
+    IQueryable<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
+    public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador>();
+    IQueryable<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
     // Inbound M1, PR 3: registro de las lecturas entre Tenants. Solo lo inserta la base (app_inbound_*); EF solo lo lee.
-    public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
+    public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound>();
     public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
     public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
     // Revocación en servidor de la sesión de cookie (claim talveg:sid). Ver RegistroSesionesUsuario.
     public DbSet<CaeManager.Domain.Seguridad.SesionUsuario> SesionesUsuario => Set<CaeManager.Domain.Seguridad.SesionUsuario>();
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
-    public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
-    IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
+    public DbSet<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound>();
+    IQueryable<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
     // Estado materializado: las tablas (PR 2), que escribe el recálculo (PR 3 y 4) y leen los lectores de Centro (PR 6) por
     // IEstadoMaterializadoQueryContext.
     public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> EstadosRequisito => Set<CaeManager.Domain.EstadoMaterializado.EstadoRequisito>();

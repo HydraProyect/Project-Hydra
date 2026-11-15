@@ -1,8 +1,4 @@
 # Aristas Núcleo -> Inbound leídas del IL (ADR-013 § 4.1 regla 3 y § 4.3 test 2; DependenciasEntreModulosTests).
-# Deuda que solo baja: K-1 (EstablecerDocumentacionRequeridaCentro), K-3 (DiskFileStorageService), K-17 (ReparacionAdjuntosTemporales).
+# CERRADA y vacía desde M2: no admite altas. K-1 y K-17 se cerraron con la regla de claves del almacén en el Núcleo y el
+# puerto de contribución; K-3, con el adaptador de Inbound sobre el almacén del Núcleo (AdaptadorAlmacenOriginalesInbound).
 # Formato: tipo de origen :: Módulo: tipo de destino = 1.
-Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro.EstablecerDocumentacionRequeridaCentroCommandHandler :: Inbound: Application.ContratosAcceso.EvidenciasInbound.OriginalesInbound = 1
-Infrastructure.FileStorage.DiskFileStorageService :: Inbound: Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound = 1
-Infrastructure.FileStorage.DiskFileStorageService :: Inbound: Application.ContratosAcceso.EvidenciasInbound.OriginalesInbound = 1
-Infrastructure.FileStorage.DiskFileStorageService :: Inbound: Application.ContratosAcceso.LecturaInbound.ArchivoInboundDto = 1
-Infrastructure.FileStorage.ReparacionAdjuntosTemporales :: Inbound: Domain.EvidenciasInbound.EvidenciaInbound = 1

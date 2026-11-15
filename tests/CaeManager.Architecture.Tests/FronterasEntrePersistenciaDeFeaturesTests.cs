@@ -762,7 +762,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
         ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
         // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
-        // (Domain.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
+        // (Domain.Inbound.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
         // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
         // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
@@ -1183,8 +1183,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
             "coló un acoplamiento que el revisor no pilló");
     }
 
-    // "Feature" = segundo segmento del namespace bajo CaeManager.Application
-    // (lectura, I*QueryContext) o CaeManager.Domain (escritura, I*Repository).
+    // "Feature" = primer segmento del namespace bajo CaeManager.Application
+    // (lectura, I*QueryContext) o CaeManager.Domain (escritura, I*Repository),
+    // saltando el segmento de módulo (Inbound, Outbound, Nucleo; ADR-013 § 4.7):
+    // CaeManager.Application.Inbound.ContratosAcceso.X es la feature ContratosAcceso,
+    // la misma que antes de M1, para que el movimiento no funda las features de un módulo.
     // Common/DependencyInjection son compartidos por diseño (p. ej. IUnitOfWork),
     // no pertenecen a ninguna feature y quedan fuera de esta comprobación.
     private static string? Feature(string? ns)
@@ -1196,7 +1199,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         if (segmentos[0] != "CaeManager") return null;
         if (segmentos[1] != "Application" && segmentos[1] != "Domain") return null;
 
-        var feature = segmentos[2];
+        var indice = segmentos[2] is "Inbound" or "Outbound" or "Nucleo" ? 3 : 2;
+        if (segmentos.Length <= indice) return null;
+
+        var feature = segmentos[indice];
         return feature is "Common" or "DependencyInjection" ? null : feature;
     }
 }

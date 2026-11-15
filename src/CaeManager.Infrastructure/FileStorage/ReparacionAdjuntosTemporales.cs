@@ -3,12 +3,12 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.EvidenciasInbound;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -38,10 +38,63 @@ public sealed record AdjuntoTemporalDefinitivo(string RutaAnterior, string RutaN
 /// actualizando solo la referencia. Una referencia sin fichero en disco se informa y no se toca.
 /// Nunca inventa una extensión: si no puede recuperarse, el definitivo queda sin ella y se
 /// registra un aviso con el tipo y el id de cada registro afectado, sin nombres de fichero.
+/// Recorre los campos que nombra aquí y los que cada módulo aporta por
+/// <see cref="IContribucionReferenciasArchivo"/> (ADR-013, mecanismo 10). Fuera de los tests solo se construye con
+/// <see cref="Crear"/>, que toma del contenedor todas las contribuciones registradas: así ningún llamador puede dejar
+/// fuera las de un módulo.
 /// </summary>
-public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger = null)
+public sealed class ReparacionAdjuntosTemporales
 {
-    private readonly ILogger _logger = logger ?? NullLogger.Instance;
+    private readonly DbContext db;
+    private readonly ILogger _logger;
+
+    internal ReparacionAdjuntosTemporales(
+        DbContext db, IEnumerable<IContribucionReferenciasArchivo> contribuciones, ILogger? logger = null)
+    {
+        this.db = db;
+        CamposAportados = contribuciones.SelectMany(c => c.Campos).ToList();
+        _logger = logger ?? NullLogger.Instance;
+    }
+
+    /// <summary>
+    /// La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>. Falla cerrada
+    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> exactamente una vez y no vacía, si un módulo
+    /// aporta más de una contribución, o si a un módulo declarado le falta la suya: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
+    /// referencia quedaría rota.
+    /// </summary>
+    public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null)
+    {
+        // Todas las declaraciones, no la última: con GetService, un segundo registro taparía al primero.
+        var declaraciones = servicios.GetServices<ModulosConReferenciasArchivo>().ToList();
+        if (declaraciones.Count == 0)
+            throw new InvalidOperationException(
+                "La composición no declara qué módulos aportan referencias de archivo: la reparación no se ejecuta.");
+        if (declaraciones.Count > 1)
+            throw new InvalidOperationException(
+                "La composición declara más de una vez qué módulos aportan referencias de archivo: la reparación no se ejecuta.");
+        var declarados = declaraciones[0];
+        if (declarados.Modulos.Count == 0)
+            throw new InvalidOperationException(
+                "La composición declara vacía la lista de módulos que aportan referencias de archivo: la reparación no se ejecuta.");
+        var contribuciones = servicios.GetServices<IContribucionReferenciasArchivo>().ToList();
+        // Un módulo que aporta dos veces es un error de composición (el barrido recorrería sus campos dos veces): falla
+        // cerrada, como la declaración repetida (deuda baja de la revisión de la #2247).
+        var repetidos = contribuciones.GroupBy(c => c.Modulo, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        if (repetidos.Count > 0)
+            throw new InvalidOperationException(
+                $"Las referencias de archivo de {string.Join(", ", repetidos)} se aportan más de una vez: la reparación no se ejecuta.");
+        var faltan = declarados.Modulos.Except(contribuciones.Select(c => c.Modulo), StringComparer.Ordinal).ToList();
+        if (faltan.Count > 0)
+            throw new InvalidOperationException(
+                $"Faltan las referencias de archivo de {string.Join(", ", faltan)}: la reparación no se ejecuta, porque " +
+                "podría renombrar archivos que esas referencias comparten.");
+        return new(db, contribuciones, logger);
+    }
+
+    /// <summary>Los campos que aportan los módulos, en el orden en que se recogen.</summary>
+    internal IReadOnlyList<CampoReferenciaArchivo> CamposAportados { get; }
+
     public const string Argumento = "--reparar-adjuntos-temporales";
     private static readonly Regex Sufijo = new(@"\.tmp-[0-9a-f]{32}\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -69,7 +122,10 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
         await RecogerAsync<Documento>("ArchivoUrl", referencias, cancellationToken);
         await RecogerAsync<AdjuntoMensaje>("ArchivoUrl", referencias, cancellationToken);
         await RecogerAsync<TipoDocumentoCentro>("ArchivoUrl", referencias, cancellationToken);
-        await RecogerAsync<EvidenciaInbound>("ArchivoUrl", referencias, cancellationToken);
+        // Los campos aportados se recogen donde se recogía la evidencia Inbound antes de ADR-013 M2 (K-17): el orden de
+        // recogida fija el del informe, que así no cambia.
+        foreach (var campo in CamposAportados)
+            await campo.Recoger(this, referencias, cancellationToken);
         await RecogerAsync<PlantillaDocumentoVersion>("ArchivoOriginalUrl", referencias, cancellationToken);
         await RecogerAsync<SolicitudCertificacionTgss>("EvidenciaArchivoRuta", referencias, cancellationToken);
         await RecogerAsync<VerificacionExternaSubcontrata>("EvidenciaArchivoRuta", referencias, cancellationToken);
@@ -173,7 +229,7 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
         }
     }
 
-    private async Task RecogerAsync<T>(string campo, List<PropertyEntry> referencias, CancellationToken ct) where T : class
+    internal async Task RecogerAsync<T>(string campo, List<PropertyEntry> referencias, CancellationToken ct) where T : class
     {
         if (db.Model.FindEntityType(typeof(T)) is null) return;
         // Solo este comando administrativo usa el contexto de bootstrap; los filtros

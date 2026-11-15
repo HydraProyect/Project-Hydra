@@ -13,8 +13,8 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Direcciones prohibidas</b> (ADR-013 § 4.1, reglas 1 a 3; D-F2 para Facturación): Inbound -> Outbound (cerrada, solo
-/// K-5 hasta B-22), Outbound -> Inbound (cerrada, objetivo vacía; hoy solo K-2), Núcleo -> Inbound y Núcleo -> Outbound
-/// (deuda que solo baja), Facturación
+/// K-5 hasta B-22), Outbound -> Inbound (cerrada y vacía desde que M2 cerró K-2), Núcleo -> Inbound (cerrada y vacía desde que
+/// M2 cerró K-1, K-3 y K-17) y Núcleo -> Outbound (deuda que solo baja), Facturación
 /// -> fuera del Núcleo y «nadie depende de Facturación». Permitidas y no listadas: todos -> Núcleo, y el punto de
 /// composición, que puede referenciar todos los módulos (regla 4). Las referencias a <c>Composicion</c> se miden y se
 /// informan, no se congelan.
@@ -62,11 +62,11 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
             "Inbound -> Outbound: lista cerrada, no admite altas (ADR-013 § 4.3). Hoy solo K-5 (EvidenciaInbound reutiliza el " +
             "estado de acreditación de Outbound) hasta B-22. Sube al Núcleo lo que Inbound necesita; no añadas la línea."),
         new("Modulos-Outbound-a-Inbound", [(Modulo.Outbound, Modulo.Inbound)], Grano.Tipo,
-            "Outbound -> Inbound: lista cerrada, objetivo vacía (ADR-013 § 4.3). Hoy solo K-2: el registro clasifica " +
-            "Application.Importacion como Outbound y AnalizarPlantillaMaestraQuery usa AutorizacionLecturaAutoridad. Outbound no conoce a Inbound."),
+            "Outbound -> Inbound: lista cerrada y vacía (ADR-013 § 4.3; K-2 se cerró en M2). Outbound no conoce a Inbound: " +
+            "lo que ambos necesitan sube al Núcleo o entra por un puerto suyo; no añadas la línea."),
         new("Modulos-Nucleo-a-Inbound", [(Modulo.Nucleo, Modulo.Inbound)], Grano.Tipo,
-            "Núcleo -> Inbound: prohibida (ADR-013 § 4.1, regla 3); la deuda (K-1, K-3, K-17) solo baja. Una línea que ya " +
-            "no se mide se borra; una nueva no se añade: contribuye por un puerto del Núcleo (mecanismo 10)."),
+            "Núcleo -> Inbound: lista cerrada y vacía (ADR-013 § 4.1, regla 3; K-1, K-3 y K-17 se cerraron en M2). El Núcleo no " +
+            "conoce a Inbound: Inbound implementa sus puertos sobre los del Núcleo o contribuye por uno suyo (mecanismo 10); no añadas la línea."),
         new("Modulos-Nucleo-a-Outbound", [(Modulo.Nucleo, Modulo.Outbound)], Grano.Modulo,
             "Núcleo -> Outbound: prohibida (ADR-013 § 4.1, regla 3); la deuda de K-16 solo baja (N-4). Una línea que ya no se " +
             "mide o cuyo recuento baja se corrige en el mismo PR; un tipo nuevo del Núcleo no puede referenciar Outbound."),
@@ -138,38 +138,26 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
     }
 
     [Fact]
-    public void Outbound_a_Inbound_es_una_lista_cerrada_que_solo_admite_K2()
+    public void Outbound_a_Inbound_es_una_lista_cerrada_y_vacia()
     {
         var lineas = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Outbound-a-Inbound"))).Keys;
 
-        foreach (var linea in lineas)
-        {
-            linea.Lugar.Should().Be("Application.Importacion.Queries.AnalizarPlantillaMaestraQueryHandler",
-                "Outbound -> Inbound solo admite K-2 (la autoridad de lectura que usa el análisis de la plantilla maestra)");
-            linea.Simbolo.Should().Be("Inbound: Application.AutorizacionesLectura.AutorizacionLecturaAutoridad");
-        }
+        lineas.Should().BeEmpty("Outbound -> Inbound quedó vacía al cerrar K-2 (ADR-013 M2) y no admite altas");
     }
 
     /// <summary>
-    /// La deuda Núcleo -> Inbound (K-1, K-3, K-17) también está fijada en código: solo baja. Límite declarado: las listas de
-    /// Núcleo -> Outbound, de Facturación y hacia Facturación son deuda que solo baja sin conjunto permitido en código (es
-    /// anterior al módulo), así que una arista nueva con su línea añadida a mano pone en verde el test de la lista y solo
-    /// la revisión de la PR la detiene.
+    /// Núcleo -> Inbound quedó vacía al cerrar K-3 en M2 (K-1 y K-17 se habían cerrado antes en el mismo paso), y el vacío
+    /// está fijado en código: añadir a mano una línea a la lista no deja el test de la lista en verde por sí sola. Límite
+    /// declarado: las listas de Núcleo -> Outbound, de Facturación y hacia Facturación son deuda que solo baja sin conjunto
+    /// permitido en código (es anterior al módulo), así que una arista nueva con su línea añadida a mano pone en verde el
+    /// test de la lista y solo la revisión de la PR la detiene.
     /// </summary>
     [Fact]
-    public void Nucleo_a_Inbound_solo_contiene_la_deuda_K1_K3_K17()
+    public void Nucleo_a_Inbound_es_una_lista_cerrada_y_vacia()
     {
-        string[] permitidas =
-        [
-            "Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro.EstablecerDocumentacionRequeridaCentroCommandHandler",
-            "Infrastructure.FileStorage.DiskFileStorageService",
-            "Infrastructure.FileStorage.ReparacionAdjuntosTemporales",
-        ];
-
         var lineas = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Nucleo-a-Inbound"))).Keys;
 
-        lineas.Select(l => l.Lugar).Distinct().Should().BeSubsetOf(permitidas,
-            "Núcleo -> Inbound solo baja: K-1 (documentación requerida del centro), K-3 (almacén de ficheros), K-17 (reparación de adjuntos)");
+        lineas.Should().BeEmpty("Núcleo -> Inbound quedó vacía al cerrar K-1, K-3 y K-17 (ADR-013 M2) y no admite altas");
     }
 
     [Fact]
