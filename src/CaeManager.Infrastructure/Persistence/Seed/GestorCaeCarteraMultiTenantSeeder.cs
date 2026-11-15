@@ -225,12 +225,12 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 
-            // Revocada: la siembra no reabre la fila heredada; el trigger la rechazaría (PR #2237).
-            if (!delegacion.Activa)
+            // Revocada, o con historia (revocada y reactivada, filas heredadas revocadas, operaciones sin ninguna
+            // amparada): la siembra no reabre nada (rondas 1 y 2 de Codex en la PR #2237).
+            if (!delegacion.Activa || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
                 return false;
             if (gestor is null
-                || await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                    a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == gestor.Id, cancellationToken))
+                || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, gestor.Id, cancellationToken))
                 return true;
 
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(

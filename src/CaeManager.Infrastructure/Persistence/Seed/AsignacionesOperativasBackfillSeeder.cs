@@ -22,10 +22,10 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// falta, en cada arranque, hasta que la doble escritura quede establecida.
 ///
 /// <para>
-/// <b>Nunca reabre ni recrea una Asignación de Operación externa</b> (decisión de
-/// Chris del 2026-11-14): solo crea la de una delegación que no tuvo ninguna. Si el
-/// par ya tiene alguna, aunque esté cerrada o expirada, lo que falte lo abre un acto
-/// explícito (reactivar la delegación), nunca el arranque.
+/// <b>Nunca crea, reabre ni recrea una Asignación de Operación externa</b> (decisión de
+/// Chris del 2026-11-14; ronda 2 de Codex en la PR #2237, alta 5): tampoco la de una
+/// delegación activa que no tuvo ninguna. Lo que falte lo abre un acto explícito (el alta
+/// o la reactivación de la delegación por su comando), nunca el arranque.
 /// </para>
 ///
 /// <para>
@@ -215,60 +215,16 @@ public static class AsignacionesOperativasBackfillSeeder
             // Ya migrada para este operador: tiene su operación del Tenant entero sin cerrar.
             if (operacionesDelPar.Any(o => o.Ambito.EsUniversal && o.Estado != EstadoAsignacion.Cerrada)) continue;
 
-            // El backfill solo traslada al modelo nuevo una delegación que NUNCA tuvo Asignación de
-            // Operación. Si el par ya tiene alguna —cerrada, expirada o acotada—, la delegación ya
-            // vive en el modelo nuevo y lo que falte lo abre un acto explícito (reactivar la
-            // delegación), no el arranque. Antes se ignoraba la cerrada y se creaba otra: una
-            // operación expirada antes que su delegación volvía a autorizar en el arranque
-            // siguiente, también a los perfiles que autorizan sin cartera (hallazgo de Codex en la
-            // revisión de la PR #2215; decisión de Chris del 2026-11-14).
-            if (operacionesDelPar.Count > 0)
-            {
-                incidencias.Add(
-                    $"Delegación {delegacion.Id}: activa, pero sin Asignación de Operación Outbound del Tenant " +
-                    "entero abierta y con otras ya cerradas, expiradas o acotadas. El backfill no reabre ni recrea " +
-                    "operaciones: no migrada, requiere un acto explícito (reactivar la delegación).");
-                continue;
-            }
-
-            // El invariante real es POR CLIENTE, no por (cliente, operador):
-            // IX_AsignacionesOperacion_DelegacionTotalVigente exige como mucho
-            // una delegación total vigente por cliente, sea quien sea el
-            // operador — comparar también por operador aquí (como hacía antes
-            // este chequeo) dejaba pasar dos delegaciones activas simultáneas
-            // del mismo cliente hacia operadores distintos, un estado que el
-            // modelo antiguo nunca impidió y que el índice único rechaza con
-            // 23505. Encontrado en producción el 2026-08-24 (ver
-            // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md).
-            var operacionDeOtroOperador = operaciones.FirstOrDefault(o =>
-                !o.EsRaiz
-                && o.PropietarioTenantId == propietarioId
-                && o.OperadorTenantId != delegacion.TenantConsultoraId
-                && o.Servicio == ServicioCae.Outbound
-                && o.Ambito.EsUniversal
-                && o.Estado == EstadoAsignacion.Vigente);
-
-            if (operacionDeOtroOperador is not null)
-            {
-                incidencias.Add(
-                    $"Delegación {delegacion.Id} (cliente {delegacion.TenantClienteId} → consultora " +
-                    $"{delegacion.TenantConsultoraId}): el cliente ya tiene una delegación total vigente hacia " +
-                    $"otro operador ({operacionDeOtroOperador.OperadorTenantId}). El modelo nuevo exige una sola " +
-                    "delegación total vigente por cliente — no adivinar cuál es la vigente. No migrada, requiere " +
-                    "decisión humana.");
-                continue;
-            }
-
-            var nueva = AsignacionOperacion.Externa(
-                delegacion.TenantClienteId, delegacion.TenantConsultoraId, ServicioCae.Outbound,
-                AmbitoAsignacion.Universal,
-                delegacion.ActivadaEnUtc ?? delegacion.CreadoEnUtc,
-                delegacion.ExpiraEnUtc, ahora);
-            nueva.FijarOrigen(delegacion);
-
-            dbContext.AsignacionesOperacion.Add(nueva);
-            operaciones.Add(nueva);
-            creadas++;
+            // El backfill nunca crea una Asignación de Operación externa (ronda 2 de Codex en la PR #2237, alta 5;
+            // decisión de la coordinadora): la ausencia de operaciones del par no prueba que la activación vigente de la
+            // delegación autorice abrir una en el arranque —la delegación pudo revocarse y reactivarse sin dejar
+            // rastro—, y la operación del Tenant entero abre el Tenant propietario a los perfiles que no necesitan
+            // cartera. Solo la abre un acto explícito: el alta o la reactivación de la delegación por su comando. Un par
+            // activo sin operación queda sin acceso (falla cerrado) y se informa.
+            incidencias.Add(
+                $"Delegación {delegacion.Id} (Tenant propietario {delegacion.TenantClienteId} → Operador CAE externo " +
+                $"{delegacion.TenantConsultoraId}): activa, pero sin Asignación de Operación Outbound del Tenant entero " +
+                "abierta. El backfill no crea operaciones externas: sin acceso hasta un acto explícito (reactivar la delegación).");
         }
 
         // --- 2a. Las operaciones externas que no guardan su procedencia se cierran ---
@@ -402,7 +358,10 @@ public static class AsignacionesOperativasBackfillSeeder
                 && o.Estado == EstadoAsignacion.Vigente
                 // Solo bajo una operación nacida de esta misma delegación: la fila heredada de una delegación
                 // no da cartera bajo la operación de otra del mismo par.
-                && o.OrigenId == delegacion.Id);
+                && o.OrigenId == delegacion.Id
+                // Y sin revocaciones de esa delegación desde que nació (AmparoDeOrigen): bajo una operación que
+                // sobrevivió a una revocación, la cartera nueva no autorizaría nada.
+                && o.RevocacionesDelOrigen == delegacion.Revocaciones);
 
             if (operacion is null)
             {

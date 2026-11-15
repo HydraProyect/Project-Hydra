@@ -11370,6 +11370,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.Property<int>("Revocaciones")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("integer");
 
                     b.Property<Guid>("TenantClienteId")

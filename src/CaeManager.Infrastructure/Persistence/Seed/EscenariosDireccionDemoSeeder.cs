@@ -201,6 +201,13 @@ public static class EscenariosDireccionDemoSeeder
     {
         var delegacion = await AbrirOperacionExternaDeLaRamaAsync(
             dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, cancellationToken);
+        if (delegacion is null)
+        {
+            logger.LogWarning(
+                "Rama de escenarios de dirección {Tenant}: su delegación tiene historia (revocada o reactivada); la siembra no la reabre.",
+                rama.NombreTenant);
+            return;
+        }
 
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
@@ -261,7 +268,7 @@ public static class EscenariosDireccionDemoSeeder
     /// reactiva, porque una rama sin delegación vigente no tendría cartera que
     /// enseñar.
     /// </summary>
-    private static async Task<DelegacionTenant> AbrirOperacionExternaDeLaRamaAsync(
+    private static async Task<DelegacionTenant?> AbrirOperacionExternaDeLaRamaAsync(
         CaeManagerDbContext dbContext, RamaEscenariosDemo rama, Guid tenantPropietarioId, Guid tenantOperadorId,
         EquipoOperador equipo, CancellationToken cancellationToken)
     {
@@ -269,6 +276,13 @@ public static class EscenariosDireccionDemoSeeder
         {
             var delegacion = await dbContext.DelegacionesTenant.FirstAsync(
                 d => d.TenantConsultoraId == tenantOperadorId && d.TenantClienteId == tenantPropietarioId, cancellationToken);
+
+            // La siembra solo reactiva una delegación que nunca terminó una activación ni dejó historia (la de Krusty
+            // Krab nace inactiva con el contador a cero): si ya hubo una revocación contada, filas heredadas revocadas u
+            // operaciones del par sin ninguna amparada, no la reactiva ni repone nada; la reactivación es un acto
+            // explícito (ronda 2 de Codex en la PR #2237, media 6).
+            if (await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
+                return null;
 
             if (!delegacion.Activa)
             {
@@ -291,8 +305,7 @@ public static class EscenariosDireccionDemoSeeder
 
             foreach (var (usuario, rol) in asignaciones)
             {
-                if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                        a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == usuario.Id, cancellationToken))
+                if (!await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                     continue;
 
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol));

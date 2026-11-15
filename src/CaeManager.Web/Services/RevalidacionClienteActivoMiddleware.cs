@@ -374,12 +374,16 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         // evita atribuir a la caducidad de Soporte lo que pudo ser otra revocación.
         // Revocar una delegación de Operador CAE externo revoca también sus filas heredadas (PR #2237), así que la
         // fila de la delegación ordinaria que pudo abrir la selección ya no se ve. Cuentan también las delegaciones
-        // de cualquier propósito del Tenant de origen del usuario hacia ese tenant, estén o no activas: solo empujan
-        // hacia el texto general, que siempre es cierto.
+        // ordinarias (no de Soporte) del Tenant de origen del usuario hacia ese tenant que se revocaron alguna vez
+        // (inactivas o con alguna revocación contada): son las que pudieron revocar esa fila, y solo empujan hacia el
+        // texto general, que siempre es cierto. Una ordinaria activa y nunca revocada no cuenta si el usuario no tiene
+        // fila en ella: no pudo ser la que se llevó el acceso.
         var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
         var propositos = await dbContext.DelegacionesTenant
             .Where(delegacion => delegacion.TenantClienteId == tenantSeleccionado
-                && (delegacion.TenantConsultoraId == origen
+                && ((delegacion.TenantConsultoraId == origen
+                        && delegacion.Proposito != PropositoDelegacion.Soporte
+                        && (!delegacion.Activa || delegacion.Revocaciones > 0))
                     || dbContext.AsignacionesOperadorDelegado.Any(
                         asignacion => asignacion.DelegacionTenantId == delegacion.Id && asignacion.UsuarioId == usuarioId.Value)))
             .Select(delegacion => delegacion.Proposito)

@@ -833,11 +833,15 @@ public class CatalogoIncorporacionCartera(
 
         // La cartera y la Asignación de Operación que la sostiene, las dos vigentes (mismo
         // criterio que ObtenerOperacionVigenteAsync): una operación caducada o suspendida deja
-        // la cartera sin efecto aunque la propia cartera siga marcada como vigente.
+        // la cartera sin efecto aunque la propia cartera siga marcada como vigente. Y la operación
+        // amparada por su origen, como en los demás lectores de este catálogo (Codex r2 en la
+        // PR #2237, media 9): una DelegacionTenant revocada deja sin efecto la cartera.
         var ahora = DateTime.UtcNow;
         var vigentes = await (
                 from c in dbContext.AsignacionesCartera
-                join o in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
+                join o in dbContext.AsignacionesOperacion
+                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
                 where asignacionCarteraIds.Contains(c.Id)
                       && c.Estado == EstadoAsignacion.Vigente
                       && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)

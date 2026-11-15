@@ -23,25 +23,32 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <list type="bullet">
     /// <item><c>delegacion_tenant_cuenta_revocaciones</c> calcula el contador desde la fila anterior (cuenta también las
     /// revocaciones de la ranura anterior, que solo escribe <c>Activa = false</c>, y de la función SQL de Soporte; ningún
-    /// UPDATE puede rebajarlo) y toma un cerrojo consultivo exclusivo de la delegación en cada cambio de activación.</item>
+    /// UPDATE puede rebajarlo).</item>
     /// <item><c>delegacion_tenant_revoca_filas_heredadas</c>: cada revocación contada de una delegación de Operador CAE
     /// externo revoca sus <c>AsignacionesOperadorDelegado</c> no revocadas. La fila heredada autoriza por sí sola (vía
     /// heredada de <c>TenantsBeneficiariosAutorizados</c>) y, si sobreviviera, volvería a autorizar al reactivar la
     /// delegación (ronda 1 de Codex en la PR #2237, alta 1).</item>
-    /// <item><c>asignacion_operacion_sella_origen</c> sella el origen solo en la inserción, desde la fila real de la
-    /// delegación y con un cerrojo consultivo compartido de ella hasta el final de la transacción; valida que sea del
-    /// mismo par y de propósito OperadorExterno; en una inserción Outbound externa sin origen (la ranura anterior no
-    /// conoce la columna) lo deduce solo si el par tiene exactamente una delegación OperadorExterno activa y sin caducar,
-    /// y sigue activa tras el cerrojo. En un UPDATE, el origen y su contador son inmutables (tampoco se puede fijar un
-    /// origen que no se fijó al nacer) y, con origen, también el par y el servicio; la comprobación va antes que
-    /// cualquier otra rama (ronda 1 de Codex en la PR #2237, media 5).</item>
-    /// <item><c>asignacion_operacion_origen_activo_al_nacer</c>, diferido al COMMIT: una operación no cerrada no puede
-    /// quedar sellada con el contador de una delegación inactiva, porque la reactivación no lo cambia y la volvería a
-    /// amparar. Con el cerrojo compartido, una revocación concurrente no puede confirmarse entre el sellado y el COMMIT:
-    /// o se confirmó antes (y se sella el contador de la delegación inactiva, que este trigger rechaza) o espera y deja
-    /// la operación con un contador viejo (ronda 1 de Codex en la PR #2237, alta 2). Es diferido porque la reactivación
-    /// escribe la delegación y la operación nueva en el mismo guardado, en el orden que elija EF.</item>
+    /// <item><c>asignacion_operador_delegado_exige_delegacion_activa</c>: una fila heredada viva no nace sobre una
+    /// delegación de Operador CAE externo inactiva, y <c>asignacion_operador_delegado_revocacion_definitiva</c>: una fila
+    /// revocada no se des-revoca y ninguna fila cambia de delegación, de persona ni de rol (ronda 2 de Codex, alta 2).</item>
+    /// <item><c>asignacion_operacion_sella_origen</c> comprueba y sella el origen solo en la inserción. Con origen
+    /// explícito exige también el contador que el escritor leyó al decidir, y rechaza la inserción si la delegación ya no
+    /// es del mismo par y de Operador CAE externo, si está inactiva o caducada, o si su contador actual no es el leído: una
+    /// decisión tomada antes de una revocación o de una ampliación de caducidad no se sella con la activación posterior
+    /// (ronda 2 de Codex, alta 3). Sin origen (la ranura anterior no conoce la columna) solo lo deduce si el par tiene
+    /// exactamente una delegación OperadorExterno activa y sin caducar; si no, queda a NULL y no autoriza. En un UPDATE,
+    /// ninguna rama deja cambiar el origen ni el contador (tampoco de NULL a un valor), y con origen tampoco el par ni el
+    /// servicio. No hay deducción diferida ni ninguna excepción por marca de sesión o profundidad de trigger: el
+    /// escritor guarda la DelegacionTenant antes que la operación (ronda 2 de Codex, alta 1).</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// Orden de bloqueo único (ronda 2 de Codex, media 7): toda inserción que depende del estado de una delegación toma
+    /// primero <c>FOR SHARE</c> sobre su fila de <c>DelegacionesTenant</c>, y toda revocación o reactivación la bloquea en
+    /// exclusiva al escribirla (el UPDATE, o el <c>FOR UPDATE</c> previo de la función de Soporte). Es el mismo recurso
+    /// en los dos lados y no hay cerrojo consultivo: no puede formarse el ciclo cerrojo consultivo / fila que daba
+    /// <c>40P01</c>. La inserción que llega con una revocación en vuelo espera y relee la versión confirmada; la revocación
+    /// que llega con una inserción en vuelo espera a su COMMIT y la cuenta (contador nuevo, filas heredadas revocadas).
     /// </para>
     /// <para>
     /// Lo que existía antes de esta migración no tiene historia de revocaciones: el contador nace a cero para todas, y la
@@ -49,11 +56,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// activación vigente de su delegación, y falla cerrado (decisión de la coordinadora en la PR #2237, la data actual es
     /// de prueba): la migración revoca las filas heredadas no revocadas de las delegaciones de Operador CAE externo
     /// (<see cref="RevocaFilasHeredadasPrevias"/>), y <c>AsignacionesOperativasBackfillSeeder</c> cierra en cada arranque,
-    /// con sus carteras, toda operación Outbound externa no cerrada que siga sin origen (también las que la ranura
-    /// anterior inserte sin que el trigger pueda deducirlo). Nunca fija el origen de una operación ya existente.
+    /// con sus carteras, toda operación Outbound externa no cerrada que siga sin origen. Nunca fija el origen de una
+    /// operación ya existente ni crea operaciones externas: solo las abre un acto explícito.
     /// </para>
     /// <para>
-    /// Las funciones no son SECURITY DEFINER: leen y escriben bajo la RLS de quien escribe, que es uno de los dos extremos
+    /// Las funciones no son SECURITY DEFINER: leen y bloquean bajo la RLS de quien escribe, que es uno de los dos extremos
     /// del par; la política de <c>AsignacionesOperadorDelegado</c> es la misma condición sobre la misma delegación que la
     /// de <c>DelegacionesTenant</c>. Si la fila de la delegación no es visible, la deducción deja el origen a NULL (falla
     /// cerrada) y fijar un origen explícito se rechaza.
@@ -134,12 +141,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     ELSE
                         NEW."Revocaciones" := OLD."Revocaciones";
                     END IF;
-
-                    -- Exclusivo frente al cerrojo compartido con el que se sella una operación de esta delegación.
-                    IF OLD."Activa" IS DISTINCT FROM NEW."Activa" OR NEW."Revocaciones" <> OLD."Revocaciones" THEN
-                        PERFORM pg_catalog.pg_advisory_xact_lock(
-                            pg_catalog.hashtextextended('DelegacionesTenant:' || NEW."Id"::text, 0));
-                    END IF;
                     RETURN NEW;
                 END;
                 $$;
@@ -170,8 +171,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                 -- La revocación de arriba es una foto: una fila heredada que un escritor inserte después de leer la
                 -- delegación activa, pero confirmada tras la revocación, sobreviviría y volvería a autorizar al
-                -- reactivar. Con el cerrojo compartido, la revocación espera a este INSERT (y su trigger AFTER la revoca)
-                -- o este INSERT ve la revocación confirmada y se rechaza (revisión puente de la ronda 2, PR #2237).
+                -- reactivar. Con FOR SHARE sobre la delegación, la revocación espera a este INSERT (y su trigger AFTER la
+                -- revoca) o este INSERT espera a la revocación, relee la fila confirmada y se rechaza.
                 CREATE FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa() RETURNS trigger
                     LANGUAGE plpgsql
                     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -183,11 +184,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     IF NEW."RevocadaEnUtc" IS NOT NULL THEN
                         RETURN NEW;
                     END IF;
-                    PERFORM pg_catalog.pg_advisory_xact_lock_shared(
-                        pg_catalog.hashtextextended('DelegacionesTenant:' || NEW."DelegacionTenantId"::text, 0));
                     SELECT d."Proposito", d."Activa" INTO v_proposito, v_activa
                       FROM public."DelegacionesTenant" d
-                     WHERE d."Id" = NEW."DelegacionTenantId";
+                     WHERE d."Id" = NEW."DelegacionTenantId"
+                       FOR SHARE;
                     IF FOUND AND v_proposito = 'OperadorExterno' AND NOT v_activa THEN
                         RAISE EXCEPTION 'Una fila heredada no nace sobre una DelegacionTenant de Operador CAE externo revocada (%).', NEW."Id"
                             USING ERRCODE = 'check_violation';
@@ -200,31 +200,50 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     BEFORE INSERT ON public."AsignacionesOperadorDelegado"
                     FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa();
 
+                -- Revocar una fila heredada es definitivo: un UPDATE que devolviera RevocadaEnUtc a NULL la devolvería al
+                -- lector de autorización, y al reactivar la delegación recuperaría su efecto. Tampoco cambia de qué
+                -- delegación, de qué persona ni con qué rol es: una fila no se recicla para otra cosa.
+                CREATE FUNCTION public.app_asignacion_operador_delegado_revocacion_definitiva() RETURNS trigger
+                    LANGUAGE plpgsql
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                BEGIN
+                    IF NEW."Id" IS DISTINCT FROM OLD."Id"
+                       OR NEW."DelegacionTenantId" IS DISTINCT FROM OLD."DelegacionTenantId"
+                       OR NEW."UsuarioId" IS DISTINCT FROM OLD."UsuarioId"
+                       OR NEW."Rol" IS DISTINCT FROM OLD."Rol"
+                       OR NEW."CreadoEnUtc" IS DISTINCT FROM OLD."CreadoEnUtc" THEN
+                        RAISE EXCEPTION 'Una fila heredada no cambia de delegación, de persona ni de rol (%).', OLD."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    IF OLD."RevocadaEnUtc" IS NOT NULL
+                       AND (NEW."RevocadaEnUtc" IS DISTINCT FROM OLD."RevocadaEnUtc"
+                            OR NEW."MotivoRevocacion" IS DISTINCT FROM OLD."MotivoRevocacion") THEN
+                        RAISE EXCEPTION 'La revocación de una fila heredada es definitiva (%).', OLD."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+                REVOKE ALL ON FUNCTION public.app_asignacion_operador_delegado_revocacion_definitiva() FROM PUBLIC;
+                CREATE TRIGGER asignacion_operador_delegado_revocacion_definitiva
+                    BEFORE UPDATE ON public."AsignacionesOperadorDelegado"
+                    FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operador_delegado_revocacion_definitiva();
+
                 CREATE FUNCTION public.app_asignacion_operacion_sella_origen() RETURNS trigger
                     LANGUAGE plpgsql
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 DECLARE
                     v_revocaciones integer;
+                    v_activa boolean;
+                    v_expira public."DelegacionesTenant"."ExpiraEnUtc"%TYPE;
                     v_deducido boolean := false;
                 BEGIN
                     IF TG_OP = 'UPDATE' THEN
-                        -- Única excepción, y solo desde la comprobación diferida de la propia transacción que insertó
-                        -- la fila (pg_trigger_depth y la marca local que ella fija): la deducción al COMMIT de una
-                        -- operación que se insertó antes que su DelegacionTenant en el mismo guardado. El contador
-                        -- lo sella esa función bajo el cerrojo compartido; no cambia nada más de la fila.
-                        IF OLD."OrigenId" IS NULL AND OLD."RevocacionesDelOrigen" IS NULL
-                           AND NEW."OrigenId" IS NOT NULL AND NEW."RevocacionesDelOrigen" IS NOT NULL
-                           AND pg_catalog.pg_trigger_depth() > 1
-                           AND pg_catalog.current_setting('app.deduccion_origen', true) = NEW."Id"::text
-                           AND NEW."PropietarioTenantId" = OLD."PropietarioTenantId"
-                           AND NEW."OperadorTenantId" = OLD."OperadorTenantId"
-                           AND NEW."Servicio" = OLD."Servicio" THEN
-                            RETURN NEW;
-                        END IF;
-                        -- Antes que cualquier otra rama: el origen y su contador solo se fijan al nacer y no cambian
-                        -- nunca (tampoco de NULL a un valor: sellar después repondría una operación superviviente), y una
-                        -- operación sellada no cambia de par ni de servicio (convertirla en interna borraría el sello).
+                        -- Sin excepciones: el origen y su contador solo se fijan al nacer y no cambian nunca (tampoco de
+                        -- NULL a un valor: sellar después repondría una operación superviviente), y una operación sellada
+                        -- no cambia de par ni de servicio (convertirla en interna borraría el sello).
                         IF NEW."OrigenId" IS DISTINCT FROM OLD."OrigenId"
                            OR NEW."RevocacionesDelOrigen" IS DISTINCT FROM OLD."RevocacionesDelOrigen" THEN
                             RAISE EXCEPTION 'La DelegacionTenant de origen de una Asignación de Operación es inmutable (%).', NEW."Id"
@@ -247,133 +266,66 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         RETURN NEW;
                     END IF;
 
-                    IF NEW."OrigenId" IS NULL AND NEW."Servicio" = 'Outbound' THEN
-                        -- Inserción sin origen (la ranura anterior no conoce la columna): se deduce solo si es
-                        -- inequívoco; si no, queda a NULL y la operación no autoriza.
-                        SELECT min(d."Id"::text)::uuid INTO NEW."OrigenId"
-                          FROM public."DelegacionesTenant" d
-                         WHERE d."TenantClienteId" = NEW."PropietarioTenantId"
-                           AND d."TenantConsultoraId" = NEW."OperadorTenantId"
-                           AND d."Proposito" = 'OperadorExterno'
-                           AND d."Activa"
-                           AND (d."ExpiraEnUtc" IS NULL OR d."ExpiraEnUtc" > pg_catalog.now())
-                        HAVING count(*) = 1;
-                        v_deducido := NEW."OrigenId" IS NOT NULL;
-                    END IF;
-
                     IF NEW."OrigenId" IS NULL THEN
-                        NEW."RevocacionesDelOrigen" := NULL;
-                        RETURN NEW;
+                        IF NEW."Servicio" = 'Outbound' THEN
+                            -- Inserción sin origen (la ranura anterior no conoce la columna): se deduce solo si es
+                            -- inequívoco; si no, queda a NULL y la operación no autoriza.
+                            SELECT min(d."Id"::text)::uuid INTO NEW."OrigenId"
+                              FROM public."DelegacionesTenant" d
+                             WHERE d."TenantClienteId" = NEW."PropietarioTenantId"
+                               AND d."TenantConsultoraId" = NEW."OperadorTenantId"
+                               AND d."Proposito" = 'OperadorExterno'
+                               AND d."Activa"
+                               AND (d."ExpiraEnUtc" IS NULL OR d."ExpiraEnUtc" > pg_catalog.now())
+                            HAVING count(*) = 1;
+                            v_deducido := NEW."OrigenId" IS NOT NULL;
+                        END IF;
+                        IF NOT v_deducido THEN
+                            NEW."RevocacionesDelOrigen" := NULL;
+                            RETURN NEW;
+                        END IF;
+                    ELSIF NEW."RevocacionesDelOrigen" IS NULL THEN
+                        -- Con origen explícito, el contador es el que el escritor leyó al decidir: sin él no hay con qué
+                        -- comprobar que la decisión sigue valiendo.
+                        RAISE EXCEPTION 'Una Asignación de Operación con origen trae el contador de revocaciones que leyó (%).', NEW."Id"
+                            USING ERRCODE = 'check_violation';
                     END IF;
 
-                    -- Compartido hasta el final de la transacción: ninguna revocación ni reactivación de esta delegación
-                    -- se confirma entre el sellado y el COMMIT. La lectura de abajo es una sentencia nueva y ve lo que
-                    -- se confirmó antes de obtener el cerrojo.
-                    PERFORM pg_catalog.pg_advisory_xact_lock_shared(
-                        pg_catalog.hashtextextended('DelegacionesTenant:' || NEW."OrigenId"::text, 0));
-
-                    SELECT d."Revocaciones" INTO v_revocaciones
+                    -- FOR SHARE hasta el final de la transacción: ninguna revocación, reactivación ni ampliación de
+                    -- caducidad de esta delegación se confirma entre esta lectura y el COMMIT, y si hay una en vuelo se
+                    -- espera a ella y se lee la fila que confirmó.
+                    SELECT d."Revocaciones", d."Activa", d."ExpiraEnUtc" INTO v_revocaciones, v_activa, v_expira
                       FROM public."DelegacionesTenant" d
                      WHERE d."Id" = NEW."OrigenId"
                        AND d."TenantClienteId" = NEW."PropietarioTenantId"
                        AND d."TenantConsultoraId" = NEW."OperadorTenantId"
                        AND d."Proposito" = 'OperadorExterno'
-                       AND (NOT v_deducido OR d."Activa");
-                    IF NOT FOUND THEN
+                       FOR SHARE;
+                    IF FOUND AND v_activa AND (v_expira IS NULL OR v_expira > pg_catalog.now()) THEN
                         IF v_deducido THEN
-                            -- Se revocó entre la deducción y el cerrojo: falla cerrada, sin origen.
-                            NEW."OrigenId" := NULL;
-                            NEW."RevocacionesDelOrigen" := NULL;
+                            NEW."RevocacionesDelOrigen" := v_revocaciones;
                             RETURN NEW;
                         END IF;
-                        RAISE EXCEPTION 'La DelegacionTenant de origen no es una delegación OperadorExterno visible del mismo par (%).', NEW."Id"
+                        IF v_revocaciones = NEW."RevocacionesDelOrigen" THEN
+                            RETURN NEW;
+                        END IF;
+                        RAISE EXCEPTION 'La DelegacionTenant de origen se revocó o se amplió después de decidir la Asignación de Operación (%).', NEW."Id"
                             USING ERRCODE = 'check_violation';
                     END IF;
-                    NEW."RevocacionesDelOrigen" := v_revocaciones;
-                    RETURN NEW;
+                    IF v_deducido THEN
+                        -- Se revocó o caducó entre la deducción y el bloqueo: falla cerrada, sin origen.
+                        NEW."OrigenId" := NULL;
+                        NEW."RevocacionesDelOrigen" := NULL;
+                        RETURN NEW;
+                    END IF;
+                    RAISE EXCEPTION 'La DelegacionTenant de origen no es una delegación OperadorExterno visible, activa y vigente del mismo par (%).', NEW."Id"
+                        USING ERRCODE = 'check_violation';
                 END;
                 $$;
                 REVOKE ALL ON FUNCTION public.app_asignacion_operacion_sella_origen() FROM PUBLIC;
                 CREATE TRIGGER asignacion_operacion_sella_origen
                     BEFORE INSERT OR UPDATE ON public."AsignacionesOperacion"
                     FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operacion_sella_origen();
-
-                CREATE FUNCTION public.app_asignacion_operacion_origen_activo_al_nacer() RETURNS trigger
-                    LANGUAGE plpgsql
-                    SET search_path TO 'pg_catalog', 'pg_temp'
-                    AS $$
-                DECLARE
-                    v_estado text;
-                    v_activa boolean;
-                    v_revocaciones integer;
-                    v_origen uuid;
-                BEGIN
-                    IF NEW."OrigenId" IS NULL THEN
-                        -- Deducción diferida. EF ordena los INSERT de un mismo guardado por tabla cuando no hay FK que
-                        -- los relacione, así que una operación sin origen explícito (la ranura anterior, que no conoce
-                        -- la columna) puede insertarse antes que la DelegacionTenant que la ampara y el trigger BEFORE
-                        -- no la encuentra. Al COMMIT ya está: se deduce con la misma regla (una sola delegación
-                        -- activa y vigente del par) y se sella bajo el cerrojo compartido. Si no es inequívoco, queda
-                        -- sin origen y no autoriza.
-                        IF NEW."PropietarioTenantId" = NEW."OperadorTenantId" OR NEW."Servicio" <> 'Outbound' THEN
-                            RETURN NULL;
-                        END IF;
-                        SELECT o."Estado", o."OrigenId" INTO v_estado, v_origen
-                          FROM public."AsignacionesOperacion" o WHERE o."Id" = NEW."Id";
-                        IF NOT FOUND OR v_estado = 'Cerrada' OR v_origen IS NOT NULL THEN
-                            RETURN NULL;
-                        END IF;
-                        SELECT min(d."Id"::text)::uuid INTO v_origen
-                          FROM public."DelegacionesTenant" d
-                         WHERE d."TenantClienteId" = NEW."PropietarioTenantId"
-                           AND d."TenantConsultoraId" = NEW."OperadorTenantId"
-                           AND d."Proposito" = 'OperadorExterno'
-                           AND d."Activa"
-                           AND (d."ExpiraEnUtc" IS NULL OR d."ExpiraEnUtc" > pg_catalog.now())
-                        HAVING count(*) = 1;
-                        IF v_origen IS NULL THEN
-                            RETURN NULL;
-                        END IF;
-                        PERFORM pg_catalog.pg_advisory_xact_lock_shared(
-                            pg_catalog.hashtextextended('DelegacionesTenant:' || v_origen::text, 0));
-                        SELECT d."Revocaciones" INTO v_revocaciones
-                          FROM public."DelegacionesTenant" d
-                         WHERE d."Id" = v_origen
-                           AND d."Activa"
-                           AND (d."ExpiraEnUtc" IS NULL OR d."ExpiraEnUtc" > pg_catalog.now());
-                        IF NOT FOUND THEN
-                            RETURN NULL;
-                        END IF;
-                        PERFORM pg_catalog.set_config('app.deduccion_origen', NEW."Id"::text, true);
-                        UPDATE public."AsignacionesOperacion"
-                           SET "OrigenId" = v_origen, "RevocacionesDelOrigen" = v_revocaciones
-                         WHERE "Id" = NEW."Id";
-                        PERFORM pg_catalog.set_config('app.deduccion_origen', '', true);
-                        RETURN NULL;
-                    END IF;
-
-                    -- El estado de la operación al COMMIT, no el de la inserción: cerrada en la misma transacción no
-                    -- autoriza nunca. Si no se ve, se comprueba igual (falla cerrada).
-                    SELECT o."Estado" INTO v_estado FROM public."AsignacionesOperacion" o WHERE o."Id" = NEW."Id";
-                    IF FOUND AND v_estado = 'Cerrada' THEN
-                        RETURN NULL;
-                    END IF;
-
-                    SELECT d."Activa", d."Revocaciones" INTO v_activa, v_revocaciones
-                      FROM public."DelegacionesTenant" d
-                     WHERE d."Id" = NEW."OrigenId";
-                    IF FOUND AND NOT v_activa AND v_revocaciones = NEW."RevocacionesDelOrigen" THEN
-                        RAISE EXCEPTION 'Una Asignación de Operación externa no nace sellada con una DelegacionTenant inactiva (%).', NEW."Id"
-                            USING ERRCODE = 'check_violation';
-                    END IF;
-                    RETURN NULL;
-                END;
-                $$;
-                REVOKE ALL ON FUNCTION public.app_asignacion_operacion_origen_activo_al_nacer() FROM PUBLIC;
-                CREATE CONSTRAINT TRIGGER asignacion_operacion_origen_activo_al_nacer
-                    AFTER INSERT ON public."AsignacionesOperacion"
-                    DEFERRABLE INITIALLY DEFERRED
-                    FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operacion_origen_activo_al_nacer();
                 """);
         }
 
@@ -383,10 +335,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // Las filas heredadas revocadas por RevocaFilasHeredadasPrevias no se reponen: revocar es definitivo.
             migrationBuilder.Sql(
                 """
-                DROP TRIGGER IF EXISTS asignacion_operacion_origen_activo_al_nacer ON public."AsignacionesOperacion";
-                DROP FUNCTION IF EXISTS public.app_asignacion_operacion_origen_activo_al_nacer();
                 DROP TRIGGER IF EXISTS asignacion_operacion_sella_origen ON public."AsignacionesOperacion";
                 DROP FUNCTION IF EXISTS public.app_asignacion_operacion_sella_origen();
+                DROP TRIGGER IF EXISTS asignacion_operador_delegado_revocacion_definitiva ON public."AsignacionesOperadorDelegado";
+                DROP FUNCTION IF EXISTS public.app_asignacion_operador_delegado_revocacion_definitiva();
                 DROP TRIGGER IF EXISTS asignacion_operador_delegado_exige_delegacion_activa ON public."AsignacionesOperadorDelegado";
                 DROP FUNCTION IF EXISTS public.app_asignacion_operador_delegado_exige_delegacion_activa();
                 DROP TRIGGER IF EXISTS delegacion_tenant_revoca_filas_heredadas ON public."DelegacionesTenant";

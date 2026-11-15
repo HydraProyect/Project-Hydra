@@ -1,3 +1,4 @@
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Persistence.Configurations;
@@ -15,8 +16,11 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
 
     public Task<AsignacionOperacion?> ObtenerOperacionAsync(
         Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
+        // Solo si su origen la ampara: una Asignación de Operación externa cuya DelegacionTenant se revocó (o que
+        // nació sin origen) no admite un Encargo de Administración (Codex r2 en la PR #2237, media 8).
         dbContext.AsignacionesOperacion
             .AsNoTracking()
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, DateTime.UtcNow)
             .FirstOrDefaultAsync(
                 o => o.Id == asignacionOperacionId && o.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
@@ -26,8 +30,10 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
         // Misma posición que ObtenerOperacionAsync: solo las del Tenant propietario pedido. El ámbito
         // y la vigencia se deciden en memoria con las reglas del dominio (las mismas que aplica
         // EncargoAdministracion.Registrar); un Tenant propietario tiene un puñado de operaciones.
+        // Y solo las que su origen ampara en ese instante (Codex r2 en la PR #2237, media 8).
         var candidatas = await dbContext.AsignacionesOperacion
             .AsNoTracking()
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
             .Where(o => o.PropietarioTenantId == propietarioTenantId
                         && !o.EsRaiz
                         && o.OperadorTenantId != propietarioTenantId)

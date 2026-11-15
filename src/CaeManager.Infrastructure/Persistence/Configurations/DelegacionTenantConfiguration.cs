@@ -16,8 +16,11 @@ public class DelegacionTenantConfiguration : IEntityTypeConfiguration<Delegacion
         builder.Property(d => d.Activa).IsRequired();
 
         // Lo mantiene el trigger delegacion_tenant_cuenta_revocaciones (migración
-        // AnadeProcedenciaDeOperacionExterna), no la aplicación: ver DelegacionTenant.Revocaciones.
-        builder.Property(d => d.Revocaciones).IsRequired();
+        // AnadeProcedenciaDeOperacionExterna), no la aplicación: ver DelegacionTenant.Revocaciones. Generado
+        // por la base al insertar y al actualizar: EF no lo escribe nunca y lo relee tras cada guardado, así que la
+        // instancia en memoria lleva el valor real (el que el escritor de una operación pasa como contador esperado al
+        // trigger asignacion_operacion_sella_origen), también tras una ampliación de caducidad que el trigger cuenta.
+        builder.Property(d => d.Revocaciones).IsRequired().ValueGeneratedOnAddOrUpdate();
 
         // Se guarda el nombre del enum, no su número: un valor intercalado en
         // el futuro no debe reinterpretar filas existentes — y aquí eso

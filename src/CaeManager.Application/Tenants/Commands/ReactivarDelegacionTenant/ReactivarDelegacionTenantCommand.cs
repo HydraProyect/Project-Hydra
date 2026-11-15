@@ -194,6 +194,11 @@ public class ReactivarDelegacionTenantCommandHandler(
 
         delegacion.Reactivar();
 
+        // La reactivación se guarda antes de abrir la operación, dentro de la misma transacción: el trigger
+        // asignacion_operacion_sella_origen exige la delegación ya activa en la base y su contador real, y EF no ordena
+        // el UPDATE de la delegación por delante del INSERT de la operación (ronda 2 de Codex en la PR #2237, alta 1).
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
         // Append-only: no se reabre la operación cerrada, se abre una nueva.
         // El histórico conserva las dos etapas por separado, que es lo que
         // permite responder quién operaba en cada momento. Siempre es la de un Operador CAE

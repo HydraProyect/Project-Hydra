@@ -699,12 +699,13 @@ public static class PilotoOutboundSeeder
             var delegacion = await dbContext.DelegacionesTenant.FirstAsync(
                 d => d.TenantConsultoraId == tenantOperadorId && d.TenantClienteId == tenantPropietarioId, cancellationToken);
 
-            // Revocada desde la interfaz: la siembra no la reabre. Sin este corte, el trigger de filas heredadas
-            // rechazaría las filas nuevas y el writer lanzaría sin delegación vigente, y el arranque caería (PR #2237).
-            if (!delegacion.Activa)
+            // Revocada, o con historia (revocada y reactivada, filas heredadas revocadas, operaciones sin ninguna
+            // amparada): la siembra no la reabre ni repone nada. Lo que fue no vuelve solo, tampoco en el arranque
+            // (rondas 1 y 2 de Codex en la PR #2237).
+            if (!delegacion.Activa || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
             {
                 logger.LogWarning(
-                    "Siembra del piloto Outbound: la delegación de {Tenant} está revocada; no se reabre su operación externa.",
+                    "Siembra del piloto Outbound: la delegación de {Tenant} está revocada o tiene historia; no se reabre su operación externa.",
                     tenant.Nombre);
                 return;
             }
@@ -714,8 +715,7 @@ public static class PilotoOutboundSeeder
 
             foreach (var (usuarioId, rol) in asignaciones)
             {
-                if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                        a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == usuarioId, cancellationToken))
+                if (!await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuarioId, cancellationToken))
                     continue;
 
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuarioId, rol));

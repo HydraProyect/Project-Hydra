@@ -56,7 +56,8 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     /// incrementa un trigger, también para la ranura anterior y la función de Soporte), así que una
     /// operación que sobrevivió a una revocación deja de coincidir para siempre, aunque la
     /// delegación se reactive: reactivar no repone nada (opción A, decisión de Chris del 2026-11-14).
-    /// En la base de datos lo sella un trigger al fijar el origen, a partir de la fila real.
+    /// En la base de datos un trigger lo comprueba al insertar contra la fila real bloqueada (y lo sella él
+    /// cuando deduce el origen de una inserción de la ranura anterior, que no conoce la columna).
     /// </summary>
     public int? RevocacionesDelOrigen { get; private set; }
 
@@ -157,9 +158,9 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     /// operación cuyo origen se revocó no se rehabilita apuntándola a otra delegación (se abre una
     /// nueva). La delegación tiene que ser de Operador CAE externo y del mismo par. Solo en una operación
     /// que todavía no se ha guardado: en la base de datos el trigger <c>asignacion_operacion_sella_origen</c>
-    /// sella el contador al insertar y rechaza fijar o cambiar el origen en un UPDATE, y el diferido
-    /// <c>asignacion_operacion_origen_activo_al_nacer</c> rechaza al COMMIT una operación no cerrada sellada con
-    /// una delegación inactiva (ronda 1 de Codex en la PR #2237).
+    /// rechaza la inserción si la delegación, ya guardada, no está activa y vigente o si su contador ya no es
+    /// el que se copia aquí (se revocó o se amplió después de decidir), y rechaza fijar o cambiar el origen
+    /// en un UPDATE (rondas 1 y 2 de Codex en la PR #2237).
     /// </summary>
     public void FijarOrigen(DelegacionTenant delegacion)
     {

@@ -6,6 +6,8 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Retencion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Operaciones;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -449,18 +451,17 @@ public static class DelegacionDemoSeeder
                 d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
                      && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
 
-            // Revocada: la siembra no reabre la fila heredada; el trigger la rechazaría (PR #2237).
-            if (operadorGestor is not null && delegacionDemo1 is { Activa: true } &&
-                !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                    a => a.DelegacionTenantId == delegacionDemo1.Id && a.UsuarioId == operadorGestor.Id, cancellationToken))
+            // Con historia (revocada, reactivada, o la persona ya tuvo una fila, viva o revocada), la siembra no crea
+            // la fila heredada: lo que fue no vuelve solo (ronda 2 de Codex en la PR #2237, media 6).
+            if (operadorGestor is not null && delegacionDemo1 is not null &&
+                await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacionDemo1, operadorGestor.Id, cancellationToken))
             {
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
                     new AsignacionOperadorDelegado(delegacionDemo1.Id, operadorGestor.Id, Roles.GestorCae));
             }
 
-            if (operadorConsulta is not null && delegacionDemo2 is { Activa: true } &&
-                !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                    a => a.DelegacionTenantId == delegacionDemo2.Id && a.UsuarioId == operadorConsulta.Id, cancellationToken))
+            if (operadorConsulta is not null && delegacionDemo2 is not null &&
+                await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacionDemo2, operadorConsulta.Id, cancellationToken))
             {
                 dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
                     new AsignacionOperadorDelegado(delegacionDemo2.Id, operadorConsulta.Id, Roles.Consulta));
@@ -863,6 +864,19 @@ public static class DelegacionDemoSeeder
 
             var asignacion = new AsignacionOperadorDelegado(delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo);
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(asignacion);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // La Asignación de Operación del Tenant entero nace aquí, con el alta de la delegación y desde ella como
+        // origen, igual que en el alta por comando. Antes la abría el backfill en el arranque siguiente, y el backfill ya
+        // no crea operaciones externas (ronda 2 de Codex en la PR #2237, alta 5). Solo en el alta: si la delegación ya
+        // existía, se salió arriba y nada se repone.
+        using (AmbitoTenantExplicito.Establecer(tenantClienteId))
+        {
+            var writer = new AsignacionesOperativasWriter(
+                dbContext, new TenantActualAmbiental { TenantId = tenantClienteId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
+            await writer.AbrirOperacionDelegadaAsync(
+                tenantClienteId, tenantConsultoraId, DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

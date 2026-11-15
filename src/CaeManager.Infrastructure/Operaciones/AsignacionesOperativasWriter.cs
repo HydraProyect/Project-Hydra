@@ -227,6 +227,15 @@ public class AsignacionesOperativasWriter(
                 $"El Operador CAE externo {operadorTenantId} tiene {vigentes.Count} delegaciones activas y vigentes sobre " +
                 $"{propietarioTenantId}: una Asignación de Operación externa nace de exactamente una.");
 
+        // El trigger asignacion_operacion_sella_origen exige que la delegación ya esté activa en la base al insertar la
+        // operación, y su contador real: una reactivación sin guardar podría escribirse después que la operación en el
+        // mismo guardado (EF no ordena un UPDATE del principal por delante del INSERT del dependiente). Quien reactiva
+        // guarda antes (ronda 2 de Codex en la PR #2237, alta 1); una delegación nueva (Added) sí la ordena EF por la FK.
+        if (dbContext.Entry(vigentes[0]).State == EntityState.Modified)
+            throw new InvalidOperationException(
+                $"La DelegacionTenant {vigentes[0].Id} tiene cambios sin guardar: guárdala antes de abrir la Asignación de " +
+                "Operación que nace de ella.");
+
         return vigentes[0];
     }
 

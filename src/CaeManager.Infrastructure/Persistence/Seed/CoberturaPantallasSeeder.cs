@@ -184,7 +184,12 @@ public static class CoberturaPantallasSeeder
         await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, gestorSinCartera, Roles.GestorCae, cancellationToken);
 
         // Los Gestores CAE del Operador CAE cuelgan de su Coordinador CAE: sin ese vínculo el Coordinador no vería nada.
+        // En el mismo ámbito del Operador CAE se mira la fila viva de la primera persona, que es la prueba de que la
+        // delegación sigue activa: revocarla revoca sus filas heredadas (PR #2237). Revocada desde la interfaz, la siembra
+        // no reabre la operación (el writer lanzaría sin delegación vigente y el arranque caería).
+        bool delegacionActiva;
         using (AmbitoTenantExplicito.Establecer(operadorId))
+        {
             foreach (var gestor in new[] { gestorConCartera, gestorSinCartera })
             {
                 if (gestor.CoordinadorUsuarioId == coordinador.Id) continue;
@@ -195,13 +200,9 @@ public static class CoberturaPantallasSeeder
                         $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
             }
 
-        // La fila viva de la primera persona es la prueba de que la delegación sigue activa: revocarla revoca sus filas
-        // heredadas (PR #2237). Revocada desde la interfaz, la siembra no reabre la operación (el writer lanzaría sin
-        // delegación vigente y el arranque caería).
-        bool delegacionActiva;
-        using (AmbitoTenantExplicito.Establecer(operadorId))
             delegacionActiva = await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                 a => a.UsuarioId == gestorConCartera.Id, cancellationToken);
+        }
         if (!delegacionActiva)
             logger.LogWarning("Siembra de cobertura: la delegación de {Tenant} está revocada; no se reabre su operación externa.", NombreTenantAlfa);
 
@@ -268,7 +269,8 @@ public static class CoberturaPantallasSeeder
     {
         using (AmbitoTenantExplicito.Establecer(operadorId))
         {
-            if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
+            // Ninguna fila, viva o revocada: lo que se revocó no vuelve solo por la siembra (Codex r2, media 6).
+            if (await dbContext.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
                 return;
 
             // Sin la fila viva de la primera persona, la delegación se revocó y la revocación revocó sus filas

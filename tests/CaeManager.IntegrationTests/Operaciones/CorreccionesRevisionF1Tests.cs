@@ -559,7 +559,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // Desde la PR #2237 la operación que sobrevive a la revocación de su delegación de origen ya no es vigente
         // para el writer (AmparoDeOrigen): es lo primero que falla, antes de llegar a ObtenerRolDelegadoAsync, y la
         // revocación revoca además la fila heredada del gestor. Las capas siguen siendo independientes; aquí se
-        // mide la que el orden alcanza primero, y que no queda escrita ninguna cartera.
+        // mide la que el orden alcanza primero, y que no queda escrita ninguna cartera. Sea cual sea el orden en
+        // que EF emita el INSERT y el UPDATE del mismo guardado, la operación acaba sin amparo: sin origen (si la
+        // delegación ya estaba inactiva al insertar) o con un contador sellado que la desactivación deja atrás.
+        //
+        // La rama Activa de ObtenerRolDelegadoAsync queda como defensa en profundidad que el esquema hace
+        // inalcanzable sin desactivar triggers: una fila heredada solo nace con la delegación activa (BEFORE
+        // INSERT), desactivarla revoca sus filas en la misma sentencia (AFTER UPDATE) y el amparo exige el
+        // origen activo. Hueco declarado en la PR #2237 (Codex r2, media 10).
         await CrearWriter(verificacionContexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora))
             .Should().ThrowAsync<InvalidOperationException>().WithMessage("*no tiene operación externa vigente*");
         (await verificacionContexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora))
