@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.ProponerContactoSeg
 /// sin dejar nada guardado ni pendiente, en vez de un error sin controlar.
 /// </para>
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ProponerContactoSeguridadCommand(string Nombre, string Correo, string? Telefono) : ICommand;
 
 public class ProponerContactoSeguridadCommandValidator : AbstractValidator<ProponerContactoSeguridadCommand>

@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 /// reutiliza <c>ResultadoEliminacionLoteDto</c> — esa palabra es de
 /// Eliminar/soft-delete, y una Asignación nunca se elimina.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record DarDeBajaAsignacionesCommand(IReadOnlyList<Guid> Ids, DateOnly FechaBaja) : ICommand<ResultadoBajaLoteDto>;
 
 public record ResultadoBajaLoteDto(int DadasDeBaja, IReadOnlyList<string> Errores);

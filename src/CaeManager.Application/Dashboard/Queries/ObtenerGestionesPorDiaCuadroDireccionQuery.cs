@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// (<paramref name="Anyo"/>, <paramref name="Mes"/>): alimenta «Gestiones por día» de la pestaña Demanda. Cuenta
 /// cuándo se completó la gestión (<c>CompletadaEnUtc</c>), nunca quién la completó.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerGestionesPorDiaCuadroDireccionQuery(int Anyo, int Mes, int Meses)
     : IRequest<GestionesPorDiaCuadroDireccionDto>;
 

@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -43,6 +44,7 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 /// (<see cref="EscaladoDePrincipalDeCartera"/>); si no hay uno solo, la operación queda sin principal.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record AsignarCarteraGestorCaeCommand(
     Guid GestorUsuarioId,
     IReadOnlyCollection<Guid>? TenantsAAsignar,

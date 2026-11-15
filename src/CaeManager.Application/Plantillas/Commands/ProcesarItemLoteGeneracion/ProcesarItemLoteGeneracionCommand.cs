@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using FluentValidation;
 
 namespace CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 /// <c>SubidaMasiva.razor.cs</c>) — nunca falla el lote entero por un item
 /// que no se puede resolver, solo ese item.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record ProcesarItemLoteGeneracionCommand(Guid ItemGeneracionDocumentoId) : ICommand;
 
 public class ProcesarItemLoteGeneracionCommandValidator : AbstractValidator<ProcesarItemLoteGeneracionCommand>

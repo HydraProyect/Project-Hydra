@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
 /// se acota al alcance del usuario — un Proyecto pertenece a un Cliente
 /// concreto, no tiene sentido ofrecer el de otro Gestor CAE.
 /// </summary>
+[AreaDelEncargo("Proyectos")]
 public record ObtenerProyectosParaSelectorQuery : IRequest<IReadOnlyList<ProyectoSelectorDto>>;
 
 public record ProyectoSelectorDto(Guid Id, string Nombre, string ClienteRazonSocial, string CentroNombre, bool EstaAbierto);

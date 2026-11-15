@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 
+[AreaDelEncargo("Proyectos")]
 public record ObtenerProyectoPorIdQuery(Guid Id) : IRequest<ProyectoDetalleDto?>;
 
 public record ProyectoDetalleDto(

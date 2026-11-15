@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// dirección, para que un alias del mismo buzón no pueda conectarse en otro Tenant.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record ConectarBuzonMicrosoft365Command(
     string BuzonEmail, string Nombre, Guid? ClienteId, string AccessToken, string? RefreshToken, string NotificationUrlBase,
     string IdentidadBuzon, Guid? GestorPropietarioId = null, string? DirectorioEntraId = null, Guid? ConsentidoPorUsuarioId = null)

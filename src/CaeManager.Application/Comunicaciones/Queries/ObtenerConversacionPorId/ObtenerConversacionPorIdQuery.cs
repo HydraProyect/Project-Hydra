@@ -5,6 +5,7 @@ using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
@@ -15,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionPorIdQuery(Guid Id) : IRequest<ConversacionDetalleDto?>;
 
 /// <summary>

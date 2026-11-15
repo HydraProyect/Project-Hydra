@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -16,6 +17,7 @@ namespace CaeManager.Application.ContactosSeguridad.Queries.ResolverDestinatario
 /// aviso. Sin ella, fallo y no lista vacía: una lista vacía se leería como «nadie a quien avisar».
 /// </para>
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ResolverDestinatariosAvisoSeguridadQuery(IReadOnlyCollection<Guid> TenantIds)
     : IRequest<Result<IReadOnlyList<DestinatariosAvisoSeguridadTenant>>>;
 

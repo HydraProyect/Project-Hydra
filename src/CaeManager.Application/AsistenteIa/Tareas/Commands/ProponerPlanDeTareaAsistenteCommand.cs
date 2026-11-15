@@ -1,6 +1,7 @@
 using CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
 using CaeManager.Application.AsistenteIa.Tareas.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// propone sobre una Tarea cuyo plan aún se puede modificar.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ProponerPlanDeTareaAsistenteCommand(Guid TareaId, Guid? TenantElegido = null) : ICommand<PlanPropuestoDto>;
 
 public class ProponerPlanDeTareaAsistenteCommandValidator : AbstractValidator<ProponerPlanDeTareaAsistenteCommand>

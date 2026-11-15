@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 /// completo del IgnoreQueryFilters()+TenantId. La baja solo marca la Gestión, así que restaurarla la
 /// devuelve con el estado, las fechas y el responsable que tenía.
 /// </summary>
+[AreaDelEncargo("Gestiones")]
 public record RestaurarGestionCommand(Guid Id) : ICommand;
 
 public class RestaurarGestionCommandHandler(

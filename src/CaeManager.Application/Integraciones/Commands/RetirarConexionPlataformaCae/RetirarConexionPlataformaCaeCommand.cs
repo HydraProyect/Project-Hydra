@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Integraciones.Commands.RetirarConexionPlataform
 /// (OWASP ASVS 4.0.3 V6.4.1). Misma autorización que
 /// <c>GuardarConexionPlataformaCaeCommand</c>.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record RetirarConexionPlataformaCaeCommand(Guid ConexionId) : ICommand, IEscrituraDeDatosDeCredencial;
 
 public class RetirarConexionPlataformaCaeCommandHandler(

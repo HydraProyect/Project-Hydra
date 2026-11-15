@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
 
+[AreaDelEncargo("Facturacion")]
 public record ActualizarTarifaClienteCommand(
     Guid Id, decimal PrecioUnitario, string MonedaIso, Guid Version = default)
     : ICommand;

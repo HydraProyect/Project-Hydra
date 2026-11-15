@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 /// también la delegada, recibe <c>null</c>—; el Centro, este handler.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerCredencialCanalGestionQuery(Guid CentroId, Guid CanalId)
     : IRequest<CredencialCanalGestionDto?>, IConsultaDeSecretosDeTenant;
 

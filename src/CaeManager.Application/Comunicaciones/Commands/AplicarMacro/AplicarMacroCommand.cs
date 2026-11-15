@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 
+[AreaDelEncargo("Comunicaciones")]
 public record AplicarMacroCommand(Guid ConversacionId, Guid MacroId) : ICommand<string>;
 
 public class AplicarMacroCommandHandler(

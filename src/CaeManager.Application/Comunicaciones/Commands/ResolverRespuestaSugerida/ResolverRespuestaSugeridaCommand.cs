@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -14,6 +15,7 @@ public enum AccionRespuestaSugerida
     Descartar = 2
 }
 
+[AreaDelEncargo("Comunicaciones")]
 public record ResolverRespuestaSugeridaCommand(Guid RespuestaSugeridaId, AccionRespuestaSugerida Accion) : ICommand;
 
 public class ResolverRespuestaSugeridaCommandValidator : AbstractValidator<ResolverRespuestaSugeridaCommand>

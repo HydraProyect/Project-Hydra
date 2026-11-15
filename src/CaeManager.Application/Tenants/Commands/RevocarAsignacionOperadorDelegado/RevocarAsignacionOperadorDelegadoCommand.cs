@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDeleg
 /// externo: este comando no las gobierna.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record RevocarAsignacionOperadorDelegadoCommand(Guid AsignacionId) : ICommand;
 
 public class RevocarAsignacionOperadorDelegadoCommandValidator : AbstractValidator<RevocarAsignacionOperadorDelegadoCommand>

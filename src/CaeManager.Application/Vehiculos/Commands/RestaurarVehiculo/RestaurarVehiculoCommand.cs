@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 /// razonamiento completo del IgnoreQueryFilters()+TenantId. La baja solo marca el Vehículo: sus
 /// documentos no se tocan, así que restaurarlo lo devuelve entero.
 /// </summary>
+[AreaDelEncargo("Vehiculos")]
 public record RestaurarVehiculoCommand(Guid Id) : ICommand;
 
 public class RestaurarVehiculoCommandHandler(

@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -9,6 +10,7 @@ using MediatR;
 namespace CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 
 /// <summary>Borrado en lote (P3-31) — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
+[AreaDelEncargo("Documentos")]
 public record EliminarDocumentosCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarDocumentosCommandValidator : AbstractValidator<EliminarDocumentosCommand>

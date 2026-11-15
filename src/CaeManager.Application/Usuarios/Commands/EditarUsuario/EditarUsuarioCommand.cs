@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -66,6 +67,7 @@ namespace CaeManager.Application.Usuarios.Commands.EditarUsuario;
 /// datos ya se guardaron, y el error dice en qué estado quedó el rol.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record EditarUsuarioCommand(
     Guid UsuarioId,
     string NombreCompleto,

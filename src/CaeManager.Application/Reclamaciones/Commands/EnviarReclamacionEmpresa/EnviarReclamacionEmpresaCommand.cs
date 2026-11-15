@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -49,6 +50,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// </param>
 /// <param name="CorreosAdicionales">Destinatarios añadidos a mano además de la agenda; ver <see cref="EnviarReclamacionCommand"/>.</param>
 /// <param name="CorreosEnCopia">Direcciones en copia (CC) del mismo envío; ver <see cref="EnviarReclamacionCommand"/>.</param>
+[AreaDelEncargo("Reclamaciones")]
 public record EnviarReclamacionEmpresaCommand(
     Guid EmpresaId,
     IReadOnlyList<Guid> DocumentoIds,

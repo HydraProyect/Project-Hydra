@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSu
 /// (todavía no hay fila) no aplica: ahí vacío/null simplemente significa que
 /// no se ha puesto contraseña.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record GuardarCredencialAccesoSubcontrataCommand(
     Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand, IEscrituraDeDatosDeCredencial;
 

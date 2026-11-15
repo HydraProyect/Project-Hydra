@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
 /// autoridad sobre el tenant. Lo que cambia es dónde vive cada control y qué
 /// entidad lo porta, no cuántos hay.
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record AbrirSesionPrivilegiadaCommand(
     Guid ConcesionPrivilegioId,
     Guid TenantObjetivoId,

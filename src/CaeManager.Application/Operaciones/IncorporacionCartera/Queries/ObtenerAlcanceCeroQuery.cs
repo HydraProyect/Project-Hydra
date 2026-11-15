@@ -1,5 +1,6 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 /// no filtra ni autoriza nada.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerAlcanceCeroQuery : IRequest<bool>;
 
 public class ObtenerAlcanceCeroQueryHandler(IAlcanceDatosService alcanceDatos)

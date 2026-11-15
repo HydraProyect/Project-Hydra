@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 /// — no es un error, es lo esperable al reintentar una selección que se
 /// solapa con lo que ya había.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record CrearAsignacionesCommand(
     IReadOnlyList<Guid> TrabajadorIds, IReadOnlyList<Guid> CentroIds, DateOnly FechaAlta) : ICommand<ResultadoAsignacionLoteDto>;
 

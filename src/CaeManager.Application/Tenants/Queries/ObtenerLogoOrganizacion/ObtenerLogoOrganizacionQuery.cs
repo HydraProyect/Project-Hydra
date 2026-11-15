@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Logo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ public sealed record LogoOrganizacionDto(
 /// la fila de la organización actual, que un usuario autenticado ya conoce (su nombre está en la
 /// cabecera): el alcance de otras organizaciones lo decide <c>ObtenerLogoTenantQuery</c>, no esta.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerLogoOrganizacionQuery : IRequest<LogoOrganizacionDto?>;
 
 public class ObtenerLogoOrganizacionQueryHandler(

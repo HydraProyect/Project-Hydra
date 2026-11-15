@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEn
 /// <param name="CentroId">El Centro desde el que se anota: la acreditación tiene que ser de un canal suyo.</param>
 /// <param name="Fecha">El día que dice el Gestor CAE (por defecto, hoy en la pantalla).</param>
 /// <param name="Motivo">Obligatorio con <see cref="EstadoAcreditacion.Rechazada"/>; en otro estado se ignora.</param>
+[AreaDelEncargo("Documentos")]
 public record CambiarEstadoAcreditacionEnCentroCommand(
     Guid CentroId, Guid AcreditacionId, EstadoAcreditacion Estado, DateOnly Fecha, string? Motivo, string? Nota)
     : ICommand<CambioEstadoAnotadoDto>;
@@ -31,6 +33,7 @@ public record CambioEstadoAnotadoDto(Guid CambioId, Guid Version);
 /// <paramref name="VersionEsperada"/> es la versión que devolvió el cambio: si la acreditación se tocó después, aunque
 /// haya vuelto al mismo estado (A → B → A), no se deshace (concurrencia optimista, como RestaurarAnotacionAcreditacionCommand).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record DeshacerCambioEstadoAcreditacionCommand(Guid CentroId, Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand;
 
 public class CambiarEstadoAcreditacionEnCentroCommandValidator : AbstractValidator<CambiarEstadoAcreditacionEnCentroCommand>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcces
 /// decisiones del 2026-11-08). El plazo de inactividad solo lo escribe este comando.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ActualizarSeguridadAccesoCommand(int MinutosInactividadSesion, bool ExigeSegundoFactorTodosLosPerfiles) : ICommand;
 
 public class ActualizarSeguridadAccesoCommandValidator : AbstractValidator<ActualizarSeguridadAccesoCommand>

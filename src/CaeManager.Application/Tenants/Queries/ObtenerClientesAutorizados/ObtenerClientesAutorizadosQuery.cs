@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.VistaDemo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 /// escribe también la delegación (<c>CatalogoIncorporacionCartera</c>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>
 {
     /// <summary>

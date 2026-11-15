@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using MediatR;
 
 namespace CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
 
+[AreaDelEncargo("Incidencias")]
 public record EliminarIncidenciaCommand(Guid Id) : ICommand;
 
 public class EliminarIncidenciaCommandHandler(

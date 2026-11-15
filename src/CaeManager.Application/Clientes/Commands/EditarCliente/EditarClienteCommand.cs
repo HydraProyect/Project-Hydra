@@ -1,5 +1,6 @@
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Clientes.Commands.EditarCliente;
 /// (llega en <c>ClienteDetalleDto</c>). <see cref="Guid.Empty"/> significa
 /// "sin comprobación", para los llamadores que todavía no la propagan.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record EditarClienteCommand(
     Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, Guid Version = default) : ICommand;
 

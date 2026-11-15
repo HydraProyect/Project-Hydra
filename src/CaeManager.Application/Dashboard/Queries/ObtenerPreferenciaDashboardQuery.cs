@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Catalogo;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Configuracion;
 using MediatR;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerPreferenciaDashboardQuery : IRequest<IReadOnlyList<string>>;
 
 /// <summary>

@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeC
 /// entró por eventos ya terminados no aparece: el Centro no acumula a los voluntarios que pasaron por él. Un
 /// Trabajador con Asignación activa aparece una sola vez, como asignado.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerTrabajadoresAsignadosDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<TrabajadorAsignadoDto>>;
 
 /// <param name="EventoNombre">null si entra por Asignación al Centro; el nombre del evento si solo entra por él.</param>

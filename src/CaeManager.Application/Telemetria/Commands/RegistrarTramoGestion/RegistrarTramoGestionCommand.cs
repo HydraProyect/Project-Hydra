@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Telemetria;
 using FluentValidation;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Telemetria.Commands.RegistrarTramoGestion;
 /// puesto, y así apagarla en caliente deja de registrar sin romper ninguna
 /// pantalla abierta.
 /// </summary>
+[AreaDelEncargo("Telemetria")]
 public record RegistrarTramoGestionCommand(
     Guid ConversacionId,
     DateTime InicioUtc,

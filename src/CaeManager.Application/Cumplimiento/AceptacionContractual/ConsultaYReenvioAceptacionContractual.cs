@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
@@ -40,6 +41,7 @@ public record AceptacionContractualTenantDto(
 /// de la más reciente a la más antigua, con su último acuse. No devuelve la IP: es un dato personal de
 /// quien aceptó que el registro guarda como evidencia y que esta vista no necesita.
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record ObtenerAceptacionesContractualesTenantQuery : IRequest<Result<IReadOnlyList<AceptacionContractualTenantDto>>>;
 
 public class ObtenerAceptacionesContractualesTenantQueryHandler(
@@ -70,6 +72,7 @@ public class ObtenerAceptacionesContractualesTenantQueryHandler(
 /// del Tenant propietario. Nunca a otra dirección: así el texto no sale hacia un correo que nadie del
 /// Tenant propietario ha verificado.
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record ReenviarAcuseAceptacionContractualCommand : ICommand;
 
 public class ReenviarAcuseAceptacionContractualCommandHandler(

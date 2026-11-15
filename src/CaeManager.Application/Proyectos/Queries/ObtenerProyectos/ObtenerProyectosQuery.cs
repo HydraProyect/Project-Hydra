@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Application.Centros;
@@ -36,6 +37,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Proyectos abiertos y cerrados con los demás filtros
 /// aplicados y sin el de estado, para la franja de estado del listado.
 /// </param>
+[AreaDelEncargo("Proyectos")]
 public record ObtenerProyectosQuery(
     Guid? ClienteId = null, bool? SoloAbiertos = null, string? Busqueda = null,
     int Pagina = 1, int TamanoPagina = 20, bool ConRecuentosPorEstado = false, bool AgruparPorEmpresa = false,

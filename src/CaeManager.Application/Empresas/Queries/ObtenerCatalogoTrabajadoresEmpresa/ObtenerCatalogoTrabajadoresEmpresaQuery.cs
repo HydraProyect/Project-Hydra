@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using MediatR;
 
@@ -27,6 +28,7 @@ public record CatalogoTrabajadoresEmpresaDto(IReadOnlyList<DelegacionEmpresaDto>
 /// desplegables; los tres campos del contacto llegan nulos.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerCatalogoTrabajadoresEmpresaQuery(Guid EmpresaId) : IRequest<CatalogoTrabajadoresEmpresaDto>;
 
 public class ObtenerCatalogoTrabajadoresEmpresaQueryHandler(

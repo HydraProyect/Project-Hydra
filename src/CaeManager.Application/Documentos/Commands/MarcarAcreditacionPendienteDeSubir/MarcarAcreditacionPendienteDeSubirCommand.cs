@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionPendiente
 /// Mismo alcance que <c>MarcarAcreditacionSubidaCommand</c>: la acreditación se ve si su Documento se ve, que es la
 /// comprobación de cartera del Gestor CAE. Una Rechazada no vuelve a pendiente sin versión nueva (ver la entidad).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record MarcarAcreditacionPendienteDeSubirCommand(Guid AcreditacionId) : ICommand;
 
 public class MarcarAcreditacionPendienteDeSubirCommandValidator : AbstractValidator<MarcarAcreditacionPendienteDeSubirCommand>

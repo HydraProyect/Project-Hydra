@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Centros.Commands.EliminarDocumentacionRequerida
 /// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4). Baja física, sin ciclo de vida propio, mismo
 /// criterio que el resto de altas/bajas de <see cref="TipoDocumentoCentro"/>.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EliminarDocumentacionRequeridaCentroCommand(Guid CentroId, Guid TipoDocumentoId) : ICommand;
 
 public class EliminarDocumentacionRequeridaCentroCommandValidator : AbstractValidator<EliminarDocumentacionRequeridaCentroCommand>

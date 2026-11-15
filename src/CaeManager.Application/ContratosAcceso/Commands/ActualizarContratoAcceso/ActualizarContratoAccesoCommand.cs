@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 namespace CaeManager.Application.ContratosAcceso.Commands.ActualizarContratoAcceso;
 
 /// <summary>Solo cambian el fin contratado y las notas: las coordenadas y el inicio definen el contrato.</summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record ActualizarContratoAccesoCommand(Guid Id, DateOnly? FechaFin, string? Notas, Guid Version = default) : ICommand;
 
 public class ActualizarContratoAccesoCommandValidator : AbstractValidator<ActualizarContratoAccesoCommand>

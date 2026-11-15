@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 /// su cartera. Solo el nombre: la lista no enseña ni un dato de dentro del
 /// Tenant, porque todavía no tiene acceso a él.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerCandidatosIncorporacionCarteraQuery : IRequest<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>;
 
 /// <param name="SolicitudPendienteId">La solicitud que ya envió y sigue esperando, si la hay: la pantalla la muestra como «Solicitud enviada» en vez de ofrecer pedirla otra vez.</param>

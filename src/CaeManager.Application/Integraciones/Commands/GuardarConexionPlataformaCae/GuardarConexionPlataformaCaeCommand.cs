@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Integraciones.Commands.GuardarConexionPlataform
 /// alcanza a este acto (<c>ActosExcluidosDelEncargo</c>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record GuardarConexionPlataformaCaeCommand(Guid ProveedorPlataformaCaeId, string Nombre, string SecretoApi)
     : ICommand<Guid>, IEscrituraDeDatosDeCredencial
 {

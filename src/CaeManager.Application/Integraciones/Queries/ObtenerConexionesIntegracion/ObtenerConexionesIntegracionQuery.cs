@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegrac
 /// TODAS las conexiones del tenant a propósito) sigue llamando con el valor
 /// por defecto, sin restringir.
 /// </param>
+[AreaDelEncargo("Integraciones")]
 public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = false)
     : IRequest<IReadOnlyList<ConexionIntegracionListaDto>>;
 

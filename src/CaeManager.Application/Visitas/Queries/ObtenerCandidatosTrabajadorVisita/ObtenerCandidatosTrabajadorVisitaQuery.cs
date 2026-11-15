@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using MediatR;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisi
 /// Visita no existe, está cancelada o su Centro queda fuera del alcance de GESTIÓN de quien
 /// pregunta: quien no puede añadir tampoco ve a quién podría añadir.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerCandidatosTrabajadorVisitaQuery(Guid VisitaId) : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 
 public class ObtenerCandidatosTrabajadorVisitaQueryHandler(

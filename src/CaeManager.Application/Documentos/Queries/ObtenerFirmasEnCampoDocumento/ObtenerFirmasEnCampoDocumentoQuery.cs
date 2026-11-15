@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerFirmasEnCampoDocument
 /// Firmas en campo ya estampadas sobre el archivo de un Documento, para mostrarlas en la pestaña "Firma". Lista vacía
 /// si quien pide no puede leer el Documento: fuera de su Asignación de Cartera es igual que no tener firmas (SEG-16).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerFirmasEnCampoDocumentoQuery(Guid DocumentoId) : IRequest<IReadOnlyList<FirmaEnCampoDocumentoDto>>;
 
 public record FirmaEnCampoDocumentoDto(

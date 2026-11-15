@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerRespuestaSugeridaQuery(Guid ConversacionId) : IRequest<RespuestaSugeridaDto?>;
 
 public record RespuestaSugeridaDto(

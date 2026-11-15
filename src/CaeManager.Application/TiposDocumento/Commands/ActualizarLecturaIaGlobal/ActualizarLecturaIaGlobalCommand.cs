@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -6,6 +7,7 @@ using MediatR;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 
 /// <summary>Nivel 1 (Administrador): activa/desactiva la lectura automática por IA de un TipoDocumento para todos los Clientes — ver TipoDocumento.LecturaIaActiva.</summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ActualizarLecturaIaGlobalCommand(Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaGlobalCommandHandler(

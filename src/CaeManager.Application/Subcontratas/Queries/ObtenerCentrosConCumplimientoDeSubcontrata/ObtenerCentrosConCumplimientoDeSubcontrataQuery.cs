@@ -2,12 +2,14 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerCentrosConCumplimientoDeSubcontrataQuery(Guid Id) : IRequest<IReadOnlyList<CentroCumplimientoSubcontrataDto>>;
 public record CentroCumplimientoSubcontrataDto(CentroConActividadDto Centro, FraccionCumplimiento Cumplimiento, EstadoDocumento? PeorEstado);
 

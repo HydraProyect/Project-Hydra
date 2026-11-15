@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Operaciones;
 using MediatR;
 
@@ -22,6 +23,7 @@ public record DestinatarioDeApoyoDto(Guid UsuarioId, string Nombre);
 /// (<see cref="ContextoOperadorCae"/>), no el claim.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerDestinatariosDeApoyoQuery(Guid AsignacionOperacionId) : IRequest<IReadOnlyList<DestinatarioDeApoyoDto>>;
 
 public class ObtenerDestinatariosDeApoyoQueryHandler(

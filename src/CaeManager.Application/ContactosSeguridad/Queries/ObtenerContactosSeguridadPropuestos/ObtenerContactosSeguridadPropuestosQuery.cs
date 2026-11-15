@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactosSeguridadPropuestos;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactosSegu
 /// global (una acotada no la satisface, por muchos Tenants que enumere) y falla cerrado con lista vacía,
 /// como <c>ObtenerEstadoComercialTenantsQuery</c>. La RLS repite el criterio.
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ObtenerContactosSeguridadPropuestosQuery : IRequest<IReadOnlyList<ContactoSeguridadPropuestoDto>>;
 
 public class ObtenerContactosSeguridadPropuestosQueryHandler(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// tarea cambió después —un paso actualizado, un plan sustituido, otra
 /// pestaña—, no se confirma algo que no vio.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ConfirmarPlanTareaAsistenteCommand(Guid TareaId, Guid VersionVista) : ICommand;
 
 public class ConfirmarPlanTareaAsistenteCommandValidator : AbstractValidator<ConfirmarPlanTareaAsistenteCommand>

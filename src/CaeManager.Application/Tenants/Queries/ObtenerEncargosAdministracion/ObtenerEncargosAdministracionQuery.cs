@@ -24,6 +24,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion;
 /// TALVEG, que no está en el directorio del Tenant propietario.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerEncargosAdministracionQuery : IRequest<IReadOnlyList<EncargoAdministracionDto>>;
 
 public enum EstadoEncargoAdministracion

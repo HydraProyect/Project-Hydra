@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
@@ -20,6 +21,7 @@ public interface ILectorNombreCuenta
 /// la envía para pintar quién ejecutó cada carga del historial (issue #2001); fuera de una Sesión
 /// Privilegiada el marcador no cambia nada.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public sealed record ObtenerNombreCuentaQuery(Guid UsuarioId)
     : IRequest<NombreCuentaDto?>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 

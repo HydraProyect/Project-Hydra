@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpres
 /// existe; si no, sale en su propia tarjeta (ámbito Empresa). Un Trabajador sin Asignación activa en el Centro no tiene
 /// requisitos que evaluar allí y no aporta nada.
 /// </remarks>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerReclamacionPorAccesoQuery(Guid EmpresaId, Guid CentroId, IReadOnlyList<Guid> TrabajadorIds)
     : IRequest<IReadOnlyList<LoteReclamacionAgrupadoDto>>;
 
@@ -41,6 +43,7 @@ public record ObtenerReclamacionPorAccesoQuery(Guid EmpresaId, Guid CentroId, IR
 /// agenda de la Empresa). Filtrable por Delegación y por Oficio del Trabajador; con cualquiera de los dos filtros los
 /// documentos de la propia Empresa no entran (no son de ninguna Delegación ni Oficio).
 /// </summary>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerReclamacionPreventivaEmpresaQuery(Guid EmpresaId, Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)
     : IRequest<ReclamacionPreventivaEmpresaDto>;
 
@@ -53,6 +56,7 @@ public record ObtenerReclamacionPreventivaEmpresaQuery(Guid EmpresaId, Guid? Del
 /// </summary>
 /// <param name="CentroId">Con valor, solo ese Centro (reclamación por acceso); sin él, todos (preventiva).</param>
 /// <param name="TrabajadorIds">Con valor, solo lo de esos Trabajadores y lo de la Empresa.</param>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerPendientesDeSubirAPlataformaEmpresaQuery(
     Guid EmpresaId, Guid? CentroId = null, IReadOnlyList<Guid>? TrabajadorIds = null,
     Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)

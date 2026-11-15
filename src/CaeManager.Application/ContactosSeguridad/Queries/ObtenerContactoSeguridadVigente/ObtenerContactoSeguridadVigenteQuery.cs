@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Tenants;
 using MediatR;
 
@@ -14,6 +15,7 @@ namespace CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactoSegur
 /// <item>un Actor de Plataforma TALVEG con concesión AdminPlataforma global, sobre cualquier Tenant.</item>
 /// </list>
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ObtenerContactoSeguridadVigenteQuery(Guid TenantId) : IRequest<ContactoSeguridadDto?>;
 
 public class ObtenerContactoSeguridadVigenteQueryHandler(

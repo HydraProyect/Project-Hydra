@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Reportes.Queries;
 /// Devuelve <c>null</c> cuando el Cliente/Centro pedido cae fuera de la
 /// cartera del usuario, igual que <see cref="GenerarInformeVigenciaQuery"/>.
 /// </summary>
+[AreaDelEncargo("Reportes")]
 public record GenerarInformeAsignacionesQuery(Guid? ClienteId, Guid? CentroId) : IRequest<InformeAsignacionesDto?>;
 
 public record InformeAsignacionesDto(string Alcance, IReadOnlyList<FilaInformeAsignacionDto> Filas);

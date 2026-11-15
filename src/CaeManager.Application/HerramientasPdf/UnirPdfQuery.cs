@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
@@ -53,6 +54,7 @@ public sealed record EntradaUnionDocumento(Guid DocumentoId) : EntradaUnionPdf;
 /// comprobarlo sí dejan su registro de apertura). Para unir hay que devolver esa huella: liga la confirmación a los PDF
 /// firmados que se mostraron (posición, origen y contenido). Si cambia cualquiera, se vuelve a pedir.
 /// </param>
+[AreaDelEncargo("HerramientasPdf")]
 public record UnirPdfQuery(
     IReadOnlyList<EntradaUnionPdf> Entradas, Guid TenantEsperadoId, Guid EmpresaGestionadaId, string? FirmasConfirmadas)
     : IRequest<Result<ResultadoUnionPdf>>;

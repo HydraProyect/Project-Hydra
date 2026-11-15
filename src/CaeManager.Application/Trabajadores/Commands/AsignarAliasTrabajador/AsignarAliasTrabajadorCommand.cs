@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
 /// una edición de un único campo de bajo riesgo de conflicto, no el
 /// formulario completo de EditarTrabajadorCommand.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record AsignarAliasTrabajadorCommand(Guid TrabajadorId, string Alias) : ICommand;
 
 public class AsignarAliasTrabajadorCommandValidator : AbstractValidator<AsignarAliasTrabajadorCommand>

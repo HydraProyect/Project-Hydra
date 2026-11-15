@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Reportes.Queries.ObtenerHistorialInformes;
 
+[AreaDelEncargo("Reportes")]
 public record ObtenerHistorialInformesQuery(int Limite = 10) : IRequest<IReadOnlyList<HistorialInformeDto>>;
 
 public record HistorialInformeDto(Guid Id, string TipoInforme, string? ClienteNombre, DateTime GeneradoEnUtc, Guid GeneradoPorUsuarioId);

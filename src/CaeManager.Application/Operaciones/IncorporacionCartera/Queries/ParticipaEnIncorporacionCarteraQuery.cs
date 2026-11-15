@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 /// el enlace y lo que hay detrás no puedan divergir. No autoriza nada: cada
 /// Query y cada Command vuelve a resolverlo.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ParticipaEnIncorporacionCarteraQuery : IRequest<bool>;
 
 /// <remarks>

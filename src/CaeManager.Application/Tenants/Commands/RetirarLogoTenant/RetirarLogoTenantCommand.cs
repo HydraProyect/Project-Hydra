@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Logo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Tenants.Commands.RetirarLogoTenant;
 /// Retira el logo del Tenant actual; a partir de ahí se pintan sus iniciales. Mismo autorizador y
 /// mismo marcador que <c>GuardarLogoTenantCommand</c>. Idempotente: sin logo, no hace nada.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record RetirarLogoTenantCommand : ICommand, IComandoDeAprovisionamiento;
 
 public class RetirarLogoTenantCommandHandler(

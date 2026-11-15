@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard;
 
+[AreaDelEncargo("Dashboard")]
 public record ReabrirMesCuadroDireccionCommand(Guid TenantBeneficiarioId, int Anyo, int Mes, string Motivo) : ICommand;
 
 public class ReabrirMesCuadroDireccionCommandHandler(

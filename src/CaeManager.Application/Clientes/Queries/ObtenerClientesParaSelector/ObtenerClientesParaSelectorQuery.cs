@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 /// rojo demostró que congelarlo también rompía ese flujo, no solo dejaba
 /// una lista vieja. Ver Project-Hydra-Negocio/tecnico/f3b-selectores-adelantados-2026-08-26.md.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerClientesParaSelectorQuery : IRequest<IReadOnlyList<ClienteSelectorDto>>;
 
 public record ClienteSelectorDto(Guid Id, string RazonSocial);

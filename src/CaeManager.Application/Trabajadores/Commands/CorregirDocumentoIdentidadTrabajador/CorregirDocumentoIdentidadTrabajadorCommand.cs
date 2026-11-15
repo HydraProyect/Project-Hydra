@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentida
 /// criterio del alta (<see cref="CriterioDocumentoIdentidadTrabajador"/>) y devuelve la decisión de la casilla «Trabajador
 /// extranjero (cobrable)» al documento nuevo, solo hacia delante: las asignaciones a Visitas ya hechas conservan su foto.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record CorregirDocumentoIdentidadTrabajadorCommand(Guid Id, Guid Version, string Documento) : ICommand;
 
 public class CorregirDocumentoIdentidadTrabajadorCommandValidator : AbstractValidator<CorregirDocumentoIdentidadTrabajadorCommand>

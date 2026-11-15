@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Tenants.Commands.ReactivarTenant;
 /// anteriores no vuelven: quedan fuera por <see cref="Tenant.ClavesApiValidasDesdeUtc"/>. Reactivar
 /// uno activo no hace nada.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ReactivarTenantCommand(Guid TenantId) : ICommand;
 
 public class ReactivarTenantCommandValidator : AbstractValidator<ReactivarTenantCommand>

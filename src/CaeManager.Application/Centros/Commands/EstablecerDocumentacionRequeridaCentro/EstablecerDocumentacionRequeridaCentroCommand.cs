@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeri
 /// propio", mismo criterio que el resto de altas/bajas de esta tabla puente
 /// desde /tipos-documento).
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EstablecerDocumentacionRequeridaCentroCommand(
     Guid CentroId,
     Guid TipoDocumentoId,

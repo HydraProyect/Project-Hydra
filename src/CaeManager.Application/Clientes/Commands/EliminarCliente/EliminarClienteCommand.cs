@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using MediatR;
 
 namespace CaeManager.Application.Clientes.Commands.EliminarCliente;
 
+[AreaDelEncargo("Clientes")]
 public record EliminarClienteCommand(Guid Id) : ICommand;
 
 public class EliminarClienteCommandHandler(

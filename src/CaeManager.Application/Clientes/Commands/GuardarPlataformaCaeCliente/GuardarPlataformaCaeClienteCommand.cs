@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 /// <see cref="Guid.Empty"/>) se rechaza como conflicto en vez de pisar lo guardado.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente, Guid? Version = null) : ICommand
 {
     /// <summary>Otra persona registró la plataforma a la vez (índice único): la caja vuelve a leer lo guardado.</summary>

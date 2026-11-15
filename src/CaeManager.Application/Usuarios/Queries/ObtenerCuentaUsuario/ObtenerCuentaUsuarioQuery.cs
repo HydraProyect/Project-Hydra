@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 /// cuenta que ya no existe, <c>Usuarios.CuentaInexistente</c>, que pide recargar.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerCuentaUsuarioQuery(Guid UsuarioId) : IRequest<Result<CuentaUsuario>>;
 
 public class ObtenerCuentaUsuarioQueryHandler(

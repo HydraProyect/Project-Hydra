@@ -8,6 +8,7 @@ using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Incidencias;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
@@ -20,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerCatalogoKpisQuery(PeriodoKpi Periodo) : IRequest<CatalogoKpisValoresDto>;
 
 public record CentroCumplimientoDto(Guid CentroId, string CentroNombre, int Porcentaje);

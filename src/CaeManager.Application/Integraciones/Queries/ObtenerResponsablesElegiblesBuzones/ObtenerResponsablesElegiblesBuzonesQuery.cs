@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegib
 /// </summary>
 /// <param name="ConexionIds">Buzones del listado que ya pidió quien consulta.</param>
 /// <param name="CandidatoIds">Cuentas que quien consulta ya ve en su directorio: esta consulta no descubre cuentas nuevas.</param>
+[AreaDelEncargo("Integraciones")]
 public record ObtenerResponsablesElegiblesBuzonesQuery(
     IReadOnlyCollection<Guid> ConexionIds, IReadOnlyCollection<Guid> CandidatoIds)
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlySet<Guid>>>;

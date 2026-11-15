@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitasAnterioresDeCentro;
 
 /// <summary>Lectura de Centro 360: visitas pasadas y canceladas, sin alterar la ventana de riesgo de las visitas activas.</summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerVisitasAnterioresDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VisitaAnteriorDeCentroDto>>;
 
 public record VisitaAnteriorDeCentroDto(Guid Id, DateOnly FechaInicio, DateOnly FechaFin,

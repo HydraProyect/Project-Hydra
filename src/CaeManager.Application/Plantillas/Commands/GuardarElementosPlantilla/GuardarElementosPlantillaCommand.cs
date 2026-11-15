@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plantillas;
 using FluentValidation;
 
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Plantillas.Commands.GuardarElementosPlantilla;
 /// más los referencia todavía en este MVP (la generación de documentos, que
 /// sí lo haría, es un PR posterior), así que no hace falta reconciliarlos.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record GuardarElementosPlantillaCommand(
     Guid PlantillaDocumentoVersionId,
     IReadOnlyList<ElementoPlantillaEntradaDto> Elementos)

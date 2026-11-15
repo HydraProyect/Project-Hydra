@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequerido
 /// para el usuario actual o no tiene ningún requisito configurado que
 /// compartir.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerFormatosRequeridosCentroQuery(Guid CentroId) : IRequest<string?>;
 
 public class ObtenerFormatosRequeridosCentroQueryHandler(

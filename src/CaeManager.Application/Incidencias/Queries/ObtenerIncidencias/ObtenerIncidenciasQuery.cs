@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Incidencias;
 using MediatR;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 /// <paramref name="SoloSinResolver"/> se mantiene porque ya lo usan la vista y
 /// la API; cuando está activo, gana.
 /// </summary>
+[AreaDelEncargo("Incidencias")]
 public record ObtenerIncidenciasQuery(
     string? Busqueda, bool SoloSinResolver, int Pagina = 1, int TamanoPagina = 20,
     bool? Resuelta = null, string? OrdenarPor = null, bool Descendente = false)

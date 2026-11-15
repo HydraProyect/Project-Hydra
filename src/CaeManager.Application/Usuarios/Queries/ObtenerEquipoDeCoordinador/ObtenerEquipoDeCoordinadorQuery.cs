@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
@@ -28,6 +29,7 @@ public interface IDirectorioEquipoCoordinador
 /// (<see cref="Commands.AsignarCarteraGestorCae.AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>). Administrador y Dirección CAE usan la lista completa
 /// de siempre y no pasan por aquí.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerEquipoDeCoordinadorQuery : IRequest<IReadOnlyList<MiembroDeEquipo>>;
 
 public class ObtenerEquipoDeCoordinadorQueryHandler(

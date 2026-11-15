@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 
+[AreaDelEncargo("Vehiculos")]
 public record EditarVehiculoCommand(
     Guid Id, string Nombre, string Modelo, string NumeroPlaca, Guid Version = default) : ICommand;
 

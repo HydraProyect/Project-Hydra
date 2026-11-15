@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Empresas.Commands.EditarFichaEmpresa;
 
+[AreaDelEncargo("Empresas")]
 public record EditarFichaEmpresaCommand(Guid Id, Guid Version,
     string? CanalFirmaDocumentos,
     bool? SelloCustodiadoPorOperadorCae,

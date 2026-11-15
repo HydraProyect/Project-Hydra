@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisi
 /// originó, el mismo criterio con el que <c>ObtenerConversacionPorIdQuery</c> la enseña junto al botón
 /// «Descartar». Fuera de alcance responde igual que una sugerencia que no existe, para no delatarla.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record DescartarSugerenciaVisitaCorreoCommand(Guid Id) : ICommand;
 
 public class DescartarSugerenciaVisitaCorreoCommandHandler(

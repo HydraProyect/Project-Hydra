@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 
+[AreaDelEncargo("Asignaciones")]
 public record CrearAsignacionCommand(Guid TrabajadorId, Guid CentroId, DateOnly FechaAlta) : ICommand<Guid>;
 
 public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacionCommand>

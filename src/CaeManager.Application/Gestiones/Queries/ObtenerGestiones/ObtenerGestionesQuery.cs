@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Gestiones;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 
+[AreaDelEncargo("Gestiones")]
 public record ObtenerGestionesQuery(
     string? Busqueda, EstadoGestion? Estado, Guid? TrabajadorId, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, bool ConRecuentosPorEstado = false)

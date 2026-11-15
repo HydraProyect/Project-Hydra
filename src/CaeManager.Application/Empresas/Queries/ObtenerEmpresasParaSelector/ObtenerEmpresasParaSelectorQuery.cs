@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 /// <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/> y no
 /// la variante de visibilidad de portal.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerEmpresasParaSelectorQuery(Guid? ClienteId = null) : IRequest<IReadOnlyList<EmpresaSelectorDto>>;
 
 public record EmpresaSelectorDto(Guid Id, string RazonSocial);

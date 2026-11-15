@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 /// completo del IgnoreQueryFilters()+TenantId. La baja solo marca el Proyecto: sus técnicos, visitas
 /// y trabajadores asociados no se tocan, así que restaurarlo lo devuelve entero.
 /// </summary>
+[AreaDelEncargo("Proyectos")]
 public record RestaurarProyectoCommand(Guid Id) : ICommand;
 
 public class RestaurarProyectoCommandHandler(

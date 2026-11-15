@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 /// Enviar Desconectar desde Reparar desconectaba la conexión si otra sesión la había reactivado después de cargar la fila
 /// (Codex, ronda 19, hallazgo alto).
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record RepararMarcaHuecoCommand(Guid ConexionId) : ICommand;
 
 public class RepararMarcaHuecoCommandValidator : AbstractValidator<RepararMarcaHuecoCommand>

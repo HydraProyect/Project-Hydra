@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorr
 /// no threadea de vuelta a la conversación todavía — eso exige el
 /// Conversation Matching Engine (§ 13.2, paso 4, sin construir).
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record MigrarConversacionACorreoCommand(Guid ConversacionId, string EmailDestino, string CuerpoHtml) : ICommand;
 
 public class MigrarConversacionACorreoCommandValidator : AbstractValidator<MigrarConversacionACorreoCommand>

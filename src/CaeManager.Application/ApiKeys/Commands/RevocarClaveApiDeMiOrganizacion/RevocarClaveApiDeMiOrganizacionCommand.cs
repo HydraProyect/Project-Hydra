@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.ApiKeys.Commands.RevocarClaveApiDeMiOrganizacio
 /// busca en el Tenant actual, así que la de otro Tenant no existe aquí. Va exenta del gate
 /// comercial: un impago no puede impedir cortar una credencial filtrada.
 /// </summary>
+[AreaDelEncargo("ApiKeys")]
 public record RevocarClaveApiDeMiOrganizacionCommand(Guid ClaveApiId) : ICommand, IComandoQueReduceExposicion;
 
 public class RevocarClaveApiDeMiOrganizacionCommandValidator : AbstractValidator<RevocarClaveApiDeMiOrganizacionCommand>

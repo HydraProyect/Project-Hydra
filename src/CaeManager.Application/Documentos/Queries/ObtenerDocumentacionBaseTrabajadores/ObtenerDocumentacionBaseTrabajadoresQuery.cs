@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.DocumentacionBase;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrab
 /// la lista de /trabajadores dejó de pintarla en la fase 1 del rediseño de listados). Solo salen los Trabajadores visibles en el alcance del actor: uno
 /// fuera de cartera no aparece en el resultado, igual que su Documento no es legible por Id.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerDocumentacionBaseTrabajadoresQuery(IReadOnlyCollection<Guid> TrabajadorIds)
     : IRequest<IReadOnlyDictionary<Guid, DocumentacionBaseTrabajadorDto>>;
 

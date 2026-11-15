@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -35,6 +36,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// </param>
 /// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
 /// <param name="Origen">Camino del producto que envía; solo etiqueta el rastro de salida (<see cref="RegistroSalidaComunicaciones"/>).</param>
+[AreaDelEncargo("Comunicaciones")]
 public record EnviarMensajeNuevoCommand(
     Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml,
     Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? EmpresaId = null,

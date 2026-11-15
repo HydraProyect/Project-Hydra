@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
 namespace CaeManager.Application.Documentos.Commands.EliminarDocumento;
 
+[AreaDelEncargo("Documentos")]
 public record EliminarDocumentoCommand(Guid Id) : ICommand;
 
 public class EliminarDocumentoCommandHandler(

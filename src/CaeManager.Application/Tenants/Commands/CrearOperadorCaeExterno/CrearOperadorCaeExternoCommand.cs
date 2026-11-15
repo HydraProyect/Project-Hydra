@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
@@ -56,6 +57,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 /// con el mismo texto para cualquier fallo de la cuenta.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record CrearOperadorCaeExternoCommand(
     string NombreTenantOperador,
     string EmailPrimerAdministrador,

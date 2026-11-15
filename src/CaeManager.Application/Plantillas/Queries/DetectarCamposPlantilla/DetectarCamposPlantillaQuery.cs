@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Plantillas.Queries.DetectarCamposPlantilla;
 /// propietario devuelve la lista vacía sin enviar el PDF a ningún proveedor. La rama
 /// <see cref="FormatoOrigenPlantilla.PdfConCampos"/> no lo lleva porque no usa IA.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record DetectarCamposPlantillaQuery(byte[] Contenido, FormatoOrigenPlantilla Formato)
     : IRequest<Result<IReadOnlyList<PlantillaElementoCandidatoDto>>>;
 

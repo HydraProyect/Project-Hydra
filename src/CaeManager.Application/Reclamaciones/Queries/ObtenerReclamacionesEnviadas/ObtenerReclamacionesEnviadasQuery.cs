@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnvia
 /// ObtenerEmpresaIdsVisiblesAsync. Las dos anclas repuntan contra Empresas,
 /// así que la razón social sale del mismo join en los dos casos.
 /// </summary>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerReclamacionesEnviadasQuery(int Pagina = 1, int TamanoPagina = 20)
     : IRequest<ResultadoPaginado<ReclamacionEnviadaDto>>;
 

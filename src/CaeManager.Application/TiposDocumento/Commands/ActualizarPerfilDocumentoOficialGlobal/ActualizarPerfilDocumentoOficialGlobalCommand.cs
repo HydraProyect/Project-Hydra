@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.TiposDocumento.Commands.ActualizarPerfilDocumen
 /// el perfil de documento oficial de un TipoDocumento — el interruptor de la
 /// validación automática por firma digital (ver TipoDocumento.PerfilDocumentoOficial).
 /// </summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ActualizarPerfilDocumentoOficialGlobalCommand(Guid TipoDocumentoId, PerfilDocumentoOficial Perfil) : ICommand;
 
 public class ActualizarPerfilDocumentoOficialGlobalCommandValidator : AbstractValidator<ActualizarPerfilDocumentoOficialGlobalCommand>

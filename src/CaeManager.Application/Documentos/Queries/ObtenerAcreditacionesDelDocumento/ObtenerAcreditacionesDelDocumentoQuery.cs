@@ -5,6 +5,7 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesDelDocu
 /// D-3: solo cambia qué se muestra; cada Command del menú «Acreditación ▾» comprueba su propia autorización.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerAcreditacionesDelDocumentoQuery(Guid DocumentoId) : IRequest<AcreditacionesDelDocumentoDto?>;
 
 /// <param name="EstadoDocumental">El estado documental del Documento en TALVEG, para el panel «Gestionar acreditación…».</param>

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using CaeManager.Application.Visitas.Antelacion;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Visitas.Commands.ReactivarVisita;
 /// sin auditar y sin reevaluar el expediente (el estado pedido ya es el actual).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ReactivarVisitaCommand(Guid Id, Guid VersionEsperada, string? Motivo = null) : ICommand;
 
 public class ReactivarVisitaCommandValidator : AbstractValidator<ReactivarVisitaCommand>

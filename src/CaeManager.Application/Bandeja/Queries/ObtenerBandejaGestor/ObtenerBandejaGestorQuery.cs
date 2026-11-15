@@ -15,6 +15,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 
@@ -42,6 +43,7 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 /// ni documentación verificada. Por delante de todo va lo que bloquea el
 /// acceso (ver <see cref="ObtenerBandejaGestorQueryHandler.Ordenar"/>).
 /// </summary>
+[AreaDelEncargo("Bandeja")]
 public record ObtenerBandejaGestorQuery : IRequest<IReadOnlyList<ItemBandejaDto>>;
 
 public enum TipoItemBandeja

@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
@@ -52,6 +53,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// entró y no deja registro.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerPaqueteDocumentalVisitaQuery(Guid VisitaId) : IRequest<Result<PaqueteDocumentalDescargaDto>>;
 
 public record PaqueteDocumentalDescargaDto(string NombreArchivo, byte[] Contenido);

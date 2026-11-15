@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,9 +15,11 @@ namespace CaeManager.Application.ContratosAcceso.Queries.ObtenerLecturaInbound;
 // el alcance» (o una revocación entre las dos llamadas, que la base corta igual).
 
 /// <summary>¿Hay autorización del Tenant de la Empresa contratista para este contrato?</summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerAutorizacionInboundQuery(Guid ContratoAccesoId) : IRequest<AutorizacionInboundDto?>;
 
 /// <summary>Los Documentos autorizados por este contrato, sin archivo.</summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerDocumentosInboundQuery(Guid ContratoAccesoId) : IRequest<IReadOnlyList<DocumentoInboundDto>?>;
 
 /// <summary>
@@ -24,6 +27,7 @@ public record ObtenerDocumentosInboundQuery(Guid ContratoAccesoId) : IRequest<IR
 /// referencia del almacenamiento del Tenant de la Empresa contratista. De un tipo de salud solo se abre el certificado de
 /// «solo conclusión de aptitud», porque la función de la base no deja pasar ningún otro.
 /// </summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerArchivoInboundQuery(Guid ContratoAccesoId, Guid DocumentoId) : IRequest<ContenidoArchivoInboundDto?>;
 
 public record ContenidoArchivoInboundDto(byte[] Contenido, string TipoMime);

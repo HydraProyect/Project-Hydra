@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -42,6 +43,7 @@ namespace CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 /// La clave completa se devuelve una única vez, en <see cref="Result{T}.Valor"/>;
 /// a partir de aquí solo se guarda su hash — no hay manera de recuperarla.
 /// </summary>
+[AreaDelEncargo("ApiKeys")]
 public record GenerarClaveApiCommand(Guid DelegacionTenantId, string NombreDescriptivo, DateTime? CaducaEnUtc, string Motivo) : ICommand<ClaveApiGeneradaDto>;
 
 public record ClaveApiGeneradaDto(Guid Id, string ClaveEnClaro, string PrefijoVisible);

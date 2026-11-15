@@ -1,5 +1,6 @@
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Application.RelacionesEmpresariales;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Commands.EditarEmpresa;
 
+[AreaDelEncargo("Empresas")]
 public record EditarEmpresaCommand(
     Guid Id,
     string RazonSocial,

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -47,6 +48,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// ClientePrincipal</c> ordena por ese Cliente (sin Cliente, al final), que es lo que hace contiguos los grupos.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record ObtenerEmpresasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,

@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record EliminarProyectoCommand(Guid Id) : ICommand;
 
 public class EliminarProyectoCommandHandler(

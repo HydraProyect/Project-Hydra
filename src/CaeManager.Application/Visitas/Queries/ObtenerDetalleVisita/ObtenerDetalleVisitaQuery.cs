@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Domain.Centros;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 /// el Context Workspace). Sin DNI: el detalle de la Visita no es una vista
 /// autorizada para él (decisión del 2026-09-24); está en la ficha del Trabajador.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerDetalleVisitaQuery(Guid Id) : IRequest<DetalleVisitaDto?>;
 
 public record TrabajadorVisitaDto(Guid Id, string NombreCompleto);

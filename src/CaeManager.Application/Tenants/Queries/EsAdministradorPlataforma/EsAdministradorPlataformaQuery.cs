@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 /// </para>
 /// </summary>
 /// <param name="LecturaVigente">Leer la concesión de la base aunque el ámbito tenga la respuesta memoizada.</param>
+[AreaDelEncargo("Tenants")]
 public record EsAdministradorPlataformaQuery(bool LecturaVigente = false) : IRequest<bool>;
 
 public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma autorizacion, ICurrentUserService currentUserService,

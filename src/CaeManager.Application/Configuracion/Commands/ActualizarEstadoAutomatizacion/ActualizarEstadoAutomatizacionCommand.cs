@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Configuracion.Commands.ActualizarEstadoAutomatizacion;
 
+[AreaDelEncargo("Configuracion")]
 public record ActualizarEstadoAutomatizacionCommand(string TrabajoId, bool Activo) : ICommand;
 
 public class ActualizarEstadoAutomatizacionCommandValidator : AbstractValidator<ActualizarEstadoAutomatizacionCommand>

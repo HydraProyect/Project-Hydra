@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// vivas y abiertas por estado (foto de hoy) y las solicitudes del mes por canal. Los tiempos de respuesta, la
 /// intención CAE y los equipos no tienen modelo todavía: no se calculan ni se inventan.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerComunicacionesCuadroDireccionQuery(int Anyo, int Mes) : IRequest<ComunicacionesCuadroDireccionDto>;
 
 public record ConteoPorEstadoDto(EstadoConversacion Estado, int Conversaciones);

@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 
 /// <summary>Activa o desactiva el acuse automático de un buzón compartido; solo afecta a los correos que entren después.</summary>
+[AreaDelEncargo("Integraciones")]
 public record FijarAcuseAutomaticoBuzonCommand(Guid ConexionId, bool Activo) : ICommand;
 
 public class FijarAcuseAutomaticoBuzonCommandValidator : AbstractValidator<FijarAcuseAutomaticoBuzonCommand>

@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Cumplimiento;
 using MediatR;
 
 namespace CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos;
 
 /// <summary>True si el usuario autenticado actual todavía no aceptó la versión vigente de los Términos y Condiciones + Política de Privacidad.</summary>
+[AreaDelEncargo("Cumplimiento")]
 public record ObtenerEstadoAceptacionTerminosQuery : IRequest<bool>;
 
 public class ObtenerEstadoAceptacionTerminosQueryHandler(

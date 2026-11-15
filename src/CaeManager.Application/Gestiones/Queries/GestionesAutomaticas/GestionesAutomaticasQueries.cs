@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -83,10 +84,12 @@ public sealed record ListadoGestionesAutomaticasDto(
 /// Una Gestión que sigue abierta con su Documento ya en el historial cuenta y filtra como Sustituida, la marcara o
 /// no la renovación (<see cref="GestionAutomatica.ResolverEstado"/>): ninguna cifra la da por abierta.
 /// </summary>
+[AreaDelEncargo("Gestiones")]
 public record ObtenerGestionesAutomaticasQuery(EstadoGestionAutomatica? Estado = null, Guid? DocumentoId = null)
     : IRequest<ListadoGestionesAutomaticasDto>;
 
 /// <summary>La Gestión automática con sus pasos visibles en el orden de D-5; null si no existe o no se ve.</summary>
+[AreaDelEncargo("Gestiones")]
 public record ObtenerGestionAutomaticaQuery(Guid Id) : IRequest<GestionAutomaticaDetalleDto?>;
 
 public class ObtenerGestionesAutomaticasQueryHandler(

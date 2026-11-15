@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 /// de detalle propia, enlaza al listado del módulo con el texto ya
 /// cargado en el filtro (?q=).
 /// </summary>
+[AreaDelEncargo("BusquedaGlobal")]
 public record BuscarGlobalQuery(string Termino) : IRequest<ResultadoBusquedaGlobalDto>;
 
 public record ItemBusquedaDto(Guid Id, string Titulo, string? Subtitulo, string UrlDestino)

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// «Asignar empresas» a un Gestor CAE que ya existe (<c>AsignarCarteraGestorCaeCommand</c>,
 /// que también la retira).
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record AceptarSolicitudIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
 
 public class AceptarSolicitudIncorporacionCarteraCommandHandler(

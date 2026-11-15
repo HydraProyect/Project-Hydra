@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpres
 /// explícito. En un alta (todavía no hay fila) no aplica: ahí vacío/null
 /// simplemente significa que no se ha puesto contraseña.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record GuardarCredencialAccesoEmpresaCommand(
     Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand, IEscrituraDeDatosDeCredencial;
 

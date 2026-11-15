@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Asignaciones;
@@ -41,6 +42,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontr
 /// (<c>CalculoEstadoSubcontrataService</c>), que se acota por Trabajadores
 /// visibles y cuenta todos los Centros de cada uno de ellos.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerSupervisionSubcontrataQuery(Guid SubcontrataId) : IRequest<SupervisionSubcontrataDto?>;
 
 public record SupervisionSubcontrataDto(

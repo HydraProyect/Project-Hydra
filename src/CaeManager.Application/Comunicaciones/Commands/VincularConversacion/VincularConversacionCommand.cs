@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 /// nada que mover — solo re-cierra una conversación ya cerrada y registra un
 /// evento de vinculación duplicado en el timeline, nunca pérdida de datos.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record VincularConversacionCommand(Guid ConversacionOrigenId, Guid ConversacionDestinoId) : ICommand;
 
 public class VincularConversacionCommandValidator : AbstractValidator<VincularConversacionCommand>

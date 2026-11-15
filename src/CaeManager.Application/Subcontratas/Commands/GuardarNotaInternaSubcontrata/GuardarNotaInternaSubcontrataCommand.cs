@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcont
 /// </para>
 /// </summary>
 /// <param name="Notas">Vacía, solo espacios o <c>null</c>: la subcontrata se queda sin nota.</param>
+[AreaDelEncargo("Subcontratas")]
 public record GuardarNotaInternaSubcontrataCommand(Guid Id, string? Notas, Guid Version) : ICommand;
 
 public class GuardarNotaInternaSubcontrataCommandValidator : AbstractValidator<GuardarNotaInternaSubcontrataCommand>

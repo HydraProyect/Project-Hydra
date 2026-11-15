@@ -4,6 +4,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
 using MediatR;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Trabajadores.Commands.FijarDelegacionEmpresaYOficioTrabajador;
 
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Trabajadores.Commands.FijarDelegacionEmpresaYOf
 /// Empresa responde «no encontrado» y, por debajo, la FK compuesta lo rechazaría igual.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record FijarDelegacionEmpresaYOficioTrabajadorCommand(
     Guid TrabajadorId, Guid? DelegacionEmpresaId, Guid? OficioEmpresaId, Guid Version) : ICommand;
 

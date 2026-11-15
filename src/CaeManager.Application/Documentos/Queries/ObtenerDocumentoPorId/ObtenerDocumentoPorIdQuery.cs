@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 
 /// <param name="ExcluirCategoriaEspecialSalud">Un documento de salud responde como inexistente, igual que uno fuera de alcance.</param>
+[AreaDelEncargo("Documentos")]
 public record ObtenerDocumentoPorIdQuery(Guid Id, bool ExcluirCategoriaEspecialSalud = false) : IRequest<DocumentoDetalleDto?>;
 
 /// <summary>

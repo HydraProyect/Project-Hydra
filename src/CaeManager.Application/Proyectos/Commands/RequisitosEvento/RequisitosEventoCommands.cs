@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -10,15 +11,18 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Proyectos.Commands.RequisitosEvento;
 
 /// <summary>Añade un Tipo de Documento a los requisitos de un evento. Misma autoridad que el resto de escrituras de Proyecto.</summary>
+[AreaDelEncargo("Proyectos")]
 public record AnadirRequisitoEventoCommand(Guid ProyectoId, Guid TipoDocumentoId) : ICommand;
 
 /// <summary>Quita un Tipo de Documento de los requisitos de un evento (baja física, como <c>TipoDocumentoCentro</c>).</summary>
+[AreaDelEncargo("Proyectos")]
 public record QuitarRequisitoEventoCommand(Guid ProyectoId, Guid TipoDocumentoId) : ICommand;
 
 /// <summary>
 /// Guarda los requisitos actuales de un evento como plantilla del Cliente empresarial del evento, para copiarlos
 /// al crear el siguiente. Es una foto: los cambios posteriores del evento o de la plantilla no se propagan.
 /// </summary>
+[AreaDelEncargo("Proyectos")]
 public record GuardarPlantillaRequisitosEventoCommand(Guid ProyectoId, string Nombre) : ICommand<Guid>;
 
 public class AnadirRequisitoEventoCommandValidator : AbstractValidator<AnadirRequisitoEventoCommand>

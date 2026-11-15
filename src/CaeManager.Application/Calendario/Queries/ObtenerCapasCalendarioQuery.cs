@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.CalendarioLaboral;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Calendario.Queries;
 /// Coberturas, § 5.4): por cada persona visible, su comunidad, los festivos que le aplican y sus días de
 /// jornada intensiva en ese mes. No lleva nombres ni identificadores de persona: la capa solo pinta fechas.
 /// </summary>
+[AreaDelEncargo("Calendario")]
 public record ObtenerCapasCalendarioQuery(int Anio, int Mes) : IRequest<CapasCalendarioDto>;
 
 /// <param name="VeAlEquipo">Si quien mira ve a todo el equipo (Coordinador CAE, Dirección CAE, Administrador) o solo a sí mismo (Gestor CAE).</param>

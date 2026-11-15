@@ -1,12 +1,14 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Facturacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Facturacion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
 
+[AreaDelEncargo("Facturacion")]
 public record ObtenerTarifasClienteQuery(Guid ClienteId) : IRequest<List<TarifaClienteDto>>;
 
 public record TarifaClienteDto(

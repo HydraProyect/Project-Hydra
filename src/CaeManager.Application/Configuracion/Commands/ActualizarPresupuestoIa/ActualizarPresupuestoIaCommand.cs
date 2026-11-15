@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 /// gasto mensual en IA documental (Horizonte 2.7 del plan). <paramref name="PresupuestoMensualIaUsd"/>
 /// en <c>null</c> desactiva el aviso.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ActualizarPresupuestoIaCommand(decimal? PresupuestoMensualIaUsd) : ICommand;
 
 public class ActualizarPresupuestoIaCommandValidator : AbstractValidator<ActualizarPresupuestoIaCommand>

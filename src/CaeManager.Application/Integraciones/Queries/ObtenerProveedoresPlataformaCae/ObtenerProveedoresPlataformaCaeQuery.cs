@@ -1,4 +1,5 @@
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlatafo
 /// catálogo. <paramref name="SoloActivos"/> filtra los sembrados sin foco CAE
 /// real (Arch, Opground) fuera de los selectores de alta.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record ObtenerProveedoresPlataformaCaeQuery(bool SoloActivos = true) : IRequest<IReadOnlyList<ProveedorPlataformaCaeListaDto>>;
 
 public record ProveedorPlataformaCaeListaDto(

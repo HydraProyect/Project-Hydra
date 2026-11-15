@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Application.Centros;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 
+[AreaDelEncargo("Centros")]
 public record ObtenerCentroPorIdQuery(Guid Id) : IRequest<CentroDetalleDto?>;
 
 public record CentroDetalleDto(

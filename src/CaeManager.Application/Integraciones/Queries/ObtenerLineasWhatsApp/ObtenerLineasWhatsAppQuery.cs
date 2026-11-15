@@ -1,12 +1,14 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 
+[AreaDelEncargo("Integraciones")]
 public record ObtenerLineasWhatsAppQuery : IRequest<IReadOnlyList<LineaWhatsAppListaDto>>;
 
 /// <summary>Sin TokenAcceso a propósito: el token nunca sale hacia la UI — solo se escribe (alta/rotación).</summary>

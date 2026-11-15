@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Documentos;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Proyectos.Queries.ObtenerVehiculosProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record ObtenerVehiculosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<VehiculoProyectoDto>>;
 
 /// <param name="EmpleadorId">Empresa a la que pertenece el Vehículo, por la ruta contextual con la que participa en el Proyecto.</param>

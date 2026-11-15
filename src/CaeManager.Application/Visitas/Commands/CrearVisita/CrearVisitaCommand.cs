@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Eventos;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 /// sugerencia para marcarla resuelta en la misma operación — así no queda
 /// pendiente en la Bandeja una sugerencia que ya se atendió.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record CrearVisitaCommand(
     Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
     Guid? SugerenciaVisitaCorreoId = null, TimeOnly? HoraEstimadaAcceso = null)

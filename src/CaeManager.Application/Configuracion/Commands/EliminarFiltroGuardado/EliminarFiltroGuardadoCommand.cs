@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 /// igual si el Id no existe, si es de otro usuario, si se guardó en otro Tenant
 /// (no lo ve el filtro global) o si es la fila reservada de la vista recordada.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record EliminarFiltroGuardadoCommand(Guid Id) : ICommand, IComandoDeAutoservicio;
 
 public class EliminarFiltroGuardadoCommandValidator : AbstractValidator<EliminarFiltroGuardadoCommand>

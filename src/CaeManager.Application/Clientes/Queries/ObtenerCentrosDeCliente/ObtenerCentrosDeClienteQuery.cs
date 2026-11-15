@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 /// y su comentario en <c>EmpresaWorkspacePanel.razor</c>): un Cliente es dueño
 /// de todos sus Centros, los opere la Empresa que los opere.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record ObtenerCentrosDeClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<CentroDeClienteDto>>;
 
 public record CentroDeClienteDto(Guid Id, string Nombre, string EmpresaRazonSocial);

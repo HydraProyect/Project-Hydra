@@ -2,6 +2,7 @@ using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -38,6 +39,7 @@ namespace CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 /// Tenant por ese Id, y dos Tenants con la misma Subscription harían su resultado
 /// indeterminado.
 /// </summary>
+[AreaDelEncargo("Comercial")]
 public record RegistrarSuscripcionTenantCommand(Guid TenantId, string StripeSubscriptionId) : ICommand;
 
 public class RegistrarSuscripcionTenantCommandValidator : AbstractValidator<RegistrarSuscripcionTenantCommand>

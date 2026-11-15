@@ -1,5 +1,6 @@
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Empresas.Commands.CrearEmpresa;
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record CrearEmpresaCommand(
     string RazonSocial,
     string? Cif,

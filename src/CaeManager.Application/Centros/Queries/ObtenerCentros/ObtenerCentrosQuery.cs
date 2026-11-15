@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -44,6 +45,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 /// cumplimiento (la exportación a Excel) lo pone a <c>false</c> y, en un Tenant completo, no calcula nada. Con <c>false</c>
 /// <c>Recuentos</c> puede venir vacío: no es un Centro sin incidencias.
 /// </param>
+[AreaDelEncargo("Centros")]
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,

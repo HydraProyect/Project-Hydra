@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Usuarios.Commands.ElegirAvatarPropio;
 /// usuario no le cambia el avatar: el actor real tiene que ser la propia cuenta.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ElegirAvatarPropioCommand(string? Clave) : ICommand, IComandoDeAutoservicio;
 
 public class ElegirAvatarPropioCommandHandler(

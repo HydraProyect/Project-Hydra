@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
@@ -30,6 +31,7 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.ValidarContactoSegu
 /// estado Propuesto y los cuatro ojos, y deja la auditoría en el Tenant beneficiario.
 /// </para>
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ValidarContactoSeguridadCommand(Guid ContactoId) : ICommand;
 
 public class ValidarContactoSeguridadCommandValidator : AbstractValidator<ValidarContactoSeguridadCommand>

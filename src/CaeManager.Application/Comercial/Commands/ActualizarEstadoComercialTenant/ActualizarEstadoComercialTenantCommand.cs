@@ -2,6 +2,7 @@ using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTen
 /// alta: sin ellos, una resincronización y un webhook concurrentes podían guardar en el
 /// orden contrario al que consultaron Stripe. Si el estado no cambia no se escribe nada.
 /// </summary>
+[AreaDelEncargo("Comercial")]
 public record ActualizarEstadoComercialTenantCommand(Guid TenantId) : ICommand;
 
 public class ActualizarEstadoComercialTenantCommandValidator : AbstractValidator<ActualizarEstadoComercialTenantCommand>

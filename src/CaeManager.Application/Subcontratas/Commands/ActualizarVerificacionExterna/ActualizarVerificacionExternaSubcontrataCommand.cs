@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Subcontratas.Commands.ActualizarVerificacionExt
 /// <see cref="VerificacionExternaSubcontrata.Actualizar"/>). Sin evidencia nueva se conserva la que había.
 /// La evidencia sustituida no se borra del almacenamiento, igual que la de una verificación eliminada.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ActualizarVerificacionExternaSubcontrataCommand(
     Guid Id,
     DateOnly FechaVerificacion,

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion;
 
 /// <param name="CuerpoHtml">El borrador tal como lo dejó el Gestor CAE: es lo que se envía.</param>
+[AreaDelEncargo("Comunicaciones")]
 public record AprobarRecordatorioConversacionCommand(Guid ConversacionId, Guid PropuestaId, string CuerpoHtml) : ICommand;
 
 public class AprobarRecordatorioConversacionCommandValidator : AbstractValidator<AprobarRecordatorioConversacionCommand>

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// nivel que el resto de búsquedas de este repositorio — no se introduce
 /// tsvector/GIN de Postgres para esto (YAGNI).
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesQuery(
     EstadoConversacion? Estado = null,
     int? Anio = null,

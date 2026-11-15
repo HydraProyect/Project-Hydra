@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
 using CaeManager.Domain.Operaciones;
@@ -82,6 +83,7 @@ public static class AutorizacionTarifasOperadorCae
 }
 
 /// <summary>Todas las versiones de las tarifas del Operador CAE de quien pide; null si no puede verlas.</summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerTarifasOperadorCaeQuery : IRequest<IReadOnlyList<TarifaOperadorCaeDto>?>;
 
 public class ObtenerTarifasOperadorCaeQueryHandler(ICurrentUserService usuario, ITarifasOperadorCaeContext contexto)
@@ -111,6 +113,7 @@ public class ObtenerTarifasOperadorCaeQueryHandler(ICurrentUserService usuario, 
 /// vigente desde ahora (ver <see cref="TarifaOperadorCae"/>). Desactivar el cobro es una versión con
 /// <paramref name="Activa"/> en falso; las unidades se siguen mostrando.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record FijarTarifaOperadorCaeCommand(
     Guid PropietarioTenantId, ConceptoTarifaOperadorCae Concepto, decimal PrecioUnitario, string MonedaIso, bool Activa) : ICommand;
 

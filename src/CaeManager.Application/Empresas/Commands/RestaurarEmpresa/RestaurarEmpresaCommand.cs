@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 
 /// <summary>Fase D ("Deshacer al eliminar") — ver RestaurarClienteCommand para el razonamiento completo del IgnoreQueryFilters()+TenantId.</summary>
+[AreaDelEncargo("Empresas")]
 public record RestaurarEmpresaCommand(Guid Id) : ICommand;
 
 public class RestaurarEmpresaCommandHandler(

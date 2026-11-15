@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Plantillas.Queries.ObtenerLoteGeneracionDocumentos;
 
 /// <summary>Estado del lote y de cada uno de sus items — la UI la vuelve a llamar tras procesar cada <c>ItemGeneracionDocumento</c> para refrescar el progreso en pantalla.</summary>
+[AreaDelEncargo("Plantillas")]
 public record ObtenerLoteGeneracionDocumentosQuery(Guid LoteGeneracionDocumentoId)
     : IRequest<Result<LoteGeneracionDocumentoDto>>;
 

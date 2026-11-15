@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -43,6 +44,7 @@ namespace CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 /// cuenta (<see cref="IBloqueoCarteraUsuario"/>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record AsumirPrincipalDeOperacionCommand(Guid AsignacionOperacionId) : ICommand;
 
 public class AsumirPrincipalDeOperacionCommandHandler(

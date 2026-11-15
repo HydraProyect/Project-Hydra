@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -39,6 +40,7 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederAdministradorPorPla
 /// <param name="UsuarioId">La cuenta del Tenant que pasa a ser Administrador.</param>
 /// <param name="Motivo">La referencia de la petición (ticket o descripción), obligatoria. Se
 /// guarda en la auditoría.</param>
+[AreaDelEncargo("Plataforma")]
 public record ConcederAdministradorPorPlataformaCommand(Guid UsuarioId, string Motivo)
     : ICommand, IComandoDeConcesionAdministrador;
 

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
@@ -19,6 +20,7 @@ public record EmpresaAsignableEnAlta(Guid TenantId, string Nombre);
 /// la cartera. Es UX, no enforcement: el Command vuelve a comprobarlo todo al guardar.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerEmpresasAsignablesEnAltaQuery : IRequest<IReadOnlyList<EmpresaAsignableEnAlta>>;
 
 public class ObtenerEmpresasAsignablesEnAltaQueryHandler(

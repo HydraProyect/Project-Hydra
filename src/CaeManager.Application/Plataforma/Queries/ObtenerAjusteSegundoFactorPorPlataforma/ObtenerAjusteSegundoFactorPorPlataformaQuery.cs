@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public record AjusteSegundoFactorPorPlataformaDto(bool ExigeSegundoFactorTodosLo
 /// revocada en otra pestaña seguiría mostrando el estado del segundo factor del Tenant
 /// hasta la siguiente revalidación del circuito.
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record ObtenerAjusteSegundoFactorPorPlataformaQuery : IRequest<AjusteSegundoFactorPorPlataformaDto?>;
 
 public class ObtenerAjusteSegundoFactorPorPlataformaQueryHandler(

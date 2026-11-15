@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo;
 /// un sello de empresa opcional — capacidad genérica sobre Documento, no
 /// atada a ningún formato concreto (plan Fase A de firma en campo).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record FirmarDocumentoEnCampoCommand(
     Guid DocumentoId,
     string? TrazoPngBase64,

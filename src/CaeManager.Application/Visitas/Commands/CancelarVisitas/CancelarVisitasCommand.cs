@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Visitas.Commands.CancelarVisitas;
 /// cancelada para que el aviso ofrezca «Deshacer» solo sobre ellas, con la versión que
 /// <c>ReactivarVisitaCommand</c> comprueba.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record CancelarVisitasCommand(IReadOnlyList<Guid> Ids, string? Motivo = null) : ICommand<ResultadoCancelacionLoteDto>;
 
 public record ResultadoCancelacionLoteDto(int Canceladas, IReadOnlyList<string> Errores, IReadOnlyList<CancelarVisita.VisitaCanceladaDto> Recibos);

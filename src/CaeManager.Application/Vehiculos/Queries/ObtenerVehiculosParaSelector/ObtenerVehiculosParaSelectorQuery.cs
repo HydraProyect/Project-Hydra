@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 /// de un Vehículo ya existente, y ofrecer uno fuera de la Asignación de Cartera del Gestor CAE
 /// enseñaría su matrícula. Sin restricción para los roles con acceso total.
 /// </summary>
+[AreaDelEncargo("Vehiculos")]
 public record ObtenerVehiculosParaSelectorQuery : IRequest<IReadOnlyList<VehiculoSelectorDto>>;
 
 public record VehiculoSelectorDto(Guid Id, string Nombre, string NumeroPlaca);

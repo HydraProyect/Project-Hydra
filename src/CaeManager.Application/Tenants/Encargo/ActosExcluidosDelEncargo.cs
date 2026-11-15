@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Reflection;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
@@ -17,6 +19,7 @@ using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajad
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarPerfilDocumentoOficialGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal;
+using MediatR;
 
 namespace CaeManager.Application.Tenants.Encargo;
 
@@ -65,16 +68,41 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// </para>
 ///
 /// <para>
-/// <see cref="AreasPermitidas"/> no decide nada en ejecución: existe para que
-/// <c>AreasClasificadasParaElEncargoTests</c> pueda exigir que toda área con
-/// peticiones esté en una de las dos listas, y que un área nueva no quede
-/// abierta bajo encargo sin que alguien lo haya decidido.
+/// <see cref="AreasPermitidas"/> decide una sola cosa en ejecución: que el área
+/// resuelta exista. Un área que no está en ninguna de las dos listas no es área,
+/// y la petición se excluye (<see cref="Excluye"/> falla cerrado). Además existe
+/// para que <c>AreasClasificadasParaElEncargoTests</c> pueda exigir que toda área
+/// con peticiones esté en una de las dos listas, y que un área nueva no quede sin
+/// decidir.
+/// </para>
+///
+/// <para>
+/// <b>El área se resuelve por la marca del tipo, nunca por la carpeta</b> (ADR-013, M0c; ver
+/// <see cref="AreaDe(Type)"/>): la <see cref="AreaDelEncargoAttribute"/> del propio tipo de la petición y,
+/// sin ella, la de su base; una derivada nunca queda menos restringida que su base. Una petición sin
+/// ninguna se queda sin área y se excluye. Cambiar el área de una petición exige editar su marca, que vive
+/// en su propio fichero de <c>src</c>; la lista congelada de <c>AreaDelEncargoPorTipoTests</c> es un segundo
+/// instrumento que debe coincidir con las marcas. Antes se deducía del espacio de nombres, y mover
+/// <c>AutorizacionesLectura</c> a <c>CaeManager.Application.Inbound.*</c> la habría abierto bajo encargo
+/// no pleno (área «Inbound», que no está excluida). <b>Nunca</b> se clasifica un segmento de módulo
+/// («Inbound», «Outbound») como área.
+/// </para>
+///
+/// <para>
+/// <b>Por qué una marca en cada petición y no una tabla central.</b> Una tabla <c>typeof(Petición) → área</c>
+/// en este proyecto referenciaba tipos de Outbound desde el Núcleo (232 aristas Núcleo → Outbound en el IL) y
+/// rompía el ratchet de dependencias entre módulos de ADR-013 (M0b). La marca no añade ninguna arista hacia
+/// arriba: cada petición solo depende del atributo, que vive en el Núcleo.
+/// </para>
+///
+/// <para>
+/// La aplican dos behaviors con la misma semántica: <see cref="Common.ExclusionesDelEncargoBehavior{TRequest,TResponse}"/>
+/// a las peticiones de respuesta y <see cref="Common.ExclusionesDelEncargoStreamBehavior{TRequest,TResponse}"/> a
+/// las de flujo (<see cref="IStreamRequest{TResponse}"/>), que MediatR no pasa por los primeros.
 /// </para>
 /// </summary>
 public static class ActosExcluidosDelEncargo
 {
-    private const string RaizDeAreas = "CaeManager.Application.";
-
     /// <summary>Áreas cuyas peticiones, todas, eran exclusivas de Administrador o Dirección CAE.</summary>
     public static readonly IReadOnlySet<string> AreasExcluidas = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -148,30 +176,118 @@ public static class ActosExcluidosDelEncargo
     /// a una entidad es la pestaña de historial de una ficha, que cualquier rol
     /// de cartera ya veía; sin entidad es el registro de auditoría del Tenant
     /// propietario entero, que era solo del Administrador.
+    ///
+    /// <para>
+    /// <b>Falla cerrado</b> (ADR-013, M0c): una petición sin área resuelta
+    /// (<see cref="AreaDe(Type)"/> devuelve <c>null</c>) se excluye. Los handlers de
+    /// estas áreas no comprueban el rol (D-8), así que dejarla pasar daría a
+    /// quien administra por encargo no pleno el poder de un Administrador sobre
+    /// algo que nadie ha clasificado; excluirla solo le niega un acto que el
+    /// Administrador propio del Tenant propietario sigue pudiendo hacer, y
+    /// <c>AreasClasificadasParaElEncargoTests</c> pone el commit en rojo antes de
+    /// que llegue a ejecutarse.
+    /// </para>
     /// </summary>
     public static bool Excluye(object peticion)
     {
         ArgumentNullException.ThrowIfNull(peticion);
         var tipo = peticion.GetType();
 
-        return (AreaDe(tipo) is { } area && AreasExcluidas.Contains(area))
-               || PeticionesExcluidas.Contains(tipo)
+        return AreaDe(tipo) is not { } area
+               || AreasExcluidas.Contains(area)
+               || DerivaDeUnaPeticionExcluida(tipo)
                || peticion is ObtenerAuditoriaQuery { EntidadId: null };
     }
 
     /// <summary>
-    /// El área de una petición: el segmento de su espacio de nombres que sigue a
-    /// <c>CaeManager.Application.</c>, o <c>null</c> si no vive bajo esa raíz.
+    /// La petición o alguno de sus tipos base está en <see cref="PeticionesExcluidas"/>. La lista va por
+    /// tipo, y comparar solo el exacto abriría una petición que heredase de una excluida: una derivada
+    /// nunca queda menos restringida que su base.
+    /// </summary>
+    private static bool DerivaDeUnaPeticionExcluida(Type tipo)
+    {
+        for (var t = tipo; t is not null; t = t.BaseType)
+        {
+            if (PeticionesExcluidas.Contains(t))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static readonly ConcurrentDictionary<Type, string?> AreasResueltas = new();
+
+    /// <summary>
+    /// El área de una petición, resuelta por la marca de su tipo y nunca por su carpeta (ADR-013, M0c; Codex r2, #2241):
+    /// <list type="number">
+    ///   <item>la de su <see cref="AreaDelEncargoAttribute"/>, si la lleva;</item>
+    ///   <item>si no la lleva, la de su tipo base si es una petición y, si no, la marca más cercana de su cadena
+    ///   de tipos base (la marca no se hereda sola: <c>Inherited = false</c>);</item>
+    ///   <item>si tampoco, ninguna: <c>null</c>.</item>
+    /// </list>
+    /// Ninguno depende del espacio de nombres: mover una petición de carpeta no le cambia el área, y cambiársela
+    /// exige editar su marca, código de <c>src</c>. Solo vale un área clasificada (<see cref="AreasExcluidas"/> o
+    /// <see cref="AreasPermitidas"/>); cualquier otra cosa —una petición nueva sin marca, una marca con un área
+    /// inexistente— da <c>null</c>, y <see cref="Excluye"/> la excluye.
+    ///
+    /// <para>
+    /// <b>Una derivada nunca queda menos restringida que su base</b>: si un tipo base lleva la marca
+    /// de un área excluida, o es una petición excluida por área o sin área, la derivada toma esa área
+    /// (o <c>null</c>) aunque declare otra marca con un área permitida.
+    /// </para>
     /// </summary>
     public static string? AreaDe(Type tipoPeticion)
     {
         ArgumentNullException.ThrowIfNull(tipoPeticion);
-        if (tipoPeticion.Namespace is not { } espacio || !espacio.StartsWith(RaizDeAreas, StringComparison.Ordinal))
-            return null;
+        return AreasResueltas.GetOrAdd(tipoPeticion, ResolverArea);
+    }
 
-        var resto = espacio[RaizDeAreas.Length..];
-        var fin = resto.IndexOf('.', StringComparison.Ordinal);
-        return fin < 0 ? resto : resto[..fin];
+    private static string? ResolverArea(Type tipoPeticion)
+    {
+        // Una marca de área excluida en cualquier tipo base, sea o no una petición, prevalece.
+        for (var t = tipoPeticion.BaseType; t is not null; t = t.BaseType)
+        {
+            if (Marca(t) is { } marcaDeLaBase && AreasExcluidas.Contains(marcaDeLaBase))
+                return marcaDeLaBase;
+        }
+
+        string? areaDeLaBase = null;
+        if (tipoPeticion.BaseType is { } tipoBase && EsPeticion(tipoBase))
+        {
+            areaDeLaBase = ResolverArea(tipoBase);
+            if (areaDeLaBase is null || AreasExcluidas.Contains(areaDeLaBase))
+                return areaDeLaBase;
+        }
+
+        // Marca propia; si no, la de la base petición o la marca más cercana de la cadena: una derivada sin
+        // marca toma el área de su base, nunca una menos restringida.
+        var area = Marca(tipoPeticion)
+                   ?? areaDeLaBase
+                   ?? MarcaHeredadaMasCercana(tipoPeticion);
+        return area is not null && EsClasificada(area) ? area : null;
+    }
+
+    /// <summary>
+    /// Una petición de MediatR: de respuesta (<see cref="IBaseRequest"/>) o de flujo
+    /// (<see cref="IStreamRequest{TResponse}"/>, que no deriva de <see cref="IBaseRequest"/>).
+    /// </summary>
+    private static bool EsPeticion(Type tipo) =>
+        typeof(IBaseRequest).IsAssignableFrom(tipo)
+        || tipo.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStreamRequest<>));
+
+    private static bool EsClasificada(string area) => AreasExcluidas.Contains(area) || AreasPermitidas.Contains(area);
+
+    private static string? Marca(Type tipo) => tipo.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false)?.Area;
+
+    private static string? MarcaHeredadaMasCercana(Type tipoPeticion)
+    {
+        for (var t = tipoPeticion.BaseType; t is not null; t = t.BaseType)
+        {
+            if (Marca(t) is { } marca)
+                return marca;
+        }
+
+        return null;
     }
 }
 

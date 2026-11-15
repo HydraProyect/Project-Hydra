@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -37,6 +38,7 @@ public enum EstadoAsignacionAdjunto
 
 public record ResultadoAsignacionAdjunto(Guid AdjuntoId, EstadoAsignacionAdjunto Estado, Guid? DocumentoId, string? Detalle);
 
+[AreaDelEncargo("Comunicaciones")]
 public record AsignarAdjuntosLoteCommand(Guid ConversacionId, IReadOnlyList<AdjuntoAAsignar> Adjuntos)
     : ICommand<IReadOnlyList<ResultadoAsignacionAdjunto>>;
 

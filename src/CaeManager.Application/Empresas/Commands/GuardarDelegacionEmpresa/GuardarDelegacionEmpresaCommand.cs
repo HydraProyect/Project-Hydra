@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Empresas.Commands.GuardarDelegacionEmpresa;
 
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarDelegacionEmpresa;
 /// editar: si otra persona guardó entre medias, la respuesta es el conflicto de <see cref="ConcurrenciaOptimista"/>.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record GuardarDelegacionEmpresaCommand(
     Guid EmpresaId,
     Guid? DelegacionEmpresaId,

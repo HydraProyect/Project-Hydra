@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSel
 /// aparecer ahí de inmediato. Ver
 /// Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerSubcontratasParaSelectorQuery(Guid? EmpresaId = null) : IRequest<IReadOnlyList<SubcontrataSelectorDto>>;
 
 public record SubcontrataSelectorDto(Guid Id, string RazonSocial);

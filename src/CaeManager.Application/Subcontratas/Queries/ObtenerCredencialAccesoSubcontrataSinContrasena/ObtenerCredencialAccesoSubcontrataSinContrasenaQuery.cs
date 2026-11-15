@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSub
 /// como petición explícita y separada — nunca como efecto de abrir esta
 /// pantalla.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(Guid SubcontrataId) : IRequest<CredencialAccesoSubcontrataSinContrasenaDto?>, IConsultaDeDatosDeCredencial;
 
 public record CredencialAccesoSubcontrataSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);

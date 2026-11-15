@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.EvidenciasInbound;
 using MediatR;
@@ -11,8 +12,10 @@ namespace CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 // después de una revocación. La autoridad es la de LecturaInboundAutoridad sobre el contrato; null = no encontrado, sin
 // distinguir contrato invisible, rol que no valida o evidencia inexistente. La referencia del archivo copiado no sale.
 
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerEvidenciasInboundQuery(Guid ContratoAccesoId) : IRequest<IReadOnlyList<EvidenciaInboundDto>?>;
 
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerEvidenciaInboundPorIdQuery(Guid EvidenciaId) : IRequest<EvidenciaInboundDto?>;
 
 public class ObtenerEvidenciasInboundQueryHandler(

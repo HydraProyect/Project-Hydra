@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// consulta, el conteo de extranjeros, el detalle por Empresa, el Excel por Empresa, el Excel general de un Operador CAE y
 /// el KPI «Extranjeros» de la Visión general la leen de aquí, para que cifra, detalle y Excel no diverjan.
 /// </summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerEmpresasGestionadasDelMesQuery(int Anyo, int Mes) : IRequest<EmpresasGestionadasDelMesDto>;
 
 /// <param name="EsOperadorCae">
@@ -81,6 +83,7 @@ public class ObtenerEmpresasGestionadasDelMesQueryHandler(
 /// Un Operador CAE recibe siempre las filas acotadas a la vigencia de cada Empresa gestionada, que son las que cuenta su
 /// cifra facturada; con <paramref name="TenantId"/> este indicador no se usa y quien no es Operador CAE sigue sin filas.
 /// </param>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(
     int Anyo, int Mes, Guid? TenantId = null, bool GeneralSiNoEsOperadorCae = false) : IRequest<ExtranjerosDelMesDto>;
 

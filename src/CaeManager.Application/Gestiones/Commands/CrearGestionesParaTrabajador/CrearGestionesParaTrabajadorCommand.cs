@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador
 /// confirmó desde la Bandeja; el resto de ítems del mismo correo siguen
 /// pendientes hasta que se confirmen o descarten por separado.
 /// </summary>
+[AreaDelEncargo("Gestiones")]
 public record CrearGestionesParaTrabajadorCommand(
     Guid TrabajadorId, Guid TipoDocumentoId, Guid? DetalleSugerenciaGestionCorreoId = null, Guid? MensajeOrigenId = null)
     : ICommand<ResultadoCrearGestionesDto>;

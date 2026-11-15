@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 
 /// <summary>Null retira al responsable: las conversaciones nuevas del buzón nacerán sin asignar.</summary>
+[AreaDelEncargo("Integraciones")]
 public record FijarResponsableBuzonCommand(Guid ConexionId, Guid? ResponsableUsuarioId) : ICommand;
 
 public class FijarResponsableBuzonCommandValidator : AbstractValidator<FijarResponsableBuzonCommand>

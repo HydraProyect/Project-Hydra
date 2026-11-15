@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Centros.Commands.CrearCanalGestion;
 /// El primer canal de un Centro se marca principal solo: un Centro con un
 /// único acceso y "ninguno por defecto" no describe ninguna situación real.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record CrearCanalGestionCommand(
     Guid CentroId,
     TipoCanalGestion Tipo,

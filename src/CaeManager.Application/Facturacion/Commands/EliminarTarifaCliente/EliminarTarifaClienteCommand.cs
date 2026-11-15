@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using MediatR;
 
 namespace CaeManager.Application.Facturacion.Commands.EliminarTarifaCliente;
 
+[AreaDelEncargo("Facturacion")]
 public record EliminarTarifaClienteCommand(Guid Id) : ICommand;
 
 public class EliminarTarifaClienteCommandHandler(

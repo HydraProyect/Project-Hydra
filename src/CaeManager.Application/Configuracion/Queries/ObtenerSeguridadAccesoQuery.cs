@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Configuracion.Queries;
 
+[AreaDelEncargo("Configuracion")]
 public record ObtenerSeguridadAccesoQuery : IRequest<SeguridadAccesoDto>;
 
 /// <summary><see cref="PuedeEditar"/> solo decide si la pantalla ofrece el ajuste; quien autoriza es el comando.</summary>

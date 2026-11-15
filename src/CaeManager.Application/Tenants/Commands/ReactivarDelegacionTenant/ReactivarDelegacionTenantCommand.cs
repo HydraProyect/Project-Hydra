@@ -7,6 +7,7 @@ using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 /// revocara. El Operador CAE externo nunca, aunque sea quien revoca.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
 
 public class ReactivarDelegacionTenantCommandValidator : AbstractValidator<ReactivarDelegacionTenantCommand>
@@ -43,6 +45,7 @@ public class ReactivarDelegacionTenantCommandValidator : AbstractValidator<React
 /// </para>
 /// </summary>
 /// <param name="Id">La delegación (Asignación de Operación delegada) sobre la que se pregunta.</param>
+[AreaDelEncargo("Tenants")]
 public record PuedeReactivarQuery(Guid Id) : IRequest<bool>;
 
 public class ReactivarDelegacionTenantCommandHandler(

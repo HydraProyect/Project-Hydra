@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using MediatR;
@@ -9,6 +10,7 @@ namespace CaeManager.Application.ContratosAcceso.Queries.ObtenerContratosAcceso;
 /// <param name="CentroId">Solo los contratos de este Centro de trabajo.</param>
 /// <param name="EmpresaContratistaId">Solo los contratos de esta Empresa contratista.</param>
 /// <param name="SoloVigentesEn">Solo los vigentes ese día, con el criterio de <see cref="ContratoAcceso.EstaVigenteEn"/>.</param>
+[AreaDelEncargo("ContratosAcceso")]
 public record ObtenerContratosAccesoQuery(Guid? CentroId = null, Guid? EmpresaContratistaId = null, DateOnly? SoloVigentesEn = null)
     : IRequest<IReadOnlyList<ContratoAccesoDto>>;
 

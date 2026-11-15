@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
 using FluentValidation;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Cumplimiento.Commands.ActivarTratamientoIaPorEn
 /// Cláusula pendiente de revisión legal: sin ella, no se usa con datos reales.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record ActivarTratamientoIaPorEncargoCommand(
     string VersionDpaAceptada,
     string VersionAnexoSubencargadosAceptada) : ICommand<Guid>;

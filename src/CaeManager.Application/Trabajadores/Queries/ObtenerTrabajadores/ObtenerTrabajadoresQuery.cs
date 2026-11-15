@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
@@ -66,6 +67,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// probar valores contra él.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, bool ConDesgloseDocumental = false,

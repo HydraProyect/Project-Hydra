@@ -1,4 +1,5 @@
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -41,6 +42,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// para Documentos existentes sin vigencia) — el hueco funcional exacto que
 /// señala el informe de madurez.
 /// </summary>
+[AreaDelEncargo("Alertas")]
 public record ObtenerAlertasQuery : IRequest<IReadOnlyList<AlertaDto>>;
 
 /// <param name="CentroId">

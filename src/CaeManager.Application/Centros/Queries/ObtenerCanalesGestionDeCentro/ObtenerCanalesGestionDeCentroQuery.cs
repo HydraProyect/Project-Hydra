@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 /// también lo es — canal migrado desde el antiguo texto libre sin match
 /// automático (Lote 2-B), pendiente de resolver en la próxima edición.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerCanalesGestionDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<CanalGestionResumenDto>>;
 
 public record CanalGestionResumenDto(

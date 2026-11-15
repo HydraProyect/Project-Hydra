@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIa
 /// </summary>
 public record EstadoTratamientoIaActualDto(bool InstruccionVigente);
 
+[AreaDelEncargo("Cumplimiento")]
 public record ObtenerEstadoTratamientoIaActualQuery : IRequest<EstadoTratamientoIaActualDto>;
 
 public class ObtenerEstadoTratamientoIaActualQueryHandler(

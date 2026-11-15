@@ -1,6 +1,7 @@
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantes
 /// la misma regla que ya usa <c>/alertas</c>, aplicada aquí a parejas
 /// todavía no existentes en vez de a Asignaciones reales.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record ObtenerDocumentosFaltantesParaAsignacionQuery(
     IReadOnlyList<Guid> TrabajadorIds, IReadOnlyList<Guid> CentroIds) : IRequest<IReadOnlyList<DocumentoFaltanteDto>>;
 

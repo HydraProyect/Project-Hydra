@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -60,6 +61,7 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// auto-concesión: aquí el motivo no es "equipo unipersonal", es una decisión
 /// que involucra a otra persona y tiene que quedar dicha.</param>
 /// <param name="Capacidad">Qué se concede: <see cref="CapacidadesConcedibles"/>.</param>
+[AreaDelEncargo("Plataforma")]
 public record ConcederPrivilegioCommand(
     Guid UsuarioPlataformaBeneficiarioId,
     Guid TenantObjetivoId,

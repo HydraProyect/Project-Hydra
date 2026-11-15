@@ -17,6 +17,7 @@ using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 
@@ -70,6 +71,7 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 /// <see cref="AmbitoTenantExplicito"/> del Tenant propietario de la cola.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Bandeja")]
 public record ObtenerMiTrabajoAgregadoQuery : IRequest<MiTrabajoAgregadoDto>;
 
 /// <summary>
@@ -152,6 +154,7 @@ public record TenantNoConsultadoDto(Guid TenantId, string TenantNombre, bool EsO
 /// El recorrido sigue siendo secuencial y sellado por Tenant (<see cref="AmbitoTenantExplicito"/>); cada parte ya
 /// viene autorizada y no se comparte entre usuarios ni se guarda. La consulta agregada no cambia.
 /// </summary>
+[AreaDelEncargo("Bandeja")]
 public record ObtenerMiTrabajoPorPartesQuery : IStreamRequest<ParteMiTrabajoDto>;
 
 /// <summary>

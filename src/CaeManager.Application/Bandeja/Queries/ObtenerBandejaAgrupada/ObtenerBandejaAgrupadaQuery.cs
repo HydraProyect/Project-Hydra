@@ -1,6 +1,7 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros;
 using MediatR;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 /// 12 vencidos son en realidad UN problema (un Cliente con acceso
 /// bloqueado), no doce.
 /// </summary>
+[AreaDelEncargo("Bandeja")]
 public record ObtenerBandejaAgrupadaQuery : IRequest<BandejaAgrupadaDto>;
 
 /// <param name="GrupoId">Identificador estable del grupo — "cliente-{id}" o "empresa-{id}" (ver <see cref="ObtenerBandejaAgrupadaQueryHandler.Agrupar"/>).</param>

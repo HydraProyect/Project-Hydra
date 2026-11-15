@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 /// comprobación», como en el resto de agregados que migran.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record MarcarNotificadoClienteCommand(Guid Id, bool Notificado, Guid Version = default) : ICommand;
 
 public class MarcarNotificadoClienteCommandValidator : AbstractValidator<MarcarNotificadoClienteCommand>

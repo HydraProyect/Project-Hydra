@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Importacion;
 using FluentValidation;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Importacion.Commands.RegistrarHistorialImportac
 /// importación bajo sesión de Aprovisionamiento quedaría hecha con su
 /// historial sin registrar.
 /// </summary>
+[AreaDelEncargo("Importacion")]
 public record RegistrarHistorialImportacionCommand(
     string Plantilla, string NombreArchivo, bool Exitosa,
     int TotalCreados, int TotalAdvertencias, int TotalOmitidos, string? MensajeError)

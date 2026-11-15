@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Incidencias;
@@ -12,10 +13,13 @@ namespace CaeManager.Application.Comunicaciones.AlertasCriticas;
 
 public record AlertaCriticaDto(Guid Id, string Texto, EstadoAlertaCritica Estado, bool PuedeResolver, bool? SegundaOpinionIa, int? ConfianzaIa);
 /// <summary>Devuelve la alerta Pendiente de la conversación o, si no hay, la más reciente ya resuelta.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerAlertaCriticaQuery(Guid ConversacionId) : IRequest<AlertaCriticaDto?>;
 /// <summary>Resuelve la alerta que se mostró (AlertaId), no «la de la conversación»: en un hilo puede haber varias a lo largo del tiempo.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ResolverAlertaCriticaCommand(Guid ConversacionId, Guid AlertaId, bool ConfirmarYDerivar, Guid? IncidenciaId = null) : ICommand;
 /// <summary>«Deshacer» tras «Registrar incidencia»: elimina la Incidencia, devuelve la alerta a Pendiente y retira los avisos «derivado», todo en una transacción.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record DeshacerDerivacionAlertaCriticaCommand(Guid ConversacionId, Guid AlertaId, Guid IncidenciaId) : ICommand;
 
 public sealed class AccesoAlertaCritica(
