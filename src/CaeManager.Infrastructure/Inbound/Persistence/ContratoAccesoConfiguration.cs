@@ -71,11 +71,14 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
         builder.Property(c => c.MotivoCupo).HasMaxLength(CondicionesContratoAcceso.LongitudMaximaMotivoCupo);
         builder.Ignore(c => c.Condiciones);
 
+        // Cascade y no Restrict: la única vía que borra un contrato es la retirada de un Tenant de demostración
+        // (RetiradaTenantDemoService), y la ranura anterior la ejecuta sin conocer el historial; con Restrict fallaría a
+        // medias. Borrar el contrato padre no edita el historial: el runtime sigue sin UPDATE ni DELETE sobre la tabla.
         builder.HasMany(c => c.HistorialVigencia)
             .WithOne()
             .HasForeignKey(h => new { h.TenantId, h.ContratoAccesoId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.HistorialVigencia).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // Sin índice único por (Centro, Empresa contratista): los contratos solapados no se prohíben (D-20, DECISION_LOG

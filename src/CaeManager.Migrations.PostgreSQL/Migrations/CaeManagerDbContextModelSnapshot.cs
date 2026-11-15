@@ -13074,7 +13074,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany("HistorialVigencia")
                         .HasForeignKey("TenantId", "ContratoAccesoId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

@@ -38,16 +38,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// </para>
     /// <para>
     /// El Down quita el disparador y, antes de quitar el filtro de estado, falla cerrado con los datos: a cada contrato que
-    /// no está Activo ni Finalizado le pone el cierre real en su inicio (el más temprano que admite
-    /// <c>CK_ContratosAcceso_CierreNoAnteriorAlInicio</c>) y, si empieza desde ayer en adelante, además lo marca como
-    /// eliminado, porque el día de su inicio aún daría acceso. Así ningún Pendiente de confirmar, Suspendido, Cancelado o
-    /// Rechazado vuelve a dar lectura entre Tenants por fechas al revertir. Revertido, el disparador ya no existe y la versión
-    /// anterior recupera su Reabrir: si el Tenant propietario reabre uno de esos contratos cerrados en su inicio, vuelve a dar
-    /// lectura dentro de sus fechas, como cualquier contrato que reabra esa versión. Es una acción explícita de la versión
-    /// anterior, no una fuga del Down, y queda como hueco declarado. Después devuelve la auxiliar al cuerpo exacto de
-    /// <c>AnadeLineaInboundProductoContratado</c> antes de borrar la columna que lee, y borra la tabla y las columnas: los
-    /// estados y el historial se pierden, que es lo que significa revertir B-05, y esos contratos quedan cerrados (o
-    /// eliminados) para la versión anterior. Necesita, como el Up, un migrador superusuario o con BYPASSRLS.
+    /// no está Activo ni Finalizado, sea cual sea su fecha, lo marca como eliminado (que la auxiliar excluye sin mirar
+    /// fechas) y le pone el cierre real en su inicio (el más temprano que admite
+    /// <c>CK_ContratosAcceso_CierreNoAnteriorAlInicio</c>). Sin aritmética de fechas: ningún Pendiente de confirmar,
+    /// Suspendido, Cancelado o Rechazado vuelve a dar lectura entre Tenants al revertir, empiece cuando empiece y lea quien
+    /// lea. La pérdida de visibilidad es deliberada y declarada: la versión anterior deja de listar esos contratos, como a
+    /// cualquier eliminado. Revertido, el disparador ya no existe, pero la versión anterior no reabre un eliminado porque no
+    /// lo ve. Después devuelve la auxiliar al cuerpo exacto de <c>AnadeLineaInboundProductoContratado</c> antes de borrar la
+    /// columna que lee, y borra la tabla y las columnas: los estados y el historial se pierden, que es lo que significa
+    /// revertir B-05. Necesita, como el Up, un migrador superusuario o con BYPASSRLS.
+    /// </para>
+    /// <para>
+    /// La FK del historial hacia el contrato es <c>ON DELETE CASCADE</c>: la retirada de un Tenant de demostración
+    /// (<c>RetiradaTenantDemoService</c>, identidad de bootstrap) borra los contratos, y en la ranura anterior no conoce el
+    /// historial; con <c>RESTRICT</c> fallaría a medias. Borrar el contrato padre no edita el historial: el runtime sigue sin
+    /// UPDATE ni DELETE sobre él, y la única vía de borrado es retirar el contrato entero.
     /// </para>
     /// </summary>
     public partial class AnadeEstadoContratoAcceso : Migration
@@ -141,7 +146,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         columns: x => new { x.TenantId, x.ContratoAccesoId },
                         principalTable: "ContratosAcceso",
                         principalColumns: new[] { "TenantId", "Id" },
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.AddCheckConstraint(
@@ -255,11 +260,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // Sin la columna Estado, la auxiliar de B-01 decide solo por fechas: un contrato Pendiente de confirmar,
             // Suspendido, Cancelado o Rechazado dentro de sus fechas volvería a dar lectura entre Tenants. Antes de quitar el
-            // filtro, esos contratos reciben el cierre más temprano que admite CK_ContratosAcceso_CierreNoAnteriorAlInicio, su
-            // propio inicio (también los que la ranura anterior cerró más tarde). Con eso dejan de dar acceso desde el día
-            // siguiente al inicio; los que empiezan hoy o después darían acceso aún el día de su inicio, y esos además se
-            // marcan como eliminados, que la auxiliar excluye. El margen de un día (desde ayer) cubre una petición que calculó
-            // su día de negocio justo antes de medianoche. Activo y Finalizado no se tocan: dan el mismo acceso que antes.
+            // filtro, todos esos contratos, sea cual sea su fecha, se marcan como eliminados, que la auxiliar excluye sin mirar
+            // ninguna fecha: no hay aritmética de días que dependa del now() de la transacción ni del día de negocio de quien
+            // lea. Además reciben el cierre real en su inicio (el más temprano que admite
+            // CK_ContratosAcceso_CierreNoAnteriorAlInicio, también los que la ranura anterior cerró más tarde), para que la
+            // versión anterior los vea cerrados y no les ofrezca Cerrar. Pérdida declarada: la versión anterior deja de
+            // listarlos (sus consultas filtran EstaEliminado). Activo y Finalizado no se tocan: dan el mismo acceso que antes.
             // Las mismas filas de todos los Tenants bajo FORCE ROW LEVEL SECURITY que el relleno del Up: la misma guarda.
             migrationBuilder.Sql("""
                 DO $$
@@ -274,11 +280,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                    SET "FechaCierreReal" = "FechaInicio",
                        "EstaEliminado" = true,
                        "EliminadoEnUtc" = COALESCE("EliminadoEnUtc", pg_catalog.now())
-                 WHERE "Estado" NOT IN ('Activo', 'Finalizado')
-                   AND "FechaInicio" >= (pg_catalog.timezone('Europe/Madrid', pg_catalog.now()))::date - 1;
-
-                UPDATE public."ContratosAcceso"
-                   SET "FechaCierreReal" = "FechaInicio"
                  WHERE "Estado" NOT IN ('Activo', 'Finalizado');
                 """);
 

@@ -489,6 +489,39 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "la migración solo concede SELECT a cae_app_soporte");
     }
 
+    [Fact]
+    public async Task Borrar_un_contrato_con_historial_con_la_identidad_de_la_retirada_borra_su_historial()
+    {
+        // La retirada de un Tenant de demostración (RetiradaTenantDemoService) corre con la identidad de bootstrap y borra
+        // los contratos; la ranura anterior no conoce el historial y emite solo el DELETE del contrato, que es lo que hace
+        // este test por SQL. Con la FK en RESTRICT fallaría y dejaría la retirada a medias.
+        var hoy = DiaDeNegocio.Hoy();
+        await using (var contexto = Contexto(_propietario.Id, _administrador))
+        {
+            var contrato = await contexto.ContratosAcceso.SingleAsync(c => c.Id == _contratoVigente);
+            contrato.Renovar(hoy.AddDays(40), _administrador, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var bootstrap = Contexto(_propietario.Id);
+        (await bootstrap.Database.SqlQueryRaw<bool>(
+                "SELECT (rolsuper OR rolbypassrls) AS \"Value\" FROM pg_roles WHERE rolname = current_user").SingleAsync())
+            .Should().BeTrue("la retirada usa la identidad de bootstrap, que salta RLS");
+        (await bootstrap.Database.SqlQueryRaw<string>(
+                "SELECT confdeltype::text AS \"Value\" FROM pg_constraint WHERE conname = 'FK_HistorialVigenciaContratos_ContratosAcceso_TenantId_Contrat~'")
+            .SingleAsync()).Should().Be("c", "la FK del historial hacia el contrato es ON DELETE CASCADE");
+        (await bootstrap.HistorialVigenciaContratos.IgnoreQueryFilters().CountAsync(h => h.ContratoAccesoId == _contratoVigente))
+            .Should().Be(1, "control positivo: el contrato tiene historial antes de borrarlo");
+
+        (await bootstrap.Database.ExecuteSqlAsync($"DELETE FROM \"ContratosAcceso\" WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1, "el borrado del contrato no lo bloquea su historial");
+
+        (await bootstrap.HistorialVigenciaContratos.IgnoreQueryFilters().CountAsync(h => h.ContratoAccesoId == _contratoVigente))
+            .Should().Be(0, "el historial se va con su contrato");
+        (await bootstrap.ContratosAcceso.IgnoreQueryFilters().CountAsync(c => c.Id == _contratoCaducado))
+            .Should().Be(1, "solo se borra el contrato pedido");
+    }
+
     private static void Cuenta(CaeManagerDbContext contexto, Guid id, Guid tenantId, Guid rolId)
     {
         contexto.Users.Add(new ApplicationUser

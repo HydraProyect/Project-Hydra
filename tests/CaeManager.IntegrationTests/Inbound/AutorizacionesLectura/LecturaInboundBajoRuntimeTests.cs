@@ -1098,8 +1098,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [InlineData("Suspendido", -10, null, false)]
     [InlineData("Suspendido", -10, 10, false)]        // cierre futuro que escribió la ranura anterior
     [InlineData("Suspendido", 0, null, false)]        // empieza hoy: el cierre en el inicio aún daría hoy
-    [InlineData("Suspendido", -1, null, false)]       // empezó ayer: dentro del margen de un día, también eliminado
-    [InlineData("Suspendido", -2, null, false)]       // fuera del margen: solo cerrado en su inicio
+    [InlineData("Suspendido", -1, null, false)]       // empezó ayer
+    [InlineData("Suspendido", -400, null, false)]     // antiguo: también eliminado, sin margen de fechas
+    [InlineData("Cancelado", -400, 10, false)]
     [InlineData("PendienteDeConfirmar", -10, null, false)]
     [InlineData("PendienteDeConfirmar", 0, null, false)]
     [InlineData("Cancelado", -10, null, false)]
@@ -1112,7 +1113,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         // El Down entero sobre el catálogo ya migrado, en una transacción: sus SQL en orden (disparador, relleno que falla
         // cerrado, auxiliar de B-01). Sin el relleno, la auxiliar de B-01 decide solo por fechas y todos los casos de abajo
         // darían lectura. Activo y Finalizado son el control: el Down no les quita lo que ya daban.
-        // Mutación declarada: quitar el relleno, o la marca de eliminado de los que empiezan hoy, deja esta prueba en rojo.
+        // Mutación declarada: quitar el relleno, quitar la marca de eliminado o volver a acotarla por fecha de inicio deja
+        // esta prueba en rojo (los casos de hoy, de ayer y antiguos se leen también en el día de su inicio).
         var migracion = new AnadeEstadoContratoAcceso();
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
@@ -1137,9 +1139,14 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
 
         (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null,
             $"tras el Down, la auxiliar de B-01 no da lectura a un {estado} que no la daba");
+        // El peor día de negocio para quien lea: el del inicio, que el cierre en el inicio aún cubriría (cierre inclusivo).
+        // Es el caso de una transacción o una petición cuyo día de negocio quedó atrás: sin margen de fechas, la marca de
+        // eliminado lo cierra sea cual sea el día.
+        (await EvaluarTenantContratistaAsync(conexion, transaccion, _hoy.AddDays(diasDesdeElInicio))).Should().Be(
+            daLectura ? _contratista.Id : null, $"tras el Down, tampoco el día de su inicio da lectura un {estado}");
 
-        // Qué hizo el relleno: el cierre en el inicio a todo lo que no es Activo ni Finalizado, y la marca de eliminado solo
-        // a los que empiezan desde ayer (el margen de un día). Activo y Finalizado, intactos.
+        // Qué hizo el relleno: a todo lo que no es Activo ni Finalizado, sea cual sea su fecha, el cierre en el inicio y la
+        // marca de eliminado. Activo y Finalizado, intactos.
         var sinAcceso = estado is not ("Activo" or "Finalizado");
         await using (var leer = new NpgsqlCommand(
                          """SELECT "FechaCierreReal", "EstaEliminado" FROM public."ContratosAcceso" WHERE "Id" = @contrato""",
@@ -1152,7 +1159,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             DateOnly? cierreEsperado = sinAcceso ? _hoy.AddDays(diasDesdeElInicio)
                 : diasHastaElCierre is { } d ? _hoy.AddDays(d) : null;
             cierre.Should().Be(cierreEsperado);
-            fila.GetBoolean(1).Should().Be(sinAcceso && diasDesdeElInicio >= -1);
+            fila.GetBoolean(1).Should().Be(sinAcceso, "el Down marca como eliminado todo lo que no es Activo ni Finalizado");
         }
 
         await transaccion.RollbackAsync();
@@ -1180,13 +1187,13 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
 
     private static readonly Regex DenegacionTotal = new(@"\s+AND false(?=;)", RegexOptions.CultureInvariant);
 
-    private async Task<Guid?> EvaluarTenantContratistaAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    private async Task<Guid?> EvaluarTenantContratistaAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion, DateOnly? hoy = null)
     {
         await using var comando = new NpgsqlCommand(
             "SELECT public.app_inbound_tenant_contratista_del_contrato(@lector, @contrato, @hoy)", conexion, transaccion);
         comando.Parameters.AddWithValue("lector", _lector.Id);
         comando.Parameters.AddWithValue("contrato", _vigente.Id);
-        comando.Parameters.AddWithValue("hoy", _hoy);
+        comando.Parameters.AddWithValue("hoy", hoy ?? _hoy);
         return await comando.ExecuteScalarAsync() is Guid tenant ? tenant : null;
     }
 
