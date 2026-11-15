@@ -31,6 +31,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// La cláusula SET impide que el planificador la incruste en la consulta llamadora, que no cambia ningún plan.
     /// </para>
     /// <para>
+    /// Residual declarado (hallazgo de Codex, ronda 5, aceptado por Chris el 2026-11-15, «Opción 1»): el alta admite
+    /// <c>VigenteDesdeUtc</c> hasta 5 minutos en el futuro (holgura del reloj de la aplicación en
+    /// <c>aprovisionamiento_solo_contrata_inbound_vigente</c>). En torno a ese inicio, dos evaluaciones del gate dentro de
+    /// una misma consulta pueden dar valores distintos, y PostgreSQL puede tratar como constante el de una de ellas: la
+    /// promesa de STABLE no se cumple en ese instante. Es aceptable porque nunca concede antes del inicio real: el reloj de
+    /// cada evaluación es posterior a la instantánea y solo avanza. El arreglo de raíz (que la vigencia nunca quede en el
+    /// futuro al escribir, o un instante fijo pasado como parámetro por la cadena de funciones) es la issue #2259.
+    /// </para>
+    /// <para>
     /// Inventario: es la única comparación de vigencia del gate y de sus vecinas de lectura del Producto Contratado. El fin
     /// de vigencia (<c>VigenteHastaUtc</c>) no se compara con ningún reloj: la sustituida deja de contar por
     /// <c>"Estado" = 'Vigente'</c>, así que no queda otra cota con un reloj distinto. Fuera de este alcance, y sin cambios:

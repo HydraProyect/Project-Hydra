@@ -1125,23 +1125,34 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         await bloqueo.OpenAsync();
         await EjecutarSinTransaccionAsync(bloqueo, $"SELECT pg_advisory_lock({clave})");
 
-        var lectura = EjecutarSinTransaccionAsync(lectora,
-            $"""
-            DO $$
-            BEGIN
-              PERFORM pg_catalog.pg_advisory_lock({clave});
-              PERFORM pg_catalog.set_config('prueba.inicio_sentencia', pg_catalog.statement_timestamp()::text, false);
-              PERFORM pg_catalog.set_config('prueba.documentos',
-                  (SELECT count(*)::text FROM public.app_inbound_documentos_autorizados('{_vigente.Id}'::uuid)), false);
-              PERFORM pg_catalog.pg_advisory_unlock({clave});
-            END
-            $$;
-            """);
-        await EsperarAQueEspereElCandadoAsync(bloqueo, pidLectora, lectura);
+        var lectura = Task.CompletedTask;
+        Guid? nueva;
+        try
+        {
+            lectura = EjecutarSinTransaccionAsync(lectora,
+                $"""
+                DO $$
+                BEGIN
+                  PERFORM pg_catalog.pg_advisory_lock({clave});
+                  PERFORM pg_catalog.set_config('prueba.inicio_sentencia', pg_catalog.statement_timestamp()::text, false);
+                  PERFORM pg_catalog.set_config('prueba.documentos',
+                      (SELECT count(*)::text FROM public.app_inbound_documentos_autorizados('{_vigente.Id}'::uuid)), false);
+                  PERFORM pg_catalog.pg_advisory_unlock({clave});
+                END
+                $$;
+                """);
+            await EsperarAQueEspereElCandadoAsync(bloqueo, pidLectora, lectura);
 
-        var nueva = await CorregirODarDeBajaConfirmadoAsync(corregir);
-        await EjecutarSinTransaccionAsync(bloqueo, $"SELECT pg_advisory_unlock({clave})");
-        await lectura;
+            nueva = await CorregirODarDeBajaConfirmadoAsync(corregir);
+        }
+        finally
+        {
+            // Siempre: un fallo a medias no deja el DO de la lectora colgado ni la conexión de vuelta al pool con el
+            // candado de sesión tomado. Aquí solo se espera a la lectora, sin propagar su error, para no tapar el original.
+            await EjecutarSinTransaccionAsync(bloqueo, $"SELECT pg_advisory_unlock({clave})");
+            await Task.WhenAny(lectura, Task.Delay(TimeSpan.FromSeconds(30)));
+        }
+        await lectura.WaitAsync(TimeSpan.FromSeconds(1));
 
         if (nueva is { } id)
             (await EmpiezaDespuesDeAsync(id, await LeerAjusteAsync(lectora, "prueba.inicio_sentencia"))).Should().BeTrue(
