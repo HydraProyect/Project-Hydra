@@ -119,7 +119,7 @@ public class AcreditacionesPorProveedorRolClienteTests : IAsyncLifetime
             contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenantActual.TenantId),
             _tenantActual, new SesionPrivilegiadaAusente());
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+            contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var proveedores = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(), CancellationToken.None);
         return proveedores.SelectMany(p => p.Clientes).SelectMany(c => c.Documentos).ToList();

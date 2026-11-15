@@ -206,7 +206,8 @@ public class DocumentosAgrupadosPorVinculoEnSqlTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentosQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto,
+            new CurrentUserServiceFalso(rol: "GestorCae"));
         return await handler.Handle(consulta, CancellationToken.None);
     }
 
