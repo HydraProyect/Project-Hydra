@@ -259,6 +259,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
             """.SqlQuery<int>($"SELECT public.app_alta_borrar_datos_personales({tamanoLote}) AS \"Value\"")""")] = 1,
 
+        // Opción B del 2026-11-15 (hallazgo 1 de Codex, ronda 1): la baja y la corrección de la línea Inbound toman su fin
+        // de vigencia del now() de la transacción, el mismo reloj que las políticas y el gate DN-7. Sin parámetros y sin
+        // leer ninguna tabla.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ProductoContratadoRepository.cs",
+            """await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),""")] = 1,
+
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
         // SELECT), así que Identity no puede escribir: la única puerta es la

@@ -96,6 +96,8 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
     [InlineData("cae_app_soporte", "INSERT", false)]
     [InlineData("cae_app_soporte", "UPDATE", false)]
     [InlineData("cae_app_soporte", "DELETE", false)]
+    // A nivel de tabla, sin SELECT ni UPDATE: la baja de la línea Inbound solo le concede columnas sueltas
+    // (FinalizaLineaInboundPorAprovisionamiento), que mide BajaYCorreccionLineaInboundPorAprovisionamientoTests.
     [InlineData("cae_app_aprovisionamiento", "SELECT", false)]
     [InlineData("cae_app_aprovisionamiento", "INSERT", true)]
     [InlineData("cae_app_aprovisionamiento", "UPDATE", false)]
