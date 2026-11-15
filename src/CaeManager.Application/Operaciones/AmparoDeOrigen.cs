@@ -30,8 +30,11 @@ namespace CaeManager.Application.Operaciones;
 /// Lo aplican los lectores de alcance que leen operaciones externas: las dos primitivas de
 /// <c>TenantsBeneficiariosAutorizados</c> (con cartera y del Tenant entero), <c>AmbitosEfectivosDeCarteraAsync</c>,
 /// <c>AlcanceDatosService.ObtenerCarteraAsync</c>, <c>ContextoOperativoConversacionService</c>,
-/// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c> y <c>VistaDemoActual</c>; y el escritor que parte de
-/// una operación para emitir una cartera y su fila heredada, <c>CatalogoIncorporacionCartera</c>. No lo aplica
+/// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c> y <c>VistaDemoActual</c>; la guarda que deja al
+/// Operador CAE fijar la tarifa de un Tenant beneficiario, <c>AutorizacionTarifasOperadorCae.GestionaAsync</c>; y el
+/// escritor que parte de una operación para emitir una cartera y su fila heredada, <c>CatalogoIncorporacionCartera</c>,
+/// que antes de decidir bloquea con <c>FOR SHARE</c> la DelegacionTenant del par dentro de la transacción del guardado,
+/// para que una revocación no se confirme entre la comprobación y la emisión. No lo aplica
 /// <c>DirectorioUsuariosTenant.TieneVinculoOperativoAsync</c>: es una guarda de integridad (no borrar una cuenta con
 /// una Asignación de Cartera vigente) y no de autorización.
 /// </para>

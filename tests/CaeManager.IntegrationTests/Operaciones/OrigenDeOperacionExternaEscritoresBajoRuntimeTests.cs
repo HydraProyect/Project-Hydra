@@ -156,6 +156,103 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
         }
     }
 
+    // ── Ronda 2, alta 1: revocación entre la comprobación y la emisión ───────
+
+    /// <summary>
+    /// La carrera real, con dos conexiones. La revocación de la DelegacionTenant de origen se escribe y no se confirma;
+    /// la incorporación, dentro de su transacción como en producción, se queda esperando en el <c>FOR SHARE</c> del
+    /// catálogo (se observa en <c>pg_stat_activity</c>, no con una espera fija) y, al confirmarse la revocación, decide
+    /// sobre la delegación ya revocada: anula sin cartera ni fila heredada. Sin el bloqueo leería la delegación activa
+    /// sin esperar y emitiría una fila heredada que la revocación ya confirmada no retira.
+    /// </summary>
+    [Fact]
+    public async Task La_incorporacion_que_espera_a_una_revocacion_en_vuelo_de_su_origen_se_anula_sin_fila_heredada()
+    {
+        var delTenantEntero = await OperacionDelTenantEnteroAsync();
+
+        var anulada = await IncorporarMientrasSeEscribeElOrigenAsync(delTenantEntero, confirmar: true);
+
+        anulada.Resultado.Cartera.Should().BeNull("la revocación se confirmó antes de que el catálogo decidiera");
+        anulada.Resultado.MotivoAnulacion.Should().Be(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
+        anulada.OrigenDeLaFilaHeredada.Should().BeNull("sin cartera tampoco hay fila heredada");
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters()
+                .CountAsync(f => f.UsuarioId == _gestoraOperador.Id && f.DelegacionTenantId == _delegacion))
+            .Should().Be(0);
+    }
+
+    /// <summary>
+    /// Control del anterior: la misma espera, y la escritura sobre el origen se deshace. La incorporación también
+    /// espera, y al soltarse el bloqueo emite la cartera y la fila heredada de su origen: el rechazo del test anterior
+    /// sale de la revocación confirmada, no de que la incorporación no pudiera emitir en ese contexto.
+    /// </summary>
+    [Fact]
+    public async Task La_incorporacion_que_espera_a_una_escritura_del_origen_que_se_deshace_emite_la_cartera()
+    {
+        var delTenantEntero = await OperacionDelTenantEnteroAsync();
+
+        var emitida = await IncorporarMientrasSeEscribeElOrigenAsync(delTenantEntero, confirmar: false);
+
+        emitida.Resultado.Cartera.Should().NotBeNull();
+        emitida.OrigenDeLaFilaHeredada.Should().Be(_delegacion);
+    }
+
+    /// <summary>
+    /// Revoca la DelegacionTenant de origen en otra conexión sin confirmar, lanza la incorporación dentro de una
+    /// <see cref="TransaccionDeComando"/>, espera a que quede bloqueada por esa conexión y confirma o deshace.
+    /// </summary>
+    private async Task<(ResultadoIncorporacionCartera Resultado, Guid? OrigenDeLaFilaHeredada)> IncorporarMientrasSeEscribeElOrigenAsync(
+        Guid operacionId, bool confirmar)
+    {
+        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await revocacion.OpenAsync();
+        await using var transaccion = await revocacion.BeginTransactionAsync();
+        await using (var comando = new NpgsqlCommand(
+                         """UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = @id""", revocacion, transaccion))
+        {
+            comando.Parameters.AddWithValue("id", _delegacion);
+            (await comando.ExecuteNonQueryAsync()).Should().Be(1, "control: la revocación toca el origen de la operación");
+        }
+
+        var incorporacion = Task.Run(() => IncorporarEnTransaccionAsync(operacionId));
+        await EsperarBloqueadaPorAsync(revocacion.ProcessID, incorporacion);
+        if (confirmar)
+            await transaccion.CommitAsync();
+        else
+            await transaccion.RollbackAsync();
+
+        return await incorporacion;
+    }
+
+    /// <summary>
+    /// Como <see cref="IncorporarAsync(Guid)"/>, pero dentro de la transacción del comando, que es donde el catálogo
+    /// bloquea la DelegacionTenant del par. No guarda: lo emitido queda en el contexto y la transacción se deshace.
+    /// </summary>
+    private async Task<(ResultadoIncorporacionCartera Resultado, Guid? OrigenDeLaFilaHeredada)> IncorporarEnTransaccionAsync(Guid operacionId)
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var gestora = FijarSesion(_gestoraOperador, Roles.GestorCae);
+        ResultadoIncorporacionCartera? resultado = null;
+        Guid? filaHeredada = null;
+        using (AmbitoTenantExplicito.Establecer(_operador))
+        {
+            await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                contexto.Database.CurrentTransaction.Should().NotBeNull("el bloqueo solo se toma dentro de una transacción");
+                resultado = await new CatalogoIncorporacionCartera(contexto, gestora)
+                    .IncorporarAsync(_propietario, _operador, operacionId, _gestoraOperador.Id, ct);
+                filaHeredada = contexto.ChangeTracker.Entries<AsignacionOperadorDelegado>()
+                    .Select(e => (Guid?)e.Entity.DelegacionTenantId)
+                    .SingleOrDefault();
+                // Falla a propósito para que la transacción se deshaga sin guardar nada.
+                return Result.Fallo(Error.Crear("Test.SinGuardar", "El test no guarda."));
+            }, CancellationToken.None);
+        }
+
+        return (resultado!, filaHeredada);
+    }
+
     // ── Alta 3: sellado al escribir la delegación ────────────────────────────
 
     /// <summary>

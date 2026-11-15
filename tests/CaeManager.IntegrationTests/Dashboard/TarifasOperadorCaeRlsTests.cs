@@ -233,6 +233,72 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
         };
     }
 
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2253 (media): la guarda aplica el amparo de origen. La operación del Operador A sobre
+    /// la Empresa Z nace de una DelegacionTenant y sigue Vigente cuando esa delegación se revoca, porque la revocación
+    /// por la base no la cierra; sin el amparo, la guarda solo miraría la vigencia de la operación y dejaría fijar la
+    /// tarifa. Reactivar la delegación no la repone: cuenta una revocación más que la operación.
+    /// </summary>
+    [Fact]
+    public async Task No_se_fija_una_tarifa_por_una_operacion_que_sobrevivio_a_la_revocacion_de_su_origen()
+    {
+        var tenantActual = new TenantActualPorAmbito();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_arnes.CadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .Options;
+        Guid empresaZ, delegacion, operacion;
+        await using (var propietario = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual))
+        {
+            var z = new Tenant("Empresa Z");
+            propietario.Tenants.Add(z);
+            await propietario.SaveChangesAsync();
+            empresaZ = z.Id;
+
+            var origen = new DelegacionTenant(_operadorA, empresaZ);
+            propietario.DelegacionesTenant.Add(origen);
+            await propietario.SaveChangesAsync();
+            delegacion = origen.Id;
+
+            var ahora = DateTime.UtcNow;
+            var externa = AsignacionOperacion.Externa(
+                empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            using (AmbitoTenantExplicito.Establecer(_operadorA))
+                propietario.AsignacionesOperacion.Add(externa);
+            await propietario.SaveChangesAsync();
+            operacion = externa.Id;
+        }
+
+        await using (var verificacion = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual))
+            (await verificacion.AsignacionesOperacion.IgnoreQueryFilters().SingleAsync(o => o.Id == operacion)).OrigenId
+                .Should().Be(delegacion, "control: el trigger deduce el origen de la única delegación activa del par");
+
+        Como("Administrador", _operadorA);
+        (await FijarAsync(empresaZ, ConceptoTarifaOperadorCae.CentroNuevo, 30m)).EsExitoso
+            .Should().BeTrue("control positivo: con su origen activo, el Operador A gestiona a la Empresa Z");
+
+        await EjecutarComoPropietarioAsync("""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = @id""", delegacion);
+        (await FijarAsync(empresaZ, ConceptoTarifaOperadorCae.CentroNuevo, 40m)).Error
+            .Should().Be(AutorizacionTarifasOperadorCae.EmpresaNoGestionada, "la operación sobrevivió a la revocación de su origen");
+
+        await EjecutarComoPropietarioAsync("""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = @id""", delegacion);
+        (await FijarAsync(empresaZ, ConceptoTarifaOperadorCae.CentroNuevo, 50m)).Error
+            .Should().Be(AutorizacionTarifasOperadorCae.EmpresaNoGestionada, "reactivar la delegación no repone la operación anterior");
+
+        Como("Administrador", _operadorA);
+        (await LeerAsync()).Should().ContainSingle("solo queda la versión fijada con el origen vigente")
+            .Which.PrecioUnitario.Should().Be(30m);
+    }
+
+    private async Task EjecutarComoPropietarioAsync(string sql, Guid id)
+    {
+        await using var conexion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        comando.Parameters.AddWithValue("id", id);
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1);
+    }
+
     private void Como(string? rol, Guid tenantOrigen, string? rolFueraDelOrigen = null)
     {
         _sesion.UsuarioId = _usuario;
@@ -245,7 +311,7 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, TimeProvider.System);
+        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, contexto, TimeProvider.System);
         return await handler.Handle(new FijarTarifaOperadorCaeCommand(empresa, concepto, precio, "EUR", true), CancellationToken.None);
     }
 

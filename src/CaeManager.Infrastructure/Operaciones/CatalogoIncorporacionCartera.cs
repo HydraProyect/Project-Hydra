@@ -158,6 +158,9 @@ public class CatalogoIncorporacionCartera(
         Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
         CancellationToken cancellationToken = default)
     {
+        // Antes de leer nada que decida la emisión (ronda 2 de Codex en la PR #2253, alta 1).
+        await BloquearDelegacionesDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
+
         // La operación tiene que ser la externa de este Operador CAE sobre este
         // Tenant propietario, no solo existir y estar vigente: el Id viene de
         // quien llama, y colgar la cartera de otra operación daría el Tenant
@@ -210,6 +213,9 @@ public class CatalogoIncorporacionCartera(
         PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(propuesta);
+
+        // Antes de leer nada que decida la emisión, como en IncorporarAsync.
+        await BloquearDelegacionesDelParAsync(propuesta.PropietarioTenantId, propuesta.OperadorTenantId, cancellationToken);
 
         var operacion = await ObtenerOperacionVigenteAsync(propuesta.AsignacionOperacionId, cancellationToken);
         if (operacion is null
@@ -501,7 +507,10 @@ public class CatalogoIncorporacionCartera(
         if (suyas.Count > 0)
             return ResultadoRelevoPrincipal.SinRelevo;
 
-        // Emitir exige lo mismo que IncorporarAsync: operación vigente hoy y delegación viva.
+        // Emitir exige lo mismo que IncorporarAsync: operación vigente hoy y delegación viva, leídas con las
+        // DelegacionesTenant del par ya bloqueadas. Lo de arriba no emite nada (marca o descarta), así que el
+        // bloqueo se toma aquí, antes de la primera lectura que decide la emisión.
+        await BloquearDelegacionesDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
         if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is not { } vigente)
             return ResultadoRelevoPrincipal.SinRelevo;
 
@@ -554,6 +563,46 @@ public class CatalogoIncorporacionCartera(
             .OrderBy(d => d.CreadoEnUtc)
             .Select(d => (Guid?)d.Id)
             .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// Bloquea con <c>FOR SHARE</c>, hasta el final de la transacción, todas las DelegacionesTenant de Operador CAE
+    /// externo del par, activas o no, en orden de Id (ronda 2 de Codex en la PR #2253, alta 1). Se llama antes de la
+    /// primera lectura que decide emitir una cartera y su fila heredada: con la base en READ COMMITTED, cada lectura
+    /// posterior ve lo último confirmado, y ninguna revocación, reactivación ni ampliación de caducidad del par se
+    /// confirma entre esas lecturas y el guardado. Si hay una en vuelo, se espera a ella y se decide sobre lo que
+    /// confirmó: la operación que dejó sin amparo no emite nada, en vez de colgar una fila heredada nueva de una
+    /// delegación revocada que volvería a autorizar al reactivarse. Sin la condición de activa en el bloqueo, por el
+    /// mismo motivo que en <c>asignacion_operacion_sella_origen</c>: una candidata revocada mientras se espera no sale
+    /// del bloqueo en silencio.
+    ///
+    /// <para>
+    /// El orden es el de la revocación por Soporte TALVEG (migración <c>SoporteRevocaOperacionesOutboundAcotadas</c>):
+    /// primero la DelegacionTenant y después la operación y sus carteras. Bajo la RLS de quien escribe, como el trigger: las
+    /// lecturas que deciden se hacen con la misma visibilidad, y una delegación invisible tampoco ampara nada.
+    /// </para>
+    ///
+    /// <para>
+    /// Solo dentro de una transacción: fuera de ella el bloqueo se soltaría en la misma sentencia. Las seis entradas de
+    /// producción que emiten por aquí abren la suya con <c>ITransaccionDeComando</c> (alta de Gestor CAE, asignación de
+    /// cartera, solicitud aceptada, propuesta de apoyo aceptada, relevo y asunción del principal). Sin transacción, o
+    /// fuera de PostgreSQL, no bloquea: es el caso de las pruebas que llaman al catálogo directamente.
+    /// </para>
+    /// </summary>
+    private async Task BloquearDelegacionesDelParAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, CancellationToken cancellationToken)
+    {
+        if (!dbContext.Database.IsRelational() || dbContext.Database.CurrentTransaction is null)
+            return;
+
+        await dbContext.Database.SqlQuery<Guid>($"""
+            SELECT "Id" AS "Value" FROM "DelegacionesTenant"
+            WHERE "TenantClienteId" = {propietarioTenantId}
+              AND "TenantConsultoraId" = {operadorTenantId}
+              AND "Proposito" = 'OperadorExterno'
+            ORDER BY "Id"
+            FOR SHARE
+            """).ToListAsync(cancellationToken);
+    }
 
     /// <summary>
     /// La operación externa, no raíz, de <see cref="Servicio"/>, de este Operador CAE; <c>null</c>
