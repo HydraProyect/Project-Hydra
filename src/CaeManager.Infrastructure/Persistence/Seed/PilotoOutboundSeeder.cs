@@ -699,6 +699,16 @@ public static class PilotoOutboundSeeder
             var delegacion = await dbContext.DelegacionesTenant.FirstAsync(
                 d => d.TenantConsultoraId == tenantOperadorId && d.TenantClienteId == tenantPropietarioId, cancellationToken);
 
+            // Revocada desde la interfaz: la siembra no la reabre. Sin este corte, el trigger de filas heredadas
+            // rechazaría las filas nuevas y el writer lanzaría sin delegación vigente, y el arranque caería (PR #2237).
+            if (!delegacion.Activa)
+            {
+                logger.LogWarning(
+                    "Siembra del piloto Outbound: la delegación de {Tenant} está revocada; no se reabre su operación externa.",
+                    tenant.Nombre);
+                return;
+            }
+
             var asignaciones = new List<(Guid UsuarioId, string Rol)> { (equipo.CoordinadoraId, Roles.CoordinadorCae) };
             asignaciones.AddRange(gestores.Select(id => (id, Roles.GestorCae)));
 

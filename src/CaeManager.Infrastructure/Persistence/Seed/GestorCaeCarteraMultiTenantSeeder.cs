@@ -217,7 +217,9 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 
+            // Revocada: la siembra no reabre la fila heredada; el trigger la rechazaría (PR #2237).
             if (gestor is null
+                || !delegacion.Activa
                 || await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == gestor.Id, cancellationToken))
                 return;

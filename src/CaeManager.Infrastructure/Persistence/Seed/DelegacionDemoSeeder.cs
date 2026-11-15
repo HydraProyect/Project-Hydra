@@ -449,7 +449,8 @@ public static class DelegacionDemoSeeder
                 d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
                      && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
 
-            if (operadorGestor is not null && delegacionDemo1 is not null &&
+            // Revocada: la siembra no reabre la fila heredada; el trigger la rechazaría (PR #2237).
+            if (operadorGestor is not null && delegacionDemo1 is { Activa: true } &&
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo1.Id && a.UsuarioId == operadorGestor.Id, cancellationToken))
             {
@@ -457,7 +458,7 @@ public static class DelegacionDemoSeeder
                     new AsignacionOperadorDelegado(delegacionDemo1.Id, operadorGestor.Id, Roles.GestorCae));
             }
 
-            if (operadorConsulta is not null && delegacionDemo2 is not null &&
+            if (operadorConsulta is not null && delegacionDemo2 is { Activa: true } &&
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo2.Id && a.UsuarioId == operadorConsulta.Id, cancellationToken))
             {

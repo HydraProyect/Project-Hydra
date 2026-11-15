@@ -95,7 +95,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound, inboundSinPrincipal)
             .Con(principalInbound, principalOutbound, delCoordinador)
             .Con(_operador, _propietario, conOutbound, sinPrincipal)
-            .Con(new DelegacionTenant(_operador.Id, sinPrincipal.Id));
+            .Con(Amparar(inbound, outbound, inboundSinPrincipal));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         (await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(_operador.Id, _gestor))
@@ -129,7 +129,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound)
             .Con<AsignacionCartera>()
             .Con(_operador, _propietario)
-            .Con(new DelegacionTenant(_operador.Id, _propietario.Id))
+            .Con(Amparar(inbound))
             .Con<AsignacionOperadorDelegado>();
         // Con usuario actual: sin el filtro de servicio, el relevo llega a emitir y lo pide para el actor.
         var catalogo = new CatalogoIncorporacionCartera(db, new UsuarioDeVegaDePrueba());
@@ -166,7 +166,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraSolicitud, carteraApoyo, carteraControl)
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, inbound, outbound))
             .Con(filaSolicitud);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -197,7 +197,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(Cartera(inbound, _gestor), Cartera(outbound, otroGestor))
             .Con(_operador, _propietario, conOutbound)
-            .Con(Amparar(outbound));
+            .Con(Amparar(inbound, outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, null);
@@ -267,7 +267,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraInbound)
             .Con(_operador, _propietario)
-            .Con(Amparar(outbound));
+            .Con(Amparar(inbound, outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         (await catalogo.ObtenerCarteraUniversalAsync(_operador.Id, _gestor)).Should().BeEmpty();
@@ -303,7 +303,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraOutbound, Cartera(inbound, _gestor))
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, inbound, outbound))
             .Con(fila);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -350,7 +350,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
                 cerradaDeOtroOperador, Cartera(deOtroOperador, conOtraDeOtroOperador),
                 cerradaInbound, Cartera(inbound, conOtraInbound))
             .Con(_operador, otroOperador, _propietario)
-            .Con(AmpararCon(vinculo, outbound, acotadaDelMismo, deOtroOperador))
+            .Con(AmpararCon(vinculo, outbound, acotadaDelMismo, deOtroOperador, inbound))
             .Con(filaDelMismo, filaDeOtroOperador, filaInbound);
 
         foreach (var (usuario, cerrada) in new[]
@@ -403,7 +403,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria(tenant)
             .Con(inbound, outboundDelMismo)
             .Con(Cartera(inbound, _gestor), Cartera(outboundDelMismo, otroGestor))
-            .Con(Amparar(outboundDelMismo))
+            .Con(Amparar(inbound, outboundDelMismo))
             .ConUsuarios(
                 new ApplicationUser { Id = _gestor, TenantId = _operador.Id },
                 new ApplicationUser { Id = otroGestor, TenantId = _operador.Id });

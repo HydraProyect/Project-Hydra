@@ -255,9 +255,13 @@ public static class CoberturaPantallasSeeder
             if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
                 return;
 
+            // Sin la fila viva de la primera persona, la delegación se revocó y la revocación revocó sus filas
+            // heredadas (PR #2237): la siembra no la reabre.
             var operacionId = await dbContext.AsignacionesOperadorDelegado
-                .Where(a => a.UsuarioId == primero.Id).Select(a => a.DelegacionTenantId).SingleAsync(cancellationToken);
-            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(operacionId, usuario.Id, rol));
+                .Where(a => a.UsuarioId == primero.Id).Select(a => (Guid?)a.DelegacionTenantId).SingleOrDefaultAsync(cancellationToken);
+            if (operacionId is null)
+                return;
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(operacionId.Value, usuario.Id, rol));
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
