@@ -607,7 +607,7 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
     {
         var e = new Escenario();
         var centro = e.ConCentro(e.ConEmpresa("Cliente empresarial"), "Centro");
-        var acreditacion = e.Acreditar(e.ConDocumento(), centro, e.ConPlataforma("Nalanda"));
+        var acreditacion = e.Acreditar(e.ConDocumento(), centro, e.ConPlataforma("Nalanda"), url: "https://portal.nalanda.test");
         acreditacion.CambiarEstadoAMano(EstadoAcreditacion.Rechazada, new DateOnly(2026, 11, 10), "Anotado a mano: sin firma",
             "Nota interna", Guid.NewGuid(), DateTime.UtcNow);
         e.Documentos.ListaRechazosAcreditacionDocumentoPlataforma.AddRange(acreditacion.HistorialRechazos);
@@ -617,6 +617,8 @@ public class ObtenerDocumentosAgrupadosPorVinculoTests
         var enGrupo = resultado.Elementos.Should().ContainSingle().Subject.Grupo!.Acreditacion!;
         enGrupo.Estado.Should().Be(EstadoAcreditacion.Rechazada, "el estado en la plataforma llega a todos");
         enGrupo.UltimoMotivoRechazo.Should().Be(recibeMotivo ? "Anotado a mano: sin firma" : null);
+        enGrupo.UrlAccesoCanal.Should().Be("https://portal.nalanda.test",
+            "el corte es solo del motivo: con acceso total la dirección del portal llega a todos los roles, también a Consulta");
     }
 
     [Fact]

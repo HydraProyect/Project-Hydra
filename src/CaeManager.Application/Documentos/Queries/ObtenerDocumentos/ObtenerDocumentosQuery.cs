@@ -944,7 +944,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 Grupo = new GrupoDeFilaDocumentalDto(v.ProveedorId!.Value.ToString(), new AcreditacionEnGrupoDto(
                     v.AcreditacionId, v.Estado, v.EstadoVigencia, clientesEmpresariales.GetValueOrDefault(v.ClienteId, "—"),
                     motivos.GetValueOrDefault(v.AcreditacionId),
-                    // El mismo corte que el motivo: Centros que el usuario gestiona; el rol Cliente no recibe la dirección.
+                    // Regla operativa, no la del motivo: Centros que el usuario gestiona (Consulta sí recibe la dirección);
+                    // el rol Cliente no la recibe.
                     centrosGestion == null || centrosGestion.Contains(v.CentroId) ? v.UrlAcceso : null))
             }));
         }
