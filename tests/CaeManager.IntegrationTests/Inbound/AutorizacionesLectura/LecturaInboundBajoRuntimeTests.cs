@@ -1063,35 +1063,93 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("Activo", true)]
-    [InlineData("Finalizado", true)]
-    [InlineData("PendienteDeConfirmar", false)]
-    [InlineData("Suspendido", false)]
-    [InlineData("Cancelado", false)]
-    [InlineData("Rechazado", false)]
-    public async Task Solo_un_contrato_Activo_o_Finalizado_da_lectura_entre_Tenants(string estado, bool daLectura)
+    [InlineData("Activo", null, true)]
+    [InlineData("Activo", 0, true)]          // cerrado hoy por la ranura anterior, que no toca la columna Estado
+    [InlineData("Finalizado", 0, true)]
+    [InlineData("Finalizado", 10, true)]
+    [InlineData("PendienteDeConfirmar", null, false)]
+    [InlineData("Suspendido", null, false)]
+    [InlineData("Suspendido", 0, false)]     // un cierre real de hoy o futuro no le devuelve el acceso a un Suspendido
+    [InlineData("Suspendido", 10, false)]
+    [InlineData("Cancelado", null, false)]
+    [InlineData("Cancelado", 10, false)]
+    [InlineData("Rechazado", null, false)]
+    public async Task Solo_un_contrato_Activo_o_Finalizado_da_lectura_entre_Tenants(string estado, int? diasHastaElCierre, bool daLectura)
     {
         // Con la identidad propietaria y en una transacción: el mismo contrato vigente en fechas, vinculado y con la línea
-        // Inbound de X, en cada estado. Finalizado lleva su cierre real hoy (CK_ContratosAcceso_FinalizadoConCierre).
+        // Inbound de X, en cada estado, sin cierre real o con uno de hoy o futuro (Finalizado lo exige:
+        // CK_ContratosAcceso_FinalizadoConCierre).
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
-        await using (var cambiar = new NpgsqlCommand(
-                         """
-                         UPDATE public."ContratosAcceso"
-                            SET "Estado" = @estado, "FechaCierreReal" = CASE WHEN @estado = 'Finalizado' THEN @hoy END
-                          WHERE "Id" = @contrato
-                         """, conexion, transaccion))
-        {
-            cambiar.Parameters.AddWithValue("estado", estado);
-            cambiar.Parameters.AddWithValue("hoy", _hoy);
-            cambiar.Parameters.AddWithValue("contrato", _vigente.Id);
-            (await cambiar.ExecuteNonQueryAsync()).Should().Be(1);
-        }
+        await FijarEstadoYCierreAsync(conexion, transaccion, _vigente.Id, estado,
+            diasHastaElCierre is { } dias ? _hoy.AddDays(dias) : null);
 
-        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null, estado);
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null,
+            $"{estado} con cierre {diasHastaElCierre?.ToString() ?? "ninguno"}");
 
         await transaccion.RollbackAsync();
+    }
+
+    [Theory]
+    [InlineData("Activo", -10, null, true)]
+    [InlineData("Activo", 0, null, true)]
+    [InlineData("Finalizado", -10, 0, true)]
+    [InlineData("Suspendido", -10, null, false)]
+    [InlineData("Suspendido", -10, 10, false)]        // cierre futuro que escribió la ranura anterior
+    [InlineData("Suspendido", 0, null, false)]        // empieza hoy: el cierre en el inicio aún daría hoy
+    [InlineData("PendienteDeConfirmar", -10, null, false)]
+    [InlineData("PendienteDeConfirmar", 0, null, false)]
+    [InlineData("Cancelado", -10, null, false)]
+    [InlineData("Cancelado", 0, 10, false)]
+    [InlineData("Rechazado", -10, null, false)]
+    [InlineData("Rechazado", 0, null, false)]
+    public async Task El_Down_de_la_migracion_de_estado_no_devuelve_la_lectura_a_un_contrato_que_no_daba_acceso(
+        string estado, int diasDesdeElInicio, int? diasHastaElCierre, bool daLectura)
+    {
+        // El Down entero sobre el catálogo ya migrado, en una transacción: sus SQL en orden (disparador, relleno que falla
+        // cerrado, auxiliar de B-01). Sin el relleno, la auxiliar de B-01 decide solo por fechas y todos los casos de abajo
+        // darían lectura. Activo y Finalizado son el control: el Down no les quita lo que ya daban.
+        // Mutación declarada: quitar el relleno, o la marca de eliminado de los que empiezan hoy, deja esta prueba en rojo.
+        var migracion = new AnadeEstadoContratoAcceso();
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var inicio = new NpgsqlCommand(
+                         """UPDATE public."ContratosAcceso" SET "FechaInicio" = @inicio WHERE "Id" = @contrato""", conexion, transaccion))
+        {
+            inicio.Parameters.AddWithValue("inicio", _hoy.AddDays(diasDesdeElInicio));
+            inicio.Parameters.AddWithValue("contrato", _vigente.Id);
+            (await inicio.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        await FijarEstadoYCierreAsync(conexion, transaccion, _vigente.Id, estado,
+            diasHastaElCierre is { } dias ? _hoy.AddDays(dias) : null);
+
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null,
+            "control: con la migración aplicada, solo Activo y Finalizado dan lectura");
+
+        var sqlDelDown = migracion.DownOperations.OfType<SqlOperation>().Select(o => o.Sql).ToList();
+        sqlDelDown.Should().HaveCount(3, "disparador, relleno y auxiliar, en ese orden");
+        foreach (var sql in sqlDelDown)
+            await EjecutarAsync(conexion, transaccion, sql);
+
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null,
+            $"tras el Down, la auxiliar de B-01 no da lectura a un {estado} que no la daba");
+
+        await transaccion.RollbackAsync();
+    }
+
+    private static async Task FijarEstadoYCierreAsync(
+        NpgsqlConnection conexion, NpgsqlTransaction transaccion, Guid contrato, string estado, DateOnly? cierre)
+    {
+        await using var cambiar = new NpgsqlCommand(
+            """
+            UPDATE public."ContratosAcceso" SET "Estado" = @estado, "FechaCierreReal" = @cierre WHERE "Id" = @contrato
+            """, conexion, transaccion);
+        cambiar.Parameters.AddWithValue("estado", estado);
+        cambiar.Parameters.Add(new NpgsqlParameter("cierre", NpgsqlTypes.NpgsqlDbType.Date) { Value = cierre is { } c ? (object)c : DBNull.Value });
+        cambiar.Parameters.AddWithValue("contrato", contrato);
+        (await cambiar.ExecuteNonQueryAsync()).Should().Be(1);
     }
 
     private static readonly Regex FiltroEstadoContrato = new(

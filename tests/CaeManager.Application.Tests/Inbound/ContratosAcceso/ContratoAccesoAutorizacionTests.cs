@@ -14,6 +14,7 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Domain.Inbound.EvidenciasInbound;
@@ -292,6 +293,23 @@ public class ContratoAccesoAutorizacionTests
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
         contrato.Estado.Should().Be(EstadoContratoAcceso.PendienteDeConfirmar);
         contrato.FechaCierreReal.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cerrar_un_contrato_suspendido_responde_TransicionNoPermitida_sin_guardar()
+    {
+        // Finalizarlo con un cierre de hoy o futuro le devolvería el acceso que la suspensión le retiró.
+        var contrato = ContratoExistente();
+        contrato.Suspender();
+
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5), contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Suspendido);
+        contrato.FechaCierreReal.Should().BeNull();
+        contrato.VigenteEn(Inicio.AddDays(5)).Should().BeFalse();
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
@@ -611,6 +629,24 @@ public class ContratoAccesoAutorizacionTests
         contrato.CupoSubcontratas.Should().Be(2);
         contrato.MotivoCupo.Should().Be("Aforo del muelle");
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task FijarCondiciones_identicas_responde_SinCambios_sin_guardar_ni_pedir_auditoria()
+    {
+        // Un éxito sin cambio no dejaría fila de auditoría: EF no actualiza la fila y el interceptor consume la marca.
+        var contrato = ContratoExistente();
+        var manejador = FijarCondiciones(AlcanceSinAcceso(_cliente.Id));
+        (await manejador.Handle(new FijarCondicionesContratoAccesoCommand(contrato.Id, ConCupo, contrato.Version), CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+        ((IAccionAuditoriaPropia)contrato).ConsumirAccionAuditoria();
+
+        var resultado = await manejador.Handle(
+            new FijarCondicionesContratoAccesoCommand(contrato.Id, ConCupo, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.SinCambios");
+        ((IAccionAuditoriaPropia)contrato).ConsumirAccionAuditoria().Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(1, "solo guardó la primera, que sí cambiaba");
     }
 
     [Fact]

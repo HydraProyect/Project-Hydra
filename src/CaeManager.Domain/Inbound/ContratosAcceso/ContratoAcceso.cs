@@ -169,14 +169,23 @@ public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
     /// Tipo, propia actividad, nivel máximo de subcontrata y cupos, de una vez (ver <see cref="CondicionesContratoAcceso"/>).
     /// Solo en un contrato Pendiente de confirmar o Activo: las condiciones se fijan antes de que el contrato dé acceso o
     /// mientras lo da, no en uno suspendido ni en uno ya final.
+    /// <para>
+    /// Devuelve false, sin tocar el contrato ni pedir acción de auditoría, si las condiciones son las que ya tiene: sin
+    /// cambio, EF no actualiza la fila y el interceptor de auditoría consumiría la marca sin escribir nada, de modo que una
+    /// acción aceptada quedaría sin rastro. El comando lo responde como <c>ContratoAcceso.SinCambios</c>. La guarda de
+    /// estado va antes: un contrato que no admite la acción la rechaza aunque las condiciones coincidan.
+    /// </para>
     /// </summary>
-    public void FijarCondiciones(CondicionesContratoAcceso condiciones)
+    public bool FijarCondiciones(CondicionesContratoAcceso condiciones)
     {
         ArgumentNullException.ThrowIfNull(condiciones);
         ExigirEstado("cambiar de condiciones", EstadoContratoAcceso.PendienteDeConfirmar, EstadoContratoAcceso.Activo);
+        if (condiciones == Condiciones)
+            return false;
 
         AplicarCondiciones(condiciones);
         _accionAuditoria = RegistroAuditoria.AccionCondicionesFijadas;
+        return true;
     }
 
     private void AplicarCondiciones(CondicionesContratoAcceso condiciones)
@@ -234,14 +243,20 @@ public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
     }
 
     /// <summary>
-    /// Activo o Suspendido → Finalizado, final, con el cierre real en <paramref name="fechaCierre"/>. Lo usa hoy
+    /// Activo → Finalizado, final, con el cierre real en <paramref name="fechaCierre"/>. Lo usa hoy
     /// <c>CerrarContratoAccesoCommand</c>; la cascada a asignaciones y subcontratas entra con B-18.
+    /// <para>
+    /// Un Suspendido no se finaliza: un Finalizado da acceso hasta su cierre real (<see cref="VigenteEn"/>), así que
+    /// finalizar un Suspendido con cierre de hoy o futuro le devolvería el acceso que la suspensión le retiró. Falla
+    /// cerrado, como <see cref="Cancelar"/>, que tampoco admite Suspendido. Cómo se da de baja un contrato suspendido sin
+    /// reanudarlo lo decide B-18 con el comando de Suspender (hoy ninguna escritura deja un contrato Suspendido).
+    /// </para>
     /// </summary>
     public void Finalizar(DateOnly fechaCierre)
     {
         // ExigirEstado ya rechaza un contrato con cierre real y nombra su estado efectivo: un Cancelado con cierre de la
         // versión anterior dice «Cancelado», no «ya está cerrado» (que es solo el Finalizado).
-        ExigirEstado("finalizar", EstadoContratoAcceso.Activo, EstadoContratoAcceso.Suspendido);
+        ExigirEstado("finalizar", EstadoContratoAcceso.Activo);
         if (fechaCierre < FechaInicio)
             throw new ArgumentException("La fecha de cierre no puede ser anterior a la de inicio.", nameof(fechaCierre));
 

@@ -16,28 +16,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>FORCE</c>, la política <c>aislamiento_tenant</c> y solo SELECT e INSERT para <c>cae_app_runtime</c> y SELECT para
     /// <c>cae_app_soporte</c>. Y reescribe <c>app_inbound_tenant_contratista_del_contrato</c> con el filtro
     /// <c>"Estado" IN ('Activo', 'Finalizado')</c>, con la misma firma, lenguaje, volatilidad y <c>search_path</c>, sin
-    /// <c>SECURITY DEFINER</c>: conserva propietario y privilegios.
+    /// <c>SECURITY DEFINER</c>: conserva propietario y privilegios. Y crea el disparador
+    /// <c>TR_ContratosAcceso_CierreIrreversible</c> (D-21): un cierre real ya escrito no cambia ni se quita para ningún rol.
     /// </para>
     /// <para>
-    /// Compatible con la ranura anterior durante el relevo azul/verde: solo añade (columnas, CHECK, una tabla, un filtro) y
-    /// no borra ni renombra nada que la ranura anterior lea. Sus altas no mandan <c>Estado</c> y reciben el DEFAULT 'Activo',
+    /// Compatible con la ranura anterior durante el relevo azul/verde: solo añade (columnas, CHECK, una tabla, un filtro, un
+    /// disparador) y no borra ni renombra nada que la ranura anterior lea. Sus altas no mandan <c>Estado</c> y reciben el DEFAULT 'Activo',
     /// que es lo que eran; sus lecturas no piden las columnas nuevas. Su <c>Cerrar</c> deja un contrato con
     /// <c>Estado = 'Activo'</c> y cierre real, que da acceso solo hasta el cierre, igual que antes. La columna se queda en
     /// 'Activo' (la ranura nueva no la reescribe: su <c>Cerrar</c> responde «ya cerrado»), pero el dominio de la ranura nueva
     /// lo trata como Finalizado (<c>ContratoAcceso.EstadoEfectivo</c>): no admite ninguna transición y se muestra Finalizado.
     /// Normalizar la columna queda para una migración posterior al relevo, hueco acotado y declarado. Su <c>Cerrar</c> sobre
     /// un Pendiente de confirmar, un Cancelado o un Rechazado de la ranura nueva (que ella ve abiertos) les escribe el cierre:
-    /// conservan su estado, siguen sin dar acceso y quedan sin transiciones. Su <c>Reabrir</c> sobre
-    /// un contrato que ella misma cerró lo reabre, como antes; sobre uno que la ranura nueva ya finalizó
-    /// falla por <c>CK_ContratosAcceso_FinalizadoConCierre</c>: D-21 retira Reabrir, y la base no deja reabrirlo por la puerta
-    /// de atrás. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
+    /// conservan su estado, siguen sin dar acceso y quedan sin transiciones. Su <c>Reabrir</c> falla siempre, por
+    /// <c>TR_ContratosAcceso_CierreIrreversible</c>, cerrara quien cerrase el contrato (ella misma tras la migración, ella antes
+    /// de la migración, o la ranura nueva): D-21 retira Reabrir, y la base no deja reabrir por la puerta de atrás. Es el único
+    /// cambio de comportamiento para la ranura anterior, y falla cerrado: su Reabrir responde con un error de base de datos en
+    /// vez de devolver el acceso. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
     /// constan en él, otro hueco acotado y declarado. La ranura anterior no conoce la tabla nueva ni el estado, y un contrato Cancelado o Pendiente que ella vea
     /// abierto sigue sin dar lectura entre Tenants, porque el filtro está en la base.
     /// </para>
     /// <para>
-    /// El Down devuelve la auxiliar al cuerpo exacto de <c>AnadeLineaInboundProductoContratado</c> antes de borrar la columna
-    /// que lee, y después borra la tabla y las columnas: los estados y el historial se pierden, que es lo que significa
-    /// revertir B-05.
+    /// El Down quita el disparador y, antes de quitar el filtro de estado, falla cerrado con los datos: a cada contrato que
+    /// no está Activo ni Finalizado le pone el cierre real en su inicio (el más temprano que admite
+    /// <c>CK_ContratosAcceso_CierreNoAnteriorAlInicio</c>) y, si empieza desde ayer en adelante, además lo marca como
+    /// eliminado, porque el día de su inicio aún daría acceso. Así ningún Pendiente de confirmar, Suspendido, Cancelado o
+    /// Rechazado vuelve a dar lectura entre Tenants por fechas. Después devuelve la auxiliar al cuerpo exacto de
+    /// <c>AnadeLineaInboundProductoContratado</c> antes de borrar la columna que lee, y borra la tabla y las columnas: los
+    /// estados y el historial se pierden, que es lo que significa revertir B-05, y esos contratos quedan cerrados (o
+    /// eliminados) para la versión anterior. Necesita, como el Up, un migrador superusuario o con BYPASSRLS.
     /// </para>
     /// </summary>
     public partial class AnadeEstadoContratoAcceso : Migration
@@ -169,6 +176,27 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "ContratosAcceso",
                 sql: "\"Tipo\" IN ('Fijo', 'Recurrente', 'Temporal', 'Puntual', 'Obra', 'Emergencia')");
 
+            // D-21: el cierre real es irreversible. Escrito, no cambia ni se quita para ningún rol, también el de la ranura
+            // anterior: su Reabrir (FechaCierreReal = NULL) falla siempre, cerrara quien cerrase el contrato. Escribirlo sobre
+            // un contrato sin cierre (el Cerrar de las dos ranuras) sigue valiendo. Sin UPDATE OF: un BEFORE UPDATE por fila con
+            // WHEN vigila el valor final de la fila, lo cambie quien lo cambie.
+            migrationBuilder.Sql("""
+                CREATE FUNCTION public.contrato_acceso_cierre_irreversible() RETURNS trigger
+                    LANGUAGE plpgsql
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                BEGIN
+                    RAISE EXCEPTION 'El contrato de acceso % ya tiene cierre real: el cierre no cambia ni se quita (D-21).', OLD."Id"
+                        USING ERRCODE = 'check_violation', CONSTRAINT = 'TR_ContratosAcceso_CierreIrreversible';
+                END;
+                $$;
+
+                CREATE TRIGGER "TR_ContratosAcceso_CierreIrreversible" BEFORE UPDATE ON public."ContratosAcceso"
+                    FOR EACH ROW
+                    WHEN (OLD."FechaCierreReal" IS NOT NULL AND NEW."FechaCierreReal" IS DISTINCT FROM OLD."FechaCierreReal")
+                    EXECUTE FUNCTION public.contrato_acceso_cierre_irreversible();
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_HistorialVigenciaContratos_TenantId_ContratoAccesoId_Regist~",
                 table: "HistorialVigenciaContratos",
@@ -216,8 +244,43 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Primero la auxiliar, que lee la columna Estado: vuelve al cuerpo exacto de B-01 (con el gate de la línea
-            // Inbound), que no amplía nada respecto de lo que había antes de esta migración.
+            // Antes que nada, el disparador del cierre irreversible: el relleno de abajo reescribe cierres que ya existen.
+            migrationBuilder.Sql("""
+                DROP TRIGGER "TR_ContratosAcceso_CierreIrreversible" ON public."ContratosAcceso";
+                DROP FUNCTION public.contrato_acceso_cierre_irreversible();
+                """);
+
+            // Sin la columna Estado, la auxiliar de B-01 decide solo por fechas: un contrato Pendiente de confirmar,
+            // Suspendido, Cancelado o Rechazado dentro de sus fechas volvería a dar lectura entre Tenants. Antes de quitar el
+            // filtro, esos contratos reciben el cierre más temprano que admite CK_ContratosAcceso_CierreNoAnteriorAlInicio, su
+            // propio inicio (también los que la ranura anterior cerró más tarde). Con eso dejan de dar acceso desde el día
+            // siguiente al inicio; los que empiezan hoy o después darían acceso aún el día de su inicio, y esos además se
+            // marcan como eliminados, que la auxiliar excluye. El margen de un día (desde ayer) cubre una petición que calculó
+            // su día de negocio justo antes de medianoche. Activo y Finalizado no se tocan: dan el mismo acceso que antes.
+            // Las mismas filas de todos los Tenants bajo FORCE ROW LEVEL SECURITY que el relleno del Up: la misma guarda.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
+                        RAISE EXCEPTION 'Revertir AnadeEstadoContratoAcceso necesita un migrador superusuario o con BYPASSRLS';
+                    END IF;
+                END
+                $$;
+
+                UPDATE public."ContratosAcceso"
+                   SET "FechaCierreReal" = "FechaInicio",
+                       "EstaEliminado" = true,
+                       "EliminadoEnUtc" = COALESCE("EliminadoEnUtc", pg_catalog.now())
+                 WHERE "Estado" NOT IN ('Activo', 'Finalizado')
+                   AND "FechaInicio" >= (pg_catalog.timezone('Europe/Madrid', pg_catalog.now()))::date - 1;
+
+                UPDATE public."ContratosAcceso"
+                   SET "FechaCierreReal" = "FechaInicio"
+                 WHERE "Estado" NOT IN ('Activo', 'Finalizado');
+                """);
+
+            // Después la auxiliar, que lee la columna Estado, antes de borrarla: vuelve al cuerpo exacto de B-01 (con el gate de
+            // la línea Inbound). Con el relleno de arriba, no amplía nada respecto de lo que daba esta migración.
             migrationBuilder.Sql(
                 """
                 CREATE OR REPLACE FUNCTION public.app_inbound_tenant_contratista_del_contrato(p_lector uuid, p_contrato uuid, p_hoy date) RETURNS uuid

@@ -287,7 +287,36 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = NULL WHERE \"Id\" = {_contratoVigente};");
         var error = (await reabrir.Should().ThrowAsync<PostgresException>()).Which;
         error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
-        error.ConstraintName.Should().Be("CK_ContratosAcceso_FinalizadoConCierre", "D-21 retira Reabrir, también por la puerta de atrás");
+        error.ConstraintName.Should().Be("TR_ContratosAcceso_CierreIrreversible", "D-21 retira Reabrir, también por la puerta de atrás");
+    }
+
+    [Theory]
+    [InlineData("NULL")]                          // el Reabrir de la ranura anterior
+    [InlineData("\"FechaCierreReal\" + 1")]       // retrasar el cierre amplía el acceso
+    [InlineData("\"FechaCierreReal\" - 1")]       // tampoco adelantarlo: el cierre escrito no cambia
+    public async Task Un_cierre_que_escribio_la_ranura_anterior_tampoco_se_quita_ni_cambia_bajo_runtime(string nuevoCierre)
+    {
+        // Lo que Codex vio: tras la migración, el Cerrar de la ranura anterior deja Estado = 'Activo' con cierre real, y el
+        // CHECK de Finalizado con cierre no lo cubre. El disparador sí, sea cual sea la columna Estado.
+        var hoy = DiaDeNegocio.Hoy();
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {hoy} WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1, "control: escribir el cierre sobre un contrato sin cierre (Cerrar) sigue valiendo");
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {hoy}, \"Notas\" = 'Otra nota' WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1, "control: reescribir el mismo cierre al editar otra columna no lo cambia");
+
+        var cambiar = () => contexto.Database.ExecuteSqlRawAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {nuevoCierre} WHERE \"Id\" = {{0}};", _contratoVigente);
+        var error = (await cambiar.Should().ThrowAsync<PostgresException>()).Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        error.ConstraintName.Should().Be("TR_ContratosAcceso_CierreIrreversible");
+
+        await using var lectura = Contexto(_propietario.Id, _administrador);
+        var contrato = await lectura.ContratosAcceso.SingleAsync(c => c.Id == _contratoVigente);
+        contrato.FechaCierreReal.Should().Be(hoy);
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo, "la ranura anterior no toca la columna Estado");
     }
 
     [Fact]

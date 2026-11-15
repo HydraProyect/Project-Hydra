@@ -13,6 +13,13 @@ public static class ContratoAccesoErrores
     public static Error SinUsuario =>
         Error.Crear("ContratoAcceso.SinUsuario", "No se puede identificar al usuario que hace el cambio.");
 
+    /// <summary>
+    /// La escritura no cambia nada: se rechaza para que toda acción aceptada deje su fila de auditoría (sin cambio, EF no
+    /// actualiza la fila y el interceptor no escribe ninguna).
+    /// </summary>
+    public static Error SinCambios =>
+        Error.Crear("ContratoAcceso.SinCambios", "El contrato de acceso ya tiene esas condiciones.");
+
     /// <summary>La transición no la admite el estado del contrato (ver <c>EstadoContratoAcceso</c>).</summary>
     public static Error TransicionNoPermitida(string mensaje) =>
         Error.Crear("ContratoAcceso.TransicionNoPermitida", mensaje);

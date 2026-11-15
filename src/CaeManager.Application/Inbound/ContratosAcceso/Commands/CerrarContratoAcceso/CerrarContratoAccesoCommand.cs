@@ -8,8 +8,9 @@ using MediatR;
 namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContratoAcceso;
 
 /// <summary>
-/// Finaliza el contrato (Activo o Suspendido → Finalizado) con su cierre real. Conserva el nombre de M1; un Finalizado no
-/// se reabre (D-21). La cascada a asignaciones y subcontratas llega con <c>FinalizarContratoAccesoCommand</c> (B-18).
+/// Finaliza el contrato (Activo → Finalizado) con su cierre real. Conserva el nombre de M1; un Finalizado no se reabre
+/// (D-21). Un Suspendido responde <c>ContratoAcceso.TransicionNoPermitida</c>: finalizarlo con un cierre de hoy o futuro
+/// le devolvería el acceso que la suspensión retiró (<c>ContratoAcceso.Finalizar</c>). La cascada a asignaciones y subcontratas llega con <c>FinalizarContratoAccesoCommand</c> (B-18).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;

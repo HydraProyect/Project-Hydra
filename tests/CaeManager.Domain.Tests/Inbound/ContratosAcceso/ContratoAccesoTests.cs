@@ -241,7 +241,7 @@ public class ContratoAccesoTests
         ["Rechazar"] = ([EstadoContratoAcceso.PendienteDeConfirmar], EstadoContratoAcceso.Rechazado, c => c.RechazarPorTenantContratista()),
         ["Suspender"] = ([EstadoContratoAcceso.Activo], EstadoContratoAcceso.Suspendido, c => c.Suspender()),
         ["Reanudar"] = ([EstadoContratoAcceso.Suspendido], EstadoContratoAcceso.Activo, c => c.Reanudar()),
-        ["Finalizar"] = ([EstadoContratoAcceso.Activo, EstadoContratoAcceso.Suspendido], EstadoContratoAcceso.Finalizado,
+        ["Finalizar"] = ([EstadoContratoAcceso.Activo], EstadoContratoAcceso.Finalizado,
             c => c.Finalizar(Inicio.AddDays(10))),
         ["Cancelar"] = ([EstadoContratoAcceso.PendienteDeConfirmar, EstadoContratoAcceso.Activo], EstadoContratoAcceso.Cancelado,
             c => c.Cancelar(Inicio.AddDays(-1), tieneActividad: false)),
@@ -318,6 +318,26 @@ public class ContratoAccesoTests
         // El día de inicio está dentro del periodo de todos, también del Finalizado (cierre a los cinco días).
         contrato.VigenteEn(Inicio).Should().Be(vigente);
         CoincideConLaExpresion(contrato, Inicio);
+    }
+
+    [Theory]
+    [InlineData(0)]   // cierre hoy
+    [InlineData(10)]  // cierre futuro
+    public void Finalizar_un_contrato_suspendido_lanza_y_no_le_devuelve_el_acceso(int diasHastaElCierre)
+    {
+        // Un Finalizado da acceso hasta su cierre real: finalizar el Suspendido lo reabriría hasta esa fecha.
+        var hoy = Inicio.AddDays(5);
+        var contrato = EnEstado(EstadoContratoAcceso.Suspendido);
+        var auditable = (IAccionAuditoriaPropia)contrato;
+
+        FluentActions.Invoking(() => contrato.Finalizar(hoy.AddDays(diasHastaElCierre)))
+            .Should().Throw<InvalidOperationException>()
+            .WithMessage("Un contrato de acceso en estado Suspendido no se puede finalizar.");
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Suspendido);
+        contrato.FechaCierreReal.Should().BeNull();
+        contrato.VigenteEn(hoy).Should().BeFalse("la suspensión sigue retirando el acceso");
+        CoincideConLaExpresion(contrato, hoy);
+        auditable.ConsumirAccionAuditoria().Should().BeNull("una transición rechazada no pide acción de auditoría");
     }
 
     [Fact]
@@ -570,7 +590,10 @@ public class ContratoAccesoTests
             case "Renovar": contrato.Renovar(Fin.AddMonths(1), Usuario, Ahora); break;
             case "Cancelar": contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false); break;
             case "Finalizar": contrato.Finalizar(Inicio.AddDays(5)); break;
-            case "FijarCondiciones": contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar); break;
+            case "FijarCondiciones":
+                contrato.FijarCondiciones(new CondicionesContratoAcceso(TipoContratoAcceso.Puntual, null, null, null, null, null))
+                    .Should().BeTrue();
+                break;
         }
 
         auditable.ConsumirAccionAuditoria().Should().Be(esperada);
@@ -653,10 +676,43 @@ public class ContratoAccesoTests
         var contrato = ContratoAcceso.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Inicio, Fin, null,
             new CondicionesContratoAcceso(TipoContratoAcceso.Fijo, PropiaActividadContrato.No, 1, 5, null, "Turno de noche"));
 
-        contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar);
+        contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar).Should().BeTrue();
 
         contrato.Condiciones.Should().Be(CondicionesContratoAcceso.SinFijar);
         contrato.MotivoCupo.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar)]
+    [InlineData(EstadoContratoAcceso.Activo)]
+    public void FijarCondiciones_identicas_no_cambia_nada_ni_pide_accion_de_auditoria(EstadoContratoAcceso estado)
+    {
+        // Sin cambio, EF no actualiza la fila y el interceptor consumiría la marca sin escribir auditoría.
+        var contrato = EnEstado(estado);
+        var auditable = (IAccionAuditoriaPropia)contrato;
+        var condiciones = new CondicionesContratoAcceso(TipoContratoAcceso.Obra, PropiaActividadContrato.Si, 2, 5, null, "Aforo");
+        contrato.FijarCondiciones(condiciones).Should().BeTrue();
+        auditable.ConsumirAccionAuditoria().Should().Be(RegistroAuditoria.AccionCondicionesFijadas);
+
+        // Iguales en valor, aunque sea otra instancia y el motivo llegue con espacios que el constructor recorta.
+        contrato.FijarCondiciones(new CondicionesContratoAcceso(TipoContratoAcceso.Obra, PropiaActividadContrato.Si, 2, 5, null, " Aforo "))
+            .Should().BeFalse();
+        auditable.ConsumirAccionAuditoria().Should().BeNull("sin cambio no hay acción que auditar");
+        contrato.Condiciones.Should().Be(condiciones);
+
+        // Basta con que cambie un solo valor para que vuelva a ser una acción.
+        contrato.FijarCondiciones(new CondicionesContratoAcceso(TipoContratoAcceso.Obra, PropiaActividadContrato.Si, 2, 5, 1, "Aforo"))
+            .Should().BeTrue();
+        auditable.ConsumirAccionAuditoria().Should().Be(RegistroAuditoria.AccionCondicionesFijadas);
+    }
+
+    [Fact]
+    public void FijarCondiciones_identicas_en_un_estado_que_no_lo_admite_sigue_siendo_transicion_no_permitida()
+    {
+        var contrato = EnEstado(EstadoContratoAcceso.Suspendido);
+
+        FluentActions.Invoking(() => contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar))
+            .Should().Throw<InvalidOperationException>("la guarda de estado va antes que la de sin cambios");
     }
 
     [Theory]
