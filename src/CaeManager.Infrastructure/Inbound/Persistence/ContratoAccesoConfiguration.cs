@@ -40,10 +40,12 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
                 "CK_ContratosAcceso_CuposNoNegativos",
                 $"(\"{nameof(ContratoAcceso.CupoTrabajadores)}\" IS NULL OR \"{nameof(ContratoAcceso.CupoTrabajadores)}\" >= 0) " +
                 $"AND (\"{nameof(ContratoAcceso.CupoSubcontratas)}\" IS NULL OR \"{nameof(ContratoAcceso.CupoSubcontratas)}\" >= 0)");
+            // El motivo, si lo hay, no está en blanco: el dominio recorta y trata uno en blanco como ausente.
             t.HasCheckConstraint(
                 "CK_ContratosAcceso_MotivoSiHayCupo",
                 $"(\"{nameof(ContratoAcceso.CupoTrabajadores)}\" IS NULL AND \"{nameof(ContratoAcceso.CupoSubcontratas)}\" IS NULL) " +
-                $"= (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL)");
+                $"= (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL) " +
+                $"AND (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL OR \"{nameof(ContratoAcceso.MotivoCupo)}\" ~ '[^[:space:]]')");
             // Un Finalizado tiene siempre su cierre real. Es lo que hace fallar, en la ventana del relevo azul/verde, un
             // Reabrir de la ranura anterior sobre un contrato que la nueva ya finalizó (D-21 retira Reabrir).
             t.HasCheckConstraint(

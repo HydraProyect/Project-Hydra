@@ -21,11 +21,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// Compatible con la ranura anterior durante el relevo azul/verde: solo añade (columnas, CHECK, una tabla, un filtro) y
     /// no borra ni renombra nada que la ranura anterior lea. Sus altas no mandan <c>Estado</c> y reciben el DEFAULT 'Activo',
-    /// que es lo que eran; sus lecturas no piden las columnas nuevas. Su <c>Cerrar</c> deja un contrato Activo con cierre
-    /// real, que da acceso solo hasta el cierre, igual que antes: no se finaliza hasta que lo cierre de nuevo la ranura nueva o
-    /// lo corrija una migración, hueco acotado y declarado. Su <c>Reabrir</c> sobre un contrato que la ranura nueva ya finalizó
+    /// que es lo que eran; sus lecturas no piden las columnas nuevas. Su <c>Cerrar</c> deja un contrato con
+    /// <c>Estado = 'Activo'</c> y cierre real, que da acceso solo hasta el cierre, igual que antes. La columna se queda en
+    /// 'Activo' (la ranura nueva no la reescribe: su <c>Cerrar</c> responde «ya cerrado»), pero el dominio de la ranura nueva
+    /// lo trata como Finalizado (<c>ContratoAcceso.EstadoEfectivo</c>): no admite ninguna transición y se muestra Finalizado.
+    /// Normalizar la columna queda para una migración posterior al relevo, hueco acotado y declarado. Su <c>Reabrir</c> sobre
+    /// un contrato que ella misma cerró lo reabre, como antes; sobre uno que la ranura nueva ya finalizó
     /// falla por <c>CK_ContratosAcceso_FinalizadoConCierre</c>: D-21 retira Reabrir, y la base no deja reabrirlo por la puerta
-    /// de atrás. La ranura anterior no conoce la tabla nueva ni el estado, y un contrato Cancelado o Pendiente que ella vea
+    /// de atrás. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
+    /// constan en él, otro hueco acotado y declarado. La ranura anterior no conoce la tabla nueva ni el estado, y un contrato Cancelado o Pendiente que ella vea
     /// abierto sigue sin dar lectura entre Tenants, porque el filtro está en la base.
     /// </para>
     /// <para>
@@ -146,7 +150,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.AddCheckConstraint(
                 name: "CK_ContratosAcceso_MotivoSiHayCupo",
                 table: "ContratosAcceso",
-                sql: "(\"CupoTrabajadores\" IS NULL AND \"CupoSubcontratas\" IS NULL) = (\"MotivoCupo\" IS NULL)");
+                sql: "(\"CupoTrabajadores\" IS NULL AND \"CupoSubcontratas\" IS NULL) = (\"MotivoCupo\" IS NULL) AND (\"MotivoCupo\" IS NULL OR \"MotivoCupo\" ~ '[^[:space:]]')");
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_ContratosAcceso_NivelMaxSubcontrata",

@@ -290,14 +290,38 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
         error.ConstraintName.Should().Be("CK_ContratosAcceso_FinalizadoConCierre", "D-21 retira Reabrir, también por la puerta de atrás");
     }
 
+    [Fact]
+    public async Task Un_Cerrar_de_la_ranura_anterior_deja_Activo_en_la_columna_y_el_dominio_lo_trata_como_Finalizado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        await using (var contexto = Contexto(_propietario.Id, _administrador))
+        {
+            // El Cerrar de la versión anterior, que no conoce la columna Estado.
+            (await contexto.Database.ExecuteSqlAsync(
+                $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {hoy} WHERE \"Id\" = {_contratoVigente};")).Should().Be(1);
+        }
+
+        await using var lectura = Contexto(_propietario.Id, _administrador);
+        var contrato = await lectura.ContratosAcceso.SingleAsync(c => c.Id == _contratoVigente);
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo, "la columna sigue en el DEFAULT");
+        contrato.EstadoEfectivo.Should().Be(EstadoContratoAcceso.Finalizado);
+        contrato.Invoking(c => c.Suspender()).Should().Throw<InvalidOperationException>();
+        contrato.Invoking(c => c.Renovar(hoy.AddDays(40), _administrador, DateTime.UtcNow)).Should().Throw<InvalidOperationException>();
+        (await lectura.ContratosAcceso.Where(ContratoAcceso.EstaVigenteEn(hoy)).AnyAsync(c => c.Id == _contratoVigente))
+            .Should().BeTrue("da acceso hasta el día del cierre, como un Finalizado");
+        (await lectura.ContratosAcceso.Where(ContratoAcceso.EstaVigenteEn(hoy.AddDays(1))).AnyAsync(c => c.Id == _contratoVigente))
+            .Should().BeFalse("y no después");
+    }
+
     [Theory]
-    [InlineData("CK_ContratosAcceso_Estado", "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Prorrogado' WHERE \"Id\" = {0};")]
+    [InlineData("CK_ContratosAcceso_Estado","UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Prorrogado' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_Tipo", "UPDATE \"ContratosAcceso\" SET \"Tipo\" = 'Indefinido' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_PropiaActividad", "UPDATE \"ContratosAcceso\" SET \"PropiaActividad\" = 'Quiza' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_NivelMaxSubcontrata", "UPDATE \"ContratosAcceso\" SET \"NivelMaxSubcontrata\" = 4 WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_CuposNoNegativos", "UPDATE \"ContratosAcceso\" SET \"CupoTrabajadores\" = -1, \"MotivoCupo\" = 'x' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_MotivoSiHayCupo", "UPDATE \"ContratosAcceso\" SET \"CupoSubcontratas\" = 2 WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_MotivoSiHayCupo", "UPDATE \"ContratosAcceso\" SET \"MotivoCupo\" = 'Sin cupo' WHERE \"Id\" = {0};")]
+    [InlineData("CK_ContratosAcceso_MotivoSiHayCupo", "UPDATE \"ContratosAcceso\" SET \"CupoSubcontratas\" = 2, \"MotivoCupo\" = E' \\t ' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_FinalizadoConCierre", "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Finalizado' WHERE \"Id\" = {0};")]
     public async Task Un_UPDATE_por_SQL_que_rompe_una_condicion_de_B05_lo_rechaza_su_CHECK(string restriccion, string sql)
     {

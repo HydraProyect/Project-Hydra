@@ -7,6 +7,7 @@ using CaeManager.Application.Inbound.ContratosAcceso.Commands.EliminarContratoAc
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.FijarCondicionesContratoAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.RenovarContratoAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratoAccesoPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
 using CaeManager.Application.Tests.Clientes;
@@ -432,6 +433,122 @@ public class ContratoAccesoAutorizacionTests
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
         contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
         _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cancelar_a_las_23_30_UTC_del_dia_anterior_al_inicio_ya_es_el_dia_de_inicio_en_Madrid()
+    {
+        var contrato = ContratoExistente();
+        var horaYMediaAntes = new RelojFijo(new DateTimeOffset(2026, 2, 28, 22, 30, 0, TimeSpan.Zero));
+        var mediaHoraAntes = new RelojFijo(new DateTimeOffset(2026, 2, 28, 23, 30, 0, TimeSpan.Zero));
+
+        var resultado = await Cancelar(AlcanceSinAcceso(_cliente.Id), mediaHoraAntes)
+            .Handle(new CancelarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida",
+            "a las 23:30 UTC del 28 de febrero son las 00:30 del 1 de marzo en Europe/Madrid: el contrato ya empezó");
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+
+        // Control positivo: una hora antes todavía es el 28 en Madrid y Cancelar cabe.
+        (await Cancelar(AlcanceSinAcceso(_cliente.Id), horaYMediaAntes)
+            .Handle(new CancelarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Cancelado);
+    }
+
+    [Fact]
+    public async Task Cerrar_un_contrato_cancelado_responde_TransicionNoPermitida_y_no_YaCerrado()
+    {
+        var contrato = ContratoExistente();
+        contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false);
+
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "un Cancelado no se cerró nunca");
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Cancelado);
+        contrato.FechaCierreReal.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Cerrar_un_contrato_que_cerro_la_version_anterior_responde_YaCerrado_y_lo_muestra_Finalizado()
+    {
+        var contrato = ContratoConFin();
+        typeof(ContratoAcceso).GetProperty(nameof(ContratoAcceso.FechaCierreReal))!.SetValue(contrato, Inicio.AddDays(5));
+
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.YaCerrado");
+        contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5));
+        ContratoAccesoDto.Desde(contrato, Inicio, conNotaInterna: false).Estado.Should().Be(EstadoContratoAcceso.Finalizado);
+
+        (await Renovar(AlcanceSinAcceso(_cliente.Id))
+            .Handle(new RenovarContratoAccesoCommand(contrato.Id, Inicio.AddDays(60), contrato.Version), CancellationToken.None))
+            .Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "un Finalizado no se renueva");
+        contrato.FechaFin.Should().Be(Inicio.AddDays(30));
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Actualizar_solo_las_notas_no_necesita_usuario()
+    {
+        var contrato = ContratoExistente();
+
+        var resultado = await new ActualizarContratoAccesoCommandHandler(
+                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio)
+            .Handle(new ActualizarContratoAccesoCommand(contrato.Id, null, "Solo la nota", contrato.Version), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contrato.Notas.Should().Be("Solo la nota");
+        contrato.HistorialVigencia.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Actualizar_el_fin_de_un_contrato_suspendido_responde_TransicionNoPermitida_sin_guardar()
+    {
+        var contrato = ContratoConFin();
+        contrato.Suspender();
+
+        var resultado = await Actualizar(AlcanceSinAcceso(_cliente.Id))
+            .Handle(new ActualizarContratoAccesoCommand(contrato.Id, Inicio.AddDays(90), "Nota", contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "la vía para ampliar el fin de un Suspendido es Renovar");
+        contrato.FechaFin.Should().Be(Inicio.AddDays(30));
+        contrato.HistorialVigencia.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task FijarCondiciones_en_un_contrato_finalizado_responde_TransicionNoPermitida_sin_guardar()
+    {
+        var contrato = ContratoExistente();
+        contrato.Finalizar(Inicio.AddDays(5));
+
+        var resultado = await FijarCondiciones(AlcanceSinAcceso(_cliente.Id))
+            .Handle(new FijarCondicionesContratoAccesoCommand(contrato.Id, ConCupo, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
+        contrato.Condiciones.Should().Be(CondicionesContratoAcceso.SinFijar);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Un_motivo_en_blanco_sin_cupo_lo_aceptan_el_validador_y_el_dominio_como_ausente()
+    {
+        var datos = new CondicionesContratoAccesoDatos(MotivoCupo: "   ");
+
+        new CondicionesContratoAccesoDatosValidator().Validate(datos).IsValid.Should().BeTrue();
+        var condiciones = datos.ADominio();
+        condiciones.EsExitoso.Should().BeTrue();
+        condiciones.Valor.MotivoCupo.Should().BeNull();
+
+        // Y con cupo, un motivo en blanco no vale en ninguno de los dos.
+        var conCupo = new CondicionesContratoAccesoDatos(CupoTrabajadores: 3, MotivoCupo: "   ");
+        new CondicionesContratoAccesoDatosValidator().Validate(conCupo).IsValid.Should().BeFalse();
+        conCupo.ADominio().EsExitoso.Should().BeFalse();
     }
 
     [Fact]

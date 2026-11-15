@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Inbound.ContratosAcceso;
@@ -31,7 +32,10 @@ namespace CaeManager.Domain.Inbound.ContratosAcceso;
 /// guarda además <see cref="FechaCierreReal"/>, el cierre real, que puede adelantarse a <see cref="FechaFin"/> (el fin
 /// contratado; null = indefinido). Un contrato Finalizado no se reabre: D-21 (DECISION_LOG 2026-11-14) retira
 /// <c>Reabrir</c>. El criterio de vigencia en un día vive en <see cref="EstaVigenteEn"/>, el mismo que traducen a SQL las
-/// consultas y que repite la auxiliar <c>app_inbound_tenant_contratista_del_contrato</c> de la lectura entre Tenants.
+/// consultas y que repite la auxiliar <c>app_inbound_tenant_contratista_del_contrato</c> de la lectura entre Tenants. Las
+/// guardas y lo que se muestra usan <see cref="EstadoEfectivo"/>, que trata como Finalizado el contrato que cerró la
+/// versión anterior durante el relevo. Renovar, Cancelar, Finalizar y Fijar condiciones dejan su acción de negocio en la
+/// fila de auditoría (<see cref="IAccionAuditoriaPropia"/>, plan backend Inbound § 7).
 /// </para>
 ///
 /// <para>
@@ -40,7 +44,7 @@ namespace CaeManager.Domain.Inbound.ContratosAcceso;
 /// solapados no se prohíben, como en Proyecto (varios Proyectos abiertos en un Centro).
 /// </para>
 /// </summary>
-public class ContratoAcceso : EntidadBase
+public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
 {
     public const int LongitudMaximaNotas = 1000;
 
@@ -82,6 +86,19 @@ public class ContratoAcceso : EntidadBase
         FechaCierreReal is null
         && Estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido;
 
+    /// <summary>
+    /// El estado que vale para las transiciones y que se muestra: <see cref="Estado"/>, salvo un contrato Activo o
+    /// Suspendido con <see cref="FechaCierreReal"/>, que es Finalizado. Ese caso solo lo produce el <c>Cerrar</c> de la
+    /// versión anterior a B-05 durante el relevo azul/verde (no conoce la columna <c>Estado</c> y deja el DEFAULT
+    /// 'Activo'); el periodo que da acceso es el mismo de un Finalizado (<see cref="VigenteEn"/>), así que solo cambia el
+    /// nombre del estado guardado. La columna no se corrige al leer: lo hará una migración de normalización posterior al
+    /// relevo, y hasta entonces ningún lector SQL filtra por <c>Estado = 'Finalizado'</c>.
+    /// </summary>
+    public EstadoContratoAcceso EstadoEfectivo =>
+        FechaCierreReal is not null && Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido
+            ? EstadoContratoAcceso.Finalizado
+            : Estado;
+
     public CondicionesContratoAcceso Condiciones =>
         new(Tipo, PropiaActividad, NivelMaxSubcontrata, CupoTrabajadores, CupoSubcontratas, MotivoCupo);
 
@@ -120,31 +137,48 @@ public class ContratoAcceso : EntidadBase
             Estado = pendienteDeConfirmar ? EstadoContratoAcceso.PendienteDeConfirmar : EstadoContratoAcceso.Activo
         };
         contrato.EstablecerNotas(notas);
-        contrato.FijarCondiciones(condiciones ?? CondicionesContratoAcceso.SinFijar);
+        contrato.AplicarCondiciones(condiciones ?? CondicionesContratoAcceso.SinFijar);
         return contrato;
     }
 
     /// <summary>
     /// Las coordenadas (Cliente empresarial, Centro, Empresa contratista) y el inicio no cambian: otro periodo u otra
-    /// Empresa es otro contrato. Si cambia el fin contratado, queda en <see cref="HistorialVigencia"/> como
-    /// <see cref="OrigenCambioVigencia.Edicion"/>.
+    /// Empresa es otro contrato. Solo un contrato abierto (Pendiente de confirmar, Activo o Suspendido) se edita, y el fin
+    /// contratado solo lo cambia la edición de un contrato Activo: el de un Suspendido se amplía con <see cref="Renovar"/>,
+    /// y el de un Pendiente de confirmar no se toca mientras el Tenant TEC no confirme las fechas que se le pidieron. Si
+    /// cambia el fin, queda en <see cref="HistorialVigencia"/> como <see cref="OrigenCambioVigencia.Edicion"/>.
     /// </summary>
     public void Actualizar(DateOnly? fechaFin, string? notas, Guid usuarioId, DateTime ahoraUtc)
     {
+        ExigirEstado("editar", EstadoContratoAcceso.PendienteDeConfirmar, EstadoContratoAcceso.Activo, EstadoContratoAcceso.Suspendido);
+        var cambiaFin = fechaFin != FechaFin;
+        if (cambiaFin)
+            ExigirEstado("cambiar de fecha de fin al editarlo", EstadoContratoAcceso.Activo);
         ExigirFinNoAnteriorAlInicio(FechaInicio, fechaFin);
         if (notas?.Length > LongitudMaximaNotas)
             throw new ArgumentException($"Las notas no pueden superar {LongitudMaximaNotas} caracteres.", nameof(notas));
 
-        if (fechaFin != FechaFin)
+        if (cambiaFin)
             CambiarFin(fechaFin, OrigenCambioVigencia.Edicion, usuarioId, ahoraUtc);
         EstablecerNotas(notas);
     }
 
-    /// <summary>Tipo, propia actividad, nivel máximo de subcontrata y cupos, de una vez (ver <see cref="CondicionesContratoAcceso"/>).</summary>
+    /// <summary>
+    /// Tipo, propia actividad, nivel máximo de subcontrata y cupos, de una vez (ver <see cref="CondicionesContratoAcceso"/>).
+    /// Solo en un contrato Pendiente de confirmar o Activo: las condiciones se fijan antes de que el contrato dé acceso o
+    /// mientras lo da, no en uno suspendido ni en uno ya final.
+    /// </summary>
     public void FijarCondiciones(CondicionesContratoAcceso condiciones)
     {
         ArgumentNullException.ThrowIfNull(condiciones);
+        ExigirEstado("cambiar de condiciones", EstadoContratoAcceso.PendienteDeConfirmar, EstadoContratoAcceso.Activo);
 
+        AplicarCondiciones(condiciones);
+        _accionAuditoria = RegistroAuditoria.AccionCondicionesFijadas;
+    }
+
+    private void AplicarCondiciones(CondicionesContratoAcceso condiciones)
+    {
         Tipo = condiciones.Tipo;
         PropiaActividad = condiciones.PropiaActividad;
         NivelMaxSubcontrata = condiciones.NivelMaxSubcontrata;
@@ -166,6 +200,7 @@ public class ContratoAcceso : EntidadBase
             throw new ArgumentException("Renovar amplía la vigencia: el fin nuevo tiene que ser posterior al actual.", nameof(nuevaFechaFin));
 
         CambiarFin(nuevaFechaFin, OrigenCambioVigencia.Renovacion, usuarioId, ahoraUtc);
+        _accionAuditoria = RegistroAuditoria.AccionRenovado;
     }
 
     /// <summary>El Tenant TEC confirma el contrato (B-09 lo conecta): Pendiente de confirmar → Activo.</summary>
@@ -210,6 +245,7 @@ public class ContratoAcceso : EntidadBase
 
         FechaCierreReal = fechaCierre;
         Estado = EstadoContratoAcceso.Finalizado;
+        _accionAuditoria = RegistroAuditoria.AccionFinalizado;
     }
 
     /// <summary>
@@ -226,6 +262,7 @@ public class ContratoAcceso : EntidadBase
             throw new InvalidOperationException("Un contrato de acceso con actividad no se cancela.");
 
         Estado = EstadoContratoAcceso.Cancelado;
+        _accionAuditoria = RegistroAuditoria.AccionCancelado;
     }
 
     /// <summary>
@@ -287,10 +324,24 @@ public class ContratoAcceso : EntidadBase
         FechaFin = fechaFin;
     }
 
+    /// <summary>
+    /// Ninguna transición sale de un estado final, y un contrato con cierre real lo está aunque la columna diga otra cosa
+    /// (<see cref="EstadoEfectivo"/>): por eso la guarda exige también que no haya cierre real.
+    /// </summary>
     private void ExigirEstado(string accion, params EstadoContratoAcceso[] permitidos)
     {
-        if (!permitidos.Contains(Estado))
-            throw new InvalidOperationException($"Un contrato de acceso en estado {Estado} no se puede {accion}.");
+        if (FechaCierreReal is not null || !permitidos.Contains(Estado))
+            throw new InvalidOperationException($"Un contrato de acceso en estado {EstadoEfectivo} no se puede {accion}.");
+    }
+
+    // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos (patrón de AcreditacionDocumentoPlataforma).
+    private string? _accionAuditoria;
+
+    string? IAccionAuditoriaPropia.ConsumirAccionAuditoria()
+    {
+        var accion = _accionAuditoria;
+        _accionAuditoria = null;
+        return accion;
     }
 
     private static void ExigirFinNoAnteriorAlInicio(DateOnly fechaInicio, DateOnly? fechaFin)

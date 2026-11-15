@@ -11,7 +11,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.FijarCondicion
 /// Fija de una vez el tipo, la propia actividad, el nivel máximo de subcontrata y los cupos del contrato (B-05). Sustituye
 /// las condiciones enteras: lo que llega en null queda sin fijar (o, en un cupo, sin límite). Es un comando aparte de
 /// <c>ActualizarContratoAccesoCommand</c> para que una edición del fin o de las notas nunca borre unas condiciones que no
-/// conoce.
+/// conoce. Solo en un contrato Pendiente de confirmar o Activo (<c>ContratoAcceso.FijarCondiciones</c>).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record FijarCondicionesContratoAccesoCommand(Guid Id, CondicionesContratoAccesoDatos Condiciones, Guid Version = default) : ICommand;
@@ -42,7 +42,15 @@ public class FijarCondicionesContratoAccesoCommandHandler(
         if (!condiciones.EsExitoso)
             return Result.Fallo(condiciones.Error);
 
-        contrato.FijarCondiciones(condiciones.Valor);
+        try
+        {
+            contrato.FijarCondiciones(condiciones.Valor);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(ContratoAccesoErrores.TransicionNoPermitida(ex.Message));
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

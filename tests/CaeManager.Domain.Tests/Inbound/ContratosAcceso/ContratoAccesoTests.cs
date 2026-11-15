@@ -1,3 +1,4 @@
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using FluentAssertions;
 using Xunit;
@@ -386,6 +387,176 @@ public class ContratoAccesoTests
 
         contrato.VigenteEn(Inicio).Should().BeTrue();
         CoincideConLaExpresion(contrato, Inicio);
+    }
+
+    // ── Cierre de la versión anterior durante el relevo azul/verde ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lo que deja el <c>Cerrar</c> de la versión anterior a B-05: el cierre real escrito y la columna <c>Estado</c> en su
+    /// DEFAULT 'Activo' (o el estado que tuviera), porque esa versión no la conoce.
+    /// </summary>
+    private static ContratoAcceso CerradoPorLaVersionAnterior(EstadoContratoAcceso estado = EstadoContratoAcceso.Activo)
+    {
+        var contrato = EnEstado(estado);
+        typeof(ContratoAcceso).GetProperty(nameof(ContratoAcceso.FechaCierreReal))!.SetValue(contrato, Inicio.AddDays(5));
+        contrato.Estado.Should().Be(estado, "la versión anterior no toca la columna Estado");
+        return contrato;
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.Activo)]
+    [InlineData(EstadoContratoAcceso.Suspendido)]
+    public void Un_contrato_cerrado_por_la_version_anterior_es_Finalizado_a_efectos_del_dominio(EstadoContratoAcceso guardado)
+    {
+        var contrato = CerradoPorLaVersionAnterior(guardado);
+
+        contrato.EstadoEfectivo.Should().Be(EstadoContratoAcceso.Finalizado);
+        contrato.EstaAbierto.Should().BeFalse();
+        contrato.VigenteEn(Inicio.AddDays(5)).Should().Be(guardado == EstadoContratoAcceso.Activo, "da acceso hasta el cierre, como antes");
+        contrato.VigenteEn(Inicio.AddDays(6)).Should().BeFalse("y nunca después del cierre");
+        CoincideConLaExpresion(contrato, Inicio.AddDays(5));
+    }
+
+    [Fact]
+    public void Un_contrato_cerrado_por_la_version_anterior_no_admite_ninguna_transicion()
+    {
+        foreach (var (nombre, (_, _, ejecutar)) in Acciones)
+        {
+            var contrato = CerradoPorLaVersionAnterior();
+            FluentActions.Invoking(() => ejecutar(contrato)).Should().Throw<InvalidOperationException>(nombre);
+            contrato.Estado.Should().Be(EstadoContratoAcceso.Activo, nombre);
+            contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5), nombre);
+        }
+
+        var otro = CerradoPorLaVersionAnterior();
+        FluentActions.Invoking(() => otro.Renovar(Fin.AddMonths(1), Usuario, Ahora)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => otro.Actualizar(Fin.AddMonths(1), null, Usuario, Ahora)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => otro.Actualizar(Fin, "Notas", Usuario, Ahora)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => otro.FijarCondiciones(CondicionesContratoAcceso.SinFijar)).Should().Throw<InvalidOperationException>();
+        otro.FechaFin.Should().Be(Fin);
+        otro.HistorialVigencia.Should().BeEmpty();
+    }
+
+    [Theory]
+    [MemberData(nameof(TodosLosEstados))]
+    public void Sin_cierre_real_el_estado_efectivo_es_el_guardado(EstadoContratoAcceso estado)
+    {
+        var contrato = EnEstado(estado);
+
+        contrato.EstadoEfectivo.Should().Be(estado);
+    }
+
+    // ── Guardas de Editar y Fijar condiciones ────────────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar, true, false)]
+    [InlineData(EstadoContratoAcceso.Activo, true, true)]
+    [InlineData(EstadoContratoAcceso.Suspendido, true, false)]
+    [InlineData(EstadoContratoAcceso.Finalizado, false, false)]
+    [InlineData(EstadoContratoAcceso.Cancelado, false, false)]
+    [InlineData(EstadoContratoAcceso.Rechazado, false, false)]
+    public void Editar_las_notas_solo_en_un_contrato_abierto_y_el_fin_solo_en_uno_Activo(
+        EstadoContratoAcceso estado, bool notas, bool fin)
+    {
+        var soloNotas = EnEstado(estado);
+        var editarNotas = () => soloNotas.Actualizar(Fin, "Nueva nota", Usuario, Ahora);
+        if (notas)
+        {
+            editarNotas();
+            soloNotas.Notas.Should().Be("Nueva nota");
+        }
+        else
+        {
+            editarNotas.Should().Throw<InvalidOperationException>();
+            soloNotas.Notas.Should().BeNull();
+        }
+
+        foreach (var nuevoFin in new DateOnly?[] { Fin.AddMonths(2), Fin.AddDays(-5), null })
+        {
+            var contrato = EnEstado(estado);
+            var cambiarFin = () => contrato.Actualizar(nuevoFin, null, Usuario, Ahora);
+            if (fin)
+            {
+                cambiarFin();
+                contrato.FechaFin.Should().Be(nuevoFin);
+            }
+            else
+            {
+                cambiarFin.Should().Throw<InvalidOperationException>("un contrato que no está Activo no cambia su fin al editarlo: la vía es Renovar");
+                contrato.FechaFin.Should().Be(Fin);
+                contrato.HistorialVigencia.Should().BeEmpty();
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar, true)]
+    [InlineData(EstadoContratoAcceso.Activo, true)]
+    [InlineData(EstadoContratoAcceso.Suspendido, false)]
+    [InlineData(EstadoContratoAcceso.Finalizado, false)]
+    [InlineData(EstadoContratoAcceso.Cancelado, false)]
+    [InlineData(EstadoContratoAcceso.Rechazado, false)]
+    public void FijarCondiciones_solo_en_un_contrato_Pendiente_de_confirmar_o_Activo(EstadoContratoAcceso estado, bool permitido)
+    {
+        var contrato = EnEstado(estado);
+        var condiciones = new CondicionesContratoAcceso(TipoContratoAcceso.Obra, null, 2, 5, null, "Aforo");
+        var fijar = () => contrato.FijarCondiciones(condiciones);
+
+        if (permitido)
+        {
+            fijar();
+            contrato.Condiciones.Should().Be(condiciones);
+        }
+        else
+        {
+            fijar.Should().Throw<InvalidOperationException>();
+            contrato.Condiciones.Should().Be(CondicionesContratoAcceso.SinFijar);
+        }
+    }
+
+    // ── Acción de negocio en la auditoría (plan § 7) ─────────────────────────────────────────────────────────────────
+
+    public static TheoryData<string, string> AccionDeAuditoria() => new()
+    {
+        { "Renovar", RegistroAuditoria.AccionRenovado },
+        { "Cancelar", RegistroAuditoria.AccionCancelado },
+        { "Finalizar", RegistroAuditoria.AccionFinalizado },
+        { "FijarCondiciones", RegistroAuditoria.AccionCondicionesFijadas },
+    };
+
+    [Theory]
+    [MemberData(nameof(AccionDeAuditoria))]
+    public void Cada_accion_de_negocio_pide_su_accion_de_auditoria_una_sola_vez(string accion, string esperada)
+    {
+        var contrato = Contrato(Fin);
+        var auditable = (IAccionAuditoriaPropia)contrato;
+        auditable.ConsumirAccionAuditoria().Should().BeNull("el alta es «Creado», sin acción propia");
+
+        switch (accion)
+        {
+            case "Renovar": contrato.Renovar(Fin.AddMonths(1), Usuario, Ahora); break;
+            case "Cancelar": contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false); break;
+            case "Finalizar": contrato.Finalizar(Inicio.AddDays(5)); break;
+            case "FijarCondiciones": contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar); break;
+        }
+
+        auditable.ConsumirAccionAuditoria().Should().Be(esperada);
+        auditable.ConsumirAccionAuditoria().Should().BeNull("la marca es de un solo uso");
+    }
+
+    [Fact]
+    public void Editar_y_una_transicion_rechazada_no_piden_accion_propia()
+    {
+        var contrato = Contrato(Fin);
+        var auditable = (IAccionAuditoriaPropia)contrato;
+
+        contrato.Actualizar(Fin.AddDays(1), "Notas", Usuario, Ahora);
+        auditable.ConsumirAccionAuditoria().Should().BeNull("Editar queda como «Modificado»");
+
+        contrato.Finalizar(Inicio.AddDays(5));
+        auditable.ConsumirAccionAuditoria();
+        FluentActions.Invoking(() => contrato.Renovar(Fin.AddMonths(1), Usuario, Ahora)).Should().Throw<InvalidOperationException>();
+        auditable.ConsumirAccionAuditoria().Should().BeNull();
     }
 
     // ── Vigencia por fechas ──────────────────────────────────────────────────────────────────────────────────────────

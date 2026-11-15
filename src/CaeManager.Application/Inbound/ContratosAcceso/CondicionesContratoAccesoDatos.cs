@@ -47,10 +47,12 @@ public class CondicionesContratoAccesoDatosValidator : AbstractValidator<Condici
             .WithMessage("El cupo de Trabajadores no puede ser negativo.");
         RuleFor(c => c.CupoSubcontratas).GreaterThanOrEqualTo(0).When(c => c.CupoSubcontratas is not null)
             .WithMessage("El cupo de subcontratas no puede ser negativo.");
-        RuleFor(c => c.MotivoCupo).MaximumLength(CondicionesContratoAcceso.LongitudMaximaMotivoCupo);
+        // El dominio recorta el motivo y trata uno en blanco como ausente: el validador mide y compara lo mismo.
+        RuleFor(c => c.MotivoCupo).Must(m => m is null || m.Trim().Length <= CondicionesContratoAcceso.LongitudMaximaMotivoCupo)
+            .WithMessage($"El motivo del cupo no puede superar {CondicionesContratoAcceso.LongitudMaximaMotivoCupo} caracteres.");
         RuleFor(c => c.MotivoCupo).NotEmpty().When(c => c.CupoTrabajadores is not null || c.CupoSubcontratas is not null)
             .WithMessage("Si el contrato tiene cupo, indica el motivo del cupo.");
-        RuleFor(c => c.MotivoCupo).Null().When(c => c.CupoTrabajadores is null && c.CupoSubcontratas is null)
+        RuleFor(c => c.MotivoCupo).Must(string.IsNullOrWhiteSpace).When(c => c.CupoTrabajadores is null && c.CupoSubcontratas is null)
             .WithMessage("Sin cupo no hay motivo de cupo.");
     }
 }

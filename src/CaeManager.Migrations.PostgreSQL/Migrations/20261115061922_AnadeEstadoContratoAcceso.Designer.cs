@@ -7979,7 +7979,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_ContratosAcceso_FinalizadoConCierre", "\"Estado\" <> 'Finalizado' OR \"FechaCierreReal\" IS NOT NULL");
 
-                            t.HasCheckConstraint("CK_ContratosAcceso_MotivoSiHayCupo", "(\"CupoTrabajadores\" IS NULL AND \"CupoSubcontratas\" IS NULL) = (\"MotivoCupo\" IS NULL)");
+                            t.HasCheckConstraint("CK_ContratosAcceso_MotivoSiHayCupo", "(\"CupoTrabajadores\" IS NULL AND \"CupoSubcontratas\" IS NULL) = (\"MotivoCupo\" IS NULL) AND (\"MotivoCupo\" IS NULL OR \"MotivoCupo\" ~ '[^[:space:]]')");
 
                             t.HasCheckConstraint("CK_ContratosAcceso_NivelMaxSubcontrata", "\"NivelMaxSubcontrata\" IS NULL OR \"NivelMaxSubcontrata\" BETWEEN 0 AND 3");
 
