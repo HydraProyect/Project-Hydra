@@ -14,7 +14,9 @@
 #
 # La clave es siempre Namespace del handler :: Handler[Peticion], con el namespace relativo a CaeManager.Application y la peticion con su
 # nombre completo relativo a el, tambien si la clase atiende una sola peticion: cambiar la Query por otra homonima de otro namespace, o sin
-# cambiar el nombre del handler, sale NUEVA u OBSOLETA. (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
+# cambiar el nombre del handler, sale NUEVA u OBSOLETA. Un nombre que no cuelga de CaeManager.Application lleva el prefijo global:: y su nombre
+# completo, para no confundirse con uno relativo (CaeManager.Application.Foo.Query -> Foo.Query; Foo.Query externo -> global::Foo.Query).
+# Hoy las 113 entradas cuelgan de Application y ninguna lleva el prefijo. (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.)
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1

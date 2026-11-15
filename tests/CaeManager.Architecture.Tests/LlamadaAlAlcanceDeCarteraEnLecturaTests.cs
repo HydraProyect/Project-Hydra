@@ -48,8 +48,9 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>La lista.</b> <c>Congelados/Queries-sin-comprobacion-de-cartera.txt</c>, una línea por <b>petición</b>
 /// cuyo handler no llama (<c>Namespace del handler :: Handler[Petición] = 1</c>, el namespace relativo a
-/// <c>CaeManager.Application</c> y la petición con su nombre completo relativo a él; la petición figura siempre,
-/// también si la clase atiende una sola, y con nombres inequívocos, para que cambiar la Query por otra homónima de
+/// <c>CaeManager.Application</c> y la petición con su nombre completo relativo a él; un nombre que no cuelga de
+/// Application lleva el prefijo <c>global::</c> y su nombre completo, para no confundirse con uno relativo; la
+/// petición figura siempre, también si la clase atiende una sola, y con nombres inequívocos, para que cambiar la Query por otra homónima de
 /// otro namespace, o sin cambiar el nombre del handler, se vea). Una Query nueva que no llama sale <c>NUEVA</c>; una que
 /// pierde la llamada, también; una listada que empieza a llamar, o que se borra, sale <c>OBSOLETA</c> y
 /// obliga a quitar la línea. Estar en la lista <b>no</b> es un aval: es una medida, no una clasificación
@@ -122,19 +123,71 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     public void La_clave_de_cada_entrada_nombra_sin_ambiguedad_al_handler_y_a_la_peticion()
     {
         // Sin la petición en la clave, o con nombres simples, cambiar una Query congelada por otra sin comprobación
-        // que conserve el nombre pasaría inadvertido (ni NUEVA ni OBSOLETA). El control no depende del sufijo del
-        // handler ni de su aridad: compara con los FullName reales, sin pasar por la construcción de la clave.
+        // que conserve el nombre pasaría inadvertido (ni NUEVA ni OBSOLETA). El control usa la MISMA función que
+        // construye la clave (Clave, sobre el mismo handler y la misma petición) y además deshace la clave con
+        // CompletoDesdeClave y la compara con los nombres reales: ver DefectosDeLaClave.
         MedidaActual.Value.NoLlaman.Should().NotBeEmpty();
 
-        foreach (var (clave, handler, peticion) in MedidaActual.Value.NoLlaman)
-        {
-            var handlerCompleto = (clave.Lugar.StartsWith(RaizDeApplication, StringComparison.Ordinal)
-                ? clave.Lugar : $"{RaizDeApplication}.{clave.Lugar}") + "." + clave.Simbolo[..clave.Simbolo.IndexOf('[')];
-            var peticionRelativa = RelativoAApplication(peticion.FullName);
+        var defectos = MedidaActual.Value.NoLlaman
+            .SelectMany(q => DefectosDeLaClave(q.Clave, q.Handler, q.Peticion).Select(d => $"{q.Clave}: {d}"));
 
-            handlerCompleto.Should().Be(handler.FullName, "la clave identifica al handler por su namespace y su nombre");
-            clave.Simbolo.Should().EndWith($"[{peticionRelativa}]", "la clave identifica la petición por su nombre completo");
-        }
+        string.Join("\n", defectos).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_nombre_externo_a_Application_no_se_confunde_con_uno_relativo_en_la_clave()
+    {
+        // Control sintético: CaeManager.Application.ClaveSintetica.PeticionSintetica y ClaveSintetica.PeticionSintetica
+        // daban la misma clave (ambas «ClaveSintetica.PeticionSintetica»). Sin el prefijo global:: de los externos,
+        // sustituir una por la otra en el mismo handler conservaría la entrada congelada.
+        var dentro = typeof(CaeManager.Application.ClaveSintetica.PeticionSintetica);
+        var fuera = typeof(global::ClaveSintetica.PeticionSintetica);
+        var handlerDentro = typeof(CaeManager.Application.ClaveSintetica.HandlerSintetico);
+        var handlerFuera = typeof(global::ClaveSintetica.HandlerSintetico);
+
+        // Mismo handler (el de Application), dos peticiones homónimas: las claves tienen que diferir.
+        Clave(handlerDentro, dentro).Should().NotBe(Clave(handlerDentro, fuera));
+        Clave(handlerDentro, fuera).Simbolo.Should().Contain("[global::");
+        // Y lo mismo a la inversa: mismo nombre de handler en el namespace de Application y fuera de él.
+        Clave(handlerDentro, dentro).Should().NotBe(Clave(handlerFuera, dentro));
+
+        // Cada clave se deshace en el nombre real de su petición y de su handler.
+        DefectosDeLaClave(Clave(handlerDentro, dentro), handlerDentro, dentro).Should().BeEmpty();
+        DefectosDeLaClave(Clave(handlerDentro, fuera), handlerDentro, fuera).Should().BeEmpty();
+        DefectosDeLaClave(Clave(handlerFuera, dentro), handlerFuera, dentro).Should().BeEmpty();
+        DefectosDeLaClave(Clave(handlerFuera, fuera), handlerFuera, fuera).Should().BeEmpty();
+
+        // Sensibilidad del control: la clave de una petición no vale para su homónima.
+        DefectosDeLaClave(Clave(handlerDentro, dentro), handlerDentro, fuera).Should().NotBeEmpty();
+        DefectosDeLaClave(Clave(handlerDentro, fuera), handlerDentro, dentro).Should().NotBeEmpty();
+        DefectosDeLaClave(Clave(handlerFuera, dentro), handlerDentro, dentro).Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void El_control_de_la_clave_acepta_un_handler_en_otro_namespace_y_una_peticion_generica_abierta()
+    {
+        // Hallazgo 2 (r3): el control anteponía CaeManager.Application a todo namespace, aunque el handler no
+        // estuviera en Application, y para una petición genérica abierta FullName es null (la clave usaba Name y el
+        // control comparaba contra null). Un handler compilado en Application con otro namespace tiene que dar una
+        // clave que el control acepte, y una petición con FullName null tiene que entrar con su nombre completo.
+        var handlerFuera = typeof(global::ClaveSintetica.HandlerSintetico);
+        var peticionDentro = typeof(CaeManager.Application.ClaveSintetica.PeticionSintetica);
+        DefectosDeLaClave(Clave(handlerFuera, peticionDentro), handlerFuera, peticionDentro).Should().BeEmpty();
+
+        var handlerGenerico = typeof(global::ClaveSintetica.HandlerGenerico<>);
+        var peticionAbierta = handlerGenerico.GetInterfaces()
+            .Single(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>))
+            .GetGenericArguments()[0];
+        peticionAbierta.FullName.Should().BeNull("el caso que cubre este control es el de una petición genérica abierta, cuyo FullName es null");
+
+        var clave = Clave(handlerGenerico, peticionAbierta);
+        clave.Simbolo.Should().EndWith("[global::ClaveSintetica.PeticionGenerica`1]",
+            "con FullName null la clave usa el nombre completo reconstruido, no el Name suelto");
+        DefectosDeLaClave(clave, handlerGenerico, peticionAbierta).Should().BeEmpty();
+
+        // Una petición homónima de otro namespace no puede dar la misma clave que la genérica abierta.
+        var otraGenerica = typeof(CaeManager.Application.ClaveSintetica.PeticionGenerica<>);
+        Clave(handlerGenerico, otraGenerica).Should().NotBe(clave);
     }
 
     [Fact]
@@ -198,7 +251,7 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
     private sealed record QueQueNoLlama(Ubicacion Clave, Type Handler, Type Peticion);
 
     private sealed record Medida(
-        int Total, int Llaman, IReadOnlyList<QueQueNoLlama> NoLlaman,IReadOnlySet<string> CaracteristicasQueLlaman,
+        int Total, int Llaman, IReadOnlyList<QueQueNoLlama> NoLlaman, IReadOnlySet<string> CaracteristicasQueLlaman,
         IReadOnlyCollection<ClaveMetodo> Criterio, IReadOnlySet<ClaveMetodo> Alcanzan);
 
     private static Medida Medir()
@@ -259,21 +312,89 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
 
     private const string RaizDeApplication = "CaeManager.Application";
 
+    private const string PrefijoDeNombreExterno = "global::";
+
     /// <summary>
-    /// Clave inequívoca de una Query congelada: <c>namespace del handler relativo a Application :: Handler[Petición
-    /// relativa a Application]</c>. Con nombres simples, cambiar una Query congelada por otra homónima de otro
+    /// Clave inequívoca de una Query congelada: <c>namespace del handler :: Handler[Petición]</c>, con cada nombre
+    /// por <see cref="NombreEnClave"/>. Con nombres simples, cambiar una Query congelada por otra homónima de otro
     /// namespace (mismo handler, misma petición, otra carpeta) no salía NUEVA ni OBSOLETA; con el namespace del
     /// handler y el nombre completo de la petición, sí. El tipo anidado conserva su <c>+</c>.
     /// </summary>
     private static Ubicacion Clave(Type handler, Type peticion) =>
-        new(RelativoAApplication(handler.Namespace) ?? "(sin namespace)",
-            $"{NombreSinNamespace(handler)}[{RelativoAApplication(peticion.FullName ?? peticion.Name)}]");
+        new(NombreEnClave(handler.Namespace ?? string.Empty),
+            $"{NombreSinNamespace(handler)}[{NombreEnClave(NombreCompleto(peticion))}]");
 
-    private static string? RelativoAApplication(string? nombre) =>
-        nombre is not null && nombre.StartsWith(RaizDeApplication + ".", StringComparison.Ordinal)
-            ? nombre[(RaizDeApplication.Length + 1)..]
-            : nombre;
+    /// <summary>
+    /// Nombre completo relativo a Application si cuelga de ella (<c>CaeManager.Application.Foo.Query</c> →
+    /// <c>Foo.Query</c>); si no, con el prefijo <c>global::</c> y el nombre completo (<c>Foo.Query</c> →
+    /// <c>global::Foo.Query</c>). Sin el prefijo, un tipo externo <c>Foo.Query</c> y uno de Application
+    /// <c>CaeManager.Application.Foo.Query</c> daban la misma clave y la sustitución de uno por otro pasaba inadvertida.
+    /// Es inyectiva: un nombre relativo nunca empieza por <c>global::</c> (no es un identificador). Su inversa es
+    /// <see cref="CompletoDesdeClave"/>.
+    /// </summary>
+    private static string NombreEnClave(string nombreCompleto) =>
+        nombreCompleto.StartsWith(RaizDeApplication + ".", StringComparison.Ordinal)
+            ? nombreCompleto[(RaizDeApplication.Length + 1)..]
+            : PrefijoDeNombreExterno + nombreCompleto;
 
-    private static string NombreSinNamespace(Type tipo) =>
-        tipo.Namespace is { Length: > 0 } ns && tipo.FullName is { } completo ? completo[(ns.Length + 1)..] : tipo.Name;
+    private static string CompletoDesdeClave(string nombreEnClave) =>
+        nombreEnClave.StartsWith(PrefijoDeNombreExterno, StringComparison.Ordinal)
+            ? nombreEnClave[PrefijoDeNombreExterno.Length..]
+            : $"{RaizDeApplication}.{nombreEnClave}";
+
+    /// <summary>
+    /// Nombre completo de un tipo, también cuando <see cref="Type.FullName"/> es <c>null</c> (genérico construido sobre
+    /// parámetros sin resolver, como la petición de un handler genérico abierto): se reconstruye con el namespace, el
+    /// tipo que lo contiene (separado por <c>+</c>) y el nombre.
+    /// </summary>
+    private static string NombreCompleto(Type tipo)
+    {
+        if (tipo.FullName is { } completo)
+            return completo;
+        if (tipo.IsGenericParameter)
+            return tipo.Name;
+        if (tipo.DeclaringType is { } contenedor)
+            return $"{NombreCompleto(contenedor)}+{tipo.Name}";
+        return tipo.Namespace is { Length: > 0 } ns ? $"{ns}.{tipo.Name}" : tipo.Name;
+    }
+
+    private static string NombreSinNamespace(Type tipo)
+    {
+        var completo = NombreCompleto(tipo);
+        return tipo.Namespace is { Length: > 0 } ns && completo.StartsWith(ns + ".", StringComparison.Ordinal)
+            ? completo[(ns.Length + 1)..]
+            : completo;
+    }
+
+    /// <summary>
+    /// El control de la clave: es la que construye <see cref="Clave"/> para ese handler y esa petición (la misma
+    /// función sobre los mismos datos) y, deshecha con <see cref="CompletoDesdeClave"/>, da los nombres reales de
+    /// ambos. Devuelve los defectos; vacío si la clave es inequívoca y correcta.
+    /// </summary>
+    private static List<string> DefectosDeLaClave(Ubicacion clave, Type handler, Type peticion)
+    {
+        var defectos = new List<string>();
+
+        var esperada = Clave(handler, peticion);
+        if (clave != esperada)
+            defectos.Add($"la clave no es la que construye Clave para ese handler y esa petición ({esperada})");
+
+        var apertura = clave.Simbolo.IndexOf('[');
+        if (apertura < 0 || !clave.Simbolo.EndsWith(']'))
+            return [.. defectos, "el símbolo no tiene la forma Handler[Petición]"];
+
+        var nombreHandler = clave.Simbolo[..apertura];
+        var peticionEnClave = clave.Simbolo[(apertura + 1)..^1];
+
+        var espacio = CompletoDesdeClave(clave.Lugar);
+        var handlerCompleto = espacio.Length > 0 ? $"{espacio}.{nombreHandler}" : nombreHandler;
+        if (handlerCompleto != NombreCompleto(handler))
+            defectos.Add($"la clave identifica al handler como «{handlerCompleto}» y es «{NombreCompleto(handler)}»");
+
+        var peticionCompleta = CompletoDesdeClave(peticionEnClave);
+        if (peticionCompleta != NombreCompleto(peticion))
+            defectos.Add($"la clave identifica la petición como «{peticionCompleta}» y es «{NombreCompleto(peticion)}»");
+
+        return defectos;
+    }
 }
