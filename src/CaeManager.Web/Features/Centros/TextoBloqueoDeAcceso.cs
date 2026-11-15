@@ -5,8 +5,8 @@ using Microsoft.Extensions.Localization;
 namespace CaeManager.Web.Features.Centros;
 
 /// <summary>
-/// Cómo se dice, en las superficies del Centro (Centro 360 y su panel lateral), por qué un Trabajador está bloqueado en ese
-/// Centro. Vive en un solo sitio para que las dos superficies lo digan igual. «Bloqueado» es un estado del Trabajador, nunca
+/// Cómo se dice, en las superficies del Centro (Centro 360 y su panel lateral) y en la ficha del Trabajador (por Centro), por qué
+/// un Trabajador está bloqueado en ese Centro. Vive en un solo sitio para que las dos superficies lo digan igual. «Bloqueado» es un estado del Trabajador, nunca
 /// del Centro (decisión del propietario, 2026-10-03): el Centro enseña el detalle por Trabajador.
 /// </summary>
 public static class TextoBloqueoDeAcceso
@@ -25,7 +25,15 @@ public static class TextoBloqueoDeAcceso
     /// <summary>«Tipo (Empresa): situación», sin el Trabajador: para donde el Trabajador ya está dicho (su propia fila).</summary>
     public static string LineaDeDocumento(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo)
     {
-        var situacion = bloqueo.Situacion switch
+        var tipo = bloqueo.Ambito == AmbitoAplicacion.Empresa
+            ? textos["BloqueoTipoDeEmpresa", bloqueo.TipoDocumentoNombre].Value
+            : bloqueo.TipoDocumentoNombre;
+        return $"{tipo}: {Situacion(textos, bloqueo)}";
+    }
+
+    /// <summary>Solo la situación («venció el …», «fin de tolerancia …», «sin subir a la plataforma»…), para donde el Tipo ya está dicho (su propia fila).</summary>
+    public static string Situacion(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo) =>
+        bloqueo.Situacion switch
         {
             SituacionDeRequisitoBloqueante.Ausente => textos["BloqueoSituacionAusente"].Value,
             SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma => textos["BloqueoSituacionSinSubirAPlataforma"].Value,
@@ -36,9 +44,4 @@ public static class TextoBloqueoDeAcceso
                 textos["BloqueoSituacionVencido", vencimiento.ToString("dd/MM/yyyy")].Value,
             _ => textos["BloqueoSituacionVencidoSinFecha"].Value
         };
-        var tipo = bloqueo.Ambito == AmbitoAplicacion.Empresa
-            ? textos["BloqueoTipoDeEmpresa", bloqueo.TipoDocumentoNombre].Value
-            : bloqueo.TipoDocumentoNombre;
-        return $"{tipo}: {situacion}";
-    }
 }
