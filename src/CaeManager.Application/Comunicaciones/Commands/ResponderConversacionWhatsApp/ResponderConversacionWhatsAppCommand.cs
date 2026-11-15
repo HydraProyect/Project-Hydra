@@ -93,7 +93,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
         if (bloqueo.EsFallido)
             return bloqueo;
         // WhatsApp no tiene cabeceras: el origen queda solo en el Mensaje (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, cancellationToken);
+        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, request.Texto, cancellationToken);
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.RespuestaWhatsApp, conexion.Id, [conversacion.TelefonoContacto], copia: null, adjuntos: null, cancellationToken);
 

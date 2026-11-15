@@ -134,7 +134,8 @@ public class Mensaje : EntidadConTenant
     /// <summary>
     /// El texto parte de <paramref name="sugerencia"/>, que una persona revisó: <see cref="OrigenContenidoMensaje.VegaRevisada"/>
     /// si la redactó Vega, <see cref="OrigenContenidoMensaje.MacroRevisada"/> si sale de una macro. Solo una sugerencia
-    /// <see cref="EstadoRespuestaSugerida.Revisada"/> de esta misma conversación: una sin revisar no puede salir.
+    /// <see cref="EstadoRespuestaSugerida.Revisada"/>: una sin revisar no puede salir. Puede ser de otro hilo del mismo
+    /// buzón: un mensaje nuevo que copia el texto de una propuesta revisada en un hilo con ese destinatario parte de ella.
     /// </summary>
     public void RegistrarOrigenDesde(RespuestaSugerida sugerencia)
     {
@@ -142,8 +143,6 @@ public class Mensaje : EntidadConTenant
         ComprobarQueAdmiteOrigen();
         if (sugerencia.Estado != EstadoRespuestaSugerida.Revisada)
             throw new InvalidOperationException("Solo una respuesta sugerida revisada puede ser el origen de un mensaje enviado.");
-        if (sugerencia.ConversacionId != ConversacionId)
-            throw new InvalidOperationException("La respuesta sugerida es de otra conversación.");
 
         OrigenContenido = sugerencia.Origen == OrigenRespuestaSugerida.Vega
             ? OrigenContenidoMensaje.VegaRevisada

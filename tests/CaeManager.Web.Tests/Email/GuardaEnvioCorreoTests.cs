@@ -150,6 +150,24 @@ public class GuardaEnvioCorreoTests
     }
 
     /// <summary>
+    /// La guarda es el cliente registrado: si no reenviara la marca de contenido de IA (issue #2007), el valor por defecto
+    /// del parámetro la apagaría en silencio en todos los envíos reales.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abierto_reenvia_la_marca_de_contenido_de_IA_en_los_dos_envios(bool marca)
+    {
+        var interno = new EspiaGraph();
+        var guarda = GuardaGraph(interno, Opciones("Abierto"));
+
+        await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Tercero], "a", "c", null, Pasa, default, contenidoIaRevisada: marca);
+        await guarda.EnviarRespuestaAsync("t", new BuzonGraph("b", false), "origen", "c", null, default, marca);
+
+        interno.MarcasIa.Should().Equal(marca, marca);
+    }
+
+    /// <summary>
     /// Ingesta, tokens y suscripciones son lectura o mantenimiento de la Conexión: cerrar la salida
     /// no puede dejar un buzón sin entrada ni sin renovar su suscripción.
     /// </summary>
@@ -373,12 +391,14 @@ public class GuardaEnvioCorreoTests
     {
         public int MensajesNuevos { get; private set; }
         public int Respuestas { get; private set; }
+        public List<bool> MarcasIa { get; } = [];
 
         public Task<Result> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
         {
             Respuestas++;
+            MarcasIa.Add(contenidoIaRevisada);
             return Task.FromResult(Result.Exito());
         }
 
@@ -388,6 +408,7 @@ public class GuardaEnvioCorreoTests
             CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false)
         {
             MensajesNuevos++;
+            MarcasIa.Add(contenidoIaRevisada);
             return Task.FromResult(Result.Exito(new MensajeEnviadoGraphDto("mensaje", "hilo")));
         }
 

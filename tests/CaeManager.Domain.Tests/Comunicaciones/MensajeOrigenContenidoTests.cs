@@ -96,14 +96,15 @@ public class MensajeOrigenContenidoTests
     }
 
     [Fact]
-    public void Una_sugerencia_de_otra_conversacion_no_puede_ser_el_origen()
+    public void Un_mensaje_nuevo_puede_partir_de_la_sugerencia_revisada_de_otro_hilo()
     {
         var mensaje = Saliente(Guid.NewGuid());
+        var sugerencia = Revisada(Guid.NewGuid());
 
-        var registrar = () => mensaje.RegistrarOrigenDesde(Revisada(Guid.NewGuid()));
+        mensaje.RegistrarOrigenDesde(sugerencia);
 
-        registrar.Should().Throw<InvalidOperationException>();
-        mensaje.RespuestaSugeridaId.Should().BeNull();
+        mensaje.OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
+        mensaje.RespuestaSugeridaId.Should().Be(sugerencia.Id);
     }
 
     [Fact]

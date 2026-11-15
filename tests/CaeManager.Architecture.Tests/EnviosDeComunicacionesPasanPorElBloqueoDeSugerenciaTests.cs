@@ -78,6 +78,43 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             LlamadasSinTextoDeUnaPersona, "una llamada de más en un fichero exceptuado es un envío nuevo sin bloqueo");
     }
 
+    [GeneratedRegex(@"\.SugerenciaDel(Envio|MensajeNuevo)Async\(")]
+    private static partial Regex ResolucionDelOrigen();
+
+    [GeneratedRegex(@"OrigenContenidoEnvio\.RegistrarEn\(")]
+    private static partial Regex RegistroDelOrigen();
+
+    /// <summary>
+    /// Issue #2007: todo envío de texto de una persona resuelve el origen del contenido antes de enviar (para que la marca
+    /// de IA vaya en el correo) y lo registra en el Mensaje. Un comando de envío nuevo sin ello sacaría texto de Vega sin
+    /// marca. Mismos ficheros y mismas excepciones que el bloqueo.
+    /// </summary>
+    [Fact]
+    public void Todo_envio_de_una_persona_resuelve_y_registra_el_origen_del_contenido()
+    {
+        var raiz = Path.Combine(BuscarRaizDelRepositorio(), "src");
+
+        var ficherosQueEnvian = new List<string>();
+        var sinOrigen = new List<string>();
+        foreach (var fichero in FicherosDeCodigo(raiz))
+        {
+            var ruta = Path.GetRelativePath(raiz, fichero).Replace('\\', '/');
+            var texto = File.ReadAllText(fichero);
+            var envios = LlamadaAlCanal().Matches(texto);
+            if (envios.Count == 0 || LlamadasSinTextoDeUnaPersona.ContainsKey(ruta))
+                continue;
+
+            ficherosQueEnvian.Add(ruta);
+            var resoluciones = ResolucionDelOrigen().Matches(texto);
+            var primeraResolucion = resoluciones.Count == 0 ? int.MaxValue : resoluciones[0].Index;
+            if (envios.Any(envio => envio.Index < primeraResolucion) || !RegistroDelOrigen().IsMatch(texto))
+                sinOrigen.Add(ruta);
+        }
+
+        ficherosQueEnvian.Should().HaveCountGreaterThanOrEqualTo(4, "control del instrumento: los cuatro comandos de hoy envían");
+        sinOrigen.Should().BeEmpty("el origen se resuelve antes de enviar y se registra en el Mensaje");
+    }
+
     private static IEnumerable<string> FicherosDeCodigo(string raiz) =>
         Directory.EnumerateFiles(raiz, "*.cs", SearchOption.AllDirectories)
             .Where(fichero => !fichero.Split(Path.DirectorySeparatorChar).Any(parte => parte is "bin" or "obj"));

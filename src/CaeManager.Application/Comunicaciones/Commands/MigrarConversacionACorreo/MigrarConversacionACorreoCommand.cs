@@ -76,7 +76,7 @@ public class MigrarConversacionACorreoCommandHandler(
             return bloqueo;
 
         // La respuesta sugerida del hilo de WhatsApp puede salir por correo: lleva la misma marca (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, cancellationToken);
+        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también

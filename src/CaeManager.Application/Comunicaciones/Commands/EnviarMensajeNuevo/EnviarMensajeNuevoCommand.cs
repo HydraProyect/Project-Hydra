@@ -118,6 +118,10 @@ public class EnviarMensajeNuevoCommandHandler(
             alcanceDatos, invalidadorAlcance, conexion.Id, request.Destinatarios.Concat(request.Copia ?? []), request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
+
+        // Antes de enviar: un texto copiado de una propuesta revisada de esos mismos hilos lleva su marca (issue #2007).
+        var sugerencia = await comunicaciones.SugerenciaDelMensajeNuevoAsync(
+            alcanceDatos, conexion.Id, request.Destinatarios.Concat(request.Copia ?? []), request.CuerpoHtml, cancellationToken);
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
@@ -133,7 +137,8 @@ public class EnviarMensajeNuevoCommandHandler(
         // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos,
-            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia);
+            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia,
+            contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 
@@ -170,8 +175,7 @@ public class EnviarMensajeNuevoCommandHandler(
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
-        // Un mensaje nuevo no parte de ninguna respuesta sugerida (OrigenContenidoEnvio, issue #2007).
-        mensaje.RegistrarOrigenPersona();
+        OrigenContenidoEnvio.RegistrarEn(mensaje, sugerencia);
         // Los destinatarios (Para) y las copias (Cc) son participantes del hilo igual: cambia solo el rol.
         foreach (var (destinatario, rol) in request.Destinatarios.Select(d => (d, RolParticipante.Para))
                      .Concat((request.Copia ?? []).Select(c => (c, RolParticipante.Cc))))

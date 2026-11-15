@@ -79,7 +79,7 @@ public class ResponderConversacionCommandHandler(
             return bloqueo;
 
         // Antes de enviar: la marca de contenido de IA tiene que ir ya en el correo (issue #2007).
-        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, cancellationToken);
+        var sugerencia = await comunicaciones.SugerenciaDelEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
 
         Mensaje mensajeCreado;
         var huboEnvioReal = false;
