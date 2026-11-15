@@ -180,9 +180,9 @@ public record GrupoDeFilaDocumentalDto(string Clave, AcreditacionEnGrupoDto? Acr
 /// ve el estado pero no el motivo (decisión de Chris del 2026-11-12, opción B), y para Consulta (2026-11-15).
 /// </param>
 /// <param name="UrlAccesoCanal">
-/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con el mismo corte que
-/// el motivo de rechazo: solo si el usuario gestiona el Centro del canal; <c>null</c> para el rol Cliente, sin dirección anotada o si
-/// el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
+/// La dirección del portal del canal de ESTA acreditación (la que usa «Abrir portal» en el menú de su fila), con la regla operativa
+/// (no la del motivo de rechazo, que además corta a Consulta): solo si el usuario gestiona el Centro del canal; <c>null</c> para el
+/// rol Cliente, sin dirección anotada o si el canal no la tiene. Tal como está guardada (la pantalla la normaliza y valida); es la dirección, nunca la credencial.
 /// </param>
 public record AcreditacionEnGrupoDto(Guid Id, EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia,
     string ClienteEmpresarialNombre, string? UltimoMotivoRechazo, string? UrlAccesoCanal = null)

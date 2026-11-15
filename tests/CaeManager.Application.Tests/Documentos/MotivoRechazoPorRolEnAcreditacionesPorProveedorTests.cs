@@ -1,3 +1,4 @@
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
@@ -52,6 +53,26 @@ public class MotivoRechazoPorRolEnAcreditacionesPorProveedorTests
 
         fila.UltimoMotivoRechazo.Should().Be(recibeMotivo ? Motivo : null);
         fila.UrlAccesoCanal.Should().Be(Escenario.Url, "el corte es solo del motivo: la dirección del portal sigue la regla operativa");
+    }
+
+    /// <summary>
+    /// Composición de la vía Bandeja: la salida real de la Query entra en <see cref="ObtenerBandejaGestorQueryHandler.Fusionar"/>,
+    /// que es quien pinta el motivo en el subtítulo de la fila rechazada (y de ahí llega a «Requiere atención» de Inicio).
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", true)]
+    [InlineData("Consulta", false)]
+    [InlineData("Cliente", false)]
+    public async Task La_fila_rechazada_de_la_Bandeja_solo_lleva_el_motivo_para_los_roles_de_la_trazabilidad_interna(
+        string rol, bool recibeMotivo)
+    {
+        var e = new Escenario(rechazoVigente: true);
+        var pendientes = await e.Handler(rol).Handle(e.Peticion(Via.Bandeja), CancellationToken.None);
+
+        var item = ObtenerBandejaGestorQueryHandler.Fusionar([], [], [], [], [], [], pendientes, new DateOnly(2026, 11, 15), 48, 24)
+            .Should().ContainSingle(i => i.Tipo == TipoItemBandeja.PlataformaRechazada, "control positivo: la fila rechazada sale").Subject;
+
+        (item.Subtitulo?.Contains(Motivo) ?? false).Should().Be(recibeMotivo);
     }
 
     [Fact]
