@@ -30,8 +30,8 @@ public class Microsoft365CabeceraOrigenContenidoTests
         /// <summary>Lo que Graph responde a createReply.</summary>
         public HttpStatusCode EstadoCrearRespuesta { get; set; } = HttpStatusCode.Created;
 
-        /// <summary>La lectura de las cabeceras del borrador falla por red.</summary>
-        public bool LecturaFallaPorRed { get; set; }
+        /// <summary>La lectura de las cabeceras del borrador falla con esta excepción (red o timeout de HttpClient).</summary>
+        public Exception? FalloDeLectura { get; set; }
 
         public List<string> Llamadas { get; } = [];
         public string? CuerpoRespuesta { get; private set; }
@@ -65,7 +65,7 @@ public class Microsoft365CabeceraOrigenContenidoTests
 
             if (request.Method == HttpMethod.Get)
             {
-                if (LecturaFallaPorRed) throw new HttpRequestException("red caída");
+                if (FalloDeLectura is not null) throw FalloDeLectura;
                 return CabecerasDelBorrador is null
                     ? Json(HttpStatusCode.OK, """{"internetMessageHeaders":null}""")
                     : Json(HttpStatusCode.OK, CabecerasDelBorrador);
@@ -102,11 +102,17 @@ public class Microsoft365CabeceraOrigenContenidoTests
         graph.Llamadas.Should().Equal("POST createReply");
     }
 
-    /// <summary>Un fallo de red al leer las cabeceras no deja el borrador huérfano: se borra y el envío falla.</summary>
-    [Fact]
-    public async Task Si_la_lectura_de_las_cabeceras_falla_por_red_el_borrador_se_borra()
+    public static TheoryData<string> FallosDeLectura => ["red", "timeout"];
+
+    /// <summary>Un fallo de red o un timeout al leer las cabeceras no deja el borrador huérfano: se borra y el envío falla.</summary>
+    [Theory]
+    [MemberData(nameof(FallosDeLectura))]
+    public async Task Si_la_lectura_de_las_cabeceras_falla_el_borrador_se_borra(string fallo)
     {
-        var graph = new GraphSimulado { LecturaFallaPorRed = true };
+        var graph = new GraphSimulado
+        {
+            FalloDeLectura = fallo == "red" ? new HttpRequestException("red caída") : new TaskCanceledException("timeout de HttpClient"),
+        };
 
         var resultado = await ResponderAsync(graph, contenidoIaRevisada: true);
 

@@ -531,7 +531,10 @@ public class Microsoft365GraphClient(
                 string.Equals(c.Name, OrigenContenidoEnvio.NombreCabecera, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(c.Value?.Trim(), OrigenContenidoEnvio.ValorCabeceraIaRevisada, StringComparison.Ordinal)) == true;
         }
-        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        // El timeout de HttpClient llega como TaskCanceledException sin que se haya pedido cancelar: también es un fallo de
+        // lectura. Una cancelación pedida sí sube.
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException ||
+                                   (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             logger.LogWarning(ex, "No se pudieron leer las cabeceras del borrador de respuesta {MensajeId}.", borradorId);
             return false;
