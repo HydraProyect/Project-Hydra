@@ -159,7 +159,7 @@ public class CatalogoIncorporacionCartera(
         CancellationToken cancellationToken = default)
     {
         // Antes de leer nada que decida la emisión (ronda 2 de Codex en la PR #2253, alta 1).
-        await BloquearDelegacionesDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
+        await BloquearVinculosDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
 
         // La operación tiene que ser la externa de este Operador CAE sobre este
         // Tenant propietario, no solo existir y estar vigente: el Id viene de
@@ -215,7 +215,7 @@ public class CatalogoIncorporacionCartera(
         ArgumentNullException.ThrowIfNull(propuesta);
 
         // Antes de leer nada que decida la emisión, como en IncorporarAsync.
-        await BloquearDelegacionesDelParAsync(propuesta.PropietarioTenantId, propuesta.OperadorTenantId, cancellationToken);
+        await BloquearVinculosDelParAsync(propuesta.PropietarioTenantId, propuesta.OperadorTenantId, cancellationToken);
 
         var operacion = await ObtenerOperacionVigenteAsync(propuesta.AsignacionOperacionId, cancellationToken);
         if (operacion is null
@@ -510,7 +510,7 @@ public class CatalogoIncorporacionCartera(
         // Emitir exige lo mismo que IncorporarAsync: operación vigente hoy y delegación viva, leídas con las
         // DelegacionesTenant del par ya bloqueadas. Lo de arriba no emite nada (marca o descarta), así que el
         // bloqueo se toma aquí, antes de la primera lectura que decide la emisión.
-        await BloquearDelegacionesDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
+        await BloquearVinculosDelParAsync(propietarioTenantId, operadorTenantId, cancellationToken);
         if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is not { } vigente)
             return ResultadoRelevoPrincipal.SinRelevo;
 
@@ -576,9 +576,14 @@ public class CatalogoIncorporacionCartera(
     /// del bloqueo en silencio.
     ///
     /// <para>
-    /// El orden es el de la revocación por Soporte TALVEG (migración <c>SoporteRevocaOperacionesOutboundAcotadas</c>):
-    /// primero la DelegacionTenant y después la operación y sus carteras. Bajo la RLS de quien escribe, como el trigger: las
-    /// lecturas que deciden se hacen con la misma visibilidad, y una delegación invisible tampoco ampara nada.
+    /// En el alta, la solicitud aceptada y la propuesta de apoyo, el orden es el de la revocación por Soporte TALVEG
+    /// (migración <c>SoporteRevocaOperacionesOutboundAcotadas</c>): primero la DelegacionTenant y después la operación y
+    /// sus carteras. En el relevo del principal no: la transacción ya guardó el cierre o el apagado de una cartera antes
+    /// de llegar aquí, y frente a una revocación de Soporte concurrente puede acabar en interbloqueo (40P01), que
+    /// PostgreSQL resuelve abortando una de las dos; falla cerrado. La revocación por <c>DesactivarDelegacionTenantCommand</c>
+    /// no bloquea la delegación antes de leer lo que cierra, así que este bloqueo no la ordena (hueco declarado en la PR
+    /// #2253). Bajo la RLS de quien escribe, como el trigger: las lecturas que deciden se hacen con la misma visibilidad, y
+    /// una delegación invisible tampoco ampara nada.
     /// </para>
     ///
     /// <para>
@@ -588,7 +593,7 @@ public class CatalogoIncorporacionCartera(
     /// fuera de PostgreSQL, no bloquea: es el caso de las pruebas que llaman al catálogo directamente.
     /// </para>
     /// </summary>
-    private async Task BloquearDelegacionesDelParAsync(
+    private async Task BloquearVinculosDelParAsync(
         Guid propietarioTenantId, Guid operadorTenantId, CancellationToken cancellationToken)
     {
         if (!dbContext.Database.IsRelational() || dbContext.Database.CurrentTransaction is null)

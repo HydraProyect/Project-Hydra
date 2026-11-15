@@ -130,6 +130,14 @@ public enum ResultadoRetiradaApoyo
 /// (<c>AmbitoTenantExplicito</c>): la política RLS de las carteras solo deja
 /// escribir sobre el propietario contextual. Es responsabilidad del Command.
 /// </para>
+///
+/// <para>
+/// <c>IncorporarAsync</c>, <c>IncorporarApoyoAsync</c> y <c>RelevarPrincipalAsync</c> se llaman dentro de la
+/// transacción del Command (<c>ITransaccionDeComando</c>) que después guarda lo emitido: antes de decidir por el
+/// amparo de origen bloquean con <c>FOR SHARE</c> las DelegacionesTenant del par, y ese bloqueo dura lo que la
+/// transacción. Fuera de ella no bloquean, y una revocación confirmada entre la decisión y el guardado dejaría una
+/// fila heredada que nadie retira. También es responsabilidad del Command.
+/// </para>
 /// </summary>
 public interface ICatalogoIncorporacionCartera
 {
