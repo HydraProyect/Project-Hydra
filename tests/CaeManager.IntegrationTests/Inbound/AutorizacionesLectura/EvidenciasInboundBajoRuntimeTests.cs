@@ -296,7 +296,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             var almacen = Almacen(_lector.Id);
             var otra = await new RegistrarEvidenciaInboundCommandHandler(
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
-                    new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(almacen), almacen,
+                    new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(almacen)), almacen,
                     new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto,
                     NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
                 .Handle(new(_contrato.Id, _formacion, _tipoFormacionX, null), CancellationToken.None);
@@ -496,7 +496,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         {
             var otra = await new RegistrarEvidenciaInboundCommandHandler(
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
-                    new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(Almacen(_lector.Id)),
+                    new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(Almacen(_lector.Id))),
                     Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
                 .Handle(new(_contrato.Id, _aptitudMarcada, _tipoAptitudX, ConclusionAptitud.Apto), CancellationToken.None);
             otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna evidencia nueva");
@@ -509,7 +509,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         var almacen = Almacen(_lector.Id);
         var resultado = await new RegistrarEvidenciaInboundCommandHandler(
                 contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
-                new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(almacen), almacen,
+                new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(almacen)), almacen,
                 new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
             .Handle(new(_contrato.Id, documento, tipo, conclusion), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue(resultado.EsExitoso ? null : resultado.Error.Mensaje);

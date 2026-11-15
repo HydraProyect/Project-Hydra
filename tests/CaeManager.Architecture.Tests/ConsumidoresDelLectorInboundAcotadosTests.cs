@@ -100,6 +100,52 @@ public class ConsumidoresDelLectorInboundAcotadosTests
             .Should().OnlyContain(t => ConsumidoresAutorizados.Contains(t), "quien abre el original es quien decide antes la autoridad");
     }
 
+    /// <summary>
+    /// Los dos escaneos de arriba miran constructores, campos y propiedades: no ven un
+    /// <c>GetRequiredService&lt;IAlmacenOriginalesInbound&gt;()</c>, un <c>typeof</c> ni un cast dentro del cuerpo de un
+    /// método. Este lee también el IL de los cuerpos (<see cref="ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl"/>),
+    /// sin excluir la composición, así que la lista nombra además a quien implementa cada puerto y al registro que lo
+    /// resuelve. Program.cs no aparece: no los pide.
+    /// </summary>
+    [Fact]
+    public void Ningun_cuerpo_de_metodo_pide_el_lector_ni_el_almacen_de_originales_fuera_de_sus_consumidores()
+    {
+        NombranEnIl(typeof(IAlmacenOriginalesInbound)).Should().BeEquivalentTo(
+            [
+                .. ConsumidoresAutorizadosDelAlmacenDeOriginales,
+                // La implementación (ADR-013 M2, K-3) y su registro.
+                typeof(CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound),
+                typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
+            ],
+            "abrir un original de otro Tenant solo es legítimo después de la autoridad de la lectura; pedir el puerto dentro " +
+            "de un método lo saltaría igual que inyectarlo");
+
+        NombranEnIl(typeof(ILectorDocumentosInbound)).Should().BeEquivalentTo(
+            [
+                .. ConsumidoresAutorizados,
+                typeof(CaeManager.Infrastructure.Inbound.Autorizacion.LectorDocumentosInboundEnBase),
+                typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
+            ],
+            "el lector entre Tenants sin la cartera solo lo piden los handlers que la deciden antes");
+    }
+
+    [Fact]
+    public void Control_el_escaneo_de_cuerpos_ve_un_puerto_pedido_dentro_de_un_metodo()
+    {
+        var sintetico = typeof(ConsumidorSinteticoDeOriginalesInbound);
+
+        ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(sintetico.Assembly, typeof(IAlmacenOriginalesInbound))
+            .Should().Contain(sintetico, "si dejara de verlo, el test de arriba pasaría por ceguera");
+        ReflexionArquitecturaHelper.TiposQueReferencianTipo(sintetico.Assembly, typeof(IAlmacenOriginalesInbound))
+            .Should().NotContain(sintetico, "es la vía que el escaneo de firmas no ve: por eso existe el de cuerpos");
+    }
+
+    private static List<Type> NombranEnIl(Type puerto) => EnsambladosEscaneados
+        .Select(ReflexionArquitecturaHelper.CargarAssembly)
+        .SelectMany(a => ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(a, puerto))
+        .Distinct()
+        .ToList();
+
     // Los tipos que genera el compilador (máquinas de estado, clausuras) se cuentan como su tipo exterior.
     private static Type Exterior(Type tipo)
     {

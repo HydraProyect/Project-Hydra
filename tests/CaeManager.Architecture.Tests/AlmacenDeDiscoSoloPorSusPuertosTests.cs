@@ -1,6 +1,9 @@
+using System.Reflection;
+using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Architecture.Tests.Soporte;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.Inbound.FileStorage;
 using FluentAssertions;
@@ -8,51 +11,68 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// <b>El tipo concreto <see cref="DiskFileStorageService"/> no se referencia fuera de su registro de dependencias, y su
-/// lectura entre Tenants solo la consume el adaptador de Inbound.</b>
+/// <b>El tipo concreto <see cref="DiskFileStorageService"/> no se referencia fuera de su registro y de su lectura entre
+/// Tenants, y esa lectura solo la consume el adaptador de Inbound.</b>
 ///
 /// <para>
-/// Implementa dos puertos del Núcleo: <c>IFileStorageService</c> (el almacenamiento del Tenant activo) y
-/// <see cref="IAlmacenArchivosDelTenantPropietario"/> (la única lectura que cruza Tenants). Desde ADR-013 M2 (K-3) ya no
-/// implementa <see cref="IAlmacenOriginalesInbound"/>: lo implementa <see cref="AdaptadorAlmacenOriginalesInbound"/>, en el
-/// módulo Inbound, sobre la lectura entre Tenants. El contenedor registra el concreto para que los dos puertos compartan
-/// instancia, así que cualquier clase que lo pidiera por su tipo concreto, o que inyectara la lectura entre Tenants, abriría
-/// archivos de otro Tenant sin pasar por el escaneo de consumidores de <c>ConsumidoresDelLectorInboundAcotadosTests</c>, y
-/// ningún test de comportamiento lo vería.
+/// <see cref="DiskFileStorageService"/> implementa solo <see cref="IFileStorageService"/> (el almacenamiento del Tenant
+/// activo). La única lectura que cruza Tenants es un método <c>internal</c> suyo que expone
+/// <see cref="LecturaDeDiscoDelTenantPropietario"/> como <see cref="IAlmacenArchivosDelTenantPropietario"/>, en otra
+/// instancia: quien tenga el almacén por <see cref="IFileStorageService"/> no la alcanza con un cast ni con
+/// <c>dynamic</c>. Desde ADR-013 M2 (K-3), <see cref="IAlmacenOriginalesInbound"/> lo implementa
+/// <see cref="AdaptadorAlmacenOriginalesInbound"/>, en el módulo Inbound, sobre esa lectura. Cualquier clase que pidiera el
+/// concreto o la lectura entre Tenants abriría archivos de otro Tenant sin pasar por el escaneo de consumidores de
+/// <c>ConsumidoresDelLectorInboundAcotadosTests</c>, y ningún test de comportamiento lo vería.
 /// </para>
 ///
 /// <para>
-/// Dos instrumentos, porque cada uno ve algo que el otro no: los identificadores de C# de <c>src</c> (Roslyn, sin
-/// comentarios ni literales; ve el uso dentro de un cuerpo de método, como <c>GetRequiredService&lt;…&gt;()</c>), y la
-/// reflexión sobre constructores, campos y propiedades de Application, Web e Infrastructure (ve una inyección aunque el
-/// tipo se escriba con otro alias). Fuera de <c>src</c>, los tests construyen el concreto a propósito.
+/// Tres instrumentos, porque cada uno ve algo que los otros no: los identificadores de C# de <c>src</c> (Roslyn, sin
+/// comentarios ni literales; ven el uso en un cuerpo de método y en Program.cs), la reflexión sobre constructores, campos y
+/// propiedades (ve una inyección aunque el tipo se escriba con otro alias) y el IL de firmas y cuerpos de Application, Web
+/// e Infrastructure (ve un <c>GetRequiredService&lt;…&gt;()</c>, un <c>typeof</c> o un cast compilados, se escriban como se
+/// escriban). Fuera de <c>src</c>, los tests construyen el concreto a propósito.
 /// </para>
 ///
 /// <para>
-/// Límites declarados (revisión puente): ninguno de los dos ve una resolución por cadena (<c>Type.GetType("…")</c>), lo que
-/// haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo, <c>tools/</c>), ni un método nuevo dentro del propio
-/// adaptador que se saltara la regla de carpeta; eso último lo fija su test de comportamiento
-/// (<c>AdaptadorAlmacenOriginalesInboundTests</c>), y lo demás solo la revisión de la PR.
+/// Límites declarados: ninguno ve una resolución por cadena (<c>Type.GetType("…")</c> más reflexión, que también alcanzaría
+/// un miembro <c>internal</c>), ni lo que haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo,
+/// <c>tools/</c>). Tampoco fijan qué hace el adaptador por dentro: su test de comportamiento
+/// (<c>AdaptadorAlmacenOriginalesInboundTests</c>) cubre <c>AbrirOriginalAsync</c>, y un método nuevo en el adaptador solo
+/// lo vería la revisión de la PR.
 /// </para>
 /// </summary>
 public class AlmacenDeDiscoSoloPorSusPuertosTests
 {
     private const string Registro = "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs";
     private const string Adaptador = "src/CaeManager.Infrastructure/Inbound/FileStorage/AdaptadorAlmacenOriginalesInbound.cs";
+    private const string Almacen = "src/CaeManager.Infrastructure/FileStorage/DiskFileStorageService.cs";
+    private const string Lectura = "src/CaeManager.Infrastructure/FileStorage/LecturaDeDiscoDelTenantPropietario.cs";
 
     private static readonly string[] FicherosAutorizados =
     [
         // El propio tipo.
-        "src/CaeManager.Infrastructure/FileStorage/DiskFileStorageService.cs",
-        // Su registro: el concreto y los dos puertos que resuelven la misma instancia.
+        Almacen,
+        // Su registro: el concreto y el puerto del Tenant activo, que resuelve la misma instancia.
         Registro,
+        // La lectura entre Tenants, que lo envuelve en otra instancia para llamar a su método internal.
+        Lectura,
     ];
 
     /// <summary>Quién nombra la lectura entre Tenants en <c>src</c>: su definición, quien la implementa, su único consumidor y su registro.</summary>
     private static readonly string[] FicherosQueNombranLaLecturaEntreTenants =
     [
         "src/CaeManager.Application/Common/Archivos/IAlmacenArchivosDelTenantPropietario.cs",
-        "src/CaeManager.Infrastructure/FileStorage/DiskFileStorageService.cs",
+        Lectura,
+        Adaptador,
+        Registro,
+    ];
+
+    /// <summary>Quién nombra el puerto de originales Inbound en <c>src</c>: su definición, sus dos consumidores, el adaptador y el registro.</summary>
+    private static readonly string[] FicherosQueNombranElPuertoDeOriginales =
+    [
+        "src/CaeManager.Application/Inbound/ContratosAcceso/EvidenciasInbound/EvidenciasInboundPuertos.cs",
+        "src/CaeManager.Application/Inbound/ContratosAcceso/Queries/ObtenerLecturaInbound/ObtenerLecturaInboundQueries.cs",
+        "src/CaeManager.Application/Inbound/ContratosAcceso/EvidenciasInbound/RegistrarEvidenciaInboundCommand.cs",
         Adaptador,
         Registro,
     ];
@@ -68,12 +88,12 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
             .ToList();
 
         ficheros.Should().BeEquivalentTo(FicherosAutorizados,
-            "quien pida DiskFileStorageService por su tipo concreto tiene AbrirDelTenantPropietarioAsync, que lee binarios de " +
-            "otro Tenant, sin pasar por la lista de consumidores autorizados; se pide por sus puertos");
+            "quien pida DiskFileStorageService por su tipo concreto llega a la lectura de binarios de otro Tenant sin pasar " +
+            "por la lista de consumidores autorizados; se pide por sus puertos");
     }
 
     [Fact]
-    public void Ningun_tipo_inyecta_el_concreto()
+    public void Ningun_tipo_inyecta_el_concreto_salvo_su_lectura_entre_Tenants()
     {
         var consumidores = Ensamblados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
@@ -81,8 +101,36 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
             .Where(t => t.DeclaringType != typeof(DiskFileStorageService))
             .Select(t => t.FullName)
             .ToList();
+        consumidores.Should().BeEquivalentTo([typeof(LecturaDeDiscoDelTenantPropietario).FullName],
+            "el concreto se inyecta por IFileStorageService; solo su lectura entre Tenants lo recibe tal cual");
 
-        consumidores.Should().BeEmpty("el concreto se inyecta por IFileStorageService o IAlmacenArchivosDelTenantPropietario, nunca por sí mismo");
+        NombranEnIl(typeof(DiskFileStorageService)).Should().BeEquivalentTo(
+            [typeof(LecturaDeDiscoDelTenantPropietario), typeof(InfrastructureServiceCollectionExtensions)],
+            "un GetRequiredService<DiskFileStorageService>() o un cast a él dentro de un método tampoco");
+    }
+
+    /// <summary>
+    /// La lectura entre Tenants no se alcanza desde <see cref="IFileStorageService"/>: el concreto no implementa el puerto
+    /// estrecho ni expone en público nada que no sea de <see cref="IFileStorageService"/>, así que ni un cast ni
+    /// <c>dynamic</c> llegan a ella (la composición real lo fija <c>AdaptadorAlmacenOriginalesInboundTests</c>).
+    /// </summary>
+    [Fact]
+    public void El_almacen_del_Tenant_activo_no_expone_la_lectura_entre_Tenants()
+    {
+        typeof(IAlmacenArchivosDelTenantPropietario).IsAssignableFrom(typeof(DiskFileStorageService)).Should().BeFalse(
+            "un consumidor de IFileStorageService abriría la carpeta de otro Tenant con un cast");
+        typeof(DiskFileStorageService).GetInterfaces().Should().BeEquivalentTo([typeof(IFileStorageService)]);
+
+        var publicos = typeof(DiskFileStorageService)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .ToList();
+        var delPuerto = typeof(DiskFileStorageService).GetInterfaceMap(typeof(IFileStorageService)).TargetMethods;
+        publicos.Should().OnlyContain(m => delPuerto.Contains(m),
+            "con dynamic se llega a cualquier miembro público del concreto; solo lo son los de IFileStorageService");
+        var interno = typeof(DiskFileStorageService).GetMethod(
+            nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync), BindingFlags.NonPublic | BindingFlags.Instance);
+        interno.Should().NotBeNull("si cambiara de nombre, la comprobación de arriba pasaría sin medir nada");
+        interno!.IsAssembly.Should().BeTrue("internal: solo Infrastructure (y sus tests) lo ven");
     }
 
     /// <summary>
@@ -91,7 +139,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
     /// Tenant con su clave y su Tenant, sin la autoridad de la lectura Inbound.
     /// </summary>
     [Fact]
-    public void Solo_el_adaptador_de_Inbound_inyecta_la_lectura_entre_Tenants()
+    public void Solo_el_adaptador_de_Inbound_pide_la_lectura_entre_Tenants()
     {
         var consumidores = Ensamblados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
@@ -99,24 +147,33 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
             .Select(Exterior)
             .Distinct()
             .ToList();
-
         consumidores.Should().BeEquivalentTo([typeof(AdaptadorAlmacenOriginalesInbound)],
             "abrir con la carpeta y la clave de otro Tenant solo lo hace el adaptador de los originales Inbound, después de " +
             "comprobar la referencia que devolvió app_inbound_archivo_autorizado");
+
+        NombranEnIl(typeof(IAlmacenArchivosDelTenantPropietario)).Should().BeEquivalentTo(
+            [
+                typeof(AdaptadorAlmacenOriginalesInbound),
+                // Quien la implementa y quien la registra.
+                typeof(LecturaDeDiscoDelTenantPropietario),
+                typeof(InfrastructureServiceCollectionExtensions),
+            ],
+            "un GetRequiredService<IAlmacenArchivosDelTenantPropietario>() o un cast dentro de un método no lo ve la reflexión");
 
         var ficheros = FuentesDeSrc.Analisis
             .Where(f => f.Value.Palabras.ContainsKey(nameof(IAlmacenArchivosDelTenantPropietario)))
             .Select(f => f.Key)
             .ToList();
         ficheros.Should().BeEquivalentTo(FicherosQueNombranLaLecturaEntreTenants,
-            "un GetRequiredService<IAlmacenArchivosDelTenantPropietario>() en un cuerpo de método no lo ve la reflexión");
+            "el barrido de fuentes ve además un uso en Program.cs o en código que no se haya compilado todavía");
         FuentesDeSrc.Analisis[Registro].Palabras[nameof(IAlmacenArchivosDelTenantPropietario)]
-            .Should().Be(1, "la composición la registra una vez, resolviendo el concreto, y no la pide para nada más");
+            .Should().Be(1, "la composición la registra una vez y no la pide para nada más");
     }
 
     /// <summary>
     /// ADR-013 M2 (K-3): el almacén de disco del Núcleo ya no implementa el puerto de Inbound; lo implementa solo el
-    /// adaptador, y solo la composición lo registra (Program.cs incluido en el barrido de <c>src</c>).
+    /// adaptador, y solo la composición lo registra. El barrido de fuentes no excluye ninguna carpeta: enumera cada fichero
+    /// que nombra el puerto, también en Application Inbound.
     /// </summary>
     [Fact]
     public void El_puerto_de_originales_Inbound_lo_implementa_solo_el_adaptador_del_modulo_Inbound()
@@ -132,28 +189,40 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
         implementaciones.Should().BeEquivalentTo([typeof(AdaptadorAlmacenOriginalesInbound)]);
         typeof(AdaptadorAlmacenOriginalesInbound).Namespace.Should().StartWith("CaeManager.Infrastructure.Inbound.");
 
-        var fuera = FuentesDeSrc.Analisis
+        var ficheros = FuentesDeSrc.Analisis
             .Where(f => f.Value.Palabras.ContainsKey(nameof(IAlmacenOriginalesInbound)))
             .Select(f => f.Key)
-            .Where(f => !f.StartsWith("src/CaeManager.Application/Inbound/", StringComparison.Ordinal))
             .ToList();
-        fuera.Should().BeEquivalentTo([Adaptador, Registro],
-            "fuera de Application Inbound, solo el adaptador lo implementa y solo la composición de Infrastructure lo registra");
+        ficheros.Should().BeEquivalentTo(FicherosQueNombranElPuertoDeOriginales,
+            "la definición, los dos handlers que deciden antes la autoridad, el adaptador que lo implementa y su registro; " +
+            "un fichero nuevo que lo nombre, también en Application Inbound, pasa por esta lista");
         FuentesDeSrc.Analisis[Registro].Palabras[nameof(IAlmacenOriginalesInbound)].Should().Be(1, "un solo registro");
     }
 
     [Fact]
-    public void Control_los_dos_instrumentos_ven_su_registro()
+    public void Control_los_instrumentos_ven_su_registro_y_una_peticion_dentro_de_un_metodo()
     {
         // Si el registro dejara de nombrar el concreto, la lista se quedaría muerta y el primer test pasaría por vacío.
-        FuentesDeSrc.Analisis[FicherosAutorizados[1]].Palabras.Should().ContainKey(nameof(DiskFileStorageService));
-        typeof(DiskFileStorageService).GetInterfaces().Select(i => i.Name)
-            .Should().Contain(["IFileStorageService", nameof(IAlmacenArchivosDelTenantPropietario)]);
-        // Y el escaneo por reflexión ve a un consumidor por su constructor primario: sin esto, el de la lectura entre
+        FuentesDeSrc.Analisis[Registro].Palabras.Should().ContainKey(nameof(DiskFileStorageService));
+        typeof(LecturaDeDiscoDelTenantPropietario).GetInterfaces().Should().Contain(typeof(IAlmacenArchivosDelTenantPropietario));
+        // El escaneo por reflexión ve a un consumidor por su constructor primario: sin esto, el de la lectura entre
         // Tenants pasaría igual si el helper dejara de ver constructores.
         typeof(AdaptadorAlmacenOriginalesInbound).GetConstructors().Single().GetParameters().Select(p => p.ParameterType)
             .Should().Contain(typeof(IAlmacenArchivosDelTenantPropietario));
+        // Y el de IL ve un typeof dentro de un cuerpo, que la reflexión de firmas no ve.
+        var sintetico = typeof(ConsumidorSinteticoDeLaLecturaEntreTenants);
+        ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(sintetico.Assembly, typeof(IAlmacenArchivosDelTenantPropietario))
+            .Should().Contain(sintetico);
+        ReflexionArquitecturaHelper.TiposQueReferencianTipo(sintetico.Assembly, typeof(IAlmacenArchivosDelTenantPropietario))
+            .Should().NotContain(sintetico);
     }
+
+    private static List<Type> NombranEnIl(Type tipo) => Ensamblados
+        .Select(ReflexionArquitecturaHelper.CargarAssembly)
+        .SelectMany(a => ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(a, tipo))
+        .Where(t => t != tipo)
+        .Distinct()
+        .ToList();
 
     // Los tipos que genera el compilador (máquinas de estado, clausuras) se cuentan como su tipo exterior.
     private static Type Exterior(Type tipo)

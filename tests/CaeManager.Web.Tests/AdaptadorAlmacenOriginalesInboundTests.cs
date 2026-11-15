@@ -66,12 +66,12 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
         var referencia = await Disco(_contratista).GuardarAsync(new MemoryStream(contenido), "aptitud.pdf");
         var discoDelLector = Disco(_lector);
 
-        (await LeerAsync(await new AdaptadorAlmacenOriginalesInbound(discoDelLector).AbrirOriginalAsync(Apertura(_contratista, referencia))))
+        (await LeerAsync(await new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(discoDelLector)).AbrirOriginalAsync(Apertura(_contratista, referencia))))
             .Should().Equal(contenido);
 
         await FluentActions.Awaiting(() => discoDelLector.AbrirAsync(referencia))
             .Should().ThrowAsync<FileNotFoundException>("control: con el Tenant activo, el del lector, no se abre");
-        await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(discoDelLector).AbrirOriginalAsync(Apertura(_lector, referencia)))
+        await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(discoDelLector)).AbrirOriginalAsync(Apertura(_lector, referencia)))
             .Should().ThrowAsync<FileNotFoundException>("control: con el Tenant del lector como propietario tampoco");
     }
 
@@ -94,7 +94,7 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
         byte[] enDiscoV2 = [.. MarcaV2, .. cifradoV2];
         await File.WriteAllBytesAsync(Path.Combine(carpeta, nombreV2), enDiscoV2);
         await File.WriteAllBytesAsync(Path.Combine(carpeta, nombreV1), _proteccion.CreateProtector("CaeManager.Archivos.v1").Protect(claroV1));
-        var adaptador = new AdaptadorAlmacenOriginalesInbound(Disco(_lector));
+        var adaptador = new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(Disco(_lector)));
 
         (await LeerAsync(await adaptador.AbrirOriginalAsync(Apertura(_contratista, $"{_contratista:N}/{nombreV2}")))).Should().Equal(claroV2);
         (await LeerAsync(await adaptador.AbrirOriginalAsync(Apertura(_contratista, $"{_contratista:N}/{nombreV1}")))).Should().Equal(claroV1);
@@ -184,7 +184,7 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
         var referencia = $"{_contratista:N}/{_lector:N}\\{Path.GetFileName(delLector)}";
         OriginalesInbound.EsDelTenant(referencia, _contratista).Should().BeTrue("es la deuda conocida, sin cambio aquí");
 
-        await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(Disco(_lector)).AbrirOriginalAsync(Apertura(_contratista, referencia)))
+        await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(Disco(_lector))).AbrirOriginalAsync(Apertura(_contratista, referencia)))
             .Should().ThrowAsync<FileNotFoundException>("el archivo del lector no está en la carpeta de la contratista");
     }
 
@@ -203,8 +203,8 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
     }
 
     /// <summary>
-    /// La composición resuelve <see cref="IAlmacenOriginalesInbound"/> al adaptador, una sola vez, sobre la misma instancia
-    /// del almacén de disco que <see cref="IFileStorageService"/> en el mismo ámbito. Que ninguna otra pieza de <c>src</c>
+    /// La composición resuelve <see cref="IAlmacenOriginalesInbound"/> al adaptador, una sola vez, y la lectura entre Tenants
+    /// a una instancia que no es la de <see cref="IFileStorageService"/> ni se alcanza desde ella. Que ninguna otra pieza de <c>src</c>
     /// (Program.cs incluido) lo registre lo fija <c>AlmacenDeDiscoSoloPorSusPuertosTests</c> con el barrido de identificadores.
     /// </summary>
     [Fact]
@@ -228,8 +228,14 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
         using var ambito = proveedor.CreateScope();
         ambito.ServiceProvider.GetServices<IAlmacenOriginalesInbound>().Should().ContainSingle()
             .Which.Should().BeOfType<AdaptadorAlmacenOriginalesInbound>();
-        ambito.ServiceProvider.GetRequiredService<IAlmacenArchivosDelTenantPropietario>()
-            .Should().BeSameAs(ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), "la misma instancia y la misma clave por Tenant");
+        // La lectura entre Tenants es otra instancia: desde IFileStorageService no se llega a ella con un cast.
+        var almacenamiento = ambito.ServiceProvider.GetRequiredService<IFileStorageService>();
+        almacenamiento.Should().BeOfType<DiskFileStorageService>();
+        almacenamiento.Should().NotBeAssignableTo<IAlmacenArchivosDelTenantPropietario>(
+            "un consumidor del almacenamiento del Tenant activo no puede abrir la carpeta de otro Tenant con un cast");
+        ambito.ServiceProvider.GetServices<IAlmacenArchivosDelTenantPropietario>().Should().ContainSingle()
+            .Which.Should().BeOfType<LecturaDeDiscoDelTenantPropietario>()
+            .And.NotBeSameAs(almacenamiento);
 
         // Y abre de verdad por la composición: un original de la contratista desde el ámbito del lector.
         var referencia = await Disco(_contratista).GuardarAsync(new MemoryStream("por la composición"u8.ToArray()), "x.pdf");

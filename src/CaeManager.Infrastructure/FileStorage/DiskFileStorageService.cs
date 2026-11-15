@@ -71,7 +71,7 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// suposición — que es lo que hace falta antes de poder retirar la rama
 /// legada del todo.
 /// </summary>
-public class DiskFileStorageService : IFileStorageService, IAlmacenArchivosDelTenantPropietario
+public class DiskFileStorageService : IFileStorageService
 {
     /// <summary>
     /// Prefijo de los archivos escritos con el formato v2. No puede colisionar
@@ -331,14 +331,17 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenArchivosDelTe
     }
 
     /// <summary>
-    /// <see cref="IAlmacenArchivosDelTenantPropietario"/>: la única lectura del almacenamiento que cruza Tenants. Hoy solo la
-    /// usa el adaptador de Inbound que abre originales del Tenant de la Empresa contratista (ADR-013, K-3; hasta M2 era
-    /// <c>AbrirOriginalAsync</c> de este mismo tipo, con el mismo cuerpo). La referencia tiene que empezar por la carpeta
-    /// del Tenant indicado (<see cref="ClavesDeAlmacen.EsDeLaCarpetaDelTenant"/>, la misma regla a la que delega
-    /// <c>OriginalesInbound.EsDelTenant</c>) y resolver dentro de ella (si no, «no existe», igual que
-    /// <see cref="AbrirAsync"/>), y se descifra con la clave derivada de ese Tenant, nunca con la del Tenant activo.
+    /// La única lectura del almacenamiento que cruza Tenants. No es pública ni la implementa este tipo: la expone
+    /// <see cref="LecturaDeDiscoDelTenantPropietario"/> como <see cref="IAlmacenArchivosDelTenantPropietario"/>, una
+    /// instancia distinta, para que quien tenga este almacén por <see cref="IFileStorageService"/> no pueda alcanzarla con
+    /// un cast ni con <c>dynamic</c>. Hoy solo la usa el adaptador de Inbound que abre originales del Tenant de la Empresa
+    /// contratista (ADR-013, K-3; hasta M2 era <c>AbrirOriginalAsync</c> de este mismo tipo, con el mismo cuerpo). La
+    /// referencia tiene que empezar por la carpeta del Tenant indicado (<see cref="ClavesDeAlmacen.EsDeLaCarpetaDelTenant"/>,
+    /// la misma regla a la que delega <c>OriginalesInbound.EsDelTenant</c>) y resolver dentro de ella (si no, «no existe»,
+    /// igual que <see cref="AbrirAsync"/>), y se descifra con la clave derivada de ese Tenant, nunca con la del Tenant
+    /// activo.
     /// </summary>
-    public async Task<Stream> AbrirDelTenantPropietarioAsync(
+    internal async Task<Stream> AbrirDelTenantPropietarioAsync(
         string identificador, Guid tenantPropietarioId, CancellationToken cancellationToken = default)
     {
         if (tenantPropietarioId == Guid.Empty || identificador is null

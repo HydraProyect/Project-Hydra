@@ -11,7 +11,9 @@ namespace CaeManager.Application.Common.Archivos;
 /// <see cref="IFileStorageService"/> solo abre lo del Tenant activo; esta interfaz cruza a propósito el aislamiento del
 /// almacenamiento por Tenant. Por eso no se añade a <see cref="IFileStorageService"/>, que inyectan decenas de tipos, y
 /// su único consumidor es ese adaptador (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c>): cualquier otro podría abrir
-/// archivos de cualquier Tenant con solo conocer su clave.
+/// archivos de cualquier Tenant con solo conocer su clave. Por lo mismo, la implementación no es la instancia que el
+/// contenedor entrega como <see cref="IFileStorageService"/>: un consumidor del almacenamiento del Tenant activo no llega
+/// aquí con un cast.
 /// </para>
 /// </summary>
 public interface IAlmacenArchivosDelTenantPropietario

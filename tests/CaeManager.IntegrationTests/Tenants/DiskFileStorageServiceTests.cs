@@ -134,7 +134,7 @@ public class DiskFileStorageServiceTests : IDisposable
         var deB = await CrearServicio(_tenantB).GuardarAsync(original, "aptitud.pdf");
         var servicioDeA = CrearServicio(_tenantA);
 
-        await using (var abierto = await new AdaptadorAlmacenOriginalesInbound(servicioDeA).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantB, deB, false)))
+        await using (var abierto = await new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(servicioDeA)).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantB, deB, false)))
         {
             using var lectura = new StreamReader(abierto);
             (await lectura.ReadToEndAsync()).Should().Be("original del Tenant B");
@@ -162,7 +162,7 @@ public class DiskFileStorageServiceTests : IDisposable
                      (_tenantB, Path.GetFileName(deB), "sin carpeta"),
                  })
         {
-            await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(servicioDeA).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), tenant, identificador, false)))
+            await FluentActions.Awaiting(() => new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(servicioDeA)).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), tenant, identificador, false)))
                 .Should().ThrowAsync<FileNotFoundException>(motivo);
         }
     }
@@ -416,7 +416,7 @@ public class DiskFileStorageServiceTests : IDisposable
             var bytes = await File.ReadAllBytesAsync(ruta);
             bytes[^1] ^= 0xFF;
             await File.WriteAllBytesAsync(ruta, bytes);
-            var accion = async () => await new AdaptadorAlmacenOriginalesInbound(servicioB).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
+            var accion = async () => await new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(servicioB)).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
             await accion.Should().ThrowAsync<InvalidDataException>();
         }
 
@@ -596,7 +596,7 @@ public class DiskFileStorageServiceTests : IDisposable
         var identificador = await EscribirArchivoEnClaroAsync(_tenantA, "contenido no autenticado");
 
         var servicioB = CrearServicio(_tenantB, rechazarLegadoEnClaro);
-        var accion = async () => await new AdaptadorAlmacenOriginalesInbound(servicioB).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
+        var accion = async () => await new AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(servicioB)).AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
 
         if (rechazarLegadoEnClaro)
         {
