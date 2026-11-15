@@ -1,0 +1,486 @@
+diff --git a/src/CaeManager.Application/Empresas/LimiteEmpresaPropia.cs b/src/CaeManager.Application/Empresas/LimiteEmpresaPropia.cs
+index d467f9ba1..43bf74151 100644
+--- a/src/CaeManager.Application/Empresas/LimiteEmpresaPropia.cs
++++ b/src/CaeManager.Application/Empresas/LimiteEmpresaPropia.cs
+@@ -36,7 +36,9 @@ public interface ILimiteEmpresaPropia
+     /// <c>null</c> si el Tenant actual puede tener una Empresa propia activa más; si no, el error que se muestra.
+     /// <paramref name="propiasAnadidasSinGuardar"/> son las Empresas propias que la misma operación ya ha añadido
+     /// y aún no ha guardado (una importación con varias filas). Con <paramref name="esIntento"/> el rechazo avisa
+-    /// a Soporte TALVEG; una vista previa, o una fila más de una importación que ya avisó, pasa <c>false</c>.
++    /// a Soporte TALVEG; una vista previa, o una fila de una importación, pasa <c>false</c>: la importación avisa una
++    /// sola vez, bajo el candado y después de guardar la marca de su operación, para que la segunda de dos
++    /// confirmaciones de la misma operación no avise de un rechazo falso (revisión Codex r3 de la PR #2193, MEDIO 1).
+     /// Fuera de <see cref="SerializarAsync"/> solo anticipa la respuesta: otra operación puede guardar entre este
+     /// recuento y el guardado propio.
+     /// </summary>
+diff --git a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs
+index c3e043e33..91635d68f 100644
+--- a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs
++++ b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs
+@@ -221,7 +221,9 @@ public class EjecutarImportacionCommandHandler(
+         var clientesCreados = 0;
+         var centrosCreados = 0;
+         var empresasCreadas = 0;
+-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
++        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG no sale de esa fila sino del
++        // guardado, uno por comando: ver GuardarAsync.
++        var limiteRechazado = false;
+         var trabajadoresCreados = 0;
+         var documentosCreados = 0;
+         var asignacionesCreadas = 0;
+@@ -344,11 +346,12 @@ public class EjecutarImportacionCommandHandler(
+             }
+ 
+             // D-P11: cada fila de la hoja de Empresas crea una Empresa propia, y el Tenant propietario solo puede tener
+-            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas.
+-            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
++            // una. Las que esta misma carga ya añadió cuentan aunque aún no estén guardadas. Sin aviso: este recuento va
++            // sin candado y antes de saber si la operación ya la confirmó otra (revisión Codex r3 de la PR #2193, MEDIO 1).
++            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
+             {
+                 omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, limite.Mensaje));
+-                limiteAvisado = true;
++                limiteRechazado = true;
+                 continue;
+             }
+ 
+@@ -700,8 +703,9 @@ public class EjecutarImportacionCommandHandler(
+ 
+             // D-P11: el recuento de cada fila de Empresas va sin candado; el que decide se repite aquí, bajo el candado de
+             // Empresa propia del Tenant y hasta el COMMIT, contra lo que otra operación haya confirmado entretanto. Sin
+-            // Empresas propias nuevas no hace falta. Con Asignaciones, este candado va después del de las altas.
+-            if (empresasCreadas == 0)
++            // Empresas propias nuevas ni filas omitidas por el límite no hace falta. Con Asignaciones, este candado va
++            // después del de las altas.
++            if (empresasCreadas == 0 && !limiteRechazado)
+                 return await GuardarOperacionAsync(ct);
+             return await limiteEmpresaPropia.SerializarAsync(async c =>
+             {
+@@ -711,12 +715,26 @@ public class EjecutarImportacionCommandHandler(
+                 // rechazo, en vez de «ya ejecutada» (revisión Codex r2 de la PR #2193, MEDIO 1).
+                 if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, c))
+                     return FalloYaEjecutada();
+-                return await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite
+-                    ? Result.Fallo(limite)
+-                    : await GuardarOperacionAsync(c);
++                if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite)
++                    return Result.Fallo(limite);
++                var guardadoOperacion = await GuardarOperacionAsync(c);
++                await AvisarFilasRechazadasAsync(guardadoOperacion, c);
++                return guardadoOperacion;
+             }, ct);
+         }
+ 
++        // D-P11: el aviso de las filas omitidas por el límite, uno por comando, sale solo de la confirmación que acaba de
++        // guardar la marca de la operación, bajo el candado. Si lo emitiera la fila, la segunda de dos confirmaciones de
++        // la MISMA operación que contara después del COMMIT de la primera avisaría de un rechazo falso antes de responder
++        // «ya ejecutada» (revisión Codex r3 de la PR #2193, MEDIO 1). El recuento es solo para el aviso, porque lo omitido
++        // ya está decidido: si esta carga creó alguna Empresa propia no cabe otra y avisa; si no creó ninguna, avisa
++        // mientras siga activa la que causó el rechazo.
++        async Task AvisarFilasRechazadasAsync(Result guardadoOperacion, CancellationToken ct)
++        {
++            if (limiteRechazado && guardadoOperacion.EsExitoso)
++                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, ct);
++        }
++
+         Result FalloYaEjecutada()
+         {
+             // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
+diff --git a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs
+index fc6a28d6f..cc0d6a3f8 100644
+--- a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs
++++ b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs
+@@ -314,7 +314,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
+ 
+         var empresasCreadas = 0;
+ 
+-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
++        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG no sale de esa fila sino del
++        // guardado, uno por comando, igual que en EjecutarImportacionCommand.
++        var limiteRechazado = false;
+         var empresasActualizadas = 0;
+ 
+         foreach (var fila in plan.Empresas)
+@@ -377,10 +379,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
+                 }
+ 
+                 // D-P11: mismo criterio que EjecutarImportacionCommand; las de esta carga cuentan sin estar guardadas.
+-                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: !limiteAvisado, cancellationToken) is { } limite)
++                // Sin aviso aquí, sin candado (revisión Codex r3 de la PR #2193, MEDIO 1).
++                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
+                 {
+                     omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, limite.Mensaje));
+-                    limiteAvisado = true;
++                    limiteRechazado = true;
+                     continue;
+                 }
+ 
+@@ -658,7 +661,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
+         // confirmaciones de la MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
+         // D-P11: con Empresas propias nuevas, el guardado va bajo el candado de Empresa propia del Tenant y repite el
+         // recuento que decide contra lo que otra operación haya confirmado desde el de cada fila, que va sin candado.
+-        if (empresasCreadas == 0)
++        // También con filas omitidas por el límite: su aviso sale de ahí, solo si esta confirmación guarda la marca.
++        if (empresasCreadas == 0 && !limiteRechazado)
+         {
+             if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+                 return ResultadoImportacionCombinadaDto.YaEjecutada();
+@@ -677,7 +681,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
+                     if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
+                         return Result.Fallo(limite);
+                     if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
++                    {
++                        // Revisión Codex r3 de la PR #2193, MEDIO 1: el aviso de las filas omitidas por el límite, después
++                        // de guardar la marca, para que la segunda de dos confirmaciones de la misma operación no avise
++                        // de un rechazo falso. Recuento solo para el aviso, como en EjecutarImportacionCommand.
++                        if (limiteRechazado)
++                            _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, ct);
+                         return Result.Exito();
++                    }
+                 }
+                 // Fallo para que la transacción del candado se deshaga; abajo se traduce a «ya ejecutada».
+                 yaEjecutada = true;
+diff --git a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs
+index ae9a38e48..c8f1ac7c0 100644
+--- a/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs
++++ b/src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs
+@@ -416,7 +416,8 @@ public class EjecutarImportacionMaestraCommandHandler(
+ 
+         var empresasCreadas = 0;
+ 
+-        var limiteAvisado = false; // D-P11: un solo aviso a Soporte TALVEG por comando, no uno por fila
++        // D-P11: alguna fila de Empresas omitida por el límite. El aviso a Soporte TALVEG, uno por comando, sale del guardado.
++        var limiteRechazado = false;
+         var empresasActualizadas = 0;
+         foreach (var fila in plan.Empresas)
+         {
+@@ -468,11 +469,11 @@ public class EjecutarImportacionMaestraCommandHandler(
+             }
+ 
+             // D-P11: la hoja de Empresas gestionadas crea Empresas propias, y el Tenant propietario solo puede tener una.
+-            // La vista previa muestra la misma omisión, pero solo confirmar avisa a Soporte TALVEG.
+-            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: escribir && !limiteAvisado, cancellationToken) is { } limite)
++            // La vista previa muestra la misma omisión, pero solo avisa a Soporte TALVEG la confirmación que guarda (abajo).
++            if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: false, cancellationToken) is { } limite)
+             {
+                 omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, limite.Mensaje));
+-                limiteAvisado = true;
++                limiteRechazado = true;
+                 continue;
+             }
+ 
+@@ -853,6 +854,12 @@ public class EjecutarImportacionMaestraCommandHandler(
+         // Guardado no es confirmado: el commit es de la transacción del candado. Por eso se recuerda con el Id de su marca.
+         if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+         {
++            // D-P11: el aviso de las filas omitidas por el límite, solo de la confirmación que ha guardado la marca, igual
++            // que en EjecutarImportacionCommand: ni la pasada de comparación, ni una vista previa cambiada, ni una
++            // confirmación de la misma operación que llega tarde avisan (revisión Codex r3 de la PR #2193, MEDIO 1).
++            // Recuento solo para el aviso: lo omitido ya está decidido.
++            if (limiteRechazado)
++                _ = await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, esIntento: true, cancellationToken);
+             intentoGuardado = (marca!.Id, resultado);
+             return resultado;
+         }
+diff --git a/tests/CaeManager.Application.Tests/Empresas/LimiteEmpresaPropiaTests.cs b/tests/CaeManager.Application.Tests/Empresas/LimiteEmpresaPropiaTests.cs
+index c3a95185e..d56d496e7 100644
+--- a/tests/CaeManager.Application.Tests/Empresas/LimiteEmpresaPropiaTests.cs
++++ b/tests/CaeManager.Application.Tests/Empresas/LimiteEmpresaPropiaTests.cs
+@@ -460,6 +460,82 @@ public class LimiteEmpresaPropiaTests
+         alertas.Alertas.Should().BeEmpty("no se ha intentado dar de alta otra Empresa propia");
+     }
+ 
++    // Revisión Codex r3 de la PR #2193, MEDIO 1. La otra secuencia: la segunda confirmación de la MISMA operación pasa la
++    // consulta inicial de la marca, y la primera confirma (su Empresa propia y la marca) justo después, antes de que la
++    // segunda recorra la hoja de Empresas. El recuento de la fila ya ve la Empresa propia de la primera y omite la fila,
++    // pero no puede avisar: el aviso sale solo de quien guarda la marca, y esta responde «ya ejecutada». Con el aviso en
++    // la fila, la alerta falsa ya habría salido.
++
++    [Fact]
++    public async Task EjecutarImportacion_segunda_confirmacion_que_cuenta_tras_el_commit_de_la_primera_no_avisa()
++    {
++        var empresas = new EmpresasQueryContextFalso();
++        var alertas = new AlertaOperativaFalsa();
++        var operaciones = new OperacionImportacionRepositorioFalso();
++        var plan = PlanSimple(new EmpresaImportadaDto("Primera propia, S.L.", false, Fila: 2));
++        operaciones.TrasLaPrimeraConsulta = () =>
++        {
++            empresas.ListaEmpresas.Add(PropiaActiva());
++            operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
++        };
++        var candado = new LimitesDePrueba.CandadoEnMemoria();
++
++        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
++                LimitesDePrueba.Sobre(empresas, alertas, candado: candado), operaciones)
++            .Handle(new EjecutarImportacionCommand(plan), default);
++
++        resultado.EsExitoso.Should().BeTrue();
++        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionDto.YaEjecutada());
++        candado.Ejecuciones.Should().Be(1, "la fila omitida por el límite lleva el guardado bajo el candado");
++        alertas.Alertas.Should().BeEmpty("la operación la confirmó la primera: esta no ha rechazado nada");
++    }
++
++    [Fact]
++    public async Task EjecutarImportacionCombinada_segunda_confirmacion_que_cuenta_tras_el_commit_de_la_primera_no_avisa()
++    {
++        var escenario = new EscenarioImportacionCombinada();
++        var propias = new EmpresasQueryContextFalso();
++        var alertas = new AlertaOperativaFalsa();
++        var plan = EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto("Primera propia, S.L.", [], false, 2)]);
++        escenario.OperacionImportacionRepositorio.TrasLaPrimeraConsulta = () =>
++        {
++            propias.ListaEmpresas.Add(PropiaActiva());
++            escenario.OperacionImportacionRepositorio.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
++        };
++        var candado = new LimitesDePrueba.CandadoEnMemoria();
++        escenario.Limite = LimitesDePrueba.Sobre(propias, alertas, candado: candado);
++
++        var resultado = await escenario.Handler().Handle(new EjecutarImportacionCombinadaCommand(plan, false), CancellationToken.None);
++
++        resultado.EsExitoso.Should().BeTrue();
++        resultado.Valor.Should().BeEquivalentTo(ResultadoImportacionCombinadaDto.YaEjecutada());
++        candado.Ejecuciones.Should().Be(1, "la fila omitida por el límite lleva el guardado bajo el candado");
++        alertas.Alertas.Should().BeEmpty("la operación la confirmó la primera: esta no ha rechazado nada");
++    }
++
++    // El aviso que sí corresponde sigue saliendo, una vez, cuando ninguna fila crea Empresa propia: el guardado toma el
++    // candado por la fila omitida y avisa tras guardar la marca.
++    [Fact]
++    public async Task EjecutarImportacion_con_la_Empresa_propia_omite_la_fila_nueva_y_avisa_tras_guardar()
++    {
++        var empresas = new EmpresasQueryContextFalso();
++        empresas.ListaEmpresas.Add(PropiaActiva());
++        var alertas = new AlertaOperativaFalsa();
++        var candado = new LimitesDePrueba.CandadoEnMemoria();
++        var plan = PlanSimple(new EmpresaImportadaDto("Otra propia, S.L.", false, Fila: 2),
++            new EmpresaImportadaDto("Tercera propia, S.L.", false, Fila: 3));
++
++        var resultado = await ImportacionSimple(new EmpresaRepositorioFalso(), empresas,
++                LimitesDePrueba.Sobre(empresas, alertas, candado: candado))
++            .Handle(new EjecutarImportacionCommand(plan), default);
++
++        resultado.EsExitoso.Should().BeTrue();
++        resultado.Valor.EmpresasCreadas.Should().Be(0);
++        resultado.Valor.Omitidos.Should().HaveCount(2);
++        candado.Ejecuciones.Should().Be(1);
++        alertas.Alertas.Should().ContainSingle("un aviso por comando, no por fila");
++    }
++
+     private static Empresa EliminadaParaRestaurar(string comando, bool esPropia)
+     {
+         var empresa = comando switch
+diff --git a/tests/CaeManager.Application.Tests/Importacion/OperacionImportacionRepositorioFalso.cs b/tests/CaeManager.Application.Tests/Importacion/OperacionImportacionRepositorioFalso.cs
+index c640d76df..44aa12200 100644
+--- a/tests/CaeManager.Application.Tests/Importacion/OperacionImportacionRepositorioFalso.cs
++++ b/tests/CaeManager.Application.Tests/Importacion/OperacionImportacionRepositorioFalso.cs
+@@ -25,8 +25,23 @@ internal sealed class OperacionImportacionRepositorioFalso : IOperacionImportaci
+     /// <summary>Se ejecuta al guardar, antes de registrar la marca: deja ver qué más iba en el mismo guardado.</summary>
+     public Action? AlGuardar { get; set; }
+ 
+-    public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default) =>
+-        Task.FromResult(_confirmadas.ContainsKey(operacionId));
++    /// <summary>
++    /// Se ejecuta una vez, justo después de la primera consulta de <see cref="ExisteAsync"/> (que ya ha respondido): deja
++    /// que otra confirmación de la misma operación confirme entre la consulta inicial del handler y lo que viene después.
++    /// </summary>
++    public Action? TrasLaPrimeraConsulta { get; set; }
++
++    public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default)
++    {
++        var existe = _confirmadas.ContainsKey(operacionId);
++        if (TrasLaPrimeraConsulta is { } alConsultar)
++        {
++            TrasLaPrimeraConsulta = null;
++            alConsultar();
++        }
++
++        return Task.FromResult(existe);
++    }
+ 
+     public Task<bool> EsLaMarcaGuardadaAsync(Guid operacionId, Guid marcaId, CancellationToken cancellationToken = default) =>
+         Task.FromResult(_confirmadas.TryGetValue(operacionId, out var guardada) && guardada == marcaId);
+diff --git a/tests/CaeManager.Architecture.Tests/AltaDeEmpresaPropiaSoloTrasElLimiteTests.cs b/tests/CaeManager.Architecture.Tests/AltaDeEmpresaPropiaSoloTrasElLimiteTests.cs
+index 95cec1dd3..3df5c1f93 100644
+--- a/tests/CaeManager.Architecture.Tests/AltaDeEmpresaPropiaSoloTrasElLimiteTests.cs
++++ b/tests/CaeManager.Architecture.Tests/AltaDeEmpresaPropiaSoloTrasElLimiteTests.cs
+@@ -26,8 +26,10 @@ namespace CaeManager.Architecture.Tests;
+ /// El candado (revisión Codex r2 de la PR #2193, MEDIO 2): cuenta solo un <c>SerializarAsync</c> cuyo receptor está
+ /// declarado en el tipo como <c>ILimiteEmpresaPropia</c>, y solo si lo que alcanza su delegado (él mismo y las funciones
+ /// locales y métodos del tipo a los que llama por su nombre) comprueba el límite con ese receptor y guarda. La escritura
+-/// tiene que estar en ese alcance, o en el método que contiene el delegado sin ningún guardado fuera de él salvo en la
+-/// rama <c>if (n == 0)</c> del recuento final de un delegado de ese mismo método (ver <c>CandadosDelTipo</c>). Guardar es
++/// tiene que estar en un método que ese alcance contenga entero, o en el método que contiene el delegado, dentro o fuera
++/// de él, sin ningún guardado fuera del delegado salvo en la rama <c>if (n == 0)</c> (sola o en una conjunción) del
++/// recuento final de un delegado de ese mismo método (revisión Codex r3 de la PR #2193, MEDIO 2; ver
++/// <c>CandadosDelTipo</c>). Guardar es
+ /// invocar <c>SaveChanges</c>, <c>GuardarCambiosAsync</c>, <c>GuardarSiOperacionNuevaAsync</c> o una escritura inmediata
+ /// (<c>ExecuteUpdate</c>, <c>ExecuteDelete</c>, <c>ExecuteSql</c>). Límites: receptores, métodos, guardados y el recuento
+ /// <c>n</c> se reconocen por su nombre; un guardado con otro nombre o a través de otro tipo no se ve; no mira el orden
+@@ -351,6 +353,60 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
+             }
+         }
+         """)]
++    // Revisión Codex r3 de la PR #2193, MEDIO 2: la construcción dentro del delegado no exime de mirar los guardados de
++    // fuera. Con el guardado condicional de dentro sin hacer, el de después del delegado guarda fuera del candado.
++    [InlineData("construcción dentro del delegado y guardado después de él", """
++        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
++        {
++            async Task<Result> M(bool guardarYa, CancellationToken ct)
++            {
++                var resultado = await limite.SerializarAsync(async c =>
++                {
++                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
++                    repositorio.Agregar(new Empresa("x"));
++                    if (guardarYa) await unitOfWork.SaveChangesAsync(c);
++                    return Result.Exito();
++                }, ct);
++                await unitOfWork.SaveChangesAsync(ct);
++                return resultado;
++            }
++        }
++        """)]
++    [InlineData("construcción dentro del delegado y guardado en una función local llamada después", """
++        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
++        {
++            async Task<Result> M(bool guardarYa, CancellationToken ct)
++            {
++                var resultado = await limite.SerializarAsync(async c =>
++                {
++                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
++                    repositorio.Agregar(new Empresa("x"));
++                    if (guardarYa) await unitOfWork.SaveChangesAsync(c);
++                    return Result.Exito();
++                }, ct);
++                await Guardar(ct);
++                return resultado;
++
++                async Task Guardar(CancellationToken t) => await unitOfWork.SaveChangesAsync(t);
++            }
++        }
++        """)]
++    [InlineData("guardado fuera en una disyunción con la rama de cero", """
++        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
++        {
++            async Task<Result> M(int nuevas, bool otra, CancellationToken ct)
++            {
++                repositorio.Agregar(new Empresa("x"));
++                if (nuevas == 0 || otra) await unitOfWork.SaveChangesAsync(ct);
++                return await limite.SerializarAsync(async c =>
++                {
++                    if (await limite.ComprobarGuardadoAsync(nuevas, c) is { } e) return Result.Fallo(e);
++                    await unitOfWork.SaveChangesAsync(c);
++                    return Result.Exito();
++                }, ct);
++            }
++        }
++        """)]
+     public void El_instrumento_exige_comprobacion_y_guardado_dentro_del_candado_del_limite(string caso, string codigo)
+     {
+         EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
+@@ -421,6 +477,44 @@ public class AltaDeEmpresaPropiaSoloTrasElLimiteTests
+             }
+         }
+         """)]
++    [InlineData("todo dentro del delegado", """
++        class H(ILimiteEmpresaPropia limite, IUnitOfWork unitOfWork)
++        {
++            async Task<Result> M(CancellationToken ct)
++            {
++                var resultado = await limite.SerializarAsync(async c =>
++                {
++                    if (await limite.ComprobarAltaAsync(0, true, c) is { } e) return Result.Fallo(e);
++                    repositorio.Agregar(new Empresa("x"));
++                    await unitOfWork.SaveChangesAsync(c);
++                    return Result.Exito();
++                }, ct);
++                return resultado;
++            }
++        }
++        """)]
++    // Las importaciones simple y combinada: la rama sin candado exige además que ninguna fila se omitiera por el
++    // límite, porque el aviso de esa fila sale bajo el candado (revisión Codex r3 de la PR #2193, MEDIO 1).
++    [InlineData("rama de cero en una conjunción", """
++        class H(ILimiteEmpresaPropia limiteEmpresaPropia, IOperacionImportacionRepository operaciones)
++        {
++            async Task<Result> M(CancellationToken ct)
++            {
++                var empresasCreadas = 0;
++                var limiteRechazado = false;
++                if (await limiteEmpresaPropia.ComprobarAltaAsync(empresasCreadas, false, ct) is null) { repositorio.Agregar(new Empresa("x")); empresasCreadas++; }
++                else limiteRechazado = true;
++                if (empresasCreadas == 0 && !limiteRechazado)
++                    return await operaciones.GuardarSiOperacionNuevaAsync(ct) ? Result.Exito() : Result.Fallo(null!);
++                return await limiteEmpresaPropia.SerializarAsync(async c =>
++                {
++                    if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } e) return Result.Fallo(e);
++                    await operaciones.GuardarSiOperacionNuevaAsync(c);
++                    return Result.Exito();
++                }, ct);
++            }
++        }
++        """)]
+     public void El_instrumento_acepta_las_formas_de_los_escritores_con_el_candado(string caso, string codigo)
+     {
+         EscriturasDeEmpresaPropia.Analizar("Fragmento.cs", codigo)
+@@ -588,18 +682,22 @@ internal static class EscriturasDeEmpresaPropia
+         }
+ 
+         /// <summary>
+-        /// La escritura queda bajo el candado si está en lo que alcanza un delegado válido, o si su método lo contiene y
+-        /// prepara antes en memoria (las importaciones construyen fila a fila y recuentan al final, ya bajo el candado)
+-        /// sin guardar nada fuera de él. Un guardado fuera solo vale en la rama <c>if (n == 0)</c>, con <c>n</c> el
+-        /// recuento que un delegado de ese mismo método pasa a <c>ComprobarGuardadoAsync</c>: sin Empresas propias nuevas
+-        /// no hay candado.
++        /// La escritura queda bajo el candado si su método entero lo alcanza un delegado válido (la importación maestra
++        /// escribe en un método al que llama desde el candado), o si su método contiene un delegado válido y no guarda
++        /// nada fuera de él: ni cuando la escritura está dentro del delegado (revisión Codex r3 de la PR #2193, MEDIO 2:
++        /// una construcción dentro, con un guardado condicional dentro y otro después del delegado, guardaría fuera del
++        /// candado), ni cuando el método la prepara antes en memoria (las importaciones construyen fila a fila y
++        /// recuentan al final, ya bajo el candado). Un guardado fuera solo vale en la rama <c>if (n == 0)</c>, o en una
++        /// conjunción que la incluya, con <c>n</c> el recuento que un delegado de ese mismo método pasa a
++        /// <c>ComprobarGuardadoAsync</c>: sin Empresas propias nuevas no hay candado.
+         /// </summary>
+         public bool Cubre(SyntaxNode escritura, MemberDeclarationSyntax? miembro)
+         {
+-            if (validos.Any(v => escritura.AncestorsAndSelf().Any(v.Alcance.Contains)))
+-                return true;
++            var enAlcance = validos.Where(v => escritura.AncestorsAndSelf().Any(v.Alcance.Contains)).ToList();
+             if (miembro is null)
+-                return false;
++                return enAlcance.Count > 0;
++            if (enAlcance.Any(v => v.Alcance.Contains(miembro)))
++                return true;
+             var delMiembro = validos.Where(v => v.Delegado.Ancestors().Contains(miembro)).ToList();
+             if (delMiembro.Count == 0)
+                 return false;
+@@ -642,15 +740,27 @@ internal static class EscriturasDeEmpresaPropia
+             SyntaxNode hijo = nodo;
+             foreach (var ancestro in nodo.Ancestors().TakeWhile(a => a != raiz))
+             {
+-                if (ancestro is IfStatementSyntax si && si.Statement == hijo
+-                    && si.Condition is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } igual
+-                    && (EsRecuentoACero(igual.Left, igual.Right, recuentos) || EsRecuentoACero(igual.Right, igual.Left, recuentos)))
++                if (ancestro is IfStatementSyntax si && si.Statement == hijo && ExigeRecuentoACero(si.Condition, recuentos))
+                     return true;
+                 hijo = ancestro;
+             }
+             return false;
+         }
+ 
++        /// <summary>
++        /// <c>n == 0</c>, o una conjunción (<c>&amp;&amp;</c>) con ella en alguno de sus lados: la rama solo corre sin
++        /// Empresas propias nuevas. Una disyunción no vale.
++        /// </summary>
++        private static bool ExigeRecuentoACero(ExpressionSyntax condicion, HashSet<string> recuentos) => condicion switch
++        {
++            ParenthesizedExpressionSyntax p => ExigeRecuentoACero(p.Expression, recuentos),
++            BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalAndExpression } y =>
++                ExigeRecuentoACero(y.Left, recuentos) || ExigeRecuentoACero(y.Right, recuentos),
++            BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } igual =>
++                EsRecuentoACero(igual.Left, igual.Right, recuentos) || EsRecuentoACero(igual.Right, igual.Left, recuentos),
++            _ => false,
++        };
++
+         private static bool EsRecuentoACero(ExpressionSyntax recuento, ExpressionSyntax cero, HashSet<string> recuentos) =>
+             recuento is IdentifierNameSyntax id && recuentos.Contains(id.Identifier.ValueText)
+             && cero is LiteralExpressionSyntax { Token.ValueText: "0" };

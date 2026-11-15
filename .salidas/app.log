@@ -1,0 +1,10 @@
+﻿  Determinando los proyectos que se van a restaurar...
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a9335335cb3194373\tests\CaeManager.Application.Tests\CaeManager.Application.Tests.csproj (en 422 ms).
+  2 de 3 proyectos están actualizados para la restauración.
+  CaeManager.Domain -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a9335335cb3194373\src\CaeManager.Domain\bin\Debug\net10.0\CaeManager.Domain.dll
+  CaeManager.Application -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a9335335cb3194373\src\CaeManager.Application\bin\Debug\net10.0\CaeManager.Application.dll
+  CaeManager.Application.Tests -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a9335335cb3194373\tests\CaeManager.Application.Tests\bin\Debug\net10.0\CaeManager.Application.Tests.dll
+Serie de pruebas para C:\Users\chris\Project-Hydra\.claude\worktrees\agent-a9335335cb3194373\tests\CaeManager.Application.Tests\bin\Debug\net10.0\CaeManager.Application.Tests.dll (.NETCoreApp,Version=v10.0)
+1 archivos de prueba en total coincidieron con el patrón especificado.
+
+Correctas! - Con error:     0, Superado:   263, Omitido:     0, Total:   263, Duración: 785 ms - CaeManager.Application.Tests.dll (net10.0)
