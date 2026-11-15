@@ -806,7 +806,10 @@ if (args.Contains(CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTempor
             ? opcionesAlmacen.Ruta : Path.Combine(app.Environment.ContentRootPath, opcionesAlmacen.Ruta);
         var registroReparacion = scopeReparacion.ServiceProvider
             .GetRequiredService<ILogger<CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales>>();
-        var resultados = await new CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales(contextoReparacion, registroReparacion)
+        var contribucionesReparacion = scopeReparacion.ServiceProvider
+            .GetServices<CaeManager.Infrastructure.FileStorage.IContribucionReferenciasArchivo>();
+        var resultados = await new CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales(
+                contextoReparacion, contribucionesReparacion, registroReparacion)
             .EjecutarAsync(raizAlmacen, aplicar);
         foreach (var resultado in resultados)
             Console.WriteLine($"{(aplicar ? "Aplicado" : "Simulación")}: {resultado.RutaAnterior} -> {resultado.RutaNueva}; existe={resultado.ExisteEnDisco}; destinoOcupado={resultado.DestinoOcupado}; extensionRecuperada={resultado.ExtensionRecuperada}");

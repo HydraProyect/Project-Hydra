@@ -3,7 +3,6 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.Inbound.EvidenciasInbound;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
@@ -38,8 +37,11 @@ public sealed record AdjuntoTemporalDefinitivo(string RutaAnterior, string RutaN
 /// actualizando solo la referencia. Una referencia sin fichero en disco se informa y no se toca.
 /// Nunca inventa una extensión: si no puede recuperarse, el definitivo queda sin ella y se
 /// registra un aviso con el tipo y el id de cada registro afectado, sin nombres de fichero.
+/// Recorre los campos que nombra aquí y los que cada módulo aporta por
+/// <see cref="IContribucionReferenciasArchivo"/> (ADR-013, mecanismo 10): la composición pasa todas las registradas.
 /// </summary>
-public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger = null)
+public sealed class ReparacionAdjuntosTemporales(
+    DbContext db, IEnumerable<IContribucionReferenciasArchivo> contribuciones, ILogger? logger = null)
 {
     private readonly ILogger _logger = logger ?? NullLogger.Instance;
     public const string Argumento = "--reparar-adjuntos-temporales";
@@ -69,7 +71,10 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
         await RecogerAsync<Documento>("ArchivoUrl", referencias, cancellationToken);
         await RecogerAsync<AdjuntoMensaje>("ArchivoUrl", referencias, cancellationToken);
         await RecogerAsync<TipoDocumentoCentro>("ArchivoUrl", referencias, cancellationToken);
-        await RecogerAsync<EvidenciaInbound>("ArchivoUrl", referencias, cancellationToken);
+        // Los campos aportados se recogen donde se recogía la evidencia Inbound antes de ADR-013 M2 (K-17): el orden de
+        // recogida fija el del informe, que así no cambia.
+        foreach (var campo in contribuciones.SelectMany(c => c.Campos))
+            await campo.Recoger(this, referencias, cancellationToken);
         await RecogerAsync<PlantillaDocumentoVersion>("ArchivoOriginalUrl", referencias, cancellationToken);
         await RecogerAsync<SolicitudCertificacionTgss>("EvidenciaArchivoRuta", referencias, cancellationToken);
         await RecogerAsync<VerificacionExternaSubcontrata>("EvidenciaArchivoRuta", referencias, cancellationToken);
@@ -173,7 +178,7 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
         }
     }
 
-    private async Task RecogerAsync<T>(string campo, List<PropertyEntry> referencias, CancellationToken ct) where T : class
+    internal async Task RecogerAsync<T>(string campo, List<PropertyEntry> referencias, CancellationToken ct) where T : class
     {
         if (db.Model.FindEntityType(typeof(T)) is null) return;
         // Solo este comando administrativo usa el contexto de bootstrap; los filtros

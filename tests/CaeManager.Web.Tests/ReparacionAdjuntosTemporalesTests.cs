@@ -24,7 +24,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(Temporal);
         await Escribir("tenant/huerfano.pdf.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
-        var resultado = await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz);
+        var resultado = await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz);
 
         var encontrado = Assert.Single(resultado);
         Assert.Equal(new AdjuntoTemporalDefinitivo(Temporal, Definitivo, true), encontrado);
@@ -37,7 +37,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await using var db = await CrearContexto(Temporal);
         await Escribir(Temporal);
 
-        await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz);
+        await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz);
 
         Assert.True(File.Exists(Ruta(Temporal)));
         Assert.False(File.Exists(Ruta(Definitivo)));
@@ -51,7 +51,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     {
         await using var db = await CrearContexto(Temporal);
         await Escribir(Temporal);
-        var servicio = new ReparacionAdjuntosTemporales(db);
+        var servicio = new ReparacionAdjuntosTemporales(db, []);
 
         Assert.Single(await servicio.EjecutarAsync(raiz, aplicar: true));
         Assert.Empty(await servicio.EjecutarAsync(raiz, aplicar: true));
@@ -69,7 +69,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(Temporal);
         await File.WriteAllTextAsync(Ruta(Definitivo), "no sobrescribir");
 
-        await Assert.ThrowsAsync<IOException>(() => new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        await Assert.ThrowsAsync<IOException>(() => new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         db.ChangeTracker.Clear();
         Assert.Equal(Temporal, (await db.Adjuntos.SingleAsync()).ArchivoUrl);
@@ -84,7 +84,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(Temporal);
         db.FallarGuardado = true;
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        await Assert.ThrowsAsync<DbUpdateException>(() => new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         db.ChangeTracker.Clear();
         Assert.Equal(Temporal, (await db.Adjuntos.SingleAsync()).ArchivoUrl);
@@ -98,7 +98,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await using var db = await CrearContexto(Temporal, Temporal);
         await Escribir(Temporal);
 
-        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         db.ChangeTracker.Clear();
         Assert.All(await db.Adjuntos.ToListAsync(), a => Assert.Equal(Definitivo, a.ArchivoUrl));
@@ -115,7 +115,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(referencia);
 
         Assert.Equal("tenant/identificador.pdf", Assert.Single(
-            await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true)).RutaNueva);
+            await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true)).RutaNueva);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await db.SaveChangesAsync();
         await Escribir(Temporal);
 
-        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         Assert.False(File.Exists(Ruta(Temporal)));
         Assert.Equal("contenido intacto", await File.ReadAllTextAsync(Ruta(Definitivo)));
@@ -144,7 +144,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await using var db = await CrearContexto(Temporal);
         await Escribir(Definitivo);
 
-        var reparado = Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        var reparado = Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         Assert.True(reparado.DestinoOcupado);
         Assert.Equal("contenido intacto", await File.ReadAllTextAsync(Ruta(Definitivo)));
@@ -159,7 +159,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(Temporal);
         await Escribir(Definitivo);
 
-        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         Assert.True(File.Exists(Ruta(Temporal)));
         Assert.True(File.Exists(Ruta(Definitivo)));
@@ -178,7 +178,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await db.SaveChangesAsync();
         await Escribir(Temporal);
 
-        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         db.ChangeTracker.Clear();
         Assert.Equal(Definitivo, (await db.Documentos.SingleAsync()).ArchivoUrl);
@@ -193,7 +193,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         db.FallarConfirmacion = true;
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+            new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
 
         Assert.Contains("incierta", error.Message);
         db.ChangeTracker.Clear();
@@ -207,7 +207,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     {
         await using var db = await CrearContexto("../ajeno.pdf.tmp-0123456789abcdef0123456789abcdef");
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+            new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
         Assert.Equal("../ajeno.pdf.tmp-0123456789abcdef0123456789abcdef", (await db.Adjuntos.SingleAsync()).ArchivoUrl);
     }
 
@@ -220,7 +220,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     {
         await using var db = await CrearContexto(referencia);
         await Escribir(referencia);
-        Assert.Empty(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Empty(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true));
         Assert.True(File.Exists(Ruta(referencia)));
     }
 
@@ -231,7 +231,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await using var db = await CrearContexto(Temporal, otra);
         await Escribir(otra);
         var avisos = new RegistroAvisos();
-        var servicio = new ReparacionAdjuntosTemporales(db, avisos);
+        var servicio = new ReparacionAdjuntosTemporales(db, [], avisos);
         Assert.False(Assert.Single(await servicio.EjecutarAsync(raiz), r => r.RutaAnterior == Temporal).ExisteEnDisco);
 
         var aplicados = await servicio.EjecutarAsync(raiz, true);
@@ -251,7 +251,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     {
         await using var db = await CrearContexto(referencia);
         await Escribir(referencia);
-        Assert.Equal(destino, Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true)).RutaNueva);
+        Assert.Equal(destino, Assert.Single(await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz, true)).RutaNueva);
         Assert.True(File.Exists(Ruta(destino)));
     }
 
@@ -265,7 +265,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(referencia);
         var avisos = new RegistroAvisos();
 
-        var reparado = Assert.Single(await new ReparacionAdjuntosTemporales(db, avisos).EjecutarAsync(raiz, true));
+        var reparado = Assert.Single(await new ReparacionAdjuntosTemporales(db, [], avisos).EjecutarAsync(raiz, true));
 
         Assert.Equal("tenant/0123456789abcdef0123456789abcdef", reparado.RutaNueva);
         Assert.False(reparado.ExtensionRecuperada);
@@ -283,7 +283,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await Escribir(Temporal);
         var avisos = new RegistroAvisos();
 
-        Assert.True(Assert.Single(await new ReparacionAdjuntosTemporales(db, avisos).EjecutarAsync(raiz)).ExtensionRecuperada);
+        Assert.True(Assert.Single(await new ReparacionAdjuntosTemporales(db, [], avisos).EjecutarAsync(raiz)).ExtensionRecuperada);
         Assert.Empty(avisos.Mensajes);
     }
 
@@ -294,6 +294,46 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         Assert.False(ReparacionAdjuntosTemporales.Aplicar(["--simular"]));
         Assert.True(ReparacionAdjuntosTemporales.Aplicar(["--aplicar"]));
         Assert.Throws<ArgumentException>(() => ReparacionAdjuntosTemporales.Aplicar(["--simular", "--aplicar"]));
+    }
+
+    /// <summary>
+    /// ADR-013 M2 (K-17): el campo que un módulo aporta por el puerto de contribución se repara igual que uno que la
+    /// reparación nombra, en el sitio de la recogida que tenía la evidencia Inbound (tras los adjuntos de mensaje); sin la
+    /// contribución, el barrido no lo ve.
+    /// </summary>
+    [Fact]
+    public async Task ReparaLosCamposQueUnModuloAportaPorElPuertoDeContribucion()
+    {
+        const string deModulo = "tenant/evidencia.pdf.tmp-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        await using var db = await CrearContexto(Temporal);
+        db.AdjuntosDeModulo.Add(new AdjuntoDeModulo { TenantId = Guid.NewGuid(), ArchivoUrl = deModulo, NombreArchivoOriginal = "evidencia.pdf" });
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        await Escribir(Temporal);
+        await Escribir(deModulo);
+
+        Assert.Equal(new[] { Temporal }, (await new ReparacionAdjuntosTemporales(db, []).EjecutarAsync(raiz)).Select(r => r.RutaAnterior));
+
+        var aplicados = await new ReparacionAdjuntosTemporales(db, [new ContribucionDePrueba()]).EjecutarAsync(raiz, true);
+
+        Assert.Equal(new[] { Temporal, deModulo }, aplicados.Select(r => r.RutaAnterior));
+        db.ChangeTracker.Clear();
+        Assert.Equal("tenant/evidencia.pdf", (await db.AdjuntosDeModulo.SingleAsync()).ArchivoUrl);
+        Assert.Equal("contenido intacto", await File.ReadAllTextAsync(Ruta("tenant/evidencia.pdf")));
+    }
+
+    private sealed class ContribucionDePrueba : IContribucionReferenciasArchivo
+    {
+        public IReadOnlyList<CampoReferenciaArchivo> Campos { get; } =
+            [CampoReferenciaArchivo.De<AdjuntoDeModulo>(nameof(AdjuntoDeModulo.ArchivoUrl))];
+    }
+
+    private sealed class AdjuntoDeModulo
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid TenantId { get; set; }
+        public string? ArchivoUrl { get; set; }
+        public string? NombreArchivoOriginal { get; set; }
     }
 
     private string Ruta(string referencia) => Path.Combine(raiz, referencia);
@@ -321,6 +361,7 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     {
         public DbSet<AdjuntoMensaje> Adjuntos => Set<AdjuntoMensaje>();
         public DbSet<Documento> Documentos => Set<Documento>();
+        public DbSet<AdjuntoDeModulo> AdjuntosDeModulo => Set<AdjuntoDeModulo>();
         public bool FallarGuardado { get; set; }
         public bool FallarConfirmacion { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder opciones) => opciones.AddInterceptors(new FalloConfirmacion(this));

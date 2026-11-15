@@ -708,6 +708,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
         services.AddScoped<CaeManager.Domain.Inbound.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        // ADR-013, mecanismo 10 (K-17): Inbound aporta sus claves de archivo a los barridos del Núcleo.
+        services.AddSingleton<CaeManager.Infrastructure.FileStorage.IContribucionReferenciasArchivo,
+            CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
