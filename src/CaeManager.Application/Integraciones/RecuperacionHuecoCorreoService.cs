@@ -332,7 +332,10 @@ public class RecuperacionHuecoCorreoService(
     /// Límite declarado (issue #2124, ronda 5 de la revisión): los Ids de un evento de recuperación DescartadoDefinitivo sí
     /// se vuelven a encolar cuando la recuperación vuelve a empezar. Saltarlos permitiría limpiar la marca con un mensaje sin
     /// ingerir, protegido solo por el aviso de correo descartado, así que se prefiere repetir el intento. Con un GET de Graph
-    /// que falla siempre, cada reinicio crea un evento por lote de esos Ids; un mensaje fijo sale del tope de antigüedad.
+    /// que falla siempre, cada reinicio crea un evento por lote de esos Ids. Con el sondeo de 15 minutos son del orden de 96
+    /// eventos al día por lote, unos 670 hasta que el mensaje sale del tope de antigüedad de 7 días
+    /// (<see cref="ConexionIntegracion.AntiguedadMaximaRecuperacion"/>). Las filas descartadas se redactan, no se borran.
+    /// Decisión de Chris del 2026-11-16: se fusiona con este residual.
     /// </para>
     /// </summary>
     private async Task<IReadOnlyList<MensajeRecibidoGraphDto>> SinYaIngeridosNiEnCursoAsync(

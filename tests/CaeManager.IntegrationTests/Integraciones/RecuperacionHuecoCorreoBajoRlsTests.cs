@@ -120,6 +120,17 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
         await SembrarEventoAsync(_tenantPropio, pendiente);
         await SembrarEventoAsync(_tenantPropio, procesando);
         await SembrarEventoAsync(_tenantPropio, procesado);
+        var descartado = EventoWebhook.CrearRecuperacion(_buzonPropio, "{\"descartado\":1}", _marca);
+        for (var intento = 0; intento < EventoWebhook.MaximoIntentos; intento++)
+        {
+            descartado.MarcarEnProceso();
+            descartado.RegistrarFallo("Graph no devuelve el mensaje");
+        }
+
+        await SembrarEventoAsync(_tenantPropio, descartado);
+        var retenido = EventoWebhook.CrearRecuperacion(_buzonPropio, "{\"retenido\":1}", _marca);
+        retenido.EsperarVerificacion("sin verificar", retenido.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion);
+        await SembrarEventoAsync(_tenantPropio, retenido);
         await SembrarEventoAsync(_tenantPropio, new EventoWebhook(_buzonPropio, "{\"normal\":1}"));
         await SembrarEventoAsync(_tenantAjeno, EventoWebhook.CrearRecuperacion(_buzonAjeno, "{\"ajeno\":1}", _marca));
         await SembrarMensajeAsync(_tenantPropio, _buzonPropio, "ingerido-propio");

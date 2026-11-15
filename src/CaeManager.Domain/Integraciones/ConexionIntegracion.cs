@@ -435,7 +435,8 @@ public class ConexionIntegracion : EntidadBase
     /// de la página (solo avanza) y, si la página no traía <c>@odata.nextLink</c> (<paramref name="hayMas"/> false), el
     /// listado queda completo. Nunca se guarda ni se sigue la continuación de Graph: es posicional (<c>$skip</c>) y salta
     /// un mensaje sin leer si otro ya leído sale de la carpeta entre dos páginas; pedir cada página desde el cursor
-    /// (<c>ge</c>) no salta nada, y la ingesta deduplica lo releído.
+    /// (<c>ge</c>) no salta nada. Lo releído no se vuelve a encolar si ya está ingerido o en un evento de recuperación
+    /// Pendiente o Procesando (<c>RecuperacionHuecoCorreoService</c>), y la ingesta deduplica el resto.
     /// </summary>
     public void AvanzarRecuperacionHueco(DateTime? ultimoRecibidoUtc, bool hayMas)
     {

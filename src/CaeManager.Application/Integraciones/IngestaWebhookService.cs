@@ -245,7 +245,7 @@ public class IngestaWebhookService(
         ConexionIntegracion conexion, string accessToken, string mensajeId, CancellationToken cancellationToken)
     {
         // Idempotencia antes de pedir el mensaje: el MensajeExternoId de lo ingerido es el Id pedido a Graph, así que un
-        // Id ya ingerido (una notificación repetida, o la recuperación del hueco que vuelve a listar tras anularse) no
+        // Id ya ingerido (una notificación repetida, o el mismo mensaje en una notificación y en un evento de recuperación) no
         // gasta una llamada a Graph. La comprobación de después se queda.
         if (await conversacionRepositorio.ExisteMensajeExternoAsync(conexion.Id, mensajeId, cancellationToken))
             return null;

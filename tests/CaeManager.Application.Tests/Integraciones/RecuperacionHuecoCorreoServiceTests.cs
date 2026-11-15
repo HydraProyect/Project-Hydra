@@ -143,7 +143,7 @@ public class RecuperacionHuecoCorreoServiceTests
 
     /// <summary>
     /// Ronda 5 de la revisión de #2124: un Id que ya está en un evento de recuperación Pendiente o Procesando (aquí, de una
-    /// recuperación anulada) no se vuelve a encolar; uno de un evento ya procesado o descartado, sí. La marca sigue sin
+    /// recuperación anulada) no se vuelve a encolar; uno de un evento terminado, descartado o retenido, sí. La marca sigue sin
     /// limpiarse mientras ese evento esté sin ingerir.
     /// </summary>
     [Fact]
@@ -157,14 +157,29 @@ public class RecuperacionHuecoCorreoServiceTests
         procesado.MarcarEnProceso();
         procesado.MarcarProcesado();
         var deOtraConexion = EventoWebhook.CrearRecuperacion(Guid.NewGuid(), "recuperacion:d", escenario.Marca);
-        escenario.Eventos.Eventos.AddRange([pendiente, procesando, procesado, deOtraConexion]);
+        // Límite declarado: lo de un evento descartado se vuelve a encolar (saltarlo dejaría limpiar la marca sin él).
+        var descartado = EventoWebhook.CrearRecuperacion(escenario.Conexion.Id, "recuperacion:e", escenario.Marca);
+        for (var intento = 0; intento < EventoWebhook.MaximoIntentos; intento++)
+        {
+            descartado.MarcarEnProceso();
+            descartado.RegistrarFallo("Graph no devuelve el mensaje");
+        }
+
+        var retenido = EventoWebhook.CrearRecuperacion(escenario.Conexion.Id, "recuperacion:f", escenario.Marca);
+        retenido.EsperarVerificacion("sin verificar", retenido.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion);
+        descartado.Estado.Should().Be(EstadoEventoWebhook.DescartadoDefinitivo, "control");
+        retenido.Estado.Should().Be(EstadoEventoWebhook.Retenido, "control");
+        EventoWebhook[] sembrados = [pendiente, procesando, procesado, deOtraConexion, descartado, retenido];
+        escenario.Eventos.Eventos.AddRange(sembrados);
         escenario.Pagina(hayMas: false,
-            escenario.Mensaje("a", 10), escenario.Mensaje("b", 11), escenario.Mensaje("c", 12), escenario.Mensaje("d", 13));
+            escenario.Mensaje("a", 10), escenario.Mensaje("b", 11), escenario.Mensaje("c", 12), escenario.Mensaje("d", 13),
+            escenario.Mensaje("e", 14), escenario.Mensaje("f", 15));
 
-        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta, "a y b siguen sin ingerir");
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta, "a, b y f siguen sin ingerir");
 
-        escenario.Eventos.Eventos.Except([pendiente, procesando, procesado, deOtraConexion]).Select(e => e.PayloadCrudo)
-            .Should().Equal(["recuperacion:c,d"], "a y b ya están en un evento en curso de esta conexión");
+        escenario.Eventos.Eventos.Except(sembrados).Select(e => e.PayloadCrudo)
+            .Should().Equal(["recuperacion:c,d,e,f"],
+                "a y b ya están en un evento en curso de esta conexión; los de un evento terminado, descartado o retenido se vuelven a encolar");
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
     }
 
@@ -322,7 +337,8 @@ public class RecuperacionHuecoCorreoServiceTests
 
         escenario.Graph.ListadosRecibidosPedidos[2].DesdeUtc.Should().Be(escenario.Marca.AddMinutes(20), "reanuda desde el cursor");
         escenario.Eventos.Eventos.Last().PayloadCrudo.Should().Be(
-            "recuperacion:m2,m3", "lo releído de otra pasada lo deduplica la ingesta por MensajeExternoId");
+            "recuperacion:m2,m3",
+            "el evento de m2 ya terminó y este falso no deja m2 en ninguna conversación: no consta ingerido ni en curso, así que se vuelve a encolar");
         escenario.Conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(escenario.Marca, "sigue siendo la misma recuperación");
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
     }
