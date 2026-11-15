@@ -423,7 +423,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 SELECT o."PropietarioTenantId", o."OperadorTenantId", o."OrigenId", o."RevocacionesDelOrigen"
                   INTO v_propietario, v_operador, v_origen, v_revocaciones
                   FROM public."AsignacionesOperacion" o
-                 WHERE o."Id" = p_operacion;
+                 WHERE o."Id" = p_operacion
+                   AND o."Servicio" = 'Outbound';
+                -- Solo Outbound: una DelegacionTenant OperadorExterno solo origina operaciones Outbound. Una de otro
+                -- servicio, o una que no existe, no está amparada (falla cerrada).
                 IF NOT FOUND THEN
                     RETURN false;
                 END IF;
@@ -478,23 +481,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 SET search_path TO 'pg_catalog', 'pg_temp'
                 AS $$
             DECLARE
-                v_propietario uuid;
-                v_operador uuid;
                 v_origen uuid;
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
                                 WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
                     RAISE EXCEPTION 'El rol % no evita la RLS: la comprobación del amparo no vería ninguna DelegacionTenant', current_user;
                 END IF;
-                SELECT o."PropietarioTenantId", o."OperadorTenantId", o."OrigenId"
-                  INTO v_propietario, v_operador, v_origen
-                  FROM public."AsignacionesOperacion" o
-                 WHERE o."Id" = NEW."AsignacionOperacionId";
-                IF NOT FOUND OR v_propietario = v_operador THEN
-                    -- Sin operación lo rechaza la clave foránea; una interna no depende de ninguna delegación (y el
-                    -- dominio no la encarga).
+                -- Un encargo interno no depende de ninguna delegación (y el dominio no lo encarga): que su par sea el de
+                -- la operación lo exige TR_EncargosAdministracion_OperadorDeLaOperacion.
+                IF NEW."PropietarioTenantId" = NEW."OperadorTenantId" THEN
                     RETURN NULL;
                 END IF;
+                -- Solo Outbound: una DelegacionTenant OperadorExterno solo origina operaciones Outbound. Sin fila (la
+                -- operación no existe, que lo rechaza antes la clave foránea, o es de otro servicio) no hay origen que
+                -- bloquear, y app_operacion_amparada_por_su_origen responde false: se rechaza (falla cerrada).
+                SELECT o."OrigenId" INTO v_origen
+                  FROM public."AsignacionesOperacion" o
+                 WHERE o."Id" = NEW."AsignacionOperacionId"
+                   AND o."Servicio" = 'Outbound';
                 IF v_origen IS NOT NULL THEN
                     PERFORM 1 FROM public."DelegacionesTenant" d WHERE d."Id" = v_origen FOR SHARE;
                 END IF;

@@ -856,10 +856,7 @@ public static class DelegacionDemoSeeder
         DelegacionTenant? delegacion;
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
-            delegacion = await dbContext.DelegacionesTenant
-                .Where(d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId)
-                .OrderBy(d => d.CreadoEnUtc)
-                .FirstOrDefaultAsync(cancellationToken);
+            delegacion = await OrigenDelParAsync(dbContext, tenantConsultoraId, tenantClienteId, cancellationToken);
 
             if (delegacion is null)
             {
@@ -870,14 +867,11 @@ public static class DelegacionDemoSeeder
             else if (!delegacion.Activa
                      || delegacion.Proposito != PropositoDelegacion.OperadorExterno
                      || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken)
-                     || await AltaTerminadaAsync(dbContext, tenantClienteId, tenantConsultoraId, cancellationToken))
+                     || await HistoriaDelParEnSiembra.TieneOperacionExternaAsync(dbContext, delegacion, cancellationToken))
             {
                 return;
             }
-        }
 
-        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
-        {
             if (await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(
                     dbContext, delegacion, administradorConsultora.Id, cancellationToken))
             {
@@ -909,17 +903,14 @@ public static class DelegacionDemoSeeder
     }
 
     /// <summary>
-    /// Si el par ya tiene alguna Asignación de Operación externa, abierta o cerrada: el último paso del alta se hizo, y
-    /// la siembra no completa nada. Se lee en el ámbito del Tenant propietario, dueño de la operación.
+    /// La delegación más antigua del par, de cualquier propósito: la que abre o completa el alta de esta siembra,
+    /// que no completa nada si no es de Operador CAE externo. <c>null</c> si el par no tiene ninguna. Se llama dentro
+    /// del ámbito del Operador CAE.
     /// </summary>
-    private static async Task<bool> AltaTerminadaAsync(
-        CaeManagerDbContext dbContext, Guid tenantClienteId, Guid tenantConsultoraId, CancellationToken cancellationToken)
-    {
-        using (AmbitoTenantExplicito.Establecer(tenantClienteId))
-        {
-            return await dbContext.AsignacionesOperacion.AnyAsync(
-                o => !o.EsRaiz && o.PropietarioTenantId == tenantClienteId && o.OperadorTenantId == tenantConsultoraId,
-                cancellationToken);
-        }
-    }
+    internal static Task<DelegacionTenant?> OrigenDelParAsync(
+        CaeManagerDbContext dbContext, Guid operadorId, Guid propietarioId, CancellationToken cancellationToken) =>
+        dbContext.DelegacionesTenant
+            .Where(d => d.TenantConsultoraId == operadorId && d.TenantClienteId == propietarioId)
+            .OrderBy(d => d.CreadoEnUtc)
+            .FirstOrDefaultAsync(cancellationToken);
 }

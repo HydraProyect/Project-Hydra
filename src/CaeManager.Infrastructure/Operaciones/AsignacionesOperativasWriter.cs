@@ -251,6 +251,7 @@ public class AsignacionesOperativasWriter(
         Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
     {
         var amparadas = dbContext.AsignacionesOperacion
+            .Where(o => o.Servicio == ServicioCae.Outbound)
             .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
             .Select(o => o.Id);
 
@@ -265,8 +266,13 @@ public class AsignacionesOperativasWriter(
         if (sinAmparo.Count == 0) return;
 
         var ids = sinAmparo.Select(o => o.Id).ToList();
-        var carteras = await dbContext.AsignacionesCartera
-            .Where(c => ids.Contains(c.AsignacionOperacionId) && c.Estado != EstadoAsignacion.Cerrada)
+        var carteras = await (
+                from c in dbContext.AsignacionesCartera
+                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+                where ids.Contains(o.Id)
+                      && o.Servicio == ServicioCae.Outbound
+                      && c.Estado != EstadoAsignacion.Cerrada
+                select c)
             .ToListAsync(cancellationToken);
 
         foreach (var cartera in carteras)

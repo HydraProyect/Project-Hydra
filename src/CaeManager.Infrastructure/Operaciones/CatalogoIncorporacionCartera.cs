@@ -759,13 +759,19 @@ public class CatalogoIncorporacionCartera(
             from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
                 // Solo la cartera bajo una operación que autoriza, amparo de origen incluido, sostiene la fila heredada: la de
                 // una operación que sobrevivió a una revocación no (ronda 1 de Codex en la PR #2237).
-            join o in OperacionesQueAutorizan(dbContext, ahora) on c.AsignacionOperacionId equals o.Id
+                // Escrito en línea (es OperacionesQueAutorizan) para que la fuente del join sea la tabla con su filtro de
+                // Servicio a la vista del trinquete de acceso crudo (ADR-013 § 4.6).
+            join o in dbContext.AsignacionesOperacion
+                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .Where(OperacionDelServicioVigente(ahora))
+                on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
                   && c.PropietarioTenantId == propietarioTenantId
                   && !carterasCerradas.Contains(c.Id)
                   && c.Estado == EstadoAsignacion.Vigente
                   && c.VigenciaDesde <= ahora
                   && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                  && o.Servicio == Servicio
                   && o.OperadorTenantId == operadorTenantId
                   && o.PropietarioTenantId == propietarioTenantId
                   && o.PropietarioTenantId != operadorTenantId

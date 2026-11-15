@@ -201,8 +201,8 @@ public static class CoberturaPantallasSeeder
                         $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
             }
 
-            var delegacion = await DelegacionDelParAsync(dbContext, operadorId, alfaId, cancellationToken);
-            delegacionActiva = delegacion is { Activa: true }
+            var delegacion = await Aprovisionamiento.OrigenDelParAsync(dbContext, operadorId, alfaId, cancellationToken);
+            delegacionActiva = delegacion is { Activa: true, Proposito: PropositoDelegacion.OperadorExterno }
                                && !await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken);
         }
         if (!delegacionActiva)
@@ -276,8 +276,9 @@ public static class CoberturaPantallasSeeder
     {
         using (AmbitoTenantExplicito.Establecer(operadorId))
         {
-            var delegacion = await DelegacionDelParAsync(dbContext, operadorId, propietarioId, cancellationToken);
+            var delegacion = await Aprovisionamiento.OrigenDelParAsync(dbContext, operadorId, propietarioId, cancellationToken);
             if (delegacion is null
+                || delegacion.Proposito != PropositoDelegacion.OperadorExterno
                 || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                 return;
 
@@ -286,19 +287,6 @@ public static class CoberturaPantallasSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
-
-    /// <summary>
-    /// La DelegacionTenant de Operador CAE externo del par, la misma que abre <c>CrearDelegacionAsync</c> (la más antigua);
-    /// <c>null</c> si no hay ninguna. Se llama dentro del ámbito del Operador CAE.
-    /// </summary>
-    private static Task<DelegacionTenant?> DelegacionDelParAsync(
-        CaeManagerDbContext dbContext, Guid operadorId, Guid propietarioId, CancellationToken cancellationToken) =>
-        dbContext.DelegacionesTenant
-            .Where(d => d.TenantConsultoraId == operadorId
-                        && d.TenantClienteId == propietarioId
-                        && d.Proposito == PropositoDelegacion.OperadorExterno)
-            .OrderBy(d => d.CreadoEnUtc)
-            .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>Cómo está un documento: los siete estados de la interfaz (Pendiente es la ausencia del documento).</summary>
     private enum Caso { Vigente, PorVencer, SinConfirmar, Vencido, EnTolerancia, Bloqueado, Pendiente }

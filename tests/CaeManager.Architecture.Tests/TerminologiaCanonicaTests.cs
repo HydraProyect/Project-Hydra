@@ -519,7 +519,15 @@ public class TerminologiaCanonicaTests
         // 392 → 390 (2026-11-15, cierre de la ronda 3 en la PR #2237): EncargoAdministracionRepository deja de pasar el
         // DbSet DelegacionesTenant a AmparadasPorSuOrigen (−2): el amparo se evalúa en PostgreSQL
         // (FuncionAmparoDeOrigen) porque la vía de Aprovisionamiento no lee esa tabla.
-        ["Delegacion"] = 390,
+        // 390 → 397 (2026-11-15, ronda 4 en la PR #2237, autorizada por Chris): +7, usos de los tipos legacy existentes
+        // (DelegacionTenant, DelegacionesTenant, PropositoDelegacion), ningún nombre nuevo con el término. La ronda 4
+        // cierra los hallazgos de Codex r3 sobre la delegación de origen: el contador sellado de la fila heredada (la
+        // leen y la pasan CrearAsignacionOperadorDelegadoCommand y CatalogoIncorporacionCartera, que además lleva en línea
+        // el DbSet DelegacionesTenant en el join de RetirarFilaHeredadaSiSobraAsync para el trinquete de Servicio), el
+        // propósito comprobado en la siembra de cobertura y los parámetros DelegacionTenant de
+        // HistoriaDelParEnSiembra.TieneOperacionExternaAsync y ParDe. CoberturaPantallasSeeder retira
+        // DelegacionDelParAsync. Baja con la migración de DelegacionTenant, que es un incremento propio.
+        ["Delegacion"] = 397,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

@@ -1,4 +1,3 @@
-using System.Reflection;
 using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +16,11 @@ namespace CaeManager.Infrastructure.Persistence;
 /// <para>
 /// Es el mismo predicado que <see cref="AmparoDeOrigen.AmparadasPorSuOrigen"/>, escrito en SQL:
 /// <c>FuncionAmparoDeOrigenBajoRuntimeTests</c> compara las dos versiones sobre los mismos casos para que no se
-/// separen. <c>EncargoAdministracionRepository</c> la usa en todas sus vías, también bajo
+/// separen. Con una diferencia deliberada: la función solo lee Asignaciones de Operación Outbound (trinquete de
+/// acceso crudo sin Servicio, ADR-013 § 4.6), porque solo las operaciones Outbound nacen de una delegación de
+/// Operador CAE externo (el único escritor de operaciones externas es <c>AsignacionesOperativasWriter</c>, con
+/// <c>ServicioCae.Outbound</c>). Para una operación de otro servicio responde <c>false</c>, también si es interna;
+/// por eso <see cref="AmparadasPorSuOrigenEnBase"/> deja pasar las internas antes de llamarla. <c>EncargoAdministracionRepository</c> la usa en todas sus vías, también bajo
 /// <c>cae_app_runtime</c> y <c>cae_app_soporte</c>, para que el Encargo de Administración no tenga dos definiciones; y
 /// el trigger <c>TR_EncargosAdministracion_ExigeAmparoDeOrigen</c> la vuelve a evaluar al insertar el encargo, con la
 /// DelegacionTenant de origen bloqueada.
@@ -40,8 +43,7 @@ internal static class FuncionAmparoDeOrigen
         operaciones.Where(o => o.PropietarioTenantId == o.OperadorTenantId || Ampara(o.Id));
 
     internal static void MapearAmparoDeOrigen(this ModelBuilder builder) =>
-        builder.HasDbFunction(typeof(FuncionAmparoDeOrigen).GetMethod(
-                nameof(Ampara), BindingFlags.Static | BindingFlags.NonPublic)!)
+        builder.HasDbFunction(() => Ampara(default))
             .HasSchema(Esquema)
             .HasName(Nombre);
 }

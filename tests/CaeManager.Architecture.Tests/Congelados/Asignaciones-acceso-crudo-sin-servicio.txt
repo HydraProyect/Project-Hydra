@@ -40,6 +40,6 @@ src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs :: CaeManagerDb
 src/CaeManager.Infrastructure/Persistence/Repositories/EncargoAdministracionRepository.cs :: EncargoAdministracionRepository.ListarOperacionesEncargablesAsync · AsignacionesOperacion = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/EncargoAdministracionRepository.cs :: EncargoAdministracionRepository.ObtenerOperacionAsync · AsignacionesOperacion = 1
 src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionesOperativasBackfillSeeder.SeedAsync · AsignacionesCartera = 2
-src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionesOperativasBackfillSeeder.SeedAsync · AsignacionesOperacion = 3
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionesOperativasBackfillSeeder.SeedAsync · AsignacionesOperacion = 2
 src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: Fichas360DemoSeeder.SeedAsync · AsignacionesCartera = 1
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: PilotoOutboundSeeder.SembrarAdministracionPorEncargoAsync · AsignacionesCartera = 2
