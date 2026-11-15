@@ -58,8 +58,8 @@ public sealed class ReparacionAdjuntosTemporales
 
     /// <summary>
     /// La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>. Falla cerrada
-    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> exactamente una vez y no vacía, o si a un
-    /// módulo declarado le falta su contribución: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
+    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> exactamente una vez y no vacía, si un módulo
+    /// aporta más de una contribución, o si a un módulo declarado le falta la suya: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
     /// referencia quedaría rota.
     /// </summary>
     public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null)
@@ -77,6 +77,13 @@ public sealed class ReparacionAdjuntosTemporales
             throw new InvalidOperationException(
                 "La composición declara vacía la lista de módulos que aportan referencias de archivo: la reparación no se ejecuta.");
         var contribuciones = servicios.GetServices<IContribucionReferenciasArchivo>().ToList();
+        // Un módulo que aporta dos veces es un error de composición (el barrido recorrería sus campos dos veces): falla
+        // cerrada, como la declaración repetida (deuda baja de la revisión de la #2247).
+        var repetidos = contribuciones.GroupBy(c => c.Modulo, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+        if (repetidos.Count > 0)
+            throw new InvalidOperationException(
+                $"Las referencias de archivo de {string.Join(", ", repetidos)} se aportan más de una vez: la reparación no se ejecuta.");
         var faltan = declarados.Modulos.Except(contribuciones.Select(c => c.Modulo), StringComparer.Ordinal).ToList();
         if (faltan.Count > 0)
             throw new InvalidOperationException(

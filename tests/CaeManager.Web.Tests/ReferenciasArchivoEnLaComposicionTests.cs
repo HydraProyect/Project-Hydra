@@ -95,7 +95,26 @@ public class ReferenciasArchivoEnLaComposicionTests
     }
 
     /// <summary>
-    /// La composición real declara una sola vez, con Inbound, y cada módulo declarado aporta su contribución. El proyecto
+    /// Deuda baja de la revisión de la #2247: un módulo que aporta dos veces su contribución es un error de composición, y
+    /// la reparación no se crea; el error nombra el módulo.
+    /// </summary>
+    [Fact]
+    public void Con_la_contribucion_de_un_modulo_registrada_dos_veces_la_reparacion_no_se_crea()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddSingleton(new ModulosConReferenciasArchivo(["Inbound"]));
+        servicios.AddSingleton<IContribucionReferenciasArchivo, CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        servicios.AddSingleton<IContribucionReferenciasArchivo, CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var db = new DbContext(new DbContextOptionsBuilder().Options);
+
+        var crear = () => ReparacionAdjuntosTemporales.Crear(proveedor, db);
+
+        crear.Should().Throw<InvalidOperationException>().WithMessage("*Inbound*más de una vez*no se ejecuta*");
+    }
+
+    /// <summary>
+    /// La composición real declara una sola vez, con Inbound, y cada módulo declarado aporta su contribución, una sola vez. El proyecto
     /// no expone un <c>WebApplicationFactory</c>: el contenedor se arma con <c>AddInfrastructure</c>, y el barrido de
     /// <c>src</c> de abajo fija que ninguna otra pieza de la composición (Program.cs incluido) registra la declaración ni
     /// contribuciones.
@@ -111,6 +130,7 @@ public class ReferenciasArchivoEnLaComposicionTests
         declaracion.Modulos.Should().Contain("Inbound");
         var aportan = proveedor.GetServices<IContribucionReferenciasArchivo>().Select(c => c.Modulo).ToList();
         declaracion.Modulos.Should().OnlyContain(m => aportan.Contains(m));
+        aportan.Should().OnlyHaveUniqueItems("cada módulo aporta una sola vez");
     }
 
     /// <summary>

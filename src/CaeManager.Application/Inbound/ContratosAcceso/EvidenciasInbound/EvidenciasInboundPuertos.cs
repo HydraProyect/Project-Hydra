@@ -16,8 +16,9 @@ public interface IEvidenciasInboundQueryContext
 /// usuario. Recibe el <see cref="ArchivoInboundDto"/> entero que devolvió <c>app_inbound_archivo_autorizado</c>, con el
 /// Tenant propietario que la propia función tomó del contrato, y no un par libre (Tenant, cadena). Solo la consumen los
 /// handlers que antes deciden la autoridad (<see cref="LecturaInbound.LecturaInboundAutoridad"/>), en Application, Web e
-/// Infrastructure (<c>ConsumidoresDelLectorInboundAcotadosTests</c>), y el tipo concreto que la implementa no se referencia
-/// fuera de su registro de dependencias (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c>).
+/// Infrastructure (<c>ConsumidoresDelLectorInboundAcotadosTests</c>). La implementa un adaptador del módulo Inbound
+/// (<c>AdaptadorAlmacenOriginalesInbound</c>) sobre la lectura entre Tenants del almacén del Núcleo, que solo ese adaptador
+/// consume (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c>; ADR-013, K-3).
 /// </summary>
 public interface IAlmacenOriginalesInbound
 {

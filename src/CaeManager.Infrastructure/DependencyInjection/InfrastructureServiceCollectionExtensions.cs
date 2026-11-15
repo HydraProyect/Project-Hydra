@@ -773,10 +773,14 @@ public static class InfrastructureServiceCollectionExtensions
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
         services.AddScoped<DiskFileStorageService>();
         services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
-        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
-        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
-        // (ConsumidoresDelLectorInboundAcotadosTests).
-        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // La lectura que cruza Tenants, con la carpeta y la clave del Tenant propietario indicado: la misma instancia que
+        // IFileStorageService. Solo la consume el adaptador de Inbound de abajo (AlmacenDeDiscoSoloPorSusPuertosTests).
+        services.AddScoped<CaeManager.Application.Common.Archivos.IAlmacenArchivosDelTenantPropietario>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. Desde
+        // ADR-013 M2 (K-3) la implementa un adaptador del módulo Inbound sobre el almacén del Núcleo, no el almacén de
+        // disco; solo la consumen los handlers que deciden antes la autoridad (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound,
+            CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound>();
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la
