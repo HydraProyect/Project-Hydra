@@ -565,6 +565,25 @@ namespace CaeManager.Architecture.Tests
                 .Should().BeFalse();
         }
 
+        /// <summary>
+        /// Revisión puente de la ronda 3 (BAJA): <c>ExclusionesDelEncargoStreamBehavior</c> corre fuera de
+        /// <c>SerializacionAccesoDatosBehavior</c> (los flujos no pasan por esa puerta). Hoy es inocuo porque el único flujo
+        /// está permitido y el behavior comprueba la lista antes de consultar el encargo; la primera petición de flujo
+        /// excluida tendría que resolver el encargo dentro de la puerta. Este test lo hace visible: ninguna petición de
+        /// flujo de <c>src</c> queda excluida hasta que el behavior lo haga.
+        /// </summary>
+        [Fact]
+        public void Ninguna_peticion_de_flujo_de_src_queda_excluida_mientras_el_behavior_de_flujo_no_resuelva_el_encargo_dentro_de_la_puerta()
+        {
+            var flujo = Peticiones.Where(p => p.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStreamRequest<>)))
+                .ToList();
+            flujo.Select(NombreCorto).Should().Contain("ObtenerMiTrabajoPorPartesQuery", "control positivo: el detector ve el flujo de Mi trabajo");
+
+            flujo.Where(ExcluyeSinInicializar).Select(p => p.FullName).Should().BeEmpty(
+                "el behavior de flujo resuelve el encargo fuera de SerializacionAccesoDatosBehavior; la primera petición de flujo "
+                + "excluida exige moverlo dentro de la puerta (ver ExclusionesDelEncargoStreamBehavior)");
+        }
+
         private static bool EsAreaClasificada(string area) =>
             ActosExcluidosDelEncargo.AreasExcluidas.Contains(area) || ActosExcluidosDelEncargo.AreasPermitidas.Contains(area);
 
