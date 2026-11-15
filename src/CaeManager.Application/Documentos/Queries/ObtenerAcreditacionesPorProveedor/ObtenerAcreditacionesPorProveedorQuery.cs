@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.TiposDocumento;
@@ -127,6 +128,11 @@ public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IRe
 /// la fila (P0-9b). Es la dirección, nunca la credencial: la credencial vive en
 /// Empresa 360 y no viaja por esta consulta.
 /// </param>
+/// <param name="UltimoMotivoRechazo">
+/// El último motivo del historial de rechazos de la acreditación, sea cual sea su estado actual, solo para los roles de
+/// <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>: <c>null</c> para Consulta (decisión de Chris del
+/// 2026-11-15). El rol Cliente no recibe filas (su lista de Centros de gestión es vacía).
+/// </param>
 public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
@@ -142,7 +148,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
     IProveedoresPlataformaCaeQueryContext proveedoresContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
-    ITiposDocumentoQueryContext tiposDocumentoContext, IAlcanceDatosService alcanceDatos)
+    ITiposDocumentoQueryContext tiposDocumentoContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerAcreditacionesPorProveedorQuery, IReadOnlyList<ProveedorAcreditacionesDto>>
 {
     public async Task<IReadOnlyList<ProveedorAcreditacionesDto>> Handle(
@@ -248,13 +254,18 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(e => empresaIds.Contains(e.Id))
             .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
+        // El motivo sale del historial de rechazos, donde también queda el de un rechazo anotado a mano: lo leen solo los roles
+        // de la trazabilidad interna (decisión de Chris del 2026-11-15). Consulta recibe el resto de la fila, también la
+        // dirección del portal; para él el historial ni se lee. El rol Cliente ya no llega aquí con filas (lista de gestión vacía).
         var acreditacionIds = filas.Select(f => f.Id).ToList();
-        var motivosPorAcreditacion = await documentosContext.RechazosAcreditacionDocumentoPlataforma
-            .Where(r => acreditacionIds.Contains(r.AcreditacionId))
-            .OrderByDescending(r => r.FechaUtc)
-            .GroupBy(r => r.AcreditacionId)
-            .Select(g => new { AcreditacionId = g.Key, Motivo = g.First().MotivoLiteral })
-            .ToDictionaryAsync(x => x.AcreditacionId, x => x.Motivo, cancellationToken);
+        var motivosPorAcreditacion = !await SituacionDocumentosEnCentrosService.RolLeeTrazabilidadInternaAsync(currentUserService)
+            ? new Dictionary<Guid, string>()
+            : await documentosContext.RechazosAcreditacionDocumentoPlataforma
+                .Where(r => acreditacionIds.Contains(r.AcreditacionId))
+                .OrderByDescending(r => r.FechaUtc)
+                .GroupBy(r => r.AcreditacionId)
+                .Select(g => new { AcreditacionId = g.Key, Motivo = g.First().MotivoLiteral })
+                .ToDictionaryAsync(x => x.AcreditacionId, x => x.Motivo, cancellationToken);
 
         string PropietarioNombre(Guid? trabajadorId, Guid? empresaId) =>
             trabajadorId is { } tId && trabajadores.TryGetValue(tId, out var trabajador) ? trabajador
