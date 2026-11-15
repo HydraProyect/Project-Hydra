@@ -136,9 +136,9 @@ public class ExclusionesDelEncargoBehaviorTests
     }
 
     /// <summary>
-    /// ADR-013, M0c: una petición sin área resuelta (sin <see cref="AreaDelEncargoAttribute"/> y con un
-    /// segmento de espacio de nombres, «Tests», que no es un área clasificada) falla cerrado bajo
-    /// encargo no pleno; sin encargo pasa.
+    /// ADR-013, M0c: una petición sin área resuelta (sin <see cref="AreaDelEncargoAttribute"/> ni entrada en
+    /// <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/>; su espacio de nombres no cuenta) falla
+    /// cerrado bajo encargo no pleno; sin encargo pasa.
     /// </summary>
     [Fact]
     public async Task Una_peticion_sin_area_resuelta_se_niega_a_quien_administra_por_encargo_y_pasa_sin_el()

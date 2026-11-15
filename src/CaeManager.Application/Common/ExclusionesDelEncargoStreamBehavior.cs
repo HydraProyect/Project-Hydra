@@ -16,6 +16,14 @@ namespace CaeManager.Application.Common;
 /// <c>Result</c>, así que la negación interrumpe con <see cref="ActoExcluidoDelEncargoException"/> antes de producir
 /// el primer elemento y sin invocar el handler.
 /// </para>
+///
+/// <para>
+/// <b>Fuera de la puerta de acceso a datos.</b> Los flujos no pasan por <c>SerializacionAccesoDatosBehavior</c>: si un
+/// flujo excluido llegase aquí bajo encargo, <see cref="IEncargoDeAdministracionActual.EncargoQueElevaAsync"/>
+/// resolvería el rol efectivo sobre el contexto del circuito sin esa serialización. Hoy no ocurre: el único flujo
+/// (<c>ObtenerMiTrabajoPorPartesQuery</c>, área Bandeja) está permitido y la lista se comprueba primero, sin
+/// consultar el encargo. El primer flujo de un área excluida tendrá que resolver el encargo dentro de la puerta.
+/// </para>
 /// </summary>
 public class ExclusionesDelEncargoStreamBehavior<TRequest, TResponse>(IEncargoDeAdministracionActual encargoActual)
     : IStreamPipelineBehavior<TRequest, TResponse>
