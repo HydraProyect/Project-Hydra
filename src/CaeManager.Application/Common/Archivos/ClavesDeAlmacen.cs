@@ -11,8 +11,8 @@ public static class ClavesDeAlmacen
     /// <summary>
     /// ¿Empieza la referencia por la carpeta de <paramref name="tenantPropietarioId"/> (<c>{tenantId:N}/</c>), sin otra
     /// <c>/</c> después, con al menos un carácter tras ella y sin ningún <c>..</c>? Es exactamente lo que comprueba, y nada
-    /// más: la barra invertida no se trata como separador, así que <c>{tenantId:N}/sub\archivo</c> pasa (deuda declarada
-    /// en ADR-013 M2; cerrarla cambiaría qué claves se admiten, y no es un movimiento de código).
+    /// más: la barra invertida no se trata como separador, así que <c>{tenantId:N}/sub\archivo</c> pasa (deuda conocida:
+    /// cerrarla cambiaría qué claves se admiten, y no es un movimiento de código).
     /// </summary>
     public static bool EsDeLaCarpetaDelTenant(string referencia, Guid tenantPropietarioId) =>
         referencia.StartsWith($"{tenantPropietarioId:N}/", StringComparison.Ordinal)

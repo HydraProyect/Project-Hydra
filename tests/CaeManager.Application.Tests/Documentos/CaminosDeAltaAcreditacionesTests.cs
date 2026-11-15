@@ -627,7 +627,7 @@ public class CaminosDeAltaAcreditacionesTests
     [InlineData("11111111111111111111111111111111/..archivo.pdf", false)]
     [InlineData("11111111111111111111111111111111/archivo..pdf", false)]
     [InlineData("11111111111111111111111111111111\\archivo.pdf", false)]
-    // Deuda declarada (ADR-013 M2): la barra invertida no cuenta como separador. Se fija tal cual para que M2 no la cambie.
+    // Deuda conocida: la barra invertida no cuenta como separador. Se fija tal cual para que mover la regla no la cambie.
     [InlineData("11111111111111111111111111111111/sub\\archivo.pdf", true)]
     [InlineData("11111111-1111-1111-1111-111111111111/archivo.pdf", false)]
     [InlineData("22222222222222222222222222222222/archivo.pdf", false)]
