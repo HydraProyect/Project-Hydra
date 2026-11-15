@@ -103,6 +103,16 @@ public class ContratarLineaInboundCommandHandler(
         // La memo que lee la dejó en fresco ElevacionEscrituraAprovisionamientoBehavior justo antes de elevar, en este
         // mismo comando y después de la revalidación de AutorizacionEscrituraBehavior. Sin ese pipeline (sin sesión),
         // ObtenerAsync consulta como el rol que tenga la conexión, que no es el elevado.
+        //
+        // Ventana declarada (hallazgo 1 de Codex, ronda 2): la última comprobación de la Sesión Privilegiada y de su
+        // concesión es la revalidación de ElevacionEscrituraAprovisionamientoBehavior, antes de elevar. Si entre ella y
+        // el COMMIT del INSERT se cierra la sesión o se revoca la concesión, el INSERT se confirma igual, y la ventana se
+        // alarga si el INSERT espera la plaza del índice único. La base no la cierra: cae_app_aprovisionamiento no lee
+        // las tablas de sesiones ni de concesiones, el contexto firmado no lleva la sesión y la política solo mira el
+        // Tenant. Es la misma ventana que aceptan hoy todos los comandos de aprovisionamiento (CrearEmpresa,
+        // CrearTrabajador, el logo, las importaciones, los Encargos de administración); solo las capacidades acotadas de
+        // cae_app_soporte revalidan dentro de su función SECURITY DEFINER, tras la espera. Cerrarla aquí es una decisión
+        // pendiente, no un mecanismo que este comando invente.
         // Bajo impersonación no se contrata: el Actor real no actúa como el Usuario simulado.
         if (tenantActual.TenantId is not { } tenantId
             || await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion
@@ -141,7 +151,7 @@ public class ContratarLineaInboundCommandHandler(
         productosContratados.Agregar(producto);
 
         // Ya contratada, o dos altas a la vez: el índice único parcial deja pasar una.
-        return await productosContratados.GuardarDetectandoInboundVigenteDuplicadoAsync(cancellationToken)
+        return await productosContratados.GuardarDetectandoInboundVigenteDuplicadoAsync(producto, cancellationToken)
             ? Result.Exito(producto.Id)
             : Result.Fallo<Guid>(ErroresContratarLineaInbound.YaContratada);
     }

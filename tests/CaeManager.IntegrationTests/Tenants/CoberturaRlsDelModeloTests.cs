@@ -195,8 +195,10 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             ["\"UsuarioId\"", "app_ctx_usuario_id()"], [], []),
         ("ProductosContratados", "aprovisionamiento_solo_contrata_inbound_vigente", 'a',
             "cae_app_aprovisionamiento, que adoptan todos los comandos de aprovisionamiento, solo inserta lo que contrata " +
-            "ContratarLineaInboundCommand: la línea Inbound, vigente, sin fin, no eliminada y del Tenant del contexto firmado",
-            ["\"Linea\"", "'Inbound'", "'Vigente'", "\"VigenteHastaUtc\"", "\"EstaEliminado\"", "app_ctx_tenant_id()"], [], []),
+            "ContratarLineaInboundCommand: la línea Inbound, vigente, sin fin, no eliminada, del Tenant del contexto firmado " +
+            "y con la vigencia empezando al contratar",
+            ["\"Linea\"", "'Inbound'", "'Vigente'", "\"VigenteHastaUtc\"", "\"EstaEliminado\"", "\"VigenteDesdeUtc\"", "now()",
+             "app_ctx_tenant_id()"], [], []),
     ];
 
     /// <summary>

@@ -274,8 +274,11 @@ public class ContratarLineaInboundCommandTests
 
         public void Agregar(ProductoContratado producto) => Agregados.Add(producto);
 
-        public Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(CancellationToken cancellationToken = default)
+        public Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
+            ProductoContratado intento, CancellationToken cancellationToken = default)
         {
+            // El handler guarda exactamente la instancia que añadió: el repositorio la identifica por referencia.
+            Agregados.Should().ContainSingle().Which.Should().BeSameAs(intento);
             Guardados++;
             return Task.FromResult(!RechazarPorInboundVigenteDuplicado);
         }

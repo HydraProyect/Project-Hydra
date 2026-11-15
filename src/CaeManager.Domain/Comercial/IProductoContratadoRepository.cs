@@ -11,10 +11,13 @@ public interface IProductoContratadoRepository
     void Agregar(ProductoContratado producto);
 
     /// <summary>
-    /// Guarda los cambios pendientes. Devuelve <c>false</c>, sin propagar la excepción, solo si la base rechaza la fila
-    /// porque el Tenant beneficiario ya tiene un Producto Contratado de la línea Inbound vigente; cualquier otro error se
-    /// propaga. Al devolver <c>false</c> retira solo lo del intento rechazado (el Producto Contratado añadido y su
-    /// auditoría): los cambios pendientes de otro acto en el mismo contexto siguen rastreados.
+    /// Guarda <paramref name="intento"/>, que tiene que ser lo único pendiente del contexto: si hay cualquier otro cambio
+    /// pendiente, no guarda nada, retira el intento y lanza <see cref="InvalidOperationException"/>, para que el guardado
+    /// bajo el rol elevado no arrastre escrituras de otro acto ni consuma su auditoría. Devuelve <c>false</c>, sin
+    /// propagar la excepción, solo si la base rechaza la fila porque el Tenant beneficiario ya tiene un Producto
+    /// Contratado de la línea Inbound vigente; cualquier otro error se propaga. Al devolver <c>false</c> retira el
+    /// intento, por referencia, y la auditoría que generó.
     /// </summary>
-    Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(CancellationToken cancellationToken = default);
+    Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
+        ProductoContratado intento, CancellationToken cancellationToken = default);
 }

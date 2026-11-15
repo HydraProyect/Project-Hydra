@@ -175,17 +175,61 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_duplicado_rechazado_retira_solo_el_intento_y_conserva_los_cambios_pendientes_ajenos()
+    public async Task Un_duplicado_rechazado_retira_el_intento_por_referencia_y_su_auditoria()
     {
-        // Hallazgo 3 de Codex (ronda 1): antes, el repositorio vaciaba el ChangeTracker entero.
+        // Hallazgo 3 de Codex (ronda 1): antes, el repositorio vaciaba el ChangeTracker entero. Aquí lo ya rastreado sin
+        // cambios (el Tenant leído) se queda, y lo que se retira es el intento y el registro que el interceptor le generó.
         await EjecutarComoPropietarioAsync(InsertInbound(_tce.Id));
 
         await using var contexto = CrearContextoPropietarioAuditado();
         var otro = await contexto.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id);
+
+        var repositorio = new ProductoContratadoRepository(contexto);
+        var intento = ContratoInbound("cus_Duplicado");
+        repositorio.Agregar(intento);
+
+        (await repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync(intento)).Should().BeFalse("ya hay una vigente");
+
+        contexto.Entry(intento).State.Should().Be(EntityState.Detached, "la fila rechazada no se cuela después");
+        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().BeEmpty("la auditoría del intento fallido tampoco");
+        contexto.Entry(otro).State.Should().Be(EntityState.Unchanged, "lo rastreado antes del guardado no se toca");
+
+        (await contexto.SaveChangesAsync()).Should().Be(0, "no queda nada del intento por escribir");
+        (await AuditoriaComoPropietarioAsync(intento.Id)).Should().BeEmpty();
+        (await FilasComoPropietarioAsync()).Should().ContainSingle("solo la vigente sembrada");
+    }
+
+    [Fact]
+    public async Task Con_otro_Producto_Contratado_pendiente_no_guarda_nada_y_retira_solo_el_intento()
+    {
+        // Hallazgo 2 de Codex (ronda 2): antes, ante el duplicado se retiraban todos los Productos Contratados añadidos.
+        await using var contexto = CrearContextoPropietarioAuditado();
+        var repositorio = new ProductoContratadoRepository(contexto);
+        var previo = ContratoInbound("cus_Previo");
+        repositorio.Agregar(previo);
+        var intento = ContratoInbound("cus_Intento");
+        repositorio.Agregar(intento);
+
+        var guardar = () => repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync(intento);
+
+        await guardar.Should().ThrowAsync<InvalidOperationException>("el intento se guarda solo");
+        contexto.Entry(intento).State.Should().Be(EntityState.Detached, "el intento no se cuela en otro guardado");
+        contexto.Entry(previo).State.Should().Be(EntityState.Added, "el pendiente previo es de otro acto y se queda");
+        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().BeEmpty("no se llegó a guardar: nada se auditó");
+        (await FilasComoPropietarioAsync()).Should().BeEmpty("no se escribió nada");
+    }
+
+    [Fact]
+    public async Task Con_cambios_pendientes_ajenos_no_guarda_nada_ni_consume_su_auditoria()
+    {
+        // Hallazgo 3 de Codex (ronda 2): con un cambio ajeno pendiente, el guardado bajo el rol elevado lo arrastraría, y
+        // AuditoriaInterceptor consumiría su acción propia aunque la base rechazara el intento. El repositorio no llega a
+        // SaveChanges: la prueba de que el interceptor no corrió es que no añadió ningún registro, ni del intento ni del
+        // Tenant cambiado.
+        await using var contexto = CrearContextoPropietarioAuditado();
+        var otro = await contexto.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id);
         var addOnEsperado = !otro.AddOnSubidaAutomaticaActivo;
         otro.CambiarAddOnSubidaAutomatica(addOnEsperado);
-        // Un registro de auditoría ajeno ya pendiente antes del intento: el repositorio solo retira los que el interceptor
-        // añade durante el intento rechazado, no cualquier RegistroAuditoria añadido.
         var auditoriaAjena = new RegistroAuditoria(
             "PruebaAjena", Guid.NewGuid(), "Creado", null, null,
             usuarioId: _actorPlataforma, tipoActor: TipoActorAuditoria.Persona, actorRealUsuarioId: _actorPlataforma,
@@ -193,30 +237,34 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         contexto.RegistrosAuditoria.Add(auditoriaAjena);
 
         var repositorio = new ProductoContratadoRepository(contexto);
-        var ahora = DateTime.UtcNow;
-        repositorio.Agregar(ProductoContratado.Contratar(
-            LineaProductoContratado.Inbound, "cus_Duplicado", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
-            vigenteDesdeUtc: ahora, ahoraUtc: ahora));
+        var intento = ContratoInbound("cus_Intento");
+        repositorio.Agregar(intento);
 
-        (await repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync()).Should().BeFalse("ya hay una vigente");
+        var guardar = () => repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync(intento);
 
+        await guardar.Should().ThrowAsync<InvalidOperationException>("el intento se guarda solo");
+        contexto.Entry(intento).State.Should().Be(EntityState.Detached);
         contexto.Entry(otro).State.Should().Be(EntityState.Modified, "el cambio pendiente de otro acto sigue rastreado");
-        contexto.ChangeTracker.Entries<ProductoContratado>().Should().BeEmpty("la fila rechazada no se cuela después");
         contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().ContainSingle(
-                "la auditoría del intento fallido tampoco; la ajena pendiente de antes, sí")
+                "el interceptor no corrió: solo está el registro ajeno de antes")
             .Which.Entity.Should().BeSameAs(auditoriaAjena);
 
+        // El acto ajeno se guarda después con su auditoría, una sola vez.
         await contexto.SaveChangesAsync();
-
-        (await AuditoriaComoPropietarioAsync(auditoriaAjena.EntidadId)).Should().ContainSingle(
-            "el registro ajeno pendiente se guarda");
-
-        (await AuditoriaComoPropietarioAsync(_otro.Id)).Should().ContainSingle(
-            "el cambio ajeno se guarda con su auditoría una sola vez, regenerada en este guardado");
+        (await AuditoriaComoPropietarioAsync(auditoriaAjena.EntidadId)).Should().ContainSingle();
+        (await AuditoriaComoPropietarioAsync(_otro.Id)).Should().ContainSingle();
         await using var lectura = CrearContextoPropietarioAuditado();
         (await lectura.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id))
             .AddOnSubidaAutomaticaActivo.Should().Be(addOnEsperado);
-        (await FilasComoPropietarioAsync()).Should().ContainSingle("solo la vigente sembrada");
+        (await FilasComoPropietarioAsync()).Should().BeEmpty("el intento no se escribió");
+    }
+
+    private static ProductoContratado ContratoInbound(string pagador)
+    {
+        var ahora = DateTime.UtcNow;
+        return ProductoContratado.Contratar(
+            LineaProductoContratado.Inbound, pagador, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
+            vigenteDesdeUtc: ahora, ahoraUtc: ahora);
     }
 
     [Fact]
@@ -278,6 +326,9 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
                      (InsertInbound(_tce.Id, linea: "OutboundGestionPropia"), "otra línea del Producto Contratado"),
                      (InsertInbound(_tce.Id, finalizado: true), "una fila ya finalizada"),
                      (InsertInbound(_tce.Id, eliminado: true), "una fila eliminada"),
+                     // Hallazgo 4 de Codex (ronda 2): la vigencia empieza al contratar, con 5 minutos de margen.
+                     (InsertInbound(_tce.Id, vigenteDesde: "now() - interval '1 day'"), "una vigencia empezada antes"),
+                     (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '1 day'"), "una vigencia que empieza después"),
                  })
             (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, sql)).SqlState
                 .Should().Be(PostgresErrorCodes.InsufficientPrivilege, motivo);
@@ -286,6 +337,10 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id,
                 "RESET ROLE;" + InsertInbound(_tce.Id, linea: "OutboundGestionPropia")))
             .SqlState.Should().BeNull("control: la fila de otra línea es válida para la tabla");
+        // Y el margen del reloj de la aplicación entra: el rechazo de un día no es un rechazo de cualquier desfase.
+        (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id,
+                InsertInbound(_tce.Id, vigenteDesde: "now() - interval '4 minutes'")))
+            .SqlState.Should().BeNull("dentro del margen de 5 minutos");
 
         // Ni lee ni cambia lo que inserta.
         foreach (var sql in new[]
@@ -299,11 +354,12 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
     }
 
     private static string InsertInbound(
-        Guid tenantId, bool finalizado = false, string linea = "Inbound", bool eliminado = false) =>
+        Guid tenantId, bool finalizado = false, string linea = "Inbound", bool eliminado = false,
+        string vigenteDesde = "now()") =>
         $"""
         INSERT INTO "ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
             "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
-        VALUES ('{Guid.NewGuid()}', '{linea}', 'cus_X', 'De1A10', 'Anual', now() - interval '1 day',
+        VALUES ('{Guid.NewGuid()}', '{linea}', 'cus_X', 'De1A10', 'Anual', {vigenteDesde},
             {(finalizado ? "now()" : "NULL")}, '{(finalizado ? "Finalizado" : "Vigente")}', '{tenantId}', '{Guid.NewGuid()}', now(),
             {(eliminado ? "true" : "false")});
         """;

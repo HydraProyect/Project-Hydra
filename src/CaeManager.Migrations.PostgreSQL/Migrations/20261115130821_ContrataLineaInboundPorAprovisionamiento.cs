@@ -21,11 +21,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>aprovisionamiento_solo_contrata_inbound_vigente</c>, política RESTRICTIVE de INSERT solo para
     /// <c>cae_app_aprovisionamiento</c> (como <c>solo_nace_abierto_o_denegado</c> de <c>UsosConexionPlataformaCae</c>):
     /// el rol elevado lo adoptan todos los comandos de aprovisionamiento, así que el GRANT solo no basta para que lo único
-    /// que inserte sea lo que hace <c>ProductoContratado.Contratar</c> para la línea Inbound: una fila de la línea Inbound,
-    /// vigente, sin fin de vigencia, no eliminada y del Tenant del contexto firmado. Una fila de
-    /// <c>OutboundGestionPropia</c>, o una ya finalizada, se rechaza en la base aunque el código lo intentara (hallazgo 2
-    /// de Codex, ronda 1). Repite la condición de Tenant de <c>aislamiento_tenant</c> para no depender de que esa política
-    /// permisiva siga escrita igual.
+    /// que inserte tenga la forma de lo que hace <c>ContratarLineaInboundCommand</c>: una fila de la línea Inbound,
+    /// vigente, sin fin de vigencia, no eliminada, del Tenant del contexto firmado y con la vigencia empezando al contratar.
+    /// Una fila de <c>OutboundGestionPropia</c>, una ya finalizada o una con la vigencia empezada antes, se rechaza en la
+    /// base aunque el código lo intentara (hallazgo 2 de Codex, ronda 1, y hallazgo 4, ronda 2). «Al contratar» es el
+    /// <c>now()</c> de la transacción con 5 minutos de margen en los dos sentidos, la ventana de
+    /// <c>sesion_privilegiada_apertura</c> para el reloj de la aplicación. La política no comprueba el resto de valores
+    /// (Pagador, tramo, modalidad), que ya restringen las restricciones CHECK de la tabla. Repite la condición de Tenant de
+    /// <c>aislamiento_tenant</c> para no depender de que esa política permisiva siga escrita igual.
     /// </para>
     /// <para>
     /// <c>UX_ProductosContratados_InboundVigentePorTenant</c>, índice único parcial (D-B): un Producto Contratado de la línea
@@ -63,6 +66,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AS RESTRICTIVE FOR INSERT TO cae_app_aprovisionamiento
                     WITH CHECK ("Linea" = 'Inbound' AND "Estado" = 'Vigente' AND "VigenteHastaUtc" IS NULL
                                 AND NOT "EstaEliminado"
+                                AND "VigenteDesdeUtc" >= now() - interval '5 minutes'
+                                AND "VigenteDesdeUtc" <= now() + interval '5 minutes'
                                 AND "TenantId" = (SELECT public.app_ctx_tenant_id()));
                 GRANT INSERT ON TABLE public."ProductosContratados" TO cae_app_aprovisionamiento;
                 """);
