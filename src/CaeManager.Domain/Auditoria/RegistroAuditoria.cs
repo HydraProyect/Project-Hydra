@@ -63,6 +63,23 @@ public class RegistroAuditoria : EntidadConTenant
     /// </summary>
     public const string AccionCorreoCorregido = "CorreoCorregido";
 
+    /// <summary>
+    /// Acciones de negocio del <b>contrato de acceso Inbound</b> (plan backend Inbound § 7, tarjeta 45): la ampliación de
+    /// su vigencia, su baja antes de empezar (D-21), su finalización y el cambio de sus condiciones (tipo, propia
+    /// actividad, nivel máximo de subcontrata y cupos con su motivo). Las escribe el interceptor a petición del contrato,
+    /// vía <see cref="IAccionAuditoriaPropia"/>, con los valores de antes y de después como cualquier modificación.
+    /// </summary>
+    public const string AccionRenovado = "Renovado";
+
+    /// <inheritdoc cref="AccionRenovado"/>
+    public const string AccionCancelado = "Cancelado";
+
+    /// <inheritdoc cref="AccionRenovado"/>
+    public const string AccionFinalizado = "Finalizado";
+
+    /// <inheritdoc cref="AccionRenovado"/>
+    public const string AccionCondicionesFijadas = "CondicionesFijadas";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

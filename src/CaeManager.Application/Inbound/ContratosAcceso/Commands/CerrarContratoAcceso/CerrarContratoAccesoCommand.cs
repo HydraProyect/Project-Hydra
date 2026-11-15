@@ -7,6 +7,11 @@ using MediatR;
 
 namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContratoAcceso;
 
+/// <summary>
+/// Finaliza el contrato (Activo → Finalizado) con su cierre real. Conserva el nombre de M1; un Finalizado no se reabre
+/// (D-21). Un Suspendido responde <c>ContratoAcceso.TransicionNoPermitida</c>: finalizarlo con un cierre de hoy o futuro
+/// le devolvería el acceso que la suspensión retiró (<c>ContratoAcceso.Finalizar</c>). La cascada a asignaciones y subcontratas llega con <c>FinalizarContratoAccesoCommand</c> (B-18).
+/// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;
 
@@ -31,16 +36,23 @@ public class CerrarContratoAccesoCommandHandler(
         if (ConcurrenciaOptimista.Verificar(contrato, request.Version, "este contrato de acceso") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        if (!contrato.EstaAbierto)
+        // «Ya cerrado» es solo el Finalizado (también el que cerró la versión anterior durante el relevo:
+        // ContratoAcceso.EstadoEfectivo). Un Cancelado o un Rechazado no se finalizó nunca, aunque la versión anterior le
+        // haya escrito un cierre real: es una transición no permitida, que Finalizar rechaza.
+        if (contrato.EstadoEfectivo == EstadoContratoAcceso.Finalizado)
             return Result.Fallo(Error.Crear("ContratoAcceso.YaCerrado", "Este contrato de acceso ya está cerrado."));
 
         try
         {
-            contrato.Cerrar(request.FechaCierre);
+            contrato.Finalizar(request.FechaCierre);
         }
         catch (ArgumentException ex)
         {
             return Result.Fallo(Error.Crear("ContratoAcceso.FechaCierreInvalida", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(ContratoAccesoErrores.TransicionNoPermitida(ex.Message));
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

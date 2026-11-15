@@ -285,6 +285,7 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
     public DbSet<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso>();
     IQueryable<CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso> CaeManager.Application.Inbound.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
+    public DbSet<CaeManager.Domain.Inbound.ContratosAcceso.HistorialVigenciaContrato> HistorialVigenciaContratos => Set<CaeManager.Domain.Inbound.ContratosAcceso.HistorialVigenciaContrato>();
     public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental> AutorizacionesLecturaDocumental => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental>();
     IQueryable<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.Inbound.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
     public DbSet<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.Inbound.AutorizacionesLectura.AutorizacionLecturaTrabajador>();

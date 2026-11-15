@@ -13,9 +13,11 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CrearContratoA
 /// <param name="ClienteEmpresarialId">El Cliente empresarial titular del Centro; tiene que ser el <c>ClienteId</c> del Centro.</param>
 /// <param name="EmpresaContratistaId">La Empresa contraparte local que representa a la Empresa contratista en este Tenant.</param>
 /// <param name="FechaFin">Fin contratado; null = indefinido.</param>
+/// <param name="Condiciones">Tipo, propia actividad, nivel máximo de subcontrata y cupos (B-05); null = sin fijar.</param>
 [AreaDelEncargo("ContratosAcceso")]
 public record CrearContratoAccesoCommand(
-    Guid ClienteEmpresarialId, Guid CentroId, Guid EmpresaContratistaId, DateOnly FechaInicio, DateOnly? FechaFin, string? Notas)
+    Guid ClienteEmpresarialId, Guid CentroId, Guid EmpresaContratistaId, DateOnly FechaInicio, DateOnly? FechaFin, string? Notas,
+    CondicionesContratoAccesoDatos? Condiciones = null)
     : ICommand<Guid>;
 
 public class CrearContratoAccesoCommandValidator : AbstractValidator<CrearContratoAccesoCommand>
@@ -30,12 +32,14 @@ public class CrearContratoAccesoCommandValidator : AbstractValidator<CrearContra
         RuleFor(c => c.FechaFin).GreaterThanOrEqualTo(c => c.FechaInicio).When(c => c.FechaFin is not null)
             .WithMessage("La fecha de fin no puede ser anterior a la de inicio.");
         RuleFor(c => c.Notas).MaximumLength(ContratoAcceso.LongitudMaximaNotas);
+        RuleFor(c => c.Condiciones!).SetValidator(new CondicionesContratoAccesoDatosValidator()).When(c => c.Condiciones is not null);
     }
 }
 
 /// <summary>
 /// Alta de un contrato de acceso. Sin regla de solape: dos contratos de la misma Empresa contratista en el mismo Centro
-/// pueden coexistir mientras DN-6 siga abierta (ver <see cref="ContratoAcceso"/>).
+/// pueden coexistir (D-20, ver <see cref="ContratoAcceso"/>). Nace Activo hasta que la confirmación por Tenant TCE (B-09)
+/// diga cuándo nace Pendiente de confirmar.
 /// </summary>
 public class CrearContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -79,8 +83,13 @@ public class CrearContratoAccesoCommandHandler(
         if (!contratistaValida)
             return Result.Fallo<Guid>(noEncontrado);
 
+        var condiciones = (request.Condiciones ?? new CondicionesContratoAccesoDatos()).ADominio();
+        if (!condiciones.EsExitoso)
+            return Result.Fallo<Guid>(condiciones.Error);
+
         var contrato = ContratoAcceso.Crear(
-            request.ClienteEmpresarialId, request.CentroId, request.EmpresaContratistaId, request.FechaInicio, request.FechaFin, request.Notas);
+            request.ClienteEmpresarialId, request.CentroId, request.EmpresaContratistaId, request.FechaInicio, request.FechaFin, request.Notas,
+            condiciones.Valor);
         repositorio.Agregar(contrato);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
