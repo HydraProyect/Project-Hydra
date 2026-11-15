@@ -68,7 +68,11 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
                     AmbitoAsignacion.Universal, ahora, null, ahora);
                 siembra.Tenants.Add(propietario);
                 siembra.DelegacionesTenant.Add(acceso);
-                siembra.AsignacionesOperacion.Add(operacion);
+                // Con la delegación activa la operación nace amparada por ella; con la desactivada, sin origen.
+                if (acceso.Activa)
+                    OperacionExternaAmparada.Agregar(siembra, operacion, acceso);
+                else
+                    siembra.AsignacionesOperacion.Add(operacion);
                 siembra.AsignacionesCartera.Add(AsignacionCartera.Externa(operacion, _usuario, Roles.GestorCae,
                     AmbitoAsignacion.Universal, ahora, null, ahora));
                 ids.Add((acceso.Id, acceso.Activa));

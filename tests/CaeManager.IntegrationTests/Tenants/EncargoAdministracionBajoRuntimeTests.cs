@@ -312,6 +312,52 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         encargos[1].RegistradoPorUsuarioId.Should().Be(_adminPropietario.Id);
     }
 
+    /// <summary>
+    /// Codex r2 en la PR #2237, media 8: el mismo recorrido que el anterior (retirar y volver a registrar con los handlers
+    /// de producción), pero con la DelegacionTenant de origen revocada y reactivada entre medias, como la ranura anterior
+    /// (solo escribe <c>Activa</c>). La operación sigue vigente y es del mismo par, pero su origen ya no la ampara: el
+    /// repositorio no la ofrece y el registro se rechaza. El test anterior es su control positivo.
+    /// </summary>
+    [Fact]
+    public async Task No_se_registra_un_encargo_sobre_una_operacion_que_su_DelegacionTenant_de_origen_ya_no_ampara()
+    {
+        using (var ambito = Sesion(_adminPropietario, _propietario))
+        {
+            var retirada = await Retirar(ambito).Handle(new RetirarEncargoAdministracionCommand(_encargo), CancellationToken.None);
+            retirada.EsExitoso.Should().BeTrue(retirada.EsFallido ? retirada.Error.Codigo : string.Empty);
+        }
+
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+        {
+            (await new EncargoAdministracionRepository(propietarioDeLaBase).ObtenerOperacionAsync(_operacion, _propietario))
+                .Should().NotBeNull("control: amparada por su origen, el repositorio la ofrece");
+
+            var origen = (await propietarioDeLaBase.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacion))
+                .OrigenId!.Value;
+            var delegacion = propietarioDeLaBase.DelegacionesTenant.Where(d => d.Id == origen);
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+            await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+
+            (await propietarioDeLaBase.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacion)).Estado
+                .Should().Be(EstadoAsignacion.Vigente, "control: la operación sigue vigente; solo le falta el amparo");
+            (await new EncargoAdministracionRepository(propietarioDeLaBase).ObtenerOperacionAsync(_operacion, _propietario))
+                .Should().BeNull("revocada y reactivada su delegación de origen, la operación ya no autoriza nada");
+        }
+
+        using (var ambito = Sesion(_adminPropietario, _propietario))
+        {
+            var registro = await Registrar(ambito).Handle(
+                new RegistrarEncargoAdministracionCommand(_operacion, "Cláusula 10.ª, sin amparo", null),
+                CancellationToken.None);
+            registro.EsFallido.Should().BeTrue("un Encargo de Administración no nace sobre una operación sin amparo");
+            registro.Error.Codigo.Should().Be(ErroresEncargoAdministracion.OperacionNoValida.Codigo);
+        }
+
+        await using var comprobacion = ContextoPropietarioDeLaBase();
+        (await comprobacion.EncargosAdministracion.CountAsync(e => e.AsignacionOperacionId == _operacion && e.RetiradoEnUtc == null))
+            .Should().Be(0, "no queda escrito ningún encargo vigente");
+    }
+
     // ── Los disparadores: lo que los privilegios por columna no cierran ───
 
     /// <summary>

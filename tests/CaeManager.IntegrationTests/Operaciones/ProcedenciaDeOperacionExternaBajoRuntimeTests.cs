@@ -183,10 +183,14 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
     // ── Ronda 2 tras Codex r1 (PR #2237) ─────────────────────────────────────
 
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2237, alta 1: ya no hay deducción diferida al COMMIT (su excepción a la inmutabilidad,
+    /// por marca de sesión y profundidad de trigger, era falsificable). Una operación insertada antes que su delegación
+    /// queda sin origen para siempre y falla cerrada: el escritor guarda la delegación antes que la operación.
+    /// </summary>
     [Fact]
-    public async Task Una_operacion_insertada_antes_que_su_delegacion_en_la_misma_transaccion_recibe_el_origen_al_COMMIT()
+    public async Task Una_operacion_insertada_antes_que_su_delegacion_en_la_misma_transaccion_queda_sin_origen()
     {
-        // EF ordena los INSERT de un mismo guardado por tabla: AsignacionesOperacion va antes que DelegacionesTenant.
         // Se fuerza ese orden con dos guardados en una transacción: el BEFORE INSERT no ve la delegación todavía.
         Guid otroOperador;
         await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
@@ -211,8 +215,8 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
         await using var verificacion = ContextoPropietarioDeLaBase();
         var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == operacion.Id);
-        guardada.OrigenId.Should().Be(delegacion.Id, "la comprobación diferida la deduce al COMMIT");
-        guardada.RevocacionesDelOrigen.Should().Be(0);
+        guardada.OrigenId.Should().BeNull("sin deducción diferida, nada la sella al COMMIT");
+        guardada.RevocacionesDelOrigen.Should().BeNull();
     }
 
     [Fact]
@@ -227,7 +231,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         (await sellar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation,
             "sellar después repondría una operación que sobrevivió a una revocación");
 
-        // La marca local sola no abre la excepción: hace falta ser la comprobación diferida (pg_trigger_depth > 1).
+        // Ninguna marca de sesión abre una excepción (ronda 2 de Codex, alta 1): el trigger no tiene ninguna.
         var conMarca = () => EjecutarComoPropietarioAsync(
             $"""
              SELECT set_config('app.deduccion_origen', '{acotada}', true);
@@ -255,7 +259,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         var insertar = () => InsertarConOrigenAsync(_delegacion);
 
         (await insertar.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
-            e => EsViolacionDeComprobacion(e), "la comprobación diferida la rechaza al COMMIT");
+            e => EsViolacionDeComprobacion(e), "el BEFORE INSERT la rechaza: la delegación de origen ya no está activa");
     }
 
     [Fact]
@@ -277,7 +281,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
 
         var fallo = await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<Exception>();
         fallo.Which.Should().Match<Exception>(e => EsViolacionDeComprobacion(e),
-            "tras la revocación lee el contador nuevo con la delegación inactiva y la comprobación diferida la rechaza");
+            "tras la revocación lee la fila confirmada, con la delegación inactiva y el contador nuevo, y la rechaza");
     }
 
     [Fact]
@@ -385,10 +389,207 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             .Should().NotBeNull("sin historia de revocaciones no hay prueba de que no sobreviviera a una");
     }
 
+    // ── Ronda 3 tras Codex r2 (PR #2237) ─────────────────────────────────────
+
+    /// <summary>
+    /// Ronda 2 de Codex, alta 2: revocar una fila heredada es definitivo. Un UPDATE que devolviera
+    /// <c>RevocadaEnUtc</c> a NULL la devolvería al lector de autorización y, al reactivar la delegación, recuperaría
+    /// su efecto; tampoco se recicla una fila para otro rol. Control: una fila viva sí se revoca.
+    /// </summary>
+    [Fact]
+    public async Task Una_fila_heredada_revocada_no_se_des_revoca_ni_cambia_de_rol()
+    {
+        var fila = new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae);
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(fila);
+            await contexto.SaveChangesAsync();
+        }
+
+        await EjecutarComoPropietarioAsync(
+            $"""UPDATE "AsignacionesOperadorDelegado" SET "RevocadaEnUtc" = now(), "MotivoRevocacion" = 'Prueba' WHERE "Id" = '{fila.Id}'""");
+
+        foreach (var sql in new[]
+                 {
+                     $"""UPDATE "AsignacionesOperadorDelegado" SET "RevocadaEnUtc" = NULL WHERE "Id" = '{fila.Id}'""",
+                     $"""UPDATE "AsignacionesOperadorDelegado" SET "RevocadaEnUtc" = NULL, "MotivoRevocacion" = NULL WHERE "Id" = '{fila.Id}'""",
+                     $"""UPDATE "AsignacionesOperadorDelegado" SET "RevocadaEnUtc" = now() + interval '1 day' WHERE "Id" = '{fila.Id}'""",
+                     $"""UPDATE "AsignacionesOperadorDelegado" SET "Rol" = '{Roles.Consulta}' WHERE "Id" = '{fila.Id}'""",
+                 })
+        {
+            var ejecutar = () => EjecutarComoPropietarioAsync(sql);
+            (await ejecutar.Should().ThrowAsync<PostgresException>()).Which.SqlState
+                .Should().Be(PostgresErrorCodes.CheckViolation, sql);
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var guardada = await verificacion.AsignacionesOperadorDelegadoConRevocadas.AsNoTracking().SingleAsync(a => a.Id == fila.Id);
+        guardada.RevocadaEnUtc.Should().NotBeNull();
+        guardada.Rol.Should().Be(Roles.GestorCae);
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex, alta 3: con origen explícito, el contador es el que el escritor leyó al decidir. Si entre la
+    /// lectura y la inserción la delegación se revocó y se reactivó, o se amplió su caducidad, el contador ya no coincide
+    /// y la inserción se rechaza: la decisión anterior no se sella con la activación posterior. Control positivo: con el
+    /// contador releído, la misma inserción nace.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_operacion_con_el_contador_leido_antes_de_una_revocacion_o_ampliacion_no_nace(bool ampliando)
+    {
+        if (ampliando)
+            await EjecutarComoPropietarioAsync(
+                $"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = now() + interval '1 day' WHERE "Id" = '{_delegacion}'""");
+
+        DelegacionTenant leida;
+        await using (var contexto = ContextoPropietarioDeLaBase())
+            leida = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+
+        if (ampliando)
+            await EjecutarComoPropietarioAsync(
+                $"""UPDATE "DelegacionesTenant" SET "ExpiraEnUtc" = now() + interval '30 days' WHERE "Id" = '{_delegacion}'""");
+        else
+        {
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+        }
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion)).Revocaciones
+                .Should().Be(leida.Revocaciones + 1, "control: la activación que se leyó terminó");
+
+        var conElLeido = () => InsertarConOrigenAsync(leida);
+        (await conElLeido.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
+            e => EsViolacionDeComprobacion(e), "el contador leído ya no es el de la delegación");
+
+        await InsertarConOrigenAsync(_delegacion);
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex, media 7: orden de bloqueo único. Ni los triggers de la procedencia ni la revocación por Soporte
+    /// toman un cerrojo consultivo (con él se formaba el ciclo cerrojo consultivo / fila que daba <c>40P01</c>); las
+    /// inserciones bloquean la fila de la delegación con <c>FOR SHARE</c> y la revocación por Soporte con
+    /// <c>FOR UPDATE</c>. Y la función de sellado no conserva la excepción por profundidad de trigger ni por marca de
+    /// sesión (alta 1). Se lee el código desplegado en la base, no la migración: es lo que ejecuta PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task La_ruta_de_sellado_y_de_revocacion_no_toma_cerrojos_consultivos()
+    {
+        await using var conexion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT p.proname, p.prosrc
+              FROM pg_catalog.pg_trigger t
+              JOIN pg_catalog.pg_proc p ON p.oid = t.tgfoid
+             WHERE NOT t.tgisinternal
+               AND t.tgrelid IN ('public."DelegacionesTenant"'::regclass, 'public."AsignacionesOperacion"'::regclass,
+                                 'public."AsignacionesOperadorDelegado"'::regclass)
+            UNION
+            SELECT p.proname, p.prosrc
+              FROM pg_catalog.pg_proc p
+             WHERE p.proname = 'app_revocar_operador_cae_externo_por_soporte'
+            """, conexion);
+        var fuentes = new Dictionary<string, string>();
+        await using (var lector = await comando.ExecuteReaderAsync())
+            while (await lector.ReadAsync())
+                fuentes[lector.GetString(0)] = lector.GetString(1);
+
+        fuentes.Keys.Should().Contain(
+            ["app_asignacion_operacion_sella_origen", "app_asignacion_operador_delegado_exige_delegacion_activa",
+             "app_asignacion_operador_delegado_revocacion_definitiva", "app_delegacion_tenant_cuenta_revocaciones",
+             "app_delegacion_tenant_revoca_filas_heredadas", "app_revocar_operador_cae_externo_por_soporte"],
+            "control: el instrumento ve las funciones de la ruta");
+        foreach (var (nombre, fuente) in fuentes)
+            fuente.Should().NotContainEquivalentOf("advisory", nombre);
+        fuentes["app_asignacion_operacion_sella_origen"].Should().Contain("FOR SHARE")
+            .And.NotContain("pg_trigger_depth").And.NotContain("deduccion_origen");
+        fuentes["app_asignacion_operador_delegado_exige_delegacion_activa"].Should().Contain("FOR SHARE");
+        fuentes["app_revocar_operador_cae_externo_por_soporte"].Should().Contain("FOR UPDATE");
+    }
+
+    /// <summary>
+    /// Ronda 2 de Codex, media 6: una siembra de demostración corre en cada arranque y no es un acto explícito. Tras
+    /// revocar y reactivar la delegación (o con una fila heredada revocada, como deja la migración), el par tiene
+    /// historia y la siembra no puede crear filas heredadas. Control: el alta recién hecha no tiene historia.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Tras_una_revocacion_la_siembra_no_recrea_filas_heredadas(bool soloFilaRevocada)
+    {
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+            (await HistoriaDelParEnSiembra.TieneHistoriaAsync(contexto, delegacion, CancellationToken.None))
+                .Should().BeFalse("control: el alta recién hecha no tiene historia");
+            (await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(contexto, delegacion, _gestoraOperador.Id, CancellationToken.None))
+                .Should().BeTrue("control: sin historia la siembra sí crea la fila");
+        }
+
+        if (soloFilaRevocada)
+        {
+            var otra = await SembrarUsuarioAsync("consulta-operador", _operador, Roles.Consulta);
+            var fila = new AsignacionOperadorDelegado(_delegacion, otra.Id, Roles.Consulta);
+            fila.Revocar("Prueba", DateTime.UtcNow);
+            await using var contexto = ContextoPropietarioDeLaBase();
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(fila);
+            await contexto.SaveChangesAsync();
+        }
+        else
+        {
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+            await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var reactivada = await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+        reactivada.Activa.Should().BeTrue("control: la delegación está activa; lo que lo impide es la historia");
+        (await HistoriaDelParEnSiembra.TieneHistoriaAsync(verificacion, reactivada, CancellationToken.None)).Should().BeTrue();
+        (await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(verificacion, reactivada, _gestoraOperador.Id, CancellationToken.None))
+            .Should().BeFalse("lo que fue no vuelve solo, tampoco por la siembra");
+    }
+
+    /// <summary>
+    /// La guarda del writer (ronda 2 de Codex, alta 1): el trigger exige la delegación ya guardada y su contador real,
+    /// y EF no ordena el UPDATE de la delegación por delante del INSERT de la operación. Con la delegación de origen
+    /// modificada sin guardar, <c>AbrirOperacionDelegadaAsync</c> lanza en vez de abrir. Control: sin cambios pendientes
+    /// devuelve la operación que abrió el alta.
+    /// </summary>
+    [Fact]
+    public async Task El_writer_no_abre_una_operacion_que_nace_de_una_delegacion_con_cambios_sin_guardar()
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var usuarioActual = FijarSesion(_administradorPropietario, Roles.Administrador);
+        var writer = new AsignacionesOperativasWriter(contexto, ambito.ServiceProvider.GetRequiredService<ITenantActual>(), usuarioActual);
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
+            (await writer.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null)).OrigenId
+                .Should().Be(_delegacion, "control: sin cambios pendientes devuelve la del alta");
+
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+            contexto.Entry(delegacion).Property(d => d.ExpiraEnUtc).CurrentValue = DateTime.UtcNow.AddDays(30);
+            contexto.Entry(delegacion).State.Should().Be(EntityState.Modified, "control");
+
+            await writer.Invoking(w => w.AbrirOperacionDelegadaAsync(_propietario, _operador, DateTime.UtcNow, null))
+                .Should().ThrowAsync<InvalidOperationException>().WithMessage("*cambios sin guardar*");
+        }
+    }
+
     private async Task InsertarConOrigenAsync(Guid delegacionId)
     {
         await using var contexto = ContextoPropietarioDeLaBase();
         var delegacion = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == delegacionId);
+        await InsertarConOrigenAsync(delegacion);
+    }
+
+    private async Task InsertarConOrigenAsync(DelegacionTenant delegacion)
+    {
+        await using var contexto = ContextoPropietarioDeLaBase();
         var ahora = DateTime.UtcNow;
         var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
             AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);

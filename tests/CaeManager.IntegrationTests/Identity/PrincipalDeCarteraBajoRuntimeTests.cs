@@ -148,8 +148,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 beneficiario.Id, (operador ?? _operador).Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
             var vinculo = new DelegacionTenant((operador ?? _operador).Id, beneficiario.Id);
-            contexto.AsignacionesOperacion.Add(operacion);
             contexto.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
             return (operacion, vinculo);
         }
 
@@ -381,8 +381,13 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
                 var vinculo = new DelegacionTenant(_otroOperador.Id, propietario.Id);
                 if (!delegacionActiva) vinculo.Desactivar();
-                contexto.AsignacionesOperacion.Add(operacion);
                 contexto.DelegacionesTenant.Add(vinculo);
+                // Solo la Outbound con la delegación activa nace amparada: la Inbound y la de delegación
+                // desactivada se siembran sin origen a propósito (la prueba es de que no se anuncian).
+                if (servicio == ServicioCae.Outbound && delegacionActiva)
+                    OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
+                else
+                    contexto.AsignacionesOperacion.Add(operacion);
                 var cartera = AsignacionCartera.Externa(operacion, _coordinadorAjeno, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
                 cartera.DesignarPrincipal();
                 contexto.AsignacionesCartera.Add(cartera);

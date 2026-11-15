@@ -63,7 +63,8 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         var operacion = AsignacionOperacion.Externa(
             _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
             vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora);
-        contexto.AsignacionesOperacion.Add(operacion);
+        // Sin delegación en el par, la operación externa no autoriza: se siembra con la suya, que nace con ella.
+        OperacionExternaAmparada.Agregar(contexto, operacion);
 
         var aprovisionamiento = ConcesionPrivilegio.SobreTenants(
             _soporte, CapacidadPrivilegio.Aprovisionamiento, [_propietario.Id],

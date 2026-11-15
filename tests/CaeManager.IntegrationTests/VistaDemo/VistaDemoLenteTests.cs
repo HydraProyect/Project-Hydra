@@ -129,7 +129,21 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // B-02a: una operación Inbound del Tenant entero sobre el Tenant 3. Sus carteras no son de Outbound: ni
         // hacen elegible al Gestor CAE que solo tiene esa, ni añaden el Tenant 3 a la lente de G1.
         var op3Inbound = AsignacionOperacion.Externa(_p3, _operador, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
-        contexto.AsignacionesOperacion.AddRange(op1a, op1b, op1c, op1d, op2, op3, opAjena, opRealPropia, op3Inbound);
+        // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios. Las operaciones
+        // Outbound de esos pares nacen amparadas por su delegación (EF inserta la delegación antes); la Inbound, la del
+        // Tenant real propio y la del otro Operador CAE (sin delegación de su par) se siembran sin origen.
+        var delegaciones = new Dictionary<Guid, DelegacionTenant>();
+        foreach (var propietario in new[] { _p1, _p2, _p3 })
+        {
+            var delegacion = new DelegacionTenant(_operador, propietario);
+            delegaciones[propietario] = delegacion;
+            contexto.DelegacionesTenant.Add(delegacion);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
+        }
+
+        foreach (var (operacion, propietario) in new[] { (op1a, _p1), (op1b, _p1), (op1c, _p1), (op1d, _p1), (op2, _p2), (op3, _p3) })
+            OperacionExternaAmparada.Agregar(contexto, operacion, delegaciones[propietario]);
+        contexto.AsignacionesOperacion.AddRange(opAjena, opRealPropia, op3Inbound);
         contexto.AsignacionesCartera.AddRange(
             Cartera(op3Inbound, _g1), Cartera(op3Inbound, _gSoloInbound),
             Cartera(op1a, _g1), Cartera(op2, _g1),
@@ -138,14 +152,6 @@ public class VistaDemoLenteTests : IAsyncLifetime
             Cartera(opAjena, _gDeOtroOperador),
             Cartera(opRealPropia, _gSoloTenantReal),
             Cartera(op1d, _gCarteraFutura, vigenciaDesde: ahora.AddDays(1)));
-
-        // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios.
-        foreach (var propietario in new[] { _p1, _p2, _p3 })
-        {
-            var delegacion = new DelegacionTenant(_operador, propietario);
-            contexto.DelegacionesTenant.Add(delegacion);
-            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
-        }
 
         await contexto.SaveChangesAsync();
     }
