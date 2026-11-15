@@ -106,11 +106,10 @@ public class CorregirLineaInboundCommandHandler(
 
             // Un solo instante para el fin de la sustituida y el inicio de la nueva, sin hueco ni solape de vigencia: el
             // now() de esta transacción en la base, que devuelve la finalización. No el reloj de la aplicación: con él
-            // adelantado, la nueva empezaría después del now() con el que el gate DN-7 compara, y tras el COMMIT no habría
-            // línea Inbound que el gate viera vigente (hallazgo 1 de Codex, ronda 1). Ventana que queda: una transacción
-            // lectora que empezó antes que esta y lee después del COMMIT tiene un now() anterior al inicio de la nueva, así
-            // que su gate no ve ninguna de las dos. Falla cerrado (deniega el acceso de Tenant TCE, no lo abre) y dura lo
-            // que dure esa transacción lectora; la siguiente ya ve la nueva.
+            // adelantado, la nueva empezaría después del instante con el que el gate DN-7 compara, y tras el COMMIT no
+            // habría línea Inbound que el gate viera vigente (hallazgo 1 de Codex, ronda 1). El gate compara con el
+            // statement_timestamp() de la sentencia lectora (GateInboundConInstanteDeSentencia), posterior a este COMMIT
+            // si su instantánea lo ve: también una transacción lectora iniciada antes que esta ve la nueva (ronda 3).
             var ahora = finalizacion.VigenteHastaUtc
                         ?? throw new InvalidOperationException("La finalización no devolvió su fin de vigencia.");
 

@@ -271,6 +271,58 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         (await AuditoriaComoPropietarioAsync(ajeno.EntidadId)).Should().BeEmpty();
     }
 
+    public static TheoryData<string, string> ParesConcurrentes() => new()
+    {
+        { "baja", "baja" },
+        { "correccion", "correccion" },
+        { "correccion", "baja" },
+        { "baja", "correccion" },
+    };
+
+    [Theory]
+    [MemberData(nameof(ParesConcurrentes))]
+    public async Task Dos_bajas_o_correcciones_a_la_vez_sobre_la_misma_fila_solo_una_finaliza(string primero, string segundo)
+    {
+        // Hallazgo 2 de Codex, ronda 3, en la #2256. Determinista: el propietario bloquea las inserciones en
+        // RegistrosAuditoria. La primera finaliza (UPDATE) y espera con la fila tomada al guardar su auditoría; la segunda
+        // lee la misma fila aún vigente y espera el bloqueo de fila en su UPDATE. Al soltar, la primera confirma y la
+        // segunda reevalúa el WHERE, no toca nada y deshace su transacción entera.
+        var anterior = await ContratarAsync("cus_PagadorTce");
+
+        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
+        await retenedor.OpenAsync();
+        await using var bloqueo = await retenedor.BeginTransactionAsync();
+        await using (var cerrar = new NpgsqlCommand("""LOCK TABLE "RegistrosAuditoria" IN SHARE MODE;""", retenedor, bloqueo))
+            await cerrar.ExecuteNonQueryAsync();
+
+        var primera = Task.Run(() => EnviarAsync(_sesionDeAprovisionamiento, rol: null, Comando(primero)));
+        Task<Result<Guid>> segunda;
+        await using (var observador = new NpgsqlConnection(_cadenaConexion))
+        {
+            await observador.OpenAsync();
+            await EsperarBloqueadaAsync(observador, primera, "%RegistrosAuditoria%");
+            segunda = Task.Run(() => EnviarAsync(_sesionDeAprovisionamiento, rol: null, Comando(segundo)));
+            await EsperarBloqueadaAsync(observador, segunda, "%UPDATE%ProductosContratados%");
+        }
+
+        await bloqueo.RollbackAsync();
+        var resultadoPrimera = await primera;
+        var resultadoSegunda = await segunda;
+
+        resultadoPrimera.EsExitoso.Should().BeTrue(resultadoPrimera.EsFallido ? $"código: {resultadoPrimera.Error.Codigo}" : string.Empty);
+        resultadoSegunda.Error.Should().Be(segundo == "baja"
+                ? ErroresDarDeBajaLineaInbound.SinLineaVigente
+                : ErroresCorregirLineaInbound.SinLineaVigente,
+            "el UPDATE de la segunda reevalúa el estado de partida tras el COMMIT de la primera y no encuentra fila");
+
+        var filas = await FilasComoPropietarioAsync();
+        filas.Should().HaveCount(primero == "correccion" ? 2 : 1, "la segunda no contrata nada");
+        filas.Single(f => f.Id == anterior).Estado.Should().Be(EstadoProductoContratado.Finalizado);
+        filas.Count(f => f.Estado == EstadoProductoContratado.Vigente).Should().Be(primero == "correccion" ? 1 : 0);
+        (await AuditoriaComoPropietarioAsync(anterior)).Select(r => r.Accion).Should().BeEquivalentTo(
+            ["Creado", "Modificado"], "una sola finalización auditada");
+    }
+
     public static TheoryData<string> Comandos() => new() { "baja", "correccion" };
 
     [Theory]
@@ -432,7 +484,10 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         return await proveedor.GetRequiredService<IMediator>().Send(comando);
     }
 
-    /// <summary>El predicado del gate DN-7 de <c>app_inbound_tenant_contratista_del_contrato</c>, para el Tenant TCE.</summary>
+    /// <summary>
+    /// El predicado del gate DN-7 de <c>app_inbound_tenant_contratista_del_contrato</c>, para el Tenant TCE. La función real,
+    /// con una transacción lectora anterior a la corrección, la prueba <c>LecturaInboundBajoRuntimeTests</c>.
+    /// </summary>
     private async Task<bool> GateInboundVeVigenteAsync(NpgsqlConnection conexion)
     {
         await using var comando = new NpgsqlCommand(
@@ -440,7 +495,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
             SELECT EXISTS (SELECT 1 FROM public."ProductosContratados" pc
                             WHERE pc."TenantId" = @tenant AND pc."Linea" = 'Inbound'
                               AND pc."Estado" = 'Vigente' AND NOT pc."EstaEliminado"
-                              AND pc."VigenteDesdeUtc" <= pg_catalog.now());
+                              AND pc."VigenteDesdeUtc" <= pg_catalog.statement_timestamp());
             """, conexion);
         comando.Parameters.AddWithValue("tenant", _tce.Id);
         return (bool)(await comando.ExecuteScalarAsync())!;

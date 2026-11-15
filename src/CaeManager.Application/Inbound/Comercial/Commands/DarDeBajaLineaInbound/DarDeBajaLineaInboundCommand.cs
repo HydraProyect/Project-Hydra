@@ -59,7 +59,7 @@ public class DarDeBajaLineaInboundCommandHandler(
             return Result.Fallo<Guid>(ErroresDarDeBajaLineaInbound.NoAutorizado);
 
         // En una transacción: la baja y su registro de auditoría se confirman o se deshacen juntos. El fin de vigencia es
-        // el now() de esa transacción en la base, el reloj con el que comparan las políticas y el gate DN-7.
+        // el now() de esa transacción en la base, el reloj con el que comparan las políticas.
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             var finalizacion = await productosContratados.FinalizarInboundVigenteAsync(ct);

@@ -1047,6 +1047,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
 
+        // La auxiliar vigente ya no es la de esta migración: GateInboundConInstanteDeSentencia le cambió el reloj del gate, y
+        // su propia prueba comprueba que solo cambia eso. Aquí se parte del cuerpo que deja el Up de B-05.
+        await EjecutarAsync(conexion, transaccion, DeLaAuxiliar(migracion.UpOperations));
         var vigente = await TenantContratistaDelContratoAsync(conexion, transaccion);
         await EjecutarAsync(conexion, transaccion, DeLaAuxiliar(migracion.DownOperations));
         var anterior = await TenantContratistaDelContratoAsync(conexion, transaccion);
@@ -1058,6 +1061,83 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         GateLineaInbound.Matches(anterior.Definicion).Should().HaveCount(1, "el Down vuelve a la versión de B-01, con el gate");
         FiltroEstadoContrato.Replace(vigente.Definicion, "").Should().Be(anterior.Definicion,
             "fuera del filtro de estado, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
+
+        await transaccion.RollbackAsync();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Una_transaccion_lectora_anterior_a_la_correccion_ve_la_corregida_y_tras_una_baja_ninguna(bool corregir)
+    {
+        // Issue #2257 y hallazgo 1 de Codex, ronda 3, en la #2256: la función real del gate, no una copia de su predicado.
+        // La lectora (READ COMMITTED) fija su now() antes de que empiece la escritora y consulta después de su COMMIT. La
+        // escritora hace lo que CorregirLineaInboundCommand y DarDeBajaLineaInboundCommand: fin de la vigente y, al
+        // corregir, inicio de la nueva en el now() de su propia transacción. Con el now() de la lectora en el gate, la
+        // corregida no contaría (su inicio es posterior) y esta prueba fallaría.
+        await using var lectora = new NpgsqlConnection(_cadena);
+        await lectora.OpenAsync();
+        await using var lectura = await lectora.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
+        await using (var fijar = new NpgsqlCommand("SELECT now(); SELECT pg_sleep(0.05);", lectora, lectura))
+            await fijar.ExecuteNonQueryAsync();
+        (await EvaluarTenantContratistaAsync(lectora, lectura)).Should().Be(_contratista.Id, "control: antes, la línea vigente cuenta");
+
+        await using (var escritora = new NpgsqlConnection(_cadena))
+        {
+            await escritora.OpenAsync();
+            await using var escritura = await escritora.BeginTransactionAsync();
+            await EjecutarAsync(escritora, escritura,
+                $"""UPDATE public."ProductosContratados" SET "Estado" = 'Finalizado', "VigenteHastaUtc" = now() WHERE "Id" = '{_lineaInbound}';""");
+            if (corregir)
+                await EjecutarAsync(escritora, escritura,
+                    $"""
+                    INSERT INTO public."ProductosContratados" ("Id", "Linea", "PagadorStripeCustomerId", "Tramo", "Modalidad",
+                        "VigenteDesdeUtc", "VigenteHastaUtc", "Estado", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado")
+                    VALUES ('{Guid.NewGuid()}', 'Inbound', '{PagadorDelLector}', 'De11A40', 'Anual', now(), NULL, 'Vigente',
+                        '{_lector.Id}', '{Guid.NewGuid()}', now(), false);
+                    """);
+            await escritura.CommitAsync();
+        }
+
+        await using (var vigentes = new NpgsqlCommand(
+                         $"""
+                         SELECT count(*) FROM public."ProductosContratados"
+                          WHERE "TenantId" = '{_lector.Id}' AND "Linea" = 'Inbound' AND "Estado" = 'Vigente' AND NOT "EstaEliminado"
+                            AND "VigenteDesdeUtc" > now();
+                         """, lectora, lectura))
+            ((long)(await vigentes.ExecuteScalarAsync())!).Should().Be(corregir ? 1 : 0,
+                "control: la lectora ve confirmada la corregida, con un inicio posterior a su now()");
+        (await EvaluarTenantContratistaAsync(lectora, lectura)).Should().Be(corregir ? _contratista.Id : null,
+            corregir
+                ? "sin hueco: la lectora anterior ve exactamente una línea vigente, la corregida"
+                : "tras la baja confirmada, ninguna línea vigente cuenta");
+
+        await lectura.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task La_migracion_del_instante_de_sentencia_solo_cambia_el_reloj_del_gate_y_su_Down_lo_restaura()
+    {
+        // Opción B del 2026-11-15 (hallazgo 1 de Codex, ronda 3, en la #2256): el gate compara con statement_timestamp().
+        var migracion = new GateInboundConInstanteDeSentencia();
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        var vigente = await TenantContratistaDelContratoAsync(conexion, transaccion);
+        (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(_contratista.Id,
+            "control: con la migración aplicada, el contrato vigente del fixture, con la línea Inbound de X, responde");
+        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        var anterior = await TenantContratistaDelContratoAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+
+        (await TenantContratistaDelContratoAsync(conexion, transaccion)).Should().Be(vigente, "el Up deja la función como la deja la migración");
+        anterior.PropietarioYPermisos.Should().Be(vigente.PropietarioYPermisos, "CREATE OR REPLACE conserva propietario y privilegios");
+        GateLineaInbound.Matches(anterior.Definicion).Should().HaveCount(1, "el Down vuelve al gate con el now() de B-05");
+        GateLineaInbound.Matches(vigente.Definicion).Should().BeEmpty("el gate vigente ya no compara con now()");
+        vigente.Definicion.Should().Contain("""pc."VigenteDesdeUtc" <= pg_catalog.statement_timestamp());""");
+        vigente.Definicion.Replace("pg_catalog.statement_timestamp()", "pg_catalog.now()").Should().Be(anterior.Definicion,
+            "fuera del reloj del gate, el cuerpo, la firma, el lenguaje, la volatilidad y el search_path son los mismos");
 
         await transaccion.RollbackAsync();
     }
