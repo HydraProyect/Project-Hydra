@@ -102,6 +102,8 @@ public partial class DocumentosPorValidar
             var respuesta = await Servicio.ObtenerColaAsync();
             _ahora = TimeProvider.System.GetUtcNow();
             _noDisponible = !respuesta.Disponible;
+            // Una cola rechazada por el servidor (Mensaje) no es una cola vacía: se dice como error, no como «no te queda nada».
+            _error = respuesta.Disponible && respuesta.Valor is null;
             _cola = respuesta.Valor;
             _hayBase = _cola is { Documentos.Count: > 0 };
             _marcados.RemoveWhere(id => _cola is null || _cola.Documentos.All(d => d.Id != id));
@@ -119,14 +121,27 @@ public partial class DocumentosPorValidar
     private Task BuscarAsync(string texto)
     {
         _busqueda = texto;
+        PodarMarcas();
         return Task.CompletedTask;
     }
 
-    private void Cambiar(Action cambio) => cambio();
+    private void Cambiar(Action cambio)
+    {
+        cambio();
+        PodarMarcas();
+    }
 
     private void LimpiarFiltros()
     {
         _busqueda = _req = _entidad = _empresa = _centro = _lectura = _tramo = string.Empty;
+        PodarMarcas();
+    }
+
+    // Una fila que los filtros esconden deja de estar marcada: el lote es lo que el Gestor CAE ve, no lo que marcó antes.
+    private void PodarMarcas()
+    {
+        var visibles = Visibles.Select(d => d.Id).ToHashSet();
+        _marcados.RemoveWhere(id => !visibles.Contains(id));
     }
 
     private async Task EmpezarAsync(IReadOnlyList<DocumentoPorValidar> documentos)
@@ -154,6 +169,14 @@ public partial class DocumentosPorValidar
             return;
         }
 
+        // El navegador puede reactivar una casilla deshabilitada: el servidor del circuito no se fía del atributo disabled.
+        var documento = _cola?.Documentos.FirstOrDefault(d => d.Id == id);
+        if (documento is null || LogicaValidacionInbound.MotivoNoLote(documento) is not null)
+        {
+            _marcados.Remove(id);
+            return;
+        }
+
         var tope = _cola?.TopeLote ?? 0;
         if (tope > 0 && _marcados.Count >= tope)
         {
@@ -169,7 +192,9 @@ public partial class DocumentosPorValidar
         _enviandoLote = true;
         try
         {
-            var respuesta = await Servicio.ValidarLoteAsync([.. _marcados]);
+            // Solo las filas que el Gestor CAE sigue viendo con los filtros de ahora: una marca oculta no entra en el lote.
+            var visibles = Visibles.Select(d => d.Id).ToHashSet();
+            var respuesta = await Servicio.ValidarLoteAsync([.. _marcados.Where(visibles.Contains)]);
             if (!respuesta.Disponible)
                 Toast.Mostrar("La validación en lote no está disponible todavía.");
             else if (respuesta.Mensaje is not null)

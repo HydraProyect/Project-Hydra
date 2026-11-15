@@ -199,6 +199,8 @@ public static class LogicaValidacionInbound
     public static ResultadoLectura Peor(IEnumerable<ResultadoLectura> resultados)
     {
         var lista = resultados.ToList();
+        // Sin ninguna lectura (la IA no corrió o falló) no hay nada «correcto»: se trata como sin detectar, y pide confirmación.
+        if (lista.Count == 0) return ResultadoLectura.SinDetectar;
         return lista.Contains(ResultadoLectura.ConError) ? ResultadoLectura.ConError
             : lista.Contains(ResultadoLectura.SinDetectar) ? ResultadoLectura.SinDetectar
             : ResultadoLectura.Correcto;

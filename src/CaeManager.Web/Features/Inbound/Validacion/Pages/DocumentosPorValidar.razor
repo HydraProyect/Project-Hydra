@@ -24,6 +24,14 @@
         <p class="dpv-subtitulo">@LogicaValidacionInbound.Subtitulo(_agrupar)</p>
     }
 
+    @* El aviso de Deshacer vive fuera de las ramas de carga: recargar la cola tras el lote no lo destruye ni reinicia sus 10 s. *@
+    @if (_loteHecho is { } hecho)
+    {
+        <AvisoDeshacer @key="hecho.LoteId" Mensaje="@(hecho.Documentos == 1 ? "1 documento validado en lote" : $"{hecho.Documentos} documentos validados en lote")"
+                       Detalle="@($"Se abrirán {hecho.ParaRevision} para revisión. El aviso a las Empresas contratistas sale al terminar el plazo.")"
+                       OnDeshacer="DeshacerLoteAsync" OnVencido="CerrarAvisoLote" />
+    }
+
     @if (_cargando)
     {
         <EstadoCargando Filas="4" />
@@ -68,13 +76,6 @@
                 </div>
             </Herramientas>
         </BarraFiltros>
-
-        @if (_loteHecho is { } hecho)
-        {
-            <AvisoDeshacer @key="hecho.LoteId" Mensaje="@($"{hecho.Documentos} documentos validados en lote")"
-                           Detalle="@($"Se abrirán {hecho.ParaRevision} para revisión. El aviso a las Empresas contratistas sale al terminar el plazo.")"
-                           OnDeshacer="DeshacerLoteAsync" OnVencido="CerrarAvisoLote" />
-        }
 
         @if (!_hayBase)
         {

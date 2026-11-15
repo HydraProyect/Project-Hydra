@@ -76,7 +76,11 @@ public partial class ValidacionDocumento
 
     private int HechosHoy => (_cola?.HechosHoy ?? 0) + _resueltos.Count;
 
-    private bool PuedeActuar => _doc is { Propio: false } && !_resuelto;
+    private int _generacion;
+
+    // Sin documento cargado, con la cola terminada o con un veredicto en vuelo no se actúa: los atajos de teclado
+    // siguen vivos aunque los botones se oculten, así que la guarda vive aquí y no en el marcado.
+    private bool PuedeActuar => _doc is { Propio: false } && !_resuelto && !_cargando && !_terminado && !_error && !_enviando;
 
     private IReadOnlyList<PaginaDocumento> PaginasVisibles => _anterior?.Paginas ?? _doc?.Paginas ?? [];
 
@@ -161,20 +165,25 @@ public partial class ValidacionDocumento
 
     private async Task CargarAsync()
     {
+        // Cada carga tiene su número: si llega otra (J, J seguidos) mientras esta espera, la vieja no pisa a la nueva.
+        var generacion = ++_generacion;
         _cargando = true;
         _error = false;
         _terminado = false;
         _resuelto = false;
+        _doc = null;
         ReiniciarFormulario();
         try
         {
             var colaRespuesta = await Servicio.ObtenerColaAsync();
+            if (generacion != _generacion) return;
             _cola = colaRespuesta.Valor;
             var ordenados = _cola is null ? [] : LogicaValidacionInbound.Ordenar(_cola.Documentos).Select(d => d.Id).ToList();
             var enCurso = ColaEnCurso.Ids;
             _ids = [.. (enCurso.Contains(Id) ? enCurso : ordenados).Where(x => x == Id || !_resueltos.Contains(x))];
 
             var respuesta = await Servicio.ObtenerDocumentoAsync(Id);
+            if (generacion != _generacion) return;
             _doc = respuesta.Valor;
             if (_doc is not null)
             {
@@ -186,11 +195,11 @@ public partial class ValidacionDocumento
         }
         catch (Exception)
         {
-            _error = true;
+            if (generacion == _generacion) _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (generacion == _generacion) _cargando = false;
         }
     }
 
@@ -283,11 +292,11 @@ public partial class ValidacionDocumento
         await EnviarValidarAsync(confirmado: false);
     }
 
-    private Task ConfirmarValidarAsync() => EnviarValidarAsync(confirmado: true);
+    private Task ConfirmarValidarAsync() => PuedeActuar && !FechaMala ? EnviarValidarAsync(confirmado: true) : Task.CompletedTask;
 
     private async Task EnviarValidarAsync(bool confirmado)
     {
-        if (_doc is null) return;
+        if (_doc is null || _enviando) return;
         await Registrar(
             () => Servicio.ValidarAsync(new SolicitudValidar(_doc.Id, _emision, _vencimiento, confirmado, [.. _destinos])),
             confirmado ? "Validado tras confirmarlo" : null);
@@ -341,6 +350,7 @@ public partial class ValidacionDocumento
 
     private async Task Registrar(Func<Task<RespuestaValidacion<VeredictoRegistrado>>> enviar, string? textoEspecial)
     {
+        if (_enviando) return;
         _enviando = true;
         try
         {
@@ -385,24 +395,27 @@ public partial class ValidacionDocumento
     private async Task DeshacerAsync()
     {
         if (_veredicto is not { } veredicto) return;
+        // El documento del veredicto se fija antes del await: si entre medias se registra otro, no se toca el equivocado.
+        var documentoDelVeredicto = _veredictoDocumentoId;
         var respuesta = await Servicio.DeshacerAsync(veredicto.VeredictoId);
         if (!respuesta.Aceptada)
         {
             Toast.Mostrar(respuesta.Mensaje ?? "No se pudo deshacer: ya ha pasado el plazo.");
+            if (ReferenceEquals(_veredicto, veredicto)) _veredicto = null;
             return;
         }
 
-        _veredicto = null;
-        _resueltos.Remove(_veredictoDocumentoId);
+        if (ReferenceEquals(_veredicto, veredicto)) _veredicto = null;
+        _resueltos.Remove(documentoDelVeredicto);
         _terminado = false;
         _resuelto = false;
-        if (_veredictoDocumentoId == Id)
+        if (documentoDelVeredicto == Id)
         {
             await CargarAsync();
         }
         else
         {
-            Navegacion.NavigateTo($"/inbound/validacion/{_veredictoDocumentoId}");
+            Navegacion.NavigateTo($"/inbound/validacion/{documentoDelVeredicto}");
         }
     }
 
@@ -416,10 +429,11 @@ public partial class ValidacionDocumento
             return;
         }
 
+        // Con la confirmación de «Validar con errores» abierta, el teclado solo la cierra: confirmar exige pulsar el botón,
+        // para que quien tiene la tecla apretada (o la pulsa dos veces) no la salte sin haberla leído.
         if (_confirmandoValidar)
         {
-            if (tecla is "Enter" or "v") await ConfirmarValidarAsync();
-            else if (tecla == "Escape") _confirmandoValidar = false;
+            if (tecla == "Escape") _confirmandoValidar = false;
             return;
         }
 
