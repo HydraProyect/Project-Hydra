@@ -208,7 +208,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // lectura del catálogo (ObtenerCatalogoBaseQuery) solo devuelve los activos, así que sigue vacía para el runtime.
             // El catálogo base no tiene escritor fuera de las migraciones. Si alguien hubiera dado de alta a mano uno de estos
             // códigos con otro Id, ni se respeta su estado (podría estar activo, contra R-14) ni se pisa (el Down no podría
-            // restaurarlo): la migración falla y obliga a mirarlo.
+            // restaurarlo): la migración falla y obliga a mirarlo. Lo mismo si uno de los Id reservados ya existe con otro
+            // código o con otro estado: el ON CONFLICT omitiría la semilla en silencio y el Down borraría una fila ajena. Solo
+            // pasa una fila idéntica a la semilla (inactiva y pendiente de revisión legal), que el Down puede retirar sin daño.
             migrationBuilder.Sql("""
                 DO $$
                 BEGIN
@@ -216,6 +218,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                                WHERE "Codigo" IN ('a1-trabajador-desplazado', 'puesta-a-disposicion-ett')
                                  AND "Id" NOT IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1')) THEN
                         RAISE EXCEPTION 'R-14: el catálogo base ya tiene A1 o ETT con otro Id; revísalo antes de migrar.';
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM public."CatalogoRequisitosBase"
+                               WHERE ("Id" = 'b1400000-0000-4000-8000-0000000000a1'
+                                      AND ("Codigo" <> 'a1-trabajador-desplazado' OR "Activo" OR NOT "PendienteRevisionLegal"))
+                                  OR ("Id" = 'b1400000-0000-4000-8000-0000000000e1'
+                                      AND ("Codigo" <> 'puesta-a-disposicion-ett' OR "Activo" OR NOT "PendienteRevisionLegal"))) THEN
+                        RAISE EXCEPTION 'R-14: el catálogo base ya usa un Id reservado de A1 o ETT con otro código o estado; revísalo antes de migrar.';
                     END IF;
                 END $$;
                 """);

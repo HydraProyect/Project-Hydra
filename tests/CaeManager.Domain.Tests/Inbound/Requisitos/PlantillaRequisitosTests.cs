@@ -225,9 +225,15 @@ public class PlantillaRequisitosTests
     public void D15_en_las_exigencias_del_Cliente_empresarial_todo_es_exigencia_N3()
     {
         var plantilla = PlantillaRequisitos.ParaExigenciasDe(Guid.NewGuid());
+        var baseN1 = new RequisitoBase("requisito-n1", "Con base N1", "Fundamento", NivelExigencia.N1);
 
-        FluentActions.Invoking(() => plantilla.AnadirRequisito(Tipo(), null, Basicos with { Origen = OrigenRequisito.LegalN1 }))
+        // Con una base N1 adoptada, D2 y la tabla de nivel admiten LegalN1 (control en una plantilla de Centro): lo que lo
+        // rechaza aquí es solo la regla de la plantilla de exigencias.
+        DeCentro().AnadirRequisito(Tipo(), baseN1, Basicos with { Origen = OrigenRequisito.LegalN1 })
+            .Origen.Should().Be(OrigenRequisito.LegalN1);
+        FluentActions.Invoking(() => plantilla.AnadirRequisito(Tipo(), baseN1, Basicos with { Origen = OrigenRequisito.LegalN1 }))
             .Should().Throw<ArgumentException>();
+        plantilla.Requisitos.Should().BeEmpty();
         plantilla.AnadirRequisito(Tipo(), null, Basicos with { Origen = OrigenRequisito.ExigenciaN3 })
             .Origen.Should().Be(OrigenRequisito.ExigenciaN3);
     }
