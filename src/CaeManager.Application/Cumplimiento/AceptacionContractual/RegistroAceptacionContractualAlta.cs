@@ -91,8 +91,6 @@ public sealed class RegistroAceptacionContractualAlta(
     TimeProvider reloj)
     : IRegistroAceptacionContractualAlta
 {
-    private const string RolAdministrador = "Administrador";
-
     public async Task<Result> RegistrarAsync(RegistrarAceptacionContractualAlta datos, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
@@ -140,8 +138,8 @@ public sealed class RegistroAceptacionContractualAlta(
         // Administrador. La cuenta de un Operador CAE externo pertenece a su organización, no al Tenant
         // propietario, así que no pasa: no hay todavía ninguna acreditación con la que pueda aceptar en
         // nombre de otro (D-R2: el alta por un Operador CAE externo la hace un Actor de Plataforma TALVEG).
-        if (datos.UsuarioId == Guid.Empty
-            || !await directorioUsuarios.EsCuentaActivaConRolAsync(datos.UsuarioId, datos.TenantId, RolAdministrador, cancellationToken))
+        if (!await AutoridadSobreAceptacionContractual.EsCuentaPropiaActivaDeAdministradorAsync(
+                directorioUsuarios, datos.UsuarioId, datos.TenantId, cancellationToken))
             return Result.Fallo(ErroresAceptacionContractual.SoloAdministradorDelTenantPropietario);
 
         // Quien aceptó en la Solicitud de alta es quien verificó su correo; la cuenta a la que se le

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloModal" xml:space="preserve">
+    <value>Documentos contractuales pendientes</value>
+  </data>
+  <data name="Introduccion" xml:space="preserve">
+    <value>Para seguir usando {0}, acepta las versiones vigentes de estos documentos en nombre de tu organización.</value>
+  </data>
+  <data name="CasillaDocumento" xml:space="preserve">
+    <value>He leído y acepto {0} (versión {1}).</value>
+  </data>
+  <data name="EnlaceTexto" xml:space="preserve">
+    <value>Leer el texto de esta versión ↗</value>
+  </data>
+  <data name="CasillaFacultades" xml:space="preserve">
+    <value>Declaro que tengo facultades para aceptar estos documentos en nombre de mi organización.</value>
+  </data>
+  <data name="BotonAceptar" xml:space="preserve">
+    <value>Aceptar y continuar</value>
+  </data>
+  <data name="MotivoAceptar" xml:space="preserve">
+    <value>Marca cada documento y la declaración de facultades para aceptar.</value>
+  </data>
+  <data name="ErrorRegistro" xml:space="preserve">
+    <value>No pudimos registrar tu aceptación. Inténtalo de nuevo.</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>{0} — versión {1}</value>
+  </data>
+  <data name="Antetitulo" xml:space="preserve">
+    <value>Documento contractual</value>
+  </data>
+  <data name="VigenteDesde" xml:space="preserve">
+    <value>Versión {0}, vigente desde el {1}.</value>
+  </data>
+  <data name="NoPublicado" xml:space="preserve">
+    <value>Esta versión del documento no está publicada.</value>
+  </data>
+</root>
