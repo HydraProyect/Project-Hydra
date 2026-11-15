@@ -58,6 +58,20 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             return delegacion;
         }).ToArray();
 
+    /// <summary>
+    /// Como <see cref="Amparar"/>, pero las operaciones del par de <paramref name="vinculo"/> nacen de esa delegación
+    /// concreta (la que el test ya usa para sus filas heredadas); las de otros pares, de una delegación propia. Las
+    /// internas y las que ya tienen origen se dejan como están.
+    /// </summary>
+    private static DelegacionTenant[] AmpararCon(DelegacionTenant vinculo, params AsignacionOperacion[] operaciones)
+    {
+        var externas = operaciones.Where(o => !o.EsOperacionInterna && o.OrigenId is null).ToArray();
+        var delPar = externas.Where(o =>
+            o.OperadorTenantId == vinculo.TenantConsultoraId && o.PropietarioTenantId == vinculo.TenantClienteId).ToArray();
+        foreach (var operacion in delPar) operacion.FijarOrigen(vinculo);
+        return [vinculo, .. Amparar(externas.Except(delPar).ToArray())];
+    }
+
     private static AsignacionCartera Cartera(AsignacionOperacion operacion, Guid usuario, string rol = Roles.GestorCae) =>
         AsignacionCartera.Externa(operacion, usuario, rol, AmbitoAsignacion.Universal, Desde, null, Desde);
 
@@ -182,7 +196,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria()
             .Con(inbound, outbound)
             .Con(Cartera(inbound, _gestor), Cartera(outbound, otroGestor))
-            .Con(_operador, _propietario, conOutbound);
+            .Con(_operador, _propietario, conOutbound)
+            .Con(Amparar(outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, null);
@@ -290,7 +305,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
                 cerradaDeOtroOperador, Cartera(deOtroOperador, conOtraDeOtroOperador),
                 cerradaInbound, Cartera(inbound, conOtraInbound))
             .Con(_operador, otroOperador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, outbound, acotadaDelMismo, deOtroOperador))
             .Con(filaDelMismo, filaDeOtroOperador, filaInbound);
 
         foreach (var (usuario, cerrada) in new[]
@@ -415,7 +430,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(outbound, otra)
             .Con(cerrada, laOtra)
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, outbound, otra))
             .Con(fila);
 
         await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
@@ -457,7 +472,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(outbound, acotada)
             .Con(carteraSolicitud, laOtra)
             .Con(_operador, _propietario)
-            .Con(vinculo, vinculoAnterior)
+            .Con(AmpararCon(vinculo, outbound, acotada))
+            .Con(vinculoAnterior)
             .Con(filaSolicitud, filaAnterior);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -515,7 +531,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria()
             .Con(operacion)
             .Con(cartera)
-            .Con(_operador, _propietario);
+            .Con(_operador, _propietario)
+            .Con(Amparar(operacion));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id);

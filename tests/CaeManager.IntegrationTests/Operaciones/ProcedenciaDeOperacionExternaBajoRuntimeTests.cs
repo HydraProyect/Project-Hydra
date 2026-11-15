@@ -193,8 +193,9 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             otroOperador = await SembrarTenantAsync(propietarioDeLaBase, "Operador CAE dos", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
 
         var ahora = DateTime.UtcNow;
+        // Acotada: la del Tenant entero de _operador ocupa el índice único de la operación universal vigente.
         var operacion = AsignacionOperacion.Externa(_propietario, otroOperador, ServicioCae.Outbound,
-            AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
         var delegacion = new DelegacionTenant(otroOperador, _propietario);
         await using (var contexto = ContextoPropietarioDeLaBase())
         {
@@ -229,7 +230,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         // La marca local sola no abre la excepción: hace falta ser la comprobación diferida (pg_trigger_depth > 1).
         var conMarca = () => EjecutarComoPropietarioAsync(
             $"""
-             SELECT set_config('app.deduccion_origen', '{acotada}', false);
+             SELECT set_config('app.deduccion_origen', '{acotada}', true);
              UPDATE "AsignacionesOperacion" SET "OrigenId" = '{_delegacion}', "RevocacionesDelOrigen" = 1 WHERE "Id" = '{acotada}';
              """);
         (await conMarca.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
@@ -289,6 +290,14 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         // La reactivación no repone la que sobrevivió a la revocación; para la prueba del backfill, una operación con
         // prueba positiva de origen y vigente: la nacida bajo la activación nueva.
         var bajoLaActivacionNueva = await SembrarAcotadaConCarteraAsync();
+        // La fila heredada de la Gestora CAE, creada tras la reactivación: sin ella el paso 2b cerraría todas sus carteras
+        // y el cierre de la de sinOrigen no aislaría el paso 2a.
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
+        }
 
         await using (var verificacion = ContextoPropietarioDeLaBase())
         {
@@ -333,6 +342,23 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         guardada.RevocadaEnUtc.Should().NotBeNull("el trigger revoca la fila heredada al contar la revocación");
         (await verificacion.AsignacionesOperadorDelegado.AnyAsync(a => a.Id == fila.Id)).Should().BeFalse(
             "ningún lector, que leen el conjunto sin revocadas, la vuelve a ver");
+    }
+
+    [Fact]
+    public async Task No_nace_una_fila_heredada_sobre_una_delegacion_revocada()
+    {
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+
+        var insertar = async () =>
+        {
+            await using var contexto = ContextoPropietarioDeLaBase();
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
+        };
+
+        (await insertar.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
+            e => EsViolacionDeComprobacion(e), "viva tras la revocación, volvería a autorizar al reactivar");
     }
 
     [Fact]

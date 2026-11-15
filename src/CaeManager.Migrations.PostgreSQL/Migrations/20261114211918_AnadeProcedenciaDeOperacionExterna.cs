@@ -168,6 +168,38 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AFTER UPDATE ON public."DelegacionesTenant"
                     FOR EACH ROW EXECUTE FUNCTION public.app_delegacion_tenant_revoca_filas_heredadas();
 
+                -- La revocación de arriba es una foto: una fila heredada que un escritor inserte después de leer la
+                -- delegación activa, pero confirmada tras la revocación, sobreviviría y volvería a autorizar al
+                -- reactivar. Con el cerrojo compartido, la revocación espera a este INSERT (y su trigger AFTER la revoca)
+                -- o este INSERT ve la revocación confirmada y se rechaza (revisión puente de la ronda 2, PR #2237).
+                CREATE FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa() RETURNS trigger
+                    LANGUAGE plpgsql
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                DECLARE
+                    v_proposito text;
+                    v_activa boolean;
+                BEGIN
+                    IF NEW."RevocadaEnUtc" IS NOT NULL THEN
+                        RETURN NEW;
+                    END IF;
+                    PERFORM pg_catalog.pg_advisory_xact_lock_shared(
+                        pg_catalog.hashtextextended('DelegacionesTenant:' || NEW."DelegacionTenantId"::text, 0));
+                    SELECT d."Proposito", d."Activa" INTO v_proposito, v_activa
+                      FROM public."DelegacionesTenant" d
+                     WHERE d."Id" = NEW."DelegacionTenantId";
+                    IF FOUND AND v_proposito = 'OperadorExterno' AND NOT v_activa THEN
+                        RAISE EXCEPTION 'Una fila heredada no nace sobre una DelegacionTenant de Operador CAE externo revocada (%).', NEW."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+                REVOKE ALL ON FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa() FROM PUBLIC;
+                CREATE TRIGGER asignacion_operador_delegado_exige_delegacion_activa
+                    BEFORE INSERT ON public."AsignacionesOperadorDelegado"
+                    FOR EACH ROW EXECUTE FUNCTION public.app_asignacion_operador_delegado_exige_delegacion_activa();
+
                 CREATE FUNCTION public.app_asignacion_operacion_sella_origen() RETURNS trigger
                     LANGUAGE plpgsql
                     SET search_path TO 'pg_catalog', 'pg_temp'
@@ -355,6 +387,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 DROP FUNCTION IF EXISTS public.app_asignacion_operacion_origen_activo_al_nacer();
                 DROP TRIGGER IF EXISTS asignacion_operacion_sella_origen ON public."AsignacionesOperacion";
                 DROP FUNCTION IF EXISTS public.app_asignacion_operacion_sella_origen();
+                DROP TRIGGER IF EXISTS asignacion_operador_delegado_exige_delegacion_activa ON public."AsignacionesOperadorDelegado";
+                DROP FUNCTION IF EXISTS public.app_asignacion_operador_delegado_exige_delegacion_activa();
                 DROP TRIGGER IF EXISTS delegacion_tenant_revoca_filas_heredadas ON public."DelegacionesTenant";
                 DROP FUNCTION IF EXISTS public.app_delegacion_tenant_revoca_filas_heredadas();
                 DROP TRIGGER IF EXISTS delegacion_tenant_cuenta_revocaciones ON public."DelegacionesTenant";

@@ -508,7 +508,11 @@ public class TerminologiaCanonicaTests
         // CatalogoIncorporacionCartera retiran su comparación propia (−1 cada uno). El writer resuelve la única
         // delegación vigente del par para fijarla como origen (DelegacionesTenant ×3, DelegacionTenant ×2,
         // PropositoDelegacion ×2). Baja con la migración de DelegacionTenant, que es un incremento propio.
-        ["Delegacion"] = 382,
+        // 382 → 385 (2026-11-15, ronda 2 tras Codex r1 en la PR #2237): +3, referencias legacy existentes, ningún
+        // identificador nuevo. CatalogoIncorporacionCartera y TarifasOperadorCae pasan el DbSet DelegacionesTenant a
+        // AmparadasPorSuOrigen (+1 cada uno) y DesactivarDelegacionTenantCommand filtra las filas heredadas por
+        // DelegacionTenantId para revocarlas (+1).
+        ["Delegacion"] = 385,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
