@@ -322,6 +322,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     [Fact]
     public async Task Asegurar_la_cartera_sin_operacion_donde_colgarla_falla()
     {
+        await CerrarLaOperacionDelAltaAsync();
         await using var contexto = CrearContexto(_propietario);
 
         // El gestor de la consultora sin operación externa vigente: no hay dónde colgar su cartera y la
@@ -472,6 +473,10 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         Guid programadaQueChoca;
         Guid programadaLimpia;
 
+        // La «limpia» no puede chocar con nada: fuera la operación externa que abrió el alta en InitializeAsync,
+        // que ocupa el mismo hueco del índice de delegación total.
+        await CerrarLaOperacionDelAltaAsync();
+
         await using (var contexto = CrearContexto(_propietario))
         {
             // Ya hay una raíz vigente del propietario (la creó InitializeAsync).
@@ -551,19 +556,17 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // comprobaciones son capas independientes, no una la garantía de la
         // otra (ver AbrirCarteraOperadorAsync/CerrarOperacionDelegadaAsync).
         //
-        // La operación externa se crea a mano, sin pasar por el backfill, que
-        // no la dejaría vigente con la delegación desactivada.
-        var ahora = DateTime.UtcNow;
+        // La operación externa es la que abrió el alta en InitializeAsync, sellada con su origen; se desactiva
+        // la delegación sin pasar por el comando, que la cerraría en cascada.
         await using (var contexto = CrearContexto(_propietario))
         {
-            contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
-                _propietario, _consultora, ServicioCae.Outbound, AmbitoAsignacion.Universal,
-                ahora.AddMinutes(-5), null, ahora.AddMinutes(-5)));
-
             var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId);
             delegacion.Desactivar();
 
             await contexto.SaveChangesAsync();
+
+            (await contexto.AsignacionesOperacion.SingleAsync(o => o.OrigenId == _delegacionId)).Estado
+                .Should().Be(EstadoAsignacion.Vigente, "control: la operación sigue vigente tras desactivar");
         }
 
         await using var verificacionContexto = CrearContexto(_propietario);
@@ -586,6 +589,16 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     // ---------- utilidades ----------
+
+    /// <summary>Cierra la operación externa del Tenant entero que abrió el alta en <see cref="InitializeAsync"/>.</summary>
+    private async Task CerrarLaOperacionDelAltaAsync()
+    {
+        await using var contexto = CrearContexto(_propietario);
+        var operacion = await contexto.AsignacionesOperacion.SingleAsync(
+            o => o.OrigenId == _delegacionId && o.Estado == EstadoAsignacion.Vigente);
+        operacion.Cerrar(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+        await contexto.SaveChangesAsync();
+    }
 
     private async Task<IReadOnlyList<Guid>?> ClientesVisiblesParaElGestorDelegadoAsync()
     {

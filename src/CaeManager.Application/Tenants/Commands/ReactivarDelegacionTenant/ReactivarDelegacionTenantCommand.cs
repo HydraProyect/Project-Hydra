@@ -204,9 +204,18 @@ public class ReactivarDelegacionTenantCommandHandler(
         // permite responder quién operaba en cada momento. Siempre es la de un Operador CAE
         // externo: la autoridad de arriba (PuedeReactivarAsync) ya lo exigió, y el propósito no
         // cambia nunca en una DelegacionTenant.
-        await asignacionesWriter.AbrirOperacionDelegadaAsync(
+        var desde = DateTime.UtcNow;
+        var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
             tenantPropietarioId, delegacion.TenantConsultoraId,
-            DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
+            desde, vigenciaHasta: null, cancellationToken);
+
+        // La delegación se leyó inactiva dentro de esta transacción, así que ninguna operación vigente puede estar
+        // ya amparada por ella: si el writer devuelve una existente (no la que nace con este «desde»), otra
+        // reactivación simultánea ganó entre la lectura y el guardado de arriba, que esperó a su bloqueo de fila.
+        // Esta pierde sin escribir: el fallo revierte la transacción, también su UPDATE de la delegación (ronda 3
+        // de la PR #2237; sin los cerrojos consultivos ya no lo decidía la base).
+        if (operacion.VigenciaDesde != desde)
+            return Result.Fallo(Error.Crear("DelegacionTenant.YaActiva", "Esta delegación ya estaba activa."));
 
         // Sin carteras (decisión de Chris del 2026-11-14, opción A en la PR #2223): reactivar la
         // delegación no repone ninguna Asignación de Cartera, ni la de Consulta desde la fila
