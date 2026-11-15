@@ -108,11 +108,9 @@ public interface IAlcanceDatosService
     /// la que la sesión lo tiene (su Tenant de origen, un Tenant beneficiario
     /// delegado por Asignación de Operación o la delegación heredada del acceso
     /// de soporte; decide el rol efectivo), así que recibe
-    /// aquí su alcance normal y, con él, la información operativa: el último
-    /// motivo de rechazo del historial de rechazos de la acreditación
-    /// (<c>UltimoMotivoRechazo</c>), la dirección del portal (<c>UrlAcceso</c>)
-    /// y las notas del canal. Para el rol Cliente sigue vigente la decisión del
-    /// 2026-11-12 («B: estado, sin motivo»).
+    /// aquí su alcance normal y, con él, la información operativa: la dirección
+    /// del portal (<c>UrlAcceso</c>) y las notas del canal. Para el rol Cliente
+    /// sigue vigente la decisión del 2026-11-12 («B: estado, sin motivo»).
     /// La segunda regla, la de trazabilidad interna, se aplica en el servidor
     /// con <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>
     /// y corta cinco cosas, no solo una: el <b>registro</b> de un cambio de estado
@@ -121,22 +119,18 @@ public interface IAlcanceDatosService
     /// reclamaciones sin respuesta de Inicio
     /// (<c>ObtenerReclamacionesSinRespuestaQuery</c>, vacío), la última
     /// reclamación al Cliente del Centro (<c>ObtenerUltimaReclamacionClienteQuery</c>,
-    /// null) y el motivo de rechazo de la vista rápida de un Documento
-    /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, a null). No corta el
-    /// motivo de un rechazo en el resto de sus lecturas:
-    /// <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c> guarda el de un
-    /// rechazo anotado a mano también en el historial de rechazos (causa «Otro»,
-    /// sin autor ni nota, sin distinguir su origen del de un rechazo de la
-    /// Plataforma CAE), y ese historial sigue llegando a Consulta por la regla
-    /// operativa de este método como <c>UltimoMotivoRechazo</c> en
-    /// <c>ObtenerDocumentosQuery</c> (solo si la acreditación está rechazada) y en
-    /// <c>ObtenerAcreditacionesPorProveedorQuery</c>, que no lo condiciona al
-    /// estado actual de la acreditación: la Bandeja del Gestor (y con ella
-    /// «Requiere atención» de Inicio), la pestaña Plataformas de Empresa 360 y
-    /// <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por
-    /// rol; también lo pinta la pestaña Plataforma de Documentos. El DECISION_LOG
-    /// solo nombra la vista rápida: para esas otras vías no hay corte decidido
-    /// (ver el comentario de esa lista). El historial de reclamaciones enviadas no pasa por esa lista en el
+    /// null) y el último motivo de rechazo del historial de rechazos de la
+    /// acreditación (<c>UltimoMotivoRechazo</c>, a null), porque
+    /// <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c> guarda ahí
+    /// también el de un rechazo anotado a mano sin distinguir su origen. Ese
+    /// motivo se corta en las tres Queries que leen ese historial:
+    /// <c>ObtenerAcreditacionesDelDocumentoQuery</c> (vista rápida de un
+    /// Documento, 2026-11-14), <c>ObtenerDocumentosQuery</c> (listado de
+    /// Documentos) y <c>ObtenerAcreditacionesPorProveedorQuery</c> (pestaña
+    /// Plataforma de Documentos, Bandeja del Gestor y con ella «Requiere
+    /// atención» de Inicio, pestaña Plataformas de Empresa 360 y
+    /// <c>GET /extension/acreditaciones-pendientes</c>), las cuatro vías del
+    /// 2026-11-15. El historial de reclamaciones enviadas no pasa por esa lista en el
     /// servidor (sus Queries acotan por cartera, no por rol) y se le corta a
     /// Consulta en la presentación (ver el comentario de esa lista).
     /// Añadir Consulta al corte de este método o a esa lista cambia la
