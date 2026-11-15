@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Cumplimiento.Commands.AceptarTerminos;
 /// usuario los resuelve el propio handler — nada que el cliente pueda
 /// falsear (aceptar "otra versión" no tendría sentido de negocio).
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record AceptarTerminosCommand : ICommand, IComandoDeAutoservicio;
 
 public class AceptarTerminosCommandHandler(

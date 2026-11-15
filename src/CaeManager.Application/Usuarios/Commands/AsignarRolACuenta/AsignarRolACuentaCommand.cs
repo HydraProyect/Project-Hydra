@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 /// es <c>EditarUsuarioCommand</c> (revisión puente de P1-I2).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record AsignarRolACuentaCommand(Guid UsuarioId, string Rol) : ICommand<CuentaConRolAsignado>;
 
 /// <summary>Lo que la pantalla necesita para avisar al titular por correo.</summary>

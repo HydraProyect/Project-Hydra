@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 
+[AreaDelEncargo("Clientes")]
 public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 
 /// <summary>

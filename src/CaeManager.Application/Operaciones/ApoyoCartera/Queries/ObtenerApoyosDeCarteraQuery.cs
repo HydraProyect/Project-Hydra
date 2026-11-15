@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
@@ -51,6 +52,7 @@ public record ApoyosDeCarteraDto(
 /// Identity. Con <paramref name="TenantId"/>, solo los apoyos sobre ese Tenant propietario.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerApoyosDeCarteraQuery(Guid? TenantId = null) : IRequest<ApoyosDeCarteraDto>;
 
 public class ObtenerApoyosDeCarteraQueryHandler(

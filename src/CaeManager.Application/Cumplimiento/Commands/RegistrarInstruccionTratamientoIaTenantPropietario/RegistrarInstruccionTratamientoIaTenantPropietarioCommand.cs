@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
 using FluentValidation;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Cumplimiento.Commands.RegistrarInstruccionTrata
 /// de ADR-011 § 4bis: aquí sí, porque este comando es nuevo y no tiene
 /// deuda que arrastrar.
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record RegistrarInstruccionTratamientoIaTenantPropietarioCommand(
     Guid TenantPropietarioId,
     string VersionDpaAceptada,

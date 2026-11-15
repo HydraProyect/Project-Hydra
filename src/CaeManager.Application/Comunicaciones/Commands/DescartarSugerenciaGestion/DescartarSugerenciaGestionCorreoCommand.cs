@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGest
 /// mensaje que lo originó, el mismo criterio con el que <c>ObtenerConversacionPorIdQuery</c> se
 /// lo enseña. Fuera de alcance responde igual que un ítem que no existe, para no delatarlo.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record DescartarSugerenciaGestionCorreoCommand(Guid Id) : ICommand;
 
 public class DescartarSugerenciaGestionCorreoCommandHandler(

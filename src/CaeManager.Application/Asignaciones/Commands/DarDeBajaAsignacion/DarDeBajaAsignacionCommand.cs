@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 /// dónde ha trabajado cada persona (mejora directa sobre la matriz de "X"
 /// del Excel original, que no guardaba fechas).
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record DarDeBajaAsignacionCommand(Guid Id, DateOnly FechaBaja) : ICommand;
 
 public class DarDeBajaAsignacionCommandValidator : AbstractValidator<DarDeBajaAsignacionCommand>

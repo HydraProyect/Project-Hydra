@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 /// Sustituye a ObtenerRequisitosDocumentalesDeCentroQuery (retirada junto con
 /// RequisitoDocumental).
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerDocumentacionRequeridaDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<DocumentacionRequeridaCentroDto>?>;
 
 public record DocumentacionRequeridaCentroDto(

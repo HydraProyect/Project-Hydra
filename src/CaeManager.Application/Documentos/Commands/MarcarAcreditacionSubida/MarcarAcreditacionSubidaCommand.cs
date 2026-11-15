@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// reinicia sus acreditaciones a <see cref="EstadoAcreditacion.PendienteDeSubir"/>.
 /// Desde ahí sí se marca subida. La lista de la extensión reutiliza esta regla.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId) : ICommand;
 
 /// <summary>

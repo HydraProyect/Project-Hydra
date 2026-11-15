@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 
+[AreaDelEncargo("Proyectos")]
 public record DesasignarTecnicoProyectoCommand(Guid Id, DateOnly FechaBaja, Guid Version = default) : ICommand;
 
 public class DesasignarTecnicoProyectoCommandValidator : AbstractValidator<DesasignarTecnicoProyectoCommand>

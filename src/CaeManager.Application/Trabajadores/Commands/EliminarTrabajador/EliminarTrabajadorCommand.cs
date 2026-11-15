@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 
+[AreaDelEncargo("Trabajadores")]
 public record EliminarTrabajadorCommand(Guid Id) : ICommand;
 
 public class EliminarTrabajadorCommandHandler(

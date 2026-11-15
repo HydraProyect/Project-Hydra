@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Clientes.Commands.GuardarAccesoPlataformaCae;
 /// misma lista que pinta la caja) y que la plataforma del Cliente esté registrada.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record GuardarAccesoPlataformaCaeCommand(Guid ClienteEmpresarialId, Guid EmpresaId, string? Usuario, string? Contrasena)
     : ICommand, IEscrituraDeDatosDeCredencial
 {

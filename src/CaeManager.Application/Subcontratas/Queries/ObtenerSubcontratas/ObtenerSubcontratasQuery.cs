@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Subcontratas por estado documental con los demás
 /// filtros aplicados y sin el de estado.
 /// </param>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerSubcontratasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? SubcontrataId = null,

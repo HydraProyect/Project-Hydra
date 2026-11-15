@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 /// están mirando, no el del operador. Capa de presentación pura: nada aquí
 /// cambia una consulta de dominio, solo qué etiqueta usa la pantalla.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerPerfilVocabularioActualQuery : IRequest<PerfilVocabularioTenant>;
 
 /// <remarks>

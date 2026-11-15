@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerPendientePorPlataformaQuery : IRequest<IReadOnlyList<PendientePorPlataformaDto>>;
 
 /// <summary>Una fila por ProveedorPlataformaCae con acreditaciones pendientes o rechazadas visibles para el usuario actual — solo se listan portales con algo que resolver.</summary>

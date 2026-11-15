@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -79,6 +80,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// portal abierto; el resto de consumidores (Bandeja, Mi trabajo, drill-down) no los usan y así no pagan una
 /// consulta más a la base (el presupuesto de consultas de Mi trabajo está medido al límite).
 /// </param>
+[AreaDelEncargo("Documentos")]
 public record ObtenerAcreditacionesPorProveedorQuery(
     bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false,
     Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false, bool IncluirDominios = false)

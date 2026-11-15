@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 /// el interceptor genérico de auditoría al guardar (fijado por
 /// <c>AuditoriaModalidadGestionCaeTests</c>), no este handler.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EstablecerGestionCaeCentroCommand(Guid CentroId, ModalidadGestionCae Modalidad, Guid Version = default) : ICommand;
 
 public class EstablecerGestionCaeCentroCommandValidator : AbstractValidator<EstablecerGestionCaeCentroCommand>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Tenants;
 using MediatR;
 
@@ -10,6 +11,7 @@ namespace CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactoSegur
 /// organización: el contacto vigente, la propuesta pendiente y el último rechazo con su motivo. Solo para
 /// el Administrador del Tenant actual, leído en la base; para cualquier otro, null y la sección no se pinta.
 /// </summary>
+[AreaDelEncargo("ContactosSeguridad")]
 public record ObtenerContactoSeguridadDeMiOrganizacionQuery : IRequest<ContactoSeguridadDeMiOrganizacionDto?>;
 
 /// <param name="UltimoRechazo">El último rechazo, solo si es posterior a la última propuesta resuelta o

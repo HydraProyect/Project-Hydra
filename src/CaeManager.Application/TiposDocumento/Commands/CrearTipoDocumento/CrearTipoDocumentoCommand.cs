@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Commands.CrearTipoDocumento;
 
+[AreaDelEncargo("TiposDocumento")]
 public record CrearTipoDocumentoCommand(
     string Nombre,
     int? VigenciaMeses,

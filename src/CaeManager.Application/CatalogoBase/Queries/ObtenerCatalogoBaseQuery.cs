@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.CatalogoBase;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.CatalogoBase.Queries;
 /// Soporte TALVEG (rol <c>cae_app_soporte</c>) no lo lee: la migración le revoca todo, igual que en FestivosOficiales.
 /// Hasta que un técnico habilitado revise el contenido (CA-7), está vacío.
 /// </summary>
+[AreaDelEncargo("CatalogoBase")]
 public record ObtenerCatalogoBaseQuery : IRequest<CatalogoBaseDto>;
 
 public record CatalogoBaseDto(IReadOnlyList<ActividadCatalogoDto> Actividades, IReadOnlyList<RiesgoCatalogoDto> Riesgos);

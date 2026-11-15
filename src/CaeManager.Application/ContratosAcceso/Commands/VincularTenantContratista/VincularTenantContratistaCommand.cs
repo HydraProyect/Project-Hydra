@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using FluentValidation;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.ContratosAcceso.Commands.VincularTenantContrati
 /// Empresa contratista y con la línea Inbound vigente en el Producto Contratado del Tenant del Cliente empresarial (DN-7).
 /// </para>
 /// </summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record VincularTenantContratistaCommand(Guid ContratoAccesoId, Guid TenantContratistaId, Guid Version = default) : ICommand;
 
 public class VincularTenantContratistaCommandValidator : AbstractValidator<VincularTenantContratistaCommand>

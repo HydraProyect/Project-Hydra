@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -39,6 +40,7 @@ namespace CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 /// (<see cref="IBloqueoCarteraUsuario"/>) espera a una desactivación en curso de esa cuenta.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record DesignarGestorCaePrincipalCommand(Guid AsignacionOperacionId, Guid UsuarioId) : ICommand;
 
 public class DesignarGestorCaePrincipalCommandHandler(

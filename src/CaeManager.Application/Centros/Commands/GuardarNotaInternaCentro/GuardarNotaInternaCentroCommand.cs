@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Centros.Commands.GuardarNotaInternaCentro;
 /// </para>
 /// </summary>
 /// <param name="Notas">Vacía, solo espacios o <c>null</c>: el Centro se queda sin nota.</param>
+[AreaDelEncargo("Centros")]
 public record GuardarNotaInternaCentroCommand(Guid Id, string? Notas, Guid Version) : ICommand;
 
 public class GuardarNotaInternaCentroCommandValidator : AbstractValidator<GuardarNotaInternaCentroCommand>

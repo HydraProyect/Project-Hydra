@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
@@ -41,6 +42,7 @@ namespace CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 /// y Usuario afectado la da la fila misma; nada de eso se escribe a mano desde aquí.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record RestablecerSegundoFactorCommand(Guid UsuarioId) : ICommand, IComandoDeRestablecimientoSegundoFactor;
 
 public class RestablecerSegundoFactorCommandValidator : AbstractValidator<RestablecerSegundoFactorCommand>

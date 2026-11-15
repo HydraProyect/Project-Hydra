@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 
@@ -14,6 +15,7 @@ public record IntencionConversacionDto(IntencionCae IntencionActual, IntencionCa
             entidadVisible ? intencion.TipoEntidadPropuesta : null, entidadVisible ? intencion.EntidadPropuestaId : null);
 }
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerIntencionConversacionQuery(Guid ConversacionId) : IRequest<IntencionConversacionDto?>;
 
 public class ObtenerIntencionConversacionQueryHandler(

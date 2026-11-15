@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss;
 /// cada una es un hecho fechado, y una contrata larga necesita varias a lo
 /// largo del tiempo (ver el comentario de <see cref="SolicitudCertificacionTgss"/>).
 /// </summary>
+[AreaDelEncargo("Blindaje42")]
 public record SolicitarCertificacionTgssCommand(
     Guid EmpresaId,
     Guid ClienteId,

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 /// de la ConexionIntegracion (el agregado raíz editable) que vio el usuario
 /// — regla de concurrencia de CLAUDE.md.
 /// </summary>
+[AreaDelEncargo("Integraciones")]
 public record ActualizarLineaWhatsAppCommand(
     Guid LineaId,
     Guid Version,

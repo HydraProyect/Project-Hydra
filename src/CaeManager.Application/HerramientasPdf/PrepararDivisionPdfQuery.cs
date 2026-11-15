@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores.Extraccion;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// detectados y el catálogo con el que se revisan. La lectura es solo local: este handler no conoce ningún puerto de
 /// IA, y un test de arquitectura lo mantiene así (ver <see cref="DetectorTramosPdf"/>).
 /// </summary>
+[AreaDelEncargo("HerramientasPdf")]
 public record PrepararDivisionPdfQuery(byte[] ContenidoPdf, Guid EmpresaGestionadaId) : IRequest<Result<PreparacionDivisionPdf>>;
 
 /// <param name="TextoLegible">

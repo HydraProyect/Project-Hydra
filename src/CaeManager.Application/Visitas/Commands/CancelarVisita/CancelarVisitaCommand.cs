@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Visitas.Commands.CancelarVisita;
 /// rechaza si la Visita cambió desde entonces.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record CancelarVisitaCommand(Guid Id, string? Motivo = null) : ICommand<VisitaCanceladaDto>;
 
 /// <summary>Recibo de una cancelación: qué Visita y en qué versión quedó. Lo calcula el handler, no la pantalla.</summary>

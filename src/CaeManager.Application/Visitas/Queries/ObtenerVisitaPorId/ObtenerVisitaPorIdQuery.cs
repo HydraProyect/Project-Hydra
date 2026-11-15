@@ -1,12 +1,14 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 
+[AreaDelEncargo("Visitas")]
 public record ObtenerVisitaPorIdQuery(Guid Id) : IRequest<VisitaDetalleDto?>;
 
 public record VisitaDetalleDto(

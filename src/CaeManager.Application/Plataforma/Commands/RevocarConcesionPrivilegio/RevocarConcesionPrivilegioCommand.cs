@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -48,6 +49,7 @@ namespace CaeManager.Application.Plataforma.Commands.RevocarConcesionPrivilegio;
 /// </para>
 /// </summary>
 /// <param name="ConcesionPrivilegioId">La concesión que se cierra.</param>
+[AreaDelEncargo("Plataforma")]
 public record RevocarConcesionPrivilegioCommand(Guid ConcesionPrivilegioId) : ICommand;
 
 public class RevocarConcesionPrivilegioCommandValidator : AbstractValidator<RevocarConcesionPrivilegioCommand>

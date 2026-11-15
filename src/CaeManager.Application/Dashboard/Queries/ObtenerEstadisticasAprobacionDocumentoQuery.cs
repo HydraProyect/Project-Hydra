@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Dashboard.Queries;
 
 /// <summary>Cuántas verificaciones IA de Documento se resolvieron solas (Automática) vs necesitaron un Gestor CAE (Manual) — ver AprobacionDocumento.</summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerEstadisticasAprobacionDocumentoQuery : IRequest<EstadisticasAprobacionDocumentoDto>;
 
 public record EstadisticasAprobacionDocumentoDto(int Automaticas, int Manuales);

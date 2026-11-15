@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 /// anclado el hilo. Null para quien no lee notas internas, si la entidad no es visible o si esa dirección no está en su agenda; un contacto sin nota
 /// devuelve su ficha con <see cref="NotaContactoDto.Notas"/> en null, para poder añadirla.
 /// </summary>
+[AreaDelEncargo("Contactos")]
 public record ObtenerNotaContactoQuery(TipoPropietarioAgenda Tipo, Guid PropietarioId, string Email) : IRequest<NotaContactoDto?>;
 
 public record NotaContactoDto(Guid ContactoId, string Nombre, string? Notas, Guid? AutorUsuarioId, DateTime? ActualizadaEnUtc);

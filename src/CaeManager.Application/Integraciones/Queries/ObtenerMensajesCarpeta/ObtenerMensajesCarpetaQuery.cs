@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using MediatR;
@@ -6,6 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Integraciones.Queries.ObtenerMensajesCarpeta;
 
 /// <summary>Historial de una carpeta del buzón real — ver <c>ObtenerEstructuraBuzonQuery</c> sobre por qué esto llama a Graph en vivo y por qué guarda cambios pese a ser una consulta.</summary>
+[AreaDelEncargo("Integraciones")]
 public record ObtenerMensajesCarpetaQuery(Guid ConexionIntegracionId, string CarpetaExternoId, int Pagina = 1)
     : IRequest<Result<IReadOnlyList<MensajeResumenGraphDto>>>;
 

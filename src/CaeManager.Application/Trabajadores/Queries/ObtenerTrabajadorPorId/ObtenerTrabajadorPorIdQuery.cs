@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerTrabajadorPorIdQuery(Guid Id) : IRequest<TrabajadorDetalleDto?>;
 
 public record TrabajadorDetalleDto(

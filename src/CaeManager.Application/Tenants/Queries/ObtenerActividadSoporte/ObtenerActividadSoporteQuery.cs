@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// plataforma y que la delegación es suya. Un tenant cualquiera no puede
 /// mirar las visitas hechas a otro.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerActividadSoporteQuery(Guid DelegacionTenantId) : IRequest<IReadOnlyList<ActividadSoporteDto>>;
 
 public record ActividadSoporteDto(

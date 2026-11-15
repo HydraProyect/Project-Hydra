@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo;
 /// p. ej. porque es un administrativo que no hace falta registrar en el
 /// sistema (ver la petición original del usuario, Fase 36).
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ResolverDeteccionNuevoCommand(Guid DeteccionId, bool Crear) : ICommand;
 
 public class ResolverDeteccionNuevoCommandHandler(

@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using MediatR;
 
 namespace CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 
+[AreaDelEncargo("Vehiculos")]
 public record EliminarVehiculoCommand(Guid Id) : ICommand;
 
 public class EliminarVehiculoCommandHandler(

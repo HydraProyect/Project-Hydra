@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 /// mientras tanto, no se marca gestionado lo que no se vio.</item>
 /// </list>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record MarcarDocumentacionGestionadaCommand(Guid Id, Guid Version = default) : ICommand;
 
 public class MarcarDocumentacionGestionadaCommandValidator : AbstractValidator<MarcarDocumentacionGestionadaCommand>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// cartera que se emita al aceptar la hereda y el servicio de expiración la cierra.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ProponerApoyoCarteraCommand(
     Guid AsignacionOperacionId, Guid DestinatarioUsuarioId, DateOnly? UltimoDia = null) : ICommand<Guid>;
 

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Telemetria.Queries.ObtenerTiempoGestionConversa
 /// El total es solo del usuario actual a propósito: la transparencia que exige el
 /// art. 87 LOPDGDD es que cada quien vea su propia medición, no la de sus compañeros.
 /// </summary>
+[AreaDelEncargo("Telemetria")]
 public record ObtenerTiempoGestionConversacionQuery(Guid ConversacionId) : IRequest<TiempoGestionConversacionDto>;
 
 public record TiempoGestionConversacionDto(bool MedicionActiva, int SegundosAcumulados, int SegundosInactividadPausa);

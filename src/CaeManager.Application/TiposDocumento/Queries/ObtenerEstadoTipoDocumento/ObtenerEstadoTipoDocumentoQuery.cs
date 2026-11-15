@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -34,6 +35,7 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerEstadoTipoDocumen
 /// Texto del buscador de la lista; vacío o <c>null</c>, todos. Casa con el nombre del Trabajador, sin distinguir mayúsculas
 /// (como el buscador de Centro 360). Igual que <c>Estados</c>, filtra las filas, no el anillo ni los recuentos.
 /// </param>
+[AreaDelEncargo("TiposDocumento")]
 public record ObtenerEstadoTipoDocumentoQuery(
     Guid TipoDocumentoId,
     IReadOnlyCollection<GrupoEstadoTipoDocumento>? Estados = null,

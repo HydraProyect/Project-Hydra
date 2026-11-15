@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Comercial.Queries.ObtenerEstadoComercialTenants
 /// Commands): la comprobación va en el propio handler, fallando cerrado
 /// (lista vacía) igual que <c>EsAdministradorPlataformaQueryHandler</c>.
 /// </summary>
+[AreaDelEncargo("Comercial")]
 public record ObtenerEstadoComercialTenantsQuery : IRequest<IReadOnlyList<EstadoComercialTenantDto>>;
 
 public record EstadoComercialTenantDto(

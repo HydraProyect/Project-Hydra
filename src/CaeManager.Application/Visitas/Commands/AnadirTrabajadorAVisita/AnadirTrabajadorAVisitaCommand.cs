@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 /// ser de la Empresa gestionada activa y visible para quien lo añade, igual que al crear o editar
 /// (<see cref="TrabajadoresAdmisiblesEnVisita"/>).
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record AnadirTrabajadorAVisitaCommand(Guid VisitaId, Guid TrabajadorId, Guid Version = default) : ICommand;
 
 public class AnadirTrabajadorAVisitaCommandValidator : AbstractValidator<AnadirTrabajadorAVisitaCommand>

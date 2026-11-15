@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal;
 
 /// <summary>Solo Administrador: activa/desactiva la verificación IA con confidence score para un TipoDocumento de Trabajador — ver TipoDocumento.VerificacionIaActiva.</summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ActualizarVerificacionIaGlobalCommand(Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarVerificacionIaGlobalCommandValidator : AbstractValidator<ActualizarVerificacionIaGlobalCommand>

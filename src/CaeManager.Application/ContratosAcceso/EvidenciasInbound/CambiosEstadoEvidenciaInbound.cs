@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EvidenciasInbound;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 // evidencias, y lo que no ve responde «no encontrado». Ninguno lee el otro Tenant: la evidencia ya es del Tenant del
 // Cliente empresarial, y revocar la autorización no la toca.
 
+[AreaDelEncargo("ContratosAcceso")]
 public record RechazarEvidenciaInboundCommand(Guid EvidenciaId, CausaRechazoAcreditacion Causa, string Motivo) : ICommand;
 
 public class RechazarEvidenciaInboundCommandValidator : AbstractValidator<RechazarEvidenciaInboundCommand>
@@ -26,6 +28,7 @@ public class RechazarEvidenciaInboundCommandValidator : AbstractValidator<Rechaz
     }
 }
 
+[AreaDelEncargo("ContratosAcceso")]
 public record ValidarEvidenciaInboundCommand(Guid EvidenciaId) : ICommand;
 
 public class RechazarEvidenciaInboundCommandHandler(

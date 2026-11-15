@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Configuracion.Queries.ObtenerEstadoAutomatizaci
 /// ejecutó ni se tocó su interruptor) se muestra Activo por defecto, igual
 /// que hace la propia entidad.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record ObtenerEstadoAutomatizacionesQuery : IRequest<IReadOnlyList<AutomatizacionDto>>;
 
 public record AutomatizacionDto(

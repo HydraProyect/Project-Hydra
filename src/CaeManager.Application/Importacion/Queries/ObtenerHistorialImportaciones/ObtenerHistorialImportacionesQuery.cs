@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Importacion;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 
 /// <summary>Últimas importaciones ejecutadas, para el sidebar del wizard (Configuración → Importar datos).</summary>
+[AreaDelEncargo("Importacion")]
 public record ObtenerHistorialImportacionesQuery(int Limite = 10) : IRequest<IReadOnlyList<HistorialImportacionDto>>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public record HistorialImportacionDto(

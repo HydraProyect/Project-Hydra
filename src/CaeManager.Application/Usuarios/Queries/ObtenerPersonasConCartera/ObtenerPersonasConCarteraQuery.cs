@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
@@ -39,6 +40,7 @@ public record CarterasDeOperacion(
 /// lectura es <c>ObtenerOperadoresCaeDeMiTenantQuery</c>. Es lectura: quién puede cambiar el
 /// principal lo decide <c>DesignarGestorCaePrincipalCommand</c>.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerPersonasConCarteraQuery(Guid? TenantId = null) : IRequest<IReadOnlyList<CarterasDeOperacion>>;
 
 public class ObtenerPersonasConCarteraQueryHandler(

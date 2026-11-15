@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.AutorizacionesLectura.Commands.RevocarAutorizac
 /// Revoca la autorización, de forma definitiva: corta desde ese instante la lectura del Tenant destinatario (funciones <c>app_inbound_*</c>), y las copias que
 /// ese Tenant ya guardó se quedan. Volver a autorizar es conceder otra.
 /// </summary>
+[AreaDelEncargo("AutorizacionesLectura")]
 public record RevocarAutorizacionLecturaCommand(Guid AutorizacionId, Guid Version = default) : ICommand;
 
 public class RevocarAutorizacionLecturaCommandValidator : AbstractValidator<RevocarAutorizacionLecturaCommand>

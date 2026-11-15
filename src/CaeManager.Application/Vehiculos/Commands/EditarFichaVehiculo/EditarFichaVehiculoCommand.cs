@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Vehiculos.Commands.EditarFichaVehiculo;
 
+[AreaDelEncargo("Vehiculos")]
 public record EditarFichaVehiculoCommand(Guid Id, Guid Version, string? Tipo, string? Titularidad,
     string? RevisionGrua, string? DeclaracionCe, string? Aseguradora, string? Poliza, string? Recibo,
     IReadOnlyList<Guid> TrabajadorIds) : ICommand;

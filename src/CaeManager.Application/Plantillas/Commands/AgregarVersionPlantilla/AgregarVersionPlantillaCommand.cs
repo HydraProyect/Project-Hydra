@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plantillas;
 using FluentValidation;
 
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Plantillas.Commands.AgregarVersionPlantilla;
 /// un humano. El gestor los revisa y ajusta en el editor visual (PR5) igual
 /// que con cualquier borrador.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record AgregarVersionPlantillaCommand(Guid PlantillaDocumentoId, byte[] Contenido, string NombreArchivo)
     : ICommand<AgregarVersionPlantillaResultadoDto>;
 

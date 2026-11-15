@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using MediatR;
 
 namespace CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 
+[AreaDelEncargo("Notificaciones")]
 public record MarcarNotificacionLeidaCommand(Guid Id) : ICommand, IComandoDeAutoservicio;
 
 public class MarcarNotificacionLeidaCommandHandler(

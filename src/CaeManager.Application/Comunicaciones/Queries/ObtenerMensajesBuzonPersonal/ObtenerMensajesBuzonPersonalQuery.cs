@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerMensajesBuzonPers
 /// <c>ObtenerConversacionesQuery.SoloAsignadasAMi</c>, para que no pueda usarse para leer el buzón
 /// personal de otro gestor.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerMensajesBuzonPersonalQuery : IRequest<IReadOnlyList<MensajeBuzonPersonalDto>>;
 
 public record MensajeBuzonPersonalDto(

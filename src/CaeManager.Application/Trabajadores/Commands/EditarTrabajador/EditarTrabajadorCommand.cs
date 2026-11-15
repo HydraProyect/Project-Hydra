@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Trabajadores.Commands.EditarTrabajador;
 
+[AreaDelEncargo("Trabajadores")]
 public record EditarTrabajadorCommand(
     Guid Id,
     string Nombre,

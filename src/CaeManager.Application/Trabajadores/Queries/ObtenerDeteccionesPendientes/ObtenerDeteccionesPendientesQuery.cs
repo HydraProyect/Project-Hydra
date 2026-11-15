@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendient
 /// la única referencia a una detección pendiente era la notificación de
 /// campana, que se pierde si se descarta.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ObtenerDeteccionesPendientesQuery : IRequest<IReadOnlyList<DeteccionPendienteDto>>;
 
 public record DeteccionPendienteDto(

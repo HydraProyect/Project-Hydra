@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Blindaje42;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesTgss;
 
 /// <summary>Historial completo de solicitudes de certificación TGSS de una Empresa concreta ante un Cliente concreto — la vista del drawer.</summary>
+[AreaDelEncargo("Blindaje42")]
 public record ObtenerHistorialCertificacionesTgssQuery(Guid EmpresaId, Guid ClienteId)
     : IRequest<IReadOnlyList<SolicitudCertificacionTgssDto>>;
 

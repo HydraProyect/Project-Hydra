@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,7 @@ namespace CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
 /// contra la base): la pantalla no puede ofrecer lo que el comando rechazaría.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerTenantPropietarioAutorizanteQuery : IRequest<Guid?>;
 
 /// <summary>
@@ -41,6 +43,7 @@ public record ObtenerTenantPropietarioAutorizanteQuery : IRequest<Guid?>;
 /// que dispara el clic del Administrador, y ese comando vuelve a validarlo todo.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record BuscarOperadorCaeExternoAutorizableQuery(Guid? OperadorId, string? NombreExacto)
     : IRequest<OperadorCaeExternoAutorizableDto?>;
 

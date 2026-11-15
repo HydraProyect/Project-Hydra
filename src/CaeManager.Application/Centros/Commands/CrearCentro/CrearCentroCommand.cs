@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Centros.Commands.CrearCentro;
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record CrearCentroCommand(
     Guid ClienteId,
     Guid EmpresaId,

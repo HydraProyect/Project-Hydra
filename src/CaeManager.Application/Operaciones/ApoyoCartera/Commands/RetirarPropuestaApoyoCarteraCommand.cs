@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// que puede hacer con ella: aceptar y rechazar son del destinatario. No toca ninguna cartera:
 /// retirar un apoyo ya aceptado es otra operación.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record RetirarPropuestaApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 
 public class RetirarPropuestaApoyoCarteraCommandHandler(

@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using FluentValidation;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.Incidencias.Commands.EliminarIncidencias;
 
 /// <summary>Borrado en lote — ver EliminarClientesCommand para el criterio de éxito parcial.</summary>
+[AreaDelEncargo("Incidencias")]
 public record EliminarIncidenciasCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 public class EliminarIncidenciasCommandValidator : AbstractValidator<EliminarIncidenciasCommand>

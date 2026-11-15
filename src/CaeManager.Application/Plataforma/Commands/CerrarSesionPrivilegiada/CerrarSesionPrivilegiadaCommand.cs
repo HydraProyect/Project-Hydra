@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 /// pero esa visibilidad no autoriza su cierre. RLS mantiene la barrera de escritura;
 /// si no actualiza la fila, el comando devuelve un error de dominio.
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record CerrarSesionPrivilegiadaCommand(Guid SesionPrivilegiadaId) : ICommand;
 
 public class CerrarSesionPrivilegiadaCommandValidator : AbstractValidator<CerrarSesionPrivilegiadaCommand>

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// Añade un turno a la conversación: lo que la persona escribe, o lo que el
 /// asistente le respondió. Mismo reparto de textos que al crear la tarea.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record AgregarTurnoTareaAsistenteCommand(
     Guid TareaId,
     AutorTurnoTareaAsistente Autor,

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -30,6 +31,7 @@ namespace CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
 /// llega de los Recientes del palette; el recuento es para ese único sujeto, nunca por tecla.
 /// </para>
 /// </summary>
+[AreaDelEncargo("BusquedaGlobal")]
 public record ContarVencenEstaSemanaDeEmpresaQuery(Guid EmpresaId) : IRequest<int?>;
 
 public class ContarVencenEstaSemanaDeEmpresaQueryHandler(

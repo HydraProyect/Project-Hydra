@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 
 /// <summary>Resuelve una conversación de la cola de triage (ver § 12.4) asignándole un Cliente real.</summary>
+[AreaDelEncargo("Comunicaciones")]
 public record AsignarClienteConversacionCommand(Guid ConversacionId, Guid ClienteId) : ICommand;
 
 public class AsignarClienteConversacionCommandValidator : AbstractValidator<AsignarClienteConversacionCommand>

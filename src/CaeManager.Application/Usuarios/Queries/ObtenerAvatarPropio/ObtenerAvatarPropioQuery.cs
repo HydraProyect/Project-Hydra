@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
@@ -8,6 +9,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
 /// sesión). La usan el menú de cuenta y la pantalla donde se elige. Devuelve la clave
 /// tal cual está guardada: quien pinta la pasa por <see cref="CatalogoAvatares.Resolver"/>.
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerAvatarPropioQuery : IRequest<string?>;
 
 public class ObtenerAvatarPropioQueryHandler(ICurrentUserService currentUserService, IAvatarDeCuentas avatares,

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// la frontera de Tenant. <c>Version</c> es la versión del Centro que se vio en pantalla y es obligatoria
 /// (<see cref="Guid.Empty"/> se rechaza en la validación): un valor vacío desactivaría el control optimista.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record EstablecerRelacionDeEntradaCentroCommand(
     Guid CentroId, Guid? RelacionEmpresarialId, Guid Version) : ICommand;
 

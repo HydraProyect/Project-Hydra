@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Contactos;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 /// contacto no basta para escribir en la agenda de otra entidad. Quien no lee la nota según
 /// <see cref="IPoliticaNotaInterna"/> no la fija: el comando no hace otra cosa, así que se rechaza en vez de ignorarse.
 /// </summary>
+[AreaDelEncargo("Contactos")]
 public record FijarNotaContactoAgendaCommand(TipoPropietarioAgenda Tipo, Guid PropietarioId, Guid ContactoId, string? Texto) : ICommand;
 
 public class FijarNotaContactoAgendaCommandValidator : AbstractValidator<FijarNotaContactoAgendaCommand>

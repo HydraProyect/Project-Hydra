@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 
@@ -8,6 +9,7 @@ namespace CaeManager.Application.Plataforma.OrdenMenu;
 /// menú usa entonces el orden por defecto del catálogo). Lo leen todos los usuarios de todos los
 /// Tenants: el orden no es autoridad, cada uno sigue viendo solo lo que su rol le permite.
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record ObtenerOrdenMenuLateralQuery : IRequest<OrdenMenuLateralDto?>;
 
 public class ObtenerOrdenMenuLateralQueryHandler(IOrdenMenuLateralRepository repositorio, CacheOrdenMenuLateral cache)

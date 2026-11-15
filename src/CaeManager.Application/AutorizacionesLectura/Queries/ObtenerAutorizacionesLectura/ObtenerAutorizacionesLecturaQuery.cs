@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,7 @@ public record AutorizacionLecturaDto(
 /// destinatario. Solo Administrador, el mismo criterio que concederlas (<see cref="AutorizacionLecturaAutoridad"/>);
 /// para el resto, lista vacía. Las más recientes primero.
 /// </summary>
+[AreaDelEncargo("AutorizacionesLectura")]
 public record ObtenerAutorizacionesLecturaQuery : IRequest<IReadOnlyList<AutorizacionLecturaDto>>;
 
 public class ObtenerAutorizacionesLecturaQueryHandler(

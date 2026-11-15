@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente
 /// No amplía autoridad.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record CorregirCorreoCuentaPendienteCommand(Guid UsuarioId, string CorreoNuevo) : ICommand<string>;
 
 public class CorregirCorreoCuentaPendienteCommandHandler(

@@ -1,6 +1,7 @@
 using CaeManager.Application.AsistenteIa.Decisiones;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
@@ -31,6 +32,7 @@ namespace CaeManager.Application.AsistenteIa.Candidatos;
 /// </para>
 /// </summary>
 /// <param name="Campos">Nombres de <see cref="Ordenes.CampoDeOrden"/>; ver <see cref="CamposConCandidatos"/>.</param>
+[AreaDelEncargo("AsistenteIa")]
 public record ObtenerCandidatosAsistenteQuery(IReadOnlyList<string> Campos) : IRequest<CandidatosAsistenteDto>;
 
 /// <summary>Un Tenant de la cartera: donde el Gestor CAE puede pedir que se ejecute una orden.</summary>

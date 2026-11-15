@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -39,6 +40,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionEmp
 /// Añade lo que se pide sin vencimiento (documentos de Empresa que faltan y «Sin confirmar» sin fecha,
 /// <see cref="LoteReclamacionEmpresaDto.PendientesSinFecha"/>). Falso por defecto: quien no lo pide ve lo de siempre.
 /// </param>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerLoteReclamacionEmpresaQuery(
     Guid? EmpresaId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null, bool IncluirPendientesSinFecha = false)
     : IRequest<IReadOnlyList<LoteReclamacionEmpresaDto>>;

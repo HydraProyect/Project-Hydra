@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 /// (<see cref="IGestionCuentasUsuario.GenerarTokenActivacionAsync"/>), no este handler.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record GenerarActivacionUsuarioCommand(Guid UsuarioId) : ICommand<string>;
 
 public class GenerarActivacionUsuarioCommandHandler(

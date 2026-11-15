@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record CrearTrabajadorCommand(
     Guid? EmpresaId,
     Guid? SubcontrataId,

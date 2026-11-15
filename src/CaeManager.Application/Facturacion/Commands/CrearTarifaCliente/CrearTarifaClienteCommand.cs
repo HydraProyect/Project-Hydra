@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Facturacion;
 using FluentValidation;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Facturacion.Commands.CrearTarifaCliente;
 
+[AreaDelEncargo("Facturacion")]
 public record CrearTarifaClienteCommand(
     Guid ClienteId,
     ConceptoFacturable Concepto,

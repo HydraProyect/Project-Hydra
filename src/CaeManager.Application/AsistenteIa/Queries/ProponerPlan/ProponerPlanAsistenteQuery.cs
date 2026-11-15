@@ -4,6 +4,7 @@ using CaeManager.Application.AsistenteIa.Edicion;
 using CaeManager.Application.AsistenteIa.Ordenes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
 /// también falla cerrado.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ProponerPlanAsistenteQuery(string Texto, Guid? TenantElegido = null) : IRequest<Result<PlanPropuestoDto>>;
 
 public enum SituacionPlan

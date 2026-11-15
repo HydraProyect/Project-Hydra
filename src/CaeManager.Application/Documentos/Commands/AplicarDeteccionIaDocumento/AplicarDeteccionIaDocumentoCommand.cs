@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -42,6 +43,7 @@ namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 /// (<see cref="RevisionIaDocumento.TieneAlertaDeterminista"/>) no se acepta sin que una persona la abra. La aceptación
 /// individual no lo activa: la única interfaz que la lanza enseña el motivo junto al botón (<c>RevisionIaTab</c>).
 /// </param>
+[AreaDelEncargo("Documentos")]
 public record AplicarDeteccionIaDocumentoCommand(
     Guid RevisionId, bool SoloSiLaVigenciaLaFijaElTipo = false, bool SoloSinAlertaDeterminista = false) : ICommand;
 

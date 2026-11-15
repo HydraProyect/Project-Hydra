@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 /// debajo el constructor de <see cref="FiltroGuardado"/>.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record GuardarFiltroCommand(string Pantalla, string Nombre, string ValoresJson) : ICommand<Guid>, IComandoDeAutoservicio;
 
 /// <summary>

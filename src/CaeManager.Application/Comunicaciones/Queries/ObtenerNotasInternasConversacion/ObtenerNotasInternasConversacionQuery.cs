@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerNotasInternasConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerNotasInternasConversacionQuery(Guid ConversacionId) : IRequest<IReadOnlyList<NotaInternaDetalleDto>>;
 
 /// <summary>

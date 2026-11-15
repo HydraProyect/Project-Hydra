@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -50,6 +51,7 @@ namespace CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 /// misma transacción la cartera principal de cada operación que siga sin principal.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record CambiarActivacionUsuarioCommand(Guid UsuarioId, bool Activar) : ICommand;
 
 public class CambiarActivacionUsuarioCommandHandler(

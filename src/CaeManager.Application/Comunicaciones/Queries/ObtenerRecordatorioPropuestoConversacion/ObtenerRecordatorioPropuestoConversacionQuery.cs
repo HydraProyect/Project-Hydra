@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerRecordatorioPropuestoConversacionQuery(Guid ConversacionId) : IRequest<RecordatorioPropuestoDto?>;
 
 /// <param name="Destinatario">

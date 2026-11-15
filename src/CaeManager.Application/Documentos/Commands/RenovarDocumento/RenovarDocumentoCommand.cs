@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -35,6 +36,7 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
 /// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
     Guid Version = default, bool NoCaduca = false) : ICommand<Guid>

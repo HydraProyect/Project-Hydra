@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -8,6 +9,7 @@ using MediatR;
 namespace CaeManager.Application.Blindaje42.Commands.RegistrarRespuestaCertificacionTgss;
 
 /// <summary>Registra la respuesta de la TGSS a una solicitud ya hecha — o su justificante, si llega en papel/PDF.</summary>
+[AreaDelEncargo("Blindaje42")]
 public record RegistrarRespuestaCertificacionTgssCommand(
     Guid SolicitudId,
     ResultadoCertificacionTgss Resultado,

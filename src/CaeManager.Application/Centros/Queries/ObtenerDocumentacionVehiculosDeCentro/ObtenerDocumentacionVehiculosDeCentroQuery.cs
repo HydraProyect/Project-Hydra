@@ -6,6 +6,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionVehiculosDe
 /// Centro). No hay filas «Falta»: no se sabe qué debería existir.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerDocumentacionVehiculosDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VehiculoDocumentacionCentroDto>>;
 
 /// <param name="SubcontrataId">La Subcontrata a la que pertenece el Vehículo, si es de una (ver <see cref="VehiculoConActividadDto.SubcontrataId"/>).</param>

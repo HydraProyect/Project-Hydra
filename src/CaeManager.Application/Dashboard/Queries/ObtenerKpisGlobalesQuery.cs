@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerKpisGlobalesQuery : IRequest<KpisGlobalesDto>;
 
 public record ClienteRiesgoDto(

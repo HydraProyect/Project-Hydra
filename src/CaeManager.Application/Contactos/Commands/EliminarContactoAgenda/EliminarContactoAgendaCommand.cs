@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Contactos;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
 /// comprueba que el contacto le pertenece: sin eso, conocer el Guid de un
 /// contacto bastaría para borrarlo desde la agenda de otra entidad.
 /// </summary>
+[AreaDelEncargo("Contactos")]
 public record EliminarContactoAgendaCommand(TipoPropietarioAgenda Tipo, Guid PropietarioId, Guid ContactoId) : ICommand;
 
 public class EliminarContactoAgendaCommandValidator : AbstractValidator<EliminarContactoAgendaCommand>

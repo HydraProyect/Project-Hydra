@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using MediatR;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Seguridad.Incidentes.Aviso.Commands.ConfirmarYE
 /// salieron no se repiten y los fallidos se reenvían con el texto de la primera vez.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Seguridad")]
 public record ConfirmarYEnviarPrimerAvisoCommand(Guid IncidenteId, ContenidoAvisoIncidente Contenido)
     : ICommand<ResumenEnvioAviso>;
 

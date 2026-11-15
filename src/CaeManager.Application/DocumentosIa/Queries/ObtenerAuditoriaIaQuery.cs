@@ -1,11 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.DocumentosIa;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.DocumentosIa.Queries;
 
+[AreaDelEncargo("DocumentosIa")]
 public record ObtenerAuditoriaIaQuery(
     string? ProveedorCodigo,
     int Pagina = 1,

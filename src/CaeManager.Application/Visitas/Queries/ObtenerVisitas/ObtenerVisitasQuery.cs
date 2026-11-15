@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -32,6 +33,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 /// Solo las Visitas que aún no han empezado. <c>SoloUrgentes</c> no las separa, porque el listado también
 /// quiere ver en ese filtro las que están en curso; <see cref="GestionesUrgentesDeVisita"/> no las cuenta.
 /// </param>
+[AreaDelEncargo("Visitas")]
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? VisitaId = null,
@@ -46,6 +48,7 @@ public record ObtenerVisitasQuery(
 /// acota el propio criterio, <see cref="GestionesUrgentesDeVisita.ConsultaCandidatas"/>: solo trae las Visitas por
 /// empezar dentro de la ventana de aviso.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerVisitasUrgentesQuery : IRequest<IReadOnlyList<VisitaListaDto>>;
 
 public record VisitaListaDto(

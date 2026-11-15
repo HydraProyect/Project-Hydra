@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// Reanuda un paso en borrador cuando llega el dato que faltaba (o cambia uno).
 /// El paso pasa a listo si ya no le falta nada ni tiene avisos bloqueantes.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ActualizarPasoTareaAsistenteCommand(
     Guid TareaId,
     Guid PasoId,

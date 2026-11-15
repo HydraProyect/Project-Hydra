@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -31,6 +32,7 @@ namespace CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCli
 /// una vía lateral para leer una Empresa fuera de cartera — exactamente el
 /// agujero que <c>AlcanceDatosServiceExtensions</c> existe para cerrar.
 /// </summary>
+[AreaDelEncargo("Blindaje42")]
 public record ObtenerBlindajeEmpresasDeClienteQuery(Guid ClienteId) : IRequest<IReadOnlyList<BlindajeEmpresaDto>>;
 
 public record BlindajeEmpresaDto(

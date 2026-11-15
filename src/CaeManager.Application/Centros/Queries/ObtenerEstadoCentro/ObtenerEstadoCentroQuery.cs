@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -6,6 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Centros.Queries.ObtenerEstadoCentro;
 
 /// <summary>Respalda el badge de cumplimiento y su desglose en el Context Workspace de Centro (ver CalculoEstadoCentroService).</summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerEstadoCentroQuery(Guid CentroId) : IRequest<EstadoCentroDto?>;
 
 /// <param name="CumplimientoPorcentaje">

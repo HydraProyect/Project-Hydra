@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Queries;
 /// <paramref name="SoloAbiertas"/>, solo las que se pueden retomar (ni terminadas
 /// ni descartadas).
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record ListarTareasAsistenteQuery(bool SoloAbiertas = true, int Maximo = 50) : IRequest<Result<IReadOnlyList<ResumenTareaAsistenteDto>>>;
 
 public record ResumenTareaAsistenteDto(

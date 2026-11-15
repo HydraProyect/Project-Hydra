@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Seguridad.Incidentes.Aviso.Commands.DecidirInci
 /// empieza el plazo. Confirmar no va por aquí: confirma el clic que envía el primer aviso
 /// (<see cref="ConfirmarYEnviarPrimerAviso.ConfirmarYEnviarPrimerAvisoCommand"/>).
 /// </summary>
+[AreaDelEncargo("Seguridad")]
 public record DecidirIncidenteSeguridadCommand(Guid IncidenteId, DecisionIncidenteSeguridad Decision, string? Motivo) : ICommand;
 
 public class DecidirIncidenteSeguridadCommandValidator : AbstractValidator<DecidirIncidenteSeguridadCommand>

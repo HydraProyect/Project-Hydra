@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.TiposDocumento.Queries.ObtenerTipoDocumentoPorId;
 
+[AreaDelEncargo("TiposDocumento")]
 public record ObtenerTipoDocumentoPorIdQuery(Guid Id) : IRequest<TipoDocumentoDetalleDto?>;
 
 public record TipoDocumentoDetalleDto(

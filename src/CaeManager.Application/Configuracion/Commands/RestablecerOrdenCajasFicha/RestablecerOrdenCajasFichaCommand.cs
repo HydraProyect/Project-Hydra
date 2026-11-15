@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.GuardarOrdenCajasFicha;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Configuracion.Commands.RestablecerOrdenCajasFic
 /// para ese tipo de ficha en el Tenant actual, y la ficha vuelve al orden
 /// automático. Si no tenía ninguno, no hace nada y termina bien.
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record RestablecerOrdenCajasFichaCommand(string TipoFicha) : ICommand, IComandoDeAutoservicio;
 
 public class RestablecerOrdenCajasFichaCommandValidator : AbstractValidator<RestablecerOrdenCajasFichaCommand>

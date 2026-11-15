@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificaci
 /// archivo por clave sin verificar que la fila es visible para quien lo pide.
 /// Visible = la Subcontrata Y el Centro de la verificación, las dos cosas.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerEvidenciaVerificacionParaDescargaQuery(Guid VerificacionId) : IRequest<EvidenciaParaDescargaDto?>;
 
 /// <summary>

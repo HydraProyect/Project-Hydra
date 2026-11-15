@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -9,6 +10,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Lee un PDF que sube una persona para unirlo y dice cuántas páginas tiene y si lleva firma, sin escribir nada. La
 /// lectura es solo local, como la de Dividir: este handler no conoce ningún puerto de IA.
 /// </summary>
+[AreaDelEncargo("HerramientasPdf")]
 public record PrepararUnionPdfQuery(byte[] ContenidoPdf, string NombreArchivo) : IRequest<Result<InfoPdfParaUnir>>;
 
 /// <summary>Lo que se exige a un PDF subido, antes de abrirlo: el mismo criterio al añadirlo y al unirlo.</summary>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.VigilanciaNormativa;
 using MediatR;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisio
 /// beneficiario lee el aviso (DEC-8) pero no puede resolverlo: la
 /// distinción de audiencia vive aquí, no en la lectura.
 /// </summary>
+[AreaDelEncargo("VigilanciaNormativa")]
 public record MarcarAvisoRevisionNormativaRevisadoCommand(Guid Id, string? Notas) : ICommand;
 
 public class MarcarAvisoRevisionNormativaRevisadoCommandHandler(

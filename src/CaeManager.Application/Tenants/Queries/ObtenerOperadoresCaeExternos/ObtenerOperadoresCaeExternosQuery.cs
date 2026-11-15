@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 /// <c>OperadorExterno</c> activas: las de Soporte son del plano de plataforma
 /// (ADR-011 § 8), no operación.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerOperadoresCaeExternosQuery : IRequest<IReadOnlyList<OperadorCaeExternoDto>>;
 
 public record TenantPropietarioOperadoDto(Guid TenantId, string Nombre);

@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Facturacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
 namespace CaeManager.Application.Dashboard.Queries;
 
+[AreaDelEncargo("Dashboard")]
 public record ObtenerDashboardEjecutivoQuery(PeriodoKpi Periodo) : IRequest<DashboardEjecutivoDto>;
 
 public record CentroCumplimientoMultiTenantDto(string TenantNombre, Guid CentroId, string CentroNombre, int Porcentaje);

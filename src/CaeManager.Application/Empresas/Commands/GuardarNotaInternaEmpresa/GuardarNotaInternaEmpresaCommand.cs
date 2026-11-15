@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 /// </para>
 /// </summary>
 /// <param name="Notas">Vacía, solo espacios o <c>null</c>: la Empresa se queda sin nota.</param>
+[AreaDelEncargo("Empresas")]
 public record GuardarNotaInternaEmpresaCommand(Guid Id, string? Notas, Guid Version) : ICommand;
 
 public class GuardarNotaInternaEmpresaCommandValidator : AbstractValidator<GuardarNotaInternaEmpresaCommand>

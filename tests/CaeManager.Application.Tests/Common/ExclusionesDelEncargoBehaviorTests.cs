@@ -2,6 +2,7 @@ using CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
 using CaeManager.Application.DocumentosIa.Queries;
@@ -17,6 +18,7 @@ using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Application.Tests.Common;
 
@@ -131,6 +133,131 @@ public class ExclusionesDelEncargoBehaviorTests
         llegoAlHandler.Should().BeTrue(caso);
         respuesta.Should().Be("datos");
         encargo.VecesConsultado.Should().Be(0, "una petición que no está en la lista no paga la resolución del rol efectivo");
+    }
+
+    /// <summary>
+    /// ADR-013, M0c: una petición sin área resuelta (sin <see cref="AreaDelEncargoAttribute"/> propia ni de una
+    /// base; su espacio de nombres no cuenta) falla
+    /// cerrado bajo encargo no pleno; sin encargo pasa.
+    /// </summary>
+    [Fact]
+    public async Task Una_peticion_sin_area_resuelta_se_niega_a_quien_administra_por_encargo_y_pasa_sin_el()
+    {
+        var (bajoEncargo, llegoBajoEncargo) = await PasarAsync(new PeticionSinArea(), Result.Exito(), EncargoVigente);
+        llegoBajoEncargo.Should().BeFalse("sin área no hay clasificación que la abra");
+        bajoEncargo.Error.Should().Be(ErroresEncargoAdministracion.ActoExcluido);
+
+        var (sinEncargo, llegoSinEncargo) = await PasarAsync(new PeticionSinArea(), Result.Exito(), encargo: null);
+        llegoSinEncargo.Should().BeTrue("la restricción solo actúa sobre quien tiene el rol elevado por un encargo");
+        sinEncargo.EsExitoso.Should().BeTrue();
+    }
+
+    private sealed record PeticionSinArea : ICommand;
+
+    /// <summary>
+    /// Codex r2 (#2241): las peticiones de flujo no pasan por los <see cref="IPipelineBehavior{TRequest,TResponse}"/>.
+    /// <see cref="ExclusionesDelEncargoStreamBehavior{TRequest,TResponse}"/> les aplica la misma lista: excluida (aquí,
+    /// sin área) bajo encargo no pleno se interrumpe antes del handler; sin encargo, o con encargo pleno, pasa.
+    /// </summary>
+    [Fact]
+    public async Task Una_peticion_de_flujo_excluida_se_niega_bajo_encargo_no_pleno_y_pasa_sin_el_o_con_encargo_pleno()
+    {
+        ActosExcluidosDelEncargo.Excluye(new PeticionFlujoSinArea()).Should().BeTrue("control: sin área queda excluida");
+
+        var (llegoBajoEncargo, errorBajoEncargo) = await RecorrerFlujoAsync(new PeticionFlujoSinArea(), EncargoVigente);
+        errorBajoEncargo.Should().BeOfType<ActoExcluidoDelEncargoException>();
+        llegoBajoEncargo.Should().BeFalse("el handler del flujo no llega a invocarse");
+
+        var (llegoSinEncargo, errorSinEncargo) = await RecorrerFlujoAsync(new PeticionFlujoSinArea(), encargo: null);
+        errorSinEncargo.Should().BeNull();
+        llegoSinEncargo.Should().BeTrue("la restricción solo actúa sobre quien tiene el rol elevado por un encargo");
+
+        var (llegoPleno, errorPleno) = await RecorrerFlujoAsync(new PeticionFlujoSinArea(), EncargoVigente, pleno: true);
+        errorPleno.Should().BeNull();
+        llegoPleno.Should().BeTrue("con encargo pleno no rige la lista");
+    }
+
+    [Fact]
+    public async Task El_flujo_de_Mi_trabajo_sigue_permitido_bajo_encargo_no_pleno()
+    {
+        var peticion = new CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.ObtenerMiTrabajoPorPartesQuery();
+        ActosExcluidosDelEncargo.AreaDe(peticion.GetType()).Should().Be("Bandeja");
+
+        var (llego, error) = await RecorrerFlujoAsync(peticion, EncargoVigente);
+
+        error.Should().BeNull();
+        llego.Should().BeTrue("Bandeja es un área permitida: clasificar el flujo no cambia lo que ya abría");
+    }
+
+    /// <summary>
+    /// Composición real: <c>AddApplication</c> registra el behavior de flujo y MediatR 12 lo ejecuta en
+    /// <see cref="IMediator.CreateStream{TResponse}"/>. Sin el registro, el flujo excluido llegaría al handler.
+    /// </summary>
+    [Fact]
+    public async Task AddApplication_aplica_las_exclusiones_del_encargo_a_las_peticiones_de_flujo()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        servicios.AddScoped<IEncargoDeAdministracionActual>(_ => new EncargoFijo(EncargoVigente));
+        var handler = new HandlerFlujoSinArea();
+        servicios.AddSingleton<IStreamRequestHandler<PeticionFlujoSinArea, int>>(handler);
+        await using var proveedor = servicios.BuildServiceProvider();
+        await using var ambito = proveedor.CreateAsyncScope();
+        var mediador = ambito.ServiceProvider.GetRequiredService<IMediator>();
+
+        var recorrer = async () =>
+        {
+            await foreach (var _ in mediador.CreateStream(new PeticionFlujoSinArea()))
+            {
+            }
+        };
+
+        await recorrer.Should().ThrowAsync<ActoExcluidoDelEncargoException>();
+        handler.Invocado.Should().BeFalse();
+    }
+
+    private static async Task<(bool LlegoAlHandler, Exception? Error)> RecorrerFlujoAsync<TRequest>(
+        TRequest peticion, Guid? encargo, bool pleno = false)
+        where TRequest : notnull
+    {
+        var llegoAlHandler = false;
+        var behavior = new ExclusionesDelEncargoStreamBehavior<TRequest, int>(new EncargoFijo(encargo, pleno));
+
+        async IAsyncEnumerable<int> Handler()
+        {
+            llegoAlHandler = true;
+            yield return 1;
+            await Task.CompletedTask;
+        }
+
+        try
+        {
+            await foreach (var _ in behavior.Handle(peticion, Handler, CancellationToken.None))
+            {
+            }
+        }
+        catch (Exception ex)
+        {
+            return (llegoAlHandler, ex);
+        }
+
+        return (llegoAlHandler, null);
+    }
+
+    /// <summary>Sin marca y fuera de un área (no está en el diccionario de Application): sin área, excluida.</summary>
+    public sealed record PeticionFlujoSinArea : IStreamRequest<int>;
+
+    private sealed class HandlerFlujoSinArea : IStreamRequestHandler<PeticionFlujoSinArea, int>
+    {
+        public bool Invocado { get; private set; }
+
+        public async IAsyncEnumerable<int> Handle(
+            PeticionFlujoSinArea request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Invocado = true;
+            yield return 1;
+            await Task.CompletedTask;
+        }
     }
 
     // Decisión del 2026-10-15: en un Tenant sin Administrador propio, el Operador CAE externo con

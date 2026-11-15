@@ -24,6 +24,7 @@ namespace CaeManager.Application.Tenants.Commands.RetirarEncargoAdministracion;
 /// la operación no se tocan: retirar el encargo baja el techo, no quita acceso.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record RetirarEncargoAdministracionCommand(Guid EncargoId) : ICommand, IComandoDeAprovisionamiento;
 
 public class RetirarEncargoAdministracionCommandHandler(

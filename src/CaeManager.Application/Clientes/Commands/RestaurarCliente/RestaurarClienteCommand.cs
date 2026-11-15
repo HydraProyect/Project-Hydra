@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ namespace CaeManager.Application.Clientes.Commands.RestaurarCliente;
 /// de CLAUDE.md pide revisar explícitamente en cualquier
 /// <c>IgnoreQueryFilters()</c> nuevo.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record RestaurarClienteCommand(Guid Id) : ICommand;
 
 public class RestaurarClienteCommandHandler(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 /// sostiene además un índice único filtrado, ver
 /// <c>CanalGestionDocumentalConfiguration</c>.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record MarcarCanalGestionPrincipalCommand(Guid Id) : ICommand;
 
 public class MarcarCanalGestionPrincipalCommandHandler(

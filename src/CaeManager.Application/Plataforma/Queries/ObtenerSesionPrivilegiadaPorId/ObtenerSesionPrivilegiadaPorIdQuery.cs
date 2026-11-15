@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -37,6 +38,7 @@ public record SesionPrivilegiadaDetalleDto(
 /// Sesión Privilegiada por sí sola no autoriza su cierre: el Administrador del
 /// Tenant beneficiario tiene una política de lectura independiente.
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record ObtenerSesionPrivilegiadaPorIdQuery(Guid SesionPrivilegiadaId)
     : IRequest<SesionPrivilegiadaDetalleDto?>;
 

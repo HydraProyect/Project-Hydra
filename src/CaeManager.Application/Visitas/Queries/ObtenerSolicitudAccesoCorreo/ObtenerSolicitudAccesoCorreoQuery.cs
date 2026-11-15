@@ -2,6 +2,7 @@ using System.Globalization;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -33,6 +34,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 /// El Tenant propietario lo impone el filtro de consulta (y RLS) de cada contexto.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerSolicitudAccesoCorreoQuery(Guid VisitaId) : IRequest<Result<SolicitudAccesoCorreoDto>>;
 
 public record SolicitudAccesoCorreoDto(string Destinatarios, string Asunto, string Cuerpo);

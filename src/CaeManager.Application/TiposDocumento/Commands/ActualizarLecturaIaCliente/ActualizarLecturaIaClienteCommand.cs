@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente;
 
 /// <summary>Nivel 2 (Gestor CAE u otro rol con acceso a este Cliente): override por Cliente+TipoDocumento — ver ConfiguracionIaDocumentoCliente.</summary>
+[AreaDelEncargo("TiposDocumento")]
 public record ActualizarLecturaIaClienteCommand(Guid ClienteId, Guid TipoDocumentoId, bool Activa) : ICommand;
 
 public class ActualizarLecturaIaClienteCommandHandler(

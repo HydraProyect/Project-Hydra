@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Auditoria.Queries;
 /// RequireClaim); esta query no repite la comprobación porque Application no
 /// conoce Identity — mismo criterio que el resto de queries de este proyecto.
 /// </summary>
+[AreaDelEncargo("Auditoria")]
 public record ObtenerAccesosDocumentosSensiblesQuery(
     int Pagina = 1, int TamanoPagina = 30) : IRequest<ResultadoPaginado<AccesoDocumentoSensibleDto>>;
 

@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
 using MediatR;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Empresas.Commands.EliminarDelegacionEmpresaUOficio;
 
@@ -25,6 +26,7 @@ public enum CatalogoTrabajadoresEmpresa
 /// concurrencia, y al revés.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record EliminarDelegacionEmpresaUOficioCommand(
     Guid EmpresaId, CatalogoTrabajadoresEmpresa Catalogo, Guid Id, Guid Version) : ICommand;
 

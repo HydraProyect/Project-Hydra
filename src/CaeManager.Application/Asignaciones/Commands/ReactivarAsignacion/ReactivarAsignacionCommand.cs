@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 /// equivocada solo se corregía con un alta nueva, que partía la historia del
 /// trabajador en ese centro en dos filas.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record ReactivarAsignacionCommand(Guid Id) : ICommand;
 
 public class ReactivarAsignacionCommandValidator : AbstractValidator<ReactivarAsignacionCommand>

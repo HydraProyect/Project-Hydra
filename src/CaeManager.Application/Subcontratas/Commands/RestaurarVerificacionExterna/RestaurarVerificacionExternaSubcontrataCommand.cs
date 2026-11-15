@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Subcontratas.Commands.RestaurarVerificacionExte
 /// nunca salió del almacenamiento. Misma autoridad que la baja: la Subcontrata y el Centro de la verificación
 /// tienen que estar al alcance de gestión.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record RestaurarVerificacionExternaSubcontrataCommand(Guid Id) : ICommand;
 
 public class RestaurarVerificacionExternaSubcontrataCommandHandler(

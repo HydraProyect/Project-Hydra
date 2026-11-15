@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using MediatR;
 
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant
 /// Vacía también en un Tenant de operación interna: no hay Operador CAE externo que nombrar.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record ObtenerOperadoresCaeDeMiTenantQuery : IRequest<IReadOnlyList<CarterasDeOperacion>>;
 
 public class ObtenerOperadoresCaeDeMiTenantQueryHandler(

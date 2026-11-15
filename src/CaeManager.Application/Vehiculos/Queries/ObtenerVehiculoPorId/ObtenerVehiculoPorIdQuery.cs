@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 
+[AreaDelEncargo("Vehiculos")]
 public record ObtenerVehiculoPorIdQuery(Guid Id) : IRequest<VehiculoDetalleDto?>;
 
 /// <summary>

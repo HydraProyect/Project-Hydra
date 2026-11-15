@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Importacion.Maestra;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -48,6 +49,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 /// él. Los fallos (no se escribió nada) los sigue registrando la página. Revisión Codex de la PR #2164, r4, MEDIO 2.
 /// </summary>
 /// <param name="NombreArchivo">Nombre del archivo para la entrada de éxito del Historial; vacío, «(desconocido)»; se recorta a 260.</param>
+[AreaDelEncargo("Importacion")]
 public record EjecutarImportacionMaestraCommand(
     PlanImportacionMaestraDto Plan, bool ReemplazarExistentes, string HuellaVistaPrevia, string NombreArchivo)
     : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada
@@ -73,6 +75,7 @@ public static class ErroresImportacionMaestra
 /// rellenarían y qué valores previos se sobrescribirían), para el aviso de N14. Los valores previos pueden ser datos
 /// personales: pasa por la misma autorización que el comando.
 /// </summary>
+[AreaDelEncargo("Importacion")]
 public record PrevisualizarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
     : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 

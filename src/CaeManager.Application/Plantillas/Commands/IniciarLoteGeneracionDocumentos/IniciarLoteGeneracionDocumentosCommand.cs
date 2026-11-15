@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
+using CaeManager.Application.Tenants.Encargo;
 using FluentValidation;
 
 namespace CaeManager.Application.Plantillas.Commands.IniciarLoteGeneracionDocumentos;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Plantillas.Commands.IniciarLoteGeneracionDocume
 /// de coste por documento, ADR-010 § 2.6 no fija todavía cuándo pasar a una
 /// cola encolada.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record IniciarLoteGeneracionDocumentosCommand(
     Guid PlantillaDocumentoVersionId,
     IReadOnlyList<Guid> TrabajadorIds,

@@ -28,6 +28,7 @@ namespace CaeManager.Application.Tenants.Commands.RegistrarEncargoAdministracion
 /// vigente y se registra otro.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record RegistrarEncargoAdministracionCommand(
     Guid AsignacionOperacionId, string ClausulaContrato, DateTime? VigenciaHasta)
     : ICommand<Guid>, IComandoDeAprovisionamiento;

@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 /// falta puntualmente en este documento concreto (ver DeteccionTrabajadoresService, Fase 36).
 /// Devuelve <see cref="ResultadoResolucionAusente"/>: lo que la operación hizo de verdad.
 /// </summary>
+[AreaDelEncargo("Trabajadores")]
 public record ResolverDeteccionAusenteCommand(Guid DeteccionId, bool Desactivar) : ICommand<ResultadoResolucionAusente>;
 
 /// <summary>

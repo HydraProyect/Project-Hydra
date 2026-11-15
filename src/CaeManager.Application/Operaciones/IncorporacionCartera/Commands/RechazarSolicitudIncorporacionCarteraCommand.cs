@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// Operador CAE. No crea ni cierra nada: solo resuelve la solicitud y avisa
 /// al Gestor CAE.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record RechazarSolicitudIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
 
 public class RechazarSolicitudIncorporacionCarteraCommandHandler(

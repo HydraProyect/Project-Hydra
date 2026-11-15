@@ -6,6 +6,7 @@ using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 
@@ -29,6 +30,7 @@ namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 /// con Sesión Privilegiada.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
 
 /// <summary>
@@ -38,6 +40,7 @@ public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : IComm
 /// Operador CAE externo; las de Soporte tienen su propio botón y su propio criterio.
 /// </summary>
 /// <param name="Id">La delegación (Asignación de Operación delegada) sobre la que se pregunta.</param>
+[AreaDelEncargo("Tenants")]
 public record PuedeRevocarQuery(Guid Id) : IRequest<bool>;
 
 public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<DesactivarDelegacionTenantCommand>

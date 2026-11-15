@@ -6,6 +6,7 @@ using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 
@@ -37,6 +38,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 /// sustituir al anterior, primero se revoca su vínculo.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record CrearDelegacionTenantCommand(Guid TenantConsultoraId, Guid TenantClienteId) : ICommand<Guid>;
 
 public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDelegacionTenantCommand>

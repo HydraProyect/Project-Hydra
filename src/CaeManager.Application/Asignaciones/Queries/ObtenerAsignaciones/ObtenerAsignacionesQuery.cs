@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
 /// <c>FechaBaja</c> (ver <c>Project-Hydra-Negocio/tecnico/DOMAIN.md</c>), así que el filtro se traduce a esa
 /// condición en SQL en vez de inventar un enum en el dominio.
 /// </summary>
+[AreaDelEncargo("Asignaciones")]
 public record ObtenerAsignacionesQuery(
     string? Busqueda, bool? Activa = null, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false)

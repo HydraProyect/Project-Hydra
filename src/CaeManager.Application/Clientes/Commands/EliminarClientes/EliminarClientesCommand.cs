@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Clientes.Commands.EliminarClientes;
 /// una única transacción. Éxito parcial no es fallo del Command: se reporta
 /// en <see cref="ResultadoEliminacionLoteDto"/> para que la UI lo resuma.
 /// </summary>
+[AreaDelEncargo("Clientes")]
 public record EliminarClientesCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
 /// <param name="IdsEliminados">

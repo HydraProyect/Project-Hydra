@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -53,6 +54,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// los demás llamadores siguen viendo exactamente lo de siempre. Con él, un titular
 /// que solo tiene pendientes sin fecha también aparece.
 /// </summary>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerLoteReclamacionQuery(
     Guid? CentroId = null, Guid? ClienteId = null, Guid? TrabajadorId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null,
     bool IncluirPendientesSinFecha = false)

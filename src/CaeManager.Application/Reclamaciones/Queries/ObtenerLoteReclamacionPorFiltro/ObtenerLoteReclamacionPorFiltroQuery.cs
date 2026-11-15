@@ -1,6 +1,7 @@
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionEmpresa;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPor
 /// por Delegación (<see cref="ReclamacionEmpresaEmpleadoraService"/>), en vez de al Cliente del Centro. Lo de un Trabajador de
 /// Subcontrata sigue yendo al Cliente. Falso por defecto: quien no lo pide ve lo de siempre (lotes por Cliente). «Gestionar», Alertas, la pestaña Reclamaciones y el Calendario lo piden.
 /// </param>
+[AreaDelEncargo("Reclamaciones")]
 public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, bool IncluirPendientesSinFecha = false, bool PorEmpresaEmpleadora = false)
     : IRequest<IReadOnlyList<LoteReclamacionAgrupadoDto>>;
 

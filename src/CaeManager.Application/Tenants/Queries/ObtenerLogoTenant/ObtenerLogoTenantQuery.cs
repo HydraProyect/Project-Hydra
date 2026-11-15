@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ public sealed record LogoTenantDto(string ArchivoClave, string Version);
 /// sin logo—, indistinguibles para quien llama. La autorización se decide ANTES de leer
 /// <c>Tenants</c>: con un Tenant no autorizado, exista o no, la fila no se consulta.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerLogoTenantQuery(Guid TenantId) : IRequest<LogoTenantDto?>;
 
 public class ObtenerLogoTenantQueryHandler(

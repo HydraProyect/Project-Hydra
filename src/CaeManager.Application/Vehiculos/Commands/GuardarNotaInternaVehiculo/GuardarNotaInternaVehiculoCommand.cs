@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Vehiculos;
 using FluentValidation;
@@ -28,6 +29,7 @@ namespace CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 /// </para>
 /// </summary>
 /// <param name="Notas">Vacía, solo espacios o <c>null</c>: el vehículo se queda sin nota.</param>
+[AreaDelEncargo("Vehiculos")]
 public record GuardarNotaInternaVehiculoCommand(Guid Id, string? Notas, Guid Version) : ICommand;
 
 public class GuardarNotaInternaVehiculoCommandValidator : AbstractValidator<GuardarNotaInternaVehiculoCommand>

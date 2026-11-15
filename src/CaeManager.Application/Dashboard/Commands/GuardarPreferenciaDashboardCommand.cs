@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Catalogo;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Dashboard.Commands;
 
+[AreaDelEncargo("Dashboard")]
 public record GuardarPreferenciaDashboardCommand(IReadOnlyList<string> CodigosKpi) : ICommand, IComandoDeAutoservicio;
 
 public class GuardarPreferenciaDashboardCommandValidator : AbstractValidator<GuardarPreferenciaDashboardCommand>

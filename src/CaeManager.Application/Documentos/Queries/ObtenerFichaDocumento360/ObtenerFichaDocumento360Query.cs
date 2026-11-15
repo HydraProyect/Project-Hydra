@@ -5,6 +5,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerFichaDocumento360;
 /// la misma regla que el cumplimiento del Centro). Vehículo, Cliente y Proyecto no tienen exigencia por Centro: lista vacía.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerFichaDocumento360Query(Guid DocumentoId) : IRequest<FichaDocumento360Dto?>;
 
 /// <param name="Documento">La cabecera, tal como la devuelve <see cref="ObtenerDocumentoPorIdQuery"/>.</param>

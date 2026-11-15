@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.AsistenteIa.Tareas.Commands;
 /// <paramref name="AsistidoPorIa"/> marca que el plan salió de una
 /// interpretación por IA.
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public record GuardarPlanTareaAsistenteCommand(
     Guid TareaId,
     IReadOnlyList<PasoPlanTareaAsistenteDto> Pasos,

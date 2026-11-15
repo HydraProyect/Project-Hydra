@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendiente
 /// resuelta, de otro Tenant propietario (filtro global y RLS) o de un Documento fuera de la Asignación de Cartera. Todos los
 /// casos se contestan igual, para no revelar si la revisión existe.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ObtenerRevisionIaParaVisorQuery(Guid RevisionId) : IRequest<RevisionIaParaVisorDto?>;
 
 /// <param name="DocumentoId">El Documento de la revisión: el único que la ruta puede servir.</param>

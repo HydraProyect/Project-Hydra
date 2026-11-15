@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisita
 /// entrada que la Bandeja del gestor usa para saber si hay una "visita
 /// sorpresa" pendiente de confirmar, sin tener que abrir /comunicaciones.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerSugerenciasVisitaCorreoPendientesQuery : IRequest<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>;
 
 /// <param name="ClienteId">Cliente del Centro detectado — null cuando la IA no pudo resolver un Centro. Alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16).</param>

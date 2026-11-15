@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerMacros;
 /// que "sin filtro" ahí muestra las genéricas — comportamiento consistente
 /// entre las dos pantallas que la usan.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerMacrosQuery(Guid? ClienteId = null) : IRequest<IReadOnlyList<MacroListaDto>>;
 
 public record MacroListaDto(

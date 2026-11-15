@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -22,6 +23,7 @@ namespace CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 ///
 /// Capa de presentación pura: no autoriza nada ni cambia ninguna consulta de dominio.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record UsaRotulosPrimeraPersonaQuery : IRequest<bool>;
 
 /// <remarks>

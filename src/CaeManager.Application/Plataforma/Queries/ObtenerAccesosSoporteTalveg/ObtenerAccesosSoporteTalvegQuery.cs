@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Plataforma;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +75,7 @@ public record AccesoSoporteTalvegDto(
 /// si esta comprobación desapareciera, un usuario sin rol seguiría leyendo cero.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Plataforma")]
 public record ObtenerAccesosSoporteTalvegQuery : IRequest<IReadOnlyList<AccesoSoporteTalvegDto>?>;
 
 public class ObtenerAccesosSoporteTalvegQueryHandler(

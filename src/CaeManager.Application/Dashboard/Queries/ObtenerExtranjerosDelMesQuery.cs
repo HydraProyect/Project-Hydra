@@ -2,6 +2,7 @@ using CaeManager.Application.Auditoria;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
@@ -15,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Dashboard.Queries;
 
 /// <summary>Los Trabajadores extranjeros cobrables de un mes natural, de todos los Tenants beneficiarios que alcanza quien mira.</summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerExtranjerosDelMesQuery(int Anyo, int Mes) : IRequest<ExtranjerosDelMesDto>;
 
 /// <summary>

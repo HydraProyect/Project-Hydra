@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// Empresa: la cartera no es aislamiento de Tenant.
 /// </summary>
 /// <param name="TenantEsperadoId">El Tenant con el que empezó la pantalla; si el selector cambió, se rechaza.</param>
+[AreaDelEncargo("HerramientasPdf")]
 public record ExtraerTramoPdfQuery(
     byte[] ContenidoPdf, string NombreOriginal, Guid TenantEsperadoId, Guid EmpresaGestionadaId, int PaginaInicial, int PaginaFinal)
     : IRequest<Result<TramoPdfExtraido>>;

@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using FluentValidation;
 
 namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
@@ -26,6 +27,7 @@ namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 /// <c>PlantillaElemento.Id</c> — estable desde que la versión está
 /// confirmada (nunca vuelve a llamarse <c>EstablecerElementos</c>).
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record GenerarDocumentoIndividualCommand(
     Guid PlantillaDocumentoVersionId,
     Guid OwnerId,

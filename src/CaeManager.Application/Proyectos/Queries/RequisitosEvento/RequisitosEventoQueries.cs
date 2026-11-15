@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Proyectos;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Proyectos.Queries.RequisitosEvento;
 
 /// <summary>Requisitos documentales de un evento; vacío si el Proyecto no existe o el actor no lo ve.</summary>
+[AreaDelEncargo("Proyectos")]
 public record ObtenerRequisitosEventoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<RequisitoEventoDto>>;
 
 public record RequisitoEventoDto(Guid TipoDocumentoId, string Nombre, AmbitoAplicacion AmbitoAplicacion);
@@ -16,6 +18,7 @@ public record RequisitoEventoDto(Guid TipoDocumentoId, string Nombre, AmbitoApli
 /// De dónde puede copiar sus requisitos un evento nuevo del Cliente empresarial dado: sus plantillas y sus
 /// eventos con requisitos. Solo de ese Cliente: la autoridad es la del Proyecto (<see cref="ProyectoAutorizacion"/>).
 /// </summary>
+[AreaDelEncargo("Proyectos")]
 public record ObtenerOrigenesRequisitosEventoQuery(Guid ClienteId) : IRequest<OrigenesRequisitosEventoDto>;
 
 public record OrigenRequisitosDto(Guid Id, string Nombre, int Requisitos);

@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using MediatR;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeC
 /// contextual: los vehículos de las Empresas/Subcontratas que tienen al
 /// menos un Trabajador con asignación activa en este Centro.
 /// </summary>
+[AreaDelEncargo("Centros")]
 public record ObtenerVehiculosConActividadDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VehiculoConActividadDto>>;
 
 /// <param name="SubcontrataId">La Empresa a la que pertenece el Vehículo cuando es de una Subcontrata (columna legacy

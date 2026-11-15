@@ -62,6 +62,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperad
 /// cartera. La autoridad es la del alta (<c>AdminPlataforma</c> global), no una
 /// Sesión Privilegiada, porque el Tenant todavía no existe para abrirla.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record CrearTenantPropietarioDeOperadorCaeExternoCommand(
     Guid TenantOperadorId, string NombreTenantPropietario, string? ClausulaEncargoAdministracion = null)
     : ICommand<Guid>;

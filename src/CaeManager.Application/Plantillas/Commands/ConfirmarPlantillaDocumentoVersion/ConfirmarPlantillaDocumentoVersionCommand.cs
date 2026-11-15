@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using FluentValidation;
 
 namespace CaeManager.Application.Plantillas.Commands.ConfirmarPlantillaDocumentoVersion;
@@ -10,6 +11,7 @@ namespace CaeManager.Application.Plantillas.Commands.ConfirmarPlantillaDocumento
 /// Quién confirma sale de <see cref="ICurrentUserService"/>, nunca del
 /// cliente — es lo que queda registrado en <c>ConfirmadaPorUsuarioId</c>.
 /// </summary>
+[AreaDelEncargo("Plantillas")]
 public record ConfirmarPlantillaDocumentoVersionCommand(Guid PlantillaDocumentoVersionId) : ICommand;
 
 public class ConfirmarPlantillaDocumentoVersionCommandValidator : AbstractValidator<ConfirmarPlantillaDocumentoVersionCommand>

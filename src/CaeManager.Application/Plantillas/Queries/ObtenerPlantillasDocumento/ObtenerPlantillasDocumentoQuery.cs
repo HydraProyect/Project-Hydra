@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Plantillas.Queries.ObtenerPlantillasDocumento;
 
 /// <summary>Lista de plantillas <see cref="OrigenPlantilla.Externa"/> del tenant — las TalvegPropio no se gestionan desde esta UI (§ 2.2, catálogo sembrado por código).</summary>
+[AreaDelEncargo("Plantillas")]
 public record ObtenerPlantillasDocumentoQuery : IRequest<IReadOnlyList<PlantillaDocumentoListaDto>>;
 
 public record PlantillaDocumentoListaDto(

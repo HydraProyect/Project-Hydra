@@ -1,5 +1,6 @@
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -7,6 +8,7 @@ using MediatR;
 
 namespace CaeManager.Application.Clientes.Commands.CrearCliente;
 
+[AreaDelEncargo("Clientes")]
 public record CrearClienteCommand(string RazonSocial, string Cif, bool EsCritico, string? Notas) : ICommand<Guid>;
 
 public class CrearClienteCommandValidator : AbstractValidator<CrearClienteCommand>

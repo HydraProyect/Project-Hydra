@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento
 /// registrada como <see cref="DecisionHumanaIa.DescartadaManual"/>
 /// (MACRO_PLAN § 6.6, "¿qué hizo la IA y quién lo confirmó?").
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record ResolverRevisionIaDocumentoCommand(Guid RevisionId) : ICommand;
 
 public class ResolverRevisionIaDocumentoCommandHandler(

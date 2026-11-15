@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
 /// día), una Visita puede empezar antes del mes visible o terminar después,
 /// así que el filtro es de solapamiento de rangos, no de fecha exacta.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record ObtenerVisitasParaCalendarioQuery(int Anio, int Mes) : IRequest<IReadOnlyList<VisitaCalendarioDto>>;
 
 public record VisitaCalendarioDto(

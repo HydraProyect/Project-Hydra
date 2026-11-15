@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 
+[AreaDelEncargo("Empresas")]
 public record ObtenerEmpresaPorIdQuery(Guid Id) : IRequest<EmpresaDetalleDto?>;
 
 public record EmpresaDetalleDto(

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using MediatR;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Seguridad.Incidentes.Aviso.Queries.ObtenerIncid
 /// sin ella, fallo y no un incidente vacío. Lo que acota las filas es la RLS (<c>actor_de_plataforma_lee</c>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Seguridad")]
 public record ObtenerIncidenteSeguridadQuery(Guid IncidenteId) : IRequest<Result<VistaIncidenteSeguridad>>;
 
 public record VistaIncidenteSeguridad(

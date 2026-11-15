@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -27,6 +28,7 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
 /// se reintenta una vez como sustitución.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Configuracion")]
 public record GuardarVistaRecordadaCommand(string Pantalla, string ValoresJson) : ICommand, IComandoDeAutoservicio;
 
 public class GuardarVistaRecordadaCommandValidator : AbstractValidator<GuardarVistaRecordadaCommand>

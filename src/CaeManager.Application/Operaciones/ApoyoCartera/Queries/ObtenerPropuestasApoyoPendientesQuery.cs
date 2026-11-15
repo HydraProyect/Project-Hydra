@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Operaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Queries;
 /// por Identity sobre una cuenta activa (<see cref="ContextoOperadorCae"/>): la campana pregunta
 /// por todo el mundo.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record ObtenerPropuestasApoyoPendientesQuery : IRequest<PropuestasApoyoPendientesDto>;
 
 public record PropuestasApoyoPendientesDto(

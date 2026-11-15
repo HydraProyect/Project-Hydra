@@ -1,10 +1,12 @@
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Auditoria.Queries;
 
+[AreaDelEncargo("Auditoria")]
 public record ObtenerRegistroAuditoriaPorIdQuery(Guid Id) : IRequest<RegistroAuditoriaDto?>;
 
 public class ObtenerRegistroAuditoriaPorIdQueryHandler(IAuditoriaQueryContext dbContext)

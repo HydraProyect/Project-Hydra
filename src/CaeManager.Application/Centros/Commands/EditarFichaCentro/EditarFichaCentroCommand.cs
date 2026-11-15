@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Centros.Commands.EditarFichaCentro;
 
+[AreaDelEncargo("Centros")]
 public record EditarFichaCentroCommand(Guid Id, Guid Version,
     string? HorarioAcceso,
     string? ControlAccesosNombre,

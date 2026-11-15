@@ -1,6 +1,7 @@
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Tenants.Commands.SuspenderTenant;
 /// el Tenant de plataforma no se suspende: dejaría sin Actor a quien tendría que reactivarlo.
 /// Suspender uno ya suspendido no hace nada: no mueve el sello de las claves de API.
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record SuspenderTenantCommand(Guid TenantId) : ICommand;
 
 public class SuspenderTenantCommandValidator : AbstractValidator<SuspenderTenantCommand>

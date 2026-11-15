@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -20,6 +21,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 /// no un hueco.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
 
 public class MarcarAcreditacionAceptadaCommandHandler(

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.VigilanciaNormativa;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ public record AvisoRevisionNormativaDto(
 /// en la ESCRITURA (<c>MarcarAvisoRevisionNormativaRevisadoCommand</c>,
 /// exclusiva del Actor de Plataforma), no en esta lectura.
 /// </summary>
+[AreaDelEncargo("VigilanciaNormativa")]
 public record ObtenerAvisosRevisionNormativaQuery : IRequest<IReadOnlyList<AvisoRevisionNormativaDto>>;
 
 public class ObtenerAvisosRevisionNormativaQueryHandler(

@@ -4,6 +4,7 @@ using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
@@ -15,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Dashboard.Queries;
 
 /// <summary>El Cuadro de dirección de un mes natural (hora peninsular). El mes en curso sale parcial.</summary>
+[AreaDelEncargo("Dashboard")]
 public record ObtenerCuadroDireccionQuery(int Anyo, int Mes) : IRequest<CuadroDireccionDto>;
 
 /// <summary>Una cifra de un mes con su estado: parcial si el mes no ha terminado.</summary>

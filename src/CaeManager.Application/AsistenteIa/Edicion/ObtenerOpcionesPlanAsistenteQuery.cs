@@ -1,6 +1,7 @@
 using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Ordenes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using MediatR;
 
 namespace CaeManager.Application.AsistenteIa.Edicion;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.AsistenteIa.Edicion;
 /// plan no se puede completar aquí.
 /// </para>
 /// </summary>
+[AreaDelEncargo("AsistenteIa")]
 public sealed record ObtenerOpcionesPlanAsistenteQuery(string OrdenId) : IRequest<OpcionesPlanAsistenteDto>;
 
 public sealed record OpcionesPlanAsistenteDto(

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// retira con <see cref="RetirarPropuestaApoyoCarteraCommand"/>) ni un tercero. No emite ni
 /// cierra nada.
 /// </summary>
+[AreaDelEncargo("Operaciones")]
 public record RechazarPropuestaApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 
 public class RechazarPropuestaApoyoCarteraCommandHandler(

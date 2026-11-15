@@ -4,6 +4,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using CaeManager.Application.Tenants.Encargo;
 
 namespace CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 
@@ -38,6 +39,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 /// <c>null</c>, la organización propia: todas.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Tenants")]
 public record ObtenerDelegacionesQuery(Guid? TenantAfectadoId = null) : IRequest<IReadOnlyList<DelegacionDto>>;
 
 public record OperadorDelegadoDto(Guid AsignacionId, Guid UsuarioId, string Rol);

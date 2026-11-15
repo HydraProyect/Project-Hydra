@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento
 /// flujo. Usa la misma autorización por <see cref="ICommand"/> que
 /// AplicarDeteccionIaDocumentoCommand.
 /// </summary>
+[AreaDelEncargo("Documentos")]
 public record CorregirRevisionIaDocumentoCommand(Guid RevisionId, DateOnly FechaEmision) : ICommand;
 
 public class CorregirRevisionIaDocumentoCommandHandler(

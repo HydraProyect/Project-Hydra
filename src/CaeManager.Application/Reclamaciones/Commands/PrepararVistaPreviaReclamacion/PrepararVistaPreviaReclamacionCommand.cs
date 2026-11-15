@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -30,6 +31,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaRecla
 /// Informado cuando el lote pidió documentos de Trabajadores a su Empresa empleadora (<c>ReclamacionEnviadaDto.EmpresaEmpleadora</c>):
 /// se prepara con <see cref="EnviarReclamacionEmpresaEmpleadoraCommandHandler"/> y su Delegación, no como documentos de empresa.
 /// </param>
+[AreaDelEncargo("Reclamaciones")]
 public record PrepararVistaPreviaReclamacionCommand(
     AmbitoAplicacion Ambito,
     Guid TitularId,

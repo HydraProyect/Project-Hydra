@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
@@ -14,6 +15,7 @@ namespace CaeManager.Application.HerramientasPdf;
 /// usuario pueda gestionar, las Subcontratas con una Relación Empresarial vigente con ella y los Trabajadores y Vehículos
 /// de ambas que su alcance deja ver. El filtro de Tenant y RLS siguen actuando por debajo.
 /// </summary>
+[AreaDelEncargo("HerramientasPdf")]
 public record ObtenerCatalogoDivisionPdfQuery(Guid EmpresaGestionadaId) : IRequest<Result<CatalogoDivisionPdf>>;
 
 public class ObtenerCatalogoDivisionPdfQueryHandler(

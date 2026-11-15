@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using MediatR;
@@ -11,6 +12,7 @@ namespace CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresa
 /// almacenada cuando el campo llega vacío, ya no hay ninguna otra forma de
 /// borrarla — esta es la única.
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record BorrarCredencialAccesoEmpresaContrasenaCommand(Guid EmpresaId) : ICommand, IEscrituraDeDatosDeCredencial;
 
 public class BorrarCredencialAccesoEmpresaContrasenaCommandHandler(

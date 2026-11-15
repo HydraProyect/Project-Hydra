@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
@@ -24,6 +25,7 @@ namespace CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 /// momento en que se registró el dato, y sin este corte un mes anterior a la existencia de los registros se facturaba
 /// con unidades que el resto de la serie (que mide por fecha de creación) todavía no contaba.
 /// </param>
+[AreaDelEncargo("Facturacion")]
 public record ObtenerResumenFacturacionQuery(Guid ClienteId, int Anyo, int Mes, DateTime? ExistenteHastaUtc = null)
     : IRequest<ResumenFacturacionDto?>;
 

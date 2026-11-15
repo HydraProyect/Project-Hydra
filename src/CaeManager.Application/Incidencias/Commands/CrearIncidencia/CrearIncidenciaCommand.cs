@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Incidencias.Commands.CrearIncidencia;
 
+[AreaDelEncargo("Incidencias")]
 public record CrearIncidenciaCommand(
     Guid CentroId, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad,
     DateOnly FechaOcurrencia, string Descripcion) : ICommand<Guid>;

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
 /// Quita un Trabajador de una Visita desde el panel. Misma autorización, Tenant y alcance que
 /// <c>EditarVisitaCommand</c>, y su misma regla: una Visita no se queda sin Trabajadores.
 /// </summary>
+[AreaDelEncargo("Visitas")]
 public record QuitarTrabajadorDeVisitaCommand(Guid VisitaId, Guid TrabajadorId, Guid Version = default) : ICommand;
 
 public class QuitarTrabajadorDeVisitaCommandValidator : AbstractValidator<QuitarTrabajadorDeVisitaCommand>

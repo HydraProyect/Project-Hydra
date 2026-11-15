@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 
+[AreaDelEncargo("Subcontratas")]
 public record CrearSubcontrataCommand(
     string RazonSocial, string? Cif, IReadOnlyList<Guid> ClienteIds, IReadOnlyList<Guid> EmpresaIds) : ICommand<Guid>;
 

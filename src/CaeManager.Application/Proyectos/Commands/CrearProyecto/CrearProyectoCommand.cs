@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
@@ -12,6 +13,7 @@ namespace CaeManager.Application.Proyectos.Commands.CrearProyecto;
 /// <param name="Tipo">Obra (el Proyecto de siempre) o Evento; un evento exige fecha de fin.</param>
 /// <param name="CopiarRequisitosDeProyectoId">Solo para un Evento: copia los requisitos de ese otro Proyecto.</param>
 /// <param name="PlantillaRequisitosId">Solo para un Evento: copia los requisitos de esa plantilla.</param>
+[AreaDelEncargo("Proyectos")]
 public record CrearProyectoCommand(
     Guid ClienteId, Guid CentroId, string Nombre, DateOnly FechaInicio, DateOnly? FechaFinPrevista, string? Notas,
     TipoProyecto Tipo = TipoProyecto.Obra, Guid? CopiarRequisitosDeProyectoId = null, Guid? PlantillaRequisitosId = null)

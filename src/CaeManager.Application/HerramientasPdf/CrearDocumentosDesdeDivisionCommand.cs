@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -59,6 +60,7 @@ public record ResultadoTramoCreado(
 /// circuito durante todo el lote. El resultado es ese tramo y, si el lote se corta en él, los que faltan detrás. Sin él, el
 /// lote entero en un solo Command (lo usa <c>DividirAdjuntoPdfCommand</c>, que ya es un Command).
 /// </param>
+[AreaDelEncargo("HerramientasPdf")]
 public record CrearDocumentosDesdeDivisionCommand(
     byte[] ContenidoPdf, string NombreOriginal, Guid TenantEsperadoId, Guid EmpresaGestionadaId,
     IReadOnlyList<TramoACrear> Tramos, int? Indice = null) : ICommand<IReadOnlyList<ResultadoTramoCreado>>;

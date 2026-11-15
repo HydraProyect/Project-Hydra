@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Proyectos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 
 /// <summary>Fase D ("Deshacer al eliminar") — ver RestaurarClienteCommand para el razonamiento completo del IgnoreQueryFilters()+TenantId.</summary>
+[AreaDelEncargo("Documentos")]
 public record RestaurarDocumentoCommand(Guid Id) : ICommand;
 
 public class RestaurarDocumentoCommandHandler(

@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaCli
 /// <see cref="ToleranciaDocumentoClienteEmpresarial"/> y <see cref="ReglaBloqueoDeAcceso"/>.
 /// <c>null</c> o 0 = sin tolerancia (borra la fila: sin fila la tolerancia es 0).
 /// </summary>
+[AreaDelEncargo("TiposDocumento")]
 public record EstablecerToleranciaClienteEmpresarialCommand(Guid ClienteEmpresarialId, Guid TipoDocumentoId, int? ToleranciaDias) : ICommand;
 
 public class EstablecerToleranciaClienteEmpresarialCommandValidator : AbstractValidator<EstablecerToleranciaClienteEmpresarialCommand>

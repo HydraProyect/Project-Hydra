@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
@@ -16,6 +17,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCumplimientoSubcont
 /// para no revelar que el registro está en otra organización. Una subcontrata visible sin nada exigido devuelve
 /// <see cref="FraccionCumplimiento.SinRequisitos"/>, cuyo <c>Porcentaje</c> es <c>null</c>.
 /// </remarks>
+[AreaDelEncargo("Subcontratas")]
 public record ObtenerCumplimientoSubcontrataQuery(Guid SubcontrataId) : IRequest<FraccionCumplimiento?>;
 
 public class ObtenerCumplimientoSubcontrataQueryHandler(

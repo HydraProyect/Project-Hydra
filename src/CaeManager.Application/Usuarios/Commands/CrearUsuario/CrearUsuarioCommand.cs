@@ -1,5 +1,6 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
@@ -54,6 +55,7 @@ namespace CaeManager.Application.Usuarios.Commands.CrearUsuario;
 /// tiene sentido.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Usuarios")]
 public record CrearUsuarioCommand(
     string Email,
     string NombreCompleto,

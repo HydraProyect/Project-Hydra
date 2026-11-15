@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
@@ -13,6 +14,7 @@ namespace CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubco
 /// servicio no es corregir un dato, y el historial (verificaciones externas
 /// incluidas) se conserva en ambos sentidos.
 /// </summary>
+[AreaDelEncargo("Subcontratas")]
 public record CambiarNivelServicioSubcontrataCommand(
     Guid Id, NivelServicioSubcontrata NivelServicio, Guid Version = default) : ICommand;
 

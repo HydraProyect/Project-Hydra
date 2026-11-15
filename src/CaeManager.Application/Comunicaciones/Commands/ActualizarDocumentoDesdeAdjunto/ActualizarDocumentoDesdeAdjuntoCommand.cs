@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Eventos;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
@@ -55,6 +56,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta que leyó del adjunto en vez de con
 /// lo que eligió una persona: si la propuesta ya es otra, es un conflicto antes de guardar nada.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
     DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? Comentarios, bool NoCaduca = false,

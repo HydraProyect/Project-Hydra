@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.ContratosAcceso;
 using MediatR;
@@ -6,6 +7,7 @@ using MediatR;
 namespace CaeManager.Application.ContratosAcceso.Commands.EliminarContratoAcceso;
 
 /// <summary>Baja lógica (soft delete): el runtime no tiene DELETE sobre <c>ContratosAcceso</c>.</summary>
+[AreaDelEncargo("ContratosAcceso")]
 public record EliminarContratoAccesoCommand(Guid Id) : ICommand;
 
 public class EliminarContratoAccesoCommandHandler(

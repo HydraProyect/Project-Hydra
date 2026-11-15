@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones.Commands.DescartarRecordatorioConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record DescartarRecordatorioConversacionCommand(Guid ConversacionId, Guid PropuestaId) : ICommand;
 
 public class DescartarRecordatorioConversacionCommandValidator : AbstractValidator<DescartarRecordatorioConversacionCommand>

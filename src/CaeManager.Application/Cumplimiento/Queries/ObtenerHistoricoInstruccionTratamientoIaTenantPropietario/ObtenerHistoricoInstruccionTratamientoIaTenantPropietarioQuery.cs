@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
 using MediatR;
@@ -18,6 +19,7 @@ namespace CaeManager.Application.Cumplimiento.Queries.ObtenerHistoricoInstruccio
 /// de producto/legal aparte (qué se le enseña de su propio cumplimiento),
 /// no una consecuencia automática de que el dato exista.
 /// </summary>
+[AreaDelEncargo("Cumplimiento")]
 public record ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery(Guid TenantPropietarioId)
     : IRequest<Result<IReadOnlyList<InstruccionTratamientoIaTenantPropietarioDto>>>;
 

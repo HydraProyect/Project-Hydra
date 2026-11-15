@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
@@ -21,6 +22,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacio
 /// <c>ConexionIntegracionId</c> que llegara del cliente — con la misma
 /// lógica que ya usó la Query para sugerir el borrador.
 /// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record PedirPrioridadValidacionCommand(
     Guid CentroId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml) : ICommand;
 

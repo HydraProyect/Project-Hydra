@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -17,6 +18,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarOficioEmpresa;
 /// cartera, «no encontrada». Renombrar exige la <paramref name="Version"/> leída (<see cref="ConcurrenciaOptimista"/>).
 /// </para>
 /// </summary>
+[AreaDelEncargo("Empresas")]
 public record GuardarOficioEmpresaCommand(Guid EmpresaId, Guid? OficioId, string Nombre, Guid? Version) : ICommand<Guid>;
 
 public class GuardarOficioEmpresaCommandValidator : AbstractValidator<GuardarOficioEmpresaCommand>

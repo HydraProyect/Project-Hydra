@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using FluentValidation;
@@ -6,6 +7,7 @@ using MediatR;
 
 namespace CaeManager.Application.Comunicaciones.Commands.ConfirmarIntencionConversacion;
 
+[AreaDelEncargo("Comunicaciones")]
 public record ConfirmarIntencionConversacionCommand(Guid ConversacionId, IntencionCae Intencion) : ICommand;
 
 public class ConfirmarIntencionConversacionCommandValidator : AbstractValidator<ConfirmarIntencionConversacionCommand>

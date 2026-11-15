@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Retencion;
 using FluentValidation;
@@ -23,6 +24,7 @@ namespace CaeManager.Application.Retencion.Commands;
 /// o ejecutan una purga: esos pasos siguen exigiendo una acción humana explícita.
 /// </para>
 /// </summary>
+[AreaDelEncargo("Retencion")]
 public record BuscarDatosPurgablesCommand : ICommand<int>;
 
 public class BuscarDatosPurgablesCommandHandler(
@@ -50,6 +52,7 @@ public class BuscarDatosPurgablesCommandHandler(
 /// diagnosticar, nunca proponer ni destruir; con política, el camino sigue
 /// siendo <see cref="BuscarDatosPurgablesCommand"/>.
 /// </summary>
+[AreaDelEncargo("Retencion")]
 public record DiagnosticarDatosPurgablesCommand : ICommand<ResultadoDiagnosticoPurgaDto>;
 
 public record ResultadoDiagnosticoPurgaDto(int DocumentosPurgables, int TrabajadoresPurgables, int Total);
@@ -68,6 +71,7 @@ public class DiagnosticarDatosPurgablesCommandHandler(DeteccionPurgaService dete
 }
 
 /// <summary>Deja constancia de que se avisó al tenant antes de destruir nada.</summary>
+[AreaDelEncargo("Retencion")]
 public record MarcarTenantAvisadoCommand(Guid SolicitudId) : ICommand;
 
 public class MarcarTenantAvisadoCommandHandler(ISolicitudPurgaRepository repositorio, IUnitOfWork unitOfWork)
@@ -90,6 +94,7 @@ public class MarcarTenantAvisadoCommandHandler(ISolicitudPurgaRepository reposit
 /// Autoriza la destrucción y fija cuándo puede ejecutarse. Es el único camino
 /// hacia la ejecución.
 /// </summary>
+[AreaDelEncargo("Retencion")]
 public record ProgramarPurgaCommand(Guid SolicitudId, DateOnly FechaEjecucion) : ICommand;
 
 public class ProgramarPurgaCommandValidator : AbstractValidator<ProgramarPurgaCommand>
@@ -135,6 +140,7 @@ public class ProgramarPurgaCommandHandler(
 }
 
 /// <summary>Descarta la propuesta — el caso del tenant que pide conservar sus datos más tiempo.</summary>
+[AreaDelEncargo("Retencion")]
 public record CancelarPurgaCommand(Guid SolicitudId, string Motivo) : ICommand;
 
 public class CancelarPurgaCommandValidator : AbstractValidator<CancelarPurgaCommand>
@@ -176,6 +182,7 @@ public class CancelarPurgaCommandHandler(ISolicitudPurgaRepository repositorio, 
 /// aunque esté autorizada: es irreversible, y que la fecha llegue no es razón
 /// para que ocurra sin que nadie mire.
 /// </summary>
+[AreaDelEncargo("Retencion")]
 public record EjecutarPurgaCommand(Guid SolicitudId) : ICommand<int>;
 
 public class EjecutarPurgaCommandHandler(EjecucionPurgaService ejecucion)

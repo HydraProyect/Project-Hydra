@@ -2,6 +2,7 @@ using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
@@ -15,6 +16,7 @@ namespace CaeManager.Application.Comercial.Commands.CambiarAddOnSubidaAutomatica
 /// <c>ActualizarEstadoComercialTenantCommand</c>, nunca el propio Tenant. El precio y la unidad de
 /// consumo del Add-on siguen sin decidir, y este Command no depende de ellos.
 /// </summary>
+[AreaDelEncargo("Comercial")]
 public record CambiarAddOnSubidaAutomaticaCommand(Guid TenantId, bool Activo) : ICommand;
 
 public class CambiarAddOnSubidaAutomaticaCommandValidator : AbstractValidator<CambiarAddOnSubidaAutomaticaCommand>
