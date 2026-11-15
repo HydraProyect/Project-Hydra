@@ -1,0 +1,16 @@
+# Aristas Inbound -> Outbound leídas del IL (ADR-013 § 4.1 regla 1 y § 4.3 test 2; DependenciasEntreModulosTests).
+# CERRADA: no admite altas. Hoy solo K-5 (EvidenciaInbound reutiliza EstadoAcreditacion y CausaRechazoAcreditacion, que el registro
+# de módulos da a Outbound); se retira con B-22. Formato: tipo de origen :: Módulo: tipo de destino = 1. Solo baja.
+Application.ContratosAcceso.EvidenciasInbound.EvidenciaInboundDto :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.EvidenciaInboundDto :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.EvidenciasInboundProyeccion :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.EvidenciasInboundProyeccion :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommand :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandValidator :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Application.ContratosAcceso.EvidenciasInbound.ValidarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
+Domain.EvidenciasInbound.EvidenciaInbound :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Domain.EvidenciasInbound.EvidenciaInbound :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
+Infrastructure.Persistence.Configurations.EvidenciaInboundConfiguration :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
+Infrastructure.Persistence.Configurations.EvidenciaInboundConfiguration :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
