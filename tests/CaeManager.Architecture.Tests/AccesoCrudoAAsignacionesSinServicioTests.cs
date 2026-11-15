@@ -1,4 +1,9 @@
+using CaeManager.Domain.Operaciones;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Architecture.Tests;
 
@@ -10,8 +15,9 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Qué observa.</b> Cada acceso a <c>AsignacionesOperacion</c> o <c>AsignacionesCartera</c> en el
-/// C# de <c>src</c> (sin migraciones) y en el SQL vigente de las migraciones (funciones y políticas),
-/// con la mecánica de <see cref="AccesosAAsignaciones"/>. Un acceso sin filtro de Servicio es
+/// C# de <c>src</c> (sin migraciones) y en el SQL vigente de las migraciones (funciones, vistas y
+/// políticas), con la mecánica de <see cref="AccesosAAsignaciones"/>; y, aparte, que el modelo de EF no
+/// tenga navegaciones hacia las dos entidades. Un acceso sin filtro de Servicio es
 /// <b>crudo</b>; los crudos de hoy están en <c>Congelados/Asignaciones-acceso-crudo-sin-servicio.txt</c>,
 /// una línea por fichero (u objeto SQL), miembro y tabla, con su recuento. Un crudo nuevo es
 /// <c>NUEVA</c> o <c>CRECE</c>; uno que pasa a filtrar por Servicio o desaparece es <c>BAJA</c> u
@@ -38,14 +44,37 @@ namespace CaeManager.Architecture.Tests;
 /// ni un predicado de servicio de otro tipo referenciado sin cualificar: cuentan como crudos
 /// (falso positivo, va a la lista).</item>
 /// <item>Accesos sin nombrar la tabla ni la entidad: <c>ctx.Add(entidad)</c>, <c>Entry(…)</c>,
-/// <c>Set(typeof(…))</c>, <c>Model.FindEntityType</c>, reflexión.</item>
-/// <item>En SQL: una función o política creada dentro de un <c>DO $$ … EXECUTE … $$</c> o reescrita por
-/// <c>ReescrituraPoliticasContextoRls</c> en ejecución; sobrecargas de una función con el mismo nombre
-/// (se queda la última definición); el SQL de datos de una sola vez en <c>Up</c>; y la sentencia se
-/// corta por <c>;</c>, así que una subconsulta sin servicio dentro de una sentencia que compara
-/// <c>"Servicio"</c> en otro sitio cuenta como filtrada.</item>
+/// <c>Set(typeof(…))</c>, <c>Model.FindEntityType</c>, reflexión. Las <b>navegaciones</b>
+/// (<c>x.Operacion</c>, <c>Include(x =&gt; x.Carteras)</c>) y el SQL que EF genera por ellas tampoco se
+/// clasifican: el escáner es sintáctico y no resuelve tipos. En su lugar,
+/// <see cref="El_modelo_de_EF_no_tiene_navegaciones_hacia_las_Asignaciones"/> exige que no exista
+/// ninguna navegación hacia las dos entidades (hoy no hay), así que la primera que se añada pone el
+/// trinquete en rojo hasta que el detector la mida.</item>
+/// <item>La fila de la consulta se reconoce por sintaxis: la variable de la lambda pasada a una llamada
+/// de la cadena o de rango de su consulta integrada. Una comparación sobre una fila de una subconsulta
+/// anidada sobre la misma tabla (<c>o =&gt; o.Hijas.Any(h =&gt; h.Servicio == s)</c>) no cuenta (falso
+/// positivo); una comparación sobre la fila de una proyección de la misma cadena
+/// (<c>.Select(o =&gt; new { o.Servicio }).Where(x =&gt; x.Servicio == s)</c>) sí cuenta. En la cartera
+/// cuenta además la fila de una subconsulta o de la fuente de un <c>Join</c> sobre
+/// <c>AsignacionesOperacion</c> si el contexto nombra <c>AsignacionOperacionId</c>: no se comprueba que
+/// esa subconsulta sea la que correlaciona la cartera con su operación.</item>
+/// <item>En SQL: una función, vista o política creada dentro de un <c>DO $$ … EXECUTE … $$</c> o
+/// reescrita por <c>ReescrituraPoliticasContextoRls</c> en ejecución; sobrecargas de una función con el
+/// mismo nombre (se queda la última definición); el SQL de datos de una sola vez en <c>Up</c>; y la
+/// sentencia se corta por <c>;</c>, así que una subconsulta sin servicio dentro de una sentencia que
+/// compara <c>"Servicio"</c> en otro sitio cuenta como filtrada. Una consulta que lee una vista
+/// filtrada no se mide (la vista sí).</item>
 /// <item>Una redefinición de un objeto SQL ya listado hereda su línea: solo se nota si cambia el
 /// recuento de apariciones crudas.</item>
+/// <item><b>La clave no distingue la lectura.</b> Es fichero (u objeto SQL), miembro y tabla, con su
+/// recuento: sustituir una lectura cruda por otra en el mismo miembro y la misma tabla conserva clave y
+/// recuento y pasa sin aviso, en C# y en SQL. No se añade una huella del texto de la consulta porque
+/// cambiaría con cualquier edición legítima de una consulta ya listada (una condición más, un
+/// renombrado), y la línea nueva se copiaría igual de a ciegas que hoy.</item>
+/// <item><b>La lista se edita en la misma PR.</b> Como en todo trinquete de <see cref="ListaCongelada"/>,
+/// añadir una línea o subir su recuento junto con el acceso da verde: el control es que el diff de
+/// <c>Congelados/</c> enseña qué fichero, miembro y tabla crece, y la revisión lo rechaza o exige el
+/// motivo (la guía del fallo lo pide). El test no compara con la lista de <c>origin/main</c>.</item>
 /// <item>Literales SQL construidos por concatenación o con la tabla en un hueco de interpolación; alias
 /// <c>global using</c> de las entidades; <c>Find&lt;T&gt;</c> y <c>Entry&lt;T&gt;</c> genéricos.</item>
 /// <item>Las sobrecargas de un mismo miembro se suman bajo <c>Tipo.Miembro</c>: un crudo nuevo en una
@@ -57,8 +86,8 @@ namespace CaeManager.Architecture.Tests;
 /// <item>En SQL, el filtro es un <c>"Servicio"</c> seguido de <c>=</c>, <c>&lt;&gt;</c>, <c>!=</c>,
 /// <c>IN</c> o <c>IS</c> que no sea la primera asignación tras <c>SET</c>: una segunda asignación
 /// (<c>SET "Estado" = …, "Servicio" = …</c>) cuenta como filtro, y la forma desparsada de
-/// <c>pg_dump</c> (<c>("Servicio")::text = …</c>) no casa. La función SQL con cuerpo <c>AS '…'</c> o
-/// <c>BEGIN ATOMIC</c> no se separa de la siguiente de la misma migración (hoy todas usan <c>$$</c>).</item>
+/// <c>pg_dump</c> (<c>("Servicio")::text = …</c>) no casa. El cuerpo <c>BEGIN ATOMIC</c> de una función
+/// SQL se corta en su primer <c>;</c> (hoy ninguna lo usa).</item>
 /// <item>El SQL de <c>tests/</c> y de los guiones de <c>scripts/</c>.</item>
 /// </list>
 /// </summary>
@@ -121,6 +150,13 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("static bool P(AsignacionOperacion o) => o.Servicio == S;\nvoid A() { var n = ctx.AsignacionesOperacion.AsEnumerable().Count(P); }", "Lector.A · AsignacionesOperacion")]
     [InlineData("void A() { db.Database.ExecuteSqlRaw(\"TRUNCATE \\\"AsignacionesCartera\\\"\"); }", "Lector.A · AsignacionesCartera")]
     [InlineData("void A() { db.Database.ExecuteSqlRaw(\"UPDATE \\\"AsignacionesOperacion\\\" SET \\\"Servicio\\\" = 'Inbound'\"); }", "Lector.A · AsignacionesOperacion")]
+    // El Servicio es de la fila de otra consulta (x recorre «otros»), no de la Asignación de Operación.
+    [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => otros.Any(x => x.Servicio == s)); }", "Lector.A · AsignacionesOperacion")]
+    // El predicado de servicio se aplica a «otros», no a la consulta del acceso.
+    [InlineData("static Expression<Func<AsignacionOperacion, bool>> P() => o => o.Servicio == S;\n" +
+                "void A() { var n = ctx.AsignacionesOperacion.Count(o => o.Id == otros.Count(P())); }", "Lector.A · AsignacionesOperacion")]
+    // En la cartera correlacionada con su operación, el Servicio de la fila de «otros» tampoco cuenta.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => c.AsignacionOperacionId == id && otros.Any(x => x.Servicio == s)); }", "Lector.A · AsignacionesCartera")]
     public void Un_acceso_sin_filtro_de_Servicio_es_crudo(string cuerpo, string simbolo)
     {
         var accesos = MedirCs(cuerpo);
@@ -153,6 +189,18 @@ public class AccesoCrudoAAsignacionesSinServicioTests
                 "void A() { var n = ctx.AsignacionesOperacion.Count(P()); }")]
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(Otro.Predicado); }")]
     [InlineData("void A() { db.Database.ExecuteSqlRaw(\"SELECT 1 FROM \\\"AsignacionesOperacion\\\" WHERE \\\"Servicio\\\" = 'Inbound'\"); }")]
+    // La raíz Set<T> de un FromSqlRaw cuyo SQL compara el Servicio no es un crudo aparte del literal.
+    [InlineData("void A() { var l = ctx.Set<AsignacionOperacion>().FromSqlRaw(\"SELECT * FROM \\\"AsignacionesOperacion\\\" WHERE \\\"Servicio\\\" = 'Inbound'\").ToList(); }")]
+    // La subconsulta de cartera dentro del predicado de la exterior, correlacionada con su operación.
+    [InlineData("void A() { var n = ops.Where(o => o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id)).Count(); }")]
+    // La cartera filtrada por una subconsulta correlacionada o un Join con sus operaciones del servicio.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, o) => c).Count(); }")]
+    // El predicado se aplica a la fuente del join, que es parte de la consulta de la cartera.
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion.Where(Otro.Predicado) on c.AsignacionOperacionId equals o.Id select c).Count(); }")]
+    // Un predicado IQueryable que recibe el acceso como argumento.
+    [InlineData("static IQueryable<AsignacionOperacion> Vigentes(IQueryable<AsignacionOperacion> q) => q.Where(o => o.Servicio == S);\n" +
+                "void A() { var n = Vigentes(ctx.AsignacionesOperacion).Count(); }")]
     public void Un_acceso_con_filtro_de_Servicio_no_es_crudo(string cuerpo)
     {
         var accesos = AccesosAAsignaciones.EnCSharp(new Dictionary<string, string>
@@ -256,6 +304,116 @@ public class AccesoCrudoAAsignacionesSinServicioTests
 
         AccesosAAsignaciones.EnSql([("1", sobreLaTabla), ("2", "ALTER POLICY posicion ON public.\"AsignacionesCartera\" USING (EXISTS (SELECT 1 FROM public.\"AsignacionesOperacion\" o));")])
             .Should().ContainSingle("un ALTER POLICY que añade una lectura cuenta").Which.Tabla.Should().Be(AccesosAAsignaciones.Operacion);
+    }
+
+    private const string PoliticaFiltrada =
+        "CREATE POLICY lectura ON public.\"Documentos\" USING (EXISTS (SELECT 1 FROM public.\"AsignacionesOperacion\" o WHERE o.\"Servicio\" = 'Inbound'));";
+
+    [Fact]
+    public void Un_ALTER_POLICY_sustituye_su_clausula_y_cuenta_el_estado_final()
+    {
+        const string usingCrudo =
+            "ALTER POLICY lectura ON public.\"Documentos\" USING (EXISTS (SELECT 1 FROM public.\"AsignacionesOperacion\" o WHERE o.\"Id\" = app_usuario()));";
+        AccesosAAsignaciones.EnSql([("1", PoliticaFiltrada), ("2", usingCrudo)])
+            .Should().ContainSingle("el USING nuevo sustituye al antiguo").Which.FiltraPorServicio
+            .Should().BeFalse("el filtro de la expresión retirada no encubre la lectura nueva");
+
+        const string usingSinLectura = "ALTER POLICY lectura ON public.\"Documentos\" USING (true);";
+        AccesosAAsignaciones.EnSql([("1", PoliticaFiltrada.Replace("o.\"Servicio\" = 'Inbound'", "true")), ("2", usingSinLectura)])
+            .Should().BeEmpty("la lectura retirada por el ALTER POLICY ya no existe");
+
+        const string soloCheck =
+            "ALTER POLICY lectura ON public.\"Documentos\" WITH CHECK (EXISTS (SELECT 1 FROM public.\"AsignacionesCartera\" c JOIN x USING (\"Id\")));";
+        var conCheck = AccesosAAsignaciones.EnSql([("1", PoliticaFiltrada), ("2", soloCheck)]);
+        conCheck.Should().HaveCount(2, "un ALTER con solo WITH CHECK conserva el USING; el USING de un JOIN no es la cláusula");
+        conCheck.Should().ContainSingle(a => a.Tabla == AccesosAAsignaciones.Operacion && a.FiltraPorServicio);
+        conCheck.Should().ContainSingle(a => a.Tabla == AccesosAAsignaciones.Cartera && !a.FiltraPorServicio);
+    }
+
+    [Fact]
+    public void Una_vista_vigente_que_lee_la_tabla_cuenta()
+    {
+        const string vista = "CREATE OR REPLACE VIEW public.v_operaciones AS SELECT o.\"Id\" FROM public.\"AsignacionesOperacion\" o;";
+
+        AccesosAAsignaciones.EnSql([("1", vista)]).Should().ContainSingle().Which.Should().Be(
+            new AccesoAAsignacion("SQL vista public.v_operaciones", string.Empty, AccesosAAsignaciones.Operacion, "vista", false, 0));
+
+        AccesosAAsignaciones.EnSql([("1", "CREATE MATERIALIZED VIEW m AS SELECT 1 FROM \"AsignacionesCartera\" c;")])
+            .Should().ContainSingle().Which.Lugar.Should().Be("SQL vista public.m");
+
+        AccesosAAsignaciones.EnSql([("1", vista), ("2", "DROP VIEW IF EXISTS public.v_operaciones CASCADE;")])
+            .Should().BeEmpty("la vista eliminada no cuenta");
+
+        AccesosAAsignaciones.EnSql([("1", vista), ("2", "ALTER VIEW public.v_operaciones RENAME TO v_nueva;")])
+            .Should().ContainSingle().Which.Lugar.Should().Be("SQL vista public.v_nueva");
+
+        AccesosAAsignaciones.EnSql([("1", vista), ("2", vista.Replace("o;", "o WHERE o.\"Servicio\" = 'Inbound';"))])
+            .Should().ContainSingle().Which.FiltraPorServicio.Should().BeTrue("la redefinición vigente filtra");
+    }
+
+    [Fact]
+    public void Una_funcion_con_cuerpo_entre_comillas_no_toma_el_cuerpo_de_la_siguiente()
+    {
+        const string dos =
+            "CREATE FUNCTION public.app_uno() RETURNS int LANGUAGE sql AS 'SELECT count(*) FROM public.\"AsignacionesOperacion\" o WHERE o.\"Estado\" = ''Viva''';\n" +
+            "CREATE FUNCTION public.app_dos() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;";
+
+        AccesosAAsignaciones.EnSql([("1", dos)]).Should().ContainSingle().Which.Should().Be(
+            new AccesoAAsignacion("SQL función public.app_uno", string.Empty, AccesosAAsignaciones.Operacion, "función", false, 0));
+    }
+
+    // ------------------------------------------------------------------ navegaciones del modelo de EF
+
+    [Fact]
+    public void El_modelo_de_EF_no_tiene_navegaciones_hacia_las_Asignaciones()
+    {
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql("Host=localhost;Database=solo-para-construir-el-modelo;Username=x;Password=x")
+            .Options;
+        using var contexto = new CaeManagerDbContext(
+            options, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = Guid.NewGuid() });
+
+        contexto.Model.FindEntityType(typeof(AsignacionOperacion)).Should().NotBeNull("el modelo tiene que contener la entidad");
+        AccesosAAsignaciones.NavegacionesHacia(contexto.Model, [typeof(AsignacionOperacion), typeof(AsignacionCartera)])
+            .Should().BeEmpty(
+                "una navegación hacia las Asignaciones lee la tabla sin nombrarla y el escáner sintáctico no la ve; " +
+                "si hace falta una, el detector tiene que medirla antes (ADR-013 § 4.6)");
+    }
+
+    [Fact]
+    public void El_detector_de_navegaciones_ve_las_de_referencia_y_las_de_coleccion()
+    {
+        var options = new DbContextOptionsBuilder<ContextoSintetico>()
+            .UseNpgsql("Host=localhost;Database=solo-para-construir-el-modelo;Username=x;Password=x")
+            .Options;
+        using var contexto = new ContextoSintetico(options);
+
+        AccesosAAsignaciones.NavegacionesHacia(contexto.Model, [typeof(DestinoSintetico)])
+            .Should().Equal("ColeccionSintetica.Destinos -> DestinoSintetico", "ReferenciaSintetica.Destino -> DestinoSintetico");
+        AccesosAAsignaciones.NavegacionesHacia(contexto.Model, [typeof(string)]).Should().BeEmpty();
+    }
+
+    public sealed class DestinoSintetico
+    {
+        public int Id { get; set; }
+    }
+
+    public sealed class ReferenciaSintetica
+    {
+        public int Id { get; set; }
+        public DestinoSintetico? Destino { get; set; }
+    }
+
+    public sealed class ColeccionSintetica
+    {
+        public int Id { get; set; }
+        public List<DestinoSintetico> Destinos { get; set; } = [];
+    }
+
+    private sealed class ContextoSintetico(DbContextOptions<ContextoSintetico> opciones) : DbContext(opciones)
+    {
+        public DbSet<ReferenciaSintetica> Referencias => Set<ReferenciaSintetica>();
+        public DbSet<ColeccionSintetica> Colecciones => Set<ColeccionSintetica>();
     }
 
     // ------------------------------------------------------------------ volcado para el inventario
