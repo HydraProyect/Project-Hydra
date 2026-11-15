@@ -2,7 +2,7 @@
 # La compara AreaDelEncargoPorTipoTests.El_area_de_cada_peticion_es_la_congelada. Una petición nueva, una que
 # desaparece o un cambio de área da rojo hasta que se clasifica aquí a conciencia (D-8). M1 solo mueve peticiones
 # con [AreaDelEncargo] o presentes en esta lista: es la lista lo que garantiza que moverlas no cambia su área.
-# Volcada en la ronda 2 de la #2241 sobre el árbol con origin/main 2b3481179 integrado; orden ordinal.
+# Volcada en la ronda 2 de la #2241 sobre el árbol con origin/main 2adbdc365 integrado; orden ordinal.
 AbrirAccesoSoporteCommand	Tenants
 AbrirSesionPrivilegiadaCommand	Plataforma
 AceptarDeteccionesIaEnBloqueCommand	Documentos

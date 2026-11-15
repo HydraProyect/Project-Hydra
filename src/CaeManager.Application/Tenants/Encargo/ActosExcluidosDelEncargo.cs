@@ -78,8 +78,11 @@ namespace CaeManager.Application.Tenants.Encargo;
 ///
 /// <para>
 /// <b>El área se resuelve por tipo</b> (ADR-013, M0c; ver <see cref="AreaDe"/>):
-/// primero la <see cref="AreaDelEncargoAttribute"/> del tipo y, sin ella, el
-/// espacio de nombres. Antes se deducía siempre del espacio de nombres, y mover
+/// primero la <see cref="AreaDelEncargoAttribute"/> del tipo, sin ella el espacio de
+/// nombres si es un área clasificada y, si tampoco, la marca heredada más cercana; una
+/// derivada nunca queda menos restringida que su base. Lo que impide que una petición
+/// nueva o movida cambie de área sin decidirlo es la lista congelada de
+/// <c>AreaDelEncargoPorTipoTests</c>. Antes se deducía siempre del espacio de nombres, y mover
 /// <c>AutorizacionesLectura</c> a <c>CaeManager.Application.Inbound.*</c> la
 /// habría abierto bajo encargo no pleno (área «Inbound», que no está excluida).
 /// Las áreas excluidas enteras llevan la marca en cada petición; <b>nunca</b> se

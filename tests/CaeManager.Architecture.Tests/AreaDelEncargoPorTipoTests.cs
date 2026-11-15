@@ -15,7 +15,7 @@ namespace CaeManager.Architecture.Tests
     /// «Inbound», que no está excluida, y la habría abierto a quien administra por Encargo de administración no pleno.
     ///
     /// <para>
-    /// <b>Lo que observa</b>: por reflexión, toda petición concreta del ensamblado de Application, su
+    /// <b>Lo que observa</b>: por reflexión, toda petición concreta de los ensamblados de <c>src</c>, su
     /// <see cref="AreaDelEncargoAttribute"/>, el módulo que le da el registro de M0a (<see cref="RegistroDeModulos"/>,
     /// solo desde tests) y el resultado de <see cref="ActosExcluidosDelEncargo.Excluye"/> sobre una instancia sin
     /// inicializar. <b>Lo que NO observa</b>: si la clasificación de un área es acertada —eso es una decisión (D-8)—,
@@ -410,7 +410,7 @@ namespace CaeManager.Architecture.Tests
 
         /// <summary>
         /// <see cref="ActosExcluidosDelEncargo.PeticionesExcluidas"/> va por tipo: una derivada de una de ellas también queda
-        /// excluida. Las de hoy son selladas o sin derivadas; lo que se comprueba es la cadena entera de cada petición.
+        /// excluida. Hoy no tienen derivadas reales; lo que se comprueba es la cadena entera de cada petición.
         /// </summary>
         [Fact]
         public void Una_peticion_que_hereda_de_una_excluida_por_tipo_queda_excluida()

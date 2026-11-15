@@ -9,8 +9,11 @@ namespace CaeManager.Application.Tenants.Encargo;
 /// <para>
 /// La llevan, por obligación de <c>AreaDelEncargoPorTipoTests</c>, las peticiones de las áreas excluidas enteras y
 /// las de los módulos Inbound y Facturación del registro de módulos: las que más cuesta abrir por accidente y las
-/// que ADR-013 prevé mover. Una petición sin la marca sigue tomando el área de su espacio de nombres; si ese
-/// segmento no es un área clasificada, se queda sin área y se excluye (falla cerrado).
+/// que ADR-013 prevé mover. Una petición sin la marca toma el área de su espacio de nombres si es un área
+/// clasificada y, si no, la marca heredada más cercana; sin ninguna, se queda sin área y se excluye (falla
+/// cerrado). La marca no se hereda sola (<c>Inherited = false</c>): la cadena la recorre
+/// <see cref="ActosExcluidosDelEncargo.AreaDe"/>, y la marca excluida de una base prevalece. El área de cada
+/// petición de <c>src</c> queda fijada en la lista congelada de <c>AreaDelEncargoPorTipoTests</c>.
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
