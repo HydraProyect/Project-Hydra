@@ -161,11 +161,17 @@ public class ReactivarDelegacionTenantCommandHandler(
 
     private async Task<Result> ReactivarAsync(Guid id, Guid tenantPropietarioId, CancellationToken cancellationToken)
     {
-        // Se vuelve a pedir dentro de la transacción porque un reintento de la estrategia de
-        // ejecución empieza con el contexto limpio. En el primer intento el contexto ya rastrea la
-        // fila leída arriba y devuelve esa misma instancia: no es una relectura del estado.
-        // Lo que la autoridad miró (Operador CAE externo, Tenant propietario y propósito) no
-        // cambia nunca en una DelegacionTenant (private set, solo al crearla).
+        // Se vuelve a pedir dentro de la transacción, con la fila bloqueada y releída: el estado
+        // (Activa) decide aquí y no la lectura de arriba, hecha fuera de la transacción. Sin el
+        // bloqueo, dos reactivaciones a la vez leían las dos Activa = false; la segunda encontraba
+        // después la operación ya confirmada por la primera (AbrirOperacionDelegadaAsync la
+        // devuelve en vez de abrir otra, así que el índice único no la paraba) y también daba
+        // éxito (issue #2232). Con él, la segunda espera a que la primera confirme y sale por
+        // YaActiva sin escribir. Lo que la autoridad miró (Operador CAE externo, Tenant
+        // propietario y propósito) no cambia nunca en una DelegacionTenant (private set, solo al
+        // crearla), así que la relectura no la invalida.
+        if (!await repositorio.BloquearYReleerAsync(id, cancellationToken))
+            return Result.Fallo(NoEncontrada);
         var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
         if (delegacion is null || delegacion.TenantClienteId != tenantPropietarioId)
             return Result.Fallo(NoEncontrada);
