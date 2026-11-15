@@ -362,6 +362,45 @@ public class RlsAsignacionesOperadorDelegadoTests : IAsyncLifetime
             .DelegacionTenantId.Should().NotBe(_ajena, "el reapuntado no se escribió");
     }
 
+    /// <summary>
+    /// La capa de la política, aislada del trigger (revisor-puente del cierre de la ronda 3 en la PR #2237, media 1): con
+    /// <c>asignacion_operador_delegado_revocacion_definitiva</c> deshabilitado dentro de una transacción que siempre se
+    /// revierte, el mismo reapuntado bajo <c>cae_app_runtime</c> lo rechaza el WITH CHECK de la política con
+    /// <c>insufficient_privilege</c>. Ni una clave foránea (23503) ni el trigger (23514) dan ese código: el 42501 solo
+    /// puede venir de la RLS.
+    /// </summary>
+    [Fact]
+    public async Task Sin_el_trigger_el_WITH_CHECK_de_la_politica_rechaza_el_reapuntado()
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var deshabilitar = new NpgsqlCommand(
+            """ALTER TABLE public."AsignacionesOperadorDelegado" DISABLE TRIGGER asignacion_operador_delegado_revocacion_definitiva;""",
+            conexion, transaccion))
+            await deshabilitar.ExecuteNonQueryAsync();
+        await using (var estado = new NpgsqlCommand(
+            """
+            SELECT tgenabled::text FROM pg_trigger
+             WHERE tgrelid = 'public."AsignacionesOperadorDelegado"'::regclass
+               AND tgname = 'asignacion_operador_delegado_revocacion_definitiva';
+            """, conexion, transaccion))
+            ((string)(await estado.ExecuteScalarAsync())!).Should().Be("D", "control: el trigger no interviene en esta transacción");
+
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _a, tenantOrigenId: _a, local: true, transaccion: transaccion);
+        await using (var rol = new NpgsqlCommand("SET LOCAL ROLE cae_app_runtime;", conexion, transaccion))
+            await rol.ExecuteNonQueryAsync();
+
+        await using var reapuntar = new NpgsqlCommand(
+            $"""UPDATE public."AsignacionesOperadorDelegado" SET "DelegacionTenantId" = '{_ajena}' WHERE "Id" = '{_asignacionEnA}';""",
+            conexion, transaccion);
+        var accion = async () => await reapuntar.ExecuteNonQueryAsync();
+        (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState
+            .Should().Be(PostgresErrorCodes.InsufficientPrivilege, "el WITH CHECK de la política rechaza una delegación ajena");
+
+        await transaccion.RollbackAsync();
+    }
+
     [Fact]
     public async Task Soporte_sigue_sin_poder_escribir_aunque_sea_un_extremo()
     {

@@ -218,11 +218,10 @@ public class ReactivarDelegacionTenantCommandHandler(
             tenantPropietarioId, delegacion.TenantConsultoraId,
             desde, vigenciaHasta: null, cancellationToken);
 
-        // La delegación se leyó inactiva dentro de esta transacción, así que ninguna operación vigente puede estar
-        // ya amparada por ella: si el writer devuelve una existente (no la que nace con este «desde»), otra
-        // reactivación simultánea ganó entre la lectura y el guardado de arriba, que esperó a su bloqueo de fila.
-        // Esta pierde sin escribir: el fallo revierte la transacción, también su UPDATE de la delegación (ronda 3
-        // de la PR #2237; sin los cerrojos consultivos ya no lo decidía la base).
+        // Defensa en profundidad, hoy inalcanzable: BloquearYReleerAsync (arriba) ya serializa dos reactivaciones
+        // simultáneas con el bloqueo de fila y la segunda sale por YaActiva antes de escribir. Si alguna vez el writer
+        // devolviera una operación existente (no la que nace con este «desde»), esta reactivación pierde sin escribir:
+        // el fallo revierte la transacción, también su UPDATE de la delegación (ronda 3 de la PR #2237).
         if (operacion.VigenciaDesde != desde)
             return Result.Fallo(Error.Crear("DelegacionTenant.YaActiva", "Esta delegación ya estaba activa."));
 
