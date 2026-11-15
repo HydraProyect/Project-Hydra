@@ -2,6 +2,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Proyectos;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -133,6 +134,18 @@ public class AsignacionOperacionConfiguration : IEntityTypeConfiguration<Asignac
             .HasForeignKey(a => new { a.PropietarioTenantId, a.AmbitoProyectoId })
             .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Procedencia de la operación externa: la DelegacionTenant de la que nace y las revocaciones que llevaba
+        // entonces (AmparoDeOrigen). Nullable porque la raíz y las internas no nacen de ninguna, porque las
+        // anteriores a la migración AnadeOrigenDeOperacionExterna no la tienen y porque la ranura anterior del
+        // despliegue azul-verde no escribe la columna: el trigger asignacion_operacion_sella_origen la deduce al
+        // insertar cuando el par tiene una sola delegación activa. Restrict, como el resto: una delegación nunca se
+        // borra ("desactivar, nunca borrar").
+        builder.HasOne<DelegacionTenant>().WithMany()
+            .HasForeignKey(a => a.OrigenId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(a => a.OrigenId)
+            .HasFilter($"\"{nameof(AsignacionOperacion.OrigenId)}\" IS NOT NULL");
 
         // Sin FK hacia Tenants para Propietario/Operador: mismo tratamiento que
         // DelegacionTenant, que tampoco la tiene.

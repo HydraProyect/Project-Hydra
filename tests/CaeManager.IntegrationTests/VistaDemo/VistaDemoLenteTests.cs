@@ -48,6 +48,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
     private Guid _operador, _p1, _p2, _p3, _tenantReal, _tenantReal2, _otroOperador;
     private Guid _admin, _g1, _g2, _gSinCartera, _gCarteraFutura, _usuarioCliente, _gDeOtroOperador, _gSoloTenantReal, _gSoloInbound;
     private Empresa _c1a = null!, _c1b = null!, _c2 = null!, _c3 = null!;
+    private Guid _op1b, _op2, _op3;
+    private readonly Dictionary<Guid, Guid> _origenPorPropietario = [];
 
     public async Task InitializeAsync()
     {
@@ -140,9 +142,11 @@ public class VistaDemoLenteTests : IAsyncLifetime
             Cartera(op1d, _gCarteraFutura, vigenciaDesde: ahora.AddDays(1)));
 
         // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios.
+        (_op1b, _op2, _op3) = (op1b.Id, op2.Id, op3.Id);
         foreach (var propietario in new[] { _p1, _p2, _p3 })
         {
             var delegacion = new DelegacionTenant(_operador, propietario);
+            _origenPorPropietario[propietario] = delegacion.Id;
             contexto.DelegacionesTenant.Add(delegacion);
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
         }
@@ -389,6 +393,91 @@ public class VistaDemoLenteTests : IAsyncLifetime
 
         var lenteG2 = await ClientesAutorizadosAsync(Solicitud(VistaDemo.GestorCae, _g2));
         lenteG2.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p3]);
+    }
+
+    // ---------------------------------------------------------------- 3. AMPARO DE ORIGEN (fase de expansión)
+    //
+    // Las dos consultas de la lente aplican AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen. El estado discriminante: la
+    // operación tiene origen y su DelegacionTenant se revoca y se reactiva con el SQL de la ranura anterior (solo Activa,
+    // sin cerrar operaciones). La delegación vuelve a estar activa y la operación sigue vigente, pero su contador de
+    // revocaciones ya no es el que guardó: el resto del predicado de cada consulta (servicio, Tenant de demo, operador,
+    // vigencia; ninguna mira la delegación) la deja pasar, y solo el filtro de origen la quita. El origen se fija con un
+    // UPDATE porque la siembra de arriba no garantiza en qué orden se insertan delegaciones y operaciones, y por tanto
+    // si el trigger lo dedujo; en esta fase ningún trigger impide fijarlo después.
+
+    /// <summary>
+    /// <c>ObtenerGestoresElegiblesAsync</c> (consulta de la línea del join de carteras): G2 solo tiene carteras bajo las
+    /// operaciones de los Tenants 1 y 3. Sin el filtro seguiría siendo elegible.
+    /// </summary>
+    [Fact]
+    public async Task Un_Gestor_CAE_cuyas_operaciones_perdieron_el_amparo_de_su_origen_deja_de_ser_elegible()
+    {
+        await FijarOrigenAsync(_op1b, _p1);
+        await FijarOrigenAsync(_op3, _p3);
+        (await GestoresElegiblesAsync()).Should().BeEquivalentTo([_g1, _g2],
+            "control: con su origen fijado y vigente, las operaciones de G2 siguen contando");
+
+        await RevocarYReactivarAsync(_p1);
+        await RevocarYReactivarAsync(_p3);
+
+        (await GestoresElegiblesAsync()).Should().BeEquivalentTo([_g1],
+            "las dos operaciones de G2 sobrevivieron a una revocación de su origen; G1 conserva la del Tenant 2");
+    }
+
+    /// <summary>
+    /// <c>ObtenerTenantIdsAcotadosAsync</c> (la lista multi-Tenant de la lente Gestor): G1 tiene cartera en los Tenants
+    /// 1 y 2, y la operación del Tenant 2 pierde el amparo de su origen. Sin el filtro la lista seguiría incluyendo el 2.
+    /// </summary>
+    [Fact]
+    public async Task La_lente_Gestor_no_anade_el_Tenant_de_una_operacion_cuyo_origen_se_revoco_y_reactivo()
+    {
+        await FijarOrigenAsync(_op2, _p2);
+        (await TenantsDeLaLenteAsync(_g1)).Should().BeEquivalentTo([_p1, _p2], "control: con su origen vigente cuenta");
+
+        await RevocarYReactivarAsync(_p2);
+
+        (await TenantsDeLaLenteAsync(_g1)).Should().BeEquivalentTo([_p1]);
+    }
+
+    private async Task<IEnumerable<Guid>> GestoresElegiblesAsync()
+    {
+        await using var contexto = CrearContexto(_operador);
+        return (await CrearVista(contexto, _operador, Administrador(), Solicitud(null, null), Activo(true), null)
+            .ObtenerGestoresElegiblesAsync()).Select(g => g.UsuarioId).ToList();
+    }
+
+    private async Task<IReadOnlyList<Guid>?> TenantsDeLaLenteAsync(Guid gestor)
+    {
+        await using var contexto = CrearContexto(_operador);
+        return await CrearVista(contexto, _operador, Administrador(), Solicitud(VistaDemo.GestorCae, gestor), Activo(true), null)
+            .ObtenerTenantIdsAcotadosAsync();
+    }
+
+    /// <summary>La operación pasa a tener por origen la DelegacionTenant de su Tenant propietario, sin revocaciones.</summary>
+    private Task FijarOrigenAsync(Guid operacion, Guid propietario) => EjecutarAsync(
+        $"""UPDATE "AsignacionesOperacion" SET "OrigenId" = '{_origenPorPropietario[propietario]}', "RevocacionesDelOrigen" = 0 WHERE "Id" = '{operacion}'""");
+
+    /// <summary>
+    /// Revoca y reactiva como la ranura anterior y comprueba el estado discriminante: la delegación activa con una
+    /// revocación, y ninguna operación del Tenant cerrada (si se cerrara, la consulta la excluiría por su estado).
+    /// </summary>
+    private async Task RevocarYReactivarAsync(Guid propietario)
+    {
+        var delegacion = _origenPorPropietario[propietario];
+        await EjecutarAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{delegacion}'""");
+        await EjecutarAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{delegacion}'""");
+
+        await using var verificacion = CrearContexto(propietario);
+        (await verificacion.DelegacionesTenant.SingleAsync(d => d.Id == delegacion))
+            .Should().Match<DelegacionTenant>(d => d.Activa && d.Revocaciones == 1);
+        (await verificacion.AsignacionesOperacion.Where(o => o.PropietarioTenantId == propietario).Select(o => o.Estado).ToListAsync())
+            .Should().OnlyContain(estado => estado == EstadoAsignacion.Vigente);
+    }
+
+    private async Task EjecutarAsync(string sql)
+    {
+        await using var contexto = CrearContexto(_operador);
+        await contexto.Database.ExecuteSqlRawAsync(sql);
     }
 
     // ---------------------------------------------------------------- Infraestructura de la prueba

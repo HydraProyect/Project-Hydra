@@ -132,7 +132,7 @@ public class ObtenerDelegacionesQueryHandler(
         // mismo predicado que da acceso sin cartera (RolEnTenantDelegadoAsync).
         var origen = tenantOrigenId.Value;
         var operacionesDelTenantEntero = (await TenantsBeneficiariosAutorizados
-                .OperacionesDelTenantEntero(operaciones, DateTime.UtcNow)
+                .OperacionesDelTenantEntero(operaciones, dbContext, DateTime.UtcNow)
                 .Where(o => o.OperadorTenantId == origen || o.PropietarioTenantId == origen)
                 .Select(o => new { o.OperadorTenantId, o.PropietarioTenantId })
                 .ToListAsync(cancellationToken))

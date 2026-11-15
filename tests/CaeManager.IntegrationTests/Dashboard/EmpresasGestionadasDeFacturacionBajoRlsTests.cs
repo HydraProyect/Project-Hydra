@@ -171,7 +171,7 @@ public class EmpresasGestionadasDeFacturacionBajoRlsTests : IAsyncLifetime
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, TimeProvider.System);
+        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, contexto, TimeProvider.System);
         return await handler.Handle(
             new FijarTarifaOperadorCaeCommand(empresa, ConceptoTarifaOperadorCae.CentroNuevo, 50m, "EUR", true), CancellationToken.None);
     }

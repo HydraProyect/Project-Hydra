@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Persistence;
@@ -52,6 +53,20 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Entity<Trabajador>().Ignore(t => t.MarcaExtranjeroCobrable);
         builder.Entity<VisitaTrabajador>().Ignore(vt => vt.FechaAsignacionUtc);
         builder.Entity<VisitaTrabajador>().Ignore(vt => vt.GestionadoPorUsuarioId);
+        // AnadeOrigenDeOperacionExterna también: ni la procedencia de la operación externa (su FK e índice caen con la
+        // columna) ni el contador de revocaciones de la delegación existen en esos esquemas. Ignorar solo la propiedad
+        // dejaría la FK configurada con una propiedad en sombra del mismo nombre (y el INSERT seguiría nombrando
+        // "OrigenId"): primero se retiran la FK y el índice que la usan.
+        var operacion = builder.Entity<AsignacionOperacion>().Metadata;
+        foreach (var fk in operacion.GetForeignKeys()
+                     .Where(f => f.Properties.Any(p => p.Name == nameof(AsignacionOperacion.OrigenId))).ToList())
+            operacion.RemoveForeignKey(fk);
+        foreach (var indice in operacion.GetIndexes()
+                     .Where(i => i.Properties.Any(p => p.Name == nameof(AsignacionOperacion.OrigenId))).ToList())
+            operacion.RemoveIndex(indice);
+        builder.Entity<AsignacionOperacion>().Ignore(o => o.OrigenId);
+        builder.Entity<AsignacionOperacion>().Ignore(o => o.RevocacionesDelOrigen);
+        builder.Entity<DelegacionTenant>().Ignore(d => d.Revocaciones);
     }
 
     private static readonly string[] CamposDeLaFichaDeCentro =
