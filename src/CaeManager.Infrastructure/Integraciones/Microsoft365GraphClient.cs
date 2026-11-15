@@ -463,7 +463,13 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al crear la respuesta al mensaje {MensajeId}: {CodigoError}",
                     (int)respuestaBorrador.StatusCode, mensajeExternoIdOrigen, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo(errorEnvio);
+                // Como en el mensaje nuevo: un compartido sin «Application Mail.ReadWrite» responde por /reply pero no
+                // puede crear el borrador que exige la marca. Se nombra para que no parezca un fallo de Microsoft.
+                return Result.Fallo(
+                    buzon.EsCompartido && respuestaBorrador.StatusCode == System.Net.HttpStatusCode.Forbidden
+                        ? Error.Crear(CodigosErrorMicrosoft365.SinPermisoEscritura,
+                            "Este buzón compartido no permite enviar respuestas redactadas por Vega desde TALVEG: el administrador de Exchange debe concederle a la aplicación permiso de escritura (Mail.ReadWrite).")
+                        : errorEnvio);
             }
 
             var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
@@ -504,21 +510,32 @@ public class Microsoft365GraphClient(
         }
     }
 
-    /// <summary>Lee las cabeceras del borrador; cualquier fallo de lectura cuenta como que no la lleva.</summary>
+    /// <summary>
+    /// Lee las cabeceras del borrador; cualquier fallo de lectura (también uno de red o una respuesta ilegible) cuenta
+    /// como que no la lleva, para que quien llama borre el borrador en vez de dejarlo huérfano en Borradores.
+    /// </summary>
     private async Task<bool> BorradorLlevaLaMarcaAsync(
         string accessToken, BuzonGraph buzon, string borradorId, CancellationToken cancellationToken)
     {
-        using var peticion = NuevaPeticionGraph(
-            HttpMethod.Get, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(borradorId)}?$select=internetMessageHeaders", accessToken);
-        peticion.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
-        using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
-        if (!respuesta.IsSuccessStatusCode)
-            return false;
+        try
+        {
+            using var peticion = NuevaPeticionGraph(
+                HttpMethod.Get, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(borradorId)}?$select=internetMessageHeaders", accessToken);
+            peticion.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+                return false;
 
-        var mensaje = await respuesta.Content.ReadFromJsonAsync<CabecerasDeMensajeGraph>(cancellationToken);
-        return mensaje?.InternetMessageHeaders?.Any(c =>
-            string.Equals(c.Name, OrigenContenidoEnvio.NombreCabecera, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(c.Value?.Trim(), OrigenContenidoEnvio.ValorCabeceraIaRevisada, StringComparison.Ordinal)) == true;
+            var mensaje = await respuesta.Content.ReadFromJsonAsync<CabecerasDeMensajeGraph>(cancellationToken);
+            return mensaje?.InternetMessageHeaders?.Any(c =>
+                string.Equals(c.Name, OrigenContenidoEnvio.NombreCabecera, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(c.Value?.Trim(), OrigenContenidoEnvio.ValorCabeceraIaRevisada, StringComparison.Ordinal)) == true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            logger.LogWarning(ex, "No se pudieron leer las cabeceras del borrador de respuesta {MensajeId}.", borradorId);
+            return false;
+        }
     }
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(

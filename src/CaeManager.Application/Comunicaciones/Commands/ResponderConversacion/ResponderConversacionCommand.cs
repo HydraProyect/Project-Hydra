@@ -187,7 +187,7 @@ public class ResponderConversacionCommandHandler(
 
         var envioResultado = await graphClient.EnviarRespuestaAsync(
             accessTokenResultado.Valor, BuzonGraph.De(conexion), ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken,
-            contenidoIaRevisada);
+            contenidoIaRevisada: contenidoIaRevisada);
         if (envioResultado.EsFallido)
             return Result.Fallo<Mensaje>(envioResultado.Error);
 

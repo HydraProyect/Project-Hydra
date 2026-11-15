@@ -979,6 +979,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _clienteActivo = null;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
+        _sugerenciaEnRedactor = null;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
         NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
@@ -1294,6 +1295,19 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             ? enRedactor.Id
             : null;
 
+    /// <summary>
+    /// El servidor rechazó la sugerencia de Vega que viajó (otra sesión la descartó, o el panel la sustituyó por una nueva):
+    /// el redactor la olvida, para que el siguiente envío no repita el mismo rechazo para siempre. El texto se queda y el
+    /// servidor lo compara con las sugerencias de Vega revisadas del buzón (regla A, issue #2007): no se degrada en silencio,
+    /// porque la persona ve el rechazo antes de volver a enviar.
+    /// </summary>
+    private void OlvidarSugerenciaRechazada(Error error, Guid? sugerenciaQueViajo)
+    {
+        if (sugerenciaQueViajo is { } id && error.Codigo == OrigenContenidoEnvio.SugerenciaNoUtilizable.Codigo &&
+            _sugerenciaEnRedactor?.Id == id)
+            _sugerenciaEnRedactor = null;
+    }
+
     /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
     private bool EsLaConversacionAbierta(Guid conversacionId) =>
         _conversacionSeleccionadaId == conversacionId && _detalle?.Id == conversacionId;
@@ -1507,6 +1521,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
                 // los adjuntos — el gestor corrige y vuelve a darle a Enviar
                 // sin reescribir la respuesta entera.
+                OlvidarSugerenciaRechazada(resultado.Error, sugerenciaDeVega);
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
@@ -1571,6 +1586,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto, sugerenciaDeVega), _ciclo.Token);
             if (resultado.EsFallido)
             {
+                OlvidarSugerenciaRechazada(resultado.Error, sugerenciaDeVega);
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
@@ -2456,6 +2472,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _redactarVisible = false;
         if (_drawerPrioridadVisible) CerrarDrawerPrioridad();
         _textoRespuesta = string.Empty;
+        _sugerenciaEnRedactor = null;
         _macroSeleccionadaId = string.Empty;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;

@@ -27,6 +27,12 @@ public class Microsoft365CabeceraOrigenContenidoTests
         public string? CabecerasDelBorrador { get; set; } =
             $$"""{"internetMessageHeaders":[{"name":"{{OrigenContenidoEnvio.NombreCabecera}}","value":"{{OrigenContenidoEnvio.ValorCabeceraIaRevisada}}"}]}""";
 
+        /// <summary>Lo que Graph responde a createReply.</summary>
+        public HttpStatusCode EstadoCrearRespuesta { get; set; } = HttpStatusCode.Created;
+
+        /// <summary>La lectura de las cabeceras del borrador falla por red.</summary>
+        public bool LecturaFallaPorRed { get; set; }
+
         public List<string> Llamadas { get; } = [];
         public string? CuerpoRespuesta { get; private set; }
         public string? CuerpoCrearRespuesta { get; private set; }
@@ -46,7 +52,9 @@ public class Microsoft365CabeceraOrigenContenidoTests
             if (request.Method == HttpMethod.Post && ruta.EndsWith("/createReply", StringComparison.Ordinal))
             {
                 CuerpoCrearRespuesta = await request.Content!.ReadAsStringAsync(cancellationToken);
-                return Json(HttpStatusCode.Created, """{"id":"borrador-1","conversationId":"c1"}""");
+                return EstadoCrearRespuesta == HttpStatusCode.Created
+                    ? Json(HttpStatusCode.Created, """{"id":"borrador-1","conversationId":"c1"}""")
+                    : Json(EstadoCrearRespuesta, """{"error":{"code":"ErrorAccessDenied"}}""");
             }
 
             if (request.Method == HttpMethod.Post && ruta.EndsWith("/me/messages", StringComparison.Ordinal))
@@ -57,6 +65,7 @@ public class Microsoft365CabeceraOrigenContenidoTests
 
             if (request.Method == HttpMethod.Get)
             {
+                if (LecturaFallaPorRed) throw new HttpRequestException("red caída");
                 return CabecerasDelBorrador is null
                     ? Json(HttpStatusCode.OK, """{"internetMessageHeaders":null}""")
                     : Json(HttpStatusCode.OK, CabecerasDelBorrador);
@@ -73,9 +82,37 @@ public class Microsoft365CabeceraOrigenContenidoTests
         new(new HttpClient(graph), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
 
     private static Task<CaeManager.Domain.Common.Result> ResponderAsync(
-        GraphSimulado graph, bool contenidoIaRevisada, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos = null) =>
+        GraphSimulado graph, bool contenidoIaRevisada, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos = null, bool compartido = false) =>
         Cliente(graph).EnviarRespuestaAsync(
-            "token", new BuzonGraph("buzon@tenant.example", false), "origen-1", Cuerpo, adjuntos, CancellationToken.None, contenidoIaRevisada);
+            "token", new BuzonGraph("buzon@tenant.example", compartido), "origen-1", Cuerpo, adjuntos, CancellationToken.None,
+            contenidoIaRevisada: contenidoIaRevisada);
+
+    /// <summary>
+    /// Un buzón compartido sin permiso de escritura responde por /reply pero no puede crear el borrador que exige la marca:
+    /// el error lo dice, para que no parezca un fallo de Microsoft.
+    /// </summary>
+    [Fact]
+    public async Task Un_compartido_sin_permiso_de_escritura_lo_nombra_al_responder_con_marca()
+    {
+        var graph = new GraphSimulado { EstadoCrearRespuesta = HttpStatusCode.Forbidden };
+
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: true, compartido: true);
+
+        resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.SinPermisoEscritura);
+        graph.Llamadas.Should().Equal("POST createReply");
+    }
+
+    /// <summary>Un fallo de red al leer las cabeceras no deja el borrador huérfano: se borra y el envío falla.</summary>
+    [Fact]
+    public async Task Si_la_lectura_de_las_cabeceras_falla_por_red_el_borrador_se_borra()
+    {
+        var graph = new GraphSimulado { LecturaFallaPorRed = true };
+
+        var resultado = await ResponderAsync(graph, contenidoIaRevisada: true);
+
+        resultado.EsFallido.Should().BeTrue();
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+    }
 
     private static async Task<JsonElement> EnviarNuevoAsync(bool contenidoIaRevisada)
     {

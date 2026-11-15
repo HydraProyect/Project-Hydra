@@ -87,8 +87,30 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
     [GeneratedRegex(@"\.(EnviarRespuestaAsync|EnviarNuevoMensajeAsync)\(")]
     private static partial Regex LlamadaAGraph();
 
-    [GeneratedRegex(@"contenidoIaRevisada[:,)]")]
+    /// <summary>
+    /// El argumento nombrado dentro de la propia llamada y con un valor que no sea el literal <c>false</c> (revisión puente
+    /// r3 de la #2007): contar apariciones por fichero lo daba por bueno con un comentario o con <c>contenidoIaRevisada: false</c>.
+    /// </summary>
+    [GeneratedRegex(@"\bcontenidoIaRevisada:\s*(?!false\b)\S")]
     private static partial Regex PasoDeLaMarca();
+
+    /// <summary>
+    /// Los argumentos de la llamada a Graph que empieza en <paramref name="inicio"/>: hasta su paréntesis de cierre, sin
+    /// comentarios de línea.
+    /// </summary>
+    private static string ArgumentosDeLaLlamada(string texto, int inicio)
+    {
+        var apertura = texto.IndexOf('(', inicio);
+        var profundidad = 0;
+        var fin = apertura;
+        for (; fin < texto.Length; fin++)
+        {
+            if (texto[fin] == '(') profundidad++;
+            else if (texto[fin] == ')' && --profundidad == 0) break;
+        }
+
+        return Regex.Replace(texto[apertura..Math.Min(fin + 1, texto.Length)], @"//[^\n]*", string.Empty);
+    }
 
     /// <summary>
     /// Issue #2007: todo envío de texto de una persona resuelve el origen del contenido antes de enviar (para que la marca
@@ -113,11 +135,10 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             ficherosQueEnvian.Add(ruta);
             // Como el bloqueo: cada envío tiene su propia resolución antes, no basta una para varios.
             var resoluciones = ResolucionDelOrigen().Matches(texto);
-            var enviosPorCorreo = LlamadaAGraph().Matches(texto).Count;
             if (envios.Select((envio, indice) => (envio, indice)).Any(e => resoluciones.Count(r => r.Index < e.envio.Index) <= e.indice) ||
                 !RegistroDelOrigen().IsMatch(texto) ||
                 // Un envío por Graph sin el argumento saldría con el valor por defecto, sin marca.
-                PasoDeLaMarca().Matches(texto).Count < enviosPorCorreo)
+                LlamadaAGraph().Matches(texto).Any(llamada => !PasoDeLaMarca().IsMatch(ArgumentosDeLaLlamada(texto, llamada.Index))))
                 sinOrigen.Add(ruta);
         }
 
