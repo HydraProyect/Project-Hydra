@@ -125,7 +125,7 @@
 </div>
 
 <AutorizacionUnicaDialogo Visible="_dialogoAutorizacion" VisibleChanged="v => _dialogoAutorizacion = v"
-                          Clientes="@(_panorama?.Clientes ?? [])" Enviando="_enviando" Error="@(_dialogoAutorizacion ? _errorAccion : null)"
+                          Clientes="@(_panorama?.Clientes.Where(c => c.RevocadoEl is null).ToList() ?? [])" Enviando="_enviando" Error="@(_dialogoAutorizacion ? _errorAccion : null)"
                           OnAutorizar="ConcederAsync" />
 
 <DialogoConfirmacion Visible="@(_aRevocar is not null)" VisibleChanged="v => { if (!v) _aRevocar = null; }"
@@ -249,6 +249,7 @@
     private async Task AbrirRegistroAsync(LecturaClienteTec cliente)
     {
         _registroDe = cliente;
+        _registro = [];
         LimpiarRegistro();
         try
         {

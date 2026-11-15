@@ -162,6 +162,7 @@
     private string? _error;
     private RespuestaSubidaTec? _respuesta;
     private Guid? _requerimientoVisto;
+    private bool _huboSubida;
 
     [Parameter] public RequerimientoTec? Requerimiento { get; set; }
     [Parameter] public bool Visible { get; set; }
@@ -179,6 +180,7 @@
         if (_requerimientoVisto != Requerimiento?.Id)
         {
             _requerimientoVisto = Requerimiento?.Id;
+            _huboSubida |= _respuesta is { Resultado: ResultadoSubidaTec.Subido };
             _archivo = null;
             _emision = null;
             _vencimiento = null;
@@ -288,5 +290,13 @@
     }
 
     private Task CerrarAsync(bool visible) =>
-        visible ? Task.CompletedTask : OnCerrado.InvokeAsync(_respuesta is { Resultado: ResultadoSubidaTec.Subido });
+        visible ? Task.CompletedTask : CerrarConSubidasAsync();
+
+    // Con «Continuar» se encadenan requerimientos: la lista se recarga si se subió alguno desde que se abrió el drawer, no solo el último.
+    private async Task CerrarConSubidasAsync()
+    {
+        var huboSubida = _huboSubida || _respuesta is { Resultado: ResultadoSubidaTec.Subido };
+        _huboSubida = false;
+        await OnCerrado.InvokeAsync(huboSubida);
+    }
 }

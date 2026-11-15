@@ -9,9 +9,6 @@
   <data name="AuAlConfirmar" xml:space="preserve">
     <value>En confirmar</value>
   </data>
-  <data name="AuAtras" xml:space="preserve">
-    <value>Enrere</value>
-  </data>
   <data name="AuCasilla" xml:space="preserve">
     <value>Autoritzo, en nom de la meva Empresa, que TALVEG aporti els meus documents als Clients amb qui tingui un contracte d&apos;accés.</value>
   </data>
@@ -393,9 +390,6 @@
   <data name="QlVacioTitulo" xml:space="preserve">
     <value>Cap Client llegeix encara els teus documents</value>
   </data>
-  <data name="QlVerAutorizacion" xml:space="preserve">
-    <value>Veure l&apos;autorització</value>
-  </data>
   <data name="Rechazar" xml:space="preserve">
     <value>Rebutja</value>
   </data>
@@ -461,12 +455,6 @@
   </data>
   <data name="ReqNoDisponibleTitulo" xml:space="preserve">
     <value>Els requeriments encara no estan disponibles</value>
-  </data>
-  <data name="ReqPapelContratista" xml:space="preserve">
-    <value>Contractista</value>
-  </data>
-  <data name="ReqPapelSubcontrata" xml:space="preserve">
-    <value>Subcontracta · nivell {0}</value>
   </data>
   <data name="ReqPestanaGlosa" xml:space="preserve">
     <value>pendents</value>

@@ -306,6 +306,17 @@ public sealed class InboundTenantTecTests : BunitContext
         ]);
 
     [Fact]
+    public void AddInboundTenantTec_registra_los_cuatro_servicios_sin_backend_que_las_paginas_inyectan()
+    {
+        var proveedor = InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(new ServiceCollection()).BuildServiceProvider();
+
+        proveedor.GetRequiredService<IRequerimientosTenantTec>().Should().NotBeNull();
+        proveedor.GetRequiredService<ISubidaDocumentoTenantTec>().Disponible.Should().BeFalse();
+        proveedor.GetRequiredService<IQuienLeeTenantTec>().Should().NotBeNull();
+        proveedor.GetRequiredService<IAvisoContratoTenantTec>().Should().NotBeNull();
+    }
+
+    [Fact]
     public void QuienLee_sin_backend_avisa_de_que_todavia_no_se_puede_consultar_y_no_inventa_una_autorizacion()
     {
         UsarSinBackend();
@@ -380,6 +391,9 @@ public sealed class InboundTenantTecTests : BunitContext
         dialogo.TextContent.Should().Contain("Qué no ocurre");
         dialogo.TextContent.Should().Contain("Quién leerá tus documentos al confirmar");
         dialogo.TextContent.Should().Contain("Clientes futuros");
+        // «Quién leerá al confirmar» solo nombra a los Clientes que hoy leen: el revocado no aparece como futuro lector.
+        dialogo.TextContent.Should().Contain("Logística Delta Sur S.A.");
+        dialogo.TextContent.Should().NotContain("Frío Industrial Cierzo S.L.");
         var autorizar = dialogo.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Autorizar");
         autorizar.HasAttribute("disabled").Should().BeTrue();
 

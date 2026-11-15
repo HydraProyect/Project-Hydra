@@ -75,11 +75,12 @@ public class PaginasClasificadasParaElEncargoTests
             + "Dirección CAE por encargo y desde el 2026-10-19 también el Administrador (política PoliticaCuadroDireccion); "
             + "reabrir un mes sigue siendo solo de Dirección CAE",
         ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/Requerimientos.razor"] =
-            "pantalla del Tenant TEC sobre sus propios datos (Requerimientos recibidos); no es del Operador CAE ni del "
-            + "encargo; la excluye el módulo Inbound por su cuenta (ADR-013: el Núcleo no conoce a Inbound)",
+            "pantalla del Tenant TEC sin backend (shortcut de B-09, B-11 y B-20): solo muestra «no disponible» y no lee datos, "
+            + "así que el Encargo de administración que la abra no ve nada; el gate es hoy solo el rol Administrador y la "
+            + "capacidad ParticipanteTec (EP-4/B-03) se aplica al cablear el backend, momento en que se revisa esta clasificación",
         ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/QuienLeeMisDocumentos.razor"] =
-            "pantalla del Tenant TEC: quién lee sus documentos y su autorización única; mismos motivo y cautela que "
-            + "Requerimientos (DECISIÓN NECESARIA abierta sobre el gate del Tenant TEC)",
+            "pantalla del Tenant TEC sin backend (shortcut de B-09): quién lee sus documentos y su autorización única; "
+            + "mismo motivo y misma revisión pendiente que Requerimientos",
     };
 
 
