@@ -22,6 +22,9 @@ namespace CaeManager.Domain.Empresas;
 /// (<c>Centro.ClienteId</c>, nombre heredado). Nada de esta fila es secreto ni va cifrado:
 /// el rol Consulta ve la plataforma y «Abrir portal». El código de cliente, aunque tampoco
 /// es secreto, solo lo reciben los roles con escritura (<c>ObtenerPlataformaCaeClienteQuery</c>).
+/// Que Consulta vea la dirección del portal es coherente con la regla operativa de la opción C (DECISION_LOG
+/// 2026-11-14, «Tanda 1 de decisiones pendientes», punto 1), que ya cubría esta decisión del 17-10: es información
+/// operativa, no trazabilidad interna.
 /// </para>
 /// </summary>
 public class PlataformaCaeClienteEmpresarial : EntidadConTenant, IVersionable

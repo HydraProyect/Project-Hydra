@@ -98,6 +98,50 @@ public interface IAlcanceDatosService
     /// segunda barrera de la edición y la baja (individual y en lote) del
     /// Centro, de sus canales de gestión documental (alta, edición, baja y
     /// marcar principal) y de su agenda de contactos (guardar y eliminar).
+    ///
+    /// <para>
+    /// <b>Primera de las dos reglas de lectura del rol Consulta sobre el detalle
+    /// de gestión</b> (opción C, decisión de Chris del 2026-11-14; DECISION_LOG,
+    /// «Tanda 1 de decisiones pendientes», punto 1): la regla <b>operativa</b>.
+    /// Este método solo excluye al rol Cliente (usuario de portal). Consulta es
+    /// un rol de gestión en solo lectura, no de portal, sea cual sea la vía por
+    /// la que la sesión lo tiene (su Tenant de origen, un Tenant beneficiario
+    /// delegado por Asignación de Operación o la delegación heredada del acceso
+    /// de soporte; decide el rol efectivo), así que recibe
+    /// aquí su alcance normal y, con él, la información operativa: el último
+    /// motivo de rechazo del historial de rechazos de la acreditación
+    /// (<c>UltimoMotivoRechazo</c>), la dirección del portal (<c>UrlAcceso</c>)
+    /// y las notas del canal. Para el rol Cliente sigue vigente la decisión del
+    /// 2026-11-12 («B: estado, sin motivo»).
+    /// La segunda regla, la de trazabilidad interna, se aplica en el servidor
+    /// con <c>SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones</c>
+    /// y corta cinco cosas, no solo una: el <b>registro</b> de un cambio de estado
+    /// anotado a mano (su nota, su motivo y el Gestor CAE autor), la última
+    /// reclamación de los documentos de la situación del Centro, las
+    /// reclamaciones sin respuesta de Inicio
+    /// (<c>ObtenerReclamacionesSinRespuestaQuery</c>, vacío), la última
+    /// reclamación al Cliente del Centro (<c>ObtenerUltimaReclamacionClienteQuery</c>,
+    /// null) y el motivo de rechazo de la vista rápida de un Documento
+    /// (<c>ObtenerAcreditacionesDelDocumentoQuery</c>, a null). No corta el
+    /// motivo de un rechazo en el resto de sus lecturas:
+    /// <c>AcreditacionDocumentoPlataforma.CambiarEstadoAMano</c> guarda el de un
+    /// rechazo anotado a mano también en el historial de rechazos (causa «Otro»,
+    /// sin autor ni nota, sin distinguir su origen del de un rechazo de la
+    /// Plataforma CAE), y ese historial sigue llegando a Consulta por la regla
+    /// operativa de este método como <c>UltimoMotivoRechazo</c> en
+    /// <c>ObtenerDocumentosQuery</c> (solo si la acreditación está rechazada) y en
+    /// <c>ObtenerAcreditacionesPorProveedorQuery</c>, que no lo condiciona al
+    /// estado actual de la acreditación: la Bandeja del Gestor (y con ella
+    /// «Requiere atención» de Inicio), la pestaña Plataformas de Empresa 360 y
+    /// <c>GET /extension/acreditaciones-pendientes</c>, que no restringe por
+    /// rol; también lo pinta la pestaña Plataforma de Documentos. El DECISION_LOG
+    /// solo nombra la vista rápida: para esas otras vías no hay corte decidido
+    /// (ver el comentario de esa lista). El historial de reclamaciones enviadas no pasa por esa lista en el
+    /// servidor (sus Queries acotan por cartera, no por rol) y se le corta a
+    /// Consulta en la presentación (ver el comentario de esa lista).
+    /// Añadir Consulta al corte de este método o a esa lista cambia la
+    /// regla de producto, no es un ajuste de implementación.
+    /// </para>
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default);
