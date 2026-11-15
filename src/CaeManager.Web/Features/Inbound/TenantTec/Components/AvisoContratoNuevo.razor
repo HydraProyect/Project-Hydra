@@ -1,0 +1,133 @@
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@inject IAvisoContratoTenantTec Avisos
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+@inject ILogger<AvisoContratoNuevo> Registro
+
+@* Aviso de contratos de acceso nuevos desde la última sesión del Tenant TEC. Es un componente suelto: no está enganchado al
+   flujo de inicio de sesión (quien lo engancha decide dónde y cuándo se muestra). Confirmar y Rechazar son de B-09
+   (confirmación por Tenant TCE nuevo). *@
+@if (Aviso is { } a)
+{
+    <Modal Visible="Visible" VisibleChanged="VisibleChanged" Ancho="AnchoModal.Grande"
+           Sobretitulo="@Textos["AvSobretitulo"]"
+           Titulo="@(a.Contratos == 1 ? Textos["AvTituloUno", a.Cliente] : Textos["AvTitulo", a.Cliente, a.Contratos])"
+           Subtitulo="@Textos["AvFechaPor", PresentacionTenantTec.Fecha(a.Fecha), a.Por]"
+           Aviso="@(_error is null ? null : AvisoDeError)">
+        <ChildContent>
+            <div class="av-cuerpo">
+                <div class="av-insignia">
+                    <span class="av-iniciales" aria-hidden="true">@a.Iniciales</span>
+                    <Badge Tono="@(a.EsClienteNuevo ? TonoBadge.Advertencia : TonoBadge.Exito)">@(a.EsClienteNuevo ? Textos["AvPendiente"] : Textos["AvActivos"])</Badge>
+                </div>
+
+                @if (a.EsClienteNuevo)
+                {
+                    <div role="note" class="av-nota">
+                        <span>@Textos["AvNotaA"]<strong>@Textos["AvNotaB"]</strong>@Textos["AvNotaC"]</span>
+                    </div>
+                }
+
+                <dl class="av-resumen">
+                    <div><dt>@Textos["AvTipo"]</dt><dd>@a.Tipo</dd></div>
+                    <div><dt>@Textos["AvVigencia"]</dt><dd>@a.Vigencia</dd></div>
+                    <div><dt>@Textos["AvActividades"]</dt><dd>@a.Actividades</dd></div>
+                    <div><dt>@Textos["AvEntran"]</dt><dd>@a.Entran</dd></div>
+                </dl>
+
+                <div class="av-centros">
+                    @foreach (var centro in a.Centros)
+                    {
+                        <section class="av-centro">
+                            <div class="av-centro-cabecera">
+                                <h3 class="det-titulo">@centro.Nombre</h3>
+                                <span class="det-sub">@Textos["AvRequisitos", centro.Requisitos]</span>
+                            </div>
+                            <span class="det-sub">@Textos["AvCentroLinea", centro.Direccion, centro.Cupo]</span>
+                            <div class="av-propios">
+                                @foreach (var propio in centro.Propios)
+                                {
+                                    <Badge Tamano="TamanoBadge.Pequeno">@propio</Badge>
+                                }
+                            </div>
+                        </section>
+                    }
+                </div>
+
+                <ul class="av-mensajes">
+                    <li>@(a.EsClienteNuevo
+                        ? Textos["AvDocsNuevo", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente]
+                        : Textos["AvDocsConocido", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente])</li>
+                    <li>@Textos["AvAsignaA"]<strong>@Textos["AvAsignaB"]</strong>@Textos["AvAsignaC"]</li>
+                    <li>@Textos["AvSubeA"]<strong>@Textos["AvSubeB"]</strong>@Textos["AvSubeC"]</li>
+                </ul>
+            </div>
+        </ChildContent>
+        <Pie>
+            @if (a.EsClienteNuevo)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_enviando" OnClick="() => ResponderAsync(a, confirmar: false)">@Textos["Rechazar"]</Boton>
+            }
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviando" OnClick="() => VisibleChanged.InvokeAsync(false)">@Textos["MasTarde"]</Boton>
+            @if (a.EsClienteNuevo)
+            {
+                <Boton Variante="VarianteBoton.Primario" Cargando="_enviando" OnClick="() => ResponderAsync(a, confirmar: true)">@Textos["Confirmar"]</Boton>
+            }
+            else
+            {
+                <Boton Variante="VarianteBoton.Secundario" OnClick="() => VisibleChanged.InvokeAsync(false)">@Textos["Continuar"]</Boton>
+            }
+        </Pie>
+    </Modal>
+}
+
+@code {
+    private bool _enviando;
+    private string? _error;
+
+    [Parameter] public AvisoContratoTec? Aviso { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>La persona ha confirmado (<c>true</c>) o rechazado (<c>false</c>) al Cliente empresarial nuevo.</summary>
+    [Parameter] public EventCallback<bool> OnRespondido { get; set; }
+
+    private RenderFragment AvisoDeError => @<span role="alert">@_error</span>;
+
+    private async Task ResponderAsync(AvisoContratoTec aviso, bool confirmar)
+    {
+        if (_enviando)
+        {
+            return;
+        }
+
+        _enviando = true;
+        _error = null;
+        try
+        {
+            var resultado = confirmar
+                ? await Avisos.ConfirmarAsync(aviso.ClienteId)
+                : await Avisos.RechazarAsync(aviso.ClienteId);
+            if (resultado == ResultadoAccionTec.Hecho)
+            {
+                await OnRespondido.InvokeAsync(confirmar);
+                await VisibleChanged.InvokeAsync(false);
+            }
+            else
+            {
+                _error = Textos["AvError"];
+            }
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Registro.LogError(excepcion, "No se ha podido registrar la respuesta al contrato nuevo del Cliente empresarial {ClienteId}.", aviso.ClienteId);
+            _error = Textos["AvError"];
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

@@ -1,0 +1,322 @@
+@page "/inbound/requerimientos"
+@page "/inbound/requerimientos/{RequerimientoId:guid}/subir"
+@* Sin prerender, como el resto de listados: la página carga en el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Web.Features.Inbound.TenantTec.Components
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@inject IRequerimientosTenantTec Servicio
+@inject NavigationManager Navegacion
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+@inject ILogger<Requerimientos> Registro
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["ReqTitulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["ReqTitulo"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="@Textos["ReqGrupo"]" Titulo="@Textos["ReqTitulo"]"
+                     Contador="@(_cargando || _error || !_disponible ? null : _delCliente.Count)" />
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCarga"]" />
+    }
+    else if (!_disponible)
+    {
+        @* shortcut: sin backend, cablear cuando entre B-11. Se avisa en vez de enseñar una lista vacía como si fuera real. *@
+        <EstadoVacio NombreIcono="documentos" Titulo="@Textos["ReqNoDisponibleTitulo"]"
+                     Descripcion="@Textos["ReqNoDisponibleDescripcion"]" />
+    }
+    else if (_todos.Count == 0)
+    {
+        <EstadoVacio NombreIcono="documentos" Titulo="@Textos["ReqVacioTitulo"]" Descripcion="@Textos["ReqVacioDescripcion"]" />
+    }
+    else
+    {
+        <Pestanas Definiciones="_pestanas" PestanaActiva="@_cliente" PestanaActivaChanged="CambiarClienteAsync"
+                  EtiquetaGrupo="@Textos["ReqEtiquetaClientes"]" Envolver="true">
+            <div class="req-barra">
+                <BuscadorLista Valor="@_busqueda" ValorChanged="CambiarBusqueda" Placeholder="@Textos["ReqBuscador"]" />
+                <PastillaFiltro Etiqueta="@Textos["ReqFiltroEmpresa"]" Valor="@_filtroEmpresa" ValorChanged="v => Filtrar(ref _filtroEmpresa, v)" Opciones="_opcionesEmpresa" />
+                <PastillaFiltro Etiqueta="@Textos["ReqFiltroEntidad"]" Valor="@_filtroEntidad" ValorChanged="v => Filtrar(ref _filtroEntidad, v)" Opciones="_opcionesEntidad" />
+                <PastillaFiltro Etiqueta="@Textos["ReqFiltroCentro"]" Valor="@_filtroCentro" ValorChanged="v => Filtrar(ref _filtroCentro, v)" Opciones="_opcionesCentro" />
+                <PastillaFiltro Etiqueta="@Textos["ReqFiltroVigencia"]" Valor="@_filtroVigencia" ValorChanged="v => Filtrar(ref _filtroVigencia, v)" Opciones="_opcionesVigencia" />
+                @if (HayFiltros)
+                {
+                    <button type="button" class="req-limpiar" @onclick="LimpiarFiltros">@Textos["ReqLimpiar"]</button>
+                }
+            </div>
+            <FranjaEstado Opciones="_opcionesFranja" Valor="@_estado" ValorChanged="CambiarEstado" Recuentos="_recuentos"
+                          EtiquetaAccesible="@Textos["EstadoFranja"]" />
+
+            @if (_visibles.Count == 0)
+            {
+                <EstadoVacio NombreIcono="documentos" Titulo="@Textos["ReqSinCoincidencias"]" />
+            }
+            else
+            {
+                <table class="tabla-datos req-tabla">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["ReqColRequerimiento"]</th>
+                            <th scope="col">@Textos["ReqColEmpresa"]</th>
+                            <th scope="col">@Textos["ReqColEntidad"]</th>
+                            <th scope="col">@Textos["ReqColCentro"]</th>
+                            <th scope="col">@Textos["ReqColEstado"]</th>
+                            <th scope="col">@Textos["ReqColVigencia"]</th>
+                            <th scope="col"><span class="visually-hidden">@Textos["ReqColAccion"]</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _visibles)
+                        {
+                            <tr @key="r.Id" data-requerimiento="@r.Id">
+                                <td>
+                                    <button type="button" class="req-nombre" @onclick="() => AbrirDetalle(r)">@r.Nombre</button>
+                                    @if (r.Niveles.Count > 1)
+                                    {
+                                        <div class="req-sub">@Textos["ReqCubre", r.Niveles.Count, string.Join(", ", r.Niveles.Select(n => n.Nivel))]</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(r.Motivo) && r.Estado is EstadoRequerimientoTec.Rechazado or EstadoRequerimientoTec.Incompleto)
+                                    {
+                                        <div class="req-sub req-motivo">@Textos["ReqMotivo", r.Motivo]</div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(r.Falta))
+                                    {
+                                        <div class="req-sub">@Textos["ReqFalta", r.Falta]</div>
+                                    }
+                                </td>
+                                <td>
+                                    @r.Empresa
+                                    @if (!string.IsNullOrWhiteSpace(r.PapelEmpresa))
+                                    {
+                                        <div class="req-sub">@r.PapelEmpresa</div>
+                                    }
+                                </td>
+                                <td>
+                                    @PresentacionTenantTec.Entidad(Textos, r.Entidad) · @r.ReferenciaEntidad
+                                    @if (!string.IsNullOrWhiteSpace(r.AmbitoEntidad))
+                                    {
+                                        <div class="req-sub">@r.AmbitoEntidad</div>
+                                    }
+                                </td>
+                                <td>@r.Centro</td>
+                                <td><Badge Tono="PresentacionTenantTec.TonoEstado(r.Estado)">@PresentacionTenantTec.Estado(Textos, r.Estado)</Badge></td>
+                                <td>
+                                    <Badge Tono="PresentacionTenantTec.TonoVigencia(r.Vigencia)">@PresentacionTenantTec.Vigencia(Textos, r.Vigencia)</Badge>
+                                    @if (r.Hasta is { } hasta)
+                                    {
+                                        <div class="req-sub">@Textos["ReqHasta", PresentacionTenantTec.Fecha(hasta)] · @Textos["ReqVigencias", r.Vigencias]</div>
+                                    }
+                                </td>
+                                <td class="req-accion">
+                                    @switch (r.Accion)
+                                    {
+                                        case AccionRequerimientoTec.Subir:
+                                            <Boton Variante="@(EsUrgente(r) ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => IrASubir(r.Id)">@Textos["Subir"]</Boton>
+                                            break;
+                                        case AccionRequerimientoTec.Firmar:
+                                            @* La firma no tiene pantalla propia en este incremento: abre el detalle. *@
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => AbrirDetalle(r)">@Textos["Firmar"]</Boton>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </Pestanas>
+    }
+</div>
+
+<DetalleRequerimiento Requerimiento="_detalle" Visible="@(_detalle is not null && !SubiendoAhora)"
+                      VisibleChanged="CerrarDetalle" OnSubir="IrASubir" />
+
+<SubirDocumento Requerimiento="RequerimientoASubir" Visible="@SubiendoAhora" OnCerrado="CerrarSubirAsync" OnSiguiente="IrASubir" />
+</LimiteDeErrores>
+
+@code {
+    private static readonly string[] CodigosEstado =
+        [nameof(EstadoRequerimientoTec.Rechazado), nameof(EstadoRequerimientoTec.PendienteDeSubir), nameof(EstadoRequerimientoTec.Incompleto),
+         nameof(EstadoRequerimientoTec.PendienteDeValidar), nameof(EstadoRequerimientoTec.Validado)];
+
+    private IReadOnlyList<RequerimientoTec> _todos = [];
+    private IReadOnlyList<RequerimientoTec> _delCliente = [];
+    private IReadOnlyList<RequerimientoTec> _visibles = [];
+    private IReadOnlyList<PestanaDefinicion> _pestanas = [];
+    private IReadOnlyDictionary<string, int> _recuentos = new Dictionary<string, int>();
+    private IReadOnlyList<OpcionFranjaEstado> _opcionesFranja = [];
+    private IReadOnlyList<OpcionEstado> _opcionesEmpresa = [];
+    private IReadOnlyList<OpcionEstado> _opcionesEntidad = [];
+    private IReadOnlyList<OpcionEstado> _opcionesCentro = [];
+    private IReadOnlyList<OpcionEstado> _opcionesVigencia = [];
+    private bool _cargando = true;
+    private bool _error;
+    private bool _disponible;
+    private string _cliente = string.Empty;
+    private string _busqueda = string.Empty;
+    private string _filtroEmpresa = string.Empty;
+    private string _filtroEntidad = string.Empty;
+    private string _filtroCentro = string.Empty;
+    private string _filtroVigencia = string.Empty;
+    private string? _estado;
+    private RequerimientoTec? _detalle;
+
+    /// <summary>Requerimiento al que se sube el documento; vacío en la lista.</summary>
+    [Parameter] public Guid RequerimientoId { get; set; }
+
+    private bool SubiendoAhora => RequerimientoId != Guid.Empty && !_cargando;
+
+    private RequerimientoTec? RequerimientoASubir => RequerimientoId == Guid.Empty ? null : _todos.FirstOrDefault(r => r.Id == RequerimientoId);
+
+    private bool HayFiltros => _busqueda.Length > 0 || _filtroEmpresa.Length > 0 || _filtroEntidad.Length > 0
+        || _filtroCentro.Length > 0 || _filtroVigencia.Length > 0 || !string.IsNullOrEmpty(_estado);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _opcionesFranja =
+        [
+            new(Textos["EstadoRechazado"], TonoBadge.Peligro, nameof(EstadoRequerimientoTec.Rechazado)),
+            new(Textos["EstadoPendienteSubir"], TonoBadge.Advertencia, nameof(EstadoRequerimientoTec.PendienteDeSubir)),
+            new(Textos["EstadoIncompleto"], TonoBadge.Advertencia, nameof(EstadoRequerimientoTec.Incompleto)),
+            new(Textos["EstadoPendienteValidar"], TonoBadge.Info, nameof(EstadoRequerimientoTec.PendienteDeValidar)),
+            new(Textos["EstadoValidado"], TonoBadge.Exito, nameof(EstadoRequerimientoTec.Validado)),
+        ];
+        _opcionesEntidad =
+        [
+            new(nameof(EntidadRequerimientoTec.Empresa), Textos["EntidadEmpresa"]),
+            new(nameof(EntidadRequerimientoTec.Trabajador), Textos["EntidadTrabajador"]),
+            new(nameof(EntidadRequerimientoTec.Vehiculo), Textos["EntidadVehiculo"]),
+        ];
+        _opcionesVigencia = Enum.GetValues<VigenciaRequerimientoTec>()
+            .Select(v => new OpcionEstado(v.ToString(), PresentacionTenantTec.Vigencia(Textos, v)))
+            .ToList();
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        try
+        {
+            _disponible = Servicio.Disponible;
+            _todos = _disponible ? await Servicio.ListarAsync() : [];
+            _pestanas = _todos.Select(r => r.ClienteEmpresarial).Distinct()
+                .Select(c => new PestanaDefinicion(c, c)
+                {
+                    Contador = new ContadorPestana(
+                        _todos.Count(r => r.ClienteEmpresarial == c && EsUrgente(r)), Textos["ReqPestanaGlosa"]),
+                })
+                .ToList();
+            if (_pestanas.All(p => p.Id != _cliente))
+            {
+                _cliente = RequerimientoASubir?.ClienteEmpresarial ?? _pestanas.FirstOrDefault()?.Id ?? string.Empty;
+            }
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            // El detalle va al log; el aviso de la pantalla nunca enseña el mensaje de la excepción.
+            Registro.LogError(excepcion, "No se han podido cargar los requerimientos del Tenant TEC.");
+            _error = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+
+        Recalcular();
+    }
+
+    private static bool EsUrgente(RequerimientoTec r) =>
+        r.Estado is EstadoRequerimientoTec.Rechazado or EstadoRequerimientoTec.PendienteDeSubir or EstadoRequerimientoTec.Incompleto;
+
+    private void Recalcular()
+    {
+        _delCliente = _todos.Where(r => r.ClienteEmpresarial == _cliente).ToList();
+        _opcionesEmpresa = _delCliente.Select(r => r.Empresa).Distinct().Order().Select(e => new OpcionEstado(e, e)).ToList();
+        _opcionesCentro = _delCliente.Select(r => r.Centro).Distinct().Order().Select(c => new OpcionEstado(c, c)).ToList();
+
+        var sinEstado = _delCliente.Where(CumpleFiltros).ToList();
+        _recuentos = CodigosEstado.ToDictionary(c => c, c => sinEstado.Count(r => r.Estado.ToString() == c));
+        var marcados = string.IsNullOrEmpty(_estado) ? [] : _estado.Split(SeleccionEstados.Separador);
+        _visibles = marcados.Length == 0 ? sinEstado : sinEstado.Where(r => marcados.Contains(r.Estado.ToString())).ToList();
+    }
+
+    private bool CumpleFiltros(RequerimientoTec r) =>
+        (_filtroEmpresa.Length == 0 || r.Empresa == _filtroEmpresa)
+        && (_filtroEntidad.Length == 0 || r.Entidad.ToString() == _filtroEntidad)
+        && (_filtroCentro.Length == 0 || r.Centro == _filtroCentro)
+        && (_filtroVigencia.Length == 0 || r.Vigencia.ToString() == _filtroVigencia)
+        && (_busqueda.Length == 0
+            || r.Nombre.Contains(_busqueda, StringComparison.CurrentCultureIgnoreCase)
+            || r.ReferenciaEntidad.Contains(_busqueda, StringComparison.CurrentCultureIgnoreCase)
+            || r.Empresa.Contains(_busqueda, StringComparison.CurrentCultureIgnoreCase));
+
+    private Task CambiarClienteAsync(string cliente)
+    {
+        _cliente = cliente;
+        _busqueda = _filtroEmpresa = _filtroEntidad = _filtroCentro = _filtroVigencia = string.Empty;
+        _estado = null;
+        Recalcular();
+        return Task.CompletedTask;
+    }
+
+    private void CambiarBusqueda(string valor) => Filtrar(ref _busqueda, valor);
+
+    private void Filtrar(ref string campo, string valor)
+    {
+        campo = valor ?? string.Empty;
+        Recalcular();
+    }
+
+    private void CambiarEstado(string? valor)
+    {
+        _estado = valor;
+        Recalcular();
+    }
+
+    private void LimpiarFiltros()
+    {
+        _busqueda = _filtroEmpresa = _filtroEntidad = _filtroCentro = _filtroVigencia = string.Empty;
+        _estado = null;
+        Recalcular();
+    }
+
+    private void AbrirDetalle(RequerimientoTec requerimiento) => _detalle = requerimiento;
+
+    private void CerrarDetalle(bool visible)
+    {
+        if (!visible)
+        {
+            _detalle = null;
+        }
+    }
+
+    private void IrASubir(Guid id)
+    {
+        _detalle = null;
+        Navegacion.NavigateTo($"/inbound/requerimientos/{id}/subir");
+    }
+
+    private async Task CerrarSubirAsync(bool seHaSubido)
+    {
+        Navegacion.NavigateTo("/inbound/requerimientos");
+        if (seHaSubido)
+        {
+            await CargarAsync();
+        }
+    }
+}

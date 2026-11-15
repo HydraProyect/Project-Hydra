@@ -74,6 +74,12 @@ public class PaginasClasificadasParaElEncargoTests
             "Cuadro de dirección: lectura agregada del Tenant propietario como el cuadro de mando (§ 9.7); ya lo abría "
             + "Dirección CAE por encargo y desde el 2026-10-19 también el Administrador (política PoliticaCuadroDireccion); "
             + "reabrir un mes sigue siendo solo de Dirección CAE",
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/Requerimientos.razor"] =
+            "pantalla del Tenant TEC sobre sus propios datos (Requerimientos recibidos); no es del Operador CAE ni del "
+            + "encargo; la excluye el módulo Inbound por su cuenta (ADR-013: el Núcleo no conoce a Inbound)",
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/QuienLeeMisDocumentos.razor"] =
+            "pantalla del Tenant TEC: quién lee sus documentos y su autorización única; mismos motivo y cautela que "
+            + "Requerimientos (DECISIÓN NECESARIA abierta sobre el gate del Tenant TEC)",
     };
 
 

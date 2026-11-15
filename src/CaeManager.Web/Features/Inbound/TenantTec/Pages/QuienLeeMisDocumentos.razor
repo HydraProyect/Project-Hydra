@@ -1,0 +1,313 @@
+@page "/inbound/quien-lee"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Web.Features.Inbound.TenantTec.Components
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@inject IQuienLeeTenantTec QuienLee
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+@inject ILogger<QuienLeeMisDocumentos> Registro
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["QlTitulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["QlTitulo"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="@Textos["QlGrupo"]" Titulo="@Textos["QlTitulo"]"
+                     Contador="@(_panorama is null ? null : _panorama.Clientes.Count)" />
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCarga"]" />
+    }
+    else if (_panorama is null)
+    {
+        @* shortcut: sin backend, cablear cuando entre B-09. Se avisa en vez de presentar una autorización o una lista inventadas. *@
+        <EstadoVacio NombreIcono="documentos" Titulo="@Textos["QlNoDisponibleTitulo"]" Descripcion="@Textos["QlNoDisponibleDescripcion"]" />
+    }
+    else
+    {
+        var autorizacion = _panorama.Autorizacion;
+        <section class="ql-autorizacion" aria-labelledby="ql-autorizacion-titulo">
+            <div class="ql-autorizacion-cabecera">
+                <h2 id="ql-autorizacion-titulo" class="det-titulo">@Textos["QlAutorizacionTitulo"]</h2>
+                <Badge Tono="@(autorizacion.Concedida ? TonoBadge.Exito : TonoBadge.Advertencia)">@(autorizacion.Concedida ? Textos["QlConcedida"] : Textos["QlSinConceder"])</Badge>
+                @if (autorizacion.Concedida && autorizacion.Fecha is { } fecha)
+                {
+                    <span class="det-sub">@Textos["QlConcedidaPor", PresentacionTenantTec.Fecha(fecha), autorizacion.Por ?? string.Empty]</span>
+                }
+            </div>
+            <p>@Textos["QlCobertura"]</p>
+            <p class="det-sub">@Textos["QlAvisoValidar"]</p>
+            @if (!autorizacion.Concedida)
+            {
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => _dialogoAutorizacion = true">@Textos["Autorizar"]</Boton>
+            }
+        </section>
+
+        @if (_panorama.Clientes.Count == 0)
+        {
+            <EstadoVacio NombreIcono="documentos" Titulo="@Textos["QlVacioTitulo"]" Descripcion="@Textos["QlVacioDescripcion"]" />
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th scope="col">@Textos["QlColCliente"]</th>
+                        <th scope="col">@Textos["QlColContratos"]</th>
+                        <th scope="col">@Textos["QlColQueLee"]</th>
+                        <th scope="col">@Textos["QlColUltima"]</th>
+                        <th scope="col">@Textos["QlColEstado"]</th>
+                        <th scope="col"><span class="visually-hidden">@Textos["QlColAccion"]</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in _panorama.Clientes)
+                    {
+                        var lee = c.RevocadoEl is null;
+                        <tr @key="c.ClienteId" data-cliente="@c.ClienteId">
+                            <td><button type="button" class="req-nombre" @onclick="() => AbrirRegistroAsync(c)">@c.Cliente</button></td>
+                            <td>
+                                @Textos["QlContratos", c.ContratosActivos]
+                                <div class="req-sub">@string.Join(" · ", c.Centros)</div>
+                            </td>
+                            <td>
+                                @if (lee)
+                                {
+                                    @Textos["QlQueLee", c.Trabajadores, c.Vehiculos]
+                                }
+                                else
+                                {
+                                    <span class="det-sub">@Textos["QlLeia", Textos["QlQueLee", c.Trabajadores, c.Vehiculos]]</span>
+                                }
+                            </td>
+                            <td>@(c.UltimaLectura is { } ultima ? PresentacionTenantTec.FechaHora(ultima) : Textos["QlSinLecturas"])</td>
+                            <td>
+                                @if (lee)
+                                {
+                                    <Badge Tono="TonoBadge.Exito">@Textos["QlLee"]</Badge>
+                                }
+                                else
+                                {
+                                    <Badge Tono="TonoBadge.Neutro">@Textos["QlRevocadoEl", PresentacionTenantTec.Fecha(c.RevocadoEl!.Value)]</Badge>
+                                }
+                            </td>
+                            <td class="req-accion">
+                                @if (lee)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _aRevocar = c">@Textos["Revocar"]</Boton>
+                                }
+                                else
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AutorizarClienteAsync(c)">@Textos["Autorizar"]</Boton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="det-sub">@Textos["QlNotaExcluir"]</p>
+        }
+    }
+
+    @if (_errorAccion is not null && !_dialogoAutorizacion && _aRevocar is null)
+    {
+        <p role="alert" class="det-motivo">@_errorAccion</p>
+    }
+</div>
+
+<AutorizacionUnicaDialogo Visible="_dialogoAutorizacion" VisibleChanged="v => _dialogoAutorizacion = v"
+                          Clientes="@(_panorama?.Clientes ?? [])" Enviando="_enviando" Error="@(_dialogoAutorizacion ? _errorAccion : null)"
+                          OnAutorizar="ConcederAsync" />
+
+<DialogoConfirmacion Visible="@(_aRevocar is not null)" VisibleChanged="v => { if (!v) _aRevocar = null; }"
+                     Titulo="@Textos["QlRevocarTitulo", _aRevocar?.Cliente ?? string.Empty]" Mensaje="@Textos["QlRevocarIntro"]"
+                     TextoBotonConfirmar="@Textos["Revocar"]" TextoBotonDescartar="@Textos["Cancelar"]"
+                     EnProgreso="_enviando" OnConfirmar="RevocarAsync">
+    <ul class="ql-consecuencias">
+        <li>@Textos["QlRevocar1"]</li>
+        <li>@Textos["QlRevocar2"]</li>
+        <li>@Textos["QlRevocar3"]</li>
+        <li>@Textos["QlRevocar4"]</li>
+    </ul>
+    @if (_errorAccion is not null)
+    {
+        <p role="alert" class="det-motivo">@_errorAccion</p>
+    }
+</DialogoConfirmacion>
+
+<Drawer Visible="@(_registroDe is not null)" VisibleChanged="v => { if (!v) _registroDe = null; }"
+        Titulo="@Textos["QlRegistroTitulo"]" Subtitulo="@_registroDe?.Cliente">
+    <ChildContent>
+        <div class="ql-filtros">
+            <label>
+                <span>@Textos["QlFiltroDocumento"]</span>
+                <select class="campo-input" @bind="_filtroDocumento">
+                    <option value=""></option>
+                    @foreach (var documento in _registro.Select(l => l.Documento).Distinct().Order())
+                    {
+                        <option value="@documento">@documento</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>@Textos["QlFiltroDesde"]</span>
+                <input type="date" class="campo-input" @bind="_filtroDesde" />
+            </label>
+            <label>
+                <span>@Textos["QlFiltroHasta"]</span>
+                <input type="date" class="campo-input" @bind="_filtroHasta" />
+            </label>
+            <button type="button" class="req-limpiar" @onclick="LimpiarRegistro">@Textos["QlLimpiar"]</button>
+            <span class="det-sub">@Textos["QlCuenta", LecturasFiltradas.Count]</span>
+        </div>
+        @if (LecturasFiltradas.Count == 0)
+        {
+            <p class="det-sub">@Textos["QlRegistroVacio"]</p>
+        }
+        else
+        {
+            <table class="tabla-datos">
+                <thead>
+                    <tr>
+                        <th scope="col">@Textos["QlColFecha"]</th>
+                        <th scope="col">@Textos["QlColDocumento"]</th>
+                        <th scope="col">@Textos["QlColDeQuien"]</th>
+                        <th scope="col">@Textos["QlColLeidoPor"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var lectura in LecturasFiltradas)
+                    {
+                        <tr>
+                            <td>@PresentacionTenantTec.FechaHora(lectura.Fecha)</td>
+                            <td>@lectura.Documento</td>
+                            <td>@lectura.DeQuien</td>
+                            <td>@lectura.LeidoPor</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <p class="det-sub">@Textos["QlNotaRegistro"]</p>
+    </ChildContent>
+</Drawer>
+</LimiteDeErrores>
+
+@code {
+    private PanoramaLecturaTec? _panorama;
+    private bool _cargando = true;
+    private bool _errorCarga;
+    private bool _enviando;
+    private string? _errorAccion;
+    private bool _dialogoAutorizacion;
+    private LecturaClienteTec? _aRevocar;
+    private LecturaClienteTec? _registroDe;
+    private IReadOnlyList<RegistroLecturaTec> _registro = [];
+    private string _filtroDocumento = string.Empty;
+    private DateOnly? _filtroDesde;
+    private DateOnly? _filtroHasta;
+
+    private IReadOnlyList<RegistroLecturaTec> LecturasFiltradas => _registro
+        .Where(l => _filtroDocumento.Length == 0 || l.Documento == _filtroDocumento)
+        .Where(l => _filtroDesde is not { } desde || DateOnly.FromDateTime(l.Fecha.DateTime) >= desde)
+        .Where(l => _filtroHasta is not { } hasta || DateOnly.FromDateTime(l.Fecha.DateTime) <= hasta)
+        .ToList();
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _errorCarga = false;
+        try
+        {
+            _panorama = QuienLee.Disponible ? await QuienLee.ObtenerAsync() : null;
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Registro.LogError(excepcion, "No se ha podido cargar quién lee los documentos del Tenant TEC.");
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task AbrirRegistroAsync(LecturaClienteTec cliente)
+    {
+        _registroDe = cliente;
+        LimpiarRegistro();
+        try
+        {
+            _registro = await QuienLee.RegistroAsync(cliente.ClienteId);
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Registro.LogError(excepcion, "No se ha podido cargar el registro de lecturas del Cliente empresarial {ClienteId}.", cliente.ClienteId);
+            _registro = [];
+        }
+    }
+
+    private void LimpiarRegistro()
+    {
+        _filtroDocumento = string.Empty;
+        _filtroDesde = null;
+        _filtroHasta = null;
+    }
+
+    private Task ConcederAsync() => EjecutarAsync(() => QuienLee.ConcederAutorizacionUnicaAsync(), "QlAutorizarError", () => _dialogoAutorizacion = false);
+
+    private Task AutorizarClienteAsync(LecturaClienteTec cliente) =>
+        EjecutarAsync(() => QuienLee.AutorizarAsync(cliente.ClienteId), "QlAutorizarError", null);
+
+    private Task RevocarAsync()
+    {
+        var cliente = _aRevocar;
+        return cliente is null
+            ? Task.CompletedTask
+            : EjecutarAsync(() => QuienLee.RevocarAsync(cliente.ClienteId), "QlRevocarError", () => _aRevocar = null);
+    }
+
+    private async Task EjecutarAsync(Func<Task<ResultadoAccionTec>> accion, string claveError, Action? alTerminar)
+    {
+        if (_enviando)
+        {
+            return;
+        }
+
+        _enviando = true;
+        _errorAccion = null;
+        try
+        {
+            var resultado = await accion();
+            if (resultado == ResultadoAccionTec.Hecho)
+            {
+                alTerminar?.Invoke();
+                await CargarAsync();
+            }
+            else
+            {
+                _errorAccion = Textos[claveError];
+            }
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Registro.LogError(excepcion, "No se ha podido completar la acción sobre quién lee los documentos del Tenant TEC.");
+            _errorAccion = Textos[claveError];
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}
