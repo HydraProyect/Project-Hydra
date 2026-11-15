@@ -199,6 +199,15 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "y con la vigencia empezando al contratar",
             ["\"Linea\"", "'Inbound'", "'Vigente'", "\"VigenteHastaUtc\"", "\"EstaEliminado\"", "\"VigenteDesdeUtc\"", "now()",
              "app_ctx_tenant_id()"], [], []),
+        ("ProductosContratados", "aprovisionamiento_solo_finaliza_inbound_vigente", 'w',
+            "cae_app_aprovisionamiento solo pasa a Finalizado la fila Inbound vigente y no eliminada del Tenant del contexto " +
+            "firmado, con el fin de vigencia en now() ± 5 minutos (DarDeBajaLineaInboundCommand y CorregirLineaInboundCommand)",
+            ["\"Linea\"", "'Inbound'", "\"EstaEliminado\"", "app_ctx_tenant_id()"],
+            ["'Vigente'"], ["'Finalizado'", "\"VigenteHastaUtc\"", "now()"]),
+        ("ProductosContratados", "aprovisionamiento_solo_lee_inbound", 'r',
+            "de las columnas que el WHERE de la baja necesita, cae_app_aprovisionamiento solo ve las filas Inbound del Tenant " +
+            "del contexto firmado",
+            [], ["\"Linea\"", "'Inbound'", "app_ctx_tenant_id()"], []),
     ];
 
     /// <summary>

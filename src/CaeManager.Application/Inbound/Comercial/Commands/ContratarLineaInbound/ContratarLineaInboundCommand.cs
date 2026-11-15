@@ -33,13 +33,14 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 /// <b>Lo contratado</b> (D-B): el Actor de Plataforma introduce a mano el Customer de Stripe del Pagador TALVEG, que ya
 /// existe en Stripe, el tramo y la modalidad. El alta no llama a Stripe ni crea Customers, así que no comprueba que el
 /// Customer exista: solo su formato. La vigencia empieza al contratar. Un solo Producto Contratado de la línea Inbound
-/// vigente por Tenant: lo impone un índice único parcial de la base, porque el rol elevado no lee la tabla.
+/// vigente por Tenant: lo impone un índice único parcial de la base, porque el rol elevado no lee la fila entera (solo las
+/// columnas del WHERE de la baja, opción B del 2026-11-15).
 /// </para>
 ///
 /// <para>
 /// Fuera de alcance (D-D): el Administrador del Tenant y la Asignación de Operación Inbound, que van a B-04b.
-/// Tampoco hay todavía vía para corregir o dar de baja lo contratado: el rol elevado solo inserta, y un Pagador o un
-/// tramo mal introducidos no se arreglan desde la aplicación hasta que se decida esa vía.
+/// Un Pagador, un tramo o una modalidad mal introducidos se corrigen con <c>CorregirLineaInboundCommand</c>, y la línea
+/// se da de baja con <c>DarDeBajaLineaInboundCommand</c> (opción B del 2026-11-15).
 /// </para>
 /// </summary>
 [AreaDelEncargo("Comercial")]

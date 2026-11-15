@@ -9,9 +9,12 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// Producto Contratado (plano 4, RQ-30, D-6): tabla con Tenant, el Tenant beneficiario. La migración que la
 /// crea le pone RLS con FORCE y la política <c>aislamiento_tenant</c>, como a cualquier tabla con Tenant, y
 /// concede solo SELECT a <c>cae_app_runtime</c> y a <c>cae_app_soporte</c>. La única vía de escritura es la de la
-/// línea Inbound (B-04a, <c>ContratarLineaInboundCommand</c>): <c>ContrataLineaInboundPorAprovisionamiento</c> concede
-/// INSERT, y nada más, a <c>cae_app_aprovisionamiento</c> (D-C, 2026-11-15). La de A6 desde
-/// <c>CompletarAltaAutonomaCommand</c> sigue sin abrir.
+/// línea Inbound, toda en <c>cae_app_aprovisionamiento</c>: <c>ContrataLineaInboundPorAprovisionamiento</c> le concede
+/// INSERT para <c>ContratarLineaInboundCommand</c> (B-04a, D-C, 2026-11-15), y
+/// <c>FinalizaLineaInboundPorAprovisionamiento</c>, SELECT de las columnas del WHERE y UPDATE de <c>Estado</c> y
+/// <c>VigenteHastaUtc</c> para la baja y la corrección (<c>DarDeBajaLineaInboundCommand</c> y
+/// <c>CorregirLineaInboundCommand</c>, opción B del 2026-11-15). La de A6 desde <c>CompletarAltaAutonomaCommand</c>
+/// sigue sin abrir.
 /// <para>
 /// Los enumerados se guardan por nombre, con un CHECK que repite la lista, como en <c>SolicitudesAlta</c>.
 /// Un solo índice único, parcial: un Producto Contratado de la línea Inbound vigente y no eliminado por Tenant
@@ -33,6 +36,9 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
     /// <summary>Índice único parcial: un Producto Contratado de la línea Inbound vigente por Tenant beneficiario (D-B).</summary>
     public const string IndiceInboundVigentePorTenant = "UX_ProductosContratados_InboundVigentePorTenant";
 
+    /// <summary>CHECK de coherencia entre estado y vigencia: la baja lo traduce cuando el fin quedaría antes del inicio.</summary>
+    public const string RestriccionEstadoYVigencia = "CK_ProductosContratados_EstadoYVigencia";
+
     public void Configure(EntityTypeBuilder<ProductoContratado> builder)
     {
         builder.ToTable("ProductosContratados", t =>
@@ -42,7 +48,7 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
             t.HasCheckConstraint("CK_ProductosContratados_Modalidad", SolicitudAltaConfiguration.EnValoresDe<ModalidadSuscripcionAlta>("Modalidad"));
             t.HasCheckConstraint("CK_ProductosContratados_Estado", SolicitudAltaConfiguration.EnValoresDe<EstadoProductoContratado>("Estado"));
             t.HasCheckConstraint("CK_ProductosContratados_PagadorFormato", "\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'");
-            t.HasCheckConstraint("CK_ProductosContratados_EstadoYVigencia",
+            t.HasCheckConstraint(RestriccionEstadoYVigencia,
                 "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR " +
                 "(\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");
         });
@@ -59,8 +65,8 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
             .HasDatabaseName("IX_ProductosContratados_TenantId_Estado");
 
         // D-B: un solo Producto Contratado de la línea Inbound vigente por Tenant beneficiario. Lo impone la base, no
-        // una lectura previa: cae_app_aprovisionamiento no tiene SELECT sobre la tabla (D-C), y dos altas a la vez
-        // pasarían cualquier comprobación previa. Una fila finalizada o eliminada no cuenta, como en el gate DN-7.
+        // una lectura previa: dos altas a la vez pasarían cualquier comprobación previa. La corrección finaliza la vigente
+        // antes de insertar la nueva, en la misma transacción, así que no choca con su propia fila. Una fila finalizada o eliminada no cuenta, como en el gate DN-7.
         builder.HasIndex(p => p.TenantId)
             .IsUnique()
             .HasFilter("\"Linea\" = 'Inbound' AND \"Estado\" = 'Vigente' AND NOT \"EstaEliminado\"")
