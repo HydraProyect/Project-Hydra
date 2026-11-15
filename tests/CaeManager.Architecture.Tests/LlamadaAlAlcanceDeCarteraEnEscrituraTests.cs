@@ -233,6 +233,14 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",
         "ContratosAcceso.RechazarEvidenciaInboundCommandHandler",
         "ContratosAcceso.ValidarEvidenciaInboundCommandHandler",
+        // Plantillas de requisitos del Tenant TCE (Inbound B-14): PlantillaRequisitosAutorizacion, por el Centro (cartera de
+        // gestión) o el Cliente empresarial (cartera visible); las de Actividad y riesgo, solo con el Tenant entero.
+        "Requisitos.AnadirRequisitoAPlantillaCommandHandler",
+        "Requisitos.CrearPlantillaRequisitosCommandHandler",
+        "Requisitos.CrearRequisitoPropioCommandHandler",
+        "Requisitos.EditarRequisitoPlantillaCommandHandler",
+        "Requisitos.RetirarPlantillaRequisitosCommandHandler",
+        "Requisitos.RetirarRequisitoPlantillaCommandHandler",
 
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",

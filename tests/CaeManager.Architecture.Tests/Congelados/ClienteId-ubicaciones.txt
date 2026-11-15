@@ -603,3 +603,8 @@ src/CaeManager.Application/Inbound/ContratosAcceso/ContratoAccesoAutorizacion.cs
 src/CaeManager.Application/Inbound/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Inbound/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Infrastructure/Inbound/Persistence/ContratoAccesoConfiguration.cs :: ClienteId = 1
+
+# Plantillas de requisitos (Inbound B-14, 2026-11-15): las columnas nuevas usan ClienteEmpresarialId; queda el alcance de
+# Clientes visibles (ObtenerClienteIdsVisiblesAsync), el mismo criterio que el contrato de acceso: al escribir y al leer
+# las exigencias de un Cliente empresarial.
+src/CaeManager.Application/Inbound/Requisitos/PlantillaRequisitosAutorizacion.cs :: ObtenerClienteIdsVisiblesAsync = 2
