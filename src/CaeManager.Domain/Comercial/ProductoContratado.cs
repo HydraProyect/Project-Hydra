@@ -27,9 +27,17 @@ namespace CaeManager.Domain.Comercial;
 /// La base repite los CHECK de valores y de coherencia entre estado y vigencia.
 /// </para>
 /// <para>
-/// Un solo flujo lo crea hoy: <c>ContratarLineaInboundCommand</c> (B-04a), que contrata la línea Inbound bajo una
-/// Sesión Privilegiada de Aprovisionamiento sobre el Tenant beneficiario, con un Producto Contratado de esa línea
-/// vigente como mucho por Tenant (D-B). <c>CompletarAltaAutonomaCommand</c> (A6) creará las de Outbound y abrirá su
+/// Dos flujos lo crean hoy, los dos bajo una Sesión Privilegiada de Aprovisionamiento sobre el Tenant beneficiario y con
+/// un Producto Contratado de la línea Inbound vigente como mucho por Tenant (D-B): <c>ContratarLineaInboundCommand</c>
+/// (B-04a), que contrata la línea Inbound, y <c>CorregirLineaInboundCommand</c>, que finaliza la vigente y contrata otra
+/// con los datos corregidos, en una transacción. Bajo la misma sesión, <c>DarDeBajaLineaInboundCommand</c> la finaliza. La
+/// corrección no sobrescribe la fila (opción B del 2026-11-15). Las dos finalizan en la base, sin pasar por
+/// <see cref="Finalizar"/>, porque el rol elevado no lee la fila entera. La base repite casi todas sus reglas: solo
+/// Vigente a Finalizado, fin no anterior al inicio (CHECK) y Finalizado como final. Difiere en una: <see cref="Finalizar"/>
+/// rechaza un fin posterior al instante actual, y la política <c>aprovisionamiento_solo_finaliza_inbound_vigente</c>
+/// admite un fin hasta 5 minutos después del <c>now()</c> de la transacción (y hasta 5 antes), el margen para el
+/// desfase entre el reloj de la aplicación y el de la base. Los dos comandos no lo usan: ponen como fin el propio
+/// <c>now()</c> de la transacción. <c>CompletarAltaAutonomaCommand</c> (A6) creará las de Outbound y abrirá su
 /// propia vía. Ninguna vía puede dejar que el propio Tenant beneficiario se conceda la línea Inbound (detalle en
 /// <c>ProductoContratadoConfiguration</c>).
 /// </para>
@@ -120,7 +128,8 @@ public class ProductoContratado : EntidadBase
     /// Registra que la vigencia terminó en <paramref name="vigenteHastaUtc"/>: no anterior al inicio ni
     /// posterior a <paramref name="ahoraUtc"/>. Un fin futuro (por ejemplo, una baja al cierre del periodo
     /// pagado) no se registra por adelantado: dejaría <see cref="EstadoProductoContratado.Finalizado"/> un
-    /// Producto Contratado que aún está en vigor, y cómo se programa una baja no está decidido. Solo desde
+    /// Producto Contratado que aún está en vigor. Hasta que se modele la Subscription, el cierre del periodo es
+    /// manual: el Actor de Plataforma ejecuta la baja ese día (<c>DarDeBajaLineaInboundCommand</c>). Solo desde
     /// <see cref="EstadoProductoContratado.Vigente"/>: un Producto Contratado finalizado no se reabre.
     /// </summary>
     public void Finalizar(DateTime vigenteHastaUtc, DateTime ahoraUtc)
