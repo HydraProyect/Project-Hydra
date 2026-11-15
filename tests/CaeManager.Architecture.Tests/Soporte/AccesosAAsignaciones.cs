@@ -46,8 +46,18 @@ internal readonly record struct AccesoAAsignacion(
 /// servicio</b> pasado a una de sus llamadas, que es un miembro sin acceso propio, de tipo
 /// <c>Expression&lt;…&gt;</c> o <c>IQueryable&lt;…&gt;</c>, cuya declaración contiene esa comparación
 /// (<c>.Where(OperacionDelServicioVigente(ahora))</c>), en el mismo tipo o cualificado por el nombre de
-/// su tipo; o un <c>FromSql*</c> de la cadena cuyo SQL compara <c>"Servicio"</c>. En SQL: la
-/// sentencia compara <c>"Servicio"</c>.
+/// su tipo; o un <c>FromSql*</c> de la cadena propia cuyo SQL compara <c>"Servicio"</c>. La Asignación de
+/// Cartera no tiene Servicio: la filtra solo esa comparación o ese predicado sobre una consulta de
+/// <c>AsignacionesOperacion</c> que la correlaciona con su operación (<see cref="OperacionesCorrelacionadas"/>).
+/// En SQL: la sentencia compara <c>"Servicio"</c>.
+/// </para>
+///
+/// <para>
+/// <b>Falla cerrado</b> en el SQL de las migraciones: una sentencia que el inventario no sabe seguir
+/// (<c>CREATE FUNCTION</c> sin cuerpo <c>AS</c> o <c>RETURN</c> identificable o con <c>BEGIN ATOMIC</c>, <c>CREATE
+/// PROCEDURE</c>, <c>CREATE … FUNCTION</c> o <c>VIEW</c> que el patrón no reconoce, <c>ALTER
+/// FUNCTION|PROCEDURE|ROUTINE|TABLE … RENAME TO|SET SCHEMA</c>, <c>ALTER VIEW … SET SCHEMA</c>) lanza
+/// <see cref="InvalidOperationException"/> con la migración y la sentencia, en vez de ignorarse.
 /// </para>
 /// </summary>
 internal static class AccesosAAsignaciones
@@ -141,16 +151,20 @@ internal static class AccesosAAsignaciones
         foreach (var (nodo, tabla, forma) in accesos)
         {
             var (contexto, espina) = ContextoDelAcceso(nodo);
+            var propia = new HashSet<SyntaxNode>();
+            CadenaDeLaConsulta(nodo, propia);
             var tipo = NombreDeTipo(nodo);
+
+            // La Asignación de Cartera no tiene Servicio: solo la filtra el Servicio (o el predicado) de
+            // una consulta sobre AsignacionesOperacion que la correlaciona con su operación. El de la
+            // consulta exterior que la contiene no basta: puede ser de otra cosa.
             var filtra = forma == "SQL"
                 ? ServicioSql.IsMatch(TextoDeLiteral(nodo))
-                : AplicaUnPredicado(contexto, tipo, predicados, espina)
-                  || FiltraSuSqlCrudo(espina)
+                : FiltraSuSqlCrudo(propia)
                   || (tabla == Operacion
-                      ? ComparaServicio(contexto, espina)
-                      : NombraLaOperacionDeLaCartera(contexto)
-                        && EspinaDeLaCartera(contexto, espina, operaciones) is var espinaCartera
-                        && (ComparaServicio(contexto, espinaCartera) || AplicaUnPredicado(contexto, tipo, predicados, espinaCartera)));
+                      ? AplicaUnPredicado(contexto, tipo, predicados, espina) || ComparaServicio(contexto, espina)
+                      : OperacionesCorrelacionadas(contexto, propia, operaciones) is { Count: > 0 } deLaOperacion
+                        && (ComparaServicio(contexto, deLaOperacion) || AplicaUnPredicado(contexto, tipo, predicados, deLaOperacion)));
 
             yield return new AccesoAAsignacion(
                 ruta, NombreDeMiembro(nodo), tabla, forma, filtra,
@@ -295,90 +309,113 @@ internal static class AccesosAAsignaciones
 
     /// <summary>
     /// <c>Set&lt;AsignacionOperacion&gt;().FromSqlRaw("… WHERE \"Servicio\" = …")</c>: el SQL que la
-    /// cadena pasa a un <c>FromSql*</c> compara el Servicio, así que la raíz <c>Set&lt;T&gt;</c> o el
-    /// <c>DbSet</c> de esa cadena no es un acceso crudo aparte del literal (que ya se clasifica solo).
+    /// cadena <b>propia</b> del acceso pasa a un <c>FromSql*</c> compara el Servicio, así que la raíz
+    /// <c>Set&lt;T&gt;</c> o el <c>DbSet</c> de esa cadena no es un acceso crudo aparte del literal (que ya
+    /// se clasifica solo). El <c>FromSql*</c> de una consulta exterior no filtra el acceso interior.
     /// </summary>
-    private static bool FiltraSuSqlCrudo(HashSet<SyntaxNode> espina) =>
-        espina.OfType<InvocationExpressionSyntax>().Any(i =>
+    private static bool FiltraSuSqlCrudo(HashSet<SyntaxNode> propia) =>
+        propia.OfType<InvocationExpressionSyntax>().Any(i =>
             i.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: var metodo }
             && metodo.StartsWith("FromSql", StringComparison.Ordinal)
             && i.ArgumentList.Arguments.Any(a =>
                 (a.Expression is InterpolatedStringExpressionSyntax || a.Expression.IsKind(SyntaxKind.StringLiteralExpression))
                 && ServicioSql.IsMatch(TextoDeLiteral(a.Expression))));
 
-    /// <summary>La lambda es un argumento de una llamada de la espina: <c>.Where(o =&gt; …)</c>.</summary>
-    private static bool EsLambdaDeLaEspina(LambdaExpressionSyntax lambda, HashSet<SyntaxNode> espina) =>
-        lambda.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax llamada } }
-        && espina.Contains(llamada);
-
     /// <summary>
-    /// Para una Asignación de Cartera, la espina más las llamadas del contexto que encadenan sobre un
-    /// acceso a <c>AsignacionesOperacion</c>: la subconsulta correlacionada
-    /// (<c>c =&gt; ctx.AsignacionesOperacion.Any(o =&gt; o.Id == c.AsignacionOperacionId &amp;&amp; o.Servicio == s)</c>)
-    /// y la fuente de un <c>Join</c> (<c>.Join(ctx.AsignacionesOperacion.Where(o =&gt; o.Servicio == s), …)</c>);
-    /// en una consulta integrada, la fuente <c>from</c>/<c>join</c> que encadena sobre
-    /// <c>AsignacionesOperacion</c> y la de un <c>join</c> cuya clave nombra <c>AsignacionOperacionId</c>
-    /// (<c>join o in ops on c.AsignacionOperacionId equals o.Id</c>). La fila de una consulta sobre otra
-    /// cosa (<c>otros.Any(x =&gt; x.Servicio == s)</c>) sigue sin contar. La regla de la clave es
-    /// asimétrica: si la cartera es el lado unido (<c>from x in otros join c in ctx.AsignacionesCartera
-    /// on x.Id equals c.AsignacionOperacionId</c>), <c>x</c> no cuenta (falso positivo, va a la lista).
+    /// Para una Asignación de Cartera: la unión de las cadenas de las consultas sobre
+    /// <c>AsignacionesOperacion</c> del contexto que la <b>correlacionan</b> con su operación; vacía si
+    /// ninguna lo hace, y entonces la lectura es cruda. Solo tres formas correlacionan, cada una entre una
+    /// fila de la cadena <b>propia</b> de la cartera (<paramref name="propia"/>) y una fila de la cadena de
+    /// la operación que no sea de la propia:
+    /// <list type="bullet">
+    /// <item>una igualdad <c>==</c> entre <c>c.AsignacionOperacionId</c> y <c>o.Id</c>, en cualquier orden
+    /// (<c>c =&gt; ctx.AsignacionesOperacion.Any(o =&gt; o.Id == c.AsignacionOperacionId &amp;&amp; o.Servicio == s)</c>,
+    /// o la cartera dentro del predicado de una consulta sobre la operación);</item>
+    /// <item>la clave de un <c>join</c> integrado con esos dos lados (<c>join o in ctx.AsignacionesOperacion
+    /// on c.AsignacionOperacionId equals o.Id</c>; también con la cartera como lado unido);</item>
+    /// <item>un <c>Join</c> o <c>GroupJoin</c> de método cuyas claves son <c>c =&gt; c.AsignacionOperacionId</c>
+    /// en el lado de la cartera y <c>o =&gt; o.Id</c> en el de la operación.</item>
+    /// </list>
+    /// El lado de la operación tiene que ser una consulta medida sobre <c>AsignacionesOperacion</c>: una
+    /// variable (<c>join o in ops</c>, <c>ops.Where(o =&gt; …)</c>) no se sabe qué recorre y no correlaciona.
+    /// Una subconsulta de operaciones sin esa igualdad (<c>ctx.AsignacionesOperacion.Any(o =&gt; o.Servicio
+    /// == s)</c>), una clave compuesta o cualquier otra forma tampoco.
     /// </summary>
-    private static HashSet<SyntaxNode> EspinaDeLaCartera(SyntaxNode contexto, HashSet<SyntaxNode> espina, HashSet<SyntaxNode> operaciones)
+    private static HashSet<SyntaxNode> OperacionesCorrelacionadas(
+        SyntaxNode contexto, HashSet<SyntaxNode> propia, HashSet<SyntaxNode> operaciones)
     {
-        var resultado = new HashSet<SyntaxNode>(espina);
-        foreach (var llamada in contexto.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+        var resultado = new HashSet<SyntaxNode>();
+        foreach (var operacion in operaciones.Where(o => contexto.Contains(o)))
         {
-            if (EncadenaSobre(llamada.Expression, operaciones)) resultado.Add(llamada);
-        }
-
-        foreach (var consulta in contexto.DescendantNodesAndSelf().OfType<QueryExpressionSyntax>())
-        {
-            foreach (var fuente in FuentesDeRango(consulta))
-            {
-                // La fuente es una consulta sobre AsignacionesOperacion, o el join empareja la cartera
-                // con su operación por la clave (join o in ops on c.AsignacionOperacionId equals o.Id).
-                if (EncadenaSobre(fuente, operaciones)
-                    || fuente.Parent is JoinClauseSyntax j
-                    && $"{j.LeftExpression} {j.RightExpression}".Contains("AsignacionOperacionId", StringComparison.Ordinal))
-                    resultado.Add(fuente);
-            }
+            var deLaOperacion = new HashSet<SyntaxNode>();
+            CadenaDeLaConsulta(operacion, deLaOperacion);
+            if (Correlaciona(contexto, propia, deLaOperacion)) resultado.UnionWith(deLaOperacion);
         }
 
         return resultado;
     }
 
-    /// <summary>La expresión es, o encadena por su receptor sobre, un acceso a <c>AsignacionesOperacion</c>.</summary>
-    private static bool EncadenaSobre(SyntaxNode expresion, HashSet<SyntaxNode> operaciones)
+    private static bool Correlaciona(SyntaxNode contexto, HashSet<SyntaxNode> propia, HashSet<SyntaxNode> deLaOperacion)
     {
-        for (SyntaxNode? receptor = expresion; receptor is not null;)
+        bool DeLaCartera(ExpressionSyntax e) =>
+            PropiedadDeFila(e, "AsignacionOperacionId") is { } fila && FuenteDeFila(fila) is { } f && propia.Contains(f);
+        bool DeLaOperacion(ExpressionSyntax e) =>
+            PropiedadDeFila(e, "Id") is { } fila && FuenteDeFila(fila) is { } f && deLaOperacion.Contains(f) && !propia.Contains(f);
+        bool Empareja(ExpressionSyntax a, ExpressionSyntax b) =>
+            (DeLaCartera(a) && DeLaOperacion(b)) || (DeLaOperacion(a) && DeLaCartera(b));
+
+        foreach (var nodo in contexto.DescendantNodesAndSelf())
         {
-            if (operaciones.Contains(receptor)) return true;
-            receptor = receptor switch
+            switch (nodo)
             {
-                MemberAccessExpressionSyntax m when operaciones.Contains(m.Name) => m.Name,
-                MemberAccessExpressionSyntax m => m.Expression,
-                InvocationExpressionSyntax i => i.Expression,
-                ParenthesizedExpressionSyntax p => p.Expression,
-                _ => null,
-            };
+                case BinaryExpressionSyntax b when b.IsKind(SyntaxKind.EqualsExpression) && Empareja(b.Left, b.Right):
+                case JoinClauseSyntax j when Empareja(j.LeftExpression, j.RightExpression):
+                    return true;
+
+                case InvocationExpressionSyntax
+                {
+                    Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Join" or "GroupJoin" } metodo,
+                    ArgumentList.Arguments: [var interior, var claveExterior, var claveInterior, ..],
+                } join when propia.Contains(join) && deLaOperacion.Contains(join):
+                    var carteraFuera = propia.Contains(metodo.Expression) && deLaOperacion.Contains(interior.Expression);
+                    var carteraDentro = deLaOperacion.Contains(metodo.Expression) && propia.Contains(interior.Expression);
+                    var (fuera, dentro) = (ClaveDeLambda(claveExterior), ClaveDeLambda(claveInterior));
+                    if ((carteraFuera && fuera == "AsignacionOperacionId" && dentro == "Id")
+                        || (carteraDentro && fuera == "Id" && dentro == "AsignacionOperacionId"))
+                        return true;
+                    break;
+            }
         }
 
         return false;
     }
+
+    /// <summary><c>x.Propiedad</c> sobre un identificador simple: devuelve <c>x</c>; si no, <c>null</c>.</summary>
+    private static IdentifierNameSyntax? PropiedadDeFila(ExpressionSyntax expresion, string propiedad) =>
+        expresion is MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax fila } m
+        && m.Name.Identifier.ValueText == propiedad
+            ? fila
+            : null;
+
+    /// <summary>La propiedad de la clave de un <c>Join</c>: <c>c =&gt; c.AsignacionOperacionId</c> da su nombre; otra forma, <c>null</c>.</summary>
+    private static string? ClaveDeLambda(ArgumentSyntax argumento) =>
+        argumento is
+        {
+            NameColon: null,
+            Expression: SimpleLambdaExpressionSyntax
+            {
+                ExpressionBody: MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax fila } cuerpo,
+            } lambda,
+        }
+        && fila.Identifier.ValueText == lambda.Parameter.Identifier.ValueText
+            ? cuerpo.Name.Identifier.ValueText
+            : null;
 
     /// <summary>Las fuentes de los <c>from</c> y <c>join</c> de la propia consulta (con su continuación).</summary>
     private static IEnumerable<ExpressionSyntax> FuentesDeRango(QueryExpressionSyntax consulta) =>
         consulta.DescendantNodesAndSelf()
             .Where(n => n is FromClauseSyntax or JoinClauseSyntax && n.FirstAncestorOrSelf<QueryExpressionSyntax>() == consulta)
             .Select(n => n is FromClauseSyntax f ? f.Expression : ((JoinClauseSyntax)n).InExpression);
-
-    /// <summary>
-    /// La Asignación de Cartera no tiene Servicio: su servicio es el de su Asignación de Operación, así
-    /// que la comparación de Servicio solo la filtra si la consulta la correlaciona con su operación.
-    /// </summary>
-    private static bool NombraLaOperacionDeLaCartera(SyntaxNode contexto) =>
-        contexto.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>()
-            .Any(m => m.Name.Identifier.ValueText is "AsignacionOperacionId" or "AsignacionOperacion");
 
     /// <summary>
     /// <paramref name="espina"/> nula: cualquier variable de consulta vale (para reconocer un predicado
@@ -410,25 +447,42 @@ internal static class AccesosAAsignaciones
         && PrimerIdentificador(m.Expression) is { Length: > 0 } receptor
         && EsVariableDeConsulta(m, receptor, espina);
 
-    private static bool EsVariableDeConsulta(SyntaxNode uso, string nombre, HashSet<SyntaxNode>? espina)
+    /// <summary>
+    /// Sin espina, cualquier variable de consulta; con espina, solo la que es fila de una llamada o de
+    /// una fuente de la espina (un <c>let</c> no recorre ninguna).
+    /// </summary>
+    private static bool EsVariableDeConsulta(SyntaxNode uso, string nombre, HashSet<SyntaxNode>? espina) =>
+        DeclaracionDeFila(uso, nombre) is (true, var fuente)
+        && (espina is null || (fuente is not null && espina.Contains(fuente)));
+
+    /// <summary>
+    /// De qué es fila la variable, por su declaración más cercana: la llamada a la que se pasa la lambda
+    /// que la declara (<c>.Where(o =&gt; …)</c>) o la fuente que recorre la variable de rango; <c>null</c>
+    /// si no es la fila de una consulta.
+    /// </summary>
+    private static SyntaxNode? FuenteDeFila(IdentifierNameSyntax variable) =>
+        DeclaracionDeFila(variable, variable.Identifier.ValueText).Fuente;
+
+    private static (bool Declarada, SyntaxNode? Fuente) DeclaracionDeFila(SyntaxNode uso, string nombre)
     {
         foreach (var a in uso.Ancestors())
         {
             switch (a)
             {
                 case SimpleLambdaExpressionSyntax s when s.Parameter.Identifier.ValueText == nombre:
-                    return espina is null || EsLambdaDeLaEspina(s, espina);
+                    return (true, LlamadaQueRecibe(s));
                 case ParenthesizedLambdaExpressionSyntax p when p.ParameterList.Parameters.Any(x => x.Identifier.ValueText == nombre):
-                    return espina is null || EsLambdaDeLaEspina(p, espina);
-                case QueryExpressionSyntax q when FuenteDeLaVariable(q, nombre) is var (declarada, fuente) && declarada:
-                    // Sin espina, cualquier variable de rango; con espina, solo la que recorre una fuente
-                    // de la espina (un «let» no recorre ninguna).
-                    return espina is null || (fuente is not null && espina.Contains(fuente));
+                    return (true, LlamadaQueRecibe(p));
+                case QueryExpressionSyntax q when FuenteDeLaVariable(q, nombre) is (true, var fuente):
+                    return (true, fuente);
             }
         }
 
-        return false;
+        return (false, null);
     }
+
+    private static InvocationExpressionSyntax? LlamadaQueRecibe(LambdaExpressionSyntax lambda) =>
+        lambda.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax llamada } } ? llamada : null;
 
     /// <summary>Si la consulta declara la variable y, para <c>from</c> y <c>join</c>, la fuente que recorre.</summary>
     private static (bool Declarada, ExpressionSyntax? Fuente) FuenteDeLaVariable(QueryExpressionSyntax q, string nombre)
@@ -563,10 +617,13 @@ internal static class AccesosAAsignaciones
 
     /// <summary>
     /// Las navegaciones del modelo de EF (de referencia, de colección y de salto) cuyo destino es una
-    /// de las dos entidades de Asignación, o una base o derivada suya. Una navegación es la única forma
-    /// de leer la tabla sin nombrarla en el C# de la consulta (<c>x.Operacion.Servicio</c>,
-    /// <c>Include(x =&gt; x.Carteras)</c>) y sin que el escáner sintáctico lo vea; hoy no hay ninguna, y
-    /// el trinquete exige que siga así hasta que el detector las mida.
+    /// de las dos entidades de Asignación, o una base o derivada suya. Una navegación es una de las
+    /// formas de leer la tabla sin nombrarla en el C# de la consulta (<c>x.Operacion.Servicio</c>,
+    /// <c>Include(x =&gt; x.Carteras)</c>) que el escáner sintáctico no ve, y la única que este test
+    /// cierra: hoy no hay ninguna, y el trinquete exige que siga así hasta que el detector las mida. Las
+    /// demás (<c>ctx.Add(entidad)</c>, <c>Entry(…)</c>, <c>Set(typeof(…))</c>, <c>Model.FindEntityType</c>,
+    /// reflexión) siguen sin medirse y están declaradas en
+    /// <see cref="AccesoCrudoAAsignacionesSinServicioTests"/>.
     /// </summary>
     public static IReadOnlyList<string> NavegacionesHacia(Microsoft.EntityFrameworkCore.Metadata.IModel modelo, IReadOnlyCollection<Type> destinos) =>
         modelo.GetEntityTypes()
@@ -644,7 +701,25 @@ internal static class AccesosAAsignaciones
 
     private static readonly Regex ClausulaCheck = new(@"\bWITH\s+CHECK\s*\(", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private static readonly Regex CuerpoEntreComillas = new(@"\bAS\s*'", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ClausulaAs = new(@"\bAS\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex ClausulaRetorno = new(@"\bRETURN\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex InicioAtomico = new(@"\bBEGIN\s+ATOMIC\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Toda creación de rutina, la reconozca <see cref="CreaFuncion"/> o no.</summary>
+    private static readonly Regex CreaRutina = new(
+        @"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Toda creación de vista, la reconozca <see cref="CreaVista"/> o no.</summary>
+    private static readonly Regex CreaVistaCualquiera = new(
+        @"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:(?:TEMP|TEMPORARY)\s+)?(?:RECURSIVE\s+)?(?:MATERIALIZED\s+)?VIEW\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex AlteraObjeto = new(
+        @"\bALTER\s+(?<clase>FUNCTION|PROCEDURE|ROUTINE|TABLE|(?:MATERIALIZED\s+)?VIEW)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex Traslada = new(@"\b(?<como>RENAME\s+TO|SET\s+SCHEMA)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex Parentesis = new(@"\([^()]*\)", RegexOptions.Compiled);
 
@@ -655,15 +730,17 @@ internal static class AccesosAAsignaciones
     /// Recorre las migraciones en orden y se queda con el <b>estado final</b> de cada función, vista y
     /// política; devuelve un acceso por cada lectura de una de las dos tablas en ese estado.
     /// <list type="bullet">
-    /// <item>Función: la última <c>CREATE [OR REPLACE] FUNCTION</c> no eliminada después. Su cuerpo es la
-    /// cadena con dólar <b>de su propia sentencia</b>; si no la tiene, el literal <c>AS '…'</c>; si
-    /// tampoco, la sentencia entera.</item>
+    /// <item>Función: la última <c>CREATE [OR REPLACE] FUNCTION</c> no eliminada después. Su cuerpo es el
+    /// literal (con dólar o entre comillas) que sigue a la cláusula <c>AS</c> posterior a la firma: un
+    /// literal anterior, como un <c>DEFAULT $$…$$</c> de un argumento, no es el cuerpo.</item>
     /// <item>Vista: la última <c>CREATE [OR REPLACE] [MATERIALIZED] VIEW</c> no eliminada; su texto, la
     /// sentencia. <c>ALTER VIEW … RENAME TO</c> la traslada.</item>
     /// <item>Política: <c>USING</c> y <c>WITH CHECK</c> por separado, como en PostgreSQL. <c>ALTER
     /// POLICY</c> sustituye la cláusula que trae y conserva la otra; <c>RENAME TO</c> la traslada;
     /// <c>DROP POLICY</c> la retira.</item>
     /// </list>
+    /// Lo que no sabe seguir lanza <see cref="InvalidOperationException"/> con la migración y la sentencia
+    /// (<see cref="ExigirQueSeSabeAnalizar"/>, <see cref="CuerpoDeFuncion"/>).
     /// </summary>
     public static IReadOnlyList<AccesoAAsignacion> EnSql(IReadOnlyList<(string Id, string Sql)> migraciones)
     {
@@ -671,15 +748,18 @@ internal static class AccesosAAsignaciones
         var vistas = new Dictionary<string, string>(StringComparer.Ordinal);
         var politicas = new Dictionary<string, (string? Usando, string? Comprobando)>(StringComparer.Ordinal);
 
-        foreach (var (_, sql) in migraciones)
+        foreach (var (id, sql) in migraciones)
         {
             var codigo = EscanerSql.SoloCodigo(sql);
+            var limpio = EscanerSql.SinComentarios(sql);
             var eventos = new List<(int Indice, Action Aplicar)>();
+
+            ExigirQueSeSabeAnalizar(id, sql, codigo);
 
             foreach (var m in EscanerSql.CoincidenciasEnCodigo(CreaFuncion, sql))
             {
                 var nombre = Normalizar(m.Groups["nombre"].Value);
-                var cuerpo = CuerpoDeFuncion(sql, m.Index, FinDeSentencia(codigo, m.Index));
+                var cuerpo = CuerpoDeFuncion(id, sql, limpio, codigo, m);
                 eventos.Add((m.Index, () => funciones[nombre] = cuerpo));
             }
 
@@ -766,28 +846,94 @@ internal static class AccesosAAsignaciones
         nombreNormalizado[..nombreNormalizado.LastIndexOf('.')];
 
     /// <summary>
-    /// El cuerpo de la función cuya sentencia va de <paramref name="desde"/> a <paramref name="fin"/>
-    /// (el primer <c>;</c> en código, que nunca cae dentro de un literal): la cadena con dólar que empieza
-    /// dentro de la sentencia, o el contenido del literal <c>AS '…'</c>, o la sentencia entera. Nunca el
-    /// cuerpo de una función posterior.
+    /// El cuerpo de la función que crea <paramref name="creacion"/> (que acaba en el <c>(</c> de su
+    /// firma): tras el <c>)</c> que cierra la firma, la primera cláusula de cuerpo en código, que es
+    /// <c>AS</c> seguida de un literal (con dólar o entre comillas) o el cuerpo SQL estándar <c>RETURN
+    /// expresión</c> hasta el fin de la sentencia. Un literal de la firma (<c>DEFAULT $$…$$</c>) no es el
+    /// cuerpo, y la sentencia acaba en su primer <c>;</c> en código, así que nunca es el cuerpo de una
+    /// función posterior. Si la firma no cierra, no hay <c>AS</c> ni <c>RETURN</c> antes del fin de la
+    /// sentencia, tras el <c>AS</c> no empieza un literal o el cuerpo es <c>BEGIN ATOMIC</c> (cuyos
+    /// <c>;</c> cortan la sentencia), falla cerrado.
     /// </summary>
-    private static string CuerpoDeFuncion(string sql, int desde, int fin)
+    private static string CuerpoDeFuncion(string id, string sql, string limpio, string codigo, Match creacion)
     {
-        var tokens = EscanerSql.NoCodigo(sql);
-        var dolar = tokens.FirstOrDefault(t => t.ConDolar && t.Inicio >= desde && t.Inicio < fin);
-        if (dolar.ConDolar)
-            return sql[dolar.ContenidoInicio..dolar.ContenidoFin];
+        var fin = FinDeSentencia(codigo, creacion.Index);
+        var cierre = CierreDeParentesis(codigo, creacion.Index + creacion.Length - 1, fin);
+        if (cierre < 0)
+            throw NoAnalizable(id, sql, codigo, creacion.Index, "la firma de la función no cierra antes del fin de la sentencia");
+        if (InicioAtomico.IsMatch(codigo[cierre..fin]))
+            throw NoAnalizable(id, sql, codigo, creacion.Index, "cuerpo BEGIN ATOMIC: sus «;» cortan la sentencia");
+        // La primera de las dos cláusulas de cuerpo tras la firma: un AS dentro de un cuerpo RETURN
+        // (CAST(x AS text)) no es la cláusula AS.
+        var clausula = new[] { ClausulaAs.Match(codigo, cierre), ClausulaRetorno.Match(codigo, cierre) }
+            .Where(m => m.Success && m.Index < fin)
+            .MinBy(m => m.Index);
+        if (clausula is null)
+            throw NoAnalizable(id, sql, codigo, creacion.Index, "no hay cláusula AS ni RETURN con el cuerpo tras la firma");
 
-        var sentencia = sql[desde..fin];
-        if (EscanerSql.CoincidenciasEnCodigo(CuerpoEntreComillas, sentencia) is [var comillas, ..])
+        // Cuerpo SQL estándar (RETURN expresión): una sola expresión hasta el fin de la sentencia.
+        if (clausula.Value.Equals("RETURN", StringComparison.OrdinalIgnoreCase))
+            return sql[(clausula.Index + clausula.Length)..fin];
+
+        var inicio = clausula.Index + clausula.Length;
+        while (inicio < fin && char.IsWhiteSpace(limpio[inicio])) inicio++;
+        var literal = EscanerSql.NoCodigo(sql).FirstOrDefault(t => t.Clase == EscanerSql.Clase.Literal && t.Inicio == inicio);
+        if (literal.Fin <= literal.Inicio)
+            throw NoAnalizable(id, sql, codigo, creacion.Index, "tras AS no empieza un literal con el cuerpo");
+
+        var cuerpo = sql[literal.ContenidoInicio..literal.ContenidoFin];
+        return literal.ConDolar ? cuerpo : cuerpo.Replace("''", "'", StringComparison.Ordinal);
+    }
+
+    /// <summary>El <c>)</c> en código que cierra el <c>(</c> de <paramref name="abre"/> antes de <paramref name="fin"/>; -1 si no lo hay.</summary>
+    private static int CierreDeParentesis(string codigo, int abre, int fin)
+    {
+        var profundidad = 0;
+        for (var i = abre; i < fin; i++)
         {
-            var inicio = desde + comillas.Index + comillas.Length - 1;
-            var literal = tokens.FirstOrDefault(t => t.Clase == EscanerSql.Clase.Literal && t.Inicio == inicio);
-            if (literal.Fin > literal.Inicio)
-                return sql[literal.ContenidoInicio..literal.ContenidoFin].Replace("''", "'", StringComparison.Ordinal);
+            if (codigo[i] == '(') profundidad++;
+            else if (codigo[i] == ')' && --profundidad == 0) return i;
         }
 
-        return sentencia;
+        return -1;
+    }
+
+    /// <summary>
+    /// Falla cerrado ante lo que el inventario no sabe seguir: una <c>CREATE FUNCTION</c> o <c>VIEW</c>
+    /// que <see cref="CreaFuncion"/> o <see cref="CreaVista"/> no reconocen, una <c>CREATE PROCEDURE</c>
+    /// (no se inventaría), y una sentencia que traslada un objeto sin que el estado lo siga: <c>ALTER
+    /// FUNCTION|PROCEDURE|ROUTINE|TABLE … RENAME TO</c> o <c>SET SCHEMA</c>, y <c>ALTER [MATERIALIZED]
+    /// VIEW … SET SCHEMA</c> (el <c>RENAME TO</c> de una vista sí se sigue). Hoy ninguna migración usa
+    /// ninguna de ellas en código: dentro de un <c>DO $$ … $$</c> no se ven (hueco declarado).
+    /// </summary>
+    private static void ExigirQueSeSabeAnalizar(string id, string sql, string codigo)
+    {
+        var funciones = EscanerSql.CoincidenciasEnCodigo(CreaFuncion, sql).Select(m => m.Index).ToHashSet();
+        foreach (var m in EscanerSql.CoincidenciasEnCodigo(CreaRutina, sql).Where(m => !funciones.Contains(m.Index)))
+            throw NoAnalizable(id, sql, codigo, m.Index, "CREATE PROCEDURE, o una CREATE FUNCTION cuyo nombre o firma no se reconoce");
+
+        var vistas = EscanerSql.CoincidenciasEnCodigo(CreaVista, sql).Select(m => m.Index).ToHashSet();
+        foreach (var m in EscanerSql.CoincidenciasEnCodigo(CreaVistaCualquiera, sql).Where(m => !vistas.Contains(m.Index)))
+            throw NoAnalizable(id, sql, codigo, m.Index, "una CREATE VIEW cuyo nombre no se reconoce");
+
+        foreach (var m in EscanerSql.CoincidenciasEnCodigo(AlteraObjeto, sql))
+        {
+            var esVista = m.Groups["clase"].Value.EndsWith("VIEW", StringComparison.OrdinalIgnoreCase);
+            foreach (var t in EscanerSql.CoincidenciasEnCodigo(Traslada, sql[m.Index..FinDeSentencia(codigo, m.Index)]))
+            {
+                if (esVista && t.Groups["como"].Value.StartsWith("RENAME", StringComparison.OrdinalIgnoreCase)) continue;
+                throw NoAnalizable(id, sql, codigo, m.Index, $"{Regex.Replace(t.Groups["como"].Value, @"\s+", " ").ToUpperInvariant()} traslada el objeto y el inventario no lo sigue");
+            }
+        }
+    }
+
+    private static InvalidOperationException NoAnalizable(string id, string sql, string codigo, int desde, string motivo)
+    {
+        var sentencia = Regex.Replace(sql[desde..FinDeSentencia(codigo, desde)], @"\s+", " ").Trim();
+        if (sentencia.Length > 240) sentencia = sentencia[..240] + " …";
+        return new InvalidOperationException(
+            $"Migración {id}: AccesosAAsignaciones no sabe analizar con seguridad la sentencia «{sentencia}» ({motivo}). " +
+            "Falla cerrado en vez de ignorarla: modela la construcción en el detector o escribe la migración de otra forma.");
     }
 
     /// <summary>

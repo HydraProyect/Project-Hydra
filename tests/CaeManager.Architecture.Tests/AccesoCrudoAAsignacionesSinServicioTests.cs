@@ -57,13 +57,13 @@ namespace CaeManager.Architecture.Tests;
 /// (<c>.Select(o =&gt; new { o.Servicio }).Where(x =&gt; x.Servicio == s)</c>) sí cuenta, también cuando la
 /// proyección de un <c>Join</c> o un <c>SelectMany</c> en sintaxis de método arrastra la fila de la otra
 /// fuente (<c>.Join(otros, …, (o, x) =&gt; new { o, x }).Where(r =&gt; r.x.Servicio == s)</c>: falso
-/// negativo). En la cartera
-/// cuenta además la fila de una subconsulta o de la fuente de un <c>Join</c> sobre
-/// <c>AsignacionesOperacion</c>, o la variable de un <c>join</c> cuya clave nombra
-/// <c>AsignacionOperacionId</c>, si el contexto nombra <c>AsignacionOperacionId</c>: no se comprueba que
-/// esa subconsulta sea la que correlaciona la cartera con su operación. Si la cartera es el lado unido de
-/// ese <c>join</c> (<c>from x in otros join c in ctx.AsignacionesCartera on x.Id equals
-/// c.AsignacionOperacionId</c>), la variable de la otra fuente no cuenta (falso positivo).</item>
+/// negativo). En la cartera, que no tiene Servicio, solo cuenta la fila de una consulta sobre
+/// <c>AsignacionesOperacion</c> que la <b>correlaciona</b> con su operación: una igualdad
+/// <c>o.Id == c.AsignacionOperacionId</c> (en cualquier orden), la clave de un <c>join</c> integrado o
+/// las claves de un <c>Join</c> de método con esos dos lados. Cualquier otra forma (una clave compuesta,
+/// <c>Equals</c>, una correlación en un <c>where</c> tras un <c>from</c> cruzado, una variable
+/// <c>ops</c> que no se sabe qué recorre) deja la lectura cruda (falso positivo, va a la lista). La
+/// correlación no comprueba que la igualdad restrinja (dentro de una disyunción también cuenta).</item>
 /// <item>Cuando el acceso está dentro de una cláusula (<c>where</c>, <c>select</c>) de una consulta
 /// integrada exterior, cuentan las variables de <b>todos</b> sus <c>from</c> y <c>join</c>, también las de
 /// un <c>join</c> ajeno al acceso (<c>from d in docs join x in otros … where x.Servicio == s &amp;&amp;
@@ -96,8 +96,14 @@ namespace CaeManager.Architecture.Tests;
 /// <item>En SQL, el filtro es un <c>"Servicio"</c> seguido de <c>=</c>, <c>&lt;&gt;</c>, <c>!=</c>,
 /// <c>IN</c> o <c>IS</c> que no sea la primera asignación tras <c>SET</c>: una segunda asignación
 /// (<c>SET "Estado" = …, "Servicio" = …</c>) cuenta como filtro, y la forma desparsada de
-/// <c>pg_dump</c> (<c>("Servicio")::text = …</c>) no casa. El cuerpo <c>BEGIN ATOMIC</c> de una función
-/// SQL se corta en su primer <c>;</c> (hoy ninguna lo usa).</item>
+/// <c>pg_dump</c> (<c>("Servicio")::text = …</c>) no casa.</item>
+/// <item><b>Falla cerrado, no es hueco:</b> una sentencia de migración que el inventario SQL no sabe
+/// seguir (una función sin cuerpo <c>AS '…'</c> o <c>RETURN …</c> identificable tras la firma o con
+/// <c>BEGIN ATOMIC</c>, una
+/// <c>CREATE PROCEDURE</c>, una <c>CREATE FUNCTION</c> o <c>VIEW</c> que el patrón no reconoce, un
+/// <c>ALTER FUNCTION|PROCEDURE|ROUTINE|TABLE … RENAME TO|SET SCHEMA</c> o un <c>ALTER VIEW … SET
+/// SCHEMA</c>) hace fallar el test con la migración y la sentencia. Hoy ninguna migración las usa en
+/// código.</item>
 /// <item>El SQL de <c>tests/</c> y de los guiones de <c>scripts/</c>.</item>
 /// </list>
 /// </summary>
@@ -172,12 +178,43 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var n = (from o in ctx.AsignacionesOperacion join x in otros.Where(y => y.Servicio == s) on o.Id equals x.OpId select o).Count(); }", "Lector.A · AsignacionesOperacion")]
     // Cuenta la declaración más cercana: la «o» interior es la fila de «otros», aunque se llame como la exterior.
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => otros.Any(o => o.Servicio == s)); }", "Lector.A · AsignacionesOperacion")]
+    // El FromSqlRaw de una consulta exterior no filtra el acceso de su predicado: solo el de la cadena propia.
+    [InlineData("void A() { var n = otros.FromSqlRaw(\"SELECT * FROM x WHERE \\\"Servicio\\\" = 'Inbound'\").Count(x => ctx.AsignacionesOperacion.Any(o => o.Id == x.OpId)); }", "Lector.A · AsignacionesOperacion")]
+    // La cartera correlacionada con una variable que no se sabe qué recorre: «ops» no es una consulta medida sobre AsignacionesOperacion.
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ops on c.AsignacionOperacionId equals o.Id where o.Servicio == s select c).Count(); }", "Lector.A · AsignacionesCartera")]
+    [InlineData("void A() { var n = ops.Where(o => o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id)).Count(); }", "Lector.A · AsignacionesCartera")]
     public void Un_acceso_sin_filtro_de_Servicio_es_crudo(string cuerpo, string simbolo)
     {
         var accesos = MedirCs(cuerpo);
 
         accesos.Should().ContainSingle("el instrumento tiene que ver el acceso").Which.FiltraPorServicio.Should().BeFalse();
         accesos[0].Clave.Should().Be(new Ubicacion("src/X/Lector.cs", simbolo));
+    }
+
+    [Theory]
+    // Ronda 2 de Codex: la subconsulta de operaciones filtra por Servicio pero no se correlaciona con la fila de cartera.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => c.AsignacionOperacionId != Guid.Empty && ctx.AsignacionesOperacion.Any(o => o.Servicio == s)); }")]
+    // La subconsulta correlacionada no filtra; la que filtra no está correlacionada.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId) && ctx.AsignacionesOperacion.Any(o => o.Servicio == s)); }")]
+    // Una desigualdad no correlaciona.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => o.Id != c.AsignacionOperacionId && o.Servicio == s)); }")]
+    // La igualdad correlaciona otra fila («x»), no la de la cartera.
+    [InlineData("void A() { var n = otros.Count(x => ctx.AsignacionesCartera.Any(c => c.UsuarioId == u) && ctx.AsignacionesOperacion.Any(o => o.Id == x.AsignacionOperacionId && o.Servicio == s)); }")]
+    // El Servicio es de la fila exterior («d»), no de la operación correlacionada.
+    [InlineData("void A() { var n = docs.Count(d => d.Servicio == s && ctx.AsignacionesCartera.Any(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId))); }")]
+    // Un Join, de método o integrado, por otra clave.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Where(c => c.AsignacionOperacionId != Guid.Empty).Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.UsuarioId, o => o.Id, (c, o) => c).Count(); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.OperadorTenantId, (c, o) => c).Count(); }")]
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion.Where(x => x.Servicio == s) on c.AsignacionOperacionId equals o.OperadorTenantId select c).Count(); }")]
+    // Un from cruzado sin clave de join.
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera from o in ctx.AsignacionesOperacion where o.Servicio == s && c.AsignacionOperacionId != Guid.Empty select c).Count(); }")]
+    public void Una_cartera_sin_correlacion_con_la_operacion_que_filtra_es_cruda(string cuerpo)
+    {
+        var accesos = MedirCs(cuerpo);
+
+        accesos.Should().Contain(a => a.Tabla == AccesosAAsignaciones.Operacion, "el instrumento tiene que ver la consulta de operaciones");
+        accesos.Where(a => a.Tabla == AccesosAAsignaciones.Cartera).Should().ContainSingle("el instrumento tiene que ver la cartera")
+            .Which.FiltraPorServicio.Should().BeFalse("solo filtra la cartera el Servicio de una operación correlacionada con ella");
     }
 
     [Fact]
@@ -199,7 +236,9 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => o.Servicio != s); }")]
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => o.Servicio is ServicioCae.Outbound); }")]
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => lista.Contains(o.Servicio)); }")]
-    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ops on c.AsignacionOperacionId equals o.Id where o.Servicio == s select c).Count(); }")]
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id where o.Servicio == s select c).Count(); }")]
+    // La cartera como lado unido del join integrado.
+    [InlineData("void A() { var n = (from o in ctx.AsignacionesOperacion join c in ctx.AsignacionesCartera on o.Id equals c.AsignacionOperacionId where o.Servicio == s select c).Count(); }")]
     [InlineData("static Expression<Func<AsignacionOperacion, bool>> P() => o => o.Servicio == S;\n" +
                 "void A() { var n = ctx.AsignacionesOperacion.Count(P()); }")]
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(Otro.Predicado); }")]
@@ -207,12 +246,17 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     // La raíz Set<T> de un FromSqlRaw cuyo SQL compara el Servicio no es un crudo aparte del literal.
     [InlineData("void A() { var l = ctx.Set<AsignacionOperacion>().FromSqlRaw(\"SELECT * FROM \\\"AsignacionesOperacion\\\" WHERE \\\"Servicio\\\" = 'Inbound'\").ToList(); }")]
     // La subconsulta de cartera dentro del predicado de la exterior, correlacionada con su operación.
-    [InlineData("void A() { var n = ops.Where(o => o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id)).Count(); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesOperacion.Where(o => o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id)).Count(); }")]
     // La cartera dentro del where de una consulta exterior sobre sus operaciones, correlacionada.
-    [InlineData("void A() { var n = (from o in ops where o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id) select o).Count(); }")]
-    // La cartera filtrada por una subconsulta correlacionada o un Join con sus operaciones del servicio.
+    [InlineData("void A() { var n = (from o in ctx.AsignacionesOperacion where o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id) select o).Count(); }")]
+    // La cartera filtrada por una subconsulta correlacionada (en los dos órdenes, también desde un where
+    // integrado o con el Servicio en otra llamada de la misma cadena) o un Join con sus operaciones del servicio.
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => c.AsignacionOperacionId == o.Id && o.Servicio == s)); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Where(o => o.Servicio == s).Any(o => o.Id == c.AsignacionOperacionId)); }")]
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera where ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) select c).Count(); }")]
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, o) => c).Count(); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesOperacion.Where(o => o.Servicio == s).Join(ctx.AsignacionesCartera, o => o.Id, c => c.AsignacionOperacionId, (o, c) => c).Count(); }")]
     // El predicado se aplica a la fuente del join, que es parte de la consulta de la cartera.
     [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion.Where(Otro.Predicado) on c.AsignacionOperacionId equals o.Id select c).Count(); }")]
     // Un predicado IQueryable que recibe el acceso como argumento.
@@ -387,6 +431,59 @@ public class AccesoCrudoAAsignacionesSinServicioTests
 
         AccesosAAsignaciones.EnSql([("1", dos)]).Should().ContainSingle().Which.Should().Be(
             new AccesoAAsignacion("SQL función public.app_uno", string.Empty, AccesosAAsignaciones.Operacion, "función", false, 0));
+    }
+
+    [Theory]
+    // Ronda 2 de Codex: un DEFAULT entre dólares anterior al cuerpo no es el cuerpo.
+    [InlineData("CREATE FUNCTION public.app_lee(x text DEFAULT $$a$$) RETURNS int LANGUAGE sql AS $$ SELECT count(*) FROM \"AsignacionesOperacion\" $$;")]
+    [InlineData("CREATE FUNCTION public.app_lee(x text DEFAULT 'a') RETURNS int LANGUAGE sql AS 'SELECT count(*) FROM \"AsignacionesOperacion\"';")]
+    // Un AS dentro de la firma (CAST) no es la cláusula del cuerpo, y un RETURNS TABLE tampoco la desplaza.
+    [InlineData("CREATE FUNCTION public.app_lee(x int DEFAULT CAST($$1$$ AS int)) RETURNS TABLE (n int) LANGUAGE sql AS $c$ SELECT count(*) FROM \"AsignacionesOperacion\" $c$;")]
+    // Cuerpo SQL estándar: RETURN y una expresión hasta el fin de la sentencia; su AS interior no es la cláusula.
+    [InlineData("CREATE FUNCTION public.app_lee(x text) RETURNS int LANGUAGE sql STABLE RETURN (SELECT count(*) FROM \"AsignacionesOperacion\" o WHERE CAST(o.\"Id\" AS text) = x);")]
+    public void El_cuerpo_de_una_funcion_es_el_literal_de_su_clausula_AS(string funcion)
+    {
+        AccesosAAsignaciones.EnSql([("1", funcion)]).Should().ContainSingle("el cuerpo es el literal tras el AS, no el de la firma").Which.Should().Be(
+            new AccesoAAsignacion("SQL función public.app_lee", string.Empty, AccesosAAsignaciones.Operacion, "función", false, 0));
+    }
+
+    [Theory]
+    [InlineData("CREATE FUNCTION public.app_f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT count(*) FROM \"AsignacionesOperacion\"; END;", "BEGIN ATOMIC")]
+    [InlineData("CREATE FUNCTION public.app_f() RETURNS int LANGUAGE sql;", "no hay cláusula AS")]
+    [InlineData("CREATE FUNCTION public.app_f() RETURNS int LANGUAGE sql AS public.otra;", "no empieza un literal")]
+    [InlineData("CREATE FUNCTION public.app_f(x int RETURNS int AS $$ SELECT 1 $$;", "no cierra")]
+    [InlineData("CREATE PROCEDURE public.app_p() LANGUAGE sql AS $$ DELETE FROM \"AsignacionesCartera\" $$;", "PROCEDURE")]
+    [InlineData("CREATE FUNCTION 1f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;", "no se reconoce")]
+    [InlineData("CREATE VIEW 1v AS SELECT 1 FROM \"AsignacionesCartera\";", "no se reconoce")]
+    // Ronda 2 de Codex: una vista trasladada de esquema dejaría el inventario apuntando al nombre antiguo.
+    [InlineData("ALTER VIEW public.v_operaciones SET SCHEMA archivo;", "SET SCHEMA")]
+    [InlineData("ALTER MATERIALIZED VIEW IF EXISTS public.v_operaciones SET SCHEMA archivo;", "SET SCHEMA")]
+    [InlineData("ALTER FUNCTION public.app_lee(uuid) RENAME TO app_vieja;", "RENAME TO")]
+    [InlineData("ALTER FUNCTION public.app_lee(uuid) SET SCHEMA archivo;", "SET SCHEMA")]
+    [InlineData("ALTER ROUTINE public.app_lee(uuid) RENAME  TO app_vieja;", "RENAME TO")]
+    [InlineData("ALTER TABLE public.\"Documentos\" RENAME TO \"DocumentosViejos\";", "RENAME TO")]
+    [InlineData("ALTER TABLE IF EXISTS public.v_operaciones SET SCHEMA archivo;", "SET SCHEMA")]
+    public void Lo_que_el_inventario_SQL_no_sabe_seguir_falla_cerrado_con_la_migracion_y_la_sentencia(string sentencia, string motivo)
+    {
+        var medir = () => AccesosAAsignaciones.EnSql([("1", FuncionSinServicio), ("20991231000000_NoAnalizable", sentencia)]);
+
+        medir.Should().Throw<InvalidOperationException>()
+            .Which.Message.Should().Contain("20991231000000_NoAnalizable").And.Contain(sentencia[..20]).And.Contain(motivo);
+    }
+
+    [Theory]
+    [InlineData("ALTER VIEW public.v_operaciones RENAME TO v_nueva;")]
+    [InlineData("ALTER TABLE public.\"Documentos\" RENAME COLUMN \"A\" TO \"B\";")]
+    [InlineData("ALTER TABLE public.\"Documentos\" RENAME \"A\" TO \"B\";")]
+    [InlineData("ALTER TABLE public.\"Documentos\" RENAME CONSTRAINT \"pk\" TO \"pk2\";")]
+    [InlineData("ALTER FUNCTION public.app_lee(uuid) OWNER TO app; ALTER FUNCTION public.app_lee(uuid) SET search_path = public;")]
+    [InlineData("-- ALTER TABLE public.\"Documentos\" RENAME TO x;\nSELECT 'ALTER VIEW v SET SCHEMA s; CREATE PROCEDURE p';")]
+    [InlineData("DO $$ BEGIN ALTER TABLE public.\"Documentos\" RENAME TO x; END $$;")]
+    public void Lo_que_no_traslada_ni_crea_objetos_que_no_se_siguen_no_falla(string sentencia)
+    {
+        var medir = () => AccesosAAsignaciones.EnSql([("1", FuncionSinServicio), ("2", sentencia)]);
+
+        medir.Should().NotThrow().Which.Should().ContainSingle("la función sigue en el inventario");
     }
 
     // ------------------------------------------------------------------ navegaciones del modelo de EF
