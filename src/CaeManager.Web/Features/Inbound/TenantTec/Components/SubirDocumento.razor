@@ -44,9 +44,8 @@
         }
         else if (_respuesta is { Resultado: ResultadoSubidaTec.NoAceptadoPorDatosDeSalud })
         {
-            <section class="sub-hecho" role="alert">
+            <section class="sub-hecho">
                 <Badge Tono="TonoBadge.Peligro">@Textos["SbNoAceptado"]</Badge>
-                <p>@Textos["SbNoGuardado", _archivo?.Name ?? string.Empty]</p>
                 <p class="det-sub">@Textos["SbDescartado"]</p>
             </section>
         }
@@ -107,7 +106,7 @@
                 <span class="det-sub">@Textos["SbFormatos"]</span>
                 <InputFile class="sub-oculto" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic" OnChange="ElegirArchivo" />
             </label>
-            <label class="boton boton-secundario sub-camara">
+            <label class="sub-camara">
                 @Textos["SbCamara"]
                 <InputFile class="sub-oculto" accept="image/*" capture="environment" OnChange="ElegirArchivo" />
             </label>
@@ -255,6 +254,11 @@
             if (respuesta.Resultado is ResultadoSubidaTec.Subido or ResultadoSubidaTec.NoAceptadoPorDatosDeSalud)
             {
                 _respuesta = respuesta;
+                if (respuesta.Resultado is ResultadoSubidaTec.NoAceptadoPorDatosDeSalud)
+                {
+                    // El rechazo es un error del formulario: lo pinta el kit (MensajeError), no un role="alert" escrito a mano.
+                    _error = Textos["SbNoGuardado", _archivo?.Name ?? string.Empty];
+                }
             }
             else
             {

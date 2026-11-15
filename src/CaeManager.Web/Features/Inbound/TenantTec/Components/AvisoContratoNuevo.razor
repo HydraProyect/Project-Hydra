@@ -57,9 +57,7 @@
                 </div>
 
                 <ul class="av-mensajes">
-                    <li>@(a.EsClienteNuevo
-                        ? Textos["AvDocsNuevo", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente]
-                        : Textos["AvDocsConocido", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente])</li>
+                    <li>@TextoDocumentos(a)</li>
                     <li>@Textos["AvAsignaA"]<strong>@Textos["AvAsignaB"]</strong>@Textos["AvAsignaC"]</li>
                     <li>@Textos["AvSubeA"]<strong>@Textos["AvSubeB"]</strong>@Textos["AvSubeC"]</li>
                 </ul>
@@ -96,6 +94,11 @@
 
     private RenderFragment AvisoDeError => @<span role="alert">@_error</span>;
 
+    private string TextoDocumentos(AvisoContratoTec a) =>
+        a.EsClienteNuevo
+            ? Textos["AvDocsNuevo", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente]
+            : Textos["AvDocsConocido", a.DocumentosAportados, a.DocumentosPedidos, a.Cliente];
+
     private async Task ResponderAsync(AvisoContratoTec aviso, bool confirmar)
     {
         if (_enviando)
@@ -108,8 +111,8 @@
         try
         {
             var resultado = confirmar
-                ? await Avisos.ConfirmarAsync(aviso.ClienteId)
-                : await Avisos.RechazarAsync(aviso.ClienteId);
+                ? await Avisos.ConfirmarAsync(aviso.ClienteEmpresarialId)
+                : await Avisos.RechazarAsync(aviso.ClienteEmpresarialId);
             if (resultado == ResultadoAccionTec.Hecho)
             {
                 await OnRespondido.InvokeAsync(confirmar);
@@ -122,7 +125,7 @@
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
-            Registro.LogError(excepcion, "No se ha podido registrar la respuesta al contrato nuevo del Cliente empresarial {ClienteId}.", aviso.ClienteId);
+            Registro.LogError(excepcion, "No se ha podido registrar la respuesta al contrato nuevo del Cliente empresarial {ClienteEmpresarialId}.", aviso.ClienteEmpresarialId);
             _error = Textos["AvError"];
         }
         finally

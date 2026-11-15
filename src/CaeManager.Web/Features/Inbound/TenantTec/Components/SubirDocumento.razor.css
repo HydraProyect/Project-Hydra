@@ -36,9 +36,30 @@
 }
 
 .sub-camara {
+    position: relative;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
     margin-bottom: 8px;
+    padding: var(--space-2) var(--space-4);
+    border: var(--border-default);
+    border-color: var(--color-border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    font-weight: 600;
     cursor: pointer;
+}
+
+.sub-camara:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.sub-camara:focus-within {
+    outline: var(--border-focus);
+    outline-offset: 2px;
 }
 
 .sub-zona ::deep input[type="file"],

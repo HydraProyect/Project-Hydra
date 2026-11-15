@@ -21,7 +21,7 @@ public sealed class InboundTenantTecTests : BunitContext
     private static readonly Guid PendienteId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid RechazadoId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid ValidadoId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-    private static readonly Guid OtroClienteId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid OtroClienteEmpresarialId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
     public InboundTenantTecTests()
     {
@@ -54,7 +54,7 @@ public sealed class InboundTenantTecTests : BunitContext
             historial: [new VersionDocumentoTec(Guid.NewGuid(), new DateTimeOffset(2026, 11, 5, 17, 20, 0, TimeSpan.Zero),
                 EstadoRequerimientoTec.Rechazado, "Javier Lacasa", false, "Documento ilegible", new DateOnly(2026, 11, 4))]),
         Requerimiento(ValidadoId, "Logística Delta Sur S.A.", "Alta en la Seguridad Social", EstadoRequerimientoTec.Validado, AccionRequerimientoTec.Ninguna),
-        Requerimiento(OtroClienteId, "Frío Industrial Cierzo S.L.", "Seguro de responsabilidad civil", EstadoRequerimientoTec.PendienteDeValidar, AccionRequerimientoTec.Ninguna),
+        Requerimiento(OtroClienteEmpresarialId, "Frío Industrial Cierzo S.L.", "Seguro de responsabilidad civil", EstadoRequerimientoTec.PendienteDeValidar, AccionRequerimientoTec.Ninguna),
     ];
 
     private sealed class RequerimientosDoble(bool disponible, IReadOnlyList<RequerimientoTec> datos) : IRequerimientosTenantTec
@@ -202,7 +202,7 @@ public sealed class InboundTenantTecTests : BunitContext
         var dialogo = cut.Find("[role=dialog]");
         dialogo.TextContent.Should().Contain("Subir documento");
         dialogo.TextContent.Should().Contain("Aptitud médica");
-        dialogo.TextContent.Should().Contain("Cliente empresarial");
+        dialogo.TextContent.Should().Contain("Cliente");
         dialogo.TextContent.Should().Contain("Sube solo el certificado de aptitud; un informe con datos de salud no se acepta ni se guarda.");
         dialogo.TextContent.Should().Contain("PDF, Word o foto (JPG, PNG, HEIC), hasta 10 MB.");
         dialogo.TextContent.Should().Contain("Usar la cámara");
@@ -262,6 +262,8 @@ public sealed class InboundTenantTecTests : BunitContext
         var dialogo = cut.Find("[role=dialog]").TextContent;
         dialogo.Should().Contain("No aceptado: contiene datos de salud");
         dialogo.Should().Contain("informe.pdf no se ha guardado.");
+        // El rechazo sale por el aviso del kit (MensajeError), no por un role="alert" escrito a mano en el cuerpo.
+        cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("informe.pdf no se ha guardado.");
     }
 
     // ---- Tarjetas 26 y 5 · Quién lee mis documentos ---------------------------------------------------------------------
@@ -276,7 +278,7 @@ public sealed class InboundTenantTecTests : BunitContext
 
         public Task<PanoramaLecturaTec?> ObtenerAsync(CancellationToken ct = default) => Task.FromResult(panorama);
 
-        public Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteId, CancellationToken ct = default) =>
+        public Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<RegistroLecturaTec>>(
                 [new RegistroLecturaTec(new DateTimeOffset(2026, 11, 12, 9, 30, 0, TimeSpan.Zero), "Alta en la Seguridad Social", "Luis Gómez Ara", "Logística Delta Sur S.A.")]);
 
@@ -286,11 +288,11 @@ public sealed class InboundTenantTecTests : BunitContext
             return Task.FromResult(ResultadoAccionTec.Hecho);
         }
 
-        public Task<ResultadoAccionTec> AutorizarAsync(Guid clienteId, CancellationToken ct = default) => Task.FromResult(ResultadoAccionTec.Hecho);
+        public Task<ResultadoAccionTec> AutorizarAsync(Guid clienteEmpresarialId, CancellationToken ct = default) => Task.FromResult(ResultadoAccionTec.Hecho);
 
-        public Task<ResultadoAccionTec> RevocarAsync(Guid clienteId, CancellationToken ct = default)
+        public Task<ResultadoAccionTec> RevocarAsync(Guid clienteEmpresarialId, CancellationToken ct = default)
         {
-            Revocados.Add(clienteId);
+            Revocados.Add(clienteEmpresarialId);
             return Task.FromResult(ResultadoAccionTec.Hecho);
         }
     }
@@ -298,7 +300,7 @@ public sealed class InboundTenantTecTests : BunitContext
     private static PanoramaLecturaTec Panorama(bool concedida = true) => new(
         new AutorizacionUnicaTec(concedida, concedida ? new DateOnly(2026, 11, 10) : null, concedida ? "Javier Lacasa" : null),
         [
-            new LecturaClienteTec(OtroClienteId, "Logística Delta Sur S.A.", 2, ["Planta Zaragoza Norte", "Almacén Plaza"], 24, 6,
+            new LecturaClienteTec(OtroClienteEmpresarialId, "Logística Delta Sur S.A.", 2, ["Planta Zaragoza Norte", "Almacén Plaza"], 24, 6,
                 new DateTimeOffset(2026, 11, 12, 9, 30, 0, TimeSpan.Zero), null),
             new LecturaClienteTec(Guid.NewGuid(), "Frío Industrial Cierzo S.L.", 1, ["Planta Cierzo"], 3, 1, null, new DateOnly(2026, 10, 1)),
         ]);
@@ -359,7 +361,7 @@ public sealed class InboundTenantTecTests : BunitContext
 
         cut.Find("[role=dialog] .boton-destructivo, [role=alertdialog] .boton-destructivo").Click();
 
-        doble.Revocados.Should().Equal(OtroClienteId);
+        doble.Revocados.Should().Equal(OtroClienteEmpresarialId);
     }
 
     [Fact]
@@ -377,7 +379,7 @@ public sealed class InboundTenantTecTests : BunitContext
         dialogo.TextContent.Should().Contain("Qué ocurre");
         dialogo.TextContent.Should().Contain("Qué no ocurre");
         dialogo.TextContent.Should().Contain("Quién leerá tus documentos al confirmar");
-        dialogo.TextContent.Should().Contain("Clientes empresariales futuros");
+        dialogo.TextContent.Should().Contain("Clientes futuros");
         var autorizar = dialogo.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Autorizar");
         autorizar.HasAttribute("disabled").Should().BeTrue();
 
@@ -414,21 +416,21 @@ public sealed class InboundTenantTecTests : BunitContext
         public Task<IReadOnlyList<AvisoContratoTec>> PendientesAsync(CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<AvisoContratoTec>>([]);
 
-        public Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteId, CancellationToken ct = default)
+        public Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteEmpresarialId, CancellationToken ct = default)
         {
-            Llamadas.Add($"confirmar:{clienteId}");
+            Llamadas.Add($"confirmar:{clienteEmpresarialId}");
             return Task.FromResult(ResultadoAccionTec.Hecho);
         }
 
-        public Task<ResultadoAccionTec> RechazarAsync(Guid clienteId, CancellationToken ct = default)
+        public Task<ResultadoAccionTec> RechazarAsync(Guid clienteEmpresarialId, CancellationToken ct = default)
         {
-            Llamadas.Add($"rechazar:{clienteId}");
+            Llamadas.Add($"rechazar:{clienteEmpresarialId}");
             return Task.FromResult(ResultadoAccionTec.Hecho);
         }
     }
 
     private static AvisoContratoTec Aviso(bool nuevo) => new(
-        OtroClienteId, "Logística Delta Sur S.A.", "LD", new DateOnly(2026, 11, 13), "Logística Delta Sur S.A.", nuevo, 2, "Recurrente",
+        OtroClienteEmpresarialId, "Logística Delta Sur S.A.", "LD", new DateOnly(2026, 11, 13), "Logística Delta Sur S.A.", nuevo, 2, "Recurrente",
         "01/12/2026 – 30/11/2027", "Carpintería metálica, Instalaciones frigoríficas", "Trabajadores, vehículos y maquinaria",
         [
             new CentroAvisoTec("Planta Zaragoza Norte", "Polígono Malpica, Zaragoza", 12, 17, ["Trabajos en caliente", "Trabajos en altura"]),
@@ -458,7 +460,7 @@ public sealed class InboundTenantTecTests : BunitContext
 
         Boton(cut, "Confirmar").Click();
 
-        avisos.Llamadas.Should().Equal($"confirmar:{OtroClienteId}");
+        avisos.Llamadas.Should().Equal($"confirmar:{OtroClienteEmpresarialId}");
         respuestas.Should().Equal(true);
     }
 
@@ -471,7 +473,7 @@ public sealed class InboundTenantTecTests : BunitContext
 
         Boton(nuevo, "Rechazar").Click();
 
-        avisos.Llamadas.Should().Equal($"rechazar:{OtroClienteId}");
+        avisos.Llamadas.Should().Equal($"rechazar:{OtroClienteEmpresarialId}");
 
         var conocido = Render<AvisoContratoNuevo>(p => p.Add(x => x.Aviso, Aviso(nuevo: false)).Add(x => x.Visible, true));
         var botones = conocido.FindAll("button").Select(b => b.TextContent.Trim()).ToList();

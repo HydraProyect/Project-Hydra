@@ -5,9 +5,11 @@
 
 @* Autorización única de reutilización (consentimiento único, CA-22): se concede una vez por Empresa. Es la misma
    autorización que «Quién lee mis documentos» muestra como concedida (plan de pantallas, § 5 bis). *@
-<Modal Visible="Visible" VisibleChanged="VisibleChanged" Ancho="AnchoModal.Grande" Sobretitulo="@Textos["AuSobretitulo"]"
-       Titulo="@Textos["AuTitulo"]" Subtitulo="@Textos["AuIntro"]" Aviso="@(string.IsNullOrWhiteSpace(Error) ? null : AvisoDeError)">
-    <ChildContent>
+<ModalFormulario Visible="Visible" VisibleChanged="VisibleChanged" Ancho="AnchoModal.Grande" Sobretitulo="@Textos["AuSobretitulo"]"
+                 Titulo="@Textos["AuTitulo"]" Subtitulo="@Textos["AuIntro"]" HayCambios="() => _marcado"
+                 TextoGuardar="@Textos["Autorizar"]" TextoCancelar="@Textos["Cancelar"]"
+                 Guardando="Enviando" MensajeError="@Error" OnGuardar="OnAutorizar"
+                 MotivoGuardarDeshabilitado="@(_marcado ? null : Textos["AuMotivoCasilla"].Value)">
         <div class="au-cuerpo">
             <div class="au-columnas">
                 <section class="au-ocurre">
@@ -58,12 +60,7 @@
                 <span>@Textos["AuCasilla"]</span>
             </label>
         </div>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Enviando" OnClick="() => VisibleChanged.InvokeAsync(false)">@Textos["AuAtras"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!_marcado)" Cargando="Enviando" OnClick="OnAutorizar">@Textos["Autorizar"]</Boton>
-    </Pie>
-</Modal>
+</ModalFormulario>
 
 @code {
     private bool _marcado;
@@ -77,8 +74,6 @@
     [Parameter] public bool Enviando { get; set; }
     [Parameter] public string? Error { get; set; }
     [Parameter] public EventCallback OnAutorizar { get; set; }
-
-    private RenderFragment AvisoDeError => @<span role="alert">@Error</span>;
 
     protected override void OnParametersSet()
     {

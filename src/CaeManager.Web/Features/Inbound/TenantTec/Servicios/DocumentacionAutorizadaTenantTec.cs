@@ -14,7 +14,7 @@ public sealed record AutorizacionUnicaTec(bool Concedida, DateOnly? Fecha, strin
 
 /// <summary>Un Cliente empresarial que lee, o dejó de leer, los documentos del Tenant TEC.</summary>
 public sealed record LecturaClienteTec(
-    Guid ClienteId,
+    Guid ClienteEmpresarialId,
     string Cliente,
     int ContratosActivos,
     IReadOnlyList<string> Centros,
@@ -44,15 +44,15 @@ public interface IQuienLeeTenantTec
 
     Task<PanoramaLecturaTec?> ObtenerAsync(CancellationToken ct = default);
 
-    Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteId, CancellationToken ct = default);
+    Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteEmpresarialId, CancellationToken ct = default);
 
     /// <summary>Concede la autorización única de reutilización de la Empresa.</summary>
     Task<ResultadoAccionTec> ConcederAutorizacionUnicaAsync(CancellationToken ct = default);
 
     /// <summary>Vuelve a autorizar la lectura de un Cliente empresarial cuya lectura se había revocado.</summary>
-    Task<ResultadoAccionTec> AutorizarAsync(Guid clienteId, CancellationToken ct = default);
+    Task<ResultadoAccionTec> AutorizarAsync(Guid clienteEmpresarialId, CancellationToken ct = default);
 
-    Task<ResultadoAccionTec> RevocarAsync(Guid clienteId, CancellationToken ct = default);
+    Task<ResultadoAccionTec> RevocarAsync(Guid clienteEmpresarialId, CancellationToken ct = default);
 }
 
 // shortcut: sin backend, cablear cuando entre B-09
@@ -62,16 +62,16 @@ public sealed class QuienLeeTenantTecSinBackend : IQuienLeeTenantTec
 
     public Task<PanoramaLecturaTec?> ObtenerAsync(CancellationToken ct = default) => Task.FromResult<PanoramaLecturaTec?>(null);
 
-    public Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteId, CancellationToken ct = default) =>
+    public Task<IReadOnlyList<RegistroLecturaTec>> RegistroAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<RegistroLecturaTec>>([]);
 
     public Task<ResultadoAccionTec> ConcederAutorizacionUnicaAsync(CancellationToken ct = default) =>
         Task.FromResult(ResultadoAccionTec.NoDisponible);
 
-    public Task<ResultadoAccionTec> AutorizarAsync(Guid clienteId, CancellationToken ct = default) =>
+    public Task<ResultadoAccionTec> AutorizarAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
         Task.FromResult(ResultadoAccionTec.NoDisponible);
 
-    public Task<ResultadoAccionTec> RevocarAsync(Guid clienteId, CancellationToken ct = default) =>
+    public Task<ResultadoAccionTec> RevocarAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
         Task.FromResult(ResultadoAccionTec.NoDisponible);
 }
 
@@ -79,7 +79,7 @@ public sealed record CentroAvisoTec(string Nombre, string Direccion, int Cupo, i
 
 /// <summary>Contratos de acceso nuevos que un Cliente empresarial ha dado de alta desde la última sesión.</summary>
 public sealed record AvisoContratoTec(
-    Guid ClienteId,
+    Guid ClienteEmpresarialId,
     string Cliente,
     string Iniciales,
     DateOnly Fecha,
@@ -102,9 +102,9 @@ public interface IAvisoContratoTenantTec
 
     Task<IReadOnlyList<AvisoContratoTec>> PendientesAsync(CancellationToken ct = default);
 
-    Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteId, CancellationToken ct = default);
+    Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteEmpresarialId, CancellationToken ct = default);
 
-    Task<ResultadoAccionTec> RechazarAsync(Guid clienteId, CancellationToken ct = default);
+    Task<ResultadoAccionTec> RechazarAsync(Guid clienteEmpresarialId, CancellationToken ct = default);
 }
 
 // shortcut: sin backend, cablear cuando entre B-09
@@ -115,10 +115,10 @@ public sealed class AvisoContratoTenantTecSinBackend : IAvisoContratoTenantTec
     public Task<IReadOnlyList<AvisoContratoTec>> PendientesAsync(CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<AvisoContratoTec>>([]);
 
-    public Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteId, CancellationToken ct = default) =>
+    public Task<ResultadoAccionTec> ConfirmarAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
         Task.FromResult(ResultadoAccionTec.NoDisponible);
 
-    public Task<ResultadoAccionTec> RechazarAsync(Guid clienteId, CancellationToken ct = default) =>
+    public Task<ResultadoAccionTec> RechazarAsync(Guid clienteEmpresarialId, CancellationToken ct = default) =>
         Task.FromResult(ResultadoAccionTec.NoDisponible);
 }
 

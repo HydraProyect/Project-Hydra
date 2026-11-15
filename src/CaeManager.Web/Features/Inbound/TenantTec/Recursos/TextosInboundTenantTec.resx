@@ -13,10 +13,10 @@
     <value>Atrás</value>
   </data>
   <data name="AuCasilla" xml:space="preserve">
-    <value>Autorizo, en nombre de mi Empresa, que TALVEG aporte mis documentos a los Clientes empresariales con los que tenga un contrato de acceso.</value>
+    <value>Autorizo, en nombre de mi Empresa, que TALVEG aporte mis documentos a los Clientes con los que tenga un contrato de acceso.</value>
   </data>
   <data name="AuFuturos" xml:space="preserve">
-    <value>Clientes empresariales futuros</value>
+    <value>Clientes futuros</value>
   </data>
   <data name="AuFuturosDetalle" xml:space="preserve">
     <value>Al confirmar el primer contrato de cada uno</value>
@@ -25,16 +25,19 @@
     <value>Incluidos</value>
   </data>
   <data name="AuIntro" xml:space="preserve">
-    <value>Subes cada documento una vez y TALVEG lo aporta a cada Cliente empresarial con el que tengas un contrato de acceso, ahora y en el futuro.</value>
+    <value>Subes cada documento una vez y TALVEG lo aporta a cada Cliente con el que tengas un contrato de acceso, ahora y en el futuro.</value>
   </data>
   <data name="AuLoVerasSiempre" xml:space="preserve">
     <value>Lo verás siempre en «Quién lee mis documentos»</value>
+  </data>
+  <data name="AuMotivoCasilla" xml:space="preserve">
+    <value>Marca la casilla para poder autorizar.</value>
   </data>
   <data name="AuNoOcurre1" xml:space="preserve">
     <value>Nadie ve a los Trabajadores que no le hayas asignado.</value>
   </data>
   <data name="AuNoOcurre2" xml:space="preserve">
-    <value>No se comparte la validación de un Cliente empresarial con otro.</value>
+    <value>No se comparte la validación de un Cliente con otro.</value>
   </data>
   <data name="AuNoOcurre3" xml:space="preserve">
     <value>No incluye conexiones por API con otros sistemas.</value>
@@ -43,16 +46,16 @@
     <value>Para excluir a un Trabajador concreto, escribe a Soporte TALVEG.</value>
   </data>
   <data name="AuNotaRetirar" xml:space="preserve">
-    <value>Puedes retirar la autorización a cada Cliente empresarial cuando quieras. Lo que ya validó lo conserva como prueba, pero deja de recibir documentos nuevos.</value>
+    <value>Puedes retirar la autorización a cada Cliente cuando quieras. Lo que ya validó lo conserva como prueba, pero deja de recibir documentos nuevos.</value>
   </data>
   <data name="AuOcurre1" xml:space="preserve">
-    <value>Tus documentos de la Empresa se aportan a cada Cliente empresarial que los pida.</value>
+    <value>Tus documentos de la Empresa se aportan a cada Cliente que los pida.</value>
   </data>
   <data name="AuOcurre2" xml:space="preserve">
     <value>Los de un Trabajador se aportan solo cuando lo asignas a un contrato y a un Centro.</value>
   </data>
   <data name="AuOcurre3" xml:space="preserve">
-    <value>Cada Cliente empresarial los valida con sus propios criterios: llegan como «Pendiente de validar» hasta que su Gestor CAE los valide.</value>
+    <value>Cada Cliente los valida con sus propios criterios: llegan como «Pendiente de validar» hasta que su Gestor CAE los valide.</value>
   </data>
   <data name="AuQueNoOcurre" xml:space="preserve">
     <value>Qué no ocurre</value>
@@ -67,7 +70,7 @@
     <value>Una sola vez para toda tu Empresa</value>
   </data>
   <data name="AuTitulo" xml:space="preserve">
-    <value>Autoriza que tus documentos lleguen solos a tus Clientes empresariales</value>
+    <value>Autoriza que tus documentos lleguen solos a tus Clientes</value>
   </data>
   <data name="Autorizar" xml:space="preserve">
     <value>Autorizar</value>
@@ -106,7 +109,7 @@
     <value>El {0}, por {1}</value>
   </data>
   <data name="AvNotaA" xml:space="preserve">
-    <value>Es la primera vez que este Cliente empresarial te da de alta. </value>
+    <value>Es la primera vez que este Cliente te da de alta. </value>
   </data>
   <data name="AvNotaB" xml:space="preserve">
     <value>Confirma que trabajas para él</value>
@@ -262,16 +265,16 @@
     <value>No se ha podido conceder la autorización. Inténtalo de nuevo.</value>
   </data>
   <data name="QlAvisoValidar" xml:space="preserve">
-    <value>Los documentos se aportan como «Pendiente de validar»: cada Cliente empresarial los valida con sus propios criterios.</value>
+    <value>Los documentos se aportan como «Pendiente de validar»: cada Cliente los valida con sus propios criterios.</value>
   </data>
   <data name="QlCobertura" xml:space="preserve">
-    <value>Tus documentos de la Empresa se aportan a cada Cliente empresarial que los pida; los de un Trabajador, solo cuando lo asignas a un contrato y a un Centro.</value>
+    <value>Tus documentos de la Empresa se aportan a cada Cliente que los pida; los de un Trabajador, solo cuando lo asignas a un contrato y a un Centro.</value>
   </data>
   <data name="QlColAccion" xml:space="preserve">
     <value>Acción</value>
   </data>
   <data name="QlColCliente" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Cliente</value>
   </data>
   <data name="QlColContratos" xml:space="preserve">
     <value>Contratos activos</value>
@@ -331,7 +334,7 @@
     <value>Limpiar filtros</value>
   </data>
   <data name="QlNoDisponibleDescripcion" xml:space="preserve">
-    <value>Esta pantalla se activará cuando TALVEG pueda registrar tu autorización única y las lecturas de tus Clientes empresariales.</value>
+    <value>Esta pantalla se activará cuando TALVEG pueda registrar tu autorización única y las lecturas de tus Clientes.</value>
   </data>
   <data name="QlNoDisponibleTitulo" xml:space="preserve">
     <value>Todavía no se puede consultar quién lee tus documentos</value>
@@ -340,7 +343,7 @@
     <value>Para excluir un documento concreto, escribe a Soporte TALVEG.</value>
   </data>
   <data name="QlNotaRegistro" xml:space="preserve">
-    <value>El registro muestra a qué Cliente empresarial pertenece cada lectura, sin nombres de personas de su organización.</value>
+    <value>El registro muestra a qué Cliente pertenece cada lectura, sin nombres de personas de su organización.</value>
   </data>
   <data name="QlQueLee" xml:space="preserve">
     <value>Documentos de la Empresa, de {0} Trabajadores y de {1} vehículos</value>
@@ -385,10 +388,10 @@
     <value>Quién lee mis documentos</value>
   </data>
   <data name="QlVacioDescripcion" xml:space="preserve">
-    <value>Cuando un Cliente empresarial te dé de alta un contrato de acceso y lo confirmes, aparecerá aquí.</value>
+    <value>Cuando un Cliente te dé de alta un contrato de acceso y lo confirmes, aparecerá aquí.</value>
   </data>
   <data name="QlVacioTitulo" xml:space="preserve">
-    <value>Ningún Cliente empresarial lee todavía tus documentos</value>
+    <value>Ningún Cliente lee todavía tus documentos</value>
   </data>
   <data name="QlVerAutorizacion" xml:space="preserve">
     <value>Ver autorización</value>
@@ -424,7 +427,7 @@
     <value>Cubre {0} niveles: {1}</value>
   </data>
   <data name="ReqEtiquetaClientes" xml:space="preserve">
-    <value>Clientes empresariales</value>
+    <value>Clientes</value>
   </data>
   <data name="ReqFalta" xml:space="preserve">
     <value>Falta: {0}</value>
@@ -454,7 +457,7 @@
     <value>Motivo: {0}</value>
   </data>
   <data name="ReqNoDisponibleDescripcion" xml:space="preserve">
-    <value>Esta pantalla se activará cuando TALVEG pueda leer los contratos de acceso que tus Clientes empresariales te han dado de alta.</value>
+    <value>Esta pantalla se activará cuando TALVEG pueda leer los contratos de acceso que tus Clientes te han dado de alta.</value>
   </data>
   <data name="ReqNoDisponibleTitulo" xml:space="preserve">
     <value>Los requerimientos todavía no están disponibles</value>
@@ -475,7 +478,7 @@
     <value>Requerimientos</value>
   </data>
   <data name="ReqVacioDescripcion" xml:space="preserve">
-    <value>Cuando un Cliente empresarial te dé de alta un contrato de acceso, sus requerimientos aparecerán aquí.</value>
+    <value>Cuando un Cliente te dé de alta un contrato de acceso, sus requerimientos aparecerán aquí.</value>
   </data>
   <data name="ReqVacioTitulo" xml:space="preserve">
     <value>No tienes requerimientos</value>
@@ -493,7 +496,7 @@
     <value>Sube solo el certificado de aptitud; un informe con datos de salud no se acepta ni se guarda.</value>
   </data>
   <data name="SbAvisoSaludB" xml:space="preserve">
-    <value> No subas el informe médico ni los resultados de las pruebas: son datos de salud y el Cliente empresarial no puede verlos.</value>
+    <value> No subas el informe médico ni los resultados de las pruebas: son datos de salud y el Cliente no puede verlos.</value>
   </data>
   <data name="SbCamara" xml:space="preserve">
     <value>Usar la cámara</value>
@@ -520,7 +523,7 @@
     <value>El archivo supera los 10 MB.</value>
   </data>
   <data name="SbCliente" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Cliente</value>
   </data>
   <data name="SbComentarios" xml:space="preserve">
     <value>Comentarios</value>

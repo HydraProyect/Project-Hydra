@@ -73,7 +73,7 @@
                     @foreach (var c in _panorama.Clientes)
                     {
                         var lee = c.RevocadoEl is null;
-                        <tr @key="c.ClienteId" data-cliente="@c.ClienteId">
+                        <tr @key="c.ClienteEmpresarialId" data-cliente="@c.ClienteEmpresarialId">
                             <td><button type="button" class="req-nombre" @onclick="() => AbrirRegistroAsync(c)">@c.Cliente</button></td>
                             <td>
                                 @Textos["QlContratos", c.ContratosActivos]
@@ -86,7 +86,7 @@
                                 }
                                 else
                                 {
-                                    <span class="det-sub">@Textos["QlLeia", Textos["QlQueLee", c.Trabajadores, c.Vehiculos]]</span>
+                                    <span class="det-sub">@TextoLeia(c)</span>
                                 }
                             </td>
                             <td>@(c.UltimaLectura is { } ultima ? PresentacionTenantTec.FechaHora(ultima) : Textos["QlSinLecturas"])</td>
@@ -144,7 +144,7 @@
     }
 </DialogoConfirmacion>
 
-<Drawer Visible="@(_registroDe is not null)" VisibleChanged="v => { if (!v) _registroDe = null; }"
+<DrawerLectura Visible="@(_registroDe is not null)" VisibleChanged="v => { if (!v) _registroDe = null; }" Ancho="AnchoDrawer.Ancho"
         Titulo="@Textos["QlRegistroTitulo"]" Subtitulo="@_registroDe?.Cliente">
     <ChildContent>
         <div class="ql-filtros">
@@ -199,7 +199,7 @@
         }
         <p class="det-sub">@Textos["QlNotaRegistro"]</p>
     </ChildContent>
-</Drawer>
+</DrawerLectura>
 </LimiteDeErrores>
 
 @code {
@@ -243,17 +243,20 @@
         }
     }
 
+    private string TextoLeia(LecturaClienteTec c) =>
+        Textos["QlLeia", Textos["QlQueLee", c.Trabajadores, c.Vehiculos].Value];
+
     private async Task AbrirRegistroAsync(LecturaClienteTec cliente)
     {
         _registroDe = cliente;
         LimpiarRegistro();
         try
         {
-            _registro = await QuienLee.RegistroAsync(cliente.ClienteId);
+            _registro = await QuienLee.RegistroAsync(cliente.ClienteEmpresarialId);
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
-            Registro.LogError(excepcion, "No se ha podido cargar el registro de lecturas del Cliente empresarial {ClienteId}.", cliente.ClienteId);
+            Registro.LogError(excepcion, "No se ha podido cargar el registro de lecturas del Cliente empresarial {ClienteEmpresarialId}.", cliente.ClienteEmpresarialId);
             _registro = [];
         }
     }
@@ -268,14 +271,14 @@
     private Task ConcederAsync() => EjecutarAsync(() => QuienLee.ConcederAutorizacionUnicaAsync(), "QlAutorizarError", () => _dialogoAutorizacion = false);
 
     private Task AutorizarClienteAsync(LecturaClienteTec cliente) =>
-        EjecutarAsync(() => QuienLee.AutorizarAsync(cliente.ClienteId), "QlAutorizarError", null);
+        EjecutarAsync(() => QuienLee.AutorizarAsync(cliente.ClienteEmpresarialId), "QlAutorizarError", null);
 
     private Task RevocarAsync()
     {
         var cliente = _aRevocar;
         return cliente is null
             ? Task.CompletedTask
-            : EjecutarAsync(() => QuienLee.RevocarAsync(cliente.ClienteId), "QlRevocarError", () => _aRevocar = null);
+            : EjecutarAsync(() => QuienLee.RevocarAsync(cliente.ClienteEmpresarialId), "QlRevocarError", () => _aRevocar = null);
     }
 
     private async Task EjecutarAsync(Func<Task<ResultadoAccionTec>> accion, string claveError, Action? alTerminar)

@@ -84,7 +84,7 @@
                                     <button type="button" class="req-nombre" @onclick="() => AbrirDetalle(r)">@r.Nombre</button>
                                     @if (r.Niveles.Count > 1)
                                     {
-                                        <div class="req-sub">@Textos["ReqCubre", r.Niveles.Count, string.Join(", ", r.Niveles.Select(n => n.Nivel))]</div>
+                                        <div class="req-sub">@TextoCubre(r)</div>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(r.Motivo) && r.Estado is EstadoRequerimientoTec.Rechazado or EstadoRequerimientoTec.Incompleto)
                                     {
@@ -166,6 +166,9 @@
     private bool _error;
     private bool _disponible;
     private string _cliente = string.Empty;
+
+    private string TextoCubre(RequerimientoTec r) =>
+        Textos["ReqCubre", r.Niveles.Count, string.Join(", ", r.Niveles.Select(n => n.Nivel))];
     private string _busqueda = string.Empty;
     private string _filtroEmpresa = string.Empty;
     private string _filtroEntidad = string.Empty;
