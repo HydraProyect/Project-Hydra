@@ -7,6 +7,10 @@ using MediatR;
 
 namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContratoAcceso;
 
+/// <summary>
+/// Finaliza el contrato (Activo o Suspendido → Finalizado) con su cierre real. Conserva el nombre de M1; un Finalizado no
+/// se reabre (D-21). La cascada a asignaciones y subcontratas llega con <c>FinalizarContratoAccesoCommand</c> (B-18).
+/// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;
 
@@ -36,11 +40,15 @@ public class CerrarContratoAccesoCommandHandler(
 
         try
         {
-            contrato.Cerrar(request.FechaCierre);
+            contrato.Finalizar(request.FechaCierre);
         }
         catch (ArgumentException ex)
         {
             return Result.Fallo(Error.Crear("ContratoAcceso.FechaCierreInvalida", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Fallo(ContratoAccesoErrores.TransicionNoPermitida(ex.Message));
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

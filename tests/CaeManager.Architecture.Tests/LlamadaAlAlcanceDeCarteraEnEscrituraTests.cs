@@ -221,10 +221,12 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Contratos de acceso (Inbound M1): la autoridad es la de Proyecto, por el Cliente del contrato.
         "ContratosAcceso.ActualizarContratoAccesoCommandHandler",
+        "ContratosAcceso.CancelarContratoAccesoCommandHandler",
         "ContratosAcceso.CerrarContratoAccesoCommandHandler",
         "ContratosAcceso.CrearContratoAccesoCommandHandler",
         "ContratosAcceso.EliminarContratoAccesoCommandHandler",
-        "ContratosAcceso.ReabrirContratoAccesoCommandHandler",
+        "ContratosAcceso.FijarCondicionesContratoAccesoCommandHandler",
+        "ContratosAcceso.RenovarContratoAccesoCommandHandler",
         "ContratosAcceso.VincularTenantContratistaCommandHandler",
         // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
         // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.

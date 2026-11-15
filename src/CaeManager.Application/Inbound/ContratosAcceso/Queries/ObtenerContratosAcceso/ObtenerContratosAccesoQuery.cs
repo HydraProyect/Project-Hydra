@@ -45,9 +45,7 @@ public class ObtenerContratosAccesoQueryHandler(
         var hoy = DiaDeNegocio.Hoy();
 
         return contratos
-            .Select(c => new ContratoAccesoDto(
-                c.Id, c.ClienteEmpresarialId, c.CentroId, c.EmpresaContratistaId, c.FechaInicio, c.FechaFin, c.FechaCierreReal,
-                c.EstaAbierto, c.VigenteEn(hoy), conNotaInterna ? c.Notas : null, c.Version))
+            .Select(c => ContratoAccesoDto.Desde(c, hoy, conNotaInterna))
             .ToList();
     }
 }

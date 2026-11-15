@@ -7,7 +7,10 @@ using MediatR;
 
 namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.ActualizarContratoAcceso;
 
-/// <summary>Solo cambian el fin contratado y las notas: las coordenadas y el inicio definen el contrato.</summary>
+/// <summary>
+/// Solo cambian el fin contratado y las notas: las coordenadas y el inicio definen el contrato. Un cambio del fin queda en
+/// el historial de vigencia como edición (B-05); ampliarlo sin cambiar de estado es también <c>RenovarContratoAccesoCommand</c>.
+/// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record ActualizarContratoAccesoCommand(Guid Id, DateOnly? FechaFin, string? Notas, Guid Version = default) : ICommand;
 
@@ -21,7 +24,8 @@ public class ActualizarContratoAccesoCommandValidator : AbstractValidator<Actual
 }
 
 public class ActualizarContratoAccesoCommandHandler(
-    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService, TimeProvider reloj)
     : IRequestHandler<ActualizarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(ActualizarContratoAccesoCommand request, CancellationToken cancellationToken)
@@ -33,9 +37,12 @@ public class ActualizarContratoAccesoCommandHandler(
         if (ConcurrenciaOptimista.Verificar(contrato, request.Version, "este contrato de acceso") is { } conflicto)
             return Result.Fallo(conflicto);
 
+        if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
+            return Result.Fallo(ContratoAccesoErrores.SinUsuario);
+
         try
         {
-            contrato.Actualizar(request.FechaFin, request.Notas);
+            contrato.Actualizar(request.FechaFin, request.Notas, usuarioId, reloj.GetUtcNow().UtcDateTime);
         }
         catch (ArgumentException ex)
         {

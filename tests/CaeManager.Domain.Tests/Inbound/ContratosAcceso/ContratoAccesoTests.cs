@@ -8,12 +8,38 @@ public class ContratoAccesoTests
 {
     private static readonly DateOnly Inicio = new(2026, 3, 1);
     private static readonly DateOnly Fin = new(2026, 3, 31);
+    private static readonly Guid Usuario = Guid.NewGuid();
+    private static readonly DateTime Ahora = new(2026, 2, 20, 10, 0, 0, DateTimeKind.Utc);
 
-    private static ContratoAcceso Contrato(DateOnly? fin = null, string? notas = null) =>
-        ContratoAcceso.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Inicio, fin, notas);
+    private static ContratoAcceso Contrato(DateOnly? fin = null, string? notas = null, bool pendiente = false) =>
+        ContratoAcceso.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Inicio, fin, notas, pendienteDeConfirmar: pendiente);
+
+    /// <summary>Un contrato con fin contratado en el estado pedido, llegando a él por las transiciones válidas.</summary>
+    private static ContratoAcceso EnEstado(EstadoContratoAcceso estado)
+    {
+        var pendiente = estado is EstadoContratoAcceso.PendienteDeConfirmar or EstadoContratoAcceso.Rechazado;
+        var contrato = Contrato(Fin, pendiente: pendiente);
+        switch (estado)
+        {
+            case EstadoContratoAcceso.Rechazado: contrato.RechazarPorTenantContratista(); break;
+            case EstadoContratoAcceso.Suspendido: contrato.Suspender(); break;
+            case EstadoContratoAcceso.Finalizado: contrato.Finalizar(Inicio.AddDays(5)); break;
+            case EstadoContratoAcceso.Cancelado: contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false); break;
+        }
+        contrato.Estado.Should().Be(estado);
+        return contrato;
+    }
+
+    public static TheoryData<EstadoContratoAcceso> TodosLosEstados()
+    {
+        var datos = new TheoryData<EstadoContratoAcceso>();
+        foreach (var estado in Enum.GetValues<EstadoContratoAcceso>())
+            datos.Add(estado);
+        return datos;
+    }
 
     [Fact]
-    public void Crear_conserva_las_coordenadas_y_nace_abierto()
+    public void Crear_conserva_las_coordenadas_y_nace_abierto_y_activo()
     {
         var cliente = Guid.NewGuid();
         var centro = Guid.NewGuid();
@@ -29,6 +55,37 @@ public class ContratoAccesoTests
         contrato.Notas.Should().Be("Mantenimiento anual");
         contrato.EstaAbierto.Should().BeTrue();
         contrato.FechaCierreReal.Should().BeNull();
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
+        contrato.Condiciones.Should().Be(CondicionesContratoAcceso.SinFijar);
+        contrato.HistorialVigencia.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Crear_pendiente_de_confirmar_nace_abierto_y_sin_dar_acceso()
+    {
+        var contrato = Contrato(Fin, pendiente: true);
+
+        contrato.Estado.Should().Be(EstadoContratoAcceso.PendienteDeConfirmar);
+        contrato.EstaAbierto.Should().BeTrue();
+        contrato.VigenteEn(Inicio).Should().BeFalse("X-1: hasta confirmar no da acceso");
+        CoincideConLaExpresion(contrato, Inicio);
+    }
+
+    [Fact]
+    public void Crear_con_condiciones_las_guarda()
+    {
+        var condiciones = new CondicionesContratoAcceso(
+            TipoContratoAcceso.Obra, PropiaActividadContrato.Si, 2, 10, 1, "  Aforo de la nave  ");
+
+        var contrato = ContratoAcceso.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Inicio, Fin, null, condiciones);
+
+        contrato.Tipo.Should().Be(TipoContratoAcceso.Obra);
+        contrato.PropiaActividad.Should().Be(PropiaActividadContrato.Si);
+        contrato.NivelMaxSubcontrata.Should().Be(2);
+        contrato.CupoTrabajadores.Should().Be(10);
+        contrato.CupoSubcontratas.Should().Be(1);
+        contrato.MotivoCupo.Should().Be("Aforo de la nave");
+        contrato.Condiciones.Should().Be(condiciones);
     }
 
     [Fact]
@@ -60,9 +117,10 @@ public class ContratoAccesoTests
             .Should().Throw<ArgumentException>().WithParameterName("fechaFin");
 
         var contrato = Contrato(Fin);
-        FluentActions.Invoking(() => contrato.Actualizar(Inicio.AddDays(-1), null))
+        FluentActions.Invoking(() => contrato.Actualizar(Inicio.AddDays(-1), null, Usuario, Ahora))
             .Should().Throw<ArgumentException>().WithParameterName("fechaFin");
         contrato.FechaFin.Should().Be(Fin, "un cambio rechazado no toca el contrato");
+        contrato.HistorialVigencia.Should().BeEmpty();
 
         // El mismo día de inicio sí vale: un contrato de un día.
         Contrato(Inicio).FechaFin.Should().Be(Inicio);
@@ -76,20 +134,261 @@ public class ContratoAccesoTests
 
         FluentActions.Invoking(() => Contrato(notas: limite + "a"))
             .Should().Throw<ArgumentException>().WithParameterName("notas");
-        FluentActions.Invoking(() => Contrato().Actualizar(null, limite + "a"))
+        FluentActions.Invoking(() => Contrato().Actualizar(null, limite + "a", Usuario, Ahora))
             .Should().Throw<ArgumentException>().WithParameterName("notas");
     }
 
     [Fact]
-    public void Actualizar_cambia_el_fin_y_las_notas()
+    public void Actualizar_cambia_el_fin_y_las_notas_y_deja_el_cambio_de_fin_en_el_historial()
     {
         var contrato = Contrato(Fin, "Antes");
 
-        contrato.Actualizar(null, "Después");
+        contrato.Actualizar(null, "Después", Usuario, Ahora);
 
         contrato.FechaFin.Should().BeNull();
         contrato.Notas.Should().Be("Después");
+        var cambio = contrato.HistorialVigencia.Should().ContainSingle().Subject;
+        cambio.ContratoAccesoId.Should().Be(contrato.Id);
+        cambio.FechaFinAnterior.Should().Be(Fin);
+        cambio.FechaFinNueva.Should().BeNull();
+        cambio.Origen.Should().Be(OrigenCambioVigencia.Edicion);
+        cambio.RegistradoPorUsuarioId.Should().Be(Usuario);
+        cambio.RegistradoEnUtc.Should().Be(Ahora);
     }
+
+    [Fact]
+    public void Actualizar_sin_cambiar_el_fin_no_escribe_historial()
+    {
+        var contrato = Contrato(Fin, "Antes");
+
+        contrato.Actualizar(Fin, "Después", Usuario, Ahora);
+
+        contrato.Notas.Should().Be("Después");
+        contrato.HistorialVigencia.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_cambio_de_fin_exige_quien_lo_hace()
+    {
+        var contrato = Contrato(Fin);
+
+        FluentActions.Invoking(() => contrato.Actualizar(Fin.AddDays(1), null, Guid.Empty, Ahora))
+            .Should().Throw<ArgumentException>().WithParameterName("registradoPorUsuarioId");
+        contrato.FechaFin.Should().Be(Fin);
+        contrato.HistorialVigencia.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.Activo)]
+    [InlineData(EstadoContratoAcceso.Suspendido)]
+    public void Renovar_amplia_el_fin_sin_cambiar_de_estado_y_lo_deja_en_el_historial(EstadoContratoAcceso estado)
+    {
+        var contrato = EnEstado(estado);
+        var nuevoFin = Fin.AddMonths(6);
+
+        contrato.Renovar(nuevoFin, Usuario, Ahora);
+
+        contrato.FechaFin.Should().Be(nuevoFin);
+        contrato.Estado.Should().Be(estado, "Prorrogado no es un estado: es Renovar (duda 3)");
+        var cambio = contrato.HistorialVigencia.Should().ContainSingle().Subject;
+        cambio.FechaFinAnterior.Should().Be(Fin);
+        cambio.FechaFinNueva.Should().Be(nuevoFin);
+        cambio.Origen.Should().Be(OrigenCambioVigencia.Renovacion);
+    }
+
+    [Fact]
+    public void Renovar_dos_veces_deja_dos_entradas_encadenadas()
+    {
+        var contrato = Contrato(Fin);
+
+        contrato.Renovar(Fin.AddMonths(1), Usuario, Ahora);
+        contrato.Renovar(Fin.AddMonths(2), Usuario, Ahora.AddDays(1));
+
+        contrato.HistorialVigencia.Select(h => (h.FechaFinAnterior, h.FechaFinNueva)).Should().Equal(
+            (Fin, Fin.AddMonths(1)), (Fin.AddMonths(1), Fin.AddMonths(2)));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Renovar_a_un_fin_no_posterior_lanza(int dias)
+    {
+        var contrato = Contrato(Fin);
+
+        FluentActions.Invoking(() => contrato.Renovar(Fin.AddDays(dias), Usuario, Ahora))
+            .Should().Throw<ArgumentException>().WithParameterName("nuevaFechaFin");
+        contrato.FechaFin.Should().Be(Fin);
+        contrato.HistorialVigencia.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Renovar_un_contrato_indefinido_lanza()
+    {
+        var contrato = Contrato();
+
+        FluentActions.Invoking(() => contrato.Renovar(Fin, Usuario, Ahora)).Should().Throw<InvalidOperationException>();
+        contrato.FechaFin.Should().BeNull();
+        contrato.HistorialVigencia.Should().BeEmpty();
+    }
+
+    // ── Máquina de estados: la matriz entera, transición por transición ────────────────────────────────────────────
+
+    /// <summary>Las transiciones válidas de cada acción; cualquier otro estado de origen lanza y no toca el contrato.</summary>
+    private static readonly Dictionary<string, (EstadoContratoAcceso[] Desde, EstadoContratoAcceso Hacia, Action<ContratoAcceso> Accion)> Acciones = new()
+    {
+        ["Confirmar"] = ([EstadoContratoAcceso.PendienteDeConfirmar], EstadoContratoAcceso.Activo, c => c.ConfirmarPorTenantContratista()),
+        ["Rechazar"] = ([EstadoContratoAcceso.PendienteDeConfirmar], EstadoContratoAcceso.Rechazado, c => c.RechazarPorTenantContratista()),
+        ["Suspender"] = ([EstadoContratoAcceso.Activo], EstadoContratoAcceso.Suspendido, c => c.Suspender()),
+        ["Reanudar"] = ([EstadoContratoAcceso.Suspendido], EstadoContratoAcceso.Activo, c => c.Reanudar()),
+        ["Finalizar"] = ([EstadoContratoAcceso.Activo, EstadoContratoAcceso.Suspendido], EstadoContratoAcceso.Finalizado,
+            c => c.Finalizar(Inicio.AddDays(10))),
+        ["Cancelar"] = ([EstadoContratoAcceso.PendienteDeConfirmar, EstadoContratoAcceso.Activo], EstadoContratoAcceso.Cancelado,
+            c => c.Cancelar(Inicio.AddDays(-1), tieneActividad: false)),
+    };
+
+    public static TheoryData<string, EstadoContratoAcceso> AccionPorEstado()
+    {
+        var datos = new TheoryData<string, EstadoContratoAcceso>();
+        foreach (var accion in Acciones.Keys)
+            foreach (var estado in Enum.GetValues<EstadoContratoAcceso>())
+                datos.Add(accion, estado);
+        return datos;
+    }
+
+    [Theory]
+    [MemberData(nameof(AccionPorEstado))]
+    public void Cada_accion_solo_sale_de_sus_estados_permitidos(string accion, EstadoContratoAcceso desde)
+    {
+        var (permitidos, hacia, ejecutar) = Acciones[accion];
+        var contrato = EnEstado(desde);
+        var cierreAntes = contrato.FechaCierreReal;
+
+        if (permitidos.Contains(desde))
+        {
+            ejecutar(contrato);
+            contrato.Estado.Should().Be(hacia);
+        }
+        else
+        {
+            FluentActions.Invoking(() => ejecutar(contrato)).Should().Throw<InvalidOperationException>();
+            contrato.Estado.Should().Be(desde, "una transición rechazada no toca el contrato");
+            contrato.FechaCierreReal.Should().Be(cierreAntes);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(TodosLosEstados))]
+    public void Renovar_solo_desde_Activo_o_Suspendido(EstadoContratoAcceso desde)
+    {
+        var contrato = EnEstado(desde);
+        var accion = () => contrato.Renovar(Fin.AddMonths(1), Usuario, Ahora);
+
+        if (desde is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido)
+            accion();
+        else
+        {
+            accion.Should().Throw<InvalidOperationException>();
+            contrato.FechaFin.Should().Be(Fin);
+            contrato.HistorialVigencia.Should().BeEmpty();
+        }
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar, true)]
+    [InlineData(EstadoContratoAcceso.Activo, true)]
+    [InlineData(EstadoContratoAcceso.Suspendido, true)]
+    [InlineData(EstadoContratoAcceso.Finalizado, false)]
+    [InlineData(EstadoContratoAcceso.Cancelado, false)]
+    [InlineData(EstadoContratoAcceso.Rechazado, false)]
+    public void EstaAbierto_solo_en_los_estados_no_finales(EstadoContratoAcceso estado, bool abierto) =>
+        EnEstado(estado).EstaAbierto.Should().Be(abierto);
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar, false)]
+    [InlineData(EstadoContratoAcceso.Activo, true)]
+    [InlineData(EstadoContratoAcceso.Suspendido, false)]
+    [InlineData(EstadoContratoAcceso.Finalizado, true)]
+    [InlineData(EstadoContratoAcceso.Cancelado, false)]
+    [InlineData(EstadoContratoAcceso.Rechazado, false)]
+    public void Solo_Activo_y_Finalizado_dan_acceso_en_su_periodo(EstadoContratoAcceso estado, bool vigente)
+    {
+        var contrato = EnEstado(estado);
+
+        // El día de inicio está dentro del periodo de todos, también del Finalizado (cierre a los cinco días).
+        contrato.VigenteEn(Inicio).Should().Be(vigente);
+        CoincideConLaExpresion(contrato, Inicio);
+    }
+
+    [Fact]
+    public void Finalizar_dos_veces_lanza()
+    {
+        var contrato = Contrato();
+        contrato.Finalizar(Inicio.AddDays(5));
+
+        FluentActions.Invoking(() => contrato.Finalizar(Inicio.AddDays(6)))
+            .Should().Throw<InvalidOperationException>();
+        contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5));
+    }
+
+    [Fact]
+    public void Finalizar_antes_del_inicio_lanza()
+    {
+        var contrato = Contrato();
+
+        FluentActions.Invoking(() => contrato.Finalizar(Inicio.AddDays(-1)))
+            .Should().Throw<ArgumentException>().WithParameterName("fechaCierre");
+        contrato.EstaAbierto.Should().BeTrue();
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
+
+        // El mismo día de inicio sí vale.
+        contrato.Finalizar(Inicio);
+        contrato.FechaCierreReal.Should().Be(Inicio);
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Finalizado);
+    }
+
+    [Fact]
+    public void Cancelar_el_dia_de_inicio_o_despues_lanza_porque_ya_empezo()
+    {
+        var contrato = Contrato(Fin);
+
+        FluentActions.Invoking(() => contrato.Cancelar(Inicio, tieneActividad: false)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => contrato.Cancelar(Inicio.AddDays(1), tieneActividad: false)).Should().Throw<InvalidOperationException>();
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
+    }
+
+    [Fact]
+    public void Cancelar_con_actividad_lanza()
+    {
+        var contrato = Contrato(Fin);
+
+        FluentActions.Invoking(() => contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: true))
+            .Should().Throw<InvalidOperationException>();
+        contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
+    }
+
+    [Fact]
+    public void Un_contrato_cancelado_no_da_acceso_tampoco_desde_su_inicio()
+    {
+        var contrato = EnEstado(EstadoContratoAcceso.Cancelado);
+
+        contrato.VigenteEn(Inicio).Should().BeFalse();
+        contrato.VigenteEn(Fin).Should().BeFalse();
+        contrato.FechaCierreReal.Should().BeNull("Cancelar no es cerrar: no hubo periodo");
+        CoincideConLaExpresion(contrato, Fin);
+    }
+
+    [Fact]
+    public void Un_contrato_reanudado_vuelve_a_dar_acceso()
+    {
+        var contrato = EnEstado(EstadoContratoAcceso.Suspendido);
+
+        contrato.Reanudar();
+
+        contrato.VigenteEn(Inicio).Should().BeTrue();
+        CoincideConLaExpresion(contrato, Inicio);
+    }
+
+    // ── Vigencia por fechas ──────────────────────────────────────────────────────────────────────────────────────────
 
     [Theory]
     [InlineData(-1, false)] // el día antes del inicio
@@ -122,7 +421,7 @@ public class ContratoAccesoTests
         var contrato = Contrato(Fin);
         var cierre = Inicio.AddDays(10);
 
-        contrato.Cerrar(cierre);
+        contrato.Finalizar(cierre);
 
         contrato.VigenteEn(cierre).Should().BeTrue();
         contrato.VigenteEn(cierre.AddDays(1)).Should().BeFalse();
@@ -142,49 +441,83 @@ public class ContratoAccesoTests
         CoincideConLaExpresion(contrato, Inicio);
     }
 
-    [Fact]
-    public void Cerrar_dos_veces_lanza()
-    {
-        var contrato = Contrato();
-        contrato.Cerrar(Inicio.AddDays(5));
+    // ── Condiciones: tipo, propia actividad, nivel y cupos ───────────────────────────────────────────────────────────
 
-        FluentActions.Invoking(() => contrato.Cerrar(Inicio.AddDays(6)))
-            .Should().Throw<InvalidOperationException>();
-        contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5));
+    [Fact]
+    public void FijarCondiciones_sustituye_las_anteriores_de_una_vez()
+    {
+        var contrato = ContratoAcceso.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Inicio, Fin, null,
+            new CondicionesContratoAcceso(TipoContratoAcceso.Fijo, PropiaActividadContrato.No, 1, 5, null, "Turno de noche"));
+
+        contrato.FijarCondiciones(CondicionesContratoAcceso.SinFijar);
+
+        contrato.Condiciones.Should().Be(CondicionesContratoAcceso.SinFijar);
+        contrato.MotivoCupo.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(CondicionesContratoAcceso.NivelSubcontrataMaximo)]
+    public void El_nivel_de_subcontrata_admite_de_cero_al_maximo(int nivel) =>
+        new CondicionesContratoAcceso(null, null, nivel, null, null, null).NivelMaxSubcontrata.Should().Be(nivel);
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(CondicionesContratoAcceso.NivelSubcontrataMaximo + 1)]
+    public void El_nivel_de_subcontrata_fuera_de_rango_lanza(int nivel) =>
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, nivel, null, null, null))
+            .Should().Throw<ArgumentException>().WithParameterName("nivelMaxSubcontrata");
+
+    [Fact]
+    public void Un_cupo_negativo_lanza()
+    {
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, -1, null, "x"))
+            .Should().Throw<ArgumentException>().WithParameterName("cupoTrabajadores");
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, null, -1, "x"))
+            .Should().Throw<ArgumentException>().WithParameterName("cupoSubcontratas");
     }
 
     [Fact]
-    public void Cerrar_antes_del_inicio_lanza()
+    public void El_cupo_cero_es_un_cupo_y_exige_motivo() =>
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, 0, null, null))
+            .Should().Throw<ArgumentException>().WithParameterName("motivoCupo");
+
+    [Theory]
+    [InlineData(5, null)]
+    [InlineData(null, 2)]
+    public void Con_cupo_el_motivo_es_obligatorio(int? trabajadores, int? subcontratas)
     {
-        var contrato = Contrato();
-
-        FluentActions.Invoking(() => contrato.Cerrar(Inicio.AddDays(-1)))
-            .Should().Throw<ArgumentException>().WithParameterName("fechaCierre");
-        contrato.EstaAbierto.Should().BeTrue();
-
-        // El mismo día de inicio sí vale.
-        contrato.Cerrar(Inicio);
-        contrato.FechaCierreReal.Should().Be(Inicio);
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, trabajadores, subcontratas, null))
+            .Should().Throw<ArgumentException>().WithParameterName("motivoCupo");
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, trabajadores, subcontratas, "   "))
+            .Should().Throw<ArgumentException>().WithParameterName("motivoCupo");
     }
 
     [Fact]
-    public void Reabrir_deshace_el_cierre_y_devuelve_la_vigencia_del_fin_contratado()
+    public void Sin_cupo_no_hay_motivo() =>
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, null, null, "Sin sentido"))
+            .Should().Throw<ArgumentException>().WithParameterName("motivoCupo");
+
+    [Fact]
+    public void El_motivo_del_cupo_no_pasa_del_maximo()
     {
-        var contrato = Contrato(Fin);
-        contrato.Cerrar(Inicio.AddDays(3));
+        var limite = new string('m', CondicionesContratoAcceso.LongitudMaximaMotivoCupo);
+        new CondicionesContratoAcceso(null, null, null, 1, null, limite).MotivoCupo.Should().Be(limite);
 
-        contrato.Reabrir();
-
-        contrato.EstaAbierto.Should().BeTrue();
-        contrato.FechaCierreReal.Should().BeNull();
-        contrato.VigenteEn(Fin).Should().BeTrue();
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, null, null, 1, null, limite + "m"))
+            .Should().Throw<ArgumentException>().WithParameterName("motivoCupo");
     }
 
     [Fact]
-    public void Reabrir_un_contrato_abierto_lanza()
+    public void Un_tipo_o_una_propia_actividad_fuera_del_enum_lanza()
     {
-        FluentActions.Invoking(() => Contrato().Reabrir()).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => new CondicionesContratoAcceso((TipoContratoAcceso)99, null, null, null, null, null))
+            .Should().Throw<ArgumentException>().WithParameterName("tipo");
+        FluentActions.Invoking(() => new CondicionesContratoAcceso(null, (PropiaActividadContrato)99, null, null, null, null))
+            .Should().Throw<ArgumentException>().WithParameterName("propiaActividad");
     }
+
+    // ── Vínculo con el Tenant de la Empresa contratista ─────────────────────────────────────────────────────────────
 
     [Fact]
     public void VincularTenantContratista_se_escribe_una_sola_vez()
