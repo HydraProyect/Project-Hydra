@@ -24,7 +24,7 @@ namespace CaeManager.Architecture.Tests;
 public class ModeloProductoContratadoTests
 {
     private const string Migracion = "20261109150000_AnadeProductosContratados.cs";
-    private const string MigracionDeLaLineaInbound = "20261115124430_ContrataLineaInboundPorAprovisionamiento.cs";
+    private const string MigracionDeLaLineaInbound = "20261115130821_ContrataLineaInboundPorAprovisionamiento.cs";
 
     private static readonly IModel Modelo = CrearContextoSinConexion().Model;
 

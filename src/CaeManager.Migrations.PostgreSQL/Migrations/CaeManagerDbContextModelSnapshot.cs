@@ -7896,6 +7896,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("CupoSubcontratas")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CupoTrabajadores")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -7908,6 +7914,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateOnly?>("FechaCierreReal")
                         .HasColumnType("date");
 
@@ -7917,15 +7928,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly>("FechaInicio")
                         .HasColumnType("date");
 
+                    b.Property<string>("MotivoCupo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("NivelMaxSubcontrata")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("PropiaActividad")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid?>("TenantContratistaId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
@@ -7947,9 +7973,64 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
 
+                            t.HasCheckConstraint("CK_ContratosAcceso_CuposNoNegativos", "(\"CupoTrabajadores\" IS NULL OR \"CupoTrabajadores\" >= 0) AND (\"CupoSubcontratas\" IS NULL OR \"CupoSubcontratas\" >= 0)");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_Estado", "\"Estado\" IN ('PendienteDeConfirmar', 'Activo', 'Suspendido', 'Finalizado', 'Cancelado', 'Rechazado')");
+
                             t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
 
+                            t.HasCheckConstraint("CK_ContratosAcceso_FinalizadoConCierre", "\"Estado\" <> 'Finalizado' OR \"FechaCierreReal\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_MotivoSiHayCupo", "(\"CupoTrabajadores\" IS NULL AND \"CupoSubcontratas\" IS NULL) = (\"MotivoCupo\" IS NULL) AND (\"MotivoCupo\" IS NULL OR \"MotivoCupo\" ~ '[^[:space:]]')");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_NivelMaxSubcontrata", "\"NivelMaxSubcontrata\" IS NULL OR \"NivelMaxSubcontrata\" BETWEEN 0 AND 3");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_PropiaActividad", "\"PropiaActividad\" IN ('Si', 'No', 'NoLoSe')");
+
                             t.HasCheckConstraint("CK_ContratosAcceso_TenantContratistaAjeno", "\"TenantContratistaId\" IS NULL OR \"TenantContratistaId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_Tipo", "\"Tipo\" IN ('Fijo', 'Recurrente', 'Temporal', 'Puntual', 'Obra', 'Emergencia')");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.ContratosAcceso.HistorialVigenciaContrato", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("FechaFinAnterior")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaFinNueva")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("RegistradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RegistradoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ContratoAccesoId", "RegistradoEnUtc");
+
+                    b.ToTable("HistorialVigenciaContratos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_HistorialVigenciaContratos_CambiaElFin", "\"FechaFinAnterior\" IS DISTINCT FROM \"FechaFinNueva\"");
+
+                            t.HasCheckConstraint("CK_HistorialVigenciaContratos_Origen", "\"Origen\" IN ('Renovacion', 'Edicion')");
                         });
                 });
 
@@ -12992,6 +13073,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.ContratosAcceso.HistorialVigenciaContrato", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", null)
+                        .WithMany("HistorialVigencia")
+                        .HasForeignKey("TenantId", "ContratoAccesoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound", b =>
                 {
                     b.HasOne("CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", null)
@@ -13650,6 +13741,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo", b =>
                 {
                     b.Navigation("CodigosOficiales");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.Navigation("HistorialVigencia");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>

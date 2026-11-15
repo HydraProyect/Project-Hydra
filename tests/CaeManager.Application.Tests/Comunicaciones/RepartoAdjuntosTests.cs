@@ -7,6 +7,7 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Inbound.ContratosAcceso;
@@ -152,17 +153,22 @@ public class RepartoAdjuntosTests
     public async Task Sobre_una_conversacion_fuera_de_la_cartera_nada_se_lee_ni_se_escribe()
     {
         var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var propuesta = (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId);
+        var mediador = new MediadorDelLote();
 
         (await Fijar(SinCartera()).Handle(new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null), CancellationToken.None))
             .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
         (await Resolver(SinCartera()).Handle(new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Descartar), CancellationToken.None))
             .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
-        (await Lote(SinCartera(), new MediadorDelLote()).Handle(
+        (await Lote(SinCartera(), mediador).Handle(
             new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None))
             .Error.Codigo.Should().Be("Conversacion.NoEncontrada");
         (await Consulta(SinCartera()).Handle(new ObtenerRepartoAdjuntosQuery(_conversacion.Id), CancellationToken.None)).Should().BeEmpty();
 
         adjunto.EstaPendiente.Should().BeTrue();
+        (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId).Should().Be(propuesta);
+        mediador.Enviados.Should().BeEmpty("fuera de la cartera el lote no llega a ningún alta");
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
@@ -225,16 +231,38 @@ public class RepartoAdjuntosTests
         validador.Validate(new ResolverAdjuntoCommand(Guid.NewGuid(), ResolucionAdjunto.Descartar)).IsValid.Should().BeTrue();
     }
 
-    private static AdjuntoAAsignar Item(AdjuntoMensaje adjunto) => new(adjunto.Id, new DateOnly(2026, 10, 1), null, false);
+    /// <summary>La aprobación de una persona que ve el adjunto tal como está ahora: su propuesta de este instante.</summary>
+    private static AdjuntoAAsignar Item(AdjuntoMensaje adjunto) => new(
+        adjunto.Id, adjunto.TipoDocumentoPropuestoId, adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, new DateOnly(2026, 10, 1), null, false);
+
+    private static AdjuntoAAsignar Aprobado(Guid tipoId, Guid? trabajadorId = null, Guid? empresaId = null) =>
+        new(Guid.NewGuid(), tipoId, trabajadorId, empresaId, new DateOnly(2026, 10, 1), null, false);
+
+    /// <summary>
+    /// El lote tal como lo recibe el handler desde la tubería de MediatR: primero el validador real del comando y, solo si lo
+    /// pasa, el handler. <paramref name="llegoAlHandler"/> dice si el validador lo dejó pasar.
+    /// </summary>
+    private async Task<Result<IReadOnlyList<ResultadoAsignacionAdjunto>>> LotePorLaTuberia(
+        MediadorDelLote mediador, AsignarAdjuntosLoteCommand comando, Action? llegoAlHandler = null) =>
+        await new ValidationBehavior<AsignarAdjuntosLoteCommand, Result<IReadOnlyList<ResultadoAsignacionAdjunto>>>(
+                [new AsignarAdjuntosLoteCommandValidator()])
+            .Handle(comando, ct =>
+            {
+                llegoAlHandler?.Invoke();
+                return Lote(Total(), mediador).Handle(comando, ct);
+            }, CancellationToken.None);
 
     [Fact]
     public async Task El_lote_asigna_lo_que_puede_y_dice_que_paso_con_cada_adjunto()
     {
-        var conDestino = Sembrar();
-        conDestino.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
-        var sinDestino = Sembrar();
-        var sinTipo = Sembrar();
-        sinTipo.FijarDestino(Guid.NewGuid(), null, null);
+        // Todos los elementos llevan un tipo y un único destino aprobados (pasan el validador): lo que decide cada resultado es
+        // el estado del adjunto en el servidor, no la forma del lote.
+        var coincide = Sembrar();
+        coincide.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var cambiado = Sembrar();
+        cambiado.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var aprobadoCambiado = Item(cambiado);
+        cambiado.FijarDestino(Guid.NewGuid(), null, aprobadoCambiado.TipoDocumentoId);
         var resuelto = Sembrar();
         resuelto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
         resuelto.Descartar(Guid.NewGuid(), DateTime.UtcNow);
@@ -246,16 +274,113 @@ public class RepartoAdjuntosTests
         saliente.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
         var mediador = new MediadorDelLote { RechazarAdjuntoId = rechazadoPorElAlta.Id };
 
-        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id,
-            [Item(conDestino), Item(sinDestino), Item(sinTipo), Item(resuelto), Item(deOtroHilo), Item(rechazadoPorElAlta), Item(saliente)]), CancellationToken.None);
+        var resultado = await LotePorLaTuberia(mediador, new AsignarAdjuntosLoteCommand(_conversacion.Id,
+            [Item(coincide), aprobadoCambiado, Item(resuelto), Item(deOtroHilo), Item(rechazadoPorElAlta), Item(saliente)]));
 
         resultado.Valor.Select(r => r.Estado).Should().Equal(
-            EstadoAsignacionAdjunto.Asignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado,
-            EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado);
-        resultado.Valor[1].Detalle.Should().Be("Este adjunto no tiene destino.");
-        resultado.Valor[4].Detalle.Should().Be("Este adjunto no pertenece a la conversación.");
-        resultado.Valor[5].Detalle.Should().Be("Sin hueco en el alta.");
-        mediador.Enviados.Select(c => c.AdjuntoId).Should().Equal(conDestino.Id, rechazadoPorElAlta.Id);
+            EstadoAsignacionAdjunto.Asignado, EstadoAsignacionAdjunto.Conflicto, EstadoAsignacionAdjunto.NoAsignado,
+            EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado);
+        resultado.Valor[1].Detalle.Should().Be(AsignarAdjuntosLoteCommandHandler.PropuestaCambiada);
+        resultado.Valor[2].Detalle.Should().Be("Este adjunto ya está resuelto.");
+        resultado.Valor[3].Detalle.Should().Be("Este adjunto no pertenece a la conversación.");
+        resultado.Valor[4].Detalle.Should().Be("Sin hueco en el alta.");
+        resultado.Valor[5].Detalle.Should().Be("Solo se reparten los adjuntos recibidos.");
+        mediador.Enviados.Select(c => c.AdjuntoId).Should().Equal(coincide.Id, rechazadoPorElAlta.Id);
+    }
+
+    [Theory]
+    [InlineData("sin destino")]
+    [InlineData("sin tipo")]
+    public async Task Un_elemento_sin_destino_o_sin_tipo_aprobados_rechaza_el_lote_entero_antes_del_handler(string falta)
+    {
+        var bueno = Sembrar();
+        bueno.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var incompleto = Sembrar();
+        if (falta == "sin tipo") incompleto.FijarDestino(Guid.NewGuid(), null, null);
+        var mediador = new MediadorDelLote();
+        var llego = false;
+
+        var accion = () => LotePorLaTuberia(mediador,
+            new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(bueno), Item(incompleto)]), () => llego = true);
+
+        var rechazo = (await accion.Should().ThrowAsync<ValidationException>()).Which;
+        rechazo.Errors.Should().ContainSingle(e => e.ErrorMessage.Contains("sin destino o sin tipo de documento revisados"));
+        llego.Should().BeFalse("el lote no es por elementos cuando la aprobación viene incompleta: no llega al handler");
+        mediador.Enviados.Should().BeEmpty("ni el elemento completo se da de alta");
+        bueno.EstaPendiente.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_la_tuberia_de_validacion_el_handler_tampoco_da_de_alta_un_elemento_sin_destino_o_sin_tipo()
+    {
+        // Defensa interna para quien llame al handler sin pasar por el validador (que ya rechaza el lote entero).
+        var sinDestino = Sembrar();
+        var sinTipo = Sembrar();
+        sinTipo.FijarDestino(Guid.NewGuid(), null, null);
+        var mediador = new MediadorDelLote();
+
+        var resultado = await Lote(Total(), mediador).Handle(
+            new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(sinDestino), Item(sinTipo)]), CancellationToken.None);
+
+        resultado.Valor.Select(r => (r.Estado, r.Detalle)).Should().Equal(
+            (EstadoAsignacionAdjunto.NoAsignado, "Este adjunto no tiene destino."),
+            (EstadoAsignacionAdjunto.NoAsignado, "Este adjunto no tiene tipo de documento."));
+        mediador.Enviados.Should().BeEmpty();
+    }
+
+    // ---------- Autorización real de escritura ----------
+
+    /// <summary>
+    /// Cada comando del reparto pasa por <see cref="AutorizacionEscrituraBehavior{TRequest, TResponse}"/>, el de la tubería real,
+    /// con el rol efectivo indicado; si lo deja pasar, se ejecuta su handler de verdad.
+    /// </summary>
+    private async Task<(string? CodigoError, bool LlegoAlHandler)> ComandoDelRepartoConRol(string comando, string rol)
+    {
+        var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), rol);
+        var llego = false;
+
+        static Task<TResponse> Autorizar<TRequest, TResponse>(
+            ICurrentUserService usuario, TRequest peticion, Func<CancellationToken, Task<TResponse>> handler) where TRequest : notnull =>
+            new AutorizacionEscrituraBehavior<TRequest, TResponse>(usuario, new SesionPrivilegiadaAusente(), new TenantActualFijo(Guid.NewGuid()))
+                .Handle(peticion, ct => handler(ct), CancellationToken.None);
+
+        if (comando == nameof(FijarDestinoAdjuntoCommand))
+        {
+            var fijar = new FijarDestinoAdjuntoCommand(adjunto.Id, null, null, null);
+            var r = await Autorizar(usuario, fijar, ct => { llego = true; return Fijar(Total()).Handle(fijar, ct); });
+            return (r.EsFallido ? r.Error.Codigo : null, llego);
+        }
+
+        if (comando == nameof(ResolverAdjuntoCommand))
+        {
+            var resolver = new ResolverAdjuntoCommand(adjunto.Id, ResolucionAdjunto.Descartar);
+            var r = await Autorizar(usuario, resolver, ct => { llego = true; return Resolver(Total()).Handle(resolver, ct); });
+            return (r.EsFallido ? r.Error.Codigo : null, llego);
+        }
+
+        var lote = new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]);
+        var resultado = await Autorizar(usuario, lote, ct => { llego = true; return Lote(Total(), new MediadorDelLote()).Handle(lote, ct); });
+        return (resultado.EsFallido ? resultado.Error.Codigo : null, llego);
+    }
+
+    [Theory]
+    [InlineData(nameof(FijarDestinoAdjuntoCommand))]
+    [InlineData(nameof(ResolverAdjuntoCommand))]
+    [InlineData(nameof(AsignarAdjuntosLoteCommand))]
+    public async Task Con_rol_Consulta_la_autorizacion_de_escritura_rechaza_el_comando_del_reparto_sin_llegar_al_handler(string comando)
+    {
+        var (codigo, llego) = await ComandoDelRepartoConRol(comando, "Consulta");
+
+        codigo.Should().Be("Autorizacion.SoloLectura");
+        llego.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+        _eventos.Eventos.Should().BeEmpty();
+
+        // Control: con un rol de escritura la misma petición sí llega al handler, así que el rechazo es por el rol.
+        var (_, llegoConGestor) = await ComandoDelRepartoConRol(comando, "GestorCae");
+        llegoConGestor.Should().BeTrue();
     }
 
     [Fact]
@@ -310,15 +435,82 @@ public class RepartoAdjuntosTests
     public void El_lote_tiene_tope_y_no_admite_repetidos()
     {
         var validador = new AsignarAdjuntosLoteCommandValidator();
-        var fecha = new DateOnly(2026, 10, 1);
-        var repetido = new AdjuntoAAsignar(Guid.NewGuid(), fecha, null, false);
+        var repetido = Aprobado(Guid.NewGuid(), trabajadorId: Guid.NewGuid());
         var demasiados = Enumerable.Range(0, AsignarAdjuntosLoteCommandValidator.MaximoAdjuntos + 1)
-            .Select(_ => new AdjuntoAAsignar(Guid.NewGuid(), fecha, null, false)).ToList();
+            .Select(_ => Aprobado(Guid.NewGuid(), trabajadorId: Guid.NewGuid())).ToList();
 
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [repetido, repetido])).IsValid.Should().BeFalse();
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), demasiados)).IsValid.Should().BeFalse();
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [repetido])).IsValid.Should().BeTrue();
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), null!)).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Cada_adjunto_del_lote_lleva_el_tipo_y_un_unico_destino_aprobados()
+    {
+        var validador = new AsignarAdjuntosLoteCommandValidator();
+        var tipoId = Guid.NewGuid();
+
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [Aprobado(tipoId, empresaId: Guid.NewGuid())])).IsValid.Should().BeTrue();
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [Aprobado(tipoId)])).IsValid.Should().BeFalse("sin destino aprobado");
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [Aprobado(tipoId, Guid.NewGuid(), Guid.NewGuid())]))
+            .IsValid.Should().BeFalse("un destino es un Trabajador o una Empresa, no los dos");
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [Aprobado(Guid.Empty, trabajadorId: Guid.NewGuid())]))
+            .IsValid.Should().BeFalse("sin tipo aprobado");
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [Aprobado(tipoId, trabajadorId: Guid.NewGuid()) with { TipoDocumentoId = null }]))
+            .IsValid.Should().BeFalse("sin tipo aprobado");
+    }
+
+    [Theory]
+    [InlineData("trabajador")]
+    [InlineData("empresa")]
+    [InlineData("tipo")]
+    [InlineData("retirada")]
+    public async Task Una_aprobacion_que_ya_no_es_la_propuesta_vigente_es_un_conflicto_sin_Documento(string cambio)
+    {
+        var adjunto = await SembrarConArchivo();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        adjunto.FijarDestino(trabajadorId, null, tipoId);
+        var aprobado = Item(adjunto);
+        // Otra sesión cambia la propuesta después de que la persona la viera y antes de que el lote llegue al servidor.
+        CambiarPropuesta(adjunto, cambio, trabajadorId, tipoId);
+        var propuestaNueva = (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId);
+        var alta = new AltaDeDocumentoFalsa();
+        var mediador = new MediadorDelLote { Alta = comando => Handler(alta).Handle(comando, CancellationToken.None) };
+
+        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [aprobado]), CancellationToken.None);
+
+        var fila = resultado.Valor.Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoAsignacionAdjunto.Conflicto);
+        fila.DocumentoId.Should().BeNull();
+        fila.Detalle.Should().Be(AsignarAdjuntosLoteCommandHandler.PropuestaCambiada);
+        mediador.Enviados.Should().BeEmpty("no llega al alta con una propuesta que la persona no vio");
+        alta.Recibido.Should().BeNull("no se crea ni se renueva ningún Documento");
+        _almacen.ArchivosGuardados.Should().Be(1, "no llega a copiar el archivo");
+        adjunto.EstaPendiente.Should().BeTrue();
+        adjunto.DocumentoId.Should().BeNull();
+        (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId).Should().Be(propuestaNueva);
+    }
+
+    [Fact]
+    public async Task Una_aprobacion_que_coincide_con_la_propuesta_vigente_da_de_alta_el_Documento_con_ella()
+    {
+        var adjunto = await SembrarConArchivo();
+        var empresaId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        adjunto.FijarDestino(null, empresaId, tipoId);
+        var alta = new AltaDeDocumentoFalsa();
+        var mediador = new MediadorDelLote { Alta = comando => Handler(alta).Handle(comando, CancellationToken.None) };
+
+        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None);
+
+        var fila = resultado.Valor.Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoAsignacionAdjunto.Asignado);
+        fila.DocumentoId.Should().NotBeNull().And.Be(adjunto.DocumentoId);
+        var enviado = mediador.Enviados.Should().ContainSingle().Subject;
+        (enviado.TipoDocumentoId, enviado.TrabajadorId, enviado.EmpresaId, enviado.AplicaPropuestaFijada).Should().Be((tipoId, (Guid?)null, (Guid?)empresaId, true));
+        alta.Recibido.Should().BeOfType<CrearDocumentoCommand>();
     }
 
     [Fact]
@@ -337,7 +529,7 @@ public class RepartoAdjuntosTests
     }
 
     [Fact]
-    public async Task El_lote_relee_cada_adjunto_justo_antes_de_su_alta()
+    public async Task El_lote_relee_cada_adjunto_y_no_asigna_una_propuesta_cambiada_a_mitad_del_lote()
     {
         var primero = Sembrar();
         primero.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
@@ -363,10 +555,14 @@ public class RepartoAdjuntosTests
         var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id,
             [Item(primero), Item(cambiado), Item(resuelto)]), CancellationToken.None);
 
-        mediador.Enviados.Should().HaveCount(2);
-        mediador.Enviados[1].TrabajadorId.Should().Be(trabajadorNuevo);
-        mediador.Enviados[1].TipoDocumentoId.Should().Be(tipoNuevo);
+        // La propuesta cambiada por otra sesión no es la que se aprobó: conflicto, sin alta, aunque la nueva sea completa.
+        mediador.Enviados.Select(c => c.AdjuntoId).Should().Equal(primero.Id);
         mediador.Enviados.Should().OnlyContain(c => c.AplicaPropuestaFijada);
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoAsignacionAdjunto.Asignado, EstadoAsignacionAdjunto.Conflicto, EstadoAsignacionAdjunto.NoAsignado);
+        resultado.Valor[1].DocumentoId.Should().BeNull();
+        cambiado.DestinoTrabajadorId.Should().Be(trabajadorNuevo);
+        cambiado.TipoDocumentoPropuestoId.Should().Be(tipoNuevo);
         resultado.Valor[2].Detalle.Should().Be("Este adjunto ya está resuelto.");
     }
 

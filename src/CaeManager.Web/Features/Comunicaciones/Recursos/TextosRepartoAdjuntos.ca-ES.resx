@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Adjunts del correu</value>
+  </data>
+  <data name="SoloConsulta" xml:space="preserve">
+    <value>Amb el rol Consulta pots veure el repartiment, però no canviar-lo.</value>
+  </data>
+  <data name="Cab_Adjuntos_1" xml:space="preserve">
+    <value>{0} adjunt</value>
+  </data>
+  <data name="Cab_Adjuntos_N" xml:space="preserve">
+    <value>{0} adjunts</value>
+  </data>
+  <data name="Cab_Listos_1" xml:space="preserve">
+    <value>{0} llest</value>
+  </data>
+  <data name="Cab_Listos_N" xml:space="preserve">
+    <value>{0} llestos</value>
+  </data>
+  <data name="Cab_PorRevisar" xml:space="preserve">
+    <value>{0} per revisar</value>
+  </data>
+  <data name="Cab_SinDestino" xml:space="preserve">
+    <value>{0} sense destí</value>
+  </data>
+  <data name="Cab_Asignado_1" xml:space="preserve">
+    <value>{0} assignat</value>
+  </data>
+  <data name="Cab_Asignado_N" xml:space="preserve">
+    <value>{0} assignats</value>
+  </data>
+  <data name="Cab_Rechazado_1" xml:space="preserve">
+    <value>{0} rebutjat</value>
+  </data>
+  <data name="Cab_Rechazado_N" xml:space="preserve">
+    <value>{0} rebutjats</value>
+  </data>
+  <data name="Cab_Descartado_1" xml:space="preserve">
+    <value>{0} descartat</value>
+  </data>
+  <data name="Cab_Descartado_N" xml:space="preserve">
+    <value>{0} descartats</value>
+  </data>
+  <data name="Cab_Dividido_1" xml:space="preserve">
+    <value>{0} dividit</value>
+  </data>
+  <data name="Cab_Dividido_N" xml:space="preserve">
+    <value>{0} dividits</value>
+  </data>
+  <data name="Plegar" xml:space="preserve">
+    <value>Plega</value>
+  </data>
+  <data name="Desplegar" xml:space="preserve">
+    <value>Desplega</value>
+  </data>
+  <data name="VerDetalle" xml:space="preserve">
+    <value>Veure detall</value>
+  </data>
+  <data name="OcultarDetalle" xml:space="preserve">
+    <value>Amagar detall</value>
+  </data>
+  <data name="AgruparPorRevisar" xml:space="preserve">
+    <value>Per revisar primer</value>
+  </data>
+  <data name="AgruparPorTrabajador" xml:space="preserve">
+    <value>Per Treballador</value>
+  </data>
+  <data name="VerResueltos" xml:space="preserve">
+    <value>Veure resolts ({0})</value>
+  </data>
+  <data name="OcultarResueltos" xml:space="preserve">
+    <value>Amagar resolts</value>
+  </data>
+  <data name="Mostrar" xml:space="preserve">
+    <value>Mostra</value>
+  </data>
+  <data name="CabRequierenDecision" xml:space="preserve">
+    <value>Requereixen decisió · {0}</value>
+  </data>
+  <data name="CabListos" xml:space="preserve">
+    <value>Llestos · {0}</value>
+  </data>
+  <data name="CabResueltos" xml:space="preserve">
+    <value>Resolts · {0}</value>
+  </data>
+  <data name="CabGrupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="GrupoSinDestino" xml:space="preserve">
+    <value>Sense destí</value>
+  </data>
+  <data name="Estado_Listo" xml:space="preserve">
+    <value>Llest</value>
+  </data>
+  <data name="Estado_Revisar" xml:space="preserve">
+    <value>Revisar</value>
+  </data>
+  <data name="Estado_SinDestino" xml:space="preserve">
+    <value>Sense destí</value>
+  </data>
+  <data name="Estado_Asignado" xml:space="preserve">
+    <value>Assignat</value>
+  </data>
+  <data name="Estado_Rechazado" xml:space="preserve">
+    <value>Rebutjat</value>
+  </data>
+  <data name="Estado_Descartado" xml:space="preserve">
+    <value>Descartat</value>
+  </data>
+  <data name="Estado_Dividido" xml:space="preserve">
+    <value>Dividit</value>
+  </data>
+  <data name="Elegir" xml:space="preserve">
+    <value>Triar</value>
+  </data>
+  <data name="ElegirDe" xml:space="preserve">
+    <value>Triar el destí de {0}</value>
+  </data>
+  <data name="Mas" xml:space="preserve">
+    <value>Més</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Més accions de {0}</value>
+  </data>
+  <data name="CambiarDestino" xml:space="preserve">
+    <value>Canviar destí</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rebutjar</value>
+  </data>
+  <data name="Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Deshacer" xml:space="preserve">
+    <value>Desfer</value>
+  </data>
+  <data name="Confirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="Asignar" xml:space="preserve">
+    <value>Assignar</value>
+  </data>
+  <data name="Anterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Siguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Tancar</value>
+  </data>
+  <data name="AsignarListos" xml:space="preserve">
+    <value>Assignar {0}</value>
+  </data>
+  <data name="AsignarListosA" xml:space="preserve">
+    <value>Assignar {0} a {1}</value>
+  </data>
+  <data name="RevisarUnoAUno" xml:space="preserve">
+    <value>Revisar {0} un a un</value>
+  </data>
+  <data name="Destinos_Trabajador_1" xml:space="preserve">
+    <value>{0} Treballador</value>
+  </data>
+  <data name="Destinos_Trabajador_N" xml:space="preserve">
+    <value>{0} Treballadors</value>
+  </data>
+  <data name="Destinos_Empresa_1" xml:space="preserve">
+    <value>{0} Empresa</value>
+  </data>
+  <data name="Destinos_Empresa_N" xml:space="preserve">
+    <value>{0} Empreses</value>
+  </data>
+  <data name="UnirY" xml:space="preserve">
+    <value>{0} i {1}</value>
+  </data>
+  <data name="AsignarAyuda" xml:space="preserve">
+    <value>Una sola aprovació. No envia res al remitent.</value>
+  </data>
+  <data name="DestinoDe" xml:space="preserve">
+    <value>Destí de {0}</value>
+  </data>
+  <data name="TipoDe" xml:space="preserve">
+    <value>Tipus de document de {0}</value>
+  </data>
+  <data name="EligeDestino" xml:space="preserve">
+    <value>Tria destí</value>
+  </data>
+  <data name="SinDestinoOpcion" xml:space="preserve">
+    <value>Sense destí</value>
+  </data>
+  <data name="EligeTipo" xml:space="preserve">
+    <value>Tria el tipus</value>
+  </data>
+  <data name="GrupoTrabajadores" xml:space="preserve">
+    <value>Treballadors</value>
+  </data>
+  <data name="GrupoEmpresas" xml:space="preserve">
+    <value>Empreses</value>
+  </data>
+  <data name="DestinoActual" xml:space="preserve">
+    <value>Destí actual</value>
+  </data>
+  <data name="TipoActual" xml:space="preserve">
+    <value>Tipus actual</value>
+  </data>
+  <data name="EmpresaEntreParentesis" xml:space="preserve">
+    <value>{0} (Empresa)</value>
+  </data>
+  <data name="EmisionDe" xml:space="preserve">
+    <value>Data d&apos;emissió de {0}</value>
+  </data>
+  <data name="VencimientoDe" xml:space="preserve">
+    <value>Data de venciment de {0}</value>
+  </data>
+  <data name="Emision" xml:space="preserve">
+    <value>Emissió</value>
+  </data>
+  <data name="Vencimiento" xml:space="preserve">
+    <value>Venciment</value>
+  </data>
+  <data name="NoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="NoCaducaDe" xml:space="preserve">
+    <value>No caduca: {0}</value>
+  </data>
+  <data name="Abrir" xml:space="preserve">
+    <value>Obrir {0}</value>
+  </data>
+  <data name="AbrirEnVisor" xml:space="preserve">
+    <value>Obrir al visor</value>
+  </data>
+  <data name="MotivoRechazo" xml:space="preserve">
+    <value>Motiu del rebuig</value>
+  </data>
+  <data name="MotivoRechazoDe" xml:space="preserve">
+    <value>Motiu del rebuig de {0}</value>
+  </data>
+  <data name="AdjuntoNDeM" xml:space="preserve">
+    <value>Adjunt {0} de {1} · {2}</value>
+  </data>
+  <data name="RevisionUnoAUno" xml:space="preserve">
+    <value>Revisar adjunts un a un</value>
+  </data>
+  <data name="FaltaDestino" xml:space="preserve">
+    <value>Tria a qui va per poder assignar-lo.</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>Tria el tipus de document per poder assignar-lo.</value>
+  </data>
+  <data name="FaltaFecha" xml:space="preserve">
+    <value>Indica la data d&apos;emissió per poder assignar-lo.</value>
+  </data>
+  <data name="FechaNoValida" xml:space="preserve">
+    <value>Revisa les dates: la de venciment no pot anar amb «No caduca».</value>
+  </data>
+  <data name="EsperanFechas_1" xml:space="preserve">
+    <value>{0} adjunt amb destí i tipus espera la data d&apos;emissió.</value>
+  </data>
+  <data name="EsperanFechas_N" xml:space="preserve">
+    <value>{0} adjunts amb destí i tipus esperen la data d&apos;emissió.</value>
+  </data>
+  <data name="ToastAsignados_1" xml:space="preserve">
+    <value>{0} document assignat · no s&apos;envia res al remitent</value>
+  </data>
+  <data name="ToastAsignados_N" xml:space="preserve">
+    <value>{0} documents assignats · no s&apos;envia res al remitent</value>
+  </data>
+  <data name="ToastRechazado" xml:space="preserve">
+    <value>«{0}» rebutjat</value>
+  </data>
+  <data name="ToastDescartado" xml:space="preserve">
+    <value>«{0}» descartat</value>
+  </data>
+  <data name="ToastReabierto" xml:space="preserve">
+    <value>«{0}» torna a estar pendent</value>
+  </data>
+  <data name="ErrorCargar" xml:space="preserve">
+    <value>No hem pogut carregar el repartiment d&apos;adjunts. Torna-ho a provar d&apos;aquí a uns segons.</value>
+  </data>
+  <data name="ErrorRecargar" xml:space="preserve">
+    <value>No hem pogut tornar a carregar el repartiment d&apos;adjunts, i el que veus pot estar desactualitzat. Les accions queden desactivades fins que es torni a carregar.</value>
+  </data>
+  <data name="ErrorSelectores" xml:space="preserve">
+    <value>No hem pogut carregar els noms dels destins o dels tipus de document. Fins que es carreguin, els adjunts que no es poden identificar no es poden assignar.</value>
+  </data>
+  <data name="NombresSinCargar" xml:space="preserve">
+    <value>No es pot assignar fins que es carreguin els noms del destí i del tipus.</value>
+  </data>
+  <data name="NombresNoIdentificados" xml:space="preserve">
+    <value>El destí o el tipus actual no és entre els que pots triar: tria&apos;n un de la llista per poder assignar-lo.</value>
+  </data>
+  <data name="AvisoNoIdentificados" xml:space="preserve">
+    <value>Hi ha adjunts amb un destí o un tipus proposat que no és entre els que pots triar. Tria&apos;n un altre a la fila o torna a carregar les llistes per si han canviat.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No hem pogut completar l&apos;acció. Comprova l&apos;estat dels adjunts i torna-ho a provar.</value>
+  </data>
+  <data name="NoAsignado" xml:space="preserve">
+    <value>No s&apos;ha pogut assignar aquest adjunt.</value>
+  </data>
+  <data name="AsignacionIndeterminada" xml:space="preserve">
+    <value>No s&apos;ha pogut confirmar si aquest adjunt ha arribat a assignar-se. Es torna a llegir el repartiment: comprova si continua pendent abans de tornar-ho a provar.</value>
+  </data>
+</root>

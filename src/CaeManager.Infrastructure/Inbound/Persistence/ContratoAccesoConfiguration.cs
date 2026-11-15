@@ -10,7 +10,7 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
 {
     public void Configure(EntityTypeBuilder<ContratoAcceso> builder)
     {
-        // Respaldo en la base de las invariantes de ContratoAcceso.Crear/Actualizar/Cerrar y del validador del alta:
+        // Respaldo en la base de las invariantes de ContratoAcceso.Crear/Actualizar/Finalizar y del validador del alta:
         // una escritura que se salte el dominio (SQL, migración de datos) tampoco puede dejarlas rotas.
         builder.ToTable("ContratosAcceso", t =>
         {
@@ -31,13 +31,58 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
                 "CK_ContratosAcceso_TenantContratistaAjeno",
                 $"\"{nameof(ContratoAcceso.TenantContratistaId)}\" IS NULL " +
                 $"OR \"{nameof(ContratoAcceso.TenantContratistaId)}\" <> \"{nameof(ContratoAcceso.TenantId)}\"");
+            // B-05: los límites de CondicionesContratoAcceso y el estado Finalizado con su cierre real.
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_NivelMaxSubcontrata",
+                $"\"{nameof(ContratoAcceso.NivelMaxSubcontrata)}\" IS NULL " +
+                $"OR \"{nameof(ContratoAcceso.NivelMaxSubcontrata)}\" BETWEEN 0 AND {CondicionesContratoAcceso.NivelSubcontrataMaximo}");
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_CuposNoNegativos",
+                $"(\"{nameof(ContratoAcceso.CupoTrabajadores)}\" IS NULL OR \"{nameof(ContratoAcceso.CupoTrabajadores)}\" >= 0) " +
+                $"AND (\"{nameof(ContratoAcceso.CupoSubcontratas)}\" IS NULL OR \"{nameof(ContratoAcceso.CupoSubcontratas)}\" >= 0)");
+            // El motivo, si lo hay, no está en blanco: el dominio recorta y trata uno en blanco como ausente.
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_MotivoSiHayCupo",
+                $"(\"{nameof(ContratoAcceso.CupoTrabajadores)}\" IS NULL AND \"{nameof(ContratoAcceso.CupoSubcontratas)}\" IS NULL) " +
+                $"= (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL) " +
+                $"AND (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL OR \"{nameof(ContratoAcceso.MotivoCupo)}\" ~ '[^[:space:]]')");
+            // Un Finalizado tiene siempre su cierre real. El Reabrir de la ranura anterior durante el relevo azul/verde no
+            // llega a este CHECK: lo rechaza antes, en cualquier estado, el disparador TR_ContratosAcceso_CierreIrreversible de
+            // la migración AnadeEstadoContratoAcceso (D-21 retira Reabrir; EF no modela disparadores).
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_FinalizadoConCierre",
+                $"\"{nameof(ContratoAcceso.Estado)}\" <> 'Finalizado' OR \"{nameof(ContratoAcceso.FechaCierreReal)}\" IS NOT NULL");
+            // Los enums se guardan como texto: solo sus nombres (un NULL de Tipo o PropiaActividad pasa el CHECK).
+            t.HasCheckConstraint("CK_ContratosAcceso_Estado", EnValoresDe<EstadoContratoAcceso>(nameof(ContratoAcceso.Estado)));
+            t.HasCheckConstraint("CK_ContratosAcceso_Tipo", EnValoresDe<TipoContratoAcceso>(nameof(ContratoAcceso.Tipo)));
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_PropiaActividad", EnValoresDe<PropiaActividadContrato>(nameof(ContratoAcceso.PropiaActividad)));
         });
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Notas).HasMaxLength(ContratoAcceso.LongitudMaximaNotas);
 
-        // Sin índice único por (Centro, Empresa contratista): los solapes están permitidos mientras DN-6 siga abierta
-        // (ver ContratoAcceso). Estos dos índices sirven a las lecturas por Centro y por Empresa contratista.
+        // Texto, como el estado de EvidenciasInbound. Sin valor por defecto en el modelo, a propósito: EF manda siempre el
+        // estado. El DEFAULT 'Activo' de la columna lo pone la migración solo para las altas de la ranura anterior, que no
+        // conocen la columna y daban de alta contratos abiertos.
+        builder.Property(c => c.Estado).HasConversion<string>().HasMaxLength(30);
+        builder.Property(c => c.Tipo).HasConversion<string>().HasMaxLength(30);
+        builder.Property(c => c.PropiaActividad).HasConversion<string>().HasMaxLength(30);
+        builder.Property(c => c.MotivoCupo).HasMaxLength(CondicionesContratoAcceso.LongitudMaximaMotivoCupo);
+        builder.Ignore(c => c.Condiciones);
+
+        // Cascade y no Restrict: la única vía que borra un contrato es la retirada de un Tenant de demostración
+        // (RetiradaTenantDemoService), y la ranura anterior la ejecuta sin conocer el historial; con Restrict fallaría a
+        // medias. Borrar el contrato padre no edita el historial: el runtime sigue sin UPDATE ni DELETE sobre la tabla.
+        builder.HasMany(c => c.HistorialVigencia)
+            .WithOne()
+            .HasForeignKey(h => new { h.TenantId, h.ContratoAccesoId })
+            .HasPrincipalKey(c => new { c.TenantId, c.Id })
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(c => c.HistorialVigencia).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        // Sin índice único por (Centro, Empresa contratista): los contratos solapados no se prohíben (D-20, DECISION_LOG
+        // 2026-11-14). Estos dos índices sirven a las lecturas por Centro y por Empresa contratista.
         builder.HasIndex(c => new { c.TenantId, c.CentroId });
         builder.HasIndex(c => new { c.TenantId, c.EmpresaContratistaId });
 
@@ -65,4 +110,12 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }
+
+    /// <summary>
+    /// CHECK con los nombres del enum, que es como se guarda (<c>HasConversion&lt;string&gt;</c>): un valor nuevo del enum
+    /// cambia el modelo y obliga a una migración, en vez de fallar solo al insertar. El mismo criterio que
+    /// <c>SolicitudAltaConfiguration.EnValoresDe</c>, sin cruzar la frontera entre persistencias de módulo.
+    /// </summary>
+    internal static string EnValoresDe<TEnum>(string columna) where TEnum : struct, Enum =>
+        $"\"{columna}\" IN ({string.Join(", ", Enum.GetNames<TEnum>().Select(n => $"'{n}'"))})";
 }
