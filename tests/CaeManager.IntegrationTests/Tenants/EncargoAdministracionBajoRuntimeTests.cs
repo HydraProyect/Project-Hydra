@@ -139,7 +139,14 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             // El Tenant relevado: lo operó el otro Operador CAE, con encargo; esa operación se cerró
             // sin retirar el encargo y ahora lo opera este Operador CAE, sin encargo.
             var operacionAnterior = Externa(_propietarioRelevado, _otroOperador, desde, ahora);
-            siembra.AsignacionesOperacion.AddRange(operacion, operacionSinEncargo, operacionDelOtro, operacionAnterior);
+            // Una Asignación de Operación externa solo autoriza amparada por la DelegacionTenant de Operador CAE
+            // externo de la que nació (AmparoDeOrigen, PR #2237), y el origen se sella al insertarla: la delegación
+            // va antes que la operación. Solo para los pares que operan hoy; el relevado por el otro Operador CAE no
+            // la conserva, y su operación anterior (cerrada) queda sin origen.
+            OperacionExternaAmparada.Agregar(siembra, operacion);
+            OperacionExternaAmparada.Agregar(siembra, operacionSinEncargo);
+            OperacionExternaAmparada.Agregar(siembra, operacionDelOtro);
+            siembra.AsignacionesOperacion.Add(operacionAnterior);
 
             var encargo = Encargar(operacion, _adminPropietario.Id, ahora.AddDays(-10));
             var encargoDelOtro = Encargar(operacionDelOtro, Guid.NewGuid(), ahora.AddDays(-10));
@@ -150,15 +157,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
             operacionAnterior.Cerrar(MotivoCierreAsignacion.Transferida, ahora.AddDays(-5));
             await siembra.SaveChangesAsync();
             var operacionRelevada = Externa(_propietarioRelevado, _operador, ahora.AddDays(-5), ahora);
-            siembra.AsignacionesOperacion.Add(operacionRelevada);
-            // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
-            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223). Solo
-            // para los pares que operan hoy; el relevado por el otro Operador CAE no la conserva.
-            siembra.DelegacionesTenant.AddRange(
-                new DelegacionTenant(_operador, _propietario),
-                new DelegacionTenant(_operador, _propietarioSinEncargo),
-                new DelegacionTenant(_otroOperador, _propietarioDelOtro),
-                new DelegacionTenant(_operador, _propietarioRelevado));
+            OperacionExternaAmparada.Agregar(siembra, operacionRelevada);
 
             siembra.AsignacionesCartera.AddRange(
                 Cartera(operacion, _adminOperador.Id, Roles.GestorCae, ahora),

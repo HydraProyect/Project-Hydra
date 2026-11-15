@@ -62,11 +62,12 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
         (_operadorA, _operadorB, _empresaX, _empresaY) = (a.Id, b.Id, x.Id, y.Id);
 
         var ahora = DateTime.UtcNow;
+        // Cada operación nace de su DelegacionTenant de Operador CAE externo: sin origen no autoriza (AmparoDeOrigen).
         using (AmbitoTenantExplicito.Establecer(_operadorA))
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaX, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-2), null, ahora));
         using (AmbitoTenantExplicito.Establecer(_operadorB))
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaY, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-2), null, ahora));
         await propietario.SaveChangesAsync();
     }

@@ -271,7 +271,13 @@ public static class EscenariosDireccionDemoSeeder
                 d => d.TenantConsultoraId == tenantOperadorId && d.TenantClienteId == tenantPropietarioId, cancellationToken);
 
             if (!delegacion.Activa)
+            {
                 delegacion.Reactivar();
+                // La reactivación se guarda antes que las filas heredadas: EF no ordena un UPDATE de la delegación por
+                // delante del INSERT de sus filas, y el trigger asignacion_operador_delegado_exige_delegacion_activa
+                // rechaza una fila que nace sobre una delegación de Operador CAE externo todavía inactiva (PR #2237).
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             var asignaciones = new List<(ApplicationUser Usuario, string Rol)> { (equipo.Coordinador, Roles.CoordinadorCae) };
             if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Primero)) asignaciones.Add((equipo.GestorPrimero, Roles.GestorCae));

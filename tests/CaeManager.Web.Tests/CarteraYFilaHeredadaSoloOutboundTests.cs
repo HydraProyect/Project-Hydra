@@ -208,6 +208,51 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     }
 
     /// <summary>
+    /// Media 4 de la ronda 1 de Codex en la PR #2237: el catálogo solo da por vigente, para incorporar, aceptar una
+    /// solicitud o una propuesta y emitir una fila heredada, la operación amparada por la DelegacionTenant concreta de la
+    /// que nació (<see cref="CaeManager.Application.Operaciones.AmparoDeOrigen"/>), y solo sus carteras autorizan. Sin
+    /// origen, con el origen revocado (aunque otra delegación del par siga activa) o revocado y reactivado, la operación
+    /// sigue figurando Vigente en estado y fechas, y sin el amparo se habría aceptado como base.
+    /// </summary>
+    [Theory]
+    [InlineData("amparada", true)]
+    [InlineData("sin origen", false)]
+    [InlineData("origen revocado", false)]
+    [InlineData("revocada y reactivada", false)]
+    public async Task Solo_la_operacion_amparada_por_su_origen_es_base_del_catalogo_y_sus_carteras_autorizan(
+        string caso, bool autoriza)
+    {
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var origen = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var otraDelPar = new DelegacionTenant(_operador.Id, _propietario.Id);
+        if (caso != "sin origen") outbound.FijarOrigen(origen);
+        if (caso is "origen revocado" or "revocada y reactivada") origen.Desactivar();
+        if (caso == "revocada y reactivada") origen.Reactivar();
+        outbound.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la operación sigue figurando vigente");
+
+        await using var db = new ContextoEnMemoria()
+            .Con(outbound)
+            .Con(Cartera(outbound, _gestor))
+            .Con(_operador, _propietario)
+            .Con(origen, otraDelPar);
+        var catalogo = new CatalogoIncorporacionCartera(db, null!);
+
+        var base_ = await catalogo.ObtenerOperacionVigenteAsync(outbound.Id);
+        var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id);
+
+        if (autoriza)
+        {
+            base_.Should().BeSameAs(outbound, "control: vigente y amparada por su delegación de origen");
+            vivas.Should().ContainSingle(c => c.UsuarioId == _gestor);
+        }
+        else
+        {
+            base_.Should().BeNull($"una operación {caso} no es base para incorporar, aceptar ni emitir una fila heredada");
+            vivas.Should().BeEmpty($"una cartera bajo una operación {caso} no autoriza");
+        }
+    }
+
+    /// <summary>
     /// Hallazgo 3: el listado y la retirada de la cartera de un Gestor CAE no ven la Inbound, y una cartera Inbound
     /// no deja al Tenant propietario «ya en cartera».
     /// </summary>
@@ -472,8 +517,9 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(outbound, acotada)
             .Con(carteraSolicitud, laOtra)
             .Con(_operador, _propietario)
-            .Con(AmpararCon(vinculo, outbound, acotada))
-            .Con(vinculoAnterior)
+            // Una sola llamada por tipo: Con sustituye el conjunto, y una segunda con vinculoAnterior dejaba fuera
+            // a vinculo, la delegación de la fila de la solicitud y del origen de las dos operaciones.
+            .Con(AmpararCon(vinculo, outbound, acotada).Append(vinculoAnterior).ToArray())
             .Con(filaSolicitud, filaAnterior);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 

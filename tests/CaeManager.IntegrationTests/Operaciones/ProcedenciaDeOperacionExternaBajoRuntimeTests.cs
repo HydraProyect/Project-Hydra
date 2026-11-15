@@ -285,11 +285,14 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     {
         var amparada = await SembrarAcotadaConCarteraAsync();
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
-        var sinOrigen = await SembrarAcotadaConCarteraAsync();
+        // Una operación vigente por Cliente empresarial (IX_AsignacionesOperacion_ResponsableRelacionVigente): cada una
+        // sobre el suyo.
+        var sinOrigen = await SembrarAcotadaConCarteraAsync(await SembrarClienteAsync("Cliente sin origen S.A.", "B10380244"));
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
         // La reactivación no repone la que sobrevivió a la revocación; para la prueba del backfill, una operación con
         // prueba positiva de origen y vigente: la nacida bajo la activación nueva.
-        var bajoLaActivacionNueva = await SembrarAcotadaConCarteraAsync();
+        var bajoLaActivacionNueva = await SembrarAcotadaConCarteraAsync(
+            await SembrarClienteAsync("Cliente activación nueva S.A.", "B10380251"));
         // La fila heredada de la Gestora CAE, creada tras la reactivación: sin ella el paso 2b cerraría todas sus carteras
         // y el cierre de la de sinOrigen no aislaría el paso 2a.
         await using (var contexto = ContextoPropietarioDeLaBase())
@@ -421,18 +424,27 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     /// Una operación Outbound acotada al Cliente empresarial con la cartera de la Gestora CAE, sembrada sin origen
     /// como la escribiría la ranura anterior. Devuelve el Id de la operación.
     /// </summary>
-    private async Task<Guid> SembrarAcotadaConCarteraAsync()
+    private async Task<Guid> SembrarAcotadaConCarteraAsync(Guid? cliente = null)
     {
         await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
         var ahora = DateTime.UtcNow;
         var acotada = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
-            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
+            AmbitoAsignacion.DeRelacionCliente(cliente ?? _cliente), ahora.AddDays(-1), null, ahora);
         propietarioDeLaBase.AsignacionesOperacion.Add(acotada);
         await propietarioDeLaBase.SaveChangesAsync();
         propietarioDeLaBase.AsignacionesCartera.Add(AsignacionCartera.Externa(
             acotada, _gestoraOperador.Id, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
         await propietarioDeLaBase.SaveChangesAsync();
         return acotada.Id;
+    }
+
+    private async Task<Guid> SembrarClienteAsync(string razonSocial, string cif)
+    {
+        await using var sembrado = ContextoPropietarioDeLaBase(_propietario);
+        var cliente = Empresa.CrearComoCliente(razonSocial, cif, false, null, null);
+        sembrado.Empresas.Add(cliente);
+        await sembrado.SaveChangesAsync();
+        return cliente.Id;
     }
 
     /// <summary>Operaciones cuyas carteras autorizan al Operador CAE externo, leídas como <c>cae_app_runtime</c>.</summary>

@@ -368,9 +368,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         (await ClientesVisiblesParaElGestorDelegadoAsync())
             .Should().BeEmpty("reactivar no repone la cartera que cerró la cascada");
 
-        // Control positivo: el acto explícito sí devuelve el acceso bajo la operación reabierta.
+        // Control positivo: los actos explícitos sí devuelven el acceso bajo la operación reabierta. La revocación
+        // revocó también su fila heredada de Operador Delegado, y reactivar no la repone (la fila heredada falla
+        // cerrada sin reposición, PR #2237): primero vuelve la fila, luego la cartera.
         await using (var contexto = CrearContexto(_propietario))
         {
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacionId, _gestorConsultora, Roles.GestorCae));
+            await contexto.SaveChangesAsync();
             await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
             await contexto.SaveChangesAsync();
         }
@@ -551,8 +556,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using var verificacionContexto = CrearContexto(_propietario);
 
+        // Desde la PR #2237 la operación que sobrevive a la revocación de su delegación de origen ya no es vigente
+        // para el writer (AmparoDeOrigen): es lo primero que falla, antes de llegar a ObtenerRolDelegadoAsync, y la
+        // revocación revoca además la fila heredada del gestor. Las capas siguen siendo independientes; aquí se
+        // mide la que el orden alcanza primero, y que no queda escrita ninguna cartera.
         await CrearWriter(verificacionContexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora))
-            .Should().ThrowAsync<UnauthorizedAccessException>();
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*no tiene operación externa vigente*");
+        (await verificacionContexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora))
+            .Should().BeFalse("el fallo cerrado no deja escrita la cartera");
     }
 
     // ---------- utilidades ----------
