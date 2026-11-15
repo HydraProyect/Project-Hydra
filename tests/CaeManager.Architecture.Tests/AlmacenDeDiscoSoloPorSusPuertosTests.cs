@@ -27,6 +27,13 @@ namespace CaeManager.Architecture.Tests;
 /// reflexión sobre constructores, campos y propiedades de Application, Web e Infrastructure (ve una inyección aunque el
 /// tipo se escriba con otro alias). Fuera de <c>src</c>, los tests construyen el concreto a propósito.
 /// </para>
+///
+/// <para>
+/// Límites declarados (revisión puente): ninguno de los dos ve una resolución por cadena (<c>Type.GetType("…")</c>), lo que
+/// haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo, <c>tools/</c>), ni un método nuevo dentro del propio
+/// adaptador que se saltara la regla de carpeta; eso último lo fija su test de comportamiento
+/// (<c>AdaptadorAlmacenOriginalesInboundTests</c>), y lo demás solo la revisión de la PR.
+/// </para>
 /// </summary>
 public class AlmacenDeDiscoSoloPorSusPuertosTests
 {

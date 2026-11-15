@@ -109,6 +109,8 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
             (_contratista, $"{l}/x.pdf", "la carpeta es de otro Tenant"),
             (_lector, $"{c}/x.pdf", "el Tenant indicado no es el de la carpeta"),
             (Guid.Empty, $"{c}/x.pdf", "sin Tenant propietario"),
+            // Revisión puente: con la carpeta del propio Guid vacío, solo la guarda de Guid.Empty la rechaza.
+            (Guid.Empty, $"{Guid.Empty:N}/x.pdf", "sin Tenant propietario, aunque la carpeta coincida"),
             (_contratista, null, "sin referencia"),
             (_contratista, "", "referencia vacía"),
             (_contratista, $"{c}/", "solo la carpeta"),
@@ -142,13 +144,14 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
     /// <summary>
     /// Defensa en profundidad: la lectura entre Tenants del Núcleo repite la regla de la carpeta por sí misma, así que un
     /// consumidor que se saltara el adaptador tampoco abriría nada fuera de la carpeta del Tenant indicado. Aquí existe de
-    /// verdad un <c>x.pdf</c> cifrado en la carpeta de cada Tenant, y el control abre el de la contratista: los rechazos no se
-    /// deben a que falte el fichero.
+    /// verdad un <c>x.pdf</c> cifrado en la carpeta de cada Tenant (también en la del Guid vacío, para que la guarda de
+    /// Guid.Empty sea la única que lo rechace), y el control abre el de la contratista: los rechazos no se deben a que falte
+    /// el fichero.
     /// </summary>
     [Fact]
     public async Task La_lectura_entre_Tenants_del_Nucleo_tambien_falla_cerrada_por_si_misma()
     {
-        foreach (var tenant in new[] { _contratista, _lector })
+        foreach (var tenant in new[] { _contratista, _lector, Guid.Empty })
         {
             var carpeta = Path.Combine(_ruta, tenant.ToString("N"));
             Directory.CreateDirectory(carpeta);
@@ -168,9 +171,11 @@ public sealed class AdaptadorAlmacenOriginalesInboundTests : IDisposable
 
     /// <summary>
     /// Deuda conocida de <see cref="ClavesDeAlmacen"/>, que esta PR no cambia: <c>{tenant:N}/sub\archivo</c> pasa la regla
-    /// (la barra invertida no se trata como separador). Llega al almacén, que resuelve el nombre con
-    /// <see cref="Path.GetFileName(string?)"/> dentro de la carpeta del Tenant indicado: nunca abre el archivo de otro
-    /// Tenant, aunque la referencia lo nombre detrás de la barra invertida.
+    /// (la barra invertida no se trata como separador) y llega al almacén. Lo que fija este test es solo que una referencia
+    /// así, que nombra detrás de la barra invertida un archivo que sí existe en la carpeta del lector, no lo abre. Que no
+    /// salga de la carpeta del Tenant indicado lo garantizan la carpeta fija del primer segmento y el rechazo de <c>..</c>
+    /// (casos de <see cref="AperturasQueNoSonDeLaCarpetaDelTenant"/>), no este test: en Windows el nombre se reduce con
+    /// <see cref="Path.GetFileName(string?)"/> y en Linux es un nombre literal, y en los dos queda en la carpeta indicada.
     /// </summary>
     [Fact]
     public async Task La_subcarpeta_con_barra_invertida_llega_al_almacen_pero_no_sale_de_la_carpeta_del_Tenant()
