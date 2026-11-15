@@ -61,7 +61,13 @@ namespace CaeManager.Architecture.Tests;
 /// cuenta además la fila de una subconsulta o de la fuente de un <c>Join</c> sobre
 /// <c>AsignacionesOperacion</c>, o la variable de un <c>join</c> cuya clave nombra
 /// <c>AsignacionOperacionId</c>, si el contexto nombra <c>AsignacionOperacionId</c>: no se comprueba que
-/// esa subconsulta sea la que correlaciona la cartera con su operación.</item>
+/// esa subconsulta sea la que correlaciona la cartera con su operación. Si la cartera es el lado unido de
+/// ese <c>join</c> (<c>from x in otros join c in ctx.AsignacionesCartera on x.Id equals
+/// c.AsignacionOperacionId</c>), la variable de la otra fuente no cuenta (falso positivo).</item>
+/// <item>Cuando el acceso está dentro de una cláusula (<c>where</c>, <c>select</c>) de una consulta
+/// integrada exterior, cuentan las variables de <b>todos</b> sus <c>from</c> y <c>join</c>, también las de
+/// un <c>join</c> ajeno al acceso (<c>from d in docs join x in otros … where x.Servicio == s &amp;&amp;
+/// ctx.AsignacionesOperacion.Any(…)</c>: falso negativo), no solo la que lo correlaciona.</item>
 /// <item>En SQL: una función, vista o política creada dentro de un <c>DO $$ … EXECUTE … $$</c> o
 /// reescrita por <c>ReescrituraPoliticasContextoRls</c> en ejecución; sobrecargas de una función con el
 /// mismo nombre (se queda la última definición); el SQL de datos de una sola vez en <c>Up</c>; y la

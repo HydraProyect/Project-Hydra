@@ -315,8 +315,13 @@ internal static class AccesosAAsignaciones
     /// Para una Asignación de Cartera, la espina más las llamadas del contexto que encadenan sobre un
     /// acceso a <c>AsignacionesOperacion</c>: la subconsulta correlacionada
     /// (<c>c =&gt; ctx.AsignacionesOperacion.Any(o =&gt; o.Id == c.AsignacionOperacionId &amp;&amp; o.Servicio == s)</c>)
-    /// y la fuente de un <c>Join</c> (<c>.Join(ctx.AsignacionesOperacion.Where(o =&gt; o.Servicio == s), …)</c>).
-    /// La fila de una consulta sobre otra cosa (<c>otros.Any(x =&gt; x.Servicio == s)</c>) sigue sin contar.
+    /// y la fuente de un <c>Join</c> (<c>.Join(ctx.AsignacionesOperacion.Where(o =&gt; o.Servicio == s), …)</c>);
+    /// en una consulta integrada, la fuente <c>from</c>/<c>join</c> que encadena sobre
+    /// <c>AsignacionesOperacion</c> y la de un <c>join</c> cuya clave nombra <c>AsignacionOperacionId</c>
+    /// (<c>join o in ops on c.AsignacionOperacionId equals o.Id</c>). La fila de una consulta sobre otra
+    /// cosa (<c>otros.Any(x =&gt; x.Servicio == s)</c>) sigue sin contar. La regla de la clave es
+    /// asimétrica: si la cartera es el lado unido (<c>from x in otros join c in ctx.AsignacionesCartera
+    /// on x.Id equals c.AsignacionOperacionId</c>), <c>x</c> no cuenta (falso positivo, va a la lista).
     /// </summary>
     private static HashSet<SyntaxNode> EspinaDeLaCartera(SyntaxNode contexto, HashSet<SyntaxNode> espina, HashSet<SyntaxNode> operaciones)
     {
