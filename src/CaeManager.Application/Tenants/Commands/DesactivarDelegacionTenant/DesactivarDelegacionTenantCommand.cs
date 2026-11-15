@@ -5,6 +5,7 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 
@@ -65,6 +66,9 @@ public class DesactivarDelegacionTenantCommandHandler(
                    currentUserService, directorioUsuarios, catalogo, cancellationToken);
     }
 
+    /// <summary>Motivo con el que la revocación de la delegación revoca sus filas heredadas (el mismo que escribe el trigger).</summary>
+    internal const string MotivoRevocacionFilaHeredada = "Revocada su DelegacionTenant: reactivarla no la repone.";
+
     private static readonly Error NoEncontrada =
         Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación.");
 
@@ -111,6 +115,22 @@ public class DesactivarDelegacionTenantCommandHandler(
             return Result.Fallo(Error.Crear("DelegacionTenant.YaInactiva", "Esta delegación ya estaba revocada."));
 
         delegacion.Desactivar();
+
+        // Las filas heredadas (AsignacionOperadorDelegado) de una delegación de Operador CAE externo no sobreviven a
+        // su revocación: autorizan por sí solas (vía heredada de TenantsBeneficiariosAutorizados) y, vivas, volverían a
+        // autorizar al reactivarla, que no repone nada (opción A de Chris del 2026-11-14; ronda 1 de Codex en la PR
+        // #2237, alta 1). El trigger delegacion_tenant_revoca_filas_heredadas hace lo mismo en la base de datos para
+        // cualquier escritor (la ranura anterior, la función SQL de Soporte); aquí se hace también para que el dominio
+        // y lo que se guarda coincidan. Las de Soporte conservan su mecánica (plano 3, ADR-011 § 8.6).
+        if (deOperadorExterno)
+        {
+            var ahoraRevocacion = DateTime.UtcNow;
+            var filasHeredadas = await tenantsContext.AsignacionesOperadorDelegado
+                .Where(a => a.DelegacionTenantId == delegacion.Id)
+                .ToListAsync(cancellationToken);
+            foreach (var fila in filasHeredadas)
+                fila.Revocar(MotivoRevocacionFilaHeredada, ahoraRevocacion);
+        }
 
         // La revocación escribe datos del Tenant propietario: cerrar su
         // Asignación de Operación y sus carteras. La política WITH CHECK de esa

@@ -472,7 +472,7 @@ src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacion
 src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacionPlataformaRepository.cs :: clienteId = 2
 # Procedencia (2026-11-14): el paso 2a del backfill busca las DelegacionesTenant candidatas del par de cada
 # operación sin origen por TenantClienteId, el Tenant propietario en el nombre legacy (+1). Sin nombre canónico.
-src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: TenantClienteId = 6
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: TenantClienteId = 5
 src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: ClienteId = 10
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: clienteId = 4

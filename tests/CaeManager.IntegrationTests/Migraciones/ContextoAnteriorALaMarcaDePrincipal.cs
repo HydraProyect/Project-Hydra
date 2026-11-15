@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Persistence;
@@ -52,6 +53,11 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Entity<Trabajador>().Ignore(t => t.MarcaExtranjeroCobrable);
         builder.Entity<VisitaTrabajador>().Ignore(vt => vt.FechaAsignacionUtc);
         builder.Entity<VisitaTrabajador>().Ignore(vt => vt.GestionadoPorUsuarioId);
+        // AnadeProcedenciaDeOperacionExterna también: ni la procedencia de la operación externa (su FK e índice
+        // caen con la columna) ni el contador de revocaciones de la delegación existen en esos esquemas.
+        builder.Entity<AsignacionOperacion>().Ignore(o => o.OrigenId);
+        builder.Entity<AsignacionOperacion>().Ignore(o => o.RevocacionesDelOrigen);
+        builder.Entity<DelegacionTenant>().Ignore(d => d.Revocaciones);
     }
 
     private static readonly string[] CamposDeLaFichaDeCentro =

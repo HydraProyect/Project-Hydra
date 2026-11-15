@@ -13,12 +13,14 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Operaciones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -177,6 +179,214 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
         // Cerrarla sí se puede: el trigger solo protege el origen.
         await EjecutarComoPropietarioAsync(
             $"""UPDATE "AsignacionesOperacion" SET "Estado" = 'Cerrada' WHERE "Id" = '{acotada}'""");
+    }
+
+    // ── Ronda 2 tras Codex r1 (PR #2237) ─────────────────────────────────────
+
+    [Fact]
+    public async Task Una_operacion_insertada_antes_que_su_delegacion_en_la_misma_transaccion_recibe_el_origen_al_COMMIT()
+    {
+        // EF ordena los INSERT de un mismo guardado por tabla: AsignacionesOperacion va antes que DelegacionesTenant.
+        // Se fuerza ese orden con dos guardados en una transacción: el BEFORE INSERT no ve la delegación todavía.
+        Guid otroOperador;
+        await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
+            otroOperador = await SembrarTenantAsync(propietarioDeLaBase, "Operador CAE dos", PerfilVocabularioTenant.Consultora, operadorCaeExterno: true);
+
+        var ahora = DateTime.UtcNow;
+        var operacion = AsignacionOperacion.Externa(_propietario, otroOperador, ServicioCae.Outbound,
+            AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+        var delegacion = new DelegacionTenant(otroOperador, _propietario);
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            contexto.AsignacionesOperacion.Add(operacion);
+            await contexto.SaveChangesAsync();
+            (await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == operacion.Id)).OrigenId
+                .Should().BeNull("control: al insertarla la delegación todavía no existe");
+            contexto.DelegacionesTenant.Add(delegacion);
+            await contexto.SaveChangesAsync();
+            await transaccion.CommitAsync();
+        }
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var guardada = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == operacion.Id);
+        guardada.OrigenId.Should().Be(delegacion.Id, "la comprobación diferida la deduce al COMMIT");
+        guardada.RevocacionesDelOrigen.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_operacion_sin_origen_no_se_sella_despues_ni_con_la_marca_de_la_deduccion_diferida()
+    {
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        var acotada = await SembrarAcotadaConCarteraAsync();
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+
+        var sellar = () => EjecutarComoPropietarioAsync(
+            $"""UPDATE "AsignacionesOperacion" SET "OrigenId" = '{_delegacion}', "RevocacionesDelOrigen" = 1 WHERE "Id" = '{acotada}'""");
+        (await sellar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation,
+            "sellar después repondría una operación que sobrevivió a una revocación");
+
+        // La marca local sola no abre la excepción: hace falta ser la comprobación diferida (pg_trigger_depth > 1).
+        var conMarca = () => EjecutarComoPropietarioAsync(
+            $"""
+             SELECT set_config('app.deduccion_origen', '{acotada}', false);
+             UPDATE "AsignacionesOperacion" SET "OrigenId" = '{_delegacion}', "RevocacionesDelOrigen" = 1 WHERE "Id" = '{acotada}';
+             """);
+        (await conMarca.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+    }
+
+    [Fact]
+    public async Task Una_operacion_sellada_no_cambia_de_par()
+    {
+        var acotada = await SembrarAcotadaConCarteraAsync();
+
+        var convertirEnInterna = () => EjecutarComoPropietarioAsync(
+            $"""UPDATE "AsignacionesOperacion" SET "OperadorTenantId" = "PropietarioTenantId" WHERE "Id" = '{acotada}'""");
+        (await convertirEnInterna.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation,
+            "la rama de las internas borraría el sello");
+    }
+
+    [Fact]
+    public async Task No_nace_una_operacion_sellada_con_una_delegacion_ya_revocada()
+    {
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+
+        var insertar = () => InsertarConOrigenAsync(_delegacion);
+
+        (await insertar.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(
+            e => EsViolacionDeComprobacion(e), "la comprobación diferida la rechaza al COMMIT");
+    }
+
+    [Fact]
+    public async Task Una_revocacion_en_vuelo_no_deja_sellar_una_operacion_con_el_contador_viejo()
+    {
+        await using var revocacion = new NpgsqlConnection(_arnes.CadenaPropietario);
+        await revocacion.OpenAsync();
+        await using var transaccion = await revocacion.BeginTransactionAsync();
+        await using (var comando = new NpgsqlCommand(
+                         $"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""", revocacion, transaccion))
+            await comando.ExecuteNonQueryAsync();
+
+        // El sellado espera al cerrojo de la revocación: no puede leer el contador anterior a ella.
+        var insercion = Task.Run(() => InsertarConOrigenAsync(_delegacion));
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        insercion.IsCompleted.Should().BeFalse("el sellado espera a que la revocación en vuelo termine");
+
+        await transaccion.CommitAsync();
+
+        var fallo = await FluentActions.Awaiting(() => insercion).Should().ThrowAsync<Exception>();
+        fallo.Which.Should().Match<Exception>(e => EsViolacionDeComprobacion(e),
+            "tras la revocación lee el contador nuevo con la delegación inactiva y la comprobación diferida la rechaza");
+    }
+
+    [Fact]
+    public async Task El_backfill_cierra_la_operacion_sin_origen_con_su_cartera_respeta_la_amparada_y_es_idempotente()
+    {
+        var amparada = await SembrarAcotadaConCarteraAsync();
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        var sinOrigen = await SembrarAcotadaConCarteraAsync();
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+        // La reactivación no repone la que sobrevivió a la revocación; para la prueba del backfill, una operación con
+        // prueba positiva de origen y vigente: la nacida bajo la activación nueva.
+        var bajoLaActivacionNueva = await SembrarAcotadaConCarteraAsync();
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+        {
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == sinOrigen)).OrigenId.Should().BeNull("control");
+            (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == bajoLaActivacionNueva)).RevocacionesDelOrigen
+                .Should().Be(1, "control: nació sellada con el contador de la activación vigente");
+        }
+
+        await using (var primera = ContextoPropietarioDeLaBase())
+            await AsignacionesOperativasBackfillSeeder.SeedAsync(primera, NullLogger.Instance);
+        var tras1 = await EstadosAsync(amparada, sinOrigen, bajoLaActivacionNueva);
+
+        tras1[sinOrigen].Should().Be((EstadoAsignacion.Cerrada, EstadoAsignacion.Cerrada),
+            "sin prueba positiva de que naciera bajo la activación vigente, se cierra con sus carteras");
+        tras1[bajoLaActivacionNueva].Should().Be((EstadoAsignacion.Vigente, EstadoAsignacion.Vigente),
+            "el backfill no toca la que guarda su origen");
+
+        await using (var segunda = ContextoPropietarioDeLaBase())
+            await AsignacionesOperativasBackfillSeeder.SeedAsync(segunda, NullLogger.Instance);
+        (await EstadosAsync(amparada, sinOrigen, bajoLaActivacionNueva)).Should().BeEquivalentTo(tras1, "dos pasadas, el mismo resultado");
+
+        (await CarterasAmparadasDelOperadorAsync()).Should().Contain(bajoLaActivacionNueva)
+            .And.NotContain(sinOrigen).And.NotContain(amparada);
+    }
+
+    [Fact]
+    public async Task Revocar_la_delegacion_revoca_sus_filas_heredadas_y_reactivarla_no_las_repone()
+    {
+        var fila = new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae);
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(fila);
+            await contexto.SaveChangesAsync();
+        }
+
+        // Como la ranura anterior: solo escribe Activa.
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
+        await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var guardada = await verificacion.AsignacionesOperadorDelegadoConRevocadas.SingleAsync(a => a.Id == fila.Id);
+        guardada.RevocadaEnUtc.Should().NotBeNull("el trigger revoca la fila heredada al contar la revocación");
+        (await verificacion.AsignacionesOperadorDelegado.AnyAsync(a => a.Id == fila.Id)).Should().BeFalse(
+            "ningún lector, que leen el conjunto sin revocadas, la vuelve a ver");
+    }
+
+    [Fact]
+    public async Task La_migracion_revoca_las_filas_heredadas_previas_de_Operador_CAE_externo()
+    {
+        var fila = new AsignacionOperadorDelegado(_delegacion, _gestoraOperador.Id, Roles.GestorCae);
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(fila);
+            await contexto.SaveChangesAsync();
+        }
+
+        await EjecutarComoPropietarioAsync(
+            CaeManager.Migrations.PostgreSQL.Migrations.AnadeProcedenciaDeOperacionExterna.RevocaFilasHeredadasPrevias);
+        // Dos veces: la segunda no cambia nada.
+        await EjecutarComoPropietarioAsync(
+            CaeManager.Migrations.PostgreSQL.Migrations.AnadeProcedenciaDeOperacionExterna.RevocaFilasHeredadasPrevias);
+
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.SingleAsync(a => a.Id == fila.Id)).RevocadaEnUtc
+            .Should().NotBeNull("sin historia de revocaciones no hay prueba de que no sobreviviera a una");
+    }
+
+    private async Task InsertarConOrigenAsync(Guid delegacionId)
+    {
+        await using var contexto = ContextoPropietarioDeLaBase();
+        var delegacion = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == delegacionId);
+        var ahora = DateTime.UtcNow;
+        var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
+            AmbitoAsignacion.DeRelacionCliente(_cliente), ahora.AddDays(-1), null, ahora);
+        operacion.FijarOrigen(delegacion);
+        contexto.AsignacionesOperacion.Add(operacion);
+        await contexto.SaveChangesAsync();
+    }
+
+    private static bool EsViolacionDeComprobacion(Exception e)
+    {
+        for (var actual = e; actual is not null; actual = actual.InnerException)
+            if (actual is PostgresException { SqlState: PostgresErrorCodes.CheckViolation })
+                return true;
+        return false;
+    }
+
+    private async Task<Dictionary<Guid, (EstadoAsignacion Operacion, EstadoAsignacion Cartera)>> EstadosAsync(params Guid[] operaciones)
+    {
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var resultado = new Dictionary<Guid, (EstadoAsignacion, EstadoAsignacion)>();
+        foreach (var id in operaciones)
+        {
+            var operacion = await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == id);
+            var cartera = await verificacion.AsignacionesCartera.SingleAsync(c => c.AsignacionOperacionId == id);
+            resultado[id] = (operacion.Estado, cartera.Estado);
+        }
+        return resultado;
     }
 
     // ── Montaje ──────────────────────────────────────────────────────────────

@@ -47,11 +47,15 @@ public static class AutorizacionTarifasOperadorCae
 
     /// <summary>
     /// Si <paramref name="operadorTenantId"/> opera hoy a <paramref name="propietarioTenantId"/> como Operador CAE
-    /// externo: una Asignación de Operación vigente, no raíz y con propietario distinto del operador.
+    /// externo: una Asignación de Operación vigente, no raíz, con propietario distinto del operador y amparada por la
+    /// DelegacionTenant concreta de la que nació (<see cref="AmparoDeOrigen"/>). Una operación que sobrevivió a la
+    /// revocación o a la caducidad de su delegación no deja fijar tarifas (ronda 1 de Codex en la PR #2237).
     /// </summary>
     public static Task<bool> GestionaAsync(
         IOperacionesQueryContext operaciones, Guid operadorTenantId, Guid propietarioTenantId, DateTime ahoraUtc, CancellationToken cancellationToken) =>
-        operaciones.AsignacionesOperacion.AnyAsync(o =>
+        operaciones.AsignacionesOperacion
+            .AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahoraUtc)
+            .AnyAsync(o =>
             !o.EsRaiz
             && o.OperadorTenantId == operadorTenantId
             && o.PropietarioTenantId == propietarioTenantId

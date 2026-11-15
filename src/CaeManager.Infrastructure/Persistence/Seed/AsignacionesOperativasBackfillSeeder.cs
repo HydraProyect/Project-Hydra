@@ -177,8 +177,7 @@ public static class AsignacionesOperativasBackfillSeeder
                 // mismo Operador CAE externo tiene hoy otra activa y vigente sobre este Tenant propietario
                 // (se revocó una y se autorizó otra), solo se cierra lo que nació de esta: la otra no lo
                 // sostiene (AmparoDeOrigen, hallazgo de Codex en la PR #2223), y lo que nació
-                // de la otra sigue siendo suyo. Lo que todavía no guarda origen lo resuelve el paso 2a, que
-                // lo amarra a la única candidata o lo cierra. Una que sigue marcada activa pero ya caducó
+                // de la otra sigue siendo suyo. Lo que todavía no guarda origen lo cierra el paso 2a. Una que sigue marcada activa pero ya caducó
                 // no cuenta como «otra vigente»: no autoriza nada (ronda 1 de Codex en la PR #2223).
                 var hayOtraVigenteDelPar = delegacionesComerciales.Any(d =>
                     d.EstaVigente(ahora) && d.Id != delegacion.Id
@@ -272,20 +271,22 @@ public static class AsignacionesOperativasBackfillSeeder
             creadas++;
         }
 
-        // --- 2a. Procedencia de las operaciones externas que no la guardan ---
+        // --- 2a. Las operaciones externas que no guardan su procedencia se cierran ---
         //
         // Cada Asignación de Operación Outbound externa guarda la DelegacionTenant de la que nace, y los
-        // lectores de alcance exigen esa concreta (AmparoDeOrigen); sin ella no autoriza. Las
-        // anteriores a la columna, y las que abra la ranura anterior durante el despliegue azul-verde cuando el
-        // trigger asignacion_operacion_sella_origen no pueda deducirla, llegan sin origen. Se rellena solo
-        // cuando es inequívoco: el par tiene una sola delegación de Operador CAE externo, activa, vigente y sin
-        // ninguna revocación contada, y
-        // la operación no sobrevivió a ninguna revocación —ninguna operación del par se cerró por revocación
-        // (o por la reconciliación de una delegación inactiva) después de que naciera esta—. Si no, se cierra
-        // con sus carteras: una operación de procedencia dudosa falla cerrada y nada de lo cerrado vuelve solo
-        // (hallazgo de Codex en la PR #2223; los datos actuales son de prueba, decisión de Chris del
-        // 2026-11-14). Las cerradas no se tocan: son historia.
-        var conOrigenFijado = 0;
+        // lectores de alcance exigen esa concreta (AmparoDeOrigen); sin ella no autoriza. Llegan sin origen
+        // las anteriores a la columna y las que la ranura anterior inserte durante el despliegue azul-verde
+        // cuando el trigger asignacion_operacion_sella_origen no pueda deducirlo (más de una delegación vigente
+        // del par, ninguna, o no visible). Ninguna de ellas puede probar que nació bajo la activación vigente de
+        // su delegación: el contador de revocaciones nace a cero en la migración para todas, y la reactivación
+        // de una delegación comercial no guarda fecha. Antes se amarraban cuando no se veía una revocación
+        // (contador a cero, ninguna operación del par cerrada por revocación después): eso era tomar la
+        // ausencia de una marca por la ausencia de la revocación, y además se sellaba el contador en memoria
+        // sin bloquear la delegación, con lo que una revocación concurrente podía sellar el contador nuevo
+        // (ronda 1 de Codex en la PR #2237, altas 2 y 3). Ahora se cierran todas, con sus carteras, y el
+        // arranque nunca fija el origen de una operación ya guardada (el trigger lo rechaza en un UPDATE):
+        // falla cerrada y nada de lo cerrado vuelve solo (decisión de la coordinadora en la PR #2237; los datos
+        // actuales son de prueba, decisión de Chris del 2026-11-14). Las cerradas no se tocan: son historia.
         foreach (var sinOrigen in operaciones.Where(o =>
                          !o.EsOperacionInterna
                          && o.Servicio == ServicioCae.Outbound
@@ -293,31 +294,6 @@ public static class AsignacionesOperativasBackfillSeeder
                          && o.OrigenId is null)
                      .ToList())
         {
-            var candidatas = delegacionesComerciales
-                .Where(d => d.TenantClienteId == sinOrigen.PropietarioTenantId
-                            && d.TenantConsultoraId == sinOrigen.OperadorTenantId)
-                .ToList();
-            var sobrevivioARevocacion = operaciones.Any(r =>
-                !r.EsOperacionInterna
-                && r.PropietarioTenantId == sinOrigen.PropietarioTenantId
-                && r.OperadorTenantId == sinOrigen.OperadorTenantId
-                && r.Servicio == ServicioCae.Outbound
-                && r.Estado == EstadoAsignacion.Cerrada
-                && r.MotivoCierre is MotivoCierreAsignacion.Revocada or MotivoCierreAsignacion.MigradaSinFecha
-                && r.VigenciaHasta > sinOrigen.CreadoEnUtc);
-
-            // Revocaciones == 0: el contador solo cuenta desde la migración, y con revocaciones no se sabe si la
-            // operación sin origen nació antes o después de ellas. Amarrarla sellaría el contador actual y una
-            // operación que sobrevivió a esa revocación volvería a autorizar tras la reactivación: ante la duda,
-            // se cierra (hallazgo de la revisión puente).
-            if (candidatas.Count == 1 && candidatas[0].EstaVigente(ahora) && candidatas[0].Revocaciones == 0
-                && !sobrevivioARevocacion)
-            {
-                sinOrigen.FijarOrigen(candidatas[0]);
-                conOrigenFijado++;
-                continue;
-            }
-
             foreach (var cartera in carteras.Where(c =>
                          c.AsignacionOperacionId == sinOrigen.Id && c.Estado != EstadoAsignacion.Cerrada))
             {
@@ -329,10 +305,8 @@ public static class AsignacionesOperativasBackfillSeeder
             cerradas++;
             incidencias.Add(
                 $"Asignación de Operación {sinOrigen.Id} de {sinOrigen.OperadorTenantId} sobre {sinOrigen.PropietarioTenantId}: " +
-                (sobrevivioARevocacion
-                    ? "sobrevivió a una revocación de la delegación del par."
-                    : $"{candidatas.Count} delegaciones de Operador CAE externo en el par, o ninguna vigente.") +
-                " Procedencia no inequívoca: cerrada con sus carteras.");
+                "sin DelegacionTenant de origen, no prueba que naciera bajo la activación vigente. Cerrada con sus carteras; " +
+                "la reasigna un acto explícito.");
         }
 
         var idsComerciales = delegacionesComerciales.Select(d => d.Id).ToHashSet();
@@ -496,7 +470,7 @@ public static class AsignacionesOperativasBackfillSeeder
             creadas++;
         }
 
-        if (creadas == 0 && cerradas == 0 && conOrigenFijado == 0)
+        if (creadas == 0 && cerradas == 0)
         {
             RegistrarIncidencias(logger, incidencias);
             return;
@@ -512,8 +486,8 @@ public static class AsignacionesOperativasBackfillSeeder
         }
 
         logger.LogInformation(
-            "Backfill de asignaciones operativas: {Creadas} creadas, {Cerradas} cerradas, {ConOrigen} con su delegación de origen fijada.",
-            creadas, cerradas, conOrigenFijado);
+            "Backfill de asignaciones operativas: {Creadas} creadas, {Cerradas} cerradas.",
+            creadas, cerradas);
 
         RegistrarIncidencias(logger, incidencias);
     }

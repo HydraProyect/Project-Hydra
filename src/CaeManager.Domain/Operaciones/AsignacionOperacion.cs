@@ -155,7 +155,11 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     /// Fija la <see cref="DelegacionTenant"/> de la que nace esta operación externa y el número
     /// de revocaciones que llevaba en ese momento. Solo una vez: el origen no cambia, y una
     /// operación cuyo origen se revocó no se rehabilita apuntándola a otra delegación (se abre una
-    /// nueva). La delegación tiene que ser de Operador CAE externo y del mismo par.
+    /// nueva). La delegación tiene que ser de Operador CAE externo y del mismo par. Solo en una operación
+    /// que todavía no se ha guardado: en la base de datos el trigger <c>asignacion_operacion_sella_origen</c>
+    /// sella el contador al insertar y rechaza fijar o cambiar el origen en un UPDATE, y el diferido
+    /// <c>asignacion_operacion_origen_activo_al_nacer</c> rechaza al COMMIT una operación no cerrada sellada con
+    /// una delegación inactiva (ronda 1 de Codex en la PR #2237).
     /// </summary>
     public void FijarOrigen(DelegacionTenant delegacion)
     {

@@ -72,6 +72,17 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
             return delegacion;
         }
 
+        // FijarOrigen rechaza una delegación de otro par o de Soporte, así que se fuerza el origen: la operación apunta
+        // a una delegación activa, vigente y con el mismo contador, y solo la cláusula del par o del propósito de
+        // AmparoDeOrigen la niega (ronda 1 de Codex en la PR #2237, baja 7).
+        DelegacionTenant Forzado(DelegacionTenant delegacion)
+        {
+            typeof(AsignacionOperacion).GetProperty(nameof(AsignacionOperacion.OrigenId))!.SetValue(operacion, delegacion.Id);
+            typeof(AsignacionOperacion).GetProperty(nameof(AsignacionOperacion.RevocacionesDelOrigen))!
+                .SetValue(operacion, delegacion.Revocaciones);
+            return delegacion;
+        }
+
         switch (caso)
         {
             case "caduca justo ahora": return [Origen(ConCaducidad(DelPar(), Ahora))];
@@ -92,13 +103,13 @@ public class ViaDeOperacionExigeDelegacionVigenteTests
                 return [revocada, DelPar()];
             case "sin origen y con una vigente del par": return [DelPar()];
             case "sin origen ni delegación": return [];
-            case "de otro Tenant propietario": return [new DelegacionTenant(OperadorCaeExterno, Guid.NewGuid())];
-            case "de otro Operador CAE": return [new DelegacionTenant(Guid.NewGuid(), TenantBeneficiario)];
-            case "con los extremos invertidos": return [new DelegacionTenant(TenantBeneficiario, OperadorCaeExterno)];
+            case "de otro Tenant propietario": return [Forzado(new DelegacionTenant(OperadorCaeExterno, Guid.NewGuid()))];
+            case "de otro Operador CAE": return [Forzado(new DelegacionTenant(Guid.NewGuid(), TenantBeneficiario))];
+            case "con los extremos invertidos": return [Forzado(new DelegacionTenant(TenantBeneficiario, OperadorCaeExterno))];
             case "de Soporte TALVEG":
                 var soporte = DelegacionTenant.ParaSoporte(OperadorCaeExterno, TenantBeneficiario);
                 soporte.ActivarParaSoporte("Incidencia de prueba", Ahora.AddDays(1), Ahora);
-                return [soporte];
+                return [Forzado(soporte)];
             default: throw new ArgumentOutOfRangeException(nameof(caso), caso, null);
         }
     }

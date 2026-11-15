@@ -118,10 +118,22 @@ public class CatalogoIncorporacionCartera(
         && o.VigenciaDesde <= ahora
         && (o.VigenciaHasta == null || ahora < o.VigenciaHasta);
 
+    /// <summary>
+    /// Las Asignaciones de Operación de <see cref="Servicio"/> que autorizan hoy: vigentes por estado y fechas
+    /// (<see cref="OperacionDelServicioVigente"/>) y, si son externas, amparadas por la DelegacionTenant concreta de la
+    /// que nacieron (<see cref="AmparoDeOrigen"/>). Es la única base de este catálogo para emitir una cartera o una fila
+    /// heredada, sostener la fila heredada y decidir qué carteras autorizan (ronda 1 de Codex en la PR #2237): una
+    /// operación que sobrevivió a la revocación o a la caducidad de su delegación sigue figurando Vigente, y por estado y
+    /// fechas habría dejado aceptar una solicitud o una propuesta pendiente y emitir una fila heredada nueva.
+    /// </summary>
+    private static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(CaeManagerDbContext dbContext, DateTime ahora) =>
+        dbContext.AsignacionesOperacion
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+            .Where(OperacionDelServicioVigente(ahora));
+
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>
-        dbContext.AsignacionesOperacion
-            .Where(OperacionDelServicioVigente(DateTime.UtcNow))
+        OperacionesQueAutorizan(dbContext, DateTime.UtcNow)
             .FirstOrDefaultAsync(o => o.Id == asignacionOperacionId, cancellationToken);
 
     public Task<ResultadoIncorporacionCartera> IncorporarAsync(
@@ -150,7 +162,8 @@ public class CatalogoIncorporacionCartera(
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
         var ahora = DateTime.UtcNow;
-        var vinculoId = await VinculoVivoConElOperadorAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        var vinculoId = await VinculoVivoConElOperadorAsync(
+            propietarioTenantId, operadorTenantId, operacion.OrigenId, ahora, cancellationToken);
         if (vinculoId is null)
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
@@ -199,7 +212,7 @@ public class CatalogoIncorporacionCartera(
 
         var ahora = DateTime.UtcNow;
         var vinculoId = await VinculoVivoConElOperadorAsync(
-            propuesta.PropietarioTenantId, propuesta.OperadorTenantId, ahora, cancellationToken);
+            propuesta.PropietarioTenantId, propuesta.OperadorTenantId, operacion.OrigenId, ahora, cancellationToken);
         if (vinculoId is null)
             return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.OperacionNoVigente);
 
@@ -300,8 +313,8 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        return CarterasDelOperadorBajo(
-                dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)), operadorTenantId)
+        // Bajo una operación que autoriza, amparo de origen incluido (ronda 1 de Codex en la PR #2237).
+        return CarterasDelOperadorBajo(OperacionesQueAutorizan(dbContext, ahora), operadorTenantId)
             .Where(c => c.VigenciaDesde <= ahora);
     }
 
@@ -481,10 +494,11 @@ public class CatalogoIncorporacionCartera(
             return ResultadoRelevoPrincipal.SinRelevo;
 
         // Emitir exige lo mismo que IncorporarAsync: operación vigente hoy y delegación viva.
-        if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is null)
+        if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is not { } vigente)
             return ResultadoRelevoPrincipal.SinRelevo;
 
-        var vinculoId = await VinculoVivoConElOperadorAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        var vinculoId = await VinculoVivoConElOperadorAsync(
+            propietarioTenantId, operadorTenantId, vigente.OrigenId, ahora, cancellationToken);
         if (vinculoId is null)
             return ResultadoRelevoPrincipal.SinRelevo;
 
@@ -514,12 +528,16 @@ public class CatalogoIncorporacionCartera(
 
     /// <summary>
     /// La delegación viva de Operador CAE externo de ese Tenant propietario hacia ese Operador CAE
-    /// (la más antigua si hubiera varias), de la que cuelga la fila heredada de la doble escritura.
+    /// de la que cuelga la fila heredada de la doble escritura: la DelegacionTenant de origen de la operación
+    /// (<paramref name="origenId"/>), no cualquiera viva del par. Una fila heredada colgada de otra delegación del
+    /// par sobreviviría a la revocación de la que de verdad ampara la operación (ronda 1 de Codex en la PR #2237).
+    /// Sin origen no hay vínculo: falla cerrada.
     /// </summary>
     private Task<Guid?> VinculoVivoConElOperadorAsync(
-        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        Guid propietarioTenantId, Guid operadorTenantId, Guid? origenId, DateTime ahora, CancellationToken cancellationToken) =>
         dbContext.DelegacionesTenant
-            .Where(d => d.TenantClienteId == propietarioTenantId
+            .Where(d => d.Id == origenId
+                        && d.TenantClienteId == propietarioTenantId
                         && d.TenantConsultoraId == operadorTenantId
                         && d.Proposito == PropositoDelegacion.OperadorExterno
                         && d.Activa
@@ -734,7 +752,9 @@ public class CatalogoIncorporacionCartera(
     {
         var leQuedaOtra = await (
             from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
-            join o in dbContext.AsignacionesOperacion.Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
+                // Solo la cartera bajo una operación que autoriza, amparo de origen incluido, sostiene la fila heredada: la de
+                // una operación que sobrevivió a una revocación no (ronda 1 de Codex en la PR #2237).
+            join o in OperacionesQueAutorizan(dbContext, ahora) on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
                   && c.PropietarioTenantId == propietarioTenantId
                   && !carterasCerradas.Contains(c.Id)
