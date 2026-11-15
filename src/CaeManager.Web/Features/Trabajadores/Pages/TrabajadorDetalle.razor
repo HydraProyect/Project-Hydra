@@ -108,7 +108,7 @@
                         <Detalle>
                             @foreach (var documento in centroUrgente.Documentos.Where(EsIncidencia))
                             {
-                                <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</span>
+                                <span class="ventana-linea">@documento.TipoDocumentoNombre — @(SituacionDeBloqueo(centroUrgente.CentroId, documento.TipoDocumentoId) ?? EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta))</span>
                             }
                         </Detalle>
                     </VentanaContexto>
@@ -350,6 +350,10 @@
                                                                               Tono="@TonoDocumentoEnCentro(documento.Estado)"
                                                                               OnNombre="@(CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(autorizacion.User.IsInRole) ? EventCallback.Factory.Create(this, () => GestionarDocumentoAsync(documento)) : default)">
                                                                     <Detalle>
+                                                                        @if (SituacionDeBloqueo(centro.CentroId, documento.TipoDocumentoId) is { } situacionBloqueo)
+                                                                        {
+                                                                            <span class="trabajador360-bloqueo-acceso">@situacionBloqueo</span>
+                                                                        }
                                                                         <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
                                                                             Acreditaciones="documento.AcreditacionesEnElCentro" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" />
                                                                     </Detalle>
