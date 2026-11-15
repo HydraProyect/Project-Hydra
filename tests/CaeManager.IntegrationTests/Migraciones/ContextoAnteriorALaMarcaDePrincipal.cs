@@ -55,6 +55,15 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Entity<VisitaTrabajador>().Ignore(vt => vt.GestionadoPorUsuarioId);
         // AnadeProcedenciaDeOperacionExterna también: ni la procedencia de la operación externa (su FK e índice
         // caen con la columna) ni el contador de revocaciones de la delegación existen en esos esquemas.
+        // Ignorar solo la propiedad dejaría la FK configurada con una propiedad en sombra del mismo nombre (y el
+        // INSERT seguiría nombrando "OrigenId"): primero se retiran la FK y el índice que la usan.
+        var operacion = builder.Entity<AsignacionOperacion>().Metadata;
+        foreach (var fk in operacion.GetForeignKeys()
+                     .Where(f => f.Properties.Any(p => p.Name == nameof(AsignacionOperacion.OrigenId))).ToList())
+            operacion.RemoveForeignKey(fk);
+        foreach (var indice in operacion.GetIndexes()
+                     .Where(i => i.Properties.Any(p => p.Name == nameof(AsignacionOperacion.OrigenId))).ToList())
+            operacion.RemoveIndex(indice);
         builder.Entity<AsignacionOperacion>().Ignore(o => o.OrigenId);
         builder.Entity<AsignacionOperacion>().Ignore(o => o.RevocacionesDelOrigen);
         builder.Entity<DelegacionTenant>().Ignore(d => d.Revocaciones);
