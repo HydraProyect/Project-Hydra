@@ -49,8 +49,7 @@ public class DarDeBajaLineaInboundCommandHandler(
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IProductoContratadoRepository productosContratados,
-    ITransaccionDeComando transaccion,
-    TimeProvider reloj)
+    ITransaccionDeComando transaccion)
     : IRequestHandler<DarDeBajaLineaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(DarDeBajaLineaInboundCommand request, CancellationToken cancellationToken)
@@ -59,10 +58,11 @@ public class DarDeBajaLineaInboundCommandHandler(
         if (await AutoridadSobreLaLineaInbound.TenantAutorizadoAsync(tenantActual, sesionPrivilegiadaActual, cancellationToken) is null)
             return Result.Fallo<Guid>(ErroresDarDeBajaLineaInbound.NoAutorizado);
 
-        // En una transacción: la baja y su registro de auditoría se confirman o se deshacen juntos.
+        // En una transacción: la baja y su registro de auditoría se confirman o se deshacen juntos. El fin de vigencia es
+        // el now() de esa transacción en la base, el reloj con el que comparan las políticas y el gate DN-7.
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
-            var finalizacion = await productosContratados.FinalizarInboundVigenteAsync(reloj.GetUtcNow().UtcDateTime, ct);
+            var finalizacion = await productosContratados.FinalizarInboundVigenteAsync(ct);
             return (Result)(finalizacion.Resultado switch
             {
                 ResultadoFinalizacionInbound.Finalizada => Result.Exito(finalizacion.ProductoContratadoId!.Value),

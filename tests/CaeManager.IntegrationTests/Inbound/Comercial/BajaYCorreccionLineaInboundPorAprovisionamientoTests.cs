@@ -110,7 +110,21 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         modificacion.ActorRealUsuarioId.Should().Be(_actorPlataforma);
         modificacion.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.SesionPrivilegiada);
         modificacion.ViaAccesoId.Should().Be(_sesionDeAprovisionamiento);
-        modificacion.DatosDespues.Should().Contain(nameof(ProductoContratado.VigenteHastaUtc));
+        // La misma forma que el «Modificado» del interceptor: solo las dos propiedades cambiadas, el enum como número.
+        using (var datosAntes = System.Text.Json.JsonDocument.Parse(modificacion.DatosAntes!))
+        using (var datosDespues = System.Text.Json.JsonDocument.Parse(modificacion.DatosDespues!))
+        {
+            datosAntes.RootElement.GetProperty(nameof(ProductoContratado.Estado)).GetInt32()
+                .Should().Be((int)EstadoProductoContratado.Vigente);
+            datosAntes.RootElement.GetProperty(nameof(ProductoContratado.VigenteHastaUtc)).ValueKind
+                .Should().Be(System.Text.Json.JsonValueKind.Null);
+            datosDespues.RootElement.GetProperty(nameof(ProductoContratado.Estado)).GetInt32()
+                .Should().Be((int)EstadoProductoContratado.Finalizado);
+            datosDespues.RootElement.GetProperty(nameof(ProductoContratado.VigenteHastaUtc)).GetDateTime().ToUniversalTime()
+                .Should().Be(fila.VigenteHastaUtc!.Value, "el fin auditado es el escrito: el now() de la transacción");
+            datosAntes.RootElement.EnumerateObject().Should().HaveCount(2);
+            datosDespues.RootElement.EnumerateObject().Should().HaveCount(2);
+        }
 
         var segunda = await EnviarAsync(_sesionDeAprovisionamiento, rol: null, new DarDeBajaLineaInboundCommand());
         segunda.Error.Should().Be(ErroresDarDeBajaLineaInbound.SinLineaVigente, "Finalizado es final");
@@ -181,26 +195,30 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         var anterior = await ContratarAsync("cus_PagadorTce");
 
         // Sin línea que sustituir la corrección no empieza; con línea, un fallo después de finalizar lo deshace todo. Se
-        // provoca con la propia base: un disparador del propietario que rechaza el INSERT de la corregida.
+        // provoca con la propia base: un disparador del propietario que rechaza el INSERT de la corregida. Distingue si la
+        // sustituida ya estaba finalizada dentro de la transacción (hallazgo 2 de Codex, ronda 1): así el test exige que
+        // el rechazo llegó después del UPDATE, no que la corrección fallara antes por cualquier otro motivo.
         await EjecutarComoPropietarioAsync(
-            """
-            CREATE FUNCTION public.prueba_rechaza_insert() RETURNS trigger LANGUAGE plpgsql AS
-            $$ BEGIN RAISE EXCEPTION 'rechazo de prueba' USING ERRCODE = 'P0001'; END $$;
+            $$"""
+            CREATE FUNCTION public.prueba_rechaza_insert() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS
+            $f$ BEGIN
+                IF EXISTS (SELECT 1 FROM "ProductosContratados"
+                           WHERE "Id" = '{{anterior}}' AND "Estado" = 'Finalizado') THEN
+                    RAISE EXCEPTION 'rechazo tras finalizar' USING ERRCODE = 'P0001';
+                END IF;
+                RAISE EXCEPTION 'insert sin finalizar antes' USING ERRCODE = 'P0001';
+            END $f$;
             CREATE TRIGGER prueba_rechaza_insert BEFORE INSERT ON "ProductosContratados"
                 FOR EACH ROW EXECUTE FUNCTION public.prueba_rechaza_insert();
             """);
 
-        // Lanza o devuelve un fallo según lo que haga el pipeline con la excepción; en los dos casos, nada se confirma.
-        try
-        {
-            var resultado = await EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-                new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual));
-            resultado.EsFallido.Should().BeTrue("el disparador rechaza la corregida");
-        }
-        catch (Exception ex) when (ex is not Xunit.Sdk.XunitException)
-        {
-            // Esperado: el INSERT de la corregida falla dentro de la transacción.
-        }
+        // LoggingBehavior relanza lo inesperado: la excepción del disparador llega al llamador, envuelta o no.
+        var intento = () => EnviarAsync(_sesionDeAprovisionamiento, rol: null,
+            new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual));
+        var excepcion = (await intento.Should().ThrowAsync<Exception>()).Which;
+        var postgres = excepcion as PostgresException ?? excepcion.InnerException as PostgresException;
+        postgres.Should().NotBeNull($"el rechazo tiene que venir del disparador; llegó {excepcion.GetType().Name}: {excepcion.Message}");
+        postgres!.MessageText.Should().Be("rechazo tras finalizar", "el INSERT de la corregida llega con la sustituida ya finalizada");
 
         var fila = (await FilasComoPropietarioAsync()).Should().ContainSingle().Subject;
         fila.Id.Should().Be(anterior);
@@ -219,6 +237,31 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         baja.Error.Should().Be(ErroresDarDeBajaLineaInbound.VigenciaAunNoIniciada,
             "CK_ProductosContratados_EstadoYVigencia rechaza un fin anterior al inicio");
         (await FilasComoPropietarioAsync()).Should().ContainSingle().Which.Estado.Should().Be(EstadoProductoContratado.Vigente);
+    }
+
+    [Fact]
+    public async Task Con_cambios_pendientes_de_otro_acto_la_baja_no_escribe_nada()
+    {
+        // Hallazgo 2 del revisor-puente: la guarda del repositorio, como la del alta. El registro de auditoría de la baja
+        // se guarda con SaveChanges bajo el rol elevado, que arrastraría lo pendiente de otro acto.
+        var alta = await ContratarAsync("cus_PagadorTce");
+        await using var contexto = CrearContexto(_tce.Id, new Seleccion(_tce.Id, null));
+        var ajeno = new RegistroAuditoria(
+            "PruebaAjena", Guid.NewGuid(), "Creado", null, null,
+            usuarioId: _actorPlataforma, tipoActor: TipoActorAuditoria.Persona, actorRealUsuarioId: _actorPlataforma,
+            viaAcceso: TipoViaAccesoAuditoria.Normal, viaAccesoId: null);
+        contexto.RegistrosAuditoria.Add(ajeno);
+        var repositorio = new ProductoContratadoRepository(contexto, actorAuditoria: null!);
+
+        var finalizar = () => repositorio.FinalizarInboundVigenteAsync();
+
+        await finalizar.Should().ThrowAsync<InvalidOperationException>("la baja se escribe sola");
+        contexto.Entry(ajeno).State.Should().Be(EntityState.Added, "lo pendiente de otro acto se queda sin escribir");
+        var fila = (await FilasComoPropietarioAsync()).Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoProductoContratado.Vigente);
+        fila.VigenteHastaUtc.Should().BeNull();
+        (await AuditoriaComoPropietarioAsync(alta)).Should().ContainSingle("solo el alta");
+        (await AuditoriaComoPropietarioAsync(ajeno.EntidadId)).Should().BeEmpty();
     }
 
     public static TheoryData<string> Comandos() => new() { "baja", "correccion" };

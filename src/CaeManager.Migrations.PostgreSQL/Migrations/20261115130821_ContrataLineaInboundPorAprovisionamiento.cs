@@ -23,8 +23,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// el rol elevado lo adoptan todos los comandos de aprovisionamiento, así que el GRANT solo no basta para que lo único
     /// que inserte tenga la forma de lo que hace <c>ContratarLineaInboundCommand</c>: una fila de la línea Inbound,
     /// vigente, sin fin de vigencia, no eliminada, del Tenant del contexto firmado y con la vigencia empezando al contratar.
-    /// Una fila de <c>OutboundGestionPropia</c>, una ya finalizada o una con la vigencia empezada antes, se rechaza en la
-    /// base aunque el código lo intentara (hallazgo 2 de Codex, ronda 1, y hallazgo 4, ronda 2). «Al contratar» es el
+    /// Una fila de <c>OutboundGestionPropia</c>, una ya finalizada o una con la vigencia empezada más de 5 minutos antes
+    /// o después del <c>now()</c> de la transacción se rechaza en la base aunque el código lo intentara (hallazgo 2 de Codex, ronda 1, y hallazgo 4, ronda 2). «Al contratar» es el
     /// <c>now()</c> de la transacción con 5 minutos de margen en los dos sentidos, la ventana de
     /// <c>sesion_privilegiada_apertura</c> para el reloj de la aplicación. La política no comprueba el resto de valores
     /// (Pagador, tramo, modalidad), que ya restringen las restricciones CHECK de la tabla. Repite la condición de Tenant de

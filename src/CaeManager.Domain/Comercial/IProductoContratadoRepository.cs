@@ -24,16 +24,19 @@ public interface IProductoContratadoRepository
         ProductoContratado intento, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Finaliza el Producto Contratado de la línea Inbound vigente del Tenant activo, con fin de vigencia
-    /// <paramref name="vigenteHastaUtc"/>, y deja su registro de auditoría; escribe en el acto, así que el llamador lo
-    /// envuelve en una transacción si tiene que ir junto con otra escritura. El contexto no puede tener cambios
-    /// pendientes: si los tiene, no escribe nada y lanza <see cref="InvalidOperationException"/>. No pasa por
-    /// <see cref="ProductoContratado.Finalizar"/> porque el rol elevado no puede leer la fila entera: la coherencia entre
-    /// inicio y fin la impone el CHECK <c>CK_ProductosContratados_EstadoYVigencia</c>, y el resultado
+    /// Finaliza el Producto Contratado de la línea Inbound vigente del Tenant activo y deja su registro de auditoría. El
+    /// fin de vigencia es el <c>now()</c> de la transacción de la base, no el reloj de la aplicación: es el mismo instante
+    /// con el que la base comprueba el margen de las políticas y con el que el gate DN-7 compara el inicio de una
+    /// contratación, así que la corrección puede usarlo como inicio de la nueva sin que un desfase de relojes la deje
+    /// fuera del gate (hallazgo 1 de Codex, ronda 1). Lo devuelve en <see cref="FinalizacionInbound.VigenteHastaUtc"/>.
+    /// Escribe en el acto, así que el llamador lo envuelve en una transacción si tiene que ir junto con otra escritura. El
+    /// contexto no puede tener cambios pendientes: si los tiene, no escribe nada y lanza
+    /// <see cref="InvalidOperationException"/>. No pasa por <see cref="ProductoContratado.Finalizar"/> porque el rol
+    /// elevado no puede leer la fila entera: la coherencia entre inicio y fin la impone el CHECK
+    /// <c>CK_ProductosContratados_EstadoYVigencia</c>, y el resultado
     /// <see cref="ResultadoFinalizacionInbound.VigenciaAunNoIniciada"/> la traduce.
     /// </summary>
-    Task<FinalizacionInbound> FinalizarInboundVigenteAsync(
-        DateTime vigenteHastaUtc, CancellationToken cancellationToken = default);
+    Task<FinalizacionInbound> FinalizarInboundVigenteAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>Qué hizo <see cref="IProductoContratadoRepository.FinalizarInboundVigenteAsync"/>.</summary>
@@ -52,5 +55,8 @@ public enum ResultadoFinalizacionInbound
     VigenciaAunNoIniciada,
 }
 
-/// <summary>Resultado de la finalización y, si la hubo, el Producto Contratado finalizado.</summary>
-public readonly record struct FinalizacionInbound(ResultadoFinalizacionInbound Resultado, Guid? ProductoContratadoId);
+/// <summary>
+/// Resultado de la finalización y, si la hubo, el Producto Contratado finalizado y su fin de vigencia, en UTC.
+/// </summary>
+public readonly record struct FinalizacionInbound(
+    ResultadoFinalizacionInbound Resultado, Guid? ProductoContratadoId, DateTime? VigenteHastaUtc = null);

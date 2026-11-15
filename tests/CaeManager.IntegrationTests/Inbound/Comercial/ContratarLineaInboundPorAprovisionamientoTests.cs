@@ -7,6 +7,7 @@ using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Auditing;
@@ -36,7 +37,8 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial;
 ///
 /// <para>
 /// Lo que solo esta composición prueba: que el handler escribe como <c>cae_app_aprovisionamiento</c> con el único
-/// privilegio que la migración le concede (INSERT, sin SELECT), que el INSERT de EF no necesita leer, que el Tenant de la
+/// privilegio de escritura que la migración le concede para el alta (INSERT; de lectura, solo las columnas del WHERE de
+/// la baja), que el INSERT de EF no necesita leer, que el Tenant de la
 /// fila es el de la Sesión Privilegiada, y que el índice único parcial impone un Producto Contratado de la línea Inbound
 /// vigente por Tenant. Y la otra mitad, con SQL directo bajo cada rol: el runtime del propio Tenant no puede concederse la
 /// línea, y el rol elevado no escribe fuera del Tenant de su contexto firmado ni lee ni cambia lo que inserta.
@@ -257,6 +259,39 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         await using var lectura = CrearContextoPropietarioAuditado();
         (await lectura.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == _otro.Id))
             .AddOnSubidaAutomaticaActivo.Should().Be(addOnEsperado);
+        (await FilasComoPropietarioAsync()).Should().BeEmpty("el intento no se escribió");
+    }
+
+    [Fact]
+    public async Task Con_una_entidad_ajena_con_accion_de_auditoria_propia_marcada_no_la_consume()
+    {
+        // Issue #2254 (deuda de la ronda 3 de Codex en la #2252): el caso anterior usa un Tenant, que no marca acción
+        // propia. Aquí el cambio ajeno es una renovación de un Contrato de acceso, que marca «Renovado» para que
+        // AuditoriaInterceptor la registre así y no como «Modificado». Si el repositorio llegara a SaveChanges, el
+        // interceptor consumiría la marca aunque la base rechazara el intento, y al guardar después el acto ajeno quedaría
+        // como «Modificado». No se comprueba la acción persistida: haría falta sembrar el Centro y la Empresa contratista
+        // del contrato; basta con que la marca siga sin consumir, porque es lo único que el interceptor lee.
+        await using var contexto = CrearContextoPropietarioAuditado();
+        var contrato = ContratoAcceso.Crear(
+            clienteEmpresarialId: Guid.NewGuid(), centroId: Guid.NewGuid(), empresaContratistaId: Guid.NewGuid(),
+            fechaInicio: new DateOnly(2026, 1, 1), fechaFin: new DateOnly(2026, 12, 31), notas: null);
+        contexto.Attach(contrato);
+        contrato.Renovar(new DateOnly(2027, 12, 31), _actorPlataforma, DateTime.UtcNow);
+        contexto.ChangeTracker.DetectChanges();
+        contexto.Entry(contrato).State.Should().Be(EntityState.Modified, "control: el cambio ajeno está pendiente");
+
+        var repositorio = new ProductoContratadoRepository(contexto, new ActorFijo(_actorPlataforma));
+        var intento = ContratoInbound("cus_Intento");
+        repositorio.Agregar(intento);
+
+        var guardar = () => repositorio.GuardarDetectandoInboundVigenteDuplicadoAsync(intento);
+
+        await guardar.Should().ThrowAsync<InvalidOperationException>("el intento se guarda solo");
+        contexto.Entry(intento).State.Should().Be(EntityState.Detached);
+        contexto.Entry(contrato).State.Should().Be(EntityState.Modified, "la renovación sigue pendiente, sin escribir");
+        contexto.ChangeTracker.Entries<RegistroAuditoria>().Should().BeEmpty("el interceptor no corrió");
+        ((IAccionAuditoriaPropia)contrato).ConsumirAccionAuditoria().Should().Be(RegistroAuditoria.AccionRenovado,
+            "la marca de la renovación no se consumió: el acto ajeno se auditará como «Renovado»");
         (await FilasComoPropietarioAsync()).Should().BeEmpty("el intento no se escribió");
     }
 

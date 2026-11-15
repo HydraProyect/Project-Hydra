@@ -13,6 +13,12 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 /// WHERE de la baja y actualiza <c>Estado</c> y <c>VigenteHastaUtc</c> (D-C y opción B, 2026-11-15). Por eso nunca
 /// materializa una fila: el INSERT de EF no lleva RETURNING porque todas las columnas las pone el cliente, y la baja va con
 /// <c>ExecuteUpdateAsync</c> y deja a mano su registro de auditoría, que <c>AuditoriaInterceptor</c> no ve.
+/// <para>
+/// Por la misma razón la baja no renueva <c>Version</c>, que <c>ConcurrenciaOptimistaInterceptor</c> renovaría en un
+/// SaveChanges: el rol elevado no puede escribir esa columna. Hoy no hay otro escritor de la fila (solo este rol la
+/// actualiza, y solo de Vigente a Finalizado, que es final), así que el token no protege nada; si algún día otro flujo
+/// modifica un Producto Contratado con concurrencia optimista, la baja tendrá que renovarlo también.
+/// </para>
 /// </summary>
 public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorAuditoria actorAuditoria)
     : IProductoContratadoRepository
@@ -73,12 +79,8 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
         }
     }
 
-    public async Task<FinalizacionInbound> FinalizarInboundVigenteAsync(
-        DateTime vigenteHastaUtc, CancellationToken cancellationToken = default)
+    public async Task<FinalizacionInbound> FinalizarInboundVigenteAsync(CancellationToken cancellationToken = default)
     {
-        if (vigenteHastaUtc.Kind != DateTimeKind.Utc)
-            throw new ArgumentException("La fecha debe ir en UTC.", nameof(vigenteHastaUtc));
-
         // Mismo aislamiento que el guardado del alta: el registro de auditoría se guarda con SaveChanges bajo el rol
         // elevado, que no debe arrastrar escrituras de otro acto.
         if (dbContext.ChangeTracker.Entries().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
@@ -94,6 +96,13 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
             .SingleOrDefaultAsync(cancellationToken);
         if (id is not { } productoId)
             return new FinalizacionInbound(ResultadoFinalizacionInbound.SinInboundVigente, null);
+
+        // El fin es el now() de la transacción (el inicio de la transacción en PostgreSQL): el mismo que usan el WITH
+        // CHECK de las políticas y el gate DN-7. Dentro de la transacción del comando, la corrección inserta la nueva con
+        // ese mismo instante como inicio.
+        var vigenteHastaUtc = DateTime.SpecifyKind(
+            await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),
+            DateTimeKind.Utc);
 
         int filas;
         try
@@ -111,7 +120,7 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
         // Fin antes del inicio: la vigencia aún no había empezado. ExecuteUpdate no pasa por SaveChanges, así que la
         // PostgresException suele llegar sin envolver; se acepta también envuelta para no depender de la versión de EF.
         catch (Exception ex) when ((ex as PostgresException ?? ex.InnerException as PostgresException) is
-                                   { SqlState: PostgresErrorCodes.CheckViolation } pg
+        { SqlState: PostgresErrorCodes.CheckViolation } pg
                                    && pg.ConstraintName == ProductoContratadoConfiguration.RestriccionEstadoYVigencia)
         {
             return new FinalizacionInbound(ResultadoFinalizacionInbound.VigenciaAunNoIniciada, null);
@@ -142,6 +151,6 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
             viaAccesoId: actor.ViaAccesoId));
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new FinalizacionInbound(ResultadoFinalizacionInbound.Finalizada, productoId);
+        return new FinalizacionInbound(ResultadoFinalizacionInbound.Finalizada, productoId, vigenteHastaUtc);
     }
 }

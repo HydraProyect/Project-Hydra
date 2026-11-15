@@ -42,7 +42,8 @@ public class ComandosDeAprovisionamientoInventariadosTests
         "RegistrarEncargoAdministracionCommand",
         "RetirarEncargoAdministracionCommand",
         // Línea Inbound del Producto Contratado (B-04a, decisiones D-A y D-C, 2026-11-15): el Actor de Plataforma TALVEG la
-        // contrata con Aprovisionamiento sobre ese Tenant; el rol elevado solo inserta en ProductosContratados. El handler
+        // contrata con Aprovisionamiento sobre ese Tenant; el rol elevado inserta en ProductosContratados, lee las
+        // columnas del WHERE de la baja y actualiza solo Estado y VigenteHastaUtc (opción B del 2026-11-15). El handler
         // exige además la Sesión Privilegiada, porque sin ella el rol efectivo pasaría AutorizacionEscrituraBehavior.
         "ContratarLineaInboundCommand",
         // Baja y corrección de esa línea (opción B, 2026-11-15): bajo la misma sesión, el rol elevado solo pasa la fila

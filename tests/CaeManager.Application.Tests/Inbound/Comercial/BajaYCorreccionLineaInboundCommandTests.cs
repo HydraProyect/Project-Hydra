@@ -17,13 +17,14 @@ namespace CaeManager.Application.Tests.Inbound.Comercial;
 /// Opción B del 2026-11-15: las reglas de Application de <see cref="DarDeBajaLineaInboundCommand"/> y de
 /// <see cref="CorregirLineaInboundCommand"/>. Solo una Sesión Privilegiada de Aprovisionamiento sobre el Tenant activo,
 /// sin impersonación, da de baja o corrige; cualquier otra combinación se deniega sin tocar el repositorio. La corrección
-/// finaliza antes de contratar, en la misma transacción y con el mismo instante. Lo que añade la base (los privilegios por
+/// finaliza antes de contratar, en la misma transacción y con el instante que devuelve la finalización (el now() de la base). Lo que añade la base (los privilegios por
 /// columna, las políticas RESTRICTIVE, el índice único parcial y la transacción real) lo prueba
 /// <c>BajaYCorreccionLineaInboundPorAprovisionamientoTests</c> en integración.
 /// </summary>
 public class BajaYCorreccionLineaInboundCommandTests
 {
-    private static readonly DateTimeOffset Ahora = new(2026, 11, 30, 23, 59, 0, TimeSpan.Zero);
+    /// <summary>El now() de la transacción de la base, que devuelve la finalización.</summary>
+    private static readonly DateTime AhoraDeLaBase = new(2026, 11, 30, 23, 59, 0, DateTimeKind.Utc);
 
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly ProductosContratadosFalsos _productos = new();
@@ -37,10 +38,10 @@ public class BajaYCorreccionLineaInboundCommandTests
     private Task<Result<Guid>> EnviarAsync(string comando, SesionPrivilegiadaActiva? sesion, Guid? tenantActivo) =>
         comando == "baja"
             ? new DarDeBajaLineaInboundCommandHandler(
-                    new TenantActivo(tenantActivo), new SesionFija(sesion), _productos, _transaccion, new RelojFijo(Ahora))
+                    new TenantActivo(tenantActivo), new SesionFija(sesion), _productos, _transaccion)
                 .Handle(new DarDeBajaLineaInboundCommand(), CancellationToken.None)
             : new CorregirLineaInboundCommandHandler(
-                    new TenantActivo(tenantActivo), new SesionFija(sesion), _productos, _transaccion, new RelojFijo(Ahora))
+                    new TenantActivo(tenantActivo), new SesionFija(sesion), _productos, _transaccion)
                 .Handle(Correccion(), CancellationToken.None);
 
     private static Error NoAutorizado(string comando) =>
@@ -53,8 +54,7 @@ public class BajaYCorreccionLineaInboundCommandTests
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
         resultado.Valor.Should().Be(_productos.IdVigente);
-        _productos.Llamadas.Should().Equal($"Finalizar {Ahora.UtcDateTime:O}");
-        _productos.FinesPedidos.Single().Kind.Should().Be(DateTimeKind.Utc);
+        _productos.Llamadas.Should().Equal("Finalizar");
         _transaccion.Confirmadas.Should().Be(1, "la baja y su auditoría van en una transacción");
     }
 
@@ -65,7 +65,7 @@ public class BajaYCorreccionLineaInboundCommandTests
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
         _productos.Llamadas.Should().Equal(
-            [$"Finalizar {Ahora.UtcDateTime:O}", "Agregar", "Guardar"],
+            ["Finalizar", "Agregar", "Guardar"],
             "el índice único parcial solo admite la nueva cuando la sustituida ya no es vigente");
         var corregido = _productos.Agregados.Should().ContainSingle().Subject;
         corregido.Id.Should().Be(resultado.Valor);
@@ -74,8 +74,9 @@ public class BajaYCorreccionLineaInboundCommandTests
         corregido.Tramo.Should().Be(TramoTrabajadoresActivos.De11A40);
         corregido.Modalidad.Should().Be(ModalidadSuscripcionAlta.Mensual);
         corregido.Estado.Should().Be(EstadoProductoContratado.Vigente);
-        corregido.VigenteDesdeUtc.Should().Be(_productos.FinesPedidos.Single(),
-            "sin hueco ni solape: la corregida empieza cuando acaba la sustituida");
+        corregido.VigenteDesdeUtc.Should().Be(AhoraDeLaBase,
+            "sin hueco ni solape: la corregida empieza en el fin de la sustituida, el now() de la transacción de la base");
+        corregido.VigenteDesdeUtc.Kind.Should().Be(DateTimeKind.Utc);
         _transaccion.Ejecutadas.Should().Be(1, "las dos escrituras en una sola transacción");
         _transaccion.Confirmadas.Should().Be(1);
     }
@@ -96,8 +97,8 @@ public class BajaYCorreccionLineaInboundCommandTests
     {
         var datos = new TheoryData<string, CapacidadPrivilegio>();
         foreach (var comando in new[] { "baja", "correccion" })
-        foreach (var capacidad in Enum.GetValues<CapacidadPrivilegio>().Where(c => c != CapacidadPrivilegio.Aprovisionamiento))
-            datos.Add(comando, capacidad);
+            foreach (var capacidad in Enum.GetValues<CapacidadPrivilegio>().Where(c => c != CapacidadPrivilegio.Aprovisionamiento))
+                datos.Add(comando, capacidad);
         return datos;
     }
 
@@ -198,7 +199,7 @@ public class BajaYCorreccionLineaInboundCommandTests
     {
         var resultado = await new CorregirLineaInboundCommandHandler(
                 new TenantActivo(_tenant), new SesionFija(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant)),
-                _productos, _transaccion, new RelojFijo(Ahora))
+                _productos, _transaccion)
             .Handle(Correccion(pagador), CancellationToken.None);
 
         resultado.Error.Should().Be(ErroresCorregirLineaInbound.PagadorNoValido);
@@ -211,7 +212,7 @@ public class BajaYCorreccionLineaInboundCommandTests
     {
         var handler = new CorregirLineaInboundCommandHandler(
             new TenantActivo(_tenant), new SesionFija(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant)),
-            _productos, _transaccion, new RelojFijo(Ahora));
+            _productos, _transaccion);
         var tramo = new CorregirLineaInboundCommand("cus_X", (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Anual);
         var modalidad = new CorregirLineaInboundCommand("cus_X", TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99);
 
@@ -258,7 +259,6 @@ public class BajaYCorreccionLineaInboundCommandTests
     {
         public Guid IdVigente { get; } = Guid.NewGuid();
         public List<string> Llamadas { get; } = [];
-        public List<DateTime> FinesPedidos { get; } = [];
         public List<ProductoContratado> Agregados { get; } = [];
         public bool RechazarPorInboundVigenteDuplicado { get; set; }
         public FinalizacionInbound? Finalizacion { get; set; }
@@ -277,13 +277,11 @@ public class BajaYCorreccionLineaInboundCommandTests
             return Task.FromResult(!RechazarPorInboundVigenteDuplicado);
         }
 
-        public Task<FinalizacionInbound> FinalizarInboundVigenteAsync(
-            DateTime vigenteHastaUtc, CancellationToken cancellationToken = default)
+        public Task<FinalizacionInbound> FinalizarInboundVigenteAsync(CancellationToken cancellationToken = default)
         {
-            Llamadas.Add($"Finalizar {vigenteHastaUtc:O}");
-            FinesPedidos.Add(vigenteHastaUtc);
+            Llamadas.Add("Finalizar");
             return Task.FromResult(Finalizacion
-                                   ?? new FinalizacionInbound(ResultadoFinalizacionInbound.Finalizada, IdVigente));
+                                   ?? new FinalizacionInbound(ResultadoFinalizacionInbound.Finalizada, IdVigente, AhoraDeLaBase));
         }
     }
 }

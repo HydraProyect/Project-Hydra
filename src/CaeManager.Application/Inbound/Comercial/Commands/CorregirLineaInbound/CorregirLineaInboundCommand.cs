@@ -79,8 +79,7 @@ public class CorregirLineaInboundCommandHandler(
     ITenantActual tenantActual,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IProductoContratadoRepository productosContratados,
-    ITransaccionDeComando transaccion,
-    TimeProvider reloj)
+    ITransaccionDeComando transaccion)
     : IRequestHandler<CorregirLineaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CorregirLineaInboundCommand request, CancellationToken cancellationToken)
@@ -98,15 +97,22 @@ public class CorregirLineaInboundCommandHandler(
 
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
-            // Un solo instante para el fin de la sustituida y el inicio de la nueva: sin hueco ni solape de vigencia.
-            var ahora = reloj.GetUtcNow().UtcDateTime;
-
             // Primero la finalización: el índice único parcial solo admite la nueva cuando la sustituida ya no es vigente.
-            var finalizacion = await productosContratados.FinalizarInboundVigenteAsync(ahora, ct);
+            var finalizacion = await productosContratados.FinalizarInboundVigenteAsync(ct);
             if (finalizacion.Resultado == ResultadoFinalizacionInbound.SinInboundVigente)
                 return Result.Fallo<Guid>(ErroresCorregirLineaInbound.SinLineaVigente);
             if (finalizacion.Resultado == ResultadoFinalizacionInbound.VigenciaAunNoIniciada)
                 return Result.Fallo<Guid>(ErroresCorregirLineaInbound.VigenciaAunNoIniciada);
+
+            // Un solo instante para el fin de la sustituida y el inicio de la nueva, sin hueco ni solape de vigencia: el
+            // now() de esta transacción en la base, que devuelve la finalización. No el reloj de la aplicación: con él
+            // adelantado, la nueva empezaría después del now() con el que el gate DN-7 compara, y tras el COMMIT no habría
+            // línea Inbound que el gate viera vigente (hallazgo 1 de Codex, ronda 1). Ventana que queda: una transacción
+            // lectora que empezó antes que esta y lee después del COMMIT tiene un now() anterior al inicio de la nueva, así
+            // que su gate no ve ninguna de las dos. Falla cerrado (deniega el acceso de Tenant TCE, no lo abre) y dura lo
+            // que dure esa transacción lectora; la siguiente ya ve la nueva.
+            var ahora = finalizacion.VigenteHastaUtc
+                        ?? throw new InvalidOperationException("La finalización no devolvió su fin de vigencia.");
 
             var corregido = ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
