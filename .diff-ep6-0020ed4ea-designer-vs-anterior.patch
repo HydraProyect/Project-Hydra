@@ -1,0 +1,15 @@
+diff --git a/src/CaeManager.Migrations.PostgreSQL/Migrations/20261112120000_AltaDatosOrganizacionYCredencialContinuacion.Designer.cs b/src/CaeManager.Migrations.PostgreSQL/Migrations/20261112170000_LecturaInboundEmpresaPropiaUnica.Designer.cs
+index b13477662..d65e5d6e6 100644
+--- a/src/CaeManager.Migrations.PostgreSQL/Migrations/20261112120000_AltaDatosOrganizacionYCredencialContinuacion.Designer.cs
++++ b/src/CaeManager.Migrations.PostgreSQL/Migrations/20261112170000_LecturaInboundEmpresaPropiaUnica.Designer.cs
+@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+ namespace CaeManager.Migrations.PostgreSQL.Migrations
+ {
+     [DbContext(typeof(CaeManagerDbContext))]
+-    [Migration("20261112120000_AltaDatosOrganizacionYCredencialContinuacion")]
+-    partial class AltaDatosOrganizacionYCredencialContinuacion
++    [Migration("20261112170000_LecturaInboundEmpresaPropiaUnica")]
++    partial class LecturaInboundEmpresaPropiaUnica
+     {
+         /// <inheritdoc />
+         protected override void BuildTargetModel(ModelBuilder modelBuilder)

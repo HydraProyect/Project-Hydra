@@ -1,0 +1,6 @@
+docs(inbound): los comentarios de la autorización de lectura dicen la condición de Empresa propia única
+
+Revisión puente, BAJA-1: el resumen de AutorizacionLecturaDocumental, el de
+ConcederAutorizacionLecturaCommand y el de LecturaInboundBajoRuntimeTests
+seguían prometiendo los Documentos de la Empresa propia sin la condición de
+EP-6, opción (d).

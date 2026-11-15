@@ -1,0 +1,41 @@
+diff --git a/src/CaeManager.Application/AutorizacionesLectura/Commands/ConcederAutorizacionLectura/ConcederAutorizacionLecturaCommand.cs b/src/CaeManager.Application/AutorizacionesLectura/Commands/ConcederAutorizacionLectura/ConcederAutorizacionLecturaCommand.cs
+index 7aacc3455..e505b9691 100644
+--- a/src/CaeManager.Application/AutorizacionesLectura/Commands/ConcederAutorizacionLectura/ConcederAutorizacionLecturaCommand.cs
++++ b/src/CaeManager.Application/AutorizacionesLectura/Commands/ConcederAutorizacionLectura/ConcederAutorizacionLecturaCommand.cs
+@@ -9,7 +9,8 @@ namespace CaeManager.Application.AutorizacionesLectura.Commands.ConcederAutoriza
+ 
+ /// <summary>
+ /// El Tenant de la Empresa contratista autoriza al Tenant del Cliente empresarial a leer, para un contrato de acceso,
+-/// los Documentos de estos Trabajadores y, si se marca, los de su Empresa propia.
++/// los Documentos de estos Trabajadores y, si se marca, los de su Empresa propia. La lectura solo da estos últimos si
++/// el Tenant tiene una única Empresa propia no eliminada (<c>AutorizacionLecturaDocumental.IncluyeDocumentosEmpresa</c>).
+ /// </summary>
+ /// <param name="TenantDestinatarioId">El Tenant del Cliente empresarial. Cómo se conoce es la decisión DN-1, abierta: el comando lo recibe como parámetro y no hay pantalla.</param>
+ /// <param name="ContratoAccesoId">El contrato de acceso del Tenant destinatario; también por DN-1.</param>
+diff --git a/src/CaeManager.Domain/AutorizacionesLectura/AutorizacionLecturaDocumental.cs b/src/CaeManager.Domain/AutorizacionesLectura/AutorizacionLecturaDocumental.cs
+index 559c7b1a9..99fbabcbc 100644
+--- a/src/CaeManager.Domain/AutorizacionesLectura/AutorizacionLecturaDocumental.cs
++++ b/src/CaeManager.Domain/AutorizacionesLectura/AutorizacionLecturaDocumental.cs
+@@ -7,7 +7,8 @@ namespace CaeManager.Domain.AutorizacionesLectura;
+ /// Autorización expresa de lectura documental (Inbound M1, PR 2): el acto con el que el Tenant de la Empresa
+ /// contratista —el Tenant propietario de sus Documentos originales— deja que el Tenant del Cliente empresarial lea en
+ /// solo lectura, para un contrato de acceso concreto, los Documentos de los Trabajadores que asigna a ese contrato y,
+-/// si lo marca, los de su Empresa propia. Vive en el Tenant de la Empresa contratista, con <c>TenantId</c> estándar
++/// si lo marca, los de su Empresa propia (solo si tiene una única Empresa propia no eliminada: ver
++/// <see cref="IncluyeDocumentosEmpresa"/>). Vive en el Tenant de la Empresa contratista, con <c>TenantId</c> estándar
+ /// y RLS por Tenant: es él quien la concede y quien la revoca.
+ ///
+ /// <para>
+diff --git a/tests/CaeManager.IntegrationTests/AutorizacionesLectura/LecturaInboundBajoRuntimeTests.cs b/tests/CaeManager.IntegrationTests/AutorizacionesLectura/LecturaInboundBajoRuntimeTests.cs
+index 394227812..6663e5fda 100644
+--- a/tests/CaeManager.IntegrationTests/AutorizacionesLectura/LecturaInboundBajoRuntimeTests.cs
++++ b/tests/CaeManager.IntegrationTests/AutorizacionesLectura/LecturaInboundBajoRuntimeTests.cs
+@@ -32,7 +32,7 @@ namespace CaeManager.IntegrationTests.AutorizacionesLectura;
+ /// y de las autorizaciones); W, un destinatario que no es X; Z, otro Tenant de Cliente empresarial que vincula por su
+ /// cuenta un contrato suyo con Y. Lo que prueba la base: solo las dos mitades del apretón juntas dan lectura, y solo del
+ /// alcance autorizado (sin sustituidos, anonimizados ni eliminados, y sin los de Empresa si la autorización no los
+-/// incluye); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
++/// incluye o si Y no tiene exactamente una Empresa propia no eliminada); nunca un tipo de categoría especial de salud; el Tenant lector y el usuario salen del token, no de la GUC;
+ /// cada lectura deja su fila en Y, con el Tenant de origen del usuario, y el runtime no la escribe; el lector no llama
+ /// dentro de una transacción; y la vigencia del contrato y de la autorización en SQL es la de
+ /// <see cref="ContratoAcceso.VigenteEn"/> y <see cref="AutorizacionLecturaDocumental.VigenteEn"/>.

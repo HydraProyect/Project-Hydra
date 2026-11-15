@@ -1,0 +1,15 @@
+fix(inbound): Documentos de Empresa solo con una única Empresa propia del Tenant contratista
+
+EP-6, opción (d), 2026-11-12. app_inbound_documentos_del_alcance devolvía los
+Documentos de cualquier Empresa propia no eliminada del Tenant de la Empresa
+contratista. Con la ampliación de grupo ese Tenant puede tener varias, y el
+Tenant del Cliente empresarial leería los de una sociedad hermana que no es
+parte del ContratoAcceso. Ahora la rama de Empresa exige además que el Tenant
+contratista tenga exactamente una Empresa propia no eliminada; con dos o más
+no devuelve ninguna (falla cerrado). Los Documentos de Trabajador autorizados
+y el resto de filtros no cambian.
+
+Migración nueva con CREATE OR REPLACE y la misma firma, lenguaje, volatilidad
+y search_path; el Down restaura el cuerpo de AnadeEvidenciasInbound. Tests de
+integración: una sola Empresa propia, dos activas, dos con una eliminada, y
+Down/Up de la migración sobre el catálogo.
