@@ -1826,7 +1826,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_ProductosContratados_EstadoYVigencia", "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR (\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");
 
-                            t.HasCheckConstraint("CK_ProductosContratados_Linea", "\"Linea\" IN ('OutboundGestionPropia')");
+                            t.HasCheckConstraint("CK_ProductosContratados_Linea", "\"Linea\" IN ('OutboundGestionPropia', 'Inbound')");
 
                             t.HasCheckConstraint("CK_ProductosContratados_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
 
