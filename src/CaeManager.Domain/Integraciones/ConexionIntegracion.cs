@@ -422,7 +422,7 @@ public class ConexionIntegracion : EntidadBase
 
         var tope = ahoraUtc - AntiguedadMaximaRecuperacion;
         var desde = marca > tope ? marca : tope;
-        RecuperacionHuecoId = Guid.NewGuid();
+        RecuperacionHuecoId = IdentificadorEntidad.Nuevo();
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
         RecuperacionHuecoSiguienteEnlace = null;
