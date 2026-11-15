@@ -27,6 +27,11 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 /// tras leer el buzón completo desde ella e ingerir lo leído. Una marca anterior al tope de antigüedad de la recuperación
 /// no se limpia sola.
 /// </param>
+/// <param name="RecuperacionDetenidaEnUtc">
+/// <see cref="ConexionIntegracion.RecuperacionHuecoAtascadaEnUtc"/>: la recuperación del hueco no puede pasar de ese
+/// segundo (demasiados correos en el mismo segundo o una página parcial de Graph). La marca se queda y Conexiones avisa
+/// de la recuperación detenida.
+/// </param>
 /// <param name="HuecoSinRegistrar">
 /// <see cref="ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc"/> puesta: la desconexión no llegó a registrar la marca
 /// del hueco. Conexiones avisa «Hueco sin registrar» y ofrece Reparar (<c>RepararMarcaHuecoCommand</c>, que solo
@@ -37,7 +42,7 @@ public record ConexionIntegracionListaDto(
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
     bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false,
     DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false,
-    bool HuecoSinRegistrar = false);
+    bool HuecoSinRegistrar = false, DateTime? RecuperacionDetenidaEnUtc = null);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -84,7 +89,8 @@ public class ObtenerConexionesIntegracionQueryHandler(
                 conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.Estado == EstadoConexionIntegracion.Habilitada &&
                 (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion),
                 conexion.HuecoPendienteDesdeUtc, false, false,
-                conexion.MarcaHuecoPorRegistrarDesdeUtc != null);
+                conexion.MarcaHuecoPorRegistrarDesdeUtc != null,
+                conexion.HuecoPendienteDesdeUtc != null ? conexion.RecuperacionHuecoAtascadaEnUtc : null);
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)

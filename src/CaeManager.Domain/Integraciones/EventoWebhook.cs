@@ -62,9 +62,10 @@ public class EventoWebhook : EntidadConTenant
     }
 
     /// <summary>
-    /// Evento que la recuperación del hueco encola con una página del listado del buzón: la ingesta lo procesa como una
-    /// notificación (misma puerta, misma deduplicación por mensaje), y <paramref name="cubreDesdeUtc"/> queda para el
-    /// descarte.
+    /// Evento que la recuperación del hueco encola con un lote de Ids de una página del listado del buzón (a lo sumo
+    /// <c>RecuperacionHuecoCorreoService.MaximoMensajesPorEvento</c>; una página da uno o varios): la ingesta lo procesa
+    /// como una notificación (misma puerta, misma deduplicación por mensaje), y <paramref name="cubreDesdeUtc"/>, la
+    /// recepción más antigua del lote, queda para el descarte.
     /// </summary>
     public static EventoWebhook CrearRecuperacion(Guid conexionIntegracionId, string payloadCrudo, DateTime cubreDesdeUtc) =>
         new(conexionIntegracionId, payloadCrudo) { CubreDesdeUtc = cubreDesdeUtc };

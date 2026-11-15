@@ -145,7 +145,7 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Identifica cada recuperación: nueva al empezar una, null al anularla o completarla. Dos recuperaciones con la
     /// misma cobertura y el mismo cursor (una anulada y la que la sustituye) no se confunden: una pasada que aún esperaba a
-    /// Graph sobre la anulada no puede guardar su página, olvidar su continuación ni limpiar la marca sobre la nueva.
+    /// Graph sobre la anulada no puede guardar su página, registrar un atasco ni limpiar la marca sobre la nueva.
     /// </summary>
     public Guid? RecuperacionHuecoId { get; private set; }
 
@@ -162,6 +162,15 @@ public class ConexionIntegracion : EntidadBase
     /// seguir sin ingerir.
     /// </summary>
     public bool RecuperacionHuecoListadoCompleto { get; private set; }
+
+    /// <summary>
+    /// La recuperación en curso está detenida en este segundo: una página pedida desde el cursor, con más detrás, no
+    /// trajo ningún mensaje de un segundo posterior (≥ 1000 correos recibidos en ese mismo segundo, o una página parcial
+    /// de Graph cuyo máximo es el cursor). La página no se encola, el cursor no avanza y la marca se queda; Conexiones
+    /// avisa de la recuperación detenida. Se vuelve a pedir en cada pasada y se borra en cuanto una página avanza el
+    /// cursor, o al anular la recuperación. Null: no está detenida.
+    /// </summary>
+    public DateTime? RecuperacionHuecoAtascadaEnUtc { get; private set; }
 
     /// <summary>
     /// Tope de antigüedad de la recuperación: no se lee correo recibido antes de esto. Si la marca es más antigua, la
@@ -411,7 +420,8 @@ public class ConexionIntegracion : EntidadBase
         if (RecuperacionHuecoCursorUtc is { } cursor)
             return cursor;
 
-        var tope = ahoraUtc - AntiguedadMaximaRecuperacion;
+        // Al segundo, por debajo: la base guarda microsegundos y una cobertura con ticks no volvería igual al releerla.
+        var tope = SegundoDe(ahoraUtc - AntiguedadMaximaRecuperacion);
         var desde = marca > tope ? marca : tope;
         RecuperacionHuecoId = IdentificadorEntidad.Nuevo();
         RecuperacionHuecoCubreDesdeUtc = desde;
@@ -437,9 +447,35 @@ public class ConexionIntegracion : EntidadBase
         if (ultimoRecibidoUtc is { } ultimo && ultimo > cursor)
             RecuperacionHuecoCursorUtc = ultimo;
 
+        RecuperacionHuecoAtascadaEnUtc = null;
         if (!hayMas)
             RecuperacionHuecoListadoCompleto = true;
     }
+
+    /// <summary>
+    /// Una página con más detrás no sale del segundo del cursor: pedirla otra vez desde él devolvería la misma. No se
+    /// encola nada, el cursor no avanza y el listado no termina; queda registrado en qué segundo está detenida
+    /// (<see cref="RecuperacionHuecoAtascadaEnUtc"/>).
+    /// </summary>
+    /// <returns>true si hay algo que guardar (no estaba ya detenida en ese segundo).</returns>
+    public bool RegistrarAtascoRecuperacionHueco()
+    {
+        if (RecuperacionHuecoCursorUtc is not { } cursor)
+            throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
+        if (RecuperacionHuecoListadoCompleto)
+            throw new InvalidOperationException("El listado de la recuperación del hueco ya terminó.");
+
+        var segundo = SegundoDe(cursor);
+        if (RecuperacionHuecoAtascadaEnUtc == segundo)
+            return false;
+
+        RecuperacionHuecoAtascadaEnUtc = segundo;
+        return true;
+    }
+
+    /// <summary>El segundo de una fecha de recepción, con la precisión con la que se filtra el listado.</summary>
+    public static DateTime SegundoDe(DateTime fechaUtc) =>
+        new(fechaUtc.Ticks - fechaUtc.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
 
     /// <summary>
     /// Limpia la marca al terminar la recuperación. El llamador comprueba antes, releyendo de la base, que la conexión
@@ -472,6 +508,7 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
         RecuperacionHuecoListadoCompleto = false;
+        RecuperacionHuecoAtascadaEnUtc = null;
         return true;
     }
 

@@ -1071,6 +1071,11 @@ public class Microsoft365GraphClient(
                         System.Globalization.DateTimeStyles.AssumeUniversal, out var recibidoUtc))
                     return null;
 
+                // El cursor pasa a la recepción máxima de la página, lo que solo es seguro si la página es un prefijo del
+                // listado ordenado: una página fuera de orden es ilegible.
+                if (mensajes.Count > 0 && recibidoUtc.UtcDateTime < mensajes[^1].RecibidoUtc)
+                    return null;
+
                 mensajes.Add(new MensajeRecibidoGraphDto(id.GetString()!, recibidoUtc.UtcDateTime));
             }
 

@@ -140,8 +140,11 @@ public class RecuperacionHuecoCorreoServiceTests
             [escenario.Marca, escenario.Marca.AddMinutes(5), escenario.Marca.AddMinutes(10)],
             "la tercera petición desde el minuto 10 devuelve la misma página: no se repite en bucle");
         escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca.AddMinutes(10), "el cursor no puede pasar de ese segundo");
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10)));
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+        escenario.Eventos.Eventos.Should().HaveCount(1 + 1000 / RecuperacionHuecoCorreoService.MaximoMensajesPorEvento,
+            "la página que avanzó se encoló; la atascada no se encola");
 
         // Pasadas siguientes: igual, aunque todo lo encolado se haya ingerido. La marca no se limpia nunca así.
         escenario.IngerirTodo();
@@ -154,6 +157,65 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
+    public async Task Exactamente_mil_del_mismo_segundo_y_uno_despues_atascan_sin_encolar_nada_en_dos_pasadas_seguidas()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var mismoSegundo = Enumerable.Range(0, 1000).Select(i => escenario.Mensaje($"s{i}", 10)).ToArray();
+        // Primera página: los 1000 del segundo T, con el de T+1 detrás. Avanza el cursor a T y se encola.
+        escenario.Pagina(hayMas: true, mismoSegundo);
+        // Desde T, Graph devuelve otra vez los mismos 1000 con más detrás.
+        escenario.Pagina(hayMas: true, mismoSegundo);
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+        var encoladosTrasLaPrimera = escenario.Eventos.Eventos.Count;
+        encoladosTrasLaPrimera.Should().Be(1000 / RecuperacionHuecoCorreoService.MaximoMensajesPorEvento);
+        var guardados = escenario.UnitOfWork.VecesGuardado;
+
+        escenario.Pagina(hayMas: true, mismoSegundo);
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+        escenario.Pagina(hayMas: true, mismoSegundo);
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+
+        escenario.Eventos.Eventos.Should().HaveCount(encoladosTrasLaPrimera, "dos pasadas atascadas seguidas encolan 0 eventos nuevos");
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10)));
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca, "la marca nunca se limpia atascada");
+        escenario.UnitOfWork.VecesGuardado.Should().Be(guardados + 2,
+            "cada pasada guarda solo su inicio; la detención ya estaba registrada en ese segundo");
+    }
+
+    [Fact]
+    public async Task Una_pagina_parcial_de_Graph_cuyo_maximo_es_el_cursor_atasca_sin_encolar()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(hayMas: true, escenario.Mensaje("a", 10));
+        // Página parcial: dos mensajes del segundo del cursor y nextLink, sin nada posterior.
+        escenario.Pagina(hayMas: true, escenario.Mensaje("a", 10), escenario.Mensaje("b", 10));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+
+        escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal(["recuperacion:a"], "b, de la página atascada, no se encola");
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca.AddMinutes(10));
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Una_recuperacion_detenida_sigue_en_cuanto_una_pagina_avanza_y_borra_la_detencion()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(hayMas: true, escenario.Mensaje("a", 10));
+        escenario.Pagina(hayMas: true, escenario.Mensaje("a", 10));
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+
+        // Graph ya no da una página parcial: lo del segundo del cursor y lo posterior, sin más.
+        escenario.Pagina(hayMas: false, escenario.Mensaje("a", 10), escenario.Mensaje("b", 10), escenario.Mensaje("c", 11));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull();
+        escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal("recuperacion:a", "recuperacion:a,b,c");
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Una_pagina_vacia_con_mas_detras_atasca_en_vez_de_completar()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
@@ -163,7 +225,9 @@ public class RecuperacionHuecoCorreoServiceTests
 
         escenario.Graph.ListadosRecibidosPedidos.Should().ContainSingle();
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(ConexionIntegracion.SegundoDe(escenario.Marca));
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+        escenario.Eventos.Eventos.Should().BeEmpty();
     }
 
     [Fact]

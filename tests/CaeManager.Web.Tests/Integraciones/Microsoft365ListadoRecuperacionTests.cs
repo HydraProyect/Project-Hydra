@@ -42,6 +42,7 @@ public class Microsoft365ListadoRecuperacionTests
     [InlineData("{\"value\":[{\"id\":\"m1\",\"receivedDateTime\":\"no es fecha\"}]}")]
     [InlineData("{\"value\":[],\"@odata.nextLink\":5}")]
     [InlineData("{\"value\":[],\"@odata.nextLink\":\"\"}")]
+    [InlineData("{\"value\":[{\"id\":\"m2\",\"receivedDateTime\":\"2026-11-15T10:00:01Z\"},{\"id\":\"m1\",\"receivedDateTime\":\"2026-11-15T10:00:00Z\"}]}")]
     [InlineData("no es JSON")]
     [InlineData("")]
     public void Un_cuerpo_ilegible_no_es_una_pagina(string cuerpo) =>

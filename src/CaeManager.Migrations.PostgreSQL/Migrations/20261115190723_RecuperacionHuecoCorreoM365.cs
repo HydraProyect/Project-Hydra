@@ -18,6 +18,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 nullable: true);
 
             migrationBuilder.AddColumn<DateTime>(
+                name: "RecuperacionHuecoAtascadaEnUtc",
+                table: "ConexionesIntegracion",
+                type: "timestamp with time zone",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
                 name: "RecuperacionHuecoCubreDesdeUtc",
                 table: "ConexionesIntegracion",
                 type: "timestamp with time zone",
@@ -49,7 +55,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // la entidad bajo cae_app_soporte daría 42501. Son fechas, un identificador de generación y un indicador. No cambia
             // políticas RLS ni roles.
             migrationBuilder.Sql("""
-                GRANT SELECT ("RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
+                GRANT SELECT ("RecuperacionHuecoAtascadaEnUtc", "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
                               "RecuperacionHuecoListadoCompleto")
                     ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 GRANT SELECT ("CubreDesdeUtc") ON TABLE public."EventosWebhook" TO cae_app_soporte;
@@ -62,6 +68,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.DropColumn(
                 name: "CubreDesdeUtc",
                 table: "EventosWebhook");
+
+            migrationBuilder.DropColumn(
+                name: "RecuperacionHuecoAtascadaEnUtc",
+                table: "ConexionesIntegracion");
 
             migrationBuilder.DropColumn(
                 name: "RecuperacionHuecoCubreDesdeUtc",

@@ -85,6 +85,39 @@ public class ConexionIntegracionRecuperacionHuecoTests
     }
 
     [Fact]
+    public void Un_atasco_registra_el_segundo_del_cursor_una_vez_y_avanzar_o_anular_lo_borra()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1).AddTicks(1234567), hayMas: true);
+
+        conexion.RegistrarAtascoRecuperacionHueco().Should().BeTrue();
+        conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(Ahora.AddHours(-1), "el segundo, sin la fracción");
+        conexion.RegistrarAtascoRecuperacionHueco().Should().BeFalse("ya estaba detenida en ese segundo: nada que guardar");
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-1).AddTicks(1234567), "el atasco no mueve el cursor");
+        conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+
+        conexion.AvanzarRecuperacionHueco(Ahora.AddMinutes(-30), hayMas: true);
+        conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull("una página que avanza la levanta");
+
+        conexion.RegistrarAtascoRecuperacionHueco();
+        conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2));
+        conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull("anular la recuperación la levanta");
+        var sinRecuperacion = () => conexion.RegistrarAtascoRecuperacionHueco();
+        sinRecuperacion.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void El_tope_de_antiguedad_se_trunca_al_segundo()
+    {
+        var conexion = ConMarca(Ahora.AddDays(-10));
+        var ahoraConFraccion = Ahora.AddTicks(9_876_543);
+
+        conexion.IniciarRecuperacionHueco(ahoraConFraccion).Should().Be(Ahora - ConexionIntegracion.AntiguedadMaximaRecuperacion,
+            "la base guarda microsegundos: una cobertura con ticks no volvería igual al releerla");
+    }
+
+    [Fact]
     public void Cada_recuperacion_tiene_su_generacion()
     {
         var conexion = ConMarca(Ahora.AddHours(-3));

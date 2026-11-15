@@ -20,8 +20,9 @@ public enum ResultadoRecuperacionHueco
     Parcial,
 
     /// <summary>
-    /// Una página entera, con más detrás, es del segundo del cursor: pedirla otra vez desde él devolvería la misma. El
-    /// cursor no avanza, el listado no termina y la marca se queda (falla cerrado); se avisa en el registro.
+    /// Una página con más detrás no sale del segundo del cursor: pedirla otra vez desde él devolvería la misma. No se
+    /// encola, el cursor no avanza, el listado no termina y la marca se queda (falla cerrado); la fila guarda el segundo
+    /// (<see cref="ConexionIntegracion.RecuperacionHuecoAtascadaEnUtc"/>), Conexiones lo avisa y se registra.
     /// </summary>
     Atascada,
 
@@ -57,9 +58,9 @@ public enum ResultadoRecuperacionHueco
 /// salta uno sin leer. Su presencia solo dice que hay más; el listado queda completo con una página sin ella. Un 200
 /// ilegible es un fallo (lo decide el adaptador), y la marca y el cursor se quedan.</item>
 /// <item><b>Empates.</b> Cada página repite los mensajes del segundo del cursor: dentro de la pasada se descartan por Id
-/// antes de encolar, y entre pasadas los deduplica la ingesta por <c>MensajeExternoId</c>. Si una página entera, con más
-/// detrás, es de ese mismo segundo, el cursor no puede avanzar: la recuperación se queda
-/// <see cref="ResultadoRecuperacionHueco.Atascada"/> y la marca no se limpia.</item>
+/// antes de encolar, y entre pasadas los deduplica la ingesta por <c>MensajeExternoId</c>. Si una página con más detrás
+/// no sale de ese mismo segundo, el cursor no puede avanzar: la página no se encola, la recuperación se queda
+/// <see cref="ResultadoRecuperacionHueco.Atascada"/> en ese segundo y la marca no se limpia.</item>
 /// <item><b>Una página, un guardado.</b> Lo nuevo de cada página se encola en eventos de recuperación
 /// (<see cref="EventoWebhook.CrearRecuperacion"/>, a lo sumo <see cref="MaximoMensajesPorEvento"/> Ids cada uno) en el
 /// MISMO guardado que avanza el cursor: o quedan los dos o ninguno.</item>
@@ -245,8 +246,25 @@ public class RecuperacionHuecoCorreoService(
             }
 
             var leida = respuesta.Valor;
-            var nuevos = leida.Mensajes.Where(m => !encolados.Contains(m.MensajeExternoId)).ToList();
             var ultimoRecibidoUtc = leida.Mensajes.Count > 0 ? leida.Mensajes.Max(m => m.RecibidoUtc) : (DateTime?)null;
+
+            // shortcut: límite declarado del listado sin continuación posicional (issue #2124, opción (a) del cursor
+            // compuesto pendiente en una issue propia). Si una página con más detrás no trae ningún mensaje de un segundo
+            // posterior al del cursor (≥ 1000 correos recibidos en ese mismo segundo, o una página parcial de Graph cuyo
+            // máximo es el cursor), pedirla otra vez desde él devolvería la misma. Se detecta ANTES de encolar: la página no
+            // se guarda (ni se reencola en las pasadas siguientes), el cursor no avanza, el listado no termina y la marca
+            // se queda; la fila guarda el segundo de la detención, que Conexiones avisa, y se registra en cada pasada.
+            // Falla cerrado: avisa de más, nunca de menos.
+            if (leida.HayMas && (ultimoRecibidoUtc is not { } ultimo
+                || ConexionIntegracion.SegundoDe(ultimo) <= ConexionIntegracion.SegundoDe(desdeUtc)))
+            {
+                logger.LogWarning(
+                    "La recuperación del hueco de {ConexionId} está detenida en {Segundo}: una página con más detrás no sale de ese segundo. No se encola, el cursor no avanza y la marca se queda.",
+                    conexionId, ConexionIntegracion.SegundoDe(desdeUtc));
+                return await RegistrarAtascoAsync(conexionId, recuperacion, cancellationToken);
+            }
+
+            var nuevos = leida.Mensajes.Where(m => !encolados.Contains(m.MensajeExternoId)).ToList();
             var guardada = await GuardarPaginaAsync(conexionId, recuperacion, nuevos, ultimoRecibidoUtc, leida.HayMas, cancellationToken);
             if (guardada.Resultado is { } corte)
                 return new Listado(corte);
@@ -257,18 +275,6 @@ public class RecuperacionHuecoCorreoService(
 
             if (!leida.HayMas)
                 return new Listado(null, recuperacion);
-
-            // shortcut: el listado sin continuación posicional no puede pasar de un segundo con más mensajes de los que
-            // caben en una página (TamanoPaginaRecuperacion, 1000 en el adaptador). Si una página entera, con más detrás,
-            // es del segundo del cursor, pedirla otra vez desde él devuelve la misma: el cursor no avanza, el listado no
-            // termina y la marca se queda (falla cerrado, se avisa de más), en esta pasada y en las siguientes.
-            if (recuperacion.CursorUtc <= desdeUtc)
-            {
-                logger.LogWarning(
-                    "La recuperación del hueco de {ConexionId} está atascada: una página entera es del segundo {Cursor}. El cursor no avanza y la marca se queda.",
-                    conexionId, desdeUtc);
-                return new Listado(ResultadoRecuperacionHueco.Atascada);
-            }
 
             if (mensajes >= MaximoMensajesPorPasada || pagina >= MaximoPaginasPorPasada)
             {
@@ -307,6 +313,30 @@ public class RecuperacionHuecoCorreoService(
             conexion.AvanzarRecuperacionHueco(ultimoRecibidoUtc, hayMas);
             await unitOfWork.SaveChangesAsync(CancellationToken.None);
             listado = new Listado(null, EstadoRecuperacion.De(conexion));
+        }, cancellationToken);
+
+        return ejecutado ? listado! : new Listado(ResultadoRecuperacionHueco.Ocupada);
+    }
+
+    /// <summary>
+    /// Bajo el cerrojo: guarda el segundo en que la recuperación está detenida, sin encolar nada ni mover el cursor. Si la
+    /// fila ya no tiene la recuperación que se estaba siguiendo, no se guarda nada.
+    /// </summary>
+    private async Task<Listado> RegistrarAtascoAsync(Guid conexionId, EstadoRecuperacion esperada, CancellationToken cancellationToken)
+    {
+        Listado? listado = null;
+        var ejecutado = await cerrojo.IntentarEjecutarAsync(conexionId, async ct =>
+        {
+            var conexion = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, ct);
+            if (conexion is null || !esperada.Coincide(conexion))
+            {
+                listado = new Listado(ResultadoRecuperacionHueco.Anulada);
+                return;
+            }
+
+            if (conexion.RegistrarAtascoRecuperacionHueco())
+                await unitOfWork.SaveChangesAsync(CancellationToken.None);
+            listado = new Listado(ResultadoRecuperacionHueco.Atascada);
         }, cancellationToken);
 
         return ejecutado ? listado! : new Listado(ResultadoRecuperacionHueco.Ocupada);
