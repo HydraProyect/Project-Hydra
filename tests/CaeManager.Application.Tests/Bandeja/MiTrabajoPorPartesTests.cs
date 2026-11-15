@@ -131,6 +131,8 @@ public class MiTrabajoPorPartesTests
 
         mediator.ConsultasConLaPuertaLibre.Should().Be(0, "el flujo no pasa por el pipeline: la serialización la pone el propio handler");
         mediator.ConsultasConLaPuertaTomada.Should().BeGreaterThan(0, "control positivo: el instrumento sí observó consultas");
+        mediator.ConsultasConLaPuertaTomada.Should().Be(
+            mediator.TenantsConsultados.Count, "el sondeo de cada Tenant quedó esperando en la puerta que tenía el handler");
     }
 
     [Fact]
@@ -175,6 +177,9 @@ public class MiTrabajoPorPartesTests
         private int _enVuelo;
         private int _maximo;
 
+        // El contexto de ejecución de quien crea el mediador (el test), antes de que el handler tome la puerta.
+        private ExecutionContext? FlujoFueraDeLaPuerta { get; } = ExecutionContext.Capture();
+
         public PuertaAccesoDatos? Puerta { get; init; }
         public int MaximoDeTenantsEnVuelo => _maximo;
         public List<Guid> TenantsConsultados { get; } = [];
@@ -203,18 +208,26 @@ public class MiTrabajoPorPartesTests
                 _maximo = Math.Max(_maximo, Interlocked.Increment(ref _enVuelo));
                 if (Puerta is not null)
                 {
-                    // Sondeo desde OTRO flujo (sin heredar la marca de reentrada): si la puerta está tomada, no entra
-                    // y el sondeo vence por tiempo.
-                    using var sondeo = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-                    Task prueba;
-                    using (ExecutionContext.SuppressFlow())
-                        prueba = Task.Run(() => Puerta.EjecutarAsync(() => Task.CompletedTask, sondeo.Token));
+                    // Sondeo desde OTRO flujo (con el contexto del test, sin la marca de reentrada de la puerta). Corre en
+                    // este mismo hilo y vuelve en cuanto llega a su primera espera: si la puerta está libre, entra y la
+                    // operación termina sin esperar; si está tomada, queda esperando en la puerta. Así el veredicto no
+                    // depende de que el planificador conceda un hilo antes de un tope (#2250): con Task.Run y un tope de
+                    // 100 ms, un grupo de hilos saturado hacía vencer el sondeo antes de llegar a la puerta y la puerta
+                    // libre se contaba como tomada.
+                    using var sondeo = new CancellationTokenSource();
+                    Task prueba = Task.CompletedTask;
+                    ExecutionContext.Run(
+                        FlujoFueraDeLaPuerta ?? throw new InvalidOperationException("El flujo del contexto de ejecución está suprimido."),
+                        _ => prueba = Puerta.EjecutarAsync(() => Task.CompletedTask, sondeo.Token),
+                        null);
+                    var esperandoEnLaPuerta = !prueba.IsCompleted;
+                    sondeo.Cancel();
                     try
                     {
                         await prueba;
                         ConsultasConLaPuertaLibre++;
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException) when (esperandoEnLaPuerta)
                     {
                         ConsultasConLaPuertaTomada++;
                     }
