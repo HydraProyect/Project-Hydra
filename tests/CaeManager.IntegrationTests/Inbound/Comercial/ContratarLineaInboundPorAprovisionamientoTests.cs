@@ -114,7 +114,9 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         var resultado = await EnviarAsync(_sesionDeLectura, rol: null,
             new ContratarLineaInboundCommand("cus_PagadorTce", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
 
-        resultado.EsFallido.Should().BeTrue("la capacidad de la sesión no es Aprovisionamiento");
+        // Lo deniega AutorizacionEscrituraBehavior antes del handler: SoporteLectura no tiene camino de escritura.
+        resultado.Error.Codigo.Should().Be("Autorizacion.SesionPrivilegiadaSoloLectura",
+            "la capacidad de la sesión no es Aprovisionamiento");
         (await FilasComoPropietarioAsync()).Should().BeEmpty();
     }
 

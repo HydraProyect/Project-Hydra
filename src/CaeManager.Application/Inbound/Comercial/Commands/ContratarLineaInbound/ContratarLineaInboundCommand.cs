@@ -38,6 +38,8 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 ///
 /// <para>
 /// Fuera de alcance (D-D): el Administrador del Tenant y la Asignación de Operación Inbound, que van a B-04b.
+/// Tampoco hay todavía vía para corregir o dar de baja lo contratado: el rol elevado solo inserta, y un Pagador o un
+/// tramo mal introducidos no se arreglan desde la aplicación hasta que se decida esa vía.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Comercial")]
@@ -91,7 +93,8 @@ public class ContratarLineaInboundCommandHandler(
     public async Task<Result<Guid>> Handle(ContratarLineaInboundCommand request, CancellationToken cancellationToken)
     {
         // La autoridad va antes que cualquier lectura: quien no puede no debe poder distinguir, por el mensaje de error,
-        // qué Tenants existen o cuáles tienen ya la línea.
+        // qué Tenants existen o cuáles tienen ya la línea. ValidationBehavior corre antes que el handler, así que un
+        // Administrador sin Sesión Privilegiada puede recibir antes el fallo de formato del Pagador; no revela datos.
         if (tenantActual.TenantId is not { } tenantId
             || await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not { } sesion
             || sesion.Capacidad != CapacidadPrivilegio.Aprovisionamiento
