@@ -72,6 +72,22 @@ namespace CaeManager.Architecture.Tests
         }
 
         /// <summary>
+        /// La carpeta de área de una petición: como <see cref="Carpeta"/>, pero saltando el segmento de módulo (Inbound,
+        /// Outbound, Nucleo; ADR-013 § 4.7). Tras M1, <c>CaeManager.Application.Inbound.ContratosAcceso.X</c> está en la
+        /// carpeta de área <c>ContratosAcceso</c>; sirve para seguir exigiendo que la marca coincida con su carpeta en las
+        /// peticiones movidas. <see cref="Carpeta"/> se queda como la regla anterior, para los controles de sensibilidad.
+        /// </summary>
+        private static string? CarpetaDeArea(Type t)
+        {
+            const string raiz = "CaeManager.Application.";
+            if (t.Namespace is not { } espacio || !espacio.StartsWith(raiz, StringComparison.Ordinal))
+                return null;
+
+            var segmentos = espacio[raiz.Length..].Split('.');
+            return segmentos is ["Inbound" or "Outbound" or "Nucleo", var area, ..] ? area : segmentos[0];
+        }
+
+        /// <summary>
         /// El conjunto de peticiones que <see cref="ActosExcluidosDelEncargo.Excluye"/> deja fuera del encargo no pleno,
         /// congelado del resultado de <c>main</c> en 05e5e1a0d (antes de M0c). Va por nombre sin espacio de nombres para
         /// que sobreviva a M1: mover una petición no debe tocar esta lista. <c>ObtenerAuditoriaQuery</c> entra
@@ -287,7 +303,7 @@ namespace CaeManager.Architecture.Tests
                 "control positivo: ContratosAcceso, AutorizacionesLectura y CatalogoBase tienen peticiones Inbound");
 
             inbound.Should().OnlyContain(p => Marca(p) != null,
-                "una petición Inbound declara su área en el tipo: M1 la moverá a CaeManager.Application.Inbound.*");
+                "una petición Inbound declara su área en el tipo; M1 la movió a CaeManager.Application.Inbound.*");
             inbound.Where(ExcluyeSinInicializar).Select(NombreCorto).Should().BeEquivalentTo(
                 inbound.Select(NombreCorto).Intersect(ExcluidasCongeladas),
                 "la exclusión de cada petición Inbound es la congelada");
@@ -299,9 +315,10 @@ namespace CaeManager.Architecture.Tests
         /// <summary>
         /// Llevan la marca todas las peticiones (decisión A, ronda 3); aquí se fija además, como piso, que no falte en las de
         /// un área excluida entera (lo que más cuesta abrir por accidente) ni en los
-        /// módulos Inbound y Facturación (lo que ADR-013 prevé mover). Mientras una petición no se haya movido, su marca
-        /// coincide con su carpeta; cuando el espacio de nombres deje de ser un área (por ejemplo «Inbound»), manda la
-        /// marca. Si una petición marcada acaba en la carpeta de otra área clasificada, este test se pone en rojo: es una
+        /// módulos Inbound y Facturación (lo que ADR-013 prevé mover). La marca coincide con su carpeta de área
+        /// (<see cref="CarpetaDeArea"/>, que salta el segmento de módulo: tras M1, <c>Inbound.ContratosAcceso</c> es la
+        /// carpeta <c>ContratosAcceso</c>); cuando el espacio de nombres no da un área clasificada, manda la marca. Si una
+        /// petición marcada acaba en la carpeta de otra área clasificada, este test se pone en rojo: es una
         /// reclasificación y se decide, no se hereda de la carpeta.
         /// </summary>
         [Fact]
@@ -309,7 +326,7 @@ namespace CaeManager.Architecture.Tests
         {
             var registro = RegistroDeModulos.Versionado();
             var obligadas = Peticiones
-                .Where(p => Carpeta(p) is { } a && ActosExcluidosDelEncargo.AreasExcluidas.Contains(a)
+                .Where(p => CarpetaDeArea(p) is { } a && ActosExcluidosDelEncargo.AreasExcluidas.Contains(a)
                             || registro.Clasificar(p)?.Modulo is Modulo.Inbound or Modulo.Facturacion)
                 .ToList();
             obligadas.Should().HaveCountGreaterThan(60, "control positivo: siete áreas excluidas y los módulos Inbound y Facturación");
@@ -321,10 +338,14 @@ namespace CaeManager.Architecture.Tests
             marcadas.Should().OnlyContain(p => ActosExcluidosDelEncargo.AreasExcluidas.Contains(Marca(p)!)
                                                || ActosExcluidosDelEncargo.AreasPermitidas.Contains(Marca(p)!),
                 "la marca nombra un área clasificada; una que no lo está deja la petición sin área y excluida");
-            marcadas
-                .Where(p => Carpeta(p) is { } a
+            var enCarpetaDeArea = marcadas
+                .Where(p => CarpetaDeArea(p) is { } a
                             && (ActosExcluidosDelEncargo.AreasExcluidas.Contains(a) || ActosExcluidosDelEncargo.AreasPermitidas.Contains(a)))
-                .Where(p => Carpeta(p) != Marca(p))
+                .ToList();
+            enCarpetaDeArea.Should().Contain(p => registro.Clasificar(p)?.Modulo == Modulo.Inbound,
+                "control positivo: las peticiones Inbound movidas siguen en una carpeta de área clasificada");
+            enCarpetaDeArea
+                .Where(p => CarpetaDeArea(p) != Marca(p))
                 .Select(p => p.FullName).Should().BeEmpty(
                     "una petición en la carpeta de un área clasificada lleva esa misma área en la marca");
             marcadas.Should().OnlyContain(p => ActosExcluidosDelEncargo.AreaDe(p) == Marca(p), "la marca manda sobre la carpeta");
@@ -346,6 +367,9 @@ namespace CaeManager.Architecture.Tests
             // que no está excluida.
             Carpeta(excluidaDespues).Should().Be("Inbound");
             ActosExcluidosDelEncargo.AreasExcluidas.Should().NotContain("Inbound");
+            // La carpeta de área salta el módulo: la movida sigue en la carpeta de su marca.
+            CarpetaDeArea(excluidaDespues).Should().Be("AutorizacionesLectura");
+            CarpetaDeArea(excluidaAntes).Should().Be("AutorizacionesLectura");
 
             ActosExcluidosDelEncargo.AreaDe(excluidaAntes).Should().Be("AutorizacionesLectura");
             ActosExcluidosDelEncargo.AreaDe(excluidaDespues).Should().Be("AutorizacionesLectura");
