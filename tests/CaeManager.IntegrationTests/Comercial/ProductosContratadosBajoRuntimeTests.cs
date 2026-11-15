@@ -142,7 +142,8 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'cus-X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'cus_ñ'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "E'cus_X\\n'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
-    [InlineData("CK_ProductosContratados_Linea", "'Vigente'", "NULL", "'cus_X'", "'Inbound'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_Linea", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionExterna'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_Linea", "'Vigente'", "NULL", "'cus_X'", "'inbound'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Tramo", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De301'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Modalidad", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Trimestral'")]
     public async Task La_base_rechaza_filas_incoherentes_aunque_las_escriba_quien_evita_la_RLS(
@@ -187,6 +188,22 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
         error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         error.ConstraintName.Should().Be("CK_ProductosContratados_Estado",
             "el estado de cobro no entra aquí: no hay «Suspendido», que es de Tenant.EstadoComercial");
+    }
+
+    [Fact]
+    public async Task La_linea_Inbound_la_admite_el_CHECK_y_se_lee_como_Inbound_en_el_Tenant_beneficiario()
+    {
+        await using (var siembra = CrearContexto(_tenantB, _cadenaConexion))
+        {
+            siembra.ProductosContratados.Add(ProductoContratado.Contratar(LineaProductoContratado.Inbound, "cus_PagadorDeB",
+                TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, Desde, ahoraUtc: Desde));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(_tenantB);
+        var leido = await lectura.ProductosContratados.SingleAsync();
+        leido.Linea.Should().Be(LineaProductoContratado.Inbound, "el nombre del valor pasa el CHECK ampliado y vuelve al enum");
+        leido.TenantId.Should().Be(_tenantB, "el Tenant beneficiario es el del contexto al guardar, no el Pagador TALVEG");
     }
 
     [Fact]

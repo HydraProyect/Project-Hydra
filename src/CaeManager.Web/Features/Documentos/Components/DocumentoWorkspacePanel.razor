@@ -259,7 +259,7 @@ else
     /// D-23 (artboard Vista-rapida): «Plataformas CAE · N» con cada acreditación del Documento: la Plataforma CAE con su logotipo,
     /// el nombre del tipo, su contexto (Cliente empresarial · Centro), el estado en femenino, el motivo si lo hay y el menú
     /// «Acreditación ▾». El nombre que cada Plataforma CAE da al tipo (B2) todavía no existe: se pinta el del tipo, que es lo que
-    /// el artboard dibuja cuando coinciden. El motivo y la dirección del portal llegan ya cortados por el servidor
+    /// el artboard dibuja cuando coinciden. El motivo (sin él para Consulta y el Usuario de Cliente) y la dirección del portal llegan ya cortados por el servidor
     /// (ObtenerAcreditacionesDelDocumentoQuery); el menú es de quien escribe (SoloConEscritura dentro de MenuAcreditacion).
     /// </summary>
     private RenderFragment SeccionPlataformasCae => @<text>
@@ -309,9 +309,10 @@ else
                             <Badge Tono="EstadoAcreditacionUi.TonoEnPlataforma(acreditacion.Estado, acreditacion.SinVigencia)" Tamano="TamanoBadge.Pequeno">@TextoEnPlataforma(acreditacion)</Badge>
                             @if (acreditacion.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(acreditacion.UltimoMotivoRechazo))
                             {
-                                @* El rol Cliente ve el estado, no el motivo (opción B, 2026-11-12): el servidor ya no se lo manda y la
-                                   pantalla tampoco lo pinta aunque llegara, como en el listado. *@
-                                <AuthorizeView Roles="@ReglasAccionesAcreditacion.RolesQueAbrenPortal" Context="autorizacionMotivo">
+                                @* El rol Cliente ve el estado, no el motivo (opción B, 2026-11-12), y Consulta tampoco recibe el motivo
+                                   del historial de rechazos (2026-11-14): lo leen los roles de RolesComunicaciones.LecturaReclamaciones.
+                                   El servidor ya no se lo manda y la pantalla tampoco lo pinta aunque llegara. *@
+                                <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.LecturaReclamaciones" Context="autorizacionMotivo">
                                     <span class="motivo-acreditacion-documento-360">@TextosDocumento["EnPlataformaMotivo", acreditacion.UltimoMotivoRechazo]</span>
                                 </AuthorizeView>
                             }

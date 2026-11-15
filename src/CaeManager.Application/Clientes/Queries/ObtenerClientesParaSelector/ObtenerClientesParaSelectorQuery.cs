@@ -7,11 +7,13 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 
 /// <summary>
 /// Lista completa y ligera para poblar selectores (p. ej. al crear un
-/// Centro). A diferencia de los selectores de Empresa/Subcontrata/
-/// Trabajador/Vehículo (que muestran el catálogo global a propósito, para
-/// poder reutilizar un registro ya existente sin duplicarlo), este sí se
-/// acota al alcance del usuario — un Cliente es la raíz de la cartera, no
-/// tiene sentido "reutilizar" el Cliente de otro Gestor CAE.
+/// Centro). Se acota al alcance del usuario — un Cliente es la raíz de la
+/// cartera, no tiene sentido "reutilizar" el Cliente de otro Gestor CAE —,
+/// como también lo hacen hoy los selectores de Empresa y Subcontrata (alcance
+/// de gestión) y el de Vehículo (alcance de lectura). Solo el de Trabajador
+/// ofrece el catálogo global del Tenant, y solo cuando se pide la base general
+/// (<c>AlcanceSelectorTrabajadores.BaseGeneralDelTenant</c>), para poder
+/// reutilizar un registro ya existente sin duplicarlo.
 ///
 /// F3b (revisión adversaria del 2026-08-26): a diferencia de
 /// ObtenerClientesQuery/BuscarClientePorCifQuery (congeladas por D2 hasta

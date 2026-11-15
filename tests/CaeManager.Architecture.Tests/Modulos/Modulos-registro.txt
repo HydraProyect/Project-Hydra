@@ -1,0 +1,396 @@
+# Registro de módulos del monolito modular (ADR-013, paso M0a; Facturación por D-M1).
+#
+# Cada tipo de src tiene exactamente un módulo: Nucleo, Outbound, Inbound, Facturacion o Composicion.
+# Mecánica y precedencia en Soporte/RegistroDeModulos.cs; lo impone ModulosRegistradosTests.
+#
+#   area      <Capa.Area>                 = <Modulo> [provisional] [reservada]   prefijo de primer nivel (namespace = carpeta)
+#   excepcion <tipo o subnamespace>       = <Modulo> [provisional]               un tipo que no sigue a su carpeta
+#   derivar   <namespace>                                                        el módulo sale de la entidad o del puerto
+#   ajeno     <namespace>                                                        código generado fuera de CaeManager.*
+#
+# Las claves van sin «CaeManager.». «provisional» = ADR-013 § 3 lo deja como propuesta (o la carpeta no tiene fila en
+# § 3 y se clasifica por su criterio); el comentario dice qué decisión lo cierra. Lo que no es firme no se da por firme.
+# Mover un fichero no cambia su módulo sin tocar esta lista; añadir una línea Inbound fuera de *.Inbound da rojo.
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Domain
+# ---------------------------------------------------------------------------------------------------------------------
+area Domain.Common                   = Nucleo
+area Domain.Tenants                  = Nucleo
+area Domain.Seguridad                = Nucleo
+area Domain.ApiKeys                  = Nucleo
+area Domain.Auditoria                = Nucleo
+area Domain.Plataforma               = Nucleo
+area Domain.Soporte                  = Nucleo
+area Domain.Telemetria               = Nucleo
+area Domain.Empresas                 = Nucleo
+area Domain.Trabajadores             = Nucleo
+area Domain.Vehiculos                = Nucleo
+area Domain.Centros                  = Nucleo
+area Domain.RelacionesEmpresariales  = Nucleo
+area Domain.Comercial                = Nucleo
+area Domain.AltaAutonoma             = Nucleo      provisional  # § 3: plano Comercial; hoy solo vende Outbound (INFERENCE)
+area Domain.Cumplimiento             = Nucleo      provisional  # § 3: plano Comercial; firme solo el Producto Contratado
+area Domain.Asignaciones             = Nucleo      provisional  # § 3, N-1
+area Domain.Operaciones              = Nucleo      provisional  # § 3, M-4: entidad común acotada por ServicioCae
+area Domain.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación frente a plataforma va en excepciones
+area Domain.DocumentosIa             = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.Plantillas               = Nucleo      provisional  # § 3, M-5: motor de generación que reutiliza Inbound (B-30)
+area Domain.Integraciones            = Nucleo      provisional  # § 3, A-2: canales técnicos; los conectores de plataformas CAE en excepciones
+area Domain.Notificaciones           = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.Retencion                = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.EstadoMaterializado      = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Domain.CalendarioLaboral        = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.Configuracion            = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.BusquedaGlobal           = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Domain.Contactos                = Outbound    provisional  # § 3, B-2: sin clasificar; «ante la duda, a su módulo»
+area Domain.AsistenteIa              = Outbound    provisional  # § 3, N-6: deuda Núcleo -> Outbound congelada en M0b
+area Domain.Proyectos                = Outbound    provisional  # § 3, N-6
+area Domain.Subcontratas             = Outbound    provisional  # § 3: flujo de acreditar hacia fuera (INFERENCE por nombre)
+area Domain.Visitas                  = Outbound    provisional  # § 3: idem
+area Domain.Gestiones                = Outbound    provisional  # § 3: idem
+area Domain.Reclamaciones            = Outbound    provisional  # § 3: idem
+area Domain.Incidencias              = Outbound    provisional  # § 3: idem
+area Domain.Blindaje42               = Outbound    provisional  # § 3: idem
+area Domain.Reportes                 = Outbound    provisional  # § 3: idem
+area Domain.VigilanciaNormativa      = Outbound    provisional  # § 3: idem
+area Domain.Importacion              = Outbound    provisional  # § 3: idem
+area Domain.Comunicaciones           = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
+area Domain.ContratosAcceso          = Inbound
+area Domain.AutorizacionesLectura    = Inbound
+area Domain.EvidenciasInbound        = Inbound
+area Domain.CatalogoBase             = Inbound     provisional  # § 3, M-6
+area Domain.Facturacion              = Facturacion provisional  # D-M1: registrado sin mover; el corte definitivo depende de D-F14
+area Domain.Inbound                  = Inbound     reservada    # § 4.7: lo nuevo de Inbound nace aquí
+
+# Documentos: estado de un Documento frente a una plataforma destino (EstadoAcreditacion.cs:3-8). § 3 nombra cinco tipos;
+# los otros cinco son el mismo agregado de acreditación (su historial, su origen, su rechazo, su repositorio y su vigencia).
+excepcion Domain.Documentos.AcreditacionDocumentoPlataforma      = Outbound provisional  # § 3, M-3
+excepcion Domain.Documentos.EstadoAcreditacion                   = Outbound provisional  # § 3, M-3
+excepcion Domain.Documentos.CausaRechazoAcreditacion             = Outbound provisional  # § 3, M-3
+excepcion Domain.Documentos.VigenciaEnPlataforma                 = Outbound provisional  # § 3, M-3
+excepcion Domain.Documentos.ReglaPendienteEnPlataforma           = Outbound provisional  # § 3, M-3
+excepcion Domain.Documentos.CambioEstadoAcreditacionPlataforma   = Outbound provisional  # M-3: historial de la acreditación
+excepcion Domain.Documentos.EstadoVigenciaEnPlataforma           = Outbound provisional  # M-3: estado de VigenciaEnPlataforma
+excepcion Domain.Documentos.IAcreditacionDocumentoPlataformaRepository = Outbound provisional  # M-3: su puerto
+excepcion Domain.Documentos.OrigenCambioEstadoAcreditacion       = Outbound provisional  # M-3: origen del cambio de estado
+excepcion Domain.Documentos.RechazoAcreditacionDocumentoPlataforma = Outbound provisional  # M-3: rechazo de la acreditación
+
+# Integraciones: los conectores de portales de plataformas CAE acreditan hacia fuera (§ 3, A-2).
+excepcion Domain.Integraciones.ConexionPlataformaCae             = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.CredencialConexionPlataformaCae   = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.DominioProveedorPlataformaCae     = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.IConexionPlataformaCaeRepository  = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.IProveedorPlataformaCaeRepository = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.ProveedorPlataformaCae            = Outbound provisional  # § 3, A-2
+excepcion Domain.Integraciones.UsoConexionPlataformaCae          = Outbound provisional  # § 3, A-2
+
+# Facturación (D-M1, análisis de módulos § 2.1 fila A'): la tarifa y el cierre mensual del Operador CAE viven en
+# Domain/Dashboard, que no tiene nada más. Sin área a propósito: un tipo nuevo en Domain.Dashboard da rojo hasta que se
+# decida su módulo (el resto de Dashboard es Outbound en Application, Infrastructure y Web).
+excepcion Domain.Dashboard.TarifaOperadorCae                     = Facturacion provisional  # D-M1, A'
+excepcion Domain.Dashboard.ConceptoTarifaOperadorCae             = Facturacion provisional  # D-M1, A' (TarifaOperadorCae.cs)
+excepcion Domain.Dashboard.CierreMensualTenantBeneficiario       = Facturacion provisional  # D-M1, A'
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------------------------------------------------
+area Application.Common                   = Nucleo
+area Application.Tenants                  = Nucleo
+area Application.Usuarios                 = Nucleo
+area Application.Seguridad                = Nucleo
+area Application.ApiKeys                  = Nucleo
+area Application.Auditoria                = Nucleo
+area Application.Plataforma               = Nucleo
+area Application.Telemetria               = Nucleo
+area Application.Empresas                 = Nucleo
+area Application.Trabajadores             = Nucleo
+area Application.Vehiculos                = Nucleo
+area Application.Centros                  = Nucleo
+area Application.RelacionesEmpresariales  = Nucleo
+area Application.Comercial                = Nucleo
+area Application.AltaAutonoma             = Nucleo      provisional  # § 3: hoy solo vende Outbound (INFERENCE)
+area Application.Cumplimiento             = Nucleo      provisional  # § 3: firme solo el Producto Contratado
+area Application.Asignaciones             = Nucleo      provisional  # § 3, N-1
+area Application.Operaciones              = Nucleo      provisional  # § 3, M-4
+area Application.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación en excepciones
+area Application.TiposDocumento           = Nucleo      provisional  # § 3, B-2 (INFERENCE por nombre)
+area Application.Calendario               = Nucleo      provisional  # § 3, B-2 (INFERENCE por nombre)
+area Application.ContactosSeguridad       = Nucleo      provisional  # § 3, B-2 (INFERENCE por nombre)
+area Application.DocumentosIa             = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.HerramientasPdf          = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.Plantillas               = Nucleo      provisional  # § 3, M-5
+area Application.Integraciones            = Nucleo      provisional  # § 3, A-2; conectores de plataformas CAE en excepciones
+area Application.Notificaciones           = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.Retencion                = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.EstadoMaterializado      = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Application.Configuracion            = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.BusquedaGlobal           = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Application.Exportacion              = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Application.Contactos                = Outbound    provisional  # § 3, B-2: sin clasificar; «ante la duda, a su módulo»
+area Application.Contacto                 = Outbound    provisional  # § 3, B-2: idem
+area Application.Marco                    = Outbound    provisional  # § 3, B-2: idem
+area Application.Clientes                 = Outbound    provisional  # § 3, N-1: el alcance por Cliente empresarial vive en Common (IAlcanceDatosService); en Clientes queda la cartera Outbound
+area Application.AsistenteIa              = Outbound    provisional  # § 3, N-6
+area Application.Proyectos                = Outbound    provisional  # § 3, N-6
+area Application.Subcontratas             = Outbound    provisional  # § 3 (INFERENCE por nombre)
+area Application.Visitas                  = Outbound    provisional  # § 3: idem
+area Application.Gestiones                = Outbound    provisional  # § 3: idem
+area Application.Reclamaciones            = Outbound    provisional  # § 3: idem
+area Application.Incidencias              = Outbound    provisional  # § 3: idem
+area Application.Blindaje42               = Outbound    provisional  # § 3: idem
+area Application.Dashboard                = Outbound    provisional  # § 3: idem; tarifas del Operador CAE en excepciones (D-M1)
+area Application.Reportes                 = Outbound    provisional  # § 3: idem
+area Application.Bandeja                  = Outbound    provisional  # § 3: idem
+area Application.Alertas                  = Outbound    provisional  # § 3: idem
+area Application.VigilanciaNormativa      = Outbound    provisional  # § 3: idem
+area Application.Importacion              = Outbound    provisional  # § 3: idem
+area Application.VistaDemo                = Outbound    provisional  # § 3: idem
+area Application.Comunicaciones           = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
+area Application.ContratosAcceso          = Inbound
+area Application.AutorizacionesLectura    = Inbound
+area Application.CatalogoBase             = Inbound     provisional  # § 3, M-6
+area Application.Facturacion              = Facturacion provisional  # D-M1
+area Application.Inbound                  = Inbound     reservada    # § 4.7
+area Application.DependencyInjection      = Composicion
+
+# Documentos: lo que solo existe para la acreditación frente a una plataforma destino (§ 3, M-3: «sucio en Application»).
+# Las consultas mixtas (p. ej. ObtenerDocumentosQuery, que devuelve el Documento con su resumen de acreditación) quedan
+# en el Núcleo a propósito: partirlas es rediseño, y su arista Núcleo -> Outbound la mide y congela M0b.
+excepcion Application.Documentos.Acreditacion                                            = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro               = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.ConfirmarVigenciaAcreditacion                   = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.MarcarAcreditacionAceptada                      = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.MarcarAcreditacionNoRequerida                   = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.MarcarAcreditacionPendienteDeSubir              = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.MarcarAcreditacionRechazada                     = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.MarcarAcreditacionSubida                        = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.RestaurarAnotacionAcreditacion                  = Outbound provisional  # M-3
+excepcion Application.Documentos.Commands.ResultadoAnotacionAcreditacionDto               = Outbound provisional  # M-3
+excepcion Application.Documentos.Queries.ObtenerAcreditacionesDelDocumento                = Outbound provisional  # M-3
+excepcion Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor                = Outbound provisional  # M-3
+excepcion Application.Documentos.Queries.ObtenerPlataformasEnUso                          = Outbound provisional  # M-3
+excepcion Application.Documentos.PortalDelCanalAcreditacion                               = Outbound provisional  # M-3
+excepcion Application.Documentos.ReglaSubidaAcreditacion                                  = Outbound provisional  # M-3
+
+# Integraciones: conectores de portales de plataformas CAE (§ 3, A-2).
+excepcion Application.Integraciones.ConectoresPlataformaCae                               = Outbound provisional  # A-2
+excepcion Application.Integraciones.Commands.CambiarActivoProveedorPlataforma             = Outbound provisional  # A-2
+excepcion Application.Integraciones.Commands.CambiarConectorApiProveedorPlataforma        = Outbound provisional  # A-2
+excepcion Application.Integraciones.Commands.GuardarConexionPlataformaCae                 = Outbound provisional  # A-2
+excepcion Application.Integraciones.Commands.RetirarConexionPlataformaCae                 = Outbound provisional  # A-2
+excepcion Application.Integraciones.Commands.AutoridadSobreConexionPlataformaCae          = Outbound provisional  # A-2
+excepcion Application.Integraciones.Queries.ObtenerProveedoresPlataformaCae               = Outbound provisional  # A-2
+excepcion Application.Integraciones.IProveedoresPlataformaCaeQueryContext                 = Outbound provisional  # A-2
+excepcion Application.Integraciones.ProveedorPlataformaCaeCandidatoDto                    = Outbound provisional  # A-2 (ResolucionProveedorPlataformaCae.cs)
+excepcion Application.Integraciones.IResolucionProveedorPlataformaCaeService              = Outbound provisional  # A-2 (idem)
+excepcion Application.Integraciones.ResolucionProveedorPlataformaCaeService               = Outbound provisional  # A-2 (idem)
+
+# Facturación (D-M1): tarifas del Operador CAE y su valoración, por tipo. No por subnamespace: la fuente Outbound que
+# aporta unidades a la liquidación (puerto del Núcleo, D-F2) puede vivir junto a ellas y sigue siendo Outbound.
+excepcion Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext            = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae        = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQuery        = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.ObtenerTarifasOperadorCaeQueryHandler = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.FijarTarifaOperadorCaeCommand         = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.FijarTarifaOperadorCaeCommandValidator = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifasOperadorCae.FijarTarifaOperadorCaeCommandHandler  = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.TarifaOperadorCaeDto                                     = Facturacion provisional  # D-M1 (ValoracionOperadorCae.cs)
+excepcion Application.Dashboard.TramoDeVigencia                                          = Facturacion provisional  # D-M1 (ValoracionOperadorCae.cs)
+excepcion Application.Dashboard.VigenciaAsignacionOperacion                              = Facturacion provisional  # D-M1 (ValoracionOperadorCae.cs)
+excepcion Application.Dashboard.UnidadesOperadorCae                                      = Facturacion provisional  # D-M1 (ValoracionOperadorCae.cs)
+excepcion Application.Dashboard.ValoracionOperadorCae                                    = Facturacion provisional  # D-M1
+excepcion Application.Dashboard.Queries.ObtenerFacturacionOperadorCaeQuery               = Facturacion provisional  # D-M1: la cuota del mes del Operador CAE
+excepcion Application.Dashboard.Queries.TarifaVigenteOperadorCaeDto                      = Facturacion provisional  # D-M1 (ObtenerFacturacionOperadorCaeQuery.cs)
+excepcion Application.Dashboard.Queries.ConceptoFacturadoOperadorCaeDto                  = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.IngresoPorGestionOperadorCaeDto                  = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.FilaFacturacionOperadorCaeDto                    = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.TotalFacturacionOperadorCaeDto                   = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.FacturacionOperadorCaeDto                        = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.CentrosNuevosPorClienteTotalDto                  = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.CalculosFacturacionOperadorCae                   = Facturacion provisional  # D-M1 (idem)
+excepcion Application.Dashboard.Queries.ObtenerFacturacionOperadorCaeQueryHandler        = Facturacion provisional  # D-M1 (idem)
+# Cierre mensual: A' nombra la entidad y el trabajo de fondo; estos son los tipos de Application que existen solo para
+# ellos (la foto del mes congela las tarifas aplicadas; reabrir el mes la deshace). Inferencia del registro, no fila de A'.
+# Aristas a medir y congelar en M0b (contra D-F2, «Facturación solo depende del Núcleo y nadie depende de ella»): el
+# cuadro de dirección Outbound (ObtenerCuadroDireccionQuery, ObtenerSerieCuadroDireccionQuery) usa ICierresCuadroDireccion
+# e ITarifasOperadorCaeContext, y FotoCierreMensual contiene MedicionCuadroDireccion (Outbound).
+excepcion Application.Dashboard.FotoCierreMensual                                        = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.TarifaAplicadaCuadro                                     = Facturacion provisional  # D-M1 (cierre mensual; FotoCierreMensual.cs)
+excepcion Application.Dashboard.ICierresCuadroDireccion                                  = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommand                         = Facturacion provisional  # D-M1 (cierre mensual)
+excepcion Application.Dashboard.ReabrirMesCuadroDireccionCommandHandler                  = Facturacion provisional  # D-M1 (cierre mensual)
+
+# Clientes: puertos de la cartera del Cliente empresarial que implementa el Núcleo (DirectorioUsuariosTenant en
+# Infrastructure.Autorizacion, BloqueoCarteraUsuario en la raíz de Persistence). Es el corte tipo a tipo de § 3 (N-1):
+# el alcance por Cliente empresarial va al Núcleo; la regla de quién puede ser referencia (ReglaDestinoCarteraCliente) y
+# el resto del flujo de cartera quedan en Outbound.
+excepcion Application.Clientes.IDirectorioDestinosCartera                                = Nucleo provisional  # N-1
+excepcion Application.Clientes.DestinoCartera                                            = Nucleo provisional  # N-1
+excepcion Application.Clientes.AccesoDelDestino                                          = Nucleo provisional  # N-1
+excepcion Application.Clientes.IBloqueoCarteraUsuario                                    = Nucleo provisional  # N-1
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Infrastructure
+# ---------------------------------------------------------------------------------------------------------------------
+area Infrastructure.Identity             = Nucleo
+area Infrastructure.Autenticacion        = Nucleo
+area Infrastructure.Seguridad            = Nucleo
+area Infrastructure.DataProtection       = Nucleo
+area Infrastructure.MultiTenancy         = Nucleo
+area Infrastructure.Plataforma           = Nucleo
+area Infrastructure.Tenants              = Nucleo
+area Infrastructure.Comercial            = Nucleo
+area Infrastructure.AltaAutonoma         = Nucleo      provisional  # § 3: hoy solo vende Outbound (INFERENCE)
+area Infrastructure.Cumplimiento         = Nucleo      provisional  # § 3: firme solo el Producto Contratado
+area Infrastructure.Autorizacion         = Nucleo      provisional  # § 3, B-2; el lector Inbound en excepción
+area Infrastructure.Firmas               = Nucleo      provisional  # § 3, B-2
+area Infrastructure.Auditing             = Nucleo      provisional  # § 3, B-2
+area Infrastructure.Operaciones          = Nucleo      provisional  # § 3, M-4
+area Infrastructure.Documentos           = Nucleo      provisional  # § 3, M-3
+area Infrastructure.DocumentosIa         = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.HerramientasPdf      = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Conversion           = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.FileStorage          = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Email                = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Retencion            = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.EstadoMaterializado  = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Infrastructure.Coordinacion         = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Configuracion        = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Exportacion          = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Plantillas           = Nucleo      provisional  # § 3, M-5
+area Infrastructure.Integraciones        = Nucleo      provisional  # § 3, A-2
+area Infrastructure.Persistence          = Nucleo      provisional  # § 3: raíz de Persistence (RLS, interceptores, candados); configuraciones y repositorios se derivan
+area Infrastructure.AsistenteIa          = Outbound    provisional  # § 3, N-6
+area Infrastructure.Proyectos            = Outbound    provisional  # § 3, N-6
+area Infrastructure.Visitas              = Outbound    provisional  # § 3 (INFERENCE por nombre)
+area Infrastructure.Alertas              = Outbound    provisional  # § 3: idem
+area Infrastructure.AlertasOperativas    = Outbound    provisional  # § 3: cuadros de mando y cartera Outbound
+area Infrastructure.Importacion          = Outbound    provisional  # § 3: idem
+area Infrastructure.VigilanciaNormativa  = Outbound    provisional  # § 3: idem
+area Infrastructure.Comunicaciones       = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
+area Infrastructure.Inbound              = Inbound     reservada    # § 4.7: Infrastructure/Inbound/Persistence para lo nuevo
+area Infrastructure.Facturacion          = Facturacion reservada    # análisis de módulos § 5.2: Infrastructure/Facturacion/Persistence
+area Infrastructure.DependencyInjection  = Composicion
+
+derivar Infrastructure.Persistence.Configurations   # B-1: la configuración sigue a su entidad
+derivar Infrastructure.Persistence.Repositories     # B-1: el repositorio sigue al puerto que implementa
+
+excepcion Infrastructure.Persistence.CaeManagerDbContext            = Composicion   # § 4.1, regla 4
+excepcion Infrastructure.Persistence.Migraciones                    = Composicion   # § 4.1, regla 4: transición de la línea base de migraciones
+excepcion Infrastructure.Autorizacion.LectorDocumentosInboundEnBase = Inbound       # § 3: excepción por tipo
+excepcion Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa = Outbound provisional  # M-3: implementa ISerializacionAltasAcreditacionEmpresa (Application.Documentos.Acreditacion)
+excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService = Outbound provisional  # M-3
+excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions       = Outbound provisional  # M-3
+# Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
+excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
+
+# Siembra: sin fila en § 3. Ninguna siembra tablas Inbound (§ 2.2); la de demo, la del piloto y los rellenos que solo
+# tocan datos Outbound (AsignacionesOperativasBackfillSeeder, que corre en cada arranque) existen para Outbound («ante la
+# duda, a su módulo»). Los datos de arranque que no son de un flujo (Tenant, roles, parámetros, catálogo) son Núcleo.
+excepcion Infrastructure.Persistence.Seed                                 = Outbound provisional  # sin fila en § 3: siembra de demo y piloto Outbound
+excepcion Infrastructure.Persistence.Seed.TenantSeedData                  = Nucleo provisional  # sin fila en § 3: arranque
+excepcion Infrastructure.Persistence.Seed.IdentityRoleSeedData            = Nucleo provisional  # sin fila en § 3: arranque
+excepcion Infrastructure.Persistence.Seed.ParametroSistemaSeedData        = Nucleo provisional  # sin fila en § 3: arranque
+excepcion Infrastructure.Persistence.Seed.TipoDocumentoSeedData           = Nucleo provisional  # sin fila en § 3: catálogo de TipoDocumento (Núcleo)
+excepcion Infrastructure.Persistence.Seed.AceptacionTerminosSeedHelper    = Nucleo provisional  # sin fila en § 3: plano Comercial
+excepcion Infrastructure.Persistence.Seed.ConocimientoDeteccionCampoSeedData = Nucleo provisional  # sin fila en § 3: DocumentosIa
+excepcion Infrastructure.Persistence.Seed.SiembraEmpresaPropia            = Nucleo provisional  # sin fila en § 3: Empresa propia del Tenant
+excepcion Infrastructure.Persistence.Seed.DelegacionesSoporteSeeder       = Nucleo provisional  # sin fila en § 3: plano de Plataforma
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Código que generan los paquetes y el compilador fuera de CaeManager.* (generadores de fuentes, atributos embebidos)
+# ---------------------------------------------------------------------------------------------------------------------
+ajeno MaxMind.Db.Generated
+ajeno Microsoft.CodeAnalysis
+ajeno Microsoft.Extensions.Validation.Embedded
+ajeno Sentry.Generated
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Migraciones: punto de composición (§ 4.1, regla 4)
+# ---------------------------------------------------------------------------------------------------------------------
+area Migrations.PostgreSQL = Composicion
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Web
+# ---------------------------------------------------------------------------------------------------------------------
+area Web                   = Nucleo      provisional  # raíz de Web: cabeceras y trazas (Program en excepción)
+area Web.Components        = Nucleo      provisional  # § 3: armazón de la UI; el menú en excepción
+area Web.Services          = Nucleo      provisional  # sin fila en § 3: sesión, contexto, Tenant activo, Cliente empresarial activo
+area Web.Recursos          = Nucleo      provisional  # sin fila en § 3: recursos comunes
+area Web.Documentos        = Nucleo      provisional  # sin fila en § 3: subida y validación de archivos
+area Web.Exportacion       = Nucleo      provisional  # § 3 (Exportacion)
+area Web.Api               = Nucleo      provisional  # sin fila en § 3: API pública y webhooks de canales técnicos; Clientes en excepción
+area Web.Reportes          = Outbound    provisional  # § 3 (Reportes)
+
+excepcion Program                                    = Composicion   # § 4.1, regla 4: Web/Program.cs
+excepcion Web.Components.Layout.CatalogoMenuLateral  = Composicion   # § 4.1, regla 4: el menú
+excepcion Web.Api.V1.ClientesApiEndpoints            = Outbound provisional  # N-1: cartera Outbound
+
+area Web.Features.Tenants                  = Nucleo
+area Web.Features.Usuarios                 = Nucleo
+area Web.Features.ApiKeys                  = Nucleo
+area Web.Features.Auditoria                = Nucleo
+area Web.Features.Plataforma               = Nucleo
+area Web.Features.Empresas                 = Nucleo
+area Web.Features.Trabajadores             = Nucleo
+area Web.Features.Vehiculos                = Nucleo
+area Web.Features.Centros                  = Nucleo
+area Web.Features.Comercial                = Nucleo
+area Web.Features.AltaAutonoma             = Nucleo      provisional  # § 3: hoy solo vende Outbound (INFERENCE)
+area Web.Features.Cumplimiento             = Nucleo      provisional  # § 3: firme solo el Producto Contratado
+area Web.Features.Asignaciones             = Nucleo      provisional  # § 3, N-1
+area Web.Features.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación en excepciones
+area Web.Features.TiposDocumento           = Nucleo      provisional  # § 3, B-2
+area Web.Features.Calendario               = Nucleo      provisional  # § 3, B-2
+area Web.Features.ContactoSeguridad        = Nucleo      provisional  # § 3, B-2
+area Web.Features.IncidentesSeguridad      = Nucleo      provisional  # § 3, B-2
+area Web.Features.GestionRoles             = Nucleo      provisional  # § 3, B-2
+area Web.Features.EncargoDeAdministracion  = Nucleo      provisional  # § 3, B-2
+area Web.Features.Delegaciones             = Nucleo      provisional  # § 3, B-2
+area Web.Features.AtajosGlobales           = Nucleo      provisional  # § 3, B-2
+area Web.Features.AuditoriaIa              = Nucleo      provisional  # § 3, B-2
+area Web.Features.HerramientasPdf          = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Web.Features.Plantillas               = Nucleo      provisional  # § 3, M-5
+area Web.Features.Integraciones            = Nucleo      provisional  # § 3, A-2; conectores de plataformas CAE en excepción
+area Web.Features.Notificaciones           = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Web.Features.Retencion                = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Web.Features.Configuracion            = Nucleo      provisional  # § 3 (INFERENCE por nombre)
+area Web.Features.BusquedaGlobal           = Nucleo      provisional  # § 3: puede tener partes Outbound
+area Web.Features.Contacto                 = Outbound    provisional  # § 3, B-2: sin clasificar
+area Web.Features.Extension                = Outbound    provisional  # § 3, B-2: sin clasificar
+area Web.Features.Clientes                 = Outbound    provisional  # § 3, N-1: cartera Outbound
+area Web.Features.AsistenteIa              = Outbound    provisional  # § 3, N-6
+area Web.Features.Proyectos                = Outbound    provisional  # § 3, N-6
+area Web.Features.CuadroDireccion          = Outbound    provisional  # § 3, B-2; la facturación del Operador CAE en excepciones (D-M1)
+area Web.Features.IncorporacionCartera     = Outbound    provisional  # § 3, B-2
+area Web.Features.VisionCartera            = Outbound    provisional  # § 3, B-2
+area Web.Features.DashboardEjecutivo       = Outbound    provisional  # § 3, B-2
+area Web.Features.Dashboard                = Outbound    provisional  # § 3 (INFERENCE por nombre)
+area Web.Features.Subcontratas             = Outbound    provisional  # § 3: idem
+area Web.Features.Visitas                  = Outbound    provisional  # § 3: idem
+area Web.Features.Gestiones                = Outbound    provisional  # § 3: idem
+area Web.Features.Incidencias              = Outbound    provisional  # § 3: idem
+area Web.Features.Blindaje42               = Outbound    provisional  # § 3: idem
+area Web.Features.Reportes                 = Outbound    provisional  # § 3: idem
+area Web.Features.Bandeja                  = Outbound    provisional  # § 3: idem
+area Web.Features.Alertas                  = Outbound    provisional  # § 3: idem
+area Web.Features.Importacion              = Outbound    provisional  # § 3: idem
+area Web.Features.Comunicaciones           = Outbound    provisional  # § 3: a confirmar con el aviso de B-31
+area Web.Features.Facturacion              = Facturacion provisional  # D-M1
+area Web.Features.Inbound                  = Inbound     reservada    # § 4.5 y § 4.7: las pantallas Inbound nacen aquí
+
+excepcion Web.Features.Integraciones.Pages.ConectoresCae                 = Outbound    provisional  # A-2: conectores de plataformas CAE
+excepcion Web.Features.CuadroDireccion.Components.DrawerTarifasOperador  = Facturacion provisional  # D-M1: tarifas del Operador CAE
+excepcion Web.Features.CuadroDireccion.Components.FacturacionOperador    = Facturacion provisional  # D-M1: cuota del mes
+excepcion Web.Features.Documentos.Components.BadgesAcreditacion          = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.Components.LineaPlataformaYReclamacion = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.Components.MenuAcreditacion            = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.Components.ModalesAcreditacion         = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.Components.PanelGestionarAcreditacion  = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.Components.PlataformaTab               = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.CausaRechazoAcreditacionUi             = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.EstadoAcreditacionUi                   = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.GestionarEnPlataforma                  = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.PlataformasCaeDelDocumento             = Outbound    provisional  # M-3
+excepcion Web.Features.Documentos.ReglasAccionesAcreditacion             = Outbound    provisional  # M-3

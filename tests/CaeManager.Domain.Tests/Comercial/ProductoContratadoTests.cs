@@ -32,6 +32,31 @@ public class ProductoContratadoTests
         producto.TenantId.Should().Be(Guid.Empty, "el Tenant beneficiario lo sella el interceptor al guardar, nunca el dominio");
     }
 
+    [Fact]
+    public void La_linea_Inbound_a_presupuesto_se_contrata_vigente_y_finaliza_como_cualquier_otra()
+    {
+        var producto = ProductoContratado.Contratar(
+            LineaProductoContratado.Inbound, Pagador, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, Desde, Ahora);
+
+        producto.Linea.Should().Be(LineaProductoContratado.Inbound);
+        producto.Estado.Should().Be(EstadoProductoContratado.Vigente);
+        producto.EstaVigenteEn(Desde).Should().BeTrue("vigente desde su inicio: es lo que comprueba el gate DN-7");
+        producto.TenantId.Should().Be(Guid.Empty, "el Tenant beneficiario, que decide el gate, lo sella el interceptor, no el Pagador");
+
+        producto.Finalizar(Desde.AddMonths(1), Ahora);
+
+        producto.Estado.Should().Be(EstadoProductoContratado.Finalizado);
+        producto.EstaVigenteEn(Desde.AddMonths(1)).Should().BeFalse("finalizada, la línea Inbound deja de cumplir el gate DN-7 de la lectura entre Tenants");
+    }
+
+    [Fact]
+    public void Las_lineas_son_exactamente_Outbound_con_gestion_propia_e_Inbound()
+    {
+        Enum.GetNames<LineaProductoContratado>().Should().Equal(
+            ["OutboundGestionPropia", "Inbound"],
+            "el nombre se guarda en la base y lo repiten el CHECK CK_ProductosContratados_Linea y el gate de app_inbound_*");
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

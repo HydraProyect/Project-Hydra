@@ -1413,6 +1413,20 @@ else
         await EditarDesdeCabeceraAsync();
     }
 
+    /// <summary>
+    /// Quien lee el historial de reclamaciones (<c>RolesComunicaciones.LecturaReclamaciones</c>, la misma lista que el
+    /// historial de Comunicaciones y que el servidor). Sin estado de autenticación no se lee: la línea «Última
+    /// reclamación» falta antes que salir a un rol que no la tiene.
+    /// </summary>
+    private async Task<bool> LeeReclamacionesAsync()
+    {
+        if (EstadoAutenticacion is null)
+            return false;
+
+        var usuario = (await EstadoAutenticacion).User;
+        return CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.LecturaReclamaciones.Split(',').Any(usuario.IsInRole);
+    }
+
     private async Task EditarDesdeCabeceraAsync()
     {
         if (PestanaActiva != "informacion")
@@ -1474,8 +1488,11 @@ else
 
             // Rastro de la última reclamación al Cliente de este Centro: es el
             // puente hacia Comunicaciones desde la superficie de operación. Su
-            // fallo no puede tumbar el panel — es contexto, no el Centro.
-            _ultimaReclamacion = _detalle is null
+            // fallo no puede tumbar el panel — es contexto, no el Centro. Es historial de
+            // reclamaciones: Consulta y el Usuario de Cliente no lo leen
+            // (RolesComunicaciones.LecturaReclamaciones, decisión 2026-11-14), así que ni
+            // se pregunta; el servidor, además, les devuelve null.
+            _ultimaReclamacion = _detalle is null || !await LeeReclamacionesAsync()
                 ? null
                 : await Mediator.Send(new ObtenerUltimaReclamacionClienteQuery(_detalle.ClienteId));
 

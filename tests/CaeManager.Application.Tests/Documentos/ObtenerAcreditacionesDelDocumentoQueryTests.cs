@@ -47,11 +47,19 @@ public class ObtenerAcreditacionesDelDocumentoQueryTests
             Documentos.ListaDocumentos.Add(Documento);
         }
 
-        public ObtenerAcreditacionesDelDocumentoQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null) => new(
-            new ConfiguracionFalsa(), Documentos, Empresas, new ProyectosQueryContextFalso(), Centros, Proveedores, alcance ?? new());
+        public ObtenerAcreditacionesDelDocumentoQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null, string? rol = "GestorCae") => new(
+            new ConfiguracionFalsa(), Documentos, Empresas, new ProyectosQueryContextFalso(), Centros, Proveedores, alcance ?? new(),
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol));
 
-        public Task<AcreditacionesDelDocumentoDto?> LeerAsync(AlcanceDatosServiceFalso? alcance = null) =>
-            Handler(alcance).Handle(new ObtenerAcreditacionesDelDocumentoQuery(Documento.Id), default);
+        public Task<AcreditacionesDelDocumentoDto?> LeerAsync(AlcanceDatosServiceFalso? alcance = null, string? rol = "GestorCae") =>
+            Handler(alcance, rol).Handle(new ObtenerAcreditacionesDelDocumentoQuery(Documento.Id), default);
+
+        /// <summary>Rechazo anotado a mano desde Centro 360: su motivo queda en el historial de rechazos.</summary>
+        public void RechazarAMano(AcreditacionDocumentoPlataforma acreditacion, string motivo)
+        {
+            acreditacion.CambiarEstadoAMano(EstadoAcreditacion.Rechazada, new DateOnly(2026, 11, 10), motivo, null, Guid.NewGuid(), DateTime.UtcNow);
+            Documentos.ListaRechazosAcreditacionDocumentoPlataforma.Add(acreditacion.HistorialRechazos[^1]);
+        }
 
         public Empresa ConEmpresa(string nombre)
         {
@@ -163,6 +171,39 @@ public class ObtenerAcreditacionesDelDocumentoQueryTests
             UltimoMotivoRechazo = (string?)null,
             UrlAccesoCanal = (string?)null
         });
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-11-14: el motivo del historial de rechazos, también el de un rechazo anotado a mano, solo lo
+    /// reciben los roles que leen el historial de reclamaciones. Consulta y el Usuario de Cliente reciben el resto de la
+    /// acreditación (estado, contexto y, con el mismo alcance de gestión, la dirección del portal), no el motivo. Aquí el
+    /// alcance es total para todos: lo que corta es el rol, no la cartera.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("GestorCae", true)]
+    [InlineData("Consulta", false)]
+    [InlineData("Cliente", false)]
+    [InlineData(null, false)]
+    public async Task El_motivo_del_historial_de_rechazos_solo_llega_a_quien_lee_reclamaciones(string? rol, bool recibeMotivo)
+    {
+        var e = new Escenario();
+        var centro = e.ConCentro(e.ConEmpresa("Cliente empresarial"), "Centro Norte");
+        var aMano = e.Acreditar(centro, e.ConPlataforma("Nalanda"), "https://nalanda.example/acceso");
+        e.RechazarAMano(aMano, "Falta la firma del técnico");
+        var porMenu = e.Acreditar(e.ConCentro(e.ConEmpresa("Otro Cliente empresarial"), "Nave Sur"), e.ConPlataforma("CTAIMA"),
+            "https://ctaima.example/acceso");
+        e.Rechazar(porMenu, "Documento ilegible");
+
+        var resultado = await e.LeerAsync(rol: rol);
+
+        resultado!.Acreditaciones.Select(a => (a.Id, a.Estado, a.UrlAccesoCanal, a.UltimoMotivoRechazo)).Should().BeEquivalentTo(
+            [
+                (aMano.Id, EstadoAcreditacion.Rechazada, "https://nalanda.example/acceso", recibeMotivo ? "Falta la firma del técnico" : null),
+                (porMenu.Id, EstadoAcreditacion.Rechazada, "https://ctaima.example/acceso", recibeMotivo ? "Documento ilegible" : (string?)null)
+            ]);
     }
 
     [Fact]
