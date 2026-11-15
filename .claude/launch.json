@@ -6,6 +6,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--no-build", "--project", "src/CaeManager.Web", "--launch-profile", "http"],
       "port": 5186
+    },
+    {
+      "name": "web-talveg",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5480", "--bind", "127.0.0.1", "--directory", "C:\\Users\\chris\\Project-Hydra\\web-talveg\\publico"],
+      "port": 5480
     }
   ]
 }
