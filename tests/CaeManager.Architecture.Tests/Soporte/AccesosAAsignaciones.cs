@@ -232,11 +232,11 @@ internal static class AccesosAAsignaciones
     ///
     /// <para>
     /// Devuelve también la <b>espina</b>: los nodos por los que ha subido la cadena (las llamadas
-    /// <c>Where</c>, <c>Count</c>…, la consulta integrada) más los receptores de cada fuente
-    /// <c>from</c>/<c>join</c> de una consulta integrada de la espina. Una comparación de Servicio solo
-    /// cuenta si su variable es la fila de una lambda pasada a una llamada de la espina o una variable de
-    /// rango de una consulta de la espina, y un predicado con nombre solo cuenta si se pasa a una llamada
-    /// de la espina (o es la llamada que recibe el acceso): en
+    /// <c>Where</c>, <c>Count</c>…, la fuente <c>from</c>/<c>join</c> que contiene el acceso, la consulta
+    /// integrada). Una comparación de Servicio solo cuenta si su variable es la fila de una lambda pasada
+    /// a una llamada de la espina o la variable de rango de un <c>from</c>/<c>join</c> cuya fuente está en
+    /// la espina (no la de un <c>join</c> con otra fuente), y un predicado con nombre solo cuenta si se
+    /// pasa a una llamada de la espina (o es la llamada que recibe el acceso): en
     /// <c>ops.Where(o =&gt; otros.Any(x =&gt; x.Servicio == s))</c> el Servicio es de <c>otros</c>.
     /// </para>
     /// </summary>
@@ -253,35 +253,14 @@ internal static class AccesosAAsignaciones
             if (exterior is null or MemberDeclarationSyntax or LocalFunctionStatementSyntax
                 or LambdaExpressionSyntax { Body: BlockSyntax })
                 break;
-            cadena = CadenaDeLaConsulta(exterior, espina);
-        }
 
-        foreach (var consulta in espina.OfType<QueryExpressionSyntax>().ToList())
-        {
-            foreach (var clausula in consulta.DescendantNodes().Where(n => n is FromClauseSyntax or JoinClauseSyntax
-                         && n.FirstAncestorOrSelf<QueryExpressionSyntax>() == consulta))
-            {
-                ExpressionSyntax? receptor = clausula switch
-                {
-                    FromClauseSyntax f => f.Expression,
-                    JoinClauseSyntax j => j.InExpression,
-                    _ => null,
-                };
-                while (receptor is not null)
-                {
-                    espina.Add(receptor);
-                    receptor = receptor switch
-                    {
-                        InvocationExpressionSyntax i => i.Expression,
-                        MemberAccessExpressionSyntax m => m.Expression,
-                        ParenthesizedExpressionSyntax p => p.Expression,
-                        AwaitExpressionSyntax a => a.Expression,
-                        CastExpressionSyntax c => c.Expression,
-                        ConditionalAccessExpressionSyntax c => c.Expression,
-                        _ => null,
-                    };
-                }
-            }
+            // El acceso está dentro de una cláusula (where, select…) de una consulta integrada exterior:
+            // como con la lambda exterior, las filas de esa consulta son las de su predicado.
+            if (exterior is QueryExpressionSyntax consulta)
+                foreach (var fuente in FuentesDeRango(consulta))
+                    espina.Add(fuente);
+
+            cadena = CadenaDeLaConsulta(exterior, espina);
         }
 
         return (cadena, espina);
@@ -344,22 +323,49 @@ internal static class AccesosAAsignaciones
         var resultado = new HashSet<SyntaxNode>(espina);
         foreach (var llamada in contexto.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
-            for (SyntaxNode? receptor = llamada.Expression; receptor is not null;)
+            if (EncadenaSobre(llamada.Expression, operaciones)) resultado.Add(llamada);
+        }
+
+        foreach (var consulta in contexto.DescendantNodesAndSelf().OfType<QueryExpressionSyntax>())
+        {
+            foreach (var fuente in FuentesDeRango(consulta))
             {
-                if (operaciones.Contains(receptor)) { resultado.Add(llamada); break; }
-                receptor = receptor switch
-                {
-                    MemberAccessExpressionSyntax m when operaciones.Contains(m.Name) => m.Name,
-                    MemberAccessExpressionSyntax m => m.Expression,
-                    InvocationExpressionSyntax i => i.Expression,
-                    ParenthesizedExpressionSyntax p => p.Expression,
-                    _ => null,
-                };
+                // La fuente es una consulta sobre AsignacionesOperacion, o el join empareja la cartera
+                // con su operación por la clave (join o in ops on c.AsignacionOperacionId equals o.Id).
+                if (EncadenaSobre(fuente, operaciones)
+                    || fuente.Parent is JoinClauseSyntax j
+                    && $"{j.LeftExpression} {j.RightExpression}".Contains("AsignacionOperacionId", StringComparison.Ordinal))
+                    resultado.Add(fuente);
             }
         }
 
         return resultado;
     }
+
+    /// <summary>La expresión es, o encadena por su receptor sobre, un acceso a <c>AsignacionesOperacion</c>.</summary>
+    private static bool EncadenaSobre(SyntaxNode expresion, HashSet<SyntaxNode> operaciones)
+    {
+        for (SyntaxNode? receptor = expresion; receptor is not null;)
+        {
+            if (operaciones.Contains(receptor)) return true;
+            receptor = receptor switch
+            {
+                MemberAccessExpressionSyntax m when operaciones.Contains(m.Name) => m.Name,
+                MemberAccessExpressionSyntax m => m.Expression,
+                InvocationExpressionSyntax i => i.Expression,
+                ParenthesizedExpressionSyntax p => p.Expression,
+                _ => null,
+            };
+        }
+
+        return false;
+    }
+
+    /// <summary>Las fuentes de los <c>from</c> y <c>join</c> de la propia consulta (con su continuación).</summary>
+    private static IEnumerable<ExpressionSyntax> FuentesDeRango(QueryExpressionSyntax consulta) =>
+        consulta.DescendantNodesAndSelf()
+            .Where(n => n is FromClauseSyntax or JoinClauseSyntax && n.FirstAncestorOrSelf<QueryExpressionSyntax>() == consulta)
+            .Select(n => n is FromClauseSyntax f ? f.Expression : ((JoinClauseSyntax)n).InExpression);
 
     /// <summary>
     /// La Asignación de Cartera no tiene Servicio: su servicio es el de su Asignación de Operación, así
@@ -409,23 +415,32 @@ internal static class AccesosAAsignaciones
                     return espina is null || EsLambdaDeLaEspina(s, espina);
                 case ParenthesizedLambdaExpressionSyntax p when p.ParameterList.Parameters.Any(x => x.Identifier.ValueText == nombre):
                     return espina is null || EsLambdaDeLaEspina(p, espina);
-                case QueryExpressionSyntax q when DeclaraVariableDeRango(q, nombre):
-                    return espina is null || espina.Contains(q);
+                case QueryExpressionSyntax q when FuenteDeLaVariable(q, nombre) is var (declarada, fuente) && declarada:
+                    // Sin espina, cualquier variable de rango; con espina, solo la que recorre una fuente
+                    // de la espina (un «let» no recorre ninguna).
+                    return espina is null || (fuente is not null && espina.Contains(fuente));
             }
         }
 
         return false;
     }
 
-    private static bool DeclaraVariableDeRango(QueryExpressionSyntax q, string nombre) =>
-        q.FromClause.Identifier.ValueText == nombre
-        || q.Body.Clauses.Any(c => c switch
+    /// <summary>Si la consulta declara la variable y, para <c>from</c> y <c>join</c>, la fuente que recorre.</summary>
+    private static (bool Declarada, ExpressionSyntax? Fuente) FuenteDeLaVariable(QueryExpressionSyntax q, string nombre)
+    {
+        if (q.FromClause.Identifier.ValueText == nombre) return (true, q.FromClause.Expression);
+        foreach (var clausula in q.Body.Clauses)
         {
-            FromClauseSyntax f => f.Identifier.ValueText == nombre,
-            JoinClauseSyntax j => j.Identifier.ValueText == nombre,
-            LetClauseSyntax l => l.Identifier.ValueText == nombre,
-            _ => false,
-        });
+            switch (clausula)
+            {
+                case FromClauseSyntax f when f.Identifier.ValueText == nombre: return (true, f.Expression);
+                case JoinClauseSyntax j when j.Identifier.ValueText == nombre: return (true, j.InExpression);
+                case LetClauseSyntax l when l.Identifier.ValueText == nombre: return (true, null);
+            }
+        }
+
+        return (false, null);
+    }
 
     private static string PrimerIdentificador(ExpressionSyntax expresion) => expresion switch
     {
@@ -693,7 +708,8 @@ internal static class AccesosAAsignaciones
                 eventos.Add((m.Index, () =>
                 {
                     if (vistas.Remove(nombre, out var definicion)) vistas[nuevo] = definicion;
-                }));
+                }
+                ));
             }
 
             foreach (var m in EscanerSql.CoincidenciasEnCodigo(DefinePolitica, sql))

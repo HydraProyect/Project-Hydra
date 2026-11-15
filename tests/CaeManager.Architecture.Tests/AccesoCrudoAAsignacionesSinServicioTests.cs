@@ -54,9 +54,13 @@ namespace CaeManager.Architecture.Tests;
 /// de la cadena o de rango de su consulta integrada. Una comparación sobre una fila de una subconsulta
 /// anidada sobre la misma tabla (<c>o =&gt; o.Hijas.Any(h =&gt; h.Servicio == s)</c>) no cuenta (falso
 /// positivo); una comparación sobre la fila de una proyección de la misma cadena
-/// (<c>.Select(o =&gt; new { o.Servicio }).Where(x =&gt; x.Servicio == s)</c>) sí cuenta. En la cartera
+/// (<c>.Select(o =&gt; new { o.Servicio }).Where(x =&gt; x.Servicio == s)</c>) sí cuenta, también cuando la
+/// proyección de un <c>Join</c> o un <c>SelectMany</c> en sintaxis de método arrastra la fila de la otra
+/// fuente (<c>.Join(otros, …, (o, x) =&gt; new { o, x }).Where(r =&gt; r.x.Servicio == s)</c>: falso
+/// negativo). En la cartera
 /// cuenta además la fila de una subconsulta o de la fuente de un <c>Join</c> sobre
-/// <c>AsignacionesOperacion</c> si el contexto nombra <c>AsignacionOperacionId</c>: no se comprueba que
+/// <c>AsignacionesOperacion</c>, o la variable de un <c>join</c> cuya clave nombra
+/// <c>AsignacionOperacionId</c>, si el contexto nombra <c>AsignacionOperacionId</c>: no se comprueba que
 /// esa subconsulta sea la que correlaciona la cartera con su operación.</item>
 /// <item>En SQL: una función, vista o política creada dentro de un <c>DO $$ … EXECUTE … $$</c> o
 /// reescrita por <c>ReescrituraPoliticasContextoRls</c> en ejecución; sobrecargas de una función con el
@@ -157,6 +161,11 @@ public class AccesoCrudoAAsignacionesSinServicioTests
                 "void A() { var n = ctx.AsignacionesOperacion.Count(o => o.Id == otros.Count(P())); }", "Lector.A · AsignacionesOperacion")]
     // En la cartera correlacionada con su operación, el Servicio de la fila de «otros» tampoco cuenta.
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => c.AsignacionOperacionId == id && otros.Any(x => x.Servicio == s)); }", "Lector.A · AsignacionesCartera")]
+    // En una consulta integrada, la variable de un join con otra fuente (o la fila de un Where sobre ella) no es la fila del acceso.
+    [InlineData("void A() { var n = (from o in ctx.AsignacionesOperacion join x in otros on o.Id equals x.OpId where x.Servicio == s select o).Count(); }", "Lector.A · AsignacionesOperacion")]
+    [InlineData("void A() { var n = (from o in ctx.AsignacionesOperacion join x in otros.Where(y => y.Servicio == s) on o.Id equals x.OpId select o).Count(); }", "Lector.A · AsignacionesOperacion")]
+    // Cuenta la declaración más cercana: la «o» interior es la fila de «otros», aunque se llame como la exterior.
+    [InlineData("void A() { var n = ctx.AsignacionesOperacion.Count(o => otros.Any(o => o.Servicio == s)); }", "Lector.A · AsignacionesOperacion")]
     public void Un_acceso_sin_filtro_de_Servicio_es_crudo(string cuerpo, string simbolo)
     {
         var accesos = MedirCs(cuerpo);
@@ -193,6 +202,8 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var l = ctx.Set<AsignacionOperacion>().FromSqlRaw(\"SELECT * FROM \\\"AsignacionesOperacion\\\" WHERE \\\"Servicio\\\" = 'Inbound'\").ToList(); }")]
     // La subconsulta de cartera dentro del predicado de la exterior, correlacionada con su operación.
     [InlineData("void A() { var n = ops.Where(o => o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id)).Count(); }")]
+    // La cartera dentro del where de una consulta exterior sobre sus operaciones, correlacionada.
+    [InlineData("void A() { var n = (from o in ops where o.Servicio == s && ctx.AsignacionesCartera.Any(c => c.AsignacionOperacionId == o.Id) select o).Count(); }")]
     // La cartera filtrada por una subconsulta correlacionada o un Join con sus operaciones del servicio.
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, o) => c).Count(); }")]
@@ -328,6 +339,13 @@ public class AccesoCrudoAAsignacionesSinServicioTests
         conCheck.Should().HaveCount(2, "un ALTER con solo WITH CHECK conserva el USING; el USING de un JOIN no es la cláusula");
         conCheck.Should().ContainSingle(a => a.Tabla == AccesosAAsignaciones.Operacion && a.FiltraPorServicio);
         conCheck.Should().ContainSingle(a => a.Tabla == AccesosAAsignaciones.Cartera && !a.FiltraPorServicio);
+
+        const string parentesisEnLiteral =
+            "CREATE POLICY lectura ON public.\"Documentos\" USING (\"Nota\" = ')' AND EXISTS (SELECT 1 FROM public.\"AsignacionesOperacion\" o)) " +
+            "WITH CHECK (\"Servicio\" = 'Inbound');";
+        AccesosAAsignaciones.EnSql([("1", parentesisEnLiteral)])
+            .Should().ContainSingle("un paréntesis dentro de un literal no cierra la cláusula").Which.FiltraPorServicio
+            .Should().BeFalse("el Servicio del WITH CHECK no filtra la lectura del USING");
     }
 
     [Fact]
@@ -346,6 +364,9 @@ public class AccesoCrudoAAsignacionesSinServicioTests
 
         AccesosAAsignaciones.EnSql([("1", vista), ("2", "ALTER VIEW public.v_operaciones RENAME TO v_nueva;")])
             .Should().ContainSingle().Which.Lugar.Should().Be("SQL vista public.v_nueva");
+
+        AccesosAAsignaciones.EnSql([("1", vista), ("2", "ALTER VIEW public.v_operaciones RENAME COLUMN \"Id\" TO id;")])
+            .Should().ContainSingle().Which.Lugar.Should().Be("SQL vista public.v_operaciones", "renombrar una columna no traslada la vista");
 
         AccesosAAsignaciones.EnSql([("1", vista), ("2", vista.Replace("o;", "o WHERE o.\"Servicio\" = 'Inbound';"))])
             .Should().ContainSingle().Which.FiltraPorServicio.Should().BeTrue("la redefinición vigente filtra");
