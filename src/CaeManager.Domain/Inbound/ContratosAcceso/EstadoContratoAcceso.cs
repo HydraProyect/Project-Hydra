@@ -9,7 +9,8 @@ namespace CaeManager.Domain.Inbound.ContratosAcceso;
 /// <list type="bullet">
 /// <item><see cref="PendienteDeConfirmar"/> → <see cref="Activo"/> (el Tenant TEC confirma) o → <see cref="Rechazado"/> (el Tenant TEC rechaza).</item>
 /// <item><see cref="Activo"/> ⇄ <see cref="Suspendido"/> (Suspender y Reanudar).</item>
-/// <item><see cref="Activo"/> o <see cref="Suspendido"/> → <see cref="Finalizado"/> (Finalizar).</item>
+/// <item><see cref="Activo"/> → <see cref="Finalizado"/> (Finalizar). Un Suspendido no se finaliza: el Finalizado da
+/// acceso hasta su cierre real y le devolvería el que la suspensión retiró (lo revisa B-18 con Suspender).</item>
 /// <item><see cref="PendienteDeConfirmar"/> o <see cref="Activo"/> → <see cref="Cancelado"/>: la baja antes de empezar y sin actividad (D-21).</item>
 /// </list>
 /// <see cref="Finalizado"/>, <see cref="Cancelado"/> y <see cref="Rechazado"/> son finales: un contrato Finalizado no se

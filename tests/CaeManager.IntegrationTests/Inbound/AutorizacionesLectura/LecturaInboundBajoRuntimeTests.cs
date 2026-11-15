@@ -1098,6 +1098,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [InlineData("Suspendido", -10, null, false)]
     [InlineData("Suspendido", -10, 10, false)]        // cierre futuro que escribió la ranura anterior
     [InlineData("Suspendido", 0, null, false)]        // empieza hoy: el cierre en el inicio aún daría hoy
+    [InlineData("Suspendido", -1, null, false)]       // empezó ayer: dentro del margen de un día, también eliminado
+    [InlineData("Suspendido", -2, null, false)]       // fuera del margen: solo cerrado en su inicio
     [InlineData("PendienteDeConfirmar", -10, null, false)]
     [InlineData("PendienteDeConfirmar", 0, null, false)]
     [InlineData("Cancelado", -10, null, false)]
@@ -1135,6 +1137,23 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
 
         (await EvaluarTenantContratistaAsync(conexion, transaccion)).Should().Be(daLectura ? _contratista.Id : null,
             $"tras el Down, la auxiliar de B-01 no da lectura a un {estado} que no la daba");
+
+        // Qué hizo el relleno: el cierre en el inicio a todo lo que no es Activo ni Finalizado, y la marca de eliminado solo
+        // a los que empiezan desde ayer (el margen de un día). Activo y Finalizado, intactos.
+        var sinAcceso = estado is not ("Activo" or "Finalizado");
+        await using (var leer = new NpgsqlCommand(
+                         """SELECT "FechaCierreReal", "EstaEliminado" FROM public."ContratosAcceso" WHERE "Id" = @contrato""",
+                         conexion, transaccion))
+        {
+            leer.Parameters.AddWithValue("contrato", _vigente.Id);
+            await using var fila = await leer.ExecuteReaderAsync();
+            (await fila.ReadAsync()).Should().BeTrue();
+            DateOnly? cierre = fila.IsDBNull(0) ? null : fila.GetFieldValue<DateOnly>(0);
+            DateOnly? cierreEsperado = sinAcceso ? _hoy.AddDays(diasDesdeElInicio)
+                : diasHastaElCierre is { } d ? _hoy.AddDays(d) : null;
+            cierre.Should().Be(cierreEsperado);
+            fila.GetBoolean(1).Should().Be(sinAcceso && diasDesdeElInicio >= -1);
+        }
 
         await transaccion.RollbackAsync();
     }

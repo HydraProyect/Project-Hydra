@@ -216,9 +216,10 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
     {
         await using var contexto = Contexto(_propietario.Id, _administrador);
 
-        // Control positivo: el borde permitido (fin y cierre el mismo día del inicio) pasa.
+        // Control positivo: el borde permitido del fin (el mismo día del inicio) pasa. El del cierre va al final: escrito el
+        // cierre, TR_ContratosAcceso_CierreIrreversible rechazaría cualquier cambio posterior antes de que llegue el CHECK.
         (await contexto.Database.ExecuteSqlAsync(
-            $"UPDATE \"ContratosAcceso\" SET \"FechaFin\" = \"FechaInicio\", \"FechaCierreReal\" = \"FechaInicio\" WHERE \"Id\" = {_contratoVigente};"))
+            $"UPDATE \"ContratosAcceso\" SET \"FechaFin\" = \"FechaInicio\" WHERE \"Id\" = {_contratoVigente};"))
             .Should().Be(1);
 
         var sql = restriccion switch
@@ -233,6 +234,11 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
         var error = (await romper.Should().ThrowAsync<PostgresException>()).Which;
         error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         error.ConstraintName.Should().Be(restriccion);
+
+        // Control positivo del cierre: el mismo día del inicio pasa.
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = \"FechaInicio\" WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1);
     }
 
     [Fact]

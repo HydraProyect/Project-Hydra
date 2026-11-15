@@ -46,8 +46,9 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
                 $"(\"{nameof(ContratoAcceso.CupoTrabajadores)}\" IS NULL AND \"{nameof(ContratoAcceso.CupoSubcontratas)}\" IS NULL) " +
                 $"= (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL) " +
                 $"AND (\"{nameof(ContratoAcceso.MotivoCupo)}\" IS NULL OR \"{nameof(ContratoAcceso.MotivoCupo)}\" ~ '[^[:space:]]')");
-            // Un Finalizado tiene siempre su cierre real. Es lo que hace fallar, en la ventana del relevo azul/verde, un
-            // Reabrir de la ranura anterior sobre un contrato que la nueva ya finalizó (D-21 retira Reabrir).
+            // Un Finalizado tiene siempre su cierre real. El Reabrir de la ranura anterior durante el relevo azul/verde no
+            // llega a este CHECK: lo rechaza antes, en cualquier estado, el disparador TR_ContratosAcceso_CierreIrreversible de
+            // la migración AnadeEstadoContratoAcceso (D-21 retira Reabrir; EF no modela disparadores).
             t.HasCheckConstraint(
                 "CK_ContratosAcceso_FinalizadoConCierre",
                 $"\"{nameof(ContratoAcceso.Estado)}\" <> 'Finalizado' OR \"{nameof(ContratoAcceso.FechaCierreReal)}\" IS NOT NULL");

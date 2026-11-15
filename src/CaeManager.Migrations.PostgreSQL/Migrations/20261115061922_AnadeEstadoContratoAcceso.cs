@@ -41,7 +41,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// no está Activo ni Finalizado le pone el cierre real en su inicio (el más temprano que admite
     /// <c>CK_ContratosAcceso_CierreNoAnteriorAlInicio</c>) y, si empieza desde ayer en adelante, además lo marca como
     /// eliminado, porque el día de su inicio aún daría acceso. Así ningún Pendiente de confirmar, Suspendido, Cancelado o
-    /// Rechazado vuelve a dar lectura entre Tenants por fechas. Después devuelve la auxiliar al cuerpo exacto de
+    /// Rechazado vuelve a dar lectura entre Tenants por fechas al revertir. Revertido, el disparador ya no existe y la versión
+    /// anterior recupera su Reabrir: si el Tenant propietario reabre uno de esos contratos cerrados en su inicio, vuelve a dar
+    /// lectura dentro de sus fechas, como cualquier contrato que reabra esa versión. Es una acción explícita de la versión
+    /// anterior, no una fuga del Down, y queda como hueco declarado. Después devuelve la auxiliar al cuerpo exacto de
     /// <c>AnadeLineaInboundProductoContratado</c> antes de borrar la columna que lee, y borra la tabla y las columnas: los
     /// estados y el historial se pierden, que es lo que significa revertir B-05, y esos contratos quedan cerrados (o
     /// eliminados) para la versión anterior. Necesita, como el Up, un migrador superusuario o con BYPASSRLS.
