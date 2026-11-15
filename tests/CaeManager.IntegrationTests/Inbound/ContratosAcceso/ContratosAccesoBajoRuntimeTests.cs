@@ -313,8 +313,13 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {hoy}, \"Notas\" = 'Otra nota' WHERE \"Id\" = {_contratoVigente};"))
             .Should().Be(1, "control: reescribir el mismo cierre al editar otra columna no lo cambia");
 
-        var cambiar = () => contexto.Database.ExecuteSqlRawAsync(
-            $"UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = {nuevoCierre} WHERE \"Id\" = {{0}};", _contratoVigente);
+        var sql = nuevoCierre switch
+        {
+            "NULL" => "UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = NULL WHERE \"Id\" = {0};",
+            "\"FechaCierreReal\" + 1" => "UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = \"FechaCierreReal\" + 1 WHERE \"Id\" = {0};",
+            _ => "UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = \"FechaCierreReal\" - 1 WHERE \"Id\" = {0};",
+        };
+        var cambiar = () => contexto.Database.ExecuteSqlRawAsync(sql, _contratoVigente);
         var error = (await cambiar.Should().ThrowAsync<PostgresException>()).Which;
         error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
         error.ConstraintName.Should().Be("TR_ContratosAcceso_CierreIrreversible");
