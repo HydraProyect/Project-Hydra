@@ -132,13 +132,24 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     [Fact]
     public void Control_el_escaneo_de_cuerpos_ve_un_puerto_pedido_dentro_de_un_metodo()
     {
-        var sintetico = typeof(ConsumidorSinteticoDeOriginalesInbound);
+        Type[] sinteticos =
+        [
+            typeof(ConsumidorSinteticoDeOriginalesInbound),
+            typeof(ConsumidorSinteticoDeOriginalesInboundEnLambda),
+            typeof(ConsumidorSinteticoDeOriginalesInboundAsincrono),
+        ];
+        var ensamblado = typeof(ConsumidorSinteticoDeOriginalesInbound).Assembly;
 
-        ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(sintetico.Assembly, typeof(IAlmacenOriginalesInbound))
-            .Should().Contain(sintetico, "si dejara de verlo, el test de arriba pasaría por ceguera");
-        ReflexionArquitecturaHelper.TiposQueReferencianTipo(sintetico.Assembly, typeof(IAlmacenOriginalesInbound))
-            .Should().NotContain(sintetico, "es la vía que el escaneo de firmas no ve: por eso existe el de cuerpos");
+        ReflexionArquitecturaHelper.TiposQueNombranTipoEnIl(ensamblado, typeof(IAlmacenOriginalesInbound))
+            .Should().Contain(sinteticos, "si dejara de ver un cuerpo, una lambda o un método async, el test de arriba pasaría por ceguera");
+        ReflexionArquitecturaHelper.TiposQueReferencianTipo(ensamblado, typeof(IAlmacenOriginalesInbound)).Select(Exterior)
+            .Should().NotContain(sinteticos, "es la vía que el escaneo de firmas no ve: por eso existe el de cuerpos");
+        // Y en la lambda y el async, la petición no está en el tipo exterior sino en uno anidado que genera el compilador.
+        sinteticos.Skip(1).Should().OnlyContain(t => !ReferenciasIlNombra(t, typeof(IAlmacenOriginalesInbound)),
+            "si el exterior ya la nombrara, el control no probaría que se recorren los tipos anidados");
     }
+
+    private static bool ReferenciasIlNombra(Type tipo, Type nombrado) => ReferenciasIl.De(tipo).Contains(nombrado);
 
     private static List<Type> NombranEnIl(Type puerto) => EnsambladosEscaneados
         .Select(ReflexionArquitecturaHelper.CargarAssembly)

@@ -13,7 +13,7 @@ namespace CaeManager.Application.Common.Archivos;
 /// su único consumidor es ese adaptador (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c>): cualquier otro podría abrir
 /// archivos de cualquier Tenant con solo conocer su clave. Por lo mismo, la implementación no es la instancia que el
 /// contenedor entrega como <see cref="IFileStorageService"/>: un consumidor del almacenamiento del Tenant activo no llega
-/// aquí con un cast.
+/// aquí con un cast, ni con <c>dynamic</c> fuera de Infrastructure; dentro, lo vigila el mismo test.
 /// </para>
 /// </summary>
 public interface IAlmacenArchivosDelTenantPropietario

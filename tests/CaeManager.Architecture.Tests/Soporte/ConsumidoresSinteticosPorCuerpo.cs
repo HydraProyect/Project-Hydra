@@ -15,6 +15,29 @@ internal static class ConsumidorSinteticoDeOriginalesInbound
     public static object Pedir(IServiceProvider servicios) => servicios.GetRequiredService<IAlmacenOriginalesInbound>();
 }
 
+/// <summary>
+/// Como <see cref="ConsumidorSinteticoDeOriginalesInbound"/>, pero dentro de una lambda sin capturas: el compilador la
+/// lleva a una clase anidada (<c>&lt;&gt;c</c>) y el método exterior no nombra el puerto. Si el escaneo dejara de recorrer
+/// los tipos anidados o de contarlos como su tipo exterior, el control caería.
+/// </summary>
+internal static class ConsumidorSinteticoDeOriginalesInboundEnLambda
+{
+    public static Func<IServiceProvider, object> Pedir() => servicios => servicios.GetRequiredService<IAlmacenOriginalesInbound>();
+}
+
+/// <summary>
+/// Como <see cref="ConsumidorSinteticoDeOriginalesInbound"/>, pero después de un <c>await</c>: la petición vive en el
+/// <c>MoveNext</c> de la máquina de estados anidada, no en el método exterior.
+/// </summary>
+internal static class ConsumidorSinteticoDeOriginalesInboundAsincrono
+{
+    public static async Task<object> PedirAsync(IServiceProvider servicios)
+    {
+        await Task.Yield();
+        return servicios.GetRequiredService<IAlmacenOriginalesInbound>();
+    }
+}
+
 /// <inheritdoc cref="ConsumidorSinteticoDeOriginalesInbound"/>
 internal static class ConsumidorSinteticoDeLaLecturaEntreTenants
 {

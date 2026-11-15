@@ -334,7 +334,8 @@ public class DiskFileStorageService : IFileStorageService
     /// La única lectura del almacenamiento que cruza Tenants. No es pública ni la implementa este tipo: la expone
     /// <see cref="LecturaDeDiscoDelTenantPropietario"/> como <see cref="IAlmacenArchivosDelTenantPropietario"/>, una
     /// instancia distinta, para que quien tenga este almacén por <see cref="IFileStorageService"/> no pueda alcanzarla con
-    /// un cast ni con <c>dynamic</c>. Hoy solo la usa el adaptador de Inbound que abre originales del Tenant de la Empresa
+    /// un cast, ni con <c>dynamic</c> desde fuera de Infrastructure (dentro, lo impide el barrido de identificadores de
+    /// <c>AlmacenDeDiscoSoloPorSusPuertosTests</c>). Hoy solo la usa el adaptador de Inbound que abre originales del Tenant de la Empresa
     /// contratista (ADR-013, K-3; hasta M2 era <c>AbrirOriginalAsync</c> de este mismo tipo, con el mismo cuerpo). La
     /// referencia tiene que empezar por la carpeta del Tenant indicado (<see cref="ClavesDeAlmacen.EsDeLaCarpetaDelTenant"/>,
     /// la misma regla a la que delega <c>OriginalesInbound.EsDelTenant</c>) y resolver dentro de ella (si no, «no existe»,
