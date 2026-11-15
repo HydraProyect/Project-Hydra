@@ -35,10 +35,14 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// Límites declarados: <c>internal</c> no impide un <c>dynamic</c> ni un <c>new</c> desde otro tipo de Infrastructure; eso
-/// lo fija solo el barrido de identificadores y literales de <c>src</c> sobre el nombre del método y de la envoltura. Una
-/// resolución por cadena compuesta en tiempo de ejecución (reflexión con el nombre troceado, que también alcanzaría un
-/// miembro <c>internal</c>) no la ve ningún instrumento, ni lo que haya fuera de <c>src</c> que referencie Infrastructure
-/// (por ejemplo, <c>tools/</c>). Tampoco fijan qué hace el adaptador por dentro: su test de comportamiento
+/// lo fija solo el barrido de identificadores y literales de <c>src</c> sobre el nombre del método, de la envoltura y del
+/// puerto estrecho. La reflexión sobre miembros no públicos la acota <c>ReflexionNoPublicaCongeladaTests</c> a los usos que
+/// hay hoy. Lo que queda no se puede contener en .NET: código del mismo proceso que recorra los metadatos sin nombrar nada
+/// (enumerar tipos y métodos y elegirlos por su forma, con las <c>BindingFlags</c> calculadas) llega a cualquier miembro
+/// <c>internal</c>. Tampoco se ve lo que haya fuera de <c>src</c> que referencie Infrastructure (por ejemplo,
+/// <c>tools/</c>). La contención real de la lectura entre Tenants es la guarda de carpeta que aplica el adaptador sobre
+/// la referencia que devolvió la base (y que el almacén repite), no estos trinquetes, que solo hacen visible en la PR un
+/// consumidor nuevo. Tampoco fijan qué hace el adaptador por dentro: su test de comportamiento
 /// (<c>AdaptadorAlmacenOriginalesInboundTests</c>) cubre <c>AbrirOriginalAsync</c>, y un método nuevo en el adaptador solo
 /// lo vería la revisión de la PR.
 /// </para>
@@ -167,12 +171,15 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
             ],
             "un GetRequiredService<IAlmacenArchivosDelTenantPropietario>() o un cast dentro de un método no lo ve la reflexión");
 
+        // Identificadores y literales: Type.GetType("…IAlmacenArchivosDelTenantPropietario") más GetService(Type) no nombra
+        // el tipo en el IL ni en los identificadores, solo en una cadena.
         var ficheros = FuentesDeSrc.Analisis
-            .Where(f => f.Value.Palabras.ContainsKey(nameof(IAlmacenArchivosDelTenantPropietario)))
+            .Where(f => NombraEnIdentificadorOLiteral(f.Value, nameof(IAlmacenArchivosDelTenantPropietario)))
             .Select(f => f.Key)
             .ToList();
         ficheros.Should().BeEquivalentTo(FicherosQueNombranLaLecturaEntreTenants,
-            "el barrido de fuentes ve además un uso en Program.cs o en código que no se haya compilado todavía");
+            "el barrido de fuentes ve además un uso en Program.cs, en código que no se haya compilado todavía o en una " +
+            "cadena que lo resuelva por reflexión");
         FuentesDeSrc.Analisis[Registro].Palabras[nameof(IAlmacenArchivosDelTenantPropietario)]
             .Should().Be(1, "la composición la registra una vez y no la pide para nada más");
     }
@@ -220,7 +227,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
         NombranEnIl(LecturaEntreTenants).Should().BeEquivalentTo([typeof(InfrastructureServiceCollectionExtensions)],
             "construirla da la lectura entre Tenants sin pasar por el puerto que vigila la lista de consumidores");
         FuentesDeSrc.Analisis
-            .Where(f => f.Value.Palabras.ContainsKey(NombreDeLaLectura) || (f.Value.Literales?.ContainsKey(NombreDeLaLectura) ?? false))
+            .Where(f => NombraEnIdentificadorOLiteral(f.Value, NombreDeLaLectura))
             .Select(f => f.Key)
             .Should().BeEquivalentTo([Lectura, Registro], "ni por su nombre en un literal (ActivatorUtilities, Type.GetType)");
     }
@@ -235,7 +242,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
     {
         const string metodo = nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync);
         FuentesDeSrc.Analisis
-            .Where(f => f.Value.Palabras.ContainsKey(metodo) || (f.Value.Literales?.ContainsKey(metodo) ?? false))
+            .Where(f => NombraEnIdentificadorOLiteral(f.Value, metodo))
             .Select(f => f.Key)
             .Should().BeEquivalentTo(
                 ["src/CaeManager.Application/Common/Archivos/IAlmacenArchivosDelTenantPropietario.cs", Almacen, Lectura, Adaptador],
@@ -258,16 +265,22 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
                 {
                     var metodo = "{{nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync)}}";
                     var tipo = "CaeManager.Infrastructure.FileStorage.{{NombreDeLaLectura}}";
+                    var puerto = System.Type.GetType("{{typeof(IAlmacenArchivosDelTenantPropietario).AssemblyQualifiedName}}");
                 }
             }
             """);
 
+        string[] nombres =
+        [
+            nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync),
+            NombreDeLaLectura,
+            nameof(IAlmacenArchivosDelTenantPropietario),
+        ];
         analisis.Literales.Should().NotBeNull();
-        analisis.Literales!.Should().ContainKey(nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync))
-            .And.ContainKey(NombreDeLaLectura);
-        analisis.Palabras.Should().NotContainKey(nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync),
-            "el nombre solo está en una cadena: lo ve la rama de literales, no la de identificadores")
-            .And.NotContainKey(NombreDeLaLectura);
+        analisis.Literales!.Keys.Should().Contain(nombres, "un nombre cualificado en una cadena se parte por sus puntos");
+        analisis.Palabras.Keys.Should().NotContain(nombres,
+            "los nombres solo están en cadenas: los ve la rama de literales, no la de identificadores");
+        NombraEnIdentificadorOLiteral(analisis, nameof(IAlmacenArchivosDelTenantPropietario)).Should().BeTrue();
     }
 
     [Fact]
@@ -287,6 +300,9 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
         ReflexionArquitecturaHelper.TiposQueReferencianTipo(sintetico.Assembly, typeof(IAlmacenArchivosDelTenantPropietario))
             .Should().NotContain(sintetico);
     }
+
+    private static bool NombraEnIdentificadorOLiteral(AnalisisDeFichero fichero, string nombre) =>
+        fichero.Palabras.ContainsKey(nombre) || (fichero.Literales?.ContainsKey(nombre) ?? false);
 
     private static List<Type> NombranEnIl(Type tipo) => Ensamblados
         .Select(ReflexionArquitecturaHelper.CargarAssembly)
