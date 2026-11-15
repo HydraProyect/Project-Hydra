@@ -62,9 +62,14 @@ namespace CaeManager.Architecture.Tests;
 /// <c>o.Id == c.AsignacionOperacionId</c> (en cualquier orden), la clave de un <c>join</c> integrado o
 /// las claves de un <c>Join</c> de método con esos dos lados; y el Servicio solo cuenta en la parte de la
 /// cadena de esa operación que no comparte con la de la cartera (tras el <c>Join</c> que las une, la fila
-/// es una proyección y no cuenta). Cualquier otra forma (una clave compuesta, <c>Equals</c>, una variable
-/// <c>ops</c> que no se sabe qué recorre) deja la lectura cruda (falso positivo, va a la lista). La
-/// correlación no comprueba que la igualdad restrinja (dentro de una disyunción también cuenta), y la
+/// es una proyección y no cuenta). La igualdad tiene que restringir las filas de la cartera: subiendo
+/// desde ella solo puede pasar por <c>&amp;&amp;</c>, paréntesis, predicados de llamadas que filtran
+/// (<c>Where</c>, <c>Any</c>, <c>Count</c>, <c>First</c>…) y la condición de un <c>where</c>, hasta un
+/// predicado de la propia cartera; una proyección, <c>!</c> o <c>||</c> la dejan cruda. Un
+/// <c>GroupJoin</c> (o <c>join … into</c>) conserva las filas exteriores con el grupo vacío, así que solo
+/// correlaciona con la cartera como lado unido. Cualquier otra forma (una clave compuesta, <c>Equals</c>,
+/// una variable <c>ops</c> que no se sabe qué recorre, una comparación del resultado como
+/// <c>Count(…) &gt; 0</c>) deja la lectura cruda (falso positivo, va a la lista). La
 /// fila se reconoce por la cadena y el nombre de la propiedad: una proyección anterior a la clave
 /// (<c>.Select(c =&gt; otra)</c>) que devuelva una entidad con <c>AsignacionOperacionId</c> o <c>Id</c>
 /// haría de fila de la cartera o de la operación (falso negativo).</item>
@@ -214,6 +219,17 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion, c => c.AsignacionOperacionId, o => o.Id, (c, o) => new { c, o }).Join(otros, r => r.c.UsuarioId, x => x.Id, (r, x) => new { r, x }).Where(z => z.x.Servicio == s).Count(); }")]
     // Un from cruzado sin clave de join.
     [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera from o in ctx.AsignacionesOperacion where o.Servicio == s && c.AsignacionOperacionId != Guid.Empty select c).Count(); }")]
+    // Ronda 3 de Codex: un GroupJoin con la cartera fuera conserva todas sus filas aunque el grupo quede vacío.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.AsEnumerable().GroupJoin(ctx.AsignacionesOperacion.Where(o => o.Servicio == s).AsEnumerable(), c => c.AsignacionOperacionId, o => o.Id, (c, grupo) => c).Count(); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.GroupJoin(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, grupo) => c).Count(); }")]
+    [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion.Where(x => x.Servicio == s) on c.AsignacionOperacionId equals o.Id into g select c).Count(); }")]
+    // Ronda 3 de Codex: la subconsulta correlacionada solo se usa en una proyección, no restringe las filas.
+    [InlineData("void A() { var l = ctx.AsignacionesCartera.Select(c => new { c, Ok = ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) }).ToList(); }")]
+    [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera select new { c, Ok = ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s) }).ToList(); }")]
+    [InlineData("void A() { var l = (from c in ctx.AsignacionesCartera select (from x in otros join o in ctx.AsignacionesOperacion.Where(y => y.Servicio == s) on c.AsignacionOperacionId equals o.Id select o).Any()).ToList(); }")]
+    // Una negación o una disyunción alrededor de la subconsulta correlacionada tampoco restringe.
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => !ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
+    [InlineData("void A() { var n = ctx.AsignacionesCartera.Count(c => x || ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)); }")]
     public void Una_cartera_sin_correlacion_con_la_operacion_que_filtra_es_cruda(string cuerpo)
     {
         var accesos = MedirCs(cuerpo);
@@ -265,6 +281,11 @@ public class AccesoCrudoAAsignacionesSinServicioTests
     [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera from o in ctx.AsignacionesOperacion where o.Id == c.AsignacionOperacionId && o.Servicio == s select c).Count(); }")]
     [InlineData("void A() { var n = ctx.AsignacionesCartera.Join(ctx.AsignacionesOperacion.Where(o => o.Servicio == s), c => c.AsignacionOperacionId, o => o.Id, (c, o) => c).Count(); }")]
     [InlineData("void A() { var n = ctx.AsignacionesOperacion.Where(o => o.Servicio == s).Join(ctx.AsignacionesCartera, o => o.Id, c => c.AsignacionOperacionId, (o, c) => c).Count(); }")]
+    // Un GroupJoin con la cartera como lado unido: sus filas son las de los grupos de las operaciones del servicio.
+    [InlineData("void A() { var l = ctx.AsignacionesOperacion.Where(o => o.Servicio == s).GroupJoin(ctx.AsignacionesCartera, o => o.Id, c => c.AsignacionOperacionId, (o, cs) => cs).ToList(); }")]
+    [InlineData("void A() { var l = (from o in ctx.AsignacionesOperacion where o.Servicio == s join c in ctx.AsignacionesCartera on o.Id equals c.AsignacionOperacionId into g select g).ToList(); }")]
+    // La proyección posterior al predicado correlacionado no le quita el filtro.
+    [InlineData("void A() { var l = ctx.AsignacionesCartera.Where(c => ctx.AsignacionesOperacion.Any(o => o.Id == c.AsignacionOperacionId && o.Servicio == s)).Select(c => c.UsuarioId).ToList(); }")]
     // El predicado se aplica a la fuente del join, que es parte de la consulta de la cartera.
     [InlineData("void A() { var n = (from c in ctx.AsignacionesCartera join o in ctx.AsignacionesOperacion.Where(Otro.Predicado) on c.AsignacionOperacionId equals o.Id select c).Count(); }")]
     // Un predicado IQueryable que recibe el acceso como argumento.

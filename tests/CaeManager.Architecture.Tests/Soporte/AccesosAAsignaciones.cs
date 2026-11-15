@@ -332,12 +332,16 @@ internal static class AccesosAAsignaciones
     /// <list type="bullet">
     /// <item>una igualdad <c>==</c> entre <c>c.AsignacionOperacionId</c> y <c>o.Id</c>, en cualquier orden
     /// (<c>c =&gt; ctx.AsignacionesOperacion.Any(o =&gt; o.Id == c.AsignacionOperacionId &amp;&amp; o.Servicio == s)</c>,
-    /// o la cartera dentro del predicado de una consulta sobre la operación);</item>
+    /// o la cartera dentro del predicado de una consulta sobre la operación), siempre que restrinja las
+    /// filas de la cartera (<see cref="RestringeLaCartera"/>: no en una proyección);</item>
     /// <item>la clave de un <c>join</c> integrado con esos dos lados (<c>join o in ctx.AsignacionesOperacion
-    /// on c.AsignacionOperacionId equals o.Id</c>; también con la cartera como lado unido);</item>
-    /// <item>un <c>Join</c> o <c>GroupJoin</c> de método cuyas claves son <c>c =&gt; c.AsignacionOperacionId</c>
-    /// en el lado de la cartera y <c>o =&gt; o.Id</c> en el de la operación.</item>
+    /// on c.AsignacionOperacionId equals o.Id</c>, con la cartera de rango de esa consulta; también con la
+    /// cartera como lado unido);</item>
+    /// <item>un <c>Join</c> de método cuyas claves son <c>c =&gt; c.AsignacionOperacionId</c> en el lado de la
+    /// cartera y <c>o =&gt; o.Id</c> en el de la operación.</item>
     /// </list>
+    /// Un <c>GroupJoin</c> (de método, o un <c>join … into</c>) conserva las filas exteriores aunque su
+    /// grupo quede vacío: solo correlaciona con la cartera como lado unido, nunca como lado exterior.
     /// El lado de la operación tiene que ser una consulta medida sobre <c>AsignacionesOperacion</c>: una
     /// variable (<c>join o in ops</c>, <c>ops.Where(o =&gt; …)</c>) no se sabe qué recorre y no correlaciona.
     /// Una subconsulta de operaciones sin esa igualdad (<c>ctx.AsignacionesOperacion.Any(o =&gt; o.Servicio
@@ -368,12 +372,28 @@ internal static class AccesosAAsignaciones
         bool Empareja(ExpressionSyntax a, ExpressionSyntax b) =>
             (DeLaCartera(a) && DeLaOperacion(b)) || (DeLaOperacion(a) && DeLaCartera(b));
 
+        // En un join integrado, la fila de la cartera tiene que ser de rango de esa misma consulta (no una
+        // variable exterior usada en la clave de una subconsulta de una proyección). Con «into» es un
+        // GroupJoin: conserva las filas exteriores aunque su grupo quede vacío, así que solo restringe a la
+        // cartera cuando la cartera es el lado unido.
+        bool JoinIntegradoRestringe(JoinClauseSyntax j)
+        {
+            if (DeLaOperacion(j.LeftExpression) && DeLaCartera(j.RightExpression)) return true;
+            if (j.Into is not null || !DeLaCartera(j.LeftExpression) || !DeLaOperacion(j.RightExpression)) return false;
+            var consulta = j.FirstAncestorOrSelf<QueryExpressionSyntax>();
+            return consulta is not null
+                && PropiedadDeFila(j.LeftExpression, "AsignacionOperacionId") is { } fila
+                && FuenteDeFila(fila) is { } fuente
+                && FuentesDeRango(consulta).Contains(fuente);
+        }
+
         foreach (var nodo in contexto.DescendantNodesAndSelf())
         {
             switch (nodo)
             {
-                case BinaryExpressionSyntax b when b.IsKind(SyntaxKind.EqualsExpression) && Empareja(b.Left, b.Right):
-                case JoinClauseSyntax j when Empareja(j.LeftExpression, j.RightExpression):
+                case BinaryExpressionSyntax b when b.IsKind(SyntaxKind.EqualsExpression) && Empareja(b.Left, b.Right)
+                                                  && RestringeLaCartera(b, propia):
+                case JoinClauseSyntax j when JoinIntegradoRestringe(j):
                     return true;
 
                 case InvocationExpressionSyntax
@@ -381,7 +401,9 @@ internal static class AccesosAAsignaciones
                     Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Join" or "GroupJoin" } metodo,
                     ArgumentList.Arguments: [var interior, var claveExterior, var claveInterior, ..],
                 } join when propia.Contains(join) && deLaOperacion.Contains(join):
-                    var carteraFuera = propia.Contains(metodo.Expression) && deLaOperacion.Contains(interior.Expression);
+                    // GroupJoin conserva todas las filas exteriores: con la cartera fuera no la restringe.
+                    var carteraFuera = metodo.Name.Identifier.ValueText == "Join"
+                                       && propia.Contains(metodo.Expression) && deLaOperacion.Contains(interior.Expression);
                     var carteraDentro = deLaOperacion.Contains(metodo.Expression) && propia.Contains(interior.Expression);
                     var (fuera, dentro) = (ClaveDeLambda(claveExterior), ClaveDeLambda(claveInterior));
                     if ((carteraFuera && fuera == "AsignacionOperacionId" && dentro == "Id")
@@ -393,6 +415,60 @@ internal static class AccesosAAsignaciones
 
         return false;
     }
+
+    /// <summary>
+    /// Si la igualdad que correlaciona restringe de verdad las filas de la cartera: subiendo desde ella,
+    /// solo puede pasar por <c>&amp;&amp;</c>, paréntesis, el cuerpo de una lambda pasada a una llamada que
+    /// filtra (<see cref="Filtra"/>), el receptor de otra llamada que filtra (<c>ops.Where(…).Any()</c>) o
+    /// la condición de un <c>where</c> integrado, hasta llegar a un predicado de la cadena propia de la
+    /// cartera (o al <c>where</c> de una consulta que la recorre). Cualquier otro paso (una proyección,
+    /// <c>!</c>, <c>||</c>, una comparación del resultado, un argumento de otra llamada) deja la lectura
+    /// cruda: falla cerrado, aunque alguna de esas formas sí restrinja (falso positivo, va a la lista).
+    /// </summary>
+    private static bool RestringeLaCartera(SyntaxNode correlacion, HashSet<SyntaxNode> propia)
+    {
+        var actual = correlacion;
+        while (actual.Parent is { } padre)
+        {
+            switch (padre)
+            {
+                case ParenthesizedExpressionSyntax:
+                case BinaryExpressionSyntax y when y.IsKind(SyntaxKind.LogicalAndExpression):
+                    break;
+
+                case LambdaExpressionSyntax lambda when lambda.Body == actual && LlamadaQueRecibe(lambda) is { } llamada && Filtra(llamada):
+                    if (propia.Contains(llamada)) return true;
+                    padre = llamada;
+                    break;
+
+                case MemberAccessExpressionSyntax receptor when receptor.Expression == actual
+                                                               && receptor.Parent is InvocationExpressionSyntax siguiente
+                                                               && siguiente.Expression == receptor && Filtra(siguiente):
+                    padre = siguiente;
+                    break;
+
+                case WhereClauseSyntax w when w.Condition == actual:
+                    if (w.FirstAncestorOrSelf<QueryExpressionSyntax>() is not { } consulta) return false;
+                    if (FuentesDeRango(consulta).Any(propia.Contains)) return true;
+                    padre = consulta;
+                    break;
+
+                default:
+                    return false;
+            }
+
+            actual = padre;
+        }
+
+        return false;
+    }
+
+    /// <summary>Las llamadas cuyo predicado restringe las filas que leen (con o sin <c>Async</c>).</summary>
+    private static bool Filtra(InvocationExpressionSyntax llamada) =>
+        llamada.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: var metodo }
+        && (metodo.EndsWith("Async", StringComparison.Ordinal) ? metodo[..^"Async".Length] : metodo) is
+            "Where" or "Any" or "Count" or "LongCount" or "First" or "FirstOrDefault"
+            or "Single" or "SingleOrDefault" or "Last" or "LastOrDefault";
 
     /// <summary><c>x.Propiedad</c> sobre un identificador simple: devuelve <c>x</c>; si no, <c>null</c>.</summary>
     private static IdentifierNameSyntax? PropiedadDeFila(ExpressionSyntax expresion, string propiedad) =>
