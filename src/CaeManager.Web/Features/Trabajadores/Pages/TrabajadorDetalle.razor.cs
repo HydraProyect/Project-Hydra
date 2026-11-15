@@ -24,6 +24,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -107,6 +108,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private ILogger Logger => LoggerFactory.CreateLogger(GetType());
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
+    [Inject] private IStringLocalizer<CaeManager.Web.Features.Centros.Recursos.TextosCentros> TextosCentros { get; set; } = default!;
 
     private bool _editorFichaVisible;
     private bool _corregirDocumentoVisible;
@@ -140,6 +142,18 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
+
+    /// <summary>Los bloqueos de acceso de este Trabajador, por Centro (<see cref="ObtenerDocumentacionBloqueantePendienteQuery"/>).</summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> _bloqueos = [];
+
+    /// <summary>
+    /// La situación de bloqueo, con el texto canónico de las pantallas del Centro (fin de tolerancia, sin subir a la plataforma…),
+    /// del documento de Tipo <paramref name="documento"/> en ese Centro; <c>null</c> si ahí no bloquea.
+    /// </summary>
+    private string? SituacionDeBloqueo(Guid centroId, Guid tipoDocumentoId) =>
+        _bloqueos.FirstOrDefault(b => b.CentroId == centroId && b.TipoDocumentoId == tipoDocumentoId && b.Ambito == AmbitoAplicacion.Trabajador) is { } bloqueo
+            ? CaeManager.Web.Features.Centros.TextoBloqueoDeAcceso.Situacion(TextosCentros, bloqueo)
+            : null;
 
     /// <summary>La fila del Trabajador en <see cref="ObtenerTrabajadoresQuery"/>: estado, faltantes y desglose de la cabecera.</summary>
     private TrabajadorListaDto? _estadoTrabajador;
@@ -534,6 +548,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _errorDocumentos = false;
             // Igual con el estado de la cabecera: el de A no puede quedarse bajo los Centros de B.
             _estadoTrabajador = null;
+            _bloqueos = [];
         }
 
         _cargando = true;
@@ -566,6 +581,26 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                 return;
 
             _centros = centros;
+
+            // Por qué está bloqueado en cada Centro (regla única por Centro): el mismo texto que las pantallas del Centro.
+            // Es contexto, no la ficha (como en CentroDetalle): si falla, la ficha se pinta sin esa línea. En serie: el DbContext
+            // del circuito no admite consultas concurrentes. Cada consulta evalúa el Centro entero (deuda de coste conocida).
+            var bloqueos = new List<DocumentacionBloqueantePendienteDto>();
+            try
+            {
+                foreach (var centro in centros.Where(c => c.Documentos.Count > 0))
+                    bloqueos.AddRange((await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centro.CentroId), _ciclo.Token))
+                        .Where(b => b.TrabajadorId == trabajadorId));
+            }
+            catch (Exception) when (!_ciclo.IsCancellationRequested)
+            {
+                bloqueos.Clear();
+            }
+
+            if (!EsVigente(carga))
+                return;
+
+            _bloqueos = bloqueos;
 
             // El estado de la cabecera sale del cálculo único del listado (su fila, con faltantes y desglose).
             var fila = await Mediator.Send(new ObtenerTrabajadoresQuery(

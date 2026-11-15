@@ -102,6 +102,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Reactivar una delegación bloquea su fila con FOR UPDATE antes de decidir por su estado (issue #2232): EF no
         // expresa el bloqueo. Solo por Id, devuelve el Id; la tabla no lleva filtro global de EF y RLS sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DelegacionTenantRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
+        // Emitir una cartera y su fila heredada bloquea con FOR SHARE las DelegacionesTenant del par antes de decidir por
+        // el amparo de origen (ronda 2 de Codex en la PR #2253): EF no expresa el bloqueo. Solo por el par y el propósito;
+        // la tabla no lleva filtro global de EF y RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs", "await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
         // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
@@ -258,6 +262,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             """.SqlQuery<int>($"SELECT public.app_alta_caducar_solicitudes({tamanoLote}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/AltaAutonoma/LimpiezaSolicitudesAlta.cs",
             """.SqlQuery<int>($"SELECT public.app_alta_borrar_datos_personales({tamanoLote}) AS \"Value\"")""")] = 1,
+
+        // Opción B del 2026-11-15 (hallazgo 1 de Codex, ronda 1): la baja y la corrección de la línea Inbound toman su fin
+        // de vigencia del now() de la transacción, el mismo reloj que las políticas y el gate DN-7. Sin parámetros y sin
+        // leer ninguna tabla.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ProductoContratadoRepository.cs",
+            """await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),""")] = 1,
 
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo

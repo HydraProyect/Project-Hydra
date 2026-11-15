@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
@@ -496,7 +497,7 @@ public class AlcanceDatosService(
         // 2026-11-14, opción A en la PR #2223). La operación del Tenant entero lleva la caducidad de la
         // delegación como fin, pero las acotadas no, y su cierre por la caducidad o por una revocación
         // atendida por la ranura anterior solo llega con el job de expiración o con el siguiente
-        // arranque. La operación no guarda de qué delegación nació, así que se exige una del mismo par
+        // arranque. A la operación sin origen (OrigenId nulo) se le exige una delegación del mismo par
         // (Tenant propietario, Operador CAE externo) y, sin ella, falla cerrada. Una operación del
         // propio Tenant (raíz o interna) no depende de ninguna delegación, e Inbound tiene su propio
         // ciclo.
@@ -527,7 +528,15 @@ public class AlcanceDatosService(
             // Y tiene que ser del servicio del contexto (Outbound, B-02a): una Asignación de Cartera bajo una
             // Asignación de Operación Inbound universal del mismo Operador CAE y Tenant propietario convertiría en
             // el Tenant entero el ámbito de una Outbound acotada a un Cliente empresarial.
-            .Join(dbContext.AsignacionesOperacion.Where(o =>
+            //
+            // Y una Asignación de Operación externa con origen solo autoriza amparada por la DelegacionTenant
+            // concreta de la que nació, activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen):
+            // otra delegación vigente del par no la sostiene, y una que sobrevivió a una revocación no vuelve al
+            // reactivarse. Sin origen, decide solo delegacionVigente, como antes (fase de expansión; la PR #2237
+            // la hace fallar cerrada).
+            .Join(dbContext.AsignacionesOperacion
+                    .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
                     && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && o.PropietarioTenantId == propietarioTenantId

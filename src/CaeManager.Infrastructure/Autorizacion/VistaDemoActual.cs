@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
@@ -168,8 +169,9 @@ public class VistaDemoActual(
                         && c.VigenciaDesde <= ahora
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
             // El servicio del contexto, como AlcanceDatosService.ObtenerCarteraAsync (B-02a): la lente reproduce el
-            // alcance de Outbound, y una cartera bajo una operación Inbound no lo da.
-            .Join(dbContext.AsignacionesOperacion.Where(o =>
+            // alcance de Outbound, y una cartera bajo una operación Inbound no lo da. Y con el amparo de la
+            // DelegacionTenant de origen de la operación externa que lo tiene (AmparoDeOrigen, fase de expansión).
+            .Join(dbContext.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
                     o.OperadorTenantId == origen
                     && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && tenantsDeDemo.Contains(o.PropietarioTenantId)
@@ -215,7 +217,7 @@ public class VistaDemoActual(
                             && c.Estado == EstadoAsignacion.Vigente
                             && c.VigenciaDesde <= ahora
                             && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
-                .Join(dbContext.AsignacionesOperacion.Where(o =>
+                .Join(dbContext.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora).Where(o =>
                         o.OperadorTenantId == origen
                         && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                         && tenantsDeDemo.Contains(o.PropietarioTenantId)

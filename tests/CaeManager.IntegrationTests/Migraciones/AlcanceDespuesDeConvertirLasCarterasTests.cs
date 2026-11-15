@@ -192,7 +192,9 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
 
     private async Task<Medida> MedirAsync(Guid usuario, string rol, Tenant tenant)
     {
-        await using var contexto = NuevoContexto(tenant.Id);
+        // Se mide tras migrar a la última: con el modelo actual, porque el amparo de origen de los lectores
+        // (AmparoDeOrigen) lee columnas que el contexto anterior ignora.
+        await using var contexto = ContextoActual(tenant.Id);
         var servicio = new AlcanceDatosService(
             contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: tenant.Id),
             new TenantActualAmbiental { TenantId = tenant.Id }, new SesionPrivilegiadaAusente());
@@ -299,6 +301,17 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
             .Options;
         // Esta clase retrocede a un esquema anterior a la columna EsPrincipal: ver ContextoAnteriorALaMarcaDePrincipal.
         return new ContextoAnteriorALaMarcaDePrincipal(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>El modelo actual, para medir con los lectores de alcance sobre la base en su última migración.</summary>
+    private CaeManagerDbContext ContextoActual(Guid? tenantId)
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
+            .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
     /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>

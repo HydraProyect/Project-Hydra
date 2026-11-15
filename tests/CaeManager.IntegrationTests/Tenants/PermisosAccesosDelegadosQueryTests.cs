@@ -89,7 +89,7 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
         var catalogo = new CatalogoIncorporacionCartera(db, sesion);
         // Solo se invocan las consultas: las dependencias exclusivas de los comandos no se usan.
         var revocar = new DesactivarDelegacionTenantCommandHandler(
-            null!, sesion, null!, db, null!, directorio, db, catalogo);
+            null!, sesion, null!, db, null!, directorio, db, catalogo, null!);
         var reactivar = new ReactivarDelegacionTenantCommandHandler(
             null!, sesion, null!, db, db, null!, null!, null!);
         PermisosAccesosDelegadosQueryHandler Lote() => new(db, sesion, directorio, catalogo,

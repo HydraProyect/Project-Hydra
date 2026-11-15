@@ -30,7 +30,8 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
     INotificacionUsuarioRepository notificaciones,
     ITenantsQueryContext tenants,
     IUnitOfWork unitOfWork,
-    ILogger<AceptarSolicitudIncorporacionCarteraCommandHandler> logger)
+    ILogger<AceptarSolicitudIncorporacionCarteraCommandHandler> logger,
+    ITransaccionDeComando transaccion)
     : IRequestHandler<AceptarSolicitudIncorporacionCarteraCommand, Result>
 {
     public async Task<Result> Handle(AceptarSolicitudIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -44,62 +45,89 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
 
         using (ctx.EnOrigen())
         {
-            // Se carga filtrando por el Operador CAE del Coordinador CAE: una
-            // solicitud de otro Operador CAE no existe para él.
-            var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, ctx.OperadorTenantId, cancellationToken);
-            if (solicitud is null)
-                return Result.Fallo(ErroresSolicitudCartera.NoEncontrada);
-            if (solicitud.Estado != EstadoSolicitudIncorporacionCartera.Pendiente)
-                return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-            if (solicitud.SolicitanteUsuarioId == ctx.UsuarioId)
-                return Result.Fallo(ErroresSolicitudCartera.PropiaSolicitud);
+            SolicitudIncorporacionCartera? aceptada = null;
+            Error? anulada = null;
 
-            var ahora = DateTime.UtcNow;
-
-            // La solicitud pudo esperar días: quien la pidió puede haber dejado
-            // de ser Gestor CAE, o su cuenta estar desactivada. Aceptar a ciegas
-            // le daría una cartera universal que ya no le corresponde.
-            if (!await directorioUsuarios.EsCuentaActivaConRolAsync(
-                    solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, ContextoOperadorCae.RolGestorCae, cancellationToken))
+            // Comprobación del amparo de origen, emisión de la cartera y de su fila heredada y
+            // guardado, en una transacción (ronda 2 de Codex en la PR #2253): el catálogo bloquea
+            // con FOR SHARE la DelegacionTenant del par antes de decidir, y ese bloqueo solo dura
+            // lo que la transacción. Sin ella, una revocación confirmada entre la lectura y el
+            // guardado dejaría una fila heredada que nadie retira. La transacción deshace todo
+            // lo escrito si el resultado falla; por eso la anulación, que sí se guarda, sale como
+            // éxito y su error se devuelve fuera.
+            var resultado = await transaccion.EjecutarAsync(async ct =>
             {
-                solicitud.Anular(MotivoAnulacionSolicitudCartera.SolicitanteNoDisponible, ahora);
-                return await catalogo.GuardarDetectandoCarreraAsync(cancellationToken)
-                    ? Result.Fallo(ErroresSolicitudCartera.SolicitanteNoDisponible)
-                    : Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-            }
+                aceptada = null;
+                anulada = null;
 
-            // La cartera se escribe en el Tenant propietario: la política RLS de
-            // las carteras solo deja escribir sobre el propietario contextual.
-            // El Guid sale de la solicitud recién cargada del propio Operador CAE
-            // y ya autorizada por rol, no de un parámetro. La solicitud se marca
-            // en la misma transacción —su política va por el tenant de origen,
-            // que dentro de este ámbito sigue siendo el del Coordinador CAE—, así
-            // que o se crean cartera, fila heredada y aceptación, o nada.
-            using (AmbitoTenantExplicito.Establecer(solicitud.PropietarioTenantId))
-            {
-                var incorporacion = await catalogo.IncorporarAsync(solicitud, cancellationToken);
+                // Se carga filtrando por el Operador CAE del Coordinador CAE: una
+                // solicitud de otro Operador CAE no existe para él.
+                var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, ctx.OperadorTenantId, ct);
+                if (solicitud is null)
+                    return Result.Fallo(ErroresSolicitudCartera.NoEncontrada);
+                if (solicitud.Estado != EstadoSolicitudIncorporacionCartera.Pendiente)
+                    return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
+                if (solicitud.SolicitanteUsuarioId == ctx.UsuarioId)
+                    return Result.Fallo(ErroresSolicitudCartera.PropiaSolicitud);
 
-                if (incorporacion.MotivoAnulacion is { } motivo)
+                var ahora = DateTime.UtcNow;
+
+                // La solicitud pudo esperar días: quien la pidió puede haber dejado
+                // de ser Gestor CAE, o su cuenta estar desactivada. Aceptar a ciegas
+                // le daría una cartera universal que ya no le corresponde.
+                if (!await directorioUsuarios.EsCuentaActivaConRolAsync(
+                        solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, ContextoOperadorCae.RolGestorCae, ct))
                 {
-                    solicitud.Anular(motivo, ahora);
-                    if (!await catalogo.GuardarDetectandoCarreraAsync(cancellationToken))
+                    solicitud.Anular(MotivoAnulacionSolicitudCartera.SolicitanteNoDisponible, ahora);
+                    if (!await catalogo.GuardarDetectandoCarreraAsync(ct))
                         return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
 
-                    return Result.Fallo(motivo == MotivoAnulacionSolicitudCartera.YaEnCartera
-                        ? ErroresSolicitudCartera.YaEnCartera
-                        : ErroresSolicitudCartera.OperacionNoVigente);
+                    anulada = ErroresSolicitudCartera.SolicitanteNoDisponible;
+                    return Result.Exito();
                 }
 
-                solicitud.Aceptar(ctx.UsuarioId, incorporacion.Cartera!, incorporacion.AsignacionOperadorDelegadoId, ahora);
+                // La cartera se escribe en el Tenant propietario: la política RLS de
+                // las carteras solo deja escribir sobre el propietario contextual.
+                // El Guid sale de la solicitud recién cargada del propio Operador CAE
+                // y ya autorizada por rol, no de un parámetro. La solicitud se marca
+                // en la misma transacción —su política va por el tenant de origen,
+                // que dentro de este ámbito sigue siendo el del Coordinador CAE—, así
+                // que o se crean cartera, fila heredada y aceptación, o nada.
+                using (AmbitoTenantExplicito.Establecer(solicitud.PropietarioTenantId))
+                {
+                    var incorporacion = await catalogo.IncorporarAsync(solicitud, ct);
 
-                // Dos Coordinadores CAE aceptando a la vez: la versión de la
-                // solicitud y el índice único de cartera universal dejan pasar
-                // una sola aceptación.
-                if (!await catalogo.GuardarDetectandoCarreraAsync(cancellationToken))
-                    return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-            }
+                    if (incorporacion.MotivoAnulacion is { } motivo)
+                    {
+                        solicitud.Anular(motivo, ahora);
+                        if (!await catalogo.GuardarDetectandoCarreraAsync(ct))
+                            return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
 
-            await NotificarAlSolicitanteAsync(solicitud, cancellationToken);
+                        anulada = motivo == MotivoAnulacionSolicitudCartera.YaEnCartera
+                            ? ErroresSolicitudCartera.YaEnCartera
+                            : ErroresSolicitudCartera.OperacionNoVigente;
+                        return Result.Exito();
+                    }
+
+                    solicitud.Aceptar(ctx.UsuarioId, incorporacion.Cartera!, incorporacion.AsignacionOperadorDelegadoId, ahora);
+
+                    // Dos Coordinadores CAE aceptando a la vez: la versión de la
+                    // solicitud y el índice único de cartera universal dejan pasar
+                    // una sola aceptación.
+                    if (!await catalogo.GuardarDetectandoCarreraAsync(ct))
+                        return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
+                }
+
+                aceptada = solicitud;
+                return Result.Exito();
+            }, cancellationToken);
+
+            if (resultado.EsFallido)
+                return resultado;
+            if (anulada is { } error)
+                return Result.Fallo(error);
+
+            await NotificarAlSolicitanteAsync(aceptada!, cancellationToken);
             return Result.Exito();
         }
     }
