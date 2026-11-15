@@ -52,7 +52,8 @@ public enum ResultadoRecuperacionHueco
 /// fabricar <c>$skip</c>; el listado queda completo solo con una página sin continuación. Un 200 ilegible es un fallo
 /// (lo decide el adaptador), y la marca y el cursor se quedan.</item>
 /// <item><b>Topes.</b> <see cref="MaximoMensajesPorPasada"/> mensajes o <see cref="MaximoPaginasPorPasada"/> páginas
-/// por pasada (la siguiente sigue desde el cursor) y <see cref="ConexionIntegracion.AntiguedadMaximaRecuperacion"/> de
+/// por pasada (la siguiente sigue desde el cursor, o desde la continuación guardada si el cursor no avanzó en toda la
+/// cadena: <see cref="ConexionIntegracion.AvanzarRecuperacionHueco"/>) y <see cref="ConexionIntegracion.AntiguedadMaximaRecuperacion"/> de
 /// antigüedad (la marca anterior se queda: <see cref="ResultadoRecuperacionHueco.Truncada"/>). Los dos se avisan en el
 /// registro.</item>
 /// <item><b>Misma puerta que la ingesta.</b> Antes de cada llamada a Graph se relee de la base si la conexión sigue
@@ -128,14 +129,15 @@ public class RecuperacionHuecoCorreoService(
     }
 
     /// <summary>Lo que la pasada espera encontrar en la fila: si cambia, alguien anuló o rehízo la recuperación.</summary>
-    private readonly record struct EstadoRecuperacion(DateTime CubreDesdeUtc, DateTime CursorUtc, string? SiguienteEnlace, bool ListadoCompleto)
+    private readonly record struct EstadoRecuperacion(Guid Id, DateTime CubreDesdeUtc, DateTime CursorUtc, string? SiguienteEnlace, bool ListadoCompleto)
     {
         public static EstadoRecuperacion De(ConexionIntegracion conexion) =>
-            new(conexion.RecuperacionHuecoCubreDesdeUtc!.Value, conexion.RecuperacionHuecoCursorUtc!.Value,
+            new(conexion.RecuperacionHuecoId!.Value, conexion.RecuperacionHuecoCubreDesdeUtc!.Value, conexion.RecuperacionHuecoCursorUtc!.Value,
                 conexion.RecuperacionHuecoSiguienteEnlace, conexion.RecuperacionHuecoListadoCompleto);
 
         public bool Coincide(ConexionIntegracion conexion) =>
-            conexion.RecuperacionHuecoCubreDesdeUtc == CubreDesdeUtc
+            conexion.RecuperacionHuecoId == Id
+            && conexion.RecuperacionHuecoCubreDesdeUtc == CubreDesdeUtc
             && conexion.RecuperacionHuecoCursorUtc == CursorUtc
             && string.Equals(conexion.RecuperacionHuecoSiguienteEnlace, SiguienteEnlace, StringComparison.Ordinal)
             && conexion.RecuperacionHuecoListadoCompleto == ListadoCompleto;
@@ -203,8 +205,10 @@ public class RecuperacionHuecoCorreoService(
         CancellationToken cancellationToken)
     {
         var buzon = BuzonGraph.De(conexion);
+        // Inicio de la cadena de páginas. Una continuación guardada solo existe si el cursor no avanzó en su cadena, así que
+        // también entonces el cursor es la fecha de su filtro.
         var desdeUtc = recuperacion.CursorUtc;
-        // Una pasada anterior cortada por un tope dejó guardada la continuación: se sigue desde ella.
+        // Una pasada anterior cortada por un tope sin avanzar el cursor dejó guardada la continuación: se sigue desde ella.
         var enlace = recuperacion.SiguienteEnlace;
         var mensajes = 0;
 
@@ -223,15 +227,16 @@ public class RecuperacionHuecoCorreoService(
                 logger.LogWarning(
                     "Falló la página {Pagina} de la recuperación del hueco de {ConexionId}: {Error}. La marca y el cursor se quedan.",
                     pagina, conexionId, respuesta.Error.Mensaje);
-                // Solo la continuación heredada de la pasada anterior: la de esta pasada ya quedó guardada y, si no vale, se
-                // olvidará cuando la pasada siguiente la pida primero.
-                if (pagina == 1 && enlace is not null && !CodigosErrorMicrosoft365.EsTransitorio(respuesta.Error))
+                // Solo la continuación heredada de la pasada anterior, y solo si lo rechazado es ella (un 401 o un 403 hablan
+                // del token, no de la continuación): la de esta pasada ya quedó guardada y, si no vale, se olvidará cuando la
+                // pasada siguiente la pida primero.
+                if (pagina == 1 && enlace is not null && respuesta.Error.Codigo == CodigosErrorMicrosoft365.ContinuacionRechazada)
                     return new Listado(await OlvidarContinuacionAsync(conexionId, recuperacion, cancellationToken));
                 return new Listado(ResultadoRecuperacionHueco.Interrumpida);
             }
 
             var leida = respuesta.Valor;
-            var guardada = await GuardarPaginaAsync(conexionId, recuperacion, leida, cancellationToken);
+            var guardada = await GuardarPaginaAsync(conexionId, recuperacion, leida, desdeUtc, cancellationToken);
             if (guardada.Resultado is { } corte)
                 return new Listado(corte);
 
@@ -244,7 +249,7 @@ public class RecuperacionHuecoCorreoService(
             if (mensajes >= MaximoMensajesPorPasada || pagina >= MaximoPaginasPorPasada)
             {
                 logger.LogWarning(
-                    "La recuperación del hueco de {ConexionId} alcanzó el tope de la pasada ({Mensajes} mensajes, {Paginas} páginas): el ciclo siguiente sigue la continuación guardada (cursor {Cursor}).",
+                    "La recuperación del hueco de {ConexionId} alcanzó el tope de la pasada ({Mensajes} mensajes, {Paginas} páginas): el ciclo siguiente sigue desde el cursor {Cursor}, o desde la continuación si el cursor no avanzó.",
                     conexionId, mensajes, pagina, recuperacion.CursorUtc);
                 return new Listado(ResultadoRecuperacionHueco.Parcial);
             }
@@ -282,7 +287,8 @@ public class RecuperacionHuecoCorreoService(
     /// no tiene la recuperación que se estaba siguiendo, no se guarda nada.
     /// </summary>
     private async Task<Listado> GuardarPaginaAsync(
-        Guid conexionId, EstadoRecuperacion esperada, PaginaMensajesRecibidosGraphDto pagina, CancellationToken cancellationToken)
+        Guid conexionId, EstadoRecuperacion esperada, PaginaMensajesRecibidosGraphDto pagina, DateTime listadoDesdeUtc,
+        CancellationToken cancellationToken)
     {
         Listado? listado = null;
         var ejecutado = await cerrojo.IntentarEjecutarAsync(conexionId, async ct =>
@@ -302,7 +308,7 @@ public class RecuperacionHuecoCorreoService(
             }
 
             conexion.AvanzarRecuperacionHueco(
-                pagina.Mensajes.Count > 0 ? pagina.Mensajes.Max(m => m.RecibidoUtc) : null, pagina.SiguienteEnlace);
+                pagina.Mensajes.Count > 0 ? pagina.Mensajes.Max(m => m.RecibidoUtc) : null, pagina.SiguienteEnlace, listadoDesdeUtc);
             await unitOfWork.SaveChangesAsync(CancellationToken.None);
             listado = new Listado(null, EstadoRecuperacion.De(conexion));
         }, cancellationToken);

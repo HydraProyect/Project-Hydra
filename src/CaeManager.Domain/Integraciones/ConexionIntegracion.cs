@@ -143,6 +143,13 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? RecuperacionHuecoCubreDesdeUtc { get; private set; }
 
     /// <summary>
+    /// Identifica cada recuperación: nueva al empezar una, null al anularla o completarla. Dos recuperaciones con la
+    /// misma cobertura y el mismo cursor (una anulada y la que la sustituye) no se confunden: una pasada que aún esperaba a
+    /// Graph sobre la anulada no puede guardar su página, olvidar su continuación ni limpiar la marca sobre la nueva.
+    /// </summary>
+    public Guid? RecuperacionHuecoId { get; private set; }
+
+    /// <summary>
     /// Fecha de recepción desde la que continúa el listado de la recuperación en curso (<c>receivedDateTime ge</c>, orden
     /// ascendente): la del último mensaje ya encolado, o <see cref="RecuperacionHuecoCubreDesdeUtc"/> al empezar. Solo
     /// avanza. Null sin recuperación en curso.
@@ -150,11 +157,12 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? RecuperacionHuecoCursorUtc { get; private set; }
 
     /// <summary>
-    /// La continuación de Graph (<c>@odata.nextLink</c>) de la última página encolada, si la traía: la pasada siguiente
-    /// sigue desde ella y no desde <see cref="RecuperacionHuecoCursorUtc"/>, para que un tope de la pasada no la haga
-    /// repetir las mismas páginas (muchos mensajes en el mismo segundo, páginas vacías con continuación). Si la
-    /// continuación ya no vale, se olvida (<see cref="OlvidarContinuacionRecuperacionHueco"/>) y se vuelve al cursor. No es
-    /// una credencial: el token va aparte.
+    /// La continuación de Graph (<c>@odata.nextLink</c>) de la última página encolada, guardada solo si el cursor no avanzó
+    /// en toda la cadena de páginas (<see cref="AvanzarRecuperacionHueco"/>): la pasada siguiente sigue desde ella y no
+    /// desde <see cref="RecuperacionHuecoCursorUtc"/>, para que un tope de la pasada no la haga repetir las mismas páginas
+    /// (muchos mensajes en el mismo segundo, páginas vacías con continuación). Si Graph la rechaza, se olvida
+    /// (<see cref="OlvidarContinuacionRecuperacionHueco"/>) y se vuelve al cursor. No es una credencial: el token va aparte,
+    /// y el adaptador solo la sigue si es del mismo buzón, carpeta, filtro y orden.
     /// </summary>
     public string? RecuperacionHuecoSiguienteEnlace { get; private set; }
 
@@ -414,6 +422,7 @@ public class ConexionIntegracion : EntidadBase
 
         var tope = ahoraUtc - AntiguedadMaximaRecuperacion;
         var desde = marca > tope ? marca : tope;
+        RecuperacionHuecoId = Guid.NewGuid();
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
         RecuperacionHuecoSiguienteEnlace = null;
@@ -423,9 +432,17 @@ public class ConexionIntegracion : EntidadBase
 
     /// <summary>
     /// Una página del listado ya está encolada: el cursor pasa a la recepción del último mensaje de la página (solo
-    /// avanza), se guarda su continuación y, si la página no la traía, el listado queda completo.
+    /// avanza) y, si la página no traía continuación, el listado queda completo.
+    /// <para>
+    /// La continuación solo se guarda si el cursor sigue en <paramref name="listadoDesdeUtc"/>, la fecha del filtro con
+    /// el que empezó la cadena de páginas. La continuación de Graph puede ser posicional (<c>$skip</c>): entre una pasada y
+    /// la siguiente pasan minutos, y si en ese rato sale de la carpeta un mensaje ya leído, la posición guardada salta uno
+    /// sin leer. Si el cursor avanzó, reanudar desde él (<c>ge</c>) no salta nada y la ingesta deduplica lo releído; si no
+    /// avanzó (todo lo leído es del mismo segundo, o las páginas venían vacías), releer desde el cursor repetiría las
+    /// mismas páginas, y solo entonces se guarda la continuación.
+    /// </para>
     /// </summary>
-    public void AvanzarRecuperacionHueco(DateTime? ultimoRecibidoUtc, string? siguienteEnlace)
+    public void AvanzarRecuperacionHueco(DateTime? ultimoRecibidoUtc, string? siguienteEnlace, DateTime listadoDesdeUtc)
     {
         if (RecuperacionHuecoCursorUtc is not { } cursor)
             throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
@@ -435,7 +452,7 @@ public class ConexionIntegracion : EntidadBase
         if (ultimoRecibidoUtc is { } ultimo && ultimo > cursor)
             RecuperacionHuecoCursorUtc = ultimo;
 
-        RecuperacionHuecoSiguienteEnlace = siguienteEnlace;
+        RecuperacionHuecoSiguienteEnlace = RecuperacionHuecoCursorUtc <= listadoDesdeUtc ? siguienteEnlace : null;
         if (siguienteEnlace is null)
             RecuperacionHuecoListadoCompleto = true;
     }
@@ -481,6 +498,7 @@ public class ConexionIntegracion : EntidadBase
         if (!RecuperacionHuecoEnCurso && RecuperacionHuecoCursorUtc is null)
             return false;
 
+        RecuperacionHuecoId = null;
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
         RecuperacionHuecoSiguienteEnlace = null;

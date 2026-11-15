@@ -94,27 +94,79 @@ public class Microsoft365ListadoRecuperacionTests
             .And.NotContain("$skip=");
     }
 
+    private static readonly DateTime Cursor = new(2026, 11, 15, 9, 30, 15, DateTimeKind.Utc);
+
+    private const string ContinuacionValida =
+        "https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages" +
+        "?%24select=id%2CreceivedDateTime&%24filter=receivedDateTime+ge+2026-11-15T09%3A00%3A00Z" +
+        "&%24orderby=receivedDateTime+asc&%24top=50&%24skip=50";
+
+    [Theory]
+    [InlineData(ContinuacionValida, true)]
+    [InlineData("https://graph.microsoft.com/v1.0/users('cae@operador.test')/mailFolders/inbox/messages?$filter=receivedDateTime ge 2026-11-15T09:30:15Z&$orderby=receivedDateTime asc&$skip=50", true)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/otro%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc&$skip=50", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Archive')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc&$skip=50", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:30:16Z&$orderby=receivedDateTime asc&$skip=50", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime desc&$skip=50", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$orderby=receivedDateTime asc&$skip=50", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z and isRead eq false&$orderby=receivedDateTime asc", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$filter=receivedDateTime ge 2026-11-16T00:00:00Z&$orderby=receivedDateTime asc", false)]
+    [InlineData("https://graph.microsoft.com/v1.0/users/cae%40operador.test/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc", false)]
+    [InlineData("https://evil.test/v1.0/users/cae%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc", false)]
+    public void Solo_se_sigue_una_continuacion_del_mismo_listado(string enlace, bool seSigue) =>
+        Microsoft365GraphClient.EsContinuacionDelListado(enlace, Compartido, Cursor).Should().Be(seSigue);
+
+    [Fact]
+    public void Un_buzon_propio_acepta_la_continuacion_reescrita_como_users() =>
+        Microsoft365GraphClient.EsContinuacionDelListado(
+            "https://graph.microsoft.com/v1.0/users/0c8f3b1e-0000-0000-0000-000000000000/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc&$skip=50",
+            new BuzonGraph("yo@cliente.test", false), Cursor).Should().BeTrue();
+
     [Fact]
     public async Task La_continuacion_se_pide_tal_cual()
     {
-        const string enlace = "https://graph.microsoft.com/v1.0/users/x/messages?$skiptoken=abc";
         var manejador = new Respuesta(HttpStatusCode.OK, "{\"value\":[]}");
 
-        await Cliente(manejador).ListarRecibidosDesdeAsync("token", Compartido, DateTime.UtcNow, enlace, CancellationToken.None);
+        await Cliente(manejador).ListarRecibidosDesdeAsync("token", Compartido, Cursor, ContinuacionValida, CancellationToken.None);
 
-        manejador.Pedidas.Single().Should().Be(new Uri(enlace));
+        manejador.Pedidas.Single().Should().Be(new Uri(ContinuacionValida));
     }
 
-    [Fact]
-    public async Task Una_continuacion_fuera_de_Graph_falla_sin_enviar_el_token()
+    [Theory]
+    [InlineData("https://evil.test/v1.0/robar")]
+    [InlineData("https://graph.microsoft.com/v1.0/users/otro%40operador.test/mailFolders('Inbox')/messages?$filter=receivedDateTime ge 2026-11-15T09:00:00Z&$orderby=receivedDateTime asc")]
+    public async Task Una_continuacion_ajena_al_listado_se_rechaza_sin_enviar_el_token(string enlace)
     {
         var manejador = new Respuesta(HttpStatusCode.OK, "{\"value\":[]}");
 
-        var resultado = await Cliente(manejador).ListarRecibidosDesdeAsync(
-            "token", Compartido, DateTime.UtcNow, "https://evil.test/v1.0/robar", CancellationToken.None);
+        var resultado = await Cliente(manejador).ListarRecibidosDesdeAsync("token", Compartido, Cursor, enlace, CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.ContinuacionRechazada);
         manejador.Pedidas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, CodigosErrorMicrosoft365.ContinuacionRechazada)]
+    [InlineData(HttpStatusCode.NotFound, CodigosErrorMicrosoft365.ContinuacionRechazada)]
+    [InlineData(HttpStatusCode.Gone, CodigosErrorMicrosoft365.ContinuacionRechazada)]
+    [InlineData(HttpStatusCode.Unauthorized, "Integraciones.Microsoft365.ErrorApi")]
+    [InlineData(HttpStatusCode.Forbidden, "Integraciones.Microsoft365.ErrorApi")]
+    public async Task Solo_un_rechazo_de_la_continuacion_la_marca_como_rechazada(HttpStatusCode codigo, string esperado)
+    {
+        var resultado = await Cliente(new Respuesta(codigo, ""))
+            .ListarRecibidosDesdeAsync("token", Compartido, Cursor, ContinuacionValida, CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task Un_400_sin_continuacion_no_es_una_continuacion_rechazada()
+    {
+        var resultado = await Cliente(new Respuesta(HttpStatusCode.BadRequest, ""))
+            .ListarRecibidosDesdeAsync("token", Compartido, Cursor, null, CancellationToken.None);
+
+        resultado.Error.Codigo.Should().NotBe(CodigosErrorMicrosoft365.ContinuacionRechazada);
     }
 
     [Theory]

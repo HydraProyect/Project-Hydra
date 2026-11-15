@@ -8296,6 +8296,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("RecuperacionHuecoId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
                         .HasColumnType("boolean");
 

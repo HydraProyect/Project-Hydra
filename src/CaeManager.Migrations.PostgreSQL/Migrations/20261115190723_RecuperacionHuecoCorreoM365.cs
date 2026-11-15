@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -29,6 +29,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
+            migrationBuilder.AddColumn<Guid>(
+                name: "RecuperacionHuecoId",
+                table: "ConexionesIntegracion",
+                type: "uuid",
+                nullable: true);
+
             migrationBuilder.AddColumn<bool>(
                 name: "RecuperacionHuecoListadoCompleto",
                 table: "ConexionesIntegracion",
@@ -46,11 +52,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // conoce (EF solo nombra las columnas de su modelo) y sigue funcionando; las filas existentes nacen sin
             // recuperación en curso. Soporte TALVEG lee estas dos tablas columna a columna
             // (SoporteSinColumnasSecretasRestantes, SoporteSinCodigoVerificacionNiPayloadWebhook): sin estos grants, cargar
-            // la entidad bajo cae_app_soporte daría 42501. Son fechas, un indicador y la continuación del listado de Graph
-            // (una URL sin credencial: no sirve sin el token de acceso). No cambia políticas RLS ni roles.
+            // la entidad bajo cae_app_soporte daría 42501. Son fechas, un identificador de generación, un indicador y la
+            // continuación del listado de Graph (una URL sin credencial: no sirve sin el token de acceso). No cambia
+            // políticas RLS ni roles.
             migrationBuilder.Sql("""
-                GRANT SELECT ("RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoListadoCompleto",
-                              "RecuperacionHuecoSiguienteEnlace")
+                GRANT SELECT ("RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
+                              "RecuperacionHuecoListadoCompleto", "RecuperacionHuecoSiguienteEnlace")
                     ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 GRANT SELECT ("CubreDesdeUtc") ON TABLE public."EventosWebhook" TO cae_app_soporte;
                 """);
@@ -69,6 +76,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             migrationBuilder.DropColumn(
                 name: "RecuperacionHuecoCursorUtc",
+                table: "ConexionesIntegracion");
+
+            migrationBuilder.DropColumn(
+                name: "RecuperacionHuecoId",
                 table: "ConexionesIntegracion");
 
             migrationBuilder.DropColumn(

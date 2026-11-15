@@ -37,7 +37,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(Ahora.AddHours(-3));
         conexion.RecuperacionHuecoTruncada.Should().BeFalse();
 
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15)).Should().Be(Ahora.AddHours(-1), "retoma desde el cursor, no desde la marca");
         conexion.RecuperacionHuecoCubreDesdeUtc.Should().Be(Ahora.AddHours(-3));
@@ -50,7 +50,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
 
         conexion.IniciarRecuperacionHueco(Ahora).Should().Be(Ahora - ConexionIntegracion.AntiguedadMaximaRecuperacion);
         conexion.RecuperacionHuecoTruncada.Should().BeTrue();
-        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null);
+        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         conexion.CompletarRecuperacionHueco().Should().BeFalse();
         conexion.HuecoPendienteDesdeUtc.Should().Be(Ahora.AddDays(-10), "el correo anterior al tope no se ha leído");
@@ -63,9 +63,9 @@ public class ConexionIntegracionRecuperacionHuecoTests
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
 
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-2), Continuacion);
-        conexion.AvanzarRecuperacionHueco(null, Continuacion);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-2), Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
+        conexion.AvanzarRecuperacionHueco(null, Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-1));
         conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
@@ -77,7 +77,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
 
-        conexion.AvanzarRecuperacionHueco(null, Continuacion);
+        conexion.AvanzarRecuperacionHueco(null, Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
         conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion, "una página vacía con continuación no avanza el cursor, pero la continuación sí se guarda");
         conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
 
@@ -86,11 +86,11 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
         conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-3), "olvidarla vuelve a listar desde el cursor");
 
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
-        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
+        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null, conexion.RecuperacionHuecoCursorUtc!.Value);
         conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
         conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
-        var avanzarTrasCompletar = () => conexion.AvanzarRecuperacionHueco(Ahora, Continuacion);
+        var avanzarTrasCompletar = () => conexion.AvanzarRecuperacionHueco(Ahora, Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
         avanzarTrasCompletar.Should().Throw<InvalidOperationException>();
     }
 
@@ -99,7 +99,8 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+        conexion.AvanzarRecuperacionHueco(null, Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion, "control: hay una continuación guardada");
 
         conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2)).Should().BeTrue();
 
@@ -109,11 +110,56 @@ public class ConexionIntegracionRecuperacionHuecoTests
     }
 
     [Fact]
+    public void La_continuacion_solo_se_guarda_mientras_el_cursor_no_avanza_en_la_cadena()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        var inicioCadena = conexion.IniciarRecuperacionHueco(Ahora);
+
+        // Todo lo leído es del mismo segundo que el inicio de la cadena: releer desde el cursor repetiría las páginas.
+        conexion.AvanzarRecuperacionHueco(inicioCadena, Continuacion, inicioCadena);
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().Be(Continuacion);
+
+        // El cursor avanza: una continuación posicional guardada entre pasadas podría saltar correo, se reanuda por cursor.
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-2), Continuacion, inicioCadena);
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-2));
+        conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse("la página traía continuación");
+
+        // Una página posterior de la misma cadena tampoco la guarda: su posición cuenta lo leído desde el inicio de la cadena.
+        conexion.AvanzarRecuperacionHueco(null, Continuacion, inicioCadena);
+        conexion.RecuperacionHuecoSiguienteEnlace.Should().BeNull();
+    }
+
+    [Fact]
+    public void Cada_recuperacion_tiene_su_generacion()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.RecuperacionHuecoId.Should().BeNull();
+
+        conexion.IniciarRecuperacionHueco(Ahora);
+        var primera = conexion.RecuperacionHuecoId;
+        primera.Should().NotBeNull();
+        conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15));
+        conexion.RecuperacionHuecoId.Should().Be(primera, "retomar la misma recuperación no cambia su generación");
+
+        conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2)).Should().BeTrue();
+        conexion.RecuperacionHuecoId.Should().BeNull("anulada");
+
+        conexion.IniciarRecuperacionHueco(Ahora).Should().Be(Ahora.AddHours(-3), "control: misma cobertura y mismo cursor que la anulada");
+        conexion.RecuperacionHuecoId.Should().NotBeNull();
+        (conexion.RecuperacionHuecoId == primera).Should().BeFalse("una recuperación nueva tiene otra generación");
+
+        conexion.AvanzarRecuperacionHueco(null, siguienteEnlace: null, Ahora.AddHours(-3));
+        conexion.CompletarRecuperacionHueco().Should().BeTrue();
+        conexion.RecuperacionHuecoId.Should().BeNull("completada");
+    }
+
+    [Fact]
     public void Avanzar_sin_recuperacion_lanza()
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
 
-        var avanzar = () => conexion.AvanzarRecuperacionHueco(Ahora, siguienteEnlace: null);
+        var avanzar = () => conexion.AvanzarRecuperacionHueco(Ahora, siguienteEnlace: null, Ahora.AddHours(-3));
 
         avanzar.Should().Throw<InvalidOperationException>();
     }
@@ -123,7 +169,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), Continuacion, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         var completar = () => conexion.CompletarRecuperacionHueco();
 
@@ -136,7 +182,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         conexion.CompletarRecuperacionHueco().Should().BeTrue();
 
@@ -151,7 +197,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
     {
         var conexion = ConMarca(Ahora.AddHours(-3));
         conexion.IniciarRecuperacionHueco(Ahora);
-        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), siguienteEnlace: null, conexion.RecuperacionHuecoCursorUtc!.Value);
 
         // Recepción posterior: min(marca, recepción − 4 h) es la marca de antes, pero hay que guardar la anulación.
         conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2)).Should().BeTrue();

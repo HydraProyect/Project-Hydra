@@ -217,10 +217,12 @@ public interface IMicrosoft365GraphClient
     /// <summary>
     /// Una página de la Bandeja de entrada para la recuperación del hueco: los mensajes recibidos desde
     /// <paramref name="desdeUtc"/> (<c>receivedDateTime ge</c>), en orden ascendente de recepción. Con
-    /// <paramref name="siguienteEnlace"/> pide la continuación que devolvió la página anterior, sin fabricar
-    /// <c>$skip</c>; ese enlace solo se sigue si apunta a la misma raíz de Graph, porque lleva el token del buzón.
-    /// Un 200 sin <c>value</c>, con un mensaje sin Id o sin recepción, o con un enlace ajeno, es un fallo, nunca una
-    /// lista vacía.
+    /// <paramref name="siguienteEnlace"/> pide una continuación de Graph (la de la página anterior, o la guardada por una
+    /// pasada anterior), sin fabricar <c>$skip</c>. El enlace viene de la base, así que solo se sigue, y solo entonces se
+    /// le envía el token, si es de Graph y del mismo listado: mismo buzón, carpeta Inbox, orden ascendente y un filtro
+    /// <c>receivedDateTime ge</c> no posterior a <paramref name="desdeUtc"/>; si no, o si Graph lo rechaza con 400, 404 o
+    /// 410, el fallo es <see cref="CodigosErrorMicrosoft365.ContinuacionRechazada"/>. Un 200 sin <c>value</c>, con un
+    /// mensaje sin Id o sin recepción, o con un enlace ajeno, es un fallo, nunca una lista vacía.
     /// </summary>
     Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
         string accessToken, BuzonGraph buzon, DateTime desdeUtc, string? siguienteEnlace, CancellationToken cancellationToken);
@@ -295,6 +297,13 @@ public static class CodigosErrorMicrosoft365
     /// suscripción, o un 200 con un cuerpo de tokens ilegible.
     /// </summary>
     public const string Transitorio = "Integraciones.Microsoft365.Transitorio";
+
+    /// <summary>
+    /// La continuación del listado de la recuperación del hueco (<c>@odata.nextLink</c>) no vale: Graph la rechazó con
+    /// 400, 404 o 410, o no corresponde al listado de la carpeta Inbox de ese buzón con el filtro y el orden de la
+    /// recuperación, y no se siguió. Un 401 o un 403 no lo son: dicen algo del token, no de la continuación.
+    /// </summary>
+    public const string ContinuacionRechazada = "Integraciones.Microsoft365.ContinuacionRechazada";
 
     /// <summary>Fallo de red: la petición no llegó a Microsoft o no volvió respuesta.</summary>
     public const string ErrorRed = "Integraciones.Microsoft365.ErrorRed";
