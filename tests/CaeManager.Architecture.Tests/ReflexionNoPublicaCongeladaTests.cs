@@ -10,63 +10,87 @@ namespace CaeManager.Architecture.Tests;
 /// La lectura entre Tenants del almacén de disco es un método <c>internal</c> (ADR-013 M2, K-3): desde una instancia de
 /// <c>IFileStorageService</c> no se llega a él con un cast, pero sí seleccionándolo por metadatos
 /// (<c>GetType().GetMethod(…, BindingFlags.NonPublic | …)</c>). Este trinquete congela, medidos el 2026-11-15, los ficheros
-/// de <c>src</c> que usan <c>BindingFlags.NonPublic</c> y los que seleccionan miembros por reflexión. Todos resuelven un
-/// método propio (o de <c>Result</c> y de <c>TextoDeBusqueda</c>) para un árbol de expresión o una llamada genérica, y
-/// ninguno toca FileStorage. Un fichero nuevo en cualquiera de las dos listas pasa por aquí y por su motivo.
+/// de <c>src</c> que usan <c>BindingFlags.NonPublic</c> y los que seleccionan miembros por reflexión, con su número de
+/// apariciones. Todos resuelven un método propio (o de <c>Result</c> y de <c>TextoDeBusqueda</c>) para un árbol de
+/// expresión o una llamada genérica, y ninguno toca FileStorage. Un uso nuevo, también dentro de un fichero ya congelado,
+/// pasa por aquí y por su motivo.
 /// </para>
 ///
 /// <para>
-/// Límite: mira identificadores de C#. Unas <c>BindingFlags</c> calculadas (<c>(BindingFlags)36</c>) o un recorrido de
-/// metadatos sin nombrar nada no los ve, y en .NET no se pueden contener dentro del mismo proceso
-/// (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c> declara dónde está entonces la contención real).
+/// Límite: mira identificadores de C#. Unas <c>BindingFlags</c> calculadas (<c>(BindingFlags)36</c>), un recorrido de
+/// metadatos que no use ninguno de estos nombres, o uno sin <c>BindingFlags</c> que elija el miembro por su forma, no los
+/// ve, y en .NET no se pueden contener dentro del mismo proceso (<c>AlmacenDeDiscoSoloPorSusPuertosTests</c> declara
+/// dónde está entonces la contención real).
 /// </para>
 /// </summary>
 public class ReflexionNoPublicaCongeladaTests
 {
-    private static readonly string[] SeleccionDeMiembros =
-        ["GetMethod", "GetMethods", "GetRuntimeMethod", "GetRuntimeMethods", "GetDeclaredMethod", "GetDeclaredMethods",
-         "GetMember", "GetMembers", "InvokeMember"];
-
-    private static readonly string[] FicherosConNonPublic =
+    /// <summary>Los nombres con los que se elige un miembro por reflexión, de <c>Type</c>, <c>TypeInfo</c> y <c>RuntimeReflectionExtensions</c>.</summary>
+    public static readonly string[] SeleccionDeMiembros =
     [
+        "GetMethod", "GetMethods", "GetMethodImpl", "GetRuntimeMethod", "GetRuntimeMethods", "GetDeclaredMethod",
+        "GetDeclaredMethods", "DeclaredMethods", "DeclaredMembers", "DeclaredConstructors", "GetMember", "GetMembers",
+        "FindMembers", "GetDefaultMembers", "InvokeMember",
+    ];
+
+    private static readonly Dictionary<string, int> NonPublicPorFichero = new()
+    {
         // Métodos genéricos propios cerrados por tipo de entidad en OnModelCreating y en la exportación.
-        "src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs",
-        "src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs",
-        "src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs",
-    ];
+        ["src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] = 1,
+        ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] = 1,
+    };
 
-    private static readonly string[] FicherosQueSeleccionanMiembros =
-    [
-        .. FicherosConNonPublic,
+    private static readonly Dictionary<string, int> SeleccionPorFichero = new()
+    {
+        // Los mismos tres de NonPublic.
+        ["src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] = 1,
+        ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] = 1,
         // Result.Fallo<T> cerrado por el tipo de respuesta de cada behavior de MediatR.
-        "src/CaeManager.Application/Empresas/DuplicadosEmpresaBehavior.cs",
-        "src/CaeManager.Application/Common/GateComercialTenantBehavior.cs",
-        "src/CaeManager.Application/Common/ExclusionesDelEncargoBehavior.cs",
-        "src/CaeManager.Application/Common/ConcurrenciaBehavior.cs",
-        "src/CaeManager.Application/Common/AutorizacionEscrituraBehavior.cs",
+        ["src/CaeManager.Application/Empresas/DuplicadosEmpresaBehavior.cs"] = 1,
+        ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] = 1,
+        ["src/CaeManager.Application/Common/ExclusionesDelEncargoBehavior.cs"] = 1,
+        ["src/CaeManager.Application/Common/ConcurrenciaBehavior.cs"] = 1,
+        ["src/CaeManager.Application/Common/AutorizacionEscrituraBehavior.cs"] = 1,
         // TextoDeBusqueda.Contiene para traducirlo a SQL.
-        "src/CaeManager.Infrastructure/Persistence/MapeoTextoDeBusqueda.cs",
-    ];
+        ["src/CaeManager.Infrastructure/Persistence/MapeoTextoDeBusqueda.cs"] = 1,
+    };
 
-    internal static bool UsaNonPublic(AnalisisDeFichero fichero) => fichero.Palabras.ContainsKey("NonPublic");
+    internal static int UsosDeNonPublic(AnalisisDeFichero fichero) => fichero.Palabras.GetValueOrDefault("NonPublic");
 
-    internal static bool SeleccionaMiembros(AnalisisDeFichero fichero) => SeleccionDeMiembros.Any(fichero.Palabras.ContainsKey);
+    internal static int SeleccionesDeMiembros(AnalisisDeFichero fichero) =>
+        SeleccionDeMiembros.Sum(n => fichero.Palabras.GetValueOrDefault(n));
 
     [Fact]
-    public void BindingFlags_NonPublic_solo_en_los_ficheros_congelados()
+    public void BindingFlags_NonPublic_solo_en_los_usos_congelados()
     {
-        FuentesDeSrc.Analisis.Where(f => UsaNonPublic(f.Value)).Select(f => f.Key)
-            .Should().BeEquivalentTo(FicherosConNonPublic,
+        FuentesDeSrc.Analisis.Where(f => UsosDeNonPublic(f.Value) > 0)
+            .ToDictionary(f => f.Key, f => UsosDeNonPublic(f.Value))
+            .Should().BeEquivalentTo(NonPublicPorFichero,
                 "seleccionar un miembro no público por reflexión alcanza la lectura internal entre Tenants del almacén");
     }
 
     [Fact]
-    public void La_seleccion_de_miembros_por_reflexion_solo_en_los_ficheros_congelados()
+    public void La_seleccion_de_miembros_por_reflexion_solo_en_los_usos_congelados()
     {
-        FuentesDeSrc.Analisis.Where(f => SeleccionaMiembros(f.Value)).Select(f => f.Key)
-            .Should().BeEquivalentTo(FicherosQueSeleccionanMiembros,
+        FuentesDeSrc.Analisis.Where(f => SeleccionesDeMiembros(f.Value) > 0)
+            .ToDictionary(f => f.Key, f => SeleccionesDeMiembros(f.Value))
+            .Should().BeEquivalentTo(SeleccionPorFichero,
                 "un GetMethod o GetMethods nuevo, también sobre un tipo de FileStorage, pasa por esta lista");
-        FicherosQueSeleccionanMiembros.Should().NotContain(f => f.Contains("/FileStorage/", StringComparison.Ordinal));
+        SeleccionPorFichero.Keys.Should().NotContain(f => f.Contains("/FileStorage/", StringComparison.Ordinal));
+    }
+
+    public static TheoryData<string> Selectores() => new(SeleccionDeMiembros);
+
+    /// <summary>Control: cada nombre de la lista lo ve el predicado; si se quitara uno, su caso caería.</summary>
+    [Theory]
+    [MemberData(nameof(Selectores))]
+    public void Control_el_predicado_ve_cada_forma_de_seleccionar_un_miembro(string selector)
+    {
+        var sintetico = FuentesDeSrc.AnalizarCSharp($"class C {{ object M(dynamic tipo) => tipo.{selector}; }}");
+
+        SeleccionesDeMiembros(sintetico).Should().Be(1, $"«{selector}» elige miembros por reflexión");
     }
 
     [Fact]
@@ -81,8 +105,8 @@ public class ReflexionNoPublicaCongeladaTests
                     .GetMethod("AbrirDelTenantPropietarioAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
             }
             """);
-        UsaNonPublic(sintetico).Should().BeTrue();
-        SeleccionaMiembros(sintetico).Should().BeTrue();
+        UsosDeNonPublic(sintetico).Should().Be(1);
+        SeleccionesDeMiembros(sintetico).Should().Be(1);
 
         var inocuo = FuentesDeSrc.AnalizarCSharp(
             """
@@ -92,7 +116,7 @@ public class ReflexionNoPublicaCongeladaTests
                 string M() => "NonPublic GetMethod";
             }
             """);
-        UsaNonPublic(inocuo).Should().BeFalse("los comentarios y las cadenas no son reflexión");
-        SeleccionaMiembros(inocuo).Should().BeFalse();
+        UsosDeNonPublic(inocuo).Should().Be(0, "los comentarios y las cadenas no son reflexión");
+        SeleccionesDeMiembros(inocuo).Should().Be(0);
     }
 }

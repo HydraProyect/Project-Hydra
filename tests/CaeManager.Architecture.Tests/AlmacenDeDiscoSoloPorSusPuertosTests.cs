@@ -173,10 +173,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
 
         // Identificadores y literales: Type.GetType("…IAlmacenArchivosDelTenantPropietario") más GetService(Type) no nombra
         // el tipo en el IL ni en los identificadores, solo en una cadena.
-        var ficheros = FuentesDeSrc.Analisis
-            .Where(f => NombraEnIdentificadorOLiteral(f.Value, nameof(IAlmacenArchivosDelTenantPropietario)))
-            .Select(f => f.Key)
-            .ToList();
+        var ficheros = FicherosQueNombran(FuentesDeSrc.Analisis, nameof(IAlmacenArchivosDelTenantPropietario));
         ficheros.Should().BeEquivalentTo(FicherosQueNombranLaLecturaEntreTenants,
             "el barrido de fuentes ve además un uso en Program.cs, en código que no se haya compilado todavía o en una " +
             "cadena que lo resuelva por reflexión");
@@ -226,9 +223,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
 
         NombranEnIl(LecturaEntreTenants).Should().BeEquivalentTo([typeof(InfrastructureServiceCollectionExtensions)],
             "construirla da la lectura entre Tenants sin pasar por el puerto que vigila la lista de consumidores");
-        FuentesDeSrc.Analisis
-            .Where(f => NombraEnIdentificadorOLiteral(f.Value, NombreDeLaLectura))
-            .Select(f => f.Key)
+        FicherosQueNombran(FuentesDeSrc.Analisis, NombreDeLaLectura)
             .Should().BeEquivalentTo([Lectura, Registro], "ni por su nombre en un literal (ActivatorUtilities, Type.GetType)");
     }
 
@@ -241,9 +236,7 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
     public void El_metodo_de_la_lectura_entre_Tenants_solo_lo_nombran_su_puerto_su_implementacion_y_su_consumidor()
     {
         const string metodo = nameof(IAlmacenArchivosDelTenantPropietario.AbrirDelTenantPropietarioAsync);
-        FuentesDeSrc.Analisis
-            .Where(f => NombraEnIdentificadorOLiteral(f.Value, metodo))
-            .Select(f => f.Key)
+        FicherosQueNombran(FuentesDeSrc.Analisis, metodo)
             .Should().BeEquivalentTo(
                 ["src/CaeManager.Application/Common/Archivos/IAlmacenArchivosDelTenantPropietario.cs", Almacen, Lectura, Adaptador],
                 "un dynamic sobre un IFileStorageService dentro de Infrastructure alcanzaría el método internal del disco");
@@ -280,7 +273,9 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
         analisis.Literales!.Keys.Should().Contain(nombres, "un nombre cualificado en una cadena se parte por sus puntos");
         analisis.Palabras.Keys.Should().NotContain(nombres,
             "los nombres solo están en cadenas: los ve la rama de literales, no la de identificadores");
-        NombraEnIdentificadorOLiteral(analisis, nameof(IAlmacenArchivosDelTenantPropietario)).Should().BeTrue();
+        // Y los tres barridos pasan por el mismo filtro: con el nombre solo en una cadena, lo ven.
+        var sintetico = new Dictionary<string, AnalisisDeFichero> { ["sintetico.cs"] = analisis };
+        nombres.Should().OnlyContain(n => FicherosQueNombran(sintetico, n).SequenceEqual(new[] { "sintetico.cs" }));
     }
 
     [Fact]
@@ -301,8 +296,12 @@ public class AlmacenDeDiscoSoloPorSusPuertosTests
             .Should().NotContain(sintetico);
     }
 
-    private static bool NombraEnIdentificadorOLiteral(AnalisisDeFichero fichero, string nombre) =>
-        fichero.Palabras.ContainsKey(nombre) || (fichero.Literales?.ContainsKey(nombre) ?? false);
+    /// <summary>Los ficheros que nombran <paramref name="nombre"/> como identificador o dentro de un literal: el filtro de los tres barridos de la lectura entre Tenants.</summary>
+    private static List<string> FicherosQueNombran(IReadOnlyDictionary<string, AnalisisDeFichero> analisis, string nombre) =>
+        analisis
+            .Where(f => f.Value.Palabras.ContainsKey(nombre) || (f.Value.Literales?.ContainsKey(nombre) ?? false))
+            .Select(f => f.Key)
+            .ToList();
 
     private static List<Type> NombranEnIl(Type tipo) => Ensamblados
         .Select(ReflexionArquitecturaHelper.CargarAssembly)
