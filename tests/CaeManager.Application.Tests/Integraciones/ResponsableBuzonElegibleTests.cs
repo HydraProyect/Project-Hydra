@@ -113,6 +113,8 @@ public sealed class OperacionesEnMemoria(IEnumerable<AsignacionOperacion> operac
         new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
 
     public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
+
+    public IQueryable<CaeManager.Domain.Tenants.DelegacionTenant> DelegacionesTenant => new List<CaeManager.Domain.Tenants.DelegacionTenant>().AsQueryable();
     public IQueryable<AsignacionCartera> AsignacionesCartera =>
         new TestAsyncQueryable<AsignacionCartera>(carteras.AsQueryable());
 }

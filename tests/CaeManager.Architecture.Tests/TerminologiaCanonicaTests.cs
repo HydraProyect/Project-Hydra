@@ -495,7 +495,18 @@ public class TerminologiaCanonicaTests
         // 356 → 358 (2026-11-14, PR #2223): TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion
         // exige el mismo predicado en la vía de Operación del selector y consulta el DbSet DelegacionesTenant y
         // PropositoDelegacion, tipos ya existentes (+2). Ningún identificador nuevo.
-        ["Delegacion"] = 358,
+        // 358 → 385 (2026-11-15, fase de expansión de la procedencia de la Asignación de Operación externa, PR 1 del
+        // corte de la #2237): +27, todo referencias a tipos y miembros legacy que ya existen; los identificadores
+        // nuevos evitan el término (OrigenId, RevocacionesDelOrigen, Revocaciones, FijarOrigen, AmparoDeOrigen,
+        // AmparadasPorSuOrigen, SinOrigenOAmparadasPorSuOrigen, OrigenUnicoDelParAsync). El predicado único
+        // AmparoDeOrigen lee DelegacionTenant y PropositoDelegacion (+4); AsignacionOperacion.FijarOrigen valida la
+        // delegación de origen (+2) y su configuración declara la FK (+1). Para aplicarlo, IOperacionesQueryContext y
+        // CaeManagerDbContext exponen el DbSet DelegacionesTenant (+2, +3), y los lectores lo pasan al filtro de
+        // expansión: TenantsBeneficiariosAutorizados (+3), DirectorioUsuariosTenant, VistaDemoActual y
+        // ContextoOperativoConversacionService (+2 cada uno) y AlcanceDatosService (+1); en esta fase conservan su
+        // comprobación de main. El writer resuelve la única delegación vigente del par para fijarla como origen
+        // (+5). Baja con la migración de DelegacionTenant, que es un incremento propio.
+        ["Delegacion"] = 385,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

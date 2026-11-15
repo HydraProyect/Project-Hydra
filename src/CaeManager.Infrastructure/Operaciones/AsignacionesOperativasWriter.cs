@@ -164,8 +164,46 @@ public class AsignacionesOperativasWriter(
             propietarioTenantId, operadorTenantId, ServicioCae.Outbound,
             AmbitoAsignacion.Universal, vigenciaDesde, vigenciaHasta, ahora, actorId);
 
+        // Nace de la única DelegacionTenant de Operador CAE externo activa y vigente del par, si la hay
+        // (AmparoDeOrigen). Fase de expansión: sin una inequívoca la operación nace sin origen y autoriza como
+        // antes; no se rechaza nada (la PR #2237 lo exige).
+        var origen = await OrigenUnicoDelParAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        if (origen is not null) nueva.FijarOrigen(origen);
+
         dbContext.AsignacionesOperacion.Add(nueva);
         return nueva;
+    }
+
+    /// <summary>
+    /// La única DelegacionTenant de Operador CAE externo activa y vigente del par, mirando primero las del
+    /// contexto con su estado en memoria (el comando que crea la delegación aún no la ha guardado) y después las
+    /// de la base de datos que no estén en él; <c>null</c> con ninguna o con varias. También <c>null</c> si esa
+    /// delegación tiene cambios sin guardar: el trigger <c>asignacion_operacion_sella_origen</c> comprueba el
+    /// origen contra la fila de la base al insertar la operación, y EF no ordena el UPDATE del principal por
+    /// delante del INSERT del dependiente (una delegación nueva sí, por la clave foránea).
+    /// </summary>
+    private async Task<Domain.Tenants.DelegacionTenant?> OrigenUnicoDelParAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken)
+    {
+        var enElContexto = dbContext.ChangeTracker.Entries<Domain.Tenants.DelegacionTenant>()
+            .Where(e => e.State != EntityState.Deleted && e.State != EntityState.Detached)
+            .Select(e => e.Entity)
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == Domain.Tenants.PropositoDelegacion.OperadorExterno)
+            .ToList();
+        var idsEnElContexto = enElContexto.Select(d => d.Id).ToList();
+
+        var enBase = await dbContext.DelegacionesTenant
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == Domain.Tenants.PropositoDelegacion.OperadorExterno
+                        && !idsEnElContexto.Contains(d.Id))
+            .ToListAsync(cancellationToken);
+
+        var vigentes = enElContexto.Concat(enBase).Where(d => d.EstaVigente(ahora)).ToList();
+        if (vigentes.Count != 1) return null;
+        return dbContext.Entry(vigentes[0]).State == EntityState.Modified ? null : vigentes[0];
     }
 
     public async Task CerrarOperacionDelegadaAsync(

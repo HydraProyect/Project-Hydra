@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
@@ -527,7 +528,15 @@ public class AlcanceDatosService(
             // Y tiene que ser del servicio del contexto (Outbound, B-02a): una Asignación de Cartera bajo una
             // Asignación de Operación Inbound universal del mismo Operador CAE y Tenant propietario convertiría en
             // el Tenant entero el ámbito de una Outbound acotada a un Cliente empresarial.
-            .Join(dbContext.AsignacionesOperacion.Where(o =>
+            //
+            // Y una Asignación de Operación externa con origen solo autoriza amparada por la DelegacionTenant
+            // concreta de la que nació, activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen):
+            // otra delegación vigente del par no la sostiene, y una que sobrevivió a una revocación no vuelve al
+            // reactivarse. Sin origen, decide solo delegacionVigente, como antes (fase de expansión; la PR #2237
+            // la hace fallar cerrada).
+            .Join(dbContext.AsignacionesOperacion
+                    .SinOrigenOAmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
                     && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
                     && o.PropietarioTenantId == propietarioTenantId

@@ -315,6 +315,7 @@ public class CaeManagerDbContext(
     IQueryable<PlantillaRequisitosEventoTipo> IRequisitosEventoQueryContext.PlantillasRequisitosEventoTipos => PlantillasRequisitosEventoTipos;
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
     IQueryable<DelegacionTenant> ITenantsQueryContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<DelegacionTenant> CaeManager.Application.Operaciones.IOperacionesQueryContext.DelegacionesTenant => DelegacionesTenant;
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();

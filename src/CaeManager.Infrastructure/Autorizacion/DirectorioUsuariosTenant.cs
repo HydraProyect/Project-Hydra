@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Operaciones;
@@ -289,7 +290,9 @@ public class DirectorioUsuariosTenant(
                       && cartera.Estado == EstadoAsignacion.Vigente
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                join operacion in identidad.AsignacionesOperacion
+                // Una operación externa con origen sin el amparo de su DelegacionTenant de origen no es vínculo
+                // operativo; sin origen, como antes (fase de expansión, AmparoDeOrigen).
+                join operacion in identidad.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       && operacion.VigenciaDesde <= ahora
@@ -751,7 +754,8 @@ public class DirectorioUsuariosTenant(
                       && cartera.AmbitoRelacionClienteId == null
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                join operacion in identidad.AsignacionesOperacion
+                // Con el mismo amparo de la DelegacionTenant de origen que AlcanceDatosService.ObtenerCarteraAsync.
+                join operacion in identidad.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       // El mismo filtro de servicio que AlcanceDatosService.ObtenerCarteraAsync (B-02a).
