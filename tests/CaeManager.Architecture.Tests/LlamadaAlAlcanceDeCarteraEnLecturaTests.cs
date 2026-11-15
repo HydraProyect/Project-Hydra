@@ -72,8 +72,9 @@ namespace CaeManager.Architecture.Tests;
 /// considera las implementaciones alternativas de un método <i>sin cuerpo</i> (interfaz o abstracto: «llama» si
 /// todas llaman). Un <c>callvirt</c> a un método base <i>con</i> cuerpo que sí comprueba se cuenta como «llama»
 /// por la referencia al método base, aunque en tiempo de ejecución se despache a una sobrescritura que no
-/// comprueba; el grafo no mira las sobrescrituras de un método con cuerpo. No hay hoy un caso medido de esto; si
-/// aparece, la Query figuraría como «llama» y no entraría en la lista. Cerrarlo exigiría cambiar
+/// comprueba; el grafo no mira las sobrescrituras de un método con cuerpo. No se ha buscado si hoy hay algún
+/// caso: el grafo no expone qué <c>callvirt</c> apuntan a un método con cuerpo sobrescrito. Si lo hay, la Query
+/// figura como «llama» y no entra en la lista. Cerrarlo exigiría cambiar
 /// <see cref="GrafoDeLlamadasIl"/>, que comparte la red de escritura, y no se ha hecho en este incremento.
 /// </para>
 /// </summary>
@@ -129,7 +130,7 @@ public class LlamadaAlAlcanceDeCarteraEnLecturaTests
         {
             var handlerCompleto = (clave.Lugar.StartsWith(RaizDeApplication, StringComparison.Ordinal)
                 ? clave.Lugar : $"{RaizDeApplication}.{clave.Lugar}") + "." + clave.Simbolo[..clave.Simbolo.IndexOf('[')];
-            var peticionRelativa = peticion.FullName![(RaizDeApplication.Length + 1)..];
+            var peticionRelativa = RelativoAApplication(peticion.FullName);
 
             handlerCompleto.Should().Be(handler.FullName, "la clave identifica al handler por su namespace y su nombre");
             clave.Simbolo.Should().EndWith($"[{peticionRelativa}]", "la clave identifica la petición por su nombre completo");

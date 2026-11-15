@@ -1,6 +1,6 @@
 # Queries de Application cuyo Handle no alcanza ninguna comprobacion de cartera de IAlcanceDatosService
 # (LlamadaAlAlcanceDeCarteraEnLecturaTests). Medida el 2026-11-14 sobre origin/main e3bee6554: 112 Queries; tras fusionar
-# origin/main 901385703 (#2229) entra una mas, Facturacion :: ObtenerCobrosLiquidacionOperadorCaeQueryHandler: 113 entradas.
+# origin/main 901385703 (#2229) entra una mas, la de Facturacion ObtenerCobrosLiquidacionOperadorCaeQueryHandler: 113 entradas.
 #
 # Estar aqui NO es un aval: es una medida, no una clasificacion. Los motivos tipicos de una entrada son datos
 # del propio usuario, catalogo o configuracion del Tenant, plano de Plataforma o de Operador CAE, agregado del
