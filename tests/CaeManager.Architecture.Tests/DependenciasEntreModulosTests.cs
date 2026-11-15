@@ -151,9 +151,10 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
     }
 
     /// <summary>
-    /// La deuda Núcleo -> Inbound (K-1, K-3, K-17) también está fijada en código: solo baja. Las listas de Núcleo -> Outbound y
-    /// de Facturación son deuda que solo baja y las vigila el trinquete (una línea nueva no la pone en verde el test de la
-    /// lista, pero sí lo hace la revisión de la PR; no hay conjunto permitido porque es deuda anterior al módulo).
+    /// La deuda Núcleo -> Inbound (K-1, K-3, K-17) también está fijada en código: solo baja. Límite declarado: las listas de
+    /// Núcleo -> Outbound, de Facturación y hacia Facturación son deuda que solo baja sin conjunto permitido en código (es
+    /// anterior al módulo), así que una arista nueva con su línea añadida a mano pone en verde el test de la lista y solo
+    /// la revisión de la PR la detiene.
     /// </summary>
     [Fact]
     public void Nucleo_a_Inbound_solo_contiene_la_deuda_K1_K3_K17()
@@ -207,10 +208,14 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
         haciaOutbound["Application.Dashboard.FotoCierreMensual"].Should().Contain("Application.Dashboard.Queries.MedicionCuadroDireccion",
             "la foto del cierre mensual contiene la medición del cuadro de dirección (Outbound)");
 
-        var texto = (File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-a-Facturacion")),
-            File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Facturacion-a-fuera-del-Nucleo")));
-        texto.Item1.Should().Contain("ICierresCuadroDireccion", "la arista Outbound -> Facturación del cierre está congelada");
-        texto.Item2.Should().Contain("FotoCierreMensual :: Outbound: Application.Dashboard.Queries.MedicionCuadroDireccion",
+        var haciaFacturacionCongelado = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-a-Facturacion")));
+        haciaFacturacionCongelado.Should().ContainKey(
+            new Ubicacion("Application.Dashboard.Queries.ObtenerCuadroDireccionQueryHandler", "Facturacion: Application.Dashboard.ICierresCuadroDireccion"),
+            "la arista Outbound -> Facturación del cierre está congelada");
+
+        var haciaOutboundCongelado = ListaCongelada.Leer(File.ReadAllText(ListaCongelada.RutaDeLista("Modulos-Facturacion-a-fuera-del-Nucleo")));
+        haciaOutboundCongelado.Should().ContainKey(
+            new Ubicacion("Application.Dashboard.FotoCierreMensual", "Outbound: Application.Dashboard.Queries.MedicionCuadroDireccion"),
             "la arista Facturación -> Outbound del cierre está congelada");
     }
 
@@ -308,18 +313,25 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
         m.De(Modulo.Nucleo, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasNucleo.OrigenNucleoPorRestriccion");
         m.De(Modulo.Facturacion, Modulo.Inbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaInboundPorAtributo");
         m.De(Modulo.Facturacion, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaOutboundAsincrono");
+
+        // Cada rastro de abajo es el único de su arista: el atributo es del Núcleo y el tipo Outbound solo está en el argumento.
+        m.De(Modulo.Nucleo, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasNucleo.OrigenNucleoPorRestriccionDeMetodo");
+        m.De(Modulo.Inbound, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaOutboundPorAtributoDeParametro");
+        m.De(Modulo.Inbound, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaOutboundPorAtributoDeRetorno");
+        m.De(Modulo.Facturacion, Modulo.Outbound).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaOutboundPorEnumDeAtributo");
     }
 
     /// <summary>
-    /// Un opcode que el lector no conoce trunca el método que lo contiene y esconde sus aristas: no se tolera. Los tokens
-    /// que no se resuelven (ensamblados opcionales) se cuentan y van al informe.
+    /// Un opcode que el lector no conoce trunca el método que lo contiene y un token que no se resuelve (un ensamblado
+    /// opcional) esconde lo que ese token nombra: ninguno de los dos se tolera, y el informe da las cifras.
     /// </summary>
     [Fact]
-    public void El_lector_de_IL_no_pierde_opcodes()
+    public void El_lector_de_IL_no_pierde_opcodes_ni_tokens()
     {
         _ = MedicionDeSrc.Valor.Aristas;
 
         ReferenciasIl.OpcodesDesconocidos.Should().Be(0, "un opcode desconocido trunca el método y las aristas que viniera después se pierden");
+        ReferenciasIl.TokensSinResolver.Should().Be(0, "un token sin resolver esconde un tipo referenciado: la arista que lo use no se mide");
     }
 
     [Fact]
@@ -327,8 +339,12 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
     {
         var m = MedirSinteticos();
 
-        foreach (var (origen, destino) in new[] { (Modulo.Outbound, Modulo.Nucleo), (Modulo.Inbound, Modulo.Nucleo), (Modulo.Facturacion, Modulo.Nucleo) })
-            m.De(origen, destino).Should().HaveCount(1, $"{origen} -> {destino} es una dirección permitida y se mide, pero no se lista");
+        m.De(Modulo.Outbound, Modulo.Nucleo).Should().ContainKey("Application.ControlDeAristasOutbound.OrigenOutboundHaciaNucleo");
+        m.De(Modulo.Inbound, Modulo.Nucleo).Should().ContainKey("Application.ControlDeAristasInbound.OrigenInboundHaciaNucleo");
+        m.De(Modulo.Facturacion, Modulo.Nucleo).Should().ContainKey("Application.ControlDeAristasFacturacion.OrigenFacturacionHaciaNucleo");
+        foreach (var lista in Listas)
+            foreach (var (origen, destino) in lista.Pares)
+                destino.Should().NotBe(Modulo.Nucleo, $"{origen} -> Núcleo es una dirección permitida: se mide, pero no se lista");
 
         // Los tipos limpios (solo su propio módulo) no tienen ninguna arista.
         m.De(Modulo.Nucleo, Modulo.Nucleo).Should().BeEmpty("dentro de un módulo no hay aristas");

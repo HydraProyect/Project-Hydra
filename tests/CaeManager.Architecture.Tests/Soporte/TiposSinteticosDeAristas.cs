@@ -28,6 +28,22 @@ namespace CaeManager.Application.ControlDeAristasNucleo
     internal sealed class OrigenNucleoPorRestriccion<T>
         where T : ControlDeAristasOutbound.DestinoOutbound;
 
+    /// <summary>Núcleo -> Outbound solo por la restricción de un parámetro genérico de un método.</summary>
+    internal sealed class OrigenNucleoPorRestriccionDeMetodo
+    {
+        public static void Cuerpo<T>()
+            where T : ControlDeAristasOutbound.DestinoOutbound
+        {
+        }
+    }
+
+    /// <summary>Atributo del Núcleo que lleva un valor cualquiera: el rastro de la arista es el argumento, no el atributo.</summary>
+    [AttributeUsage(AttributeTargets.All)]
+    internal sealed class AtributoDeControl(object valor) : Attribute
+    {
+        public object Valor { get; } = valor;
+    }
+
     /// <summary>Un origen limpio: solo usa su propio módulo y no es ninguna arista.</summary>
     internal sealed class OrigenNucleoLimpio
     {
@@ -57,6 +73,11 @@ namespace CaeManager.Application.ControlDeAristasOutbound
     }
 
     internal sealed class ExcepcionDeOutbound : Exception;
+
+    internal enum EnumDeOutbound
+    {
+        Uno,
+    }
 
     /// <summary>Outbound -> Núcleo está permitido: no debe aparecer en ninguna lista prohibida.</summary>
     internal sealed class OrigenOutboundHaciaNucleo
@@ -89,6 +110,20 @@ namespace CaeManager.Application.ControlDeAristasInbound
                 throw;
             }
         }
+    }
+
+    /// <summary>Inbound -> Outbound solo por el <c>typeof</c> de un atributo de un parámetro.</summary>
+    internal sealed class OrigenInboundHaciaOutboundPorAtributoDeParametro
+    {
+        public static void Cuerpo([ControlDeAristasNucleo.AtributoDeControl(typeof(ControlDeAristasOutbound.DestinoOutbound))] int valor) =>
+            _ = valor;
+    }
+
+    /// <summary>Inbound -> Outbound solo por el <c>typeof</c> de un atributo del valor devuelto.</summary>
+    internal sealed class OrigenInboundHaciaOutboundPorAtributoDeRetorno
+    {
+        [return: ControlDeAristasNucleo.AtributoDeControl(typeof(ControlDeAristasOutbound.DestinoOutbound))]
+        public static int Cuerpo() => 0;
     }
 
     /// <summary>Inbound -> Facturación en el cuerpo de un método (para que el par tenga su propio control).</summary>
@@ -138,6 +173,10 @@ namespace CaeManager.Application.ControlDeAristasFacturacion
     /// <summary>Facturación -> Inbound solo en un typeof dentro de un array de argumentos de atributo.</summary>
     [AtributoConTiposDeControl(typeof(ControlDeAristasInbound.DestinoInbound), typeof(string))]
     internal sealed class OrigenFacturacionHaciaInboundPorAtributo;
+
+    /// <summary>Facturación -> Outbound solo por un argumento <c>enum</c> de un atributo.</summary>
+    [ControlDeAristasNucleo.AtributoDeControl(ControlDeAristasOutbound.EnumDeOutbound.Uno)]
+    internal sealed class OrigenFacturacionHaciaOutboundPorEnumDeAtributo;
 
     /// <summary>Facturación -> Inbound en la firma de un método.</summary>
     internal sealed class OrigenFacturacionHaciaInbound

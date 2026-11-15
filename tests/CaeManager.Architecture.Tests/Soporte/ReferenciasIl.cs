@@ -17,7 +17,7 @@ namespace CaeManager.Architecture.Tests.Soporte;
 /// <para>
 /// <b>También cuentan</b>: el tipo de cada cláusula <c>catch</c> del cuerpo, las restricciones de los parámetros
 /// genéricos del tipo y del método, y los atributos de parámetros y del valor devuelto (con los <c>typeof</c> de sus
-/// argumentos, también dentro de un array).
+/// argumentos, también dentro de un array, y el tipo de un argumento que es un <c>enum</c>).
 /// </para>
 ///
 /// <para>
@@ -111,6 +111,8 @@ internal static class ReferenciasIl
     /// <summary>Un argumento de atributo que es un <c>Type</c>, o un array de ellos (también <c>object[]</c> anidados).</summary>
     private static IEnumerable<Type> TiposDeArgumento(CustomAttributeTypedArgument argumento)
     {
+        if (argumento.ArgumentType.IsEnum)
+            yield return argumento.ArgumentType;
         if (argumento.Value is Type t)
             yield return t;
         else if (argumento.Value is IEnumerable<CustomAttributeTypedArgument> elementos)
@@ -156,8 +158,8 @@ internal static class ReferenciasIl
         {
             if (metodo.GetMethodBody() is { } cuerpo)
                 foreach (var clausula in cuerpo.ExceptionHandlingClauses)
-                    if (clausula.Flags == ExceptionHandlingClauseOptions.Clause)
-                        tipos.Add(clausula.CatchType);
+                    if (clausula.Flags == ExceptionHandlingClauseOptions.Clause && clausula.CatchType is { } tipoCapturado)
+                        tipos.Add(tipoCapturado);
         }
         catch (Exception e) when (e is InvalidOperationException or NotSupportedException or ArgumentException or TypeLoadException or FileNotFoundException)
         {
