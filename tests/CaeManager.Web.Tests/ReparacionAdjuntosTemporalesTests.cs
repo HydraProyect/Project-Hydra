@@ -324,6 +324,8 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
 
     private sealed class ContribucionDePrueba : IContribucionReferenciasArchivo
     {
+        public string Modulo => "Prueba";
+
         public IReadOnlyList<CampoReferenciaArchivo> Campos { get; } =
             [CampoReferenciaArchivo.De<AdjuntoDeModulo>(nameof(AdjuntoDeModulo.ArchivoUrl))];
     }

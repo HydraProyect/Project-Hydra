@@ -9,8 +9,10 @@ namespace CaeManager.Application.Common.Archivos;
 public static class ClavesDeAlmacen
 {
     /// <summary>
-    /// ¿Es la referencia un archivo directo de la carpeta de <paramref name="tenantPropietarioId"/>? Sin subcarpetas ni
-    /// segmentos <c>..</c>: una referencia que no lo cumple no es de ese Tenant, aunque empiece por su carpeta.
+    /// ¿Empieza la referencia por la carpeta de <paramref name="tenantPropietarioId"/> (<c>{tenantId:N}/</c>), sin otra
+    /// <c>/</c> después, con al menos un carácter tras ella y sin ningún <c>..</c>? Es exactamente lo que comprueba, y nada
+    /// más: la barra invertida no se trata como separador, así que <c>{tenantId:N}/sub\archivo</c> pasa (deuda declarada
+    /// en ADR-013 M2; cerrarla cambiaría qué claves se admiten, y no es un movimiento de código).
     /// </summary>
     public static bool EsDeLaCarpetaDelTenant(string referencia, Guid tenantPropietarioId) =>
         referencia.StartsWith($"{tenantPropietarioId:N}/", StringComparison.Ordinal)

@@ -9,6 +9,10 @@ namespace CaeManager.Infrastructure.Inbound.FileStorage;
 /// </summary>
 public sealed class ReferenciasArchivoInbound : IContribucionReferenciasArchivo
 {
+    public const string NombreDelModulo = "Inbound";
+
+    public string Modulo => NombreDelModulo;
+
     public IReadOnlyList<CampoReferenciaArchivo> Campos { get; } =
         [CampoReferenciaArchivo.De<EvidenciaInbound>(nameof(EvidenciaInbound.ArchivoUrl))];
 }

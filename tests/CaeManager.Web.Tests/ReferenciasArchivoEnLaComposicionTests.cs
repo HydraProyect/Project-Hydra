@@ -31,6 +31,46 @@ public class ReferenciasArchivoEnLaComposicionTests
             .Should().Contain((typeof(EvidenciaInbound), "ArchivoUrl"));
     }
 
+    /// <summary>
+    /// Revisión Codex de la #2247, ronda 1: sin la contribución de un módulo declarado, <c>--aplicar</c> podría renombrar
+    /// un archivo que una referencia no recogida comparte. La reparación no se crea, y el error nombra el módulo.
+    /// </summary>
+    [Fact]
+    public void Sin_la_contribucion_de_un_modulo_declarado_la_reparacion_no_se_crea()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddSingleton(new ModulosConReferenciasArchivo(["Inbound"]));
+        using var proveedor = servicios.BuildServiceProvider();
+        using var db = new DbContext(new DbContextOptionsBuilder().Options);
+
+        var crear = () => ReparacionAdjuntosTemporales.Crear(proveedor, db);
+
+        crear.Should().Throw<InvalidOperationException>().WithMessage("*Inbound*no se ejecuta*");
+    }
+
+    [Fact]
+    public void Sin_la_declaracion_de_modulos_la_reparacion_no_se_crea()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddSingleton<IContribucionReferenciasArchivo, CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var db = new DbContext(new DbContextOptionsBuilder().Options);
+
+        var crear = () => ReparacionAdjuntosTemporales.Crear(proveedor, db);
+
+        crear.Should().Throw<InvalidOperationException>().WithMessage("*no declara*");
+    }
+
+    [Fact]
+    public void La_composicion_real_declara_Inbound_entre_los_modulos_que_aportan_referencias()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
+        using var proveedor = servicios.BuildServiceProvider();
+
+        proveedor.GetRequiredService<ModulosConReferenciasArchivo>().Modulos.Should().Contain("Inbound");
+    }
+
     private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Testing";

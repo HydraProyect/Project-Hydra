@@ -56,9 +56,25 @@ public sealed class ReparacionAdjuntosTemporales
         _logger = logger ?? NullLogger.Instance;
     }
 
-    /// <summary>La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>.</summary>
-    public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null) =>
-        new(db, servicios.GetServices<IContribucionReferenciasArchivo>(), logger);
+    /// <summary>
+    /// La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>. Falla cerrada
+    /// si la composición no declara <see cref="ModulosConReferenciasArchivo"/> o si a un módulo declarado le falta su
+    /// contribución: con <c>--aplicar</c> se renombraría un archivo que también referencia un campo no recogido, y esa
+    /// referencia quedaría rota.
+    /// </summary>
+    public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null)
+    {
+        var declarados = servicios.GetService<ModulosConReferenciasArchivo>()
+            ?? throw new InvalidOperationException(
+                "La composición no declara qué módulos aportan referencias de archivo: la reparación no se ejecuta.");
+        var contribuciones = servicios.GetServices<IContribucionReferenciasArchivo>().ToList();
+        var faltan = declarados.Modulos.Except(contribuciones.Select(c => c.Modulo), StringComparer.Ordinal).ToList();
+        if (faltan.Count > 0)
+            throw new InvalidOperationException(
+                $"Faltan las referencias de archivo de {string.Join(", ", faltan)}: la reparación no se ejecuta, porque " +
+                "podría renombrar archivos que esas referencias comparten.");
+        return new(db, contribuciones, logger);
+    }
 
     /// <summary>Los campos que aportan los módulos, en el orden en que se recogen.</summary>
     internal IReadOnlyList<CampoReferenciaArchivo> CamposAportados { get; }
