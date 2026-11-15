@@ -512,7 +512,11 @@ public class TerminologiaCanonicaTests
         // identificador nuevo. CatalogoIncorporacionCartera y TarifasOperadorCae pasan el DbSet DelegacionesTenant a
         // AmparadasPorSuOrigen (+1 cada uno) y DesactivarDelegacionTenantCommand filtra las filas heredadas por
         // DelegacionTenantId para revocarlas (+1).
-        ["Delegacion"] = 385,
+        // 385 → 392 (2026-11-15, ronda 3 tras Codex r2 en la PR #2237): +7, referencias legacy existentes, ningún
+        // identificador nuevo. HistoriaDelParEnSiembra lee DelegacionesTenant y las filas heredadas por
+        // DelegacionTenantId para decidir si un par tiene historia, y DelegacionDemoSeeder abre la operación de la
+        // delegación que acaba de crear. Baja con la migración de DelegacionTenant.
+        ["Delegacion"] = 392,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
