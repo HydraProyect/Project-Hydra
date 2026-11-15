@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115174153_AnadePlantillasRequisitosInbound")]
+    [Migration("20261115210000_AnadePlantillasRequisitosInbound")]
     partial class AnadePlantillasRequisitosInbound
     {
         /// <inheritdoc />
