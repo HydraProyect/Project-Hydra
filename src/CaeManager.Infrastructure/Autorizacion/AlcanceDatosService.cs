@@ -602,6 +602,28 @@ public class AlcanceDatosService(
         // no opera sobre ellos. Lista vacía y no null — null significa "sin
         // restricción", que aquí sería exactamente lo contrario de lo que toca
         // (fallo cerrado).
+        //
+        // Regla operativa del rol Consulta (opción C, DECISION_LOG 2026-11-14,
+        // «Tanda 1 de decisiones pendientes», punto 1): solo se excluye al rol
+        // Cliente. Consulta (rol de gestión en solo lectura, por cualquier vía:
+        // su Tenant de origen, un Tenant beneficiario delegado por Asignación
+        // de Operación o la delegación heredada del acceso de soporte) recibe
+        // el último motivo de rechazo del historial de rechazos de la
+        // acreditación, la dirección del portal y las notas del canal. Otra
+        // regla, RolesQueLeenReclamaciones, corta en el servidor el registro de
+        // un cambio de estado anotado a mano (su nota, su motivo y su autor),
+        // los rastros de reclamaciones (sin respuesta de Inicio, última del
+        // Centro y última de los documentos de la situación) y el motivo de
+        // rechazo de la vista rápida de un Documento
+        // (ObtenerAcreditacionesDelDocumentoQuery), pero no el historial de
+        // rechazos en el resto de lecturas: CambiarEstadoAMano guarda ahí
+        // también el motivo de un rechazo anotado a mano, sin distinguirlo del
+        // que devuelve la Plataforma CAE, y por esta puerta le llega a Consulta
+        // por ObtenerDocumentosQuery y ObtenerAcreditacionesPorProveedorQuery,
+        // entre otras vías (detalle en el comentario de esa lista).
+        // El historial de reclamaciones enviadas no pasa por esa lista en el
+        // servidor y se le corta a Consulta en la presentación (detalle en el
+        // comentario de esa lista). No añadir Consulta a esta condición.
         if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 
