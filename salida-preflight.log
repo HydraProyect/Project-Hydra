@@ -1,0 +1,36 @@
+﻿OK  La rama contiene el ultimo origin/main.
+>>> Restaurar dependencias
+OK  Restaurar dependencias (4 s)
+>>> Compilar (warnings como errores)
+OK  Compilar (warnings como errores) (84 s)
+>>> Formato (verify-no-changes)
+OK  Formato (verify-no-changes) (180 s)
+>>> Tests de Domain
+OK  Tests de Domain [2350 pruebas] (5 s)
+>>> Tests de Application
+OK  Tests de Application [7531 pruebas] (35 s)
+>>> Tests de Architecture (ratchets)
+OK  Tests de Architecture (ratchets) [1596 pruebas] (159 s)
+>>> Tests de Web (bUnit)
+OK  Tests de Web (bUnit) [12462 pruebas] (113 s)
+>>> Gobernanza del cuerpo de la PR
+OK        No toca deploy/bootstrap/roles-de-cluster.sql : la regla no aplica.
+OK        Seccion 'Revision Codex' presente, con revisor, refutacion y veredicto, y sin marcadores provisionales.
+
+Problemas: 0
+
+=== Resumen preflight-pr ===
+Restaurar dependencias                   PASA            4 s
+Compilar (warnings como errores)         PASA           84 s
+Formato (verify-no-changes)              PASA          180 s
+Tests de Domain [2350 pruebas]           PASA            5 s
+Tests de Application [7531 pruebas]      PASA           35 s
+Tests de Architecture (ratchets) [1596 pruebas] PASA          159 s
+Tests de Web (bUnit) [12462 pruebas]     PASA          113 s
+Gobernanza del cuerpo de la PR           PASA            0 s
+Tiempo total: 09:41 (582 s)
+Logs de esta ejecucion: C:\Users\chris\AppData\Local\Temp\preflight-pr\agent-ad8047a8d3621a6eb-20261112-221013-32464
+AVISO: hay 5 fichero/s sin commitear: el preflight ha validado el arbol de trabajo, pero la PR solo lleva lo 
+commiteado.
+
+PREFLIGHT-PR: PASA

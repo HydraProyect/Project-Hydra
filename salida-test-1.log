@@ -1,0 +1,29 @@
+﻿  Determinando los proyectos que se van a restaurar...
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Domain\CaeManager.Domain.csproj (en 141 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Application\CaeManager.Application.csproj (en 410 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Migrations.PostgreSQL\CaeManager.Migrations.PostgreSQL.csproj (en 545 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\tests\CaeManager.Web.Tests\CaeManager.Web.Tests.csproj (en 558 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Infrastructure\CaeManager.Infrastructure.csproj (en 573 ms).
+  Se ha restaurado C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Web\CaeManager.Web.csproj (en 620 ms).
+  CaeManager.Domain -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Domain\bin\Debug\net10.0\CaeManager.Domain.dll
+  CaeManager.Application -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Application\bin\Debug\net10.0\CaeManager.Application.dll
+  CaeManager.Infrastructure -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Infrastructure\bin\Debug\net10.0\CaeManager.Infrastructure.dll
+  CaeManager.Migrations.PostgreSQL -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Migrations.PostgreSQL\bin\Debug\net10.0\CaeManager.Migrations.PostgreSQL.dll
+  CaeManager.Web -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Web\bin\Debug\net10.0\CaeManager.Web.dll
+  CaeManager.Web.Tests -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll
+Serie de pruebas para C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+1 archivos de prueba en total coincidieron con el patrón especificado.
+[xUnit.net 00:00:25.96]     CaeManager.Web.Tests.Comercial.StripeModoPruebaTests.La_clave_de_prueba_autentica_y_una_suscripcion_inexistente_es_un_404_no_un_401 [SKIP]
+[xUnit.net 00:00:26.00]     CaeManager.Web.Tests.Comercial.StripeModoPruebaTests.El_proveedor_real_devuelve_un_fallo_controlado_de_API_y_no_de_configuracion [SKIP]
+  Omitidas CaeManager.Web.Tests.Comercial.StripeModoPruebaTests.La_clave_de_prueba_autentica_y_una_suscripcion_inexistente_es_un_404_no_un_401 [1 ms]
+  Omitidas CaeManager.Web.Tests.Comercial.StripeModoPruebaTests.El_proveedor_real_devuelve_un_fallo_controlado_de_API_y_no_de_configuracion [1 ms]
+[xUnit.net 00:00:44.35]     CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Anota_en_el_libro_de_gasto_un_informe_ya_medido [SKIP]
+  Omitidas CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Anota_en_el_libro_de_gasto_un_informe_ya_medido [1 ms]
+[xUnit.net 00:01:01.43]     CaeManager.Web.Tests.Integraciones.Microsoft365LegibilidadDelCertificadoTests.Con_el_modo_del_fichero_a_cero_avisa_y_al_devolver_el_permiso_deja_de_avisar [SKIP]
+  Omitidas CaeManager.Web.Tests.Integraciones.Microsoft365LegibilidadDelCertificadoTests.Con_el_modo_del_fichero_a_cero_avisa_y_al_devolver_el_permiso_deja_de_avisar [1 ms]
+[xUnit.net 00:01:33.51]     CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Estima_el_coste_sin_llamar_a_la_API [SKIP]
+  Omitidas CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Estima_el_coste_sin_llamar_a_la_API [1 ms]
+[xUnit.net 00:01:33.72]     CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Mide_las_rutas_Anthropic_con_el_modelo_y_el_esfuerzo_pedidos [SKIP]
+  Omitidas CaeManager.Web.Tests.BancoModelosIa.BancoModelosIaTests.Mide_las_rutas_Anthropic_con_el_modelo_y_el_esfuerzo_pedidos [1 ms]
+
+Correctas! - Con error:     0, Superado: 12455, Omitido:     6, Total: 12461, Duración: 1 m 51 s - CaeManager.Web.Tests.dll (net10.0)

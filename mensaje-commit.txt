@@ -1,0 +1,3 @@
+test(comunicaciones): la reapertura del Drawer de prioridad fija las dos guardas y el envío retira el adjunto por instancia
+
+Revisión puente sobre 43601a2fd, MEDIO 1: con la respuesta nueva primero el test detecta quitar el return tras el await de AbrirPedirPrioridadAsync; con la antigua primero, la condición del finally. El adjunto añadido durante el envío se llama igual que el enviado, para fijar la comparación por referencia.

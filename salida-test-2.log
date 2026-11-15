@@ -1,0 +1,12 @@
+﻿  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  CaeManager.Domain -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Domain\bin\Debug\net10.0\CaeManager.Domain.dll
+  CaeManager.Application -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Application\bin\Debug\net10.0\CaeManager.Application.dll
+  CaeManager.Infrastructure -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Infrastructure\bin\Debug\net10.0\CaeManager.Infrastructure.dll
+  CaeManager.Migrations.PostgreSQL -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Migrations.PostgreSQL\bin\Debug\net10.0\CaeManager.Migrations.PostgreSQL.dll
+  CaeManager.Web -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\src\CaeManager.Web\bin\Debug\net10.0\CaeManager.Web.dll
+  CaeManager.Web.Tests -> C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll
+Serie de pruebas para C:\Users\chris\Project-Hydra\.claude\worktrees\agent-ad8047a8d3621a6eb\tests\CaeManager.Web.Tests\bin\Debug\net10.0\CaeManager.Web.Tests.dll (.NETCoreApp,Version=v10.0)
+1 archivos de prueba en total coincidieron con el patrón especificado.
+
+Correctas! - Con error:     0, Superado:   131, Omitido:     0, Total:   131, Duración: 9 s - CaeManager.Web.Tests.dll (net10.0)
