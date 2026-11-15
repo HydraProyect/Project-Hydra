@@ -210,20 +210,23 @@ public static class ActosExcluidosDelEncargo
     ///   <item>la de su <see cref="AreaDelEncargoAttribute"/>, si la lleva: no depende
     ///   de dónde viva el tipo, así que moverlo de carpeta o de espacio de nombres no
     ///   cambia si queda excluido;</item>
-    ///   <item>si no la lleva, la marca más cercana de su cadena de tipos base (la marca no se
-    ///   hereda sola: <c>Inherited = false</c>);</item>
-    ///   <item>si ninguno la lleva, el segmento de su espacio de nombres que sigue a
-    ///   <c>CaeManager.Application.</c>.</item>
+    ///   <item>si no la lleva, el segmento de su espacio de nombres que sigue a
+    ///   <c>CaeManager.Application.</c>, si es un área clasificada;</item>
+    ///   <item>si tampoco, la marca más cercana de su cadena de tipos base (la marca no se
+    ///   hereda sola: <c>Inherited = false</c>).</item>
     /// </list>
+    /// El respaldo por espacio de nombres se queda en ejecución: lo que impide que llegue a
+    /// <c>main</c> una petición sin clasificar a conciencia es la lista congelada de
+    /// <c>AreaDelEncargoPorTipoTests</c>, con el área de cada petición de <c>src</c>.
     /// En todos los casos solo vale un área clasificada (<see cref="AreasExcluidas"/> o
     /// <see cref="AreasPermitidas"/>); cualquier otra cosa —un segmento de módulo como
     /// <c>Inbound</c>, un tipo fuera de la raíz, una marca con un área inexistente— da
     /// <c>null</c>, y <see cref="Excluye"/> la excluye.
     ///
     /// <para>
-    /// <b>Una derivada nunca queda menos restringida que su base</b>: si su tipo base es a su vez
-    /// una petición y esa base está excluida por área o no tiene área, la derivada toma el área de
-    /// la base (o <c>null</c>) aunque declare otra marca o viva en la carpeta de un área permitida.
+    /// <b>Una derivada nunca queda menos restringida que su base</b>: si un tipo base lleva la marca
+    /// de un área excluida, o es una petición excluida por área o sin área, la derivada toma esa área
+    /// (o <c>null</c>) aunque declare otra marca o viva en la carpeta de un área permitida.
     /// </para>
     /// </summary>
     public static string? AreaDe(Type tipoPeticion)
@@ -234,6 +237,13 @@ public static class ActosExcluidosDelEncargo
 
     private static string? ResolverArea(Type tipoPeticion)
     {
+        // Una marca de área excluida en cualquier tipo base, sea o no una petición, prevalece.
+        for (var t = tipoPeticion.BaseType; t is not null; t = t.BaseType)
+        {
+            if (Marca(t) is { } marcaDeLaBase && AreasExcluidas.Contains(marcaDeLaBase))
+                return marcaDeLaBase;
+        }
+
         if (tipoPeticion.BaseType is { } tipoBase && typeof(IBaseRequest).IsAssignableFrom(tipoBase))
         {
             var areaDeLaBase = AreaDe(tipoBase);
@@ -241,16 +251,25 @@ public static class ActosExcluidosDelEncargo
                 return areaDeLaBase;
         }
 
-        var area = MarcaMasCercana(tipoPeticion) ?? AreaPorEspacioDeNombres(tipoPeticion);
-        return area is not null && (AreasExcluidas.Contains(area) || AreasPermitidas.Contains(area)) ? area : null;
+        // Marca propia; si no, la carpeta si es un área clasificada (una carpeta excluida no se abre con la
+        // marca de una base); si no, la marca más cercana de la cadena, para que mover la derivada a un
+        // espacio de nombres de módulo (Inbound.*) no la deje sin área.
+        var area = Marca(tipoPeticion)
+                   ?? (AreaPorEspacioDeNombres(tipoPeticion) is { } carpeta && EsClasificada(carpeta) ? carpeta : null)
+                   ?? MarcaHeredadaMasCercana(tipoPeticion);
+        return area is not null && EsClasificada(area) ? area : null;
     }
 
-    private static string? MarcaMasCercana(Type tipoPeticion)
+    private static bool EsClasificada(string area) => AreasExcluidas.Contains(area) || AreasPermitidas.Contains(area);
+
+    private static string? Marca(Type tipo) => tipo.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false)?.Area;
+
+    private static string? MarcaHeredadaMasCercana(Type tipoPeticion)
     {
-        for (var t = tipoPeticion; t is not null; t = t.BaseType)
+        for (var t = tipoPeticion.BaseType; t is not null; t = t.BaseType)
         {
-            if (t.GetCustomAttribute<AreaDelEncargoAttribute>(inherit: false) is { } marca)
-                return marca.Area;
+            if (Marca(t) is { } marca)
+                return marca;
         }
 
         return null;

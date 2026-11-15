@@ -21,9 +21,11 @@ namespace CaeManager.Architecture.Tests;
 /// implementa <see cref="IBaseRequest"/>, y su área (<see cref="ActosExcluidosDelEncargo.AreaDe"/>: la
 /// <see cref="AreaDelEncargoAttribute"/> del tipo o, sin ella, el segmento de su espacio de nombres tras
 /// <c>CaeManager.Application.</c>; una petición sin área resuelta falla cerrado en ejecución y aquí da
-/// rojo). Que el área no dependa de la carpeta lo fija <c>AreaDelEncargoPorTipoTests</c>.
-/// <b>Lo que NO observa</b>: si la clasificación es acertada —eso es
-/// una decisión—, ni una petición nueva dentro de un área ya permitida, que nace permitida.
+/// rojo). Una petición sin marca sigue tomando el área de su carpeta: lo que impide que una petición
+/// nueva, o una movida, cambie de área sin decidirlo es la lista congelada de
+/// <c>AreaDelEncargoPorTipoTests</c>, con el área de cada petición de <c>src</c>.
+/// <b>Lo que NO observa</b>: si la clasificación es acertada —eso es una decisión—; una petición nueva
+/// dentro de un área ya permitida pasa este test y la para la lista congelada.
 /// </para>
 /// </summary>
 public class AreasClasificadasParaElEncargoTests

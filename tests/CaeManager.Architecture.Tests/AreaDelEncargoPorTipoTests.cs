@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Architecture.Tests.Soporte;
@@ -23,13 +24,24 @@ namespace CaeManager.Architecture.Tests
     /// </summary>
     public class AreaDelEncargoPorTipoTests
     {
-        private static readonly Type[] TiposDeApplication = typeof(ActosExcluidosDelEncargo).Assembly.GetTypes();
+        /// <summary>
+        /// Los ensamblados de <c>src</c>: cualquiera puede declarar una petición que pase por el pipeline. Que la lista
+        /// coincida con los proyectos de <c>src</c> en disco lo comprueba
+        /// <see cref="El_inventario_recorre_todos_los_ensamblados_de_src"/>.
+        /// </summary>
+        private static readonly string[] EnsambladosDeSrc =
+        [
+            "CaeManager.Application", "CaeManager.Domain", "CaeManager.Infrastructure", "CaeManager.Migrations.PostgreSQL",
+            "CaeManager.Web",
+        ];
+
+        private static readonly Type[] TiposDeSrc = EnsambladosDeSrc.SelectMany(n => Assembly.Load(n).GetTypes()).ToArray();
 
         /// <summary>
-        /// Las peticiones concretas e instanciables. Una definición genérica abierta no se puede instanciar sin
+        /// Las peticiones concretas e instanciables de <c>src</c>. Una definición genérica abierta no se puede instanciar sin
         /// inicializar (no es un tipo cerrado); la vigila aparte <see cref="Ninguna_peticion_generica_abierta_queda_sin_marca"/>.
         /// </summary>
-        private static readonly List<Type> Peticiones = TiposDeApplication
+        private static readonly List<Type> Peticiones = TiposDeSrc
             .Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
                         && typeof(IBaseRequest).IsAssignableFrom(t))
             .ToList();
@@ -126,6 +138,64 @@ namespace CaeManager.Architecture.Tests
             Peticiones.Where(ExcluyeSinInicializar).Select(NombreCorto).Should().BeEquivalentTo(ExcluidasCongeladas,
                 "M0c cambia cómo se resuelve el área, no qué queda excluido; una petición nueva excluida o una que deja "
                 + "de estarlo es una decisión (D-8) que se escribe aquí en el mismo commit");
+        }
+
+        private const string RutaListaCongelada = "tests/CaeManager.Architecture.Tests/Datos/AreasDelEncargoCongeladas.txt";
+
+        /// <summary>
+        /// <b>El área resuelta de cada petición de <c>src</c>, permitidas incluidas, es la congelada</b> (Codex r1, #2241).
+        /// Sin marca, una petición toma el área de su carpeta en ejecución; esta lista hace que una petición nueva, una que
+        /// desaparece o un cambio de área den rojo hasta que alguien la clasifique a conciencia aquí. Por eso M1 solo puede
+        /// mover peticiones con marca o presentes en la lista: es la lista lo que garantiza que moverlas no cambia su área.
+        /// Si da rojo, el área actual de cada petición queda en <c>%TEMP%\AreasDelEncargoCongeladas.actual.txt</c>.
+        /// </summary>
+        [Fact]
+        public void El_area_de_cada_peticion_es_la_congelada()
+        {
+            var actual = Peticiones
+                .Select(p => $"{NombreCorto(p)}\t{ActosExcluidosDelEncargo.AreaDe(p) ?? "(sin área)"}")
+                .Order(StringComparer.Ordinal)
+                .ToList();
+            var congelada = File.ReadAllLines(Path.Combine(RaizDelRepositorio(), RutaListaCongelada))
+                .Where(l => l.Length > 0 && !l.StartsWith('#'))
+                .ToList();
+
+            if (!actual.SequenceEqual(congelada))
+                File.WriteAllLines(Path.Combine(Path.GetTempPath(), "AreasDelEncargoCongeladas.actual.txt"), actual);
+            congelada.Should().HaveCountGreaterThan(300, "control positivo: la lista congelada se lee");
+
+            actual.Except(congelada).Should().BeEmpty(
+                "una petición nueva o con otra área se clasifica a conciencia en " + RutaListaCongelada + " (D-8)");
+            congelada.Except(actual).Should().BeEmpty("una petición que desaparece o cambia de área se retira de la lista");
+            congelada.Should().BeInAscendingOrder(StringComparer.Ordinal, "la lista va ordenada para que el diff sea legible");
+        }
+
+        /// <summary>
+        /// Control del inventario: los ensamblados recorridos son exactamente los proyectos de <c>src</c> en disco, y el
+        /// detector ve las peticiones de Application. Hoy no hay peticiones fuera de Application; si aparece una, entra en
+        /// la lista congelada como cualquier otra.
+        /// </summary>
+        [Fact]
+        public void El_inventario_recorre_todos_los_ensamblados_de_src()
+        {
+            var proyectos = Directory.GetFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.csproj", SearchOption.AllDirectories)
+                .Select(Path.GetFileNameWithoutExtension)
+                .ToList();
+            proyectos.Should().NotBeEmpty();
+            EnsambladosDeSrc.Should().BeEquivalentTo(proyectos, "un proyecto nuevo de src se añade a EnsambladosDeSrc");
+
+            Peticiones.Where(p => p.Assembly == typeof(ActosExcluidosDelEncargo).Assembly).Should().HaveCountGreaterThan(300);
+            Peticiones.Where(p => p.Assembly != typeof(ActosExcluidosDelEncargo).Assembly).Select(p => p.FullName)
+                .Should().BeEmpty("hoy todas las peticiones viven en Application; la primera de otro ensamblado se anota aquí");
+        }
+
+        private static string RaizDelRepositorio()
+        {
+            var actual = new DirectoryInfo(AppContext.BaseDirectory);
+            while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+                actual = actual.Parent;
+            return actual?.FullName
+                   ?? throw new InvalidOperationException("No se encontró CaeManager.slnx subiendo desde " + AppContext.BaseDirectory);
         }
 
         [Fact]
@@ -247,7 +317,7 @@ namespace CaeManager.Architecture.Tests
         [Fact]
         public void Toda_peticion_derivada_de_otra_tiene_el_area_de_su_base_o_queda_excluida()
         {
-            var derivadas = TiposDeApplication
+            var derivadas = TiposDeSrc
                 .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: false }
                             && typeof(IBaseRequest).IsAssignableFrom(t)
                             && t.BaseType is { } b && typeof(IBaseRequest).IsAssignableFrom(b))
@@ -309,6 +379,36 @@ namespace CaeManager.Architecture.Tests
         }
 
         /// <summary>
+        /// Revisión puente de la ronda 2: la exclusión de una base pasa por cadenas de varios niveles, por bases que no son
+        /// peticiones y no se abre con la marca heredada de una base permitida cuando la carpeta propia está excluida.
+        /// </summary>
+        [Fact]
+        public void La_exclusion_de_la_base_pasa_por_toda_la_cadena_y_por_bases_que_no_son_peticiones()
+        {
+            // D : M : B, con B excluida y M intermedia sin marca, en carpeta permitida: sin recursión, M sería ContratosAcceso.
+            var intermedia = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.IntermediaSinMarcaDeExcluidaSimulada);
+            var tercerNivel = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.TercerNivelDeExcluidaSimulada);
+            Marca(intermedia).Should().BeNull();
+            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(intermedia).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreaDe(tercerNivel).Should().Be("AutorizacionesLectura");
+            ExcluyeSinInicializar(tercerNivel).Should().BeTrue();
+
+            // Base que no es petición con la marca de un área excluida.
+            var deNoPeticion = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeBaseNoPeticionExcluidaSimulada);
+            typeof(IBaseRequest).IsAssignableFrom(deNoPeticion.BaseType).Should().BeFalse();
+            Marca(deNoPeticion).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreaDe(deNoPeticion).Should().Be("Facturacion");
+            ExcluyeSinInicializar(deNoPeticion).Should().BeTrue();
+
+            // Sin marca propia en la carpeta de un área excluida, con base permitida marcada: manda la carpeta.
+            var enCarpetaExcluida = typeof(CaeManager.Application.Facturacion.SimulacionM0c.DerivadaEnCarpetaExcluidaSimulada);
+            ActosExcluidosDelEncargo.AreasExcluidas.Should().Contain("Facturacion");
+            ActosExcluidosDelEncargo.AreaDe(enCarpetaExcluida.BaseType!).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreaDe(enCarpetaExcluida).Should().Be("Facturacion");
+            ExcluyeSinInicializar(enCarpetaExcluida).Should().BeTrue();
+        }
+
+        /// <summary>
         /// <see cref="ActosExcluidosDelEncargo.PeticionesExcluidas"/> va por tipo: una derivada de una de ellas también queda
         /// excluida. Las de hoy son selladas o sin derivadas; lo que se comprueba es la cadena entera de cada petición.
         /// </summary>
@@ -340,14 +440,14 @@ namespace CaeManager.Architecture.Tests
         [Fact]
         public void Ninguna_peticion_generica_abierta_queda_sin_marca()
         {
-            var genericasAbiertas = TiposDeApplication
+            var genericasAbiertas = TiposDeSrc
                 .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: true } && typeof(IBaseRequest).IsAssignableFrom(t))
                 .ToList();
 
             genericasAbiertas.Where(t => !t.IsAbstract && Marca(t) is null).Select(t => t.FullName).Should().BeEmpty(
                 "una petición genérica declara su área con [AreaDelEncargo(\"…\")] en la definición");
             genericasAbiertas.Select(t => t.FullName).Should().BeEmpty(
-                "hoy no hay peticiones genéricas abiertas en Application; la primera se clasifica y se anota aquí");
+                "hoy no hay peticiones genéricas abiertas en src; la primera se clasifica y se anota aquí");
         }
 
         private static IEnumerable<Type> Cadena(Type t)
@@ -398,6 +498,12 @@ namespace CaeManager.Application.SinAreaM0c.SimulacionM0c
     public record PeticionBaseSinAreaSimulada : IRequest;
 }
 
+namespace CaeManager.Application.Facturacion.SimulacionM0c
+{
+    /// <summary>Sin marca propia en la carpeta de un área excluida, derivada de una base permitida marcada.</summary>
+    public sealed record DerivadaEnCarpetaExcluidaSimulada : CaeManager.Application.ContratosAcceso.SimulacionM0c.PeticionBasePermitidaSimulada;
+}
+
 namespace CaeManager.Application.Centros.SimulacionM0c
 {
     /// <summary>Incumple la regla de herencia: base permitida en «ContratosAcceso», derivada en otra área permitida.</summary>
@@ -430,6 +536,18 @@ namespace CaeManager.Application.ContratosAcceso.SimulacionM0c
 
     [AreaDelEncargo("ContratosAcceso")]
     public sealed record DerivadaDeBaseSinAreaSimulada : CaeManager.Application.SinAreaM0c.SimulacionM0c.PeticionBaseSinAreaSimulada;
+
+    public record IntermediaSinMarcaDeExcluidaSimulada : CaeManager.Application.AutorizacionesLectura.SimulacionM0c.PeticionBaseExcluidaSimulada;
+
+    [AreaDelEncargo("ContratosAcceso")]
+    public sealed record TercerNivelDeExcluidaSimulada : IntermediaSinMarcaDeExcluidaSimulada;
+
+    /// <summary>Base que no es petición, marcada con un área excluida.</summary>
+    [AreaDelEncargo("Facturacion")]
+    public abstract record BaseNoPeticionExcluidaSimulada;
+
+    [AreaDelEncargo("ContratosAcceso")]
+    public sealed record DerivadaDeBaseNoPeticionExcluidaSimulada : BaseNoPeticionExcluidaSimulada, IRequest;
 
     [AreaDelEncargo("ContratosAcceso")]
     public sealed record DerivadaDeExcluidaPorTipoSimulada()
