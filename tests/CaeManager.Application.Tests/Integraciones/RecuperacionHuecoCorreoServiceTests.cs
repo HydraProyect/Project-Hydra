@@ -157,11 +157,11 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
-    public async Task Exactamente_mil_del_mismo_segundo_y_uno_despues_atascan_sin_encolar_nada_en_dos_pasadas_seguidas()
+    public async Task Mil_del_mismo_segundo_con_mas_detras_atascan_sin_encolar_nada_en_dos_pasadas_seguidas()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
         var mismoSegundo = Enumerable.Range(0, 1000).Select(i => escenario.Mensaje($"s{i}", 10)).ToArray();
-        // Primera página: los 1000 del segundo T, con el de T+1 detrás. Avanza el cursor a T y se encola.
+        // Primera página, desde la marca: los 1000 del segundo T y más detrás (nextLink). Avanza el cursor a T y se encola.
         escenario.Pagina(hayMas: true, mismoSegundo);
         // Desde T, Graph devuelve otra vez los mismos 1000 con más detrás.
         escenario.Pagina(hayMas: true, mismoSegundo);
@@ -291,6 +291,25 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Eventos.Eventos.Should().BeEmpty("la página leída para la recuperación anulada no se encola en la nueva");
         escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(escenario.Marca);
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_pasada_sobre_una_recuperacion_anulada_y_reiniciada_no_registra_su_atasco_en_la_nueva()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        // Página atascada: vacía con más detrás.
+        escenario.Pagina(hayMas: true);
+        escenario.Graph.AlListarRecibidos = indice =>
+        {
+            if (indice != 0)
+                return;
+            escenario.Conexion.RegistrarNotificacionDescartada(DateTime.UtcNow.AddHours(2)).Should().BeTrue();
+            escenario.Conexion.IniciarRecuperacionHueco(DateTime.UtcNow).Should().Be(escenario.Marca, "control: mismos valores");
+        };
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Anulada);
+
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull("el atasco de la recuperación anulada no se apunta en la nueva");
     }
 
     [Fact]
