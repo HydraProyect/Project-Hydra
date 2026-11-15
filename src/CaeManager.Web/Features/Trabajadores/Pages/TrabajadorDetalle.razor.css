@@ -203,3 +203,10 @@
     white-space: nowrap;
     border: 0;
 }
+
+/* Por qué bloquea el documento en ese Centro (texto canónico de TextoBloqueoDeAcceso). */
+.trabajador360-bloqueo-acceso {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--font-caption);
+}

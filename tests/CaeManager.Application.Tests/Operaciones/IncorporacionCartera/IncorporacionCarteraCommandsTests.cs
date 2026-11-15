@@ -62,7 +62,8 @@ public class IncorporacionCarteraCommandsTests
         if (!solicitanteActivo)
             _directorio.Desactivar(_gestor);
         return new(usuario, _catalogo, _repositorio, _directorio,
-            _notificaciones, _tenants, _unitOfWork, NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance);
+            _notificaciones, _tenants, _unitOfWork, NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance,
+            new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
     }
 
     private RechazarSolicitudIncorporacionCarteraCommandHandler Rechazar(CurrentUserServicePorAmbito usuario) =>

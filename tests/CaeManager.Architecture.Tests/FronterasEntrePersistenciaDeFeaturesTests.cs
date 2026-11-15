@@ -438,6 +438,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerCuadroDireccionQueryHandler", "IVisitasQueryContext"),
         // Solo comprueba que el Operador CAE opera hoy al Tenant beneficiario antes de fijarle una tarifa.
         ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "IOperacionesQueryContext"),
+        // Y que esa operación sigue amparada por su DelegacionTenant de origen (AmparoDeOrigen).
+        ("Dashboard.FijarTarifaOperadorCaeCommandHandler", "ITenantsQueryContext"),
         // Acota la valoración del Operador CAE a la vigencia de su Asignación de Operación en cada mes.
         ("Dashboard.ObtenerSerieCuadroDireccionQueryHandler", "IOperacionesQueryContext"),
         ("Dashboard.ObtenerFacturacionOperadorCaeQueryHandler", "IOperacionesQueryContext"),
