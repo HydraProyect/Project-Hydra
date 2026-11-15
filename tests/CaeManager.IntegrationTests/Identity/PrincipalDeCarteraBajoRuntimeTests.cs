@@ -955,7 +955,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             new DesactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>(),
-                    directorio, contexto, new CatalogoIncorporacionCartera(contexto, usuario))
+                    directorio, contexto, new CatalogoIncorporacionCartera(contexto, usuario),
+                    new TransaccionDeComando(contexto))
                 .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
 
     /// <summary>

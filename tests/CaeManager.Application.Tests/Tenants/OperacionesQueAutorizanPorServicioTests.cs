@@ -89,9 +89,9 @@ public class OperacionesQueAutorizanPorServicioTests
         var conOutbound = new OperacionesEnMemoria([Externa(ServicioCae.Outbound, Ahora.AddDays(-2))], []);
 
         (await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
-            soloInbound, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeFalse();
+            soloInbound, Delegacion, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeFalse();
         (await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
-            conOutbound, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeTrue();
+            conOutbound, Delegacion, OperadorCaeExterno, TenantBeneficiario, Ahora, default)).Should().BeTrue();
     }
 
     /// <summary>
@@ -111,12 +111,12 @@ public class OperacionesQueAutorizanPorServicioTests
         var contexto = ConCartera(outboundAcotada, inboundEntera);
 
         (await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
-                contexto, [Usuario], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
+                contexto, Delegacion, [Usuario], TenantBeneficiario, OperadorCaeExterno, Ahora, default))
             .Should().Equal([clienteEmpresarial], "la Inbound del Tenant entero no aporta el ámbito null (Tenant entero)");
         (await TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(contexto, Delegacion, OperadorCaeExterno, Ahora)
                 .Select(v => v.Operacion.Id).ToListAsync())
             .Should().Equal([outboundAcotada.Id], "la cartera bajo la Inbound no cuenta en Outbound");
-        (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(contexto, OperadorCaeExterno, Ahora)
+        (await TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(contexto, Delegacion, OperadorCaeExterno, Ahora)
                 .ToListAsync())
             .Should().BeEmpty("la única operación del Tenant entero es Inbound");
         (await TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync(

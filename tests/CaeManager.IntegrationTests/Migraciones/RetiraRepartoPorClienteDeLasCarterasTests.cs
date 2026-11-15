@@ -184,7 +184,9 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        await using var lectura = NuevoContexto(_tenant.Id);
+        // Los lectores, con el modelo actual: la base está en la última migración, y el amparo de origen de los lectores
+        // (AmparoDeOrigen) lee columnas que el contexto anterior ignora.
+        await using var lectura = ContextoActual(_tenant.Id);
         var clientesRepartida = await AlcanceDe(lectura, repartida).ObtenerClienteIdsVisiblesAsync();
         var clientesUniversal = await AlcanceDe(lectura, universal).ObtenerClienteIdsVisiblesAsync();
 
@@ -385,6 +387,17 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
             .Options;
         // Esta clase retrocede a un esquema anterior a la columna EsPrincipal: ver ContextoAnteriorALaMarcaDePrincipal.
         return new ContextoAnteriorALaMarcaDePrincipal(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>El modelo actual, para leer con los lectores de alcance sobre la base en su última migración.</summary>
+    private CaeManagerDbContext ContextoActual(Guid? tenantId)
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
     /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>

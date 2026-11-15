@@ -54,7 +54,7 @@ public class DesactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork, ITenantActual tenantActual,
     IDirectorioUsuariosService directorioUsuarios, ITenantsQueryContext tenantsContext,
-    ICatalogoIncorporacionCartera catalogo)
+    ICatalogoIncorporacionCartera catalogo, ITransaccionDeComando transaccion)
     : IRequestHandler<DesactivarDelegacionTenantCommand, Result>,
       IRequestHandler<PuedeRevocarQuery, bool>
 {
@@ -110,32 +110,64 @@ public class DesactivarDelegacionTenantCommandHandler(
                 "DelegacionTenant.NoAutorizado",
                 "Para revocar el acceso, vuelve a tu organización."));
 
-        if (!delegacion.Activa)
-            return Result.Fallo(Error.Crear("DelegacionTenant.YaInactiva", "Esta delegación ya estaba revocada."));
-
-        delegacion.Desactivar();
-
         // La revocación escribe datos del Tenant propietario: cerrar su
         // Asignación de Operación y sus carteras. La política WITH CHECK de esa
         // tabla exige que el Tenant activo sea el propietario, y quien revoca desde la casa
         // del Operador CAE externo tiene activo el suyo. El
         // guardado se hace por eso en el ámbito del Tenant propietario, mismo
         // mecanismo que CrearClienteDeleganteCommand. No amplía la autoridad, que
-        // ya se decidió arriba, y revocar solo reduce capacidad.
+        // ya se decidió arriba, y revocar solo reduce capacidad. El ámbito se abre ANTES
+        // de la transacción, como en ReactivarDelegacionTenantCommand: las lecturas de
+        // dentro (la operación y las carteras que se cierran) se hacen con el Tenant
+        // firmado al abrirla.
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
-            // Solo las de Operador externo tienen operación que cerrar: las de
-            // Soporte son plano 3 y conservan su mecánica propia hasta su fase
-            // (ADR-011 § 8.6). Se cierran todas las Asignaciones de Operación Outbound
-            // del par, del Tenant entero y acotadas, y sus carteras (decisión de Chris
-            // del 2026-11-14).
-            if (deOperadorExterno)
-                await asignacionesWriter.CerrarOperacionDelegadaAsync(
-                    tenantPropietarioId, delegacion.TenantConsultoraId,
-                    MotivoCierreAsignacion.Revocada, cancellationToken);
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            return await transaccion.EjecutarAsync(
+                ct => RevocarAsync(delegacion.Id, tenantPropietarioId, deOperadorExterno, ct), cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Bloquea la DelegacionTenant y relee su estado ANTES de leer lo que cierra, en el orden de la revocación por
+    /// Soporte TALVEG (migración <c>SoporteRevocaOperacionesOutboundAcotadas</c>): primero la delegación y después la
+    /// operación y sus carteras. Es lo que ordena esta revocación frente al <c>FOR SHARE</c> con que el catálogo
+    /// (<c>CatalogoIncorporacionCartera.BloquearVinculosDelParAsync</c>) bloquea las delegaciones del par antes de
+    /// emitir una cartera y su fila heredada. Si el catálogo va delante, la revocación espera a que confirme y cierra
+    /// también la cartera que emitió; si va detrás, es el catálogo el que espera y decide sobre la delegación ya
+    /// revocada. Sin el bloqueo, la revocación leía las carteras antes de que el catálogo confirmara la suya, y esa
+    /// cartera quedaba vigente bajo una operación cerrada (ronda 3 de la PR #2253).
+    ///
+    /// <para>
+    /// El estado (Activa) se decide aquí, con la fila bloqueada, y no con la lectura de autoridad hecha fuera de la
+    /// transacción: dos revocaciones a la vez no dan éxito las dos. Lo que la autoridad miró (Operador CAE externo,
+    /// Tenant propietario y propósito) no cambia nunca en una DelegacionTenant, así que la relectura no la invalida.
+    /// </para>
+    /// </summary>
+    private async Task<Result> RevocarAsync(
+        Guid id, Guid tenantPropietarioId, bool deOperadorExterno, CancellationToken cancellationToken)
+    {
+        if (!await repositorio.BloquearYReleerAsync(id, cancellationToken))
+            return Result.Fallo(NoEncontrada);
+        var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
+        if (delegacion is null)
+            return Result.Fallo(NoEncontrada);
+
+        if (!delegacion.Activa)
+            return Result.Fallo(Error.Crear("DelegacionTenant.YaInactiva", "Esta delegación ya estaba revocada."));
+
+        delegacion.Desactivar();
+
+        // Solo las de Operador externo tienen operación que cerrar: las de
+        // Soporte son plano 3 y conservan su mecánica propia hasta su fase
+        // (ADR-011 § 8.6). Se cierran todas las Asignaciones de Operación Outbound
+        // del par, del Tenant entero y acotadas, y sus carteras (decisión de Chris
+        // del 2026-11-14).
+        if (deOperadorExterno)
+            await asignacionesWriter.CerrarOperacionDelegadaAsync(
+                tenantPropietarioId, delegacion.TenantConsultoraId,
+                MotivoCierreAsignacion.Revocada, cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
     }

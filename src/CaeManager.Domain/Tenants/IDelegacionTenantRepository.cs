@@ -11,7 +11,9 @@ public interface IDelegacionTenantRepository
     /// leído antes. Así, dos comandos que llaman a este método antes de decidir por su estado
     /// (<see cref="DelegacionTenant.Activa"/>) sobre la misma delegación se ponen en fila: el segundo
     /// espera a que el primero confirme y decide con lo que este dejó escrito. Solo los que lo llaman
-    /// (hoy, la reactivación): un comando que decide por el estado sin pasar por aquí lo lee sin
+    /// (hoy, la reactivación y la revocación por el equipo del Operador CAE externo, que además lo
+    /// toma antes de leer la operación y las carteras que cierra, para que el <c>FOR SHARE</c> del
+    /// catálogo de incorporación la ordene): un comando que decide por el estado sin pasar por aquí lo lee sin
     /// esperar al bloqueo y puede decidir con un estado que otro ya está cambiando. Exige una transacción abierta; devuelve <c>false</c> si no consiguió la fila
     /// bloqueada, y quien llama falla cerrado.
     /// </summary>
