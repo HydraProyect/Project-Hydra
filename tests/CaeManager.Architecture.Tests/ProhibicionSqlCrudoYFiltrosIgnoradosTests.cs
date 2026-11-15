@@ -359,13 +359,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // escritura acotada de Postgres, no un atajo alrededor de EF.
         [("src/CaeManager.Infrastructure/Plataforma/ElevacionEscrituraPrivilegiada.cs", "await using var comando = conexion.CreateCommand();")] = 1,
 
-        // TenantSelladoInterceptor.FijarTenantEnSesionRlsAsync: mismo
+        // TenantSelladoInterceptor.FijarAsync: mismo
         // set_config('app.tenant_id', ...) parametrizado que
-        // TenantRlsConnectionInterceptor de abajo, pero ejecutado a mitad de
-        // SaveChanges (no al abrir la conexión) para sellar/restaurar el
-        // TenantId PROPIETARIO de una fila de auditoría de Identity cuando
-        // difiere del tenant de sesión — ver el comentario de la clase.
+        // TenantRlsConnectionInterceptor de abajo, pero ejecutado dentro del
+        // ámbito transaccional de un lote (no al abrir la conexión) para mover
+        // y devolver el TenantId PROPIETARIO de una fila de auditoría de
+        // Identity cuando difiere del tenant de sesión — ver el comentario de
+        // la clase.
         [("src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
+        // TenantSelladoInterceptor.AplicarTenantDelLoteAsync (quinta revisión
+        // de Codex de la conexión por operación): lee current_setting de
+        // app.tenant_id y app.contexto justo antes de moverlos, para devolver
+        // a la conexión exactamente lo que tenía. Sin parámetros, sin tablas.
+        [("src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs", "await using (var lectura = conexion.CreateCommand())")] = 1,
 
         // Segunda línea de defensa RLS (TenantRlsConnectionInterceptor): fija
         // la variable de sesión de Postgres app.tenant_id en cada apertura de
@@ -415,7 +422,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de un comando en autocommit o de un BEGIN cuando pasó la mitad del
         // TTL. Mismo set_config parametrizado que la apertura, sobre la
         // conexión que el interceptor ya preparó; no lee ni escribe filas.
-        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+        // Sube de 1 a 2 (quinta revisión de Codex de la conexión por
+        // operación): AbortarTransaccionAsync, un SELECT de un literal que no
+        // es un entero para dejar abortada en PostgreSQL la transacción cuyo
+        // rol no se pudo realinear tras un ROLLBACK TO SAVEPOINT. Sin
+        // parámetros ni tablas.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 2,
+
+        // RealinearRolTrasPuntoDeGuardadoAsync: RESET ROLE y el SET ROLE del
+        // rol deseado en un solo comando, tras un ROLLBACK TO SAVEPOINT. Los
+        // identificadores son los dos roles literales del interceptor; SET
+        // ROLE no admite parámetros.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = npgsql.CreateCommand();")] = 1,
 
         // P6: registro de la clave del contexto RLS en
         // app_privado.claves_contexto con la conexión PROPIETARIA — la única

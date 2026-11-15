@@ -63,9 +63,10 @@ public static class LectorCandidatosAsistente
 
             case ObtenerCandidatosAsistenteQueryHandler.CampoEmpleador:
                 var empresas = await mediator.Send(new ObtenerEmpresasParaSelectorQuery(), cancellationToken);
-                // El selector de Subcontratas no aplica la cartera (sirve a
-                // pantallas de configuración): aquí se acota con el mismo
-                // alcance «para gestión» que usa el selector de Empresas.
+                // El selector de Subcontratas ya se acota por el alcance «para
+                // gestión», el mismo que el de Empresas; el filtro de aquí se
+                // conserva como defensa en profundidad para que un cambio en
+                // el selector no amplíe en silencio lo que propone el asistente.
                 var subcontrataIds = await alcanceDatos.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken);
                 var subcontratas = (await mediator.Send(new ObtenerSubcontratasParaSelectorQuery(), cancellationToken))
                     .Where(s => subcontrataIds is null || subcontrataIds.Contains(s.Id));
