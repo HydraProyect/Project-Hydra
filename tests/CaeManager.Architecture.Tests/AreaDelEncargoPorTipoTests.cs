@@ -38,13 +38,38 @@ namespace CaeManager.Architecture.Tests
         private static readonly Type[] TiposDeSrc = EnsambladosDeSrc.SelectMany(n => Assembly.Load(n).GetTypes()).ToArray();
 
         /// <summary>
-        /// Las peticiones concretas e instanciables de <c>src</c>. Una definición genérica abierta no se puede instanciar sin
-        /// inicializar (no es un tipo cerrado); la vigila aparte <see cref="Ninguna_peticion_generica_abierta_queda_sin_marca"/>.
+        /// Las peticiones concretas e instanciables de <c>src</c>, de respuesta y de flujo. Una definición genérica abierta no
+        /// se puede instanciar sin inicializar (no es un tipo cerrado); la vigila aparte
+        /// <see cref="Ninguna_peticion_generica_abierta_queda_sin_marca"/>.
         /// </summary>
         private static readonly List<Type> Peticiones = TiposDeSrc
-            .Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
-                        && typeof(IBaseRequest).IsAssignableFrom(t))
+            .Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false } && EsPeticion(t))
             .ToList();
+
+        /// <summary>
+        /// Una petición de MediatR: de respuesta (<see cref="IBaseRequest"/>) o de flujo (<see cref="IStreamRequest{TResponse}"/>,
+        /// que no deriva de <see cref="IBaseRequest"/>; Codex r2, #2241). Definida aquí y no tomada de Application para que
+        /// el instrumento no dependa del código que vigila.
+        /// </summary>
+        private static bool EsPeticion(Type t) =>
+            typeof(IBaseRequest).IsAssignableFrom(t)
+            || t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStreamRequest<>));
+
+        /// <summary>
+        /// El segmento del espacio de nombres tras <c>CaeManager.Application.</c>: la regla anterior a M0c. Ya no la usa
+        /// Application; aquí sirve de control de sensibilidad (lo que la carpeta habría dado) y para exigir que la marca
+        /// coincida con la carpeta mientras la petición no se haya movido.
+        /// </summary>
+        private static string? Carpeta(Type t)
+        {
+            const string raiz = "CaeManager.Application.";
+            if (t.Namespace is not { } espacio || !espacio.StartsWith(raiz, StringComparison.Ordinal))
+                return null;
+
+            var resto = espacio[raiz.Length..];
+            var fin = resto.IndexOf('.', StringComparison.Ordinal);
+            return fin < 0 ? resto : resto[..fin];
+        }
 
         /// <summary>
         /// El conjunto de peticiones que <see cref="ActosExcluidosDelEncargo.Excluye"/> deja fuera del encargo no pleno,
@@ -142,12 +167,19 @@ namespace CaeManager.Architecture.Tests
 
         private const string RutaListaCongelada = "tests/CaeManager.Architecture.Tests/Datos/AreasDelEncargoCongeladas.txt";
 
+        private static List<string> LeerListaCongelada() =>
+            File.ReadAllLines(Path.Combine(RaizDelRepositorio(), RutaListaCongelada))
+                .Where(l => l.Length > 0 && !l.StartsWith('#'))
+                .ToList();
+
         /// <summary>
         /// <b>El área resuelta de cada petición de <c>src</c>, permitidas incluidas, es la congelada</b> (Codex r1, #2241).
-        /// Sin marca, una petición toma el área de su carpeta en ejecución; esta lista hace que una petición nueva, una que
-        /// desaparece o un cambio de área den rojo hasta que alguien la clasifique a conciencia aquí. Por eso M1 solo puede
-        /// mover peticiones con marca o presentes en la lista: es la lista lo que garantiza que moverlas no cambia su área.
-        /// Si da rojo, el área actual de cada petición queda en <c>%TEMP%\AreasDelEncargoCongeladas.actual.txt</c>.
+        /// Es el segundo instrumento: el primero es la marca o la entrada de
+        /// <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/>, en <c>src</c>, y
+        /// <see cref="La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca_o_la_tabla"/> exige que coincidan.
+        /// Una petición nueva, una que desaparece o un cambio de área dan rojo hasta que alguien la clasifique a conciencia
+        /// en los dos sitios. Si da rojo, el área actual de cada petición queda en
+        /// <c>%TEMP%\AreasDelEncargoCongeladas.actual.txt</c>.
         /// </summary>
         [Fact]
         public void El_area_de_cada_peticion_es_la_congelada()
@@ -156,9 +188,7 @@ namespace CaeManager.Architecture.Tests
                 .Select(p => $"{NombreCorto(p)}\t{ActosExcluidosDelEncargo.AreaDe(p) ?? "(sin área)"}")
                 .Order(StringComparer.Ordinal)
                 .ToList();
-            var congelada = File.ReadAllLines(Path.Combine(RaizDelRepositorio(), RutaListaCongelada))
-                .Where(l => l.Length > 0 && !l.StartsWith('#'))
-                .ToList();
+            var congelada = LeerListaCongelada();
 
             if (!actual.SequenceEqual(congelada))
                 File.WriteAllLines(Path.Combine(Path.GetTempPath(), "AreasDelEncargoCongeladas.actual.txt"), actual);
@@ -168,6 +198,65 @@ namespace CaeManager.Architecture.Tests
                 "una petición nueva o con otra área se clasifica a conciencia en " + RutaListaCongelada + " (D-8)");
             congelada.Except(actual).Should().BeEmpty("una petición que desaparece o cambia de área se retira de la lista");
             congelada.Should().BeInAscendingOrder(StringComparer.Ordinal, "la lista va ordenada para que el diff sea legible");
+        }
+
+        /// <summary>
+        /// El área que <c>src</c> declara para una petición: su marca o, sin ella, su entrada en la tabla de Application.
+        /// <c>null</c> si no tiene ninguna de las dos.
+        /// </summary>
+        private static string? Declarada(Type p) =>
+            Marca(p) ?? (ActosExcluidosDelEncargo.AreasDePeticionesSinMarca.TryGetValue(p, out var area) ? area : null);
+
+        /// <summary>Las líneas de una lista que no coinciden con el área declarada en <c>src</c> para su petición.</summary>
+        private static List<string> DiferenciasConLoDeclarado(IEnumerable<string> lista)
+        {
+            var declaradas = Peticiones.ToDictionary(NombreCorto, p => Declarada(p) ?? "(sin área)", StringComparer.Ordinal);
+            return lista
+                .Select(l => l.Split('\t'))
+                .Where(c => c.Length != 2 || !declaradas.TryGetValue(c[0], out var area) || area != c[1])
+                .Select(c => string.Join('\t', c))
+                .ToList();
+        }
+
+        /// <summary>
+        /// <b>Codex r2 (#2241): regenerar la lista congelada no puede aceptar un cambio de área.</b> El área ya no sale de la
+        /// carpeta en ejecución: sale de la marca o de <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/>, que
+        /// referencia cada petición por <c>typeof</c> y sobrevive a un cambio de espacio de nombres. Este test exige que
+        /// cada petición de <c>src</c> tenga exactamente una de las dos, que la tabla no sobre ni pise una marca, que sus
+        /// áreas sean permitidas (las excluidas enteras van con marca) y que la lista congelada diga lo mismo: una lista
+        /// con otra área para una entrada existente da rojo mientras no cambie también la marca o la tabla.
+        /// </summary>
+        [Fact]
+        public void La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca_o_la_tabla()
+        {
+            var tabla = ActosExcluidosDelEncargo.AreasDePeticionesSinMarca;
+            tabla.Should().HaveCountGreaterThan(400, "control positivo: la tabla se ve");
+
+            Peticiones.Where(p => Declarada(p) is null).Select(p => p.FullName).Should().BeEmpty(
+                "cada petición de src declara su área con [AreaDelEncargo] o con una entrada en AreasDePeticionesSinMarca");
+            tabla.Keys.Where(t => Marca(t) is not null).Select(t => t.FullName).Should().BeEmpty(
+                "una petición con marca no se repite en la tabla: el área se declara en un solo sitio");
+            tabla.Keys.Where(t => !Peticiones.Contains(t)).Select(t => t.FullName).Should().BeEmpty(
+                "la tabla nombra peticiones concretas de src; una que desaparece se retira");
+            tabla.Where(e => !ActosExcluidosDelEncargo.AreasPermitidas.Contains(e.Value)).Select(e => $"{e.Key.Name}\t{e.Value}")
+                .Should().BeEmpty("las áreas excluidas enteras llevan la marca en cada petición, no una entrada en la tabla");
+
+            Peticiones.Where(p => ActosExcluidosDelEncargo.AreaDe(p) != Declarada(p)).Select(p => p.FullName).Should().BeEmpty(
+                "el área resuelta de cada petición de src es la declarada (hoy ninguna hereda un área más restrictiva)");
+
+            var congelada = LeerListaCongelada();
+            DiferenciasConLoDeclarado(congelada).Should().BeEmpty(
+                "la lista congelada dice, para cada petición, el área que declara src; cambiarla exige cambiar la marca o la tabla");
+
+            // Sensibilidad: el caso de Codex r2. ObtenerCentroPorIdQuery no lleva marca; si su lista dijese «Empresas»
+            // (lo que daría la carpeta tras moverla de Centros a Empresas), el test da rojo porque la tabla dice «Centros».
+            var centro = Peticiones.Single(p => p.Name == "ObtenerCentroPorIdQuery");
+            Marca(centro).Should().BeNull();
+            tabla[centro].Should().Be("Centros");
+            var linea = $"{NombreCorto(centro)}\tCentros";
+            congelada.Should().Contain(linea);
+            DiferenciasConLoDeclarado(congelada.Select(l => l == linea ? $"{NombreCorto(centro)}\tEmpresas" : l))
+                .Should().ContainSingle().Which.Should().Be($"{NombreCorto(centro)}\tEmpresas");
         }
 
         /// <summary>
@@ -228,7 +317,7 @@ namespace CaeManager.Architecture.Tests
         {
             var registro = RegistroDeModulos.Versionado();
             var obligadas = Peticiones
-                .Where(p => ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(p) is { } a && ActosExcluidosDelEncargo.AreasExcluidas.Contains(a)
+                .Where(p => Carpeta(p) is { } a && ActosExcluidosDelEncargo.AreasExcluidas.Contains(a)
                             || registro.Clasificar(p)?.Modulo is Modulo.Inbound or Modulo.Facturacion)
                 .ToList();
             obligadas.Should().HaveCountGreaterThan(60, "control positivo: siete áreas excluidas y los módulos Inbound y Facturación");
@@ -241,9 +330,9 @@ namespace CaeManager.Architecture.Tests
                                                || ActosExcluidosDelEncargo.AreasPermitidas.Contains(Marca(p)!),
                 "la marca nombra un área clasificada; una que no lo está deja la petición sin área y excluida");
             marcadas
-                .Where(p => ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(p) is { } a
+                .Where(p => Carpeta(p) is { } a
                             && (ActosExcluidosDelEncargo.AreasExcluidas.Contains(a) || ActosExcluidosDelEncargo.AreasPermitidas.Contains(a)))
-                .Where(p => ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(p) != Marca(p))
+                .Where(p => Carpeta(p) != Marca(p))
                 .Select(p => p.FullName).Should().BeEmpty(
                     "una petición en la carpeta de un área clasificada lleva esa misma área en la marca");
             marcadas.Should().OnlyContain(p => ActosExcluidosDelEncargo.AreaDe(p) == Marca(p), "la marca manda sobre la carpeta");
@@ -263,7 +352,7 @@ namespace CaeManager.Architecture.Tests
 
             // Control de sensibilidad: con la regla anterior (el espacio de nombres) la movida tendría área «Inbound»,
             // que no está excluida.
-            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(excluidaDespues).Should().Be("Inbound");
+            Carpeta(excluidaDespues).Should().Be("Inbound");
             ActosExcluidosDelEncargo.AreasExcluidas.Should().NotContain("Inbound");
 
             ActosExcluidosDelEncargo.AreaDe(excluidaAntes).Should().Be("AutorizacionesLectura");
@@ -287,8 +376,12 @@ namespace CaeManager.Architecture.Tests
             var sinMarcaAntes = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.PeticionSinMarcaSimulada);
             var sinMarcaMovida = typeof(CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c.PeticionSinMarcaSimulada);
 
-            ActosExcluidosDelEncargo.AreaDe(sinMarcaAntes).Should().Be("ContratosAcceso", "sin marca, el espacio de nombres");
-            ExcluyeSinInicializar(sinMarcaAntes).Should().BeFalse();
+            // Desde la ronda 3 (Codex r2) la carpeta no da área: sin marca ni entrada en la tabla de Application, tampoco en la
+            // carpeta de un área permitida. Control: con la regla anterior la primera habría sido «ContratosAcceso».
+            Carpeta(sinMarcaAntes).Should().Be("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreasPermitidas.Should().Contain("ContratosAcceso");
+            ActosExcluidosDelEncargo.AreaDe(sinMarcaAntes).Should().BeNull("sin marca ni entrada, la carpeta no da área");
+            ExcluyeSinInicializar(sinMarcaAntes).Should().BeTrue("sin área, falla cerrado");
 
             ActosExcluidosDelEncargo.AreaDe(sinMarcaMovida).Should().BeNull("«Inbound» es un módulo, no un área");
             ExcluyeSinInicializar(sinMarcaMovida).Should().BeTrue("sin área, falla cerrado");
@@ -319,8 +412,8 @@ namespace CaeManager.Architecture.Tests
         {
             var derivadas = TiposDeSrc
                 .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: false }
-                            && typeof(IBaseRequest).IsAssignableFrom(t)
-                            && t.BaseType is { } b && typeof(IBaseRequest).IsAssignableFrom(b))
+                            && EsPeticion(t)
+                            && t.BaseType is { } b && EsPeticion(b))
                 .ToList();
 
             derivadas.Where(p => !HeredaSinAbrirse(p)).Select(p => p.FullName).Should().BeEmpty(
@@ -347,7 +440,7 @@ namespace CaeManager.Architecture.Tests
             // un área permitida.
             Marca(derivada).Should().Be("ContratosAcceso");
             Marca(derivadaSinMarca).Should().BeNull();
-            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(derivadaSinMarca).Should().Be("ContratosAcceso");
+            Carpeta(derivadaSinMarca).Should().Be("ContratosAcceso");
             ActosExcluidosDelEncargo.AreasPermitidas.Should().Contain("ContratosAcceso");
             ExcluyeSinInicializar(baseExcluida).Should().BeTrue();
 
@@ -373,7 +466,7 @@ namespace CaeManager.Architecture.Tests
             var derivada = typeof(CaeManager.Application.Inbound.ContratosAcceso.SimulacionM0c.DerivadaDePermitidaSimulada);
 
             Marca(derivada).Should().BeNull();
-            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(derivada).Should().Be("Inbound");
+            Carpeta(derivada).Should().Be("Inbound");
             ActosExcluidosDelEncargo.AreaDe(derivada).Should().Be("ContratosAcceso", "la marca más cercana es la de la base");
             ExcluyeSinInicializar(derivada).Should().BeFalse();
         }
@@ -389,23 +482,28 @@ namespace CaeManager.Architecture.Tests
             var intermedia = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.IntermediaSinMarcaDeExcluidaSimulada);
             var tercerNivel = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.TercerNivelDeExcluidaSimulada);
             Marca(intermedia).Should().BeNull();
-            ActosExcluidosDelEncargo.AreaPorEspacioDeNombres(intermedia).Should().Be("ContratosAcceso");
+            Carpeta(intermedia).Should().Be("ContratosAcceso");
             ActosExcluidosDelEncargo.AreaDe(tercerNivel).Should().Be("AutorizacionesLectura");
             ExcluyeSinInicializar(tercerNivel).Should().BeTrue();
 
             // Base que no es petición con la marca de un área excluida.
             var deNoPeticion = typeof(CaeManager.Application.ContratosAcceso.SimulacionM0c.DerivadaDeBaseNoPeticionExcluidaSimulada);
-            typeof(IBaseRequest).IsAssignableFrom(deNoPeticion.BaseType).Should().BeFalse();
+            EsPeticion(deNoPeticion.BaseType!).Should().BeFalse();
             Marca(deNoPeticion).Should().Be("ContratosAcceso");
             ActosExcluidosDelEncargo.AreaDe(deNoPeticion).Should().Be("Facturacion");
             ExcluyeSinInicializar(deNoPeticion).Should().BeTrue();
 
-            // Sin marca propia en la carpeta de un área excluida, con base permitida marcada: manda la carpeta.
+            // Sin marca propia ni entrada en la tabla, en la carpeta de un área excluida, con base permitida marcada. Desde la
+            // ronda 3 (Codex r2) la carpeta no cuenta en ejecución: toma el área de su base, nunca una menos restringida. Que
+            // no llegue así a src lo impiden la obligación de marca en las carpetas excluidas
+            // (Las_peticiones_que_deben_llevar_la_marca_la_llevan_y_coincide_con_su_carpeta) y la de declarar el área
+            // (La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca_o_la_tabla).
             var enCarpetaExcluida = typeof(CaeManager.Application.Facturacion.SimulacionM0c.DerivadaEnCarpetaExcluidaSimulada);
             ActosExcluidosDelEncargo.AreasExcluidas.Should().Contain("Facturacion");
+            Carpeta(enCarpetaExcluida).Should().Be("Facturacion");
+            Marca(enCarpetaExcluida).Should().BeNull();
             ActosExcluidosDelEncargo.AreaDe(enCarpetaExcluida.BaseType!).Should().Be("ContratosAcceso");
-            ActosExcluidosDelEncargo.AreaDe(enCarpetaExcluida).Should().Be("Facturacion");
-            ExcluyeSinInicializar(enCarpetaExcluida).Should().BeTrue();
+            ActosExcluidosDelEncargo.AreaDe(enCarpetaExcluida).Should().Be("ContratosAcceso", "el área de su base, no la de su carpeta");
         }
 
         /// <summary>
@@ -441,7 +539,7 @@ namespace CaeManager.Architecture.Tests
         public void Ninguna_peticion_generica_abierta_queda_sin_marca()
         {
             var genericasAbiertas = TiposDeSrc
-                .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: true } && typeof(IBaseRequest).IsAssignableFrom(t))
+                .Where(t => t is { IsInterface: false, IsGenericTypeDefinition: true } && EsPeticion(t))
                 .ToList();
 
             genericasAbiertas.Where(t => !t.IsAbstract && Marca(t) is null).Select(t => t.FullName).Should().BeEmpty(

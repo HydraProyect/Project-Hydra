@@ -17,13 +17,12 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que observa</b>: por reflexión, todo tipo concreto del ensamblado de Application que
-/// implementa <see cref="IBaseRequest"/>, y su área (<see cref="ActosExcluidosDelEncargo.AreaDe"/>: la
-/// <see cref="AreaDelEncargoAttribute"/> del tipo o, sin ella, el segmento de su espacio de nombres tras
-/// <c>CaeManager.Application.</c>; una petición sin área resuelta falla cerrado en ejecución y aquí da
-/// rojo). Una petición sin marca sigue tomando el área de su carpeta: lo que impide que una petición
-/// nueva, o una movida, cambie de área sin decidirlo es la lista congelada de
-/// <c>AreaDelEncargoPorTipoTests</c>, con el área de cada petición de <c>src</c>.
+/// <b>Lo que observa</b>: por reflexión, todo tipo concreto y cerrado del ensamblado de Application que
+/// es una petición de MediatR (<see cref="IBaseRequest"/> o <see cref="IStreamRequest{TResponse}"/>), y su
+/// área (<see cref="ActosExcluidosDelEncargo.AreaDe(Type)"/>: la <see cref="AreaDelEncargoAttribute"/> del
+/// tipo o, sin ella, su entrada en <see cref="ActosExcluidosDelEncargo.AreasDePeticionesSinMarca"/>; nunca
+/// la carpeta. Una petición sin área resuelta falla cerrado en ejecución y aquí da rojo). Las genéricas
+/// abiertas no se instancian; las vigila <c>AreaDelEncargoPorTipoTests</c>.
 /// <b>Lo que NO observa</b>: si la clasificación es acertada —eso es una decisión—; una petición nueva
 /// dentro de un área ya permitida pasa este test y la para la lista congelada.
 /// </para>
@@ -31,7 +30,9 @@ namespace CaeManager.Architecture.Tests;
 public class AreasClasificadasParaElEncargoTests
 {
     private static readonly List<Type> Peticiones = typeof(ActosExcluidosDelEncargo).Assembly.GetTypes()
-        .Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IBaseRequest).IsAssignableFrom(t))
+        .Where(t => t is { IsAbstract: false, IsInterface: false, IsGenericTypeDefinition: false }
+                    && (typeof(IBaseRequest).IsAssignableFrom(t)
+                        || t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IStreamRequest<>))))
         .ToList();
 
     [Fact]
@@ -42,9 +43,9 @@ public class AreasClasificadasParaElEncargoTests
         var areasConPeticiones = Peticiones
             .Select(p => ActosExcluidosDelEncargo.AreaDe(p)
                          ?? throw new InvalidOperationException(
-                             $"{p.FullName} no tiene área: ni [AreaDelEncargo] con un área clasificada ni un espacio de nombres "
-                             + "cuyo segmento tras CaeManager.Application. sea un área clasificada. Bajo encargo no pleno queda "
-                             + "excluida (falla cerrado); declara su área en el tipo o clasifica el área en ActosExcluidosDelEncargo."))
+                             $"{p.FullName} no tiene área: ni [AreaDelEncargo] con un área clasificada ni entrada en "
+                             + "ActosExcluidosDelEncargo.AreasDePeticionesSinMarca. Bajo encargo no pleno queda excluida (falla "
+                             + "cerrado); declara su área en el tipo o en la tabla, y clasifica el área si es nueva."))
             .ToHashSet(StringComparer.Ordinal);
 
         ActosExcluidosDelEncargo.AreasExcluidas.Should().NotIntersectWith(ActosExcluidosDelEncargo.AreasPermitidas,
@@ -106,14 +107,20 @@ public class AreasClasificadasParaElEncargoTests
             + "se excluye por tipo o se decide otra clasificación en el commit que la crea");
     }
 
+    /// <summary>
+    /// Codex r2 (#2241): el área ya no sale de la carpeta. Un tipo en la carpeta de un área clasificada, sin marca ni
+    /// entrada en la tabla, no tiene área; antes de la ronda 3 <c>ActosExcluidosDelEncargo</c> tomaba «Tenants» de su
+    /// espacio de nombres.
+    /// </summary>
     [Fact]
-    public void El_area_es_el_segmento_exacto_tras_la_raiz_y_no_un_prefijo()
+    public void El_area_no_sale_de_la_carpeta()
     {
         ActosExcluidosDelEncargo.AreaDe(typeof(CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery))
             .Should().Be("ApiKeys");
-        ActosExcluidosDelEncargo.AreaDe(typeof(ActosExcluidosDelEncargo)).Should().Be("Tenants");
+        typeof(ActosExcluidosDelEncargo).Namespace.Should().StartWith("CaeManager.Application.Tenants");
+        ActosExcluidosDelEncargo.AreasPermitidas.Should().Contain("Tenants");
+        ActosExcluidosDelEncargo.AreaDe(typeof(ActosExcluidosDelEncargo)).Should().BeNull(
+            "vive en la carpeta de un área permitida, pero sin marca ni entrada no tiene área");
         ActosExcluidosDelEncargo.AreaDe(typeof(string)).Should().BeNull("fuera de Application no hay área");
-        ActosExcluidosDelEncargo.AreaDe(typeof(AreasClasificadasParaElEncargoTests)).Should().BeNull(
-            "CaeManager.Architecture.Tests no empieza por la raíz de Application");
     }
 }

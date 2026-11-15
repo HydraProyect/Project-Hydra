@@ -188,6 +188,9 @@ public static class ApplicationServiceCollectionExtensions
         // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
         // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ExclusionesDelEncargoBehavior<,>));
+        // Las peticiones de flujo (IStreamRequest) no pasan por los IPipelineBehavior: su barrera del
+        // encargo es este behavior de flujo, con la misma lista y el mismo fallo cerrado (Codex r2, #2241).
+        services.AddTransient(typeof(MediatR.IStreamPipelineBehavior<,>), typeof(ExclusionesDelEncargoStreamBehavior<,>));
         // Aparte de AutorizacionEscritura porque responde a otra pregunta: no
         // "¿puede escribir?" sino "¿puede ver ESTE recurso?" — y se aplica a
         // Queries, que aquel deja pasar por definición.

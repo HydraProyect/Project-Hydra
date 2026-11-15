@@ -1,8 +1,10 @@
 # Área del Encargo de administración resuelta para cada petición de src (nombre corto, tabulador, área).
-# La compara AreaDelEncargoPorTipoTests.El_area_de_cada_peticion_es_la_congelada. Una petición nueva, una que
-# desaparece o un cambio de área da rojo hasta que se clasifica aquí a conciencia (D-8). M1 solo mueve peticiones
-# con [AreaDelEncargo] o presentes en esta lista: es la lista lo que garantiza que moverlas no cambia su área.
-# Volcada en la ronda 2 de la #2241 sobre el árbol con origin/main 2adbdc365 integrado; orden ordinal.
+# La compara AreaDelEncargoPorTipoTests.El_area_de_cada_peticion_es_la_congelada. Es el segundo instrumento: el
+# área la declaran en src la [AreaDelEncargo] del tipo o su entrada en ActosExcluidosDelEncargo.AreasDePeticionesSinMarca,
+# y La_lista_congelada_no_puede_cambiar_un_area_sin_cambiar_la_marca_o_la_tabla exige que esta lista diga lo mismo.
+# Regenerarla no basta para cambiar un área: hay que cambiar también la marca o la tabla (D-8).
+# Volcada en la ronda 2 de la #2241 sobre el árbol con origin/main 2adbdc365 integrado; en la ronda 3 entra la
+# petición de flujo ObtenerMiTrabajoPorPartesQuery (Bandeja). Orden ordinal.
 AbrirAccesoSoporteCommand	Tenants
 AbrirSesionPrivilegiadaCommand	Plataforma
 AceptarDeteccionesIaEnBloqueCommand	Documentos
@@ -417,6 +419,7 @@ ObtenerMacrosQuery	Comunicaciones
 ObtenerMensajesBuzonPersonalQuery	Comunicaciones
 ObtenerMensajesCarpetaQuery	Integraciones
 ObtenerMiTrabajoAgregadoQuery	Bandeja
+ObtenerMiTrabajoPorPartesQuery	Bandeja
 ObtenerNombreCuentaQuery	Usuarios
 ObtenerNotaContactoQuery	Contactos
 ObtenerNotasInternasConversacionQuery	Comunicaciones
