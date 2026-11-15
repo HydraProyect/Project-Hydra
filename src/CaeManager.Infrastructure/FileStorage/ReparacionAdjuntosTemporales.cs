@@ -8,6 +8,7 @@ using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -38,12 +39,30 @@ public sealed record AdjuntoTemporalDefinitivo(string RutaAnterior, string RutaN
 /// Nunca inventa una extensión: si no puede recuperarse, el definitivo queda sin ella y se
 /// registra un aviso con el tipo y el id de cada registro afectado, sin nombres de fichero.
 /// Recorre los campos que nombra aquí y los que cada módulo aporta por
-/// <see cref="IContribucionReferenciasArchivo"/> (ADR-013, mecanismo 10): la composición pasa todas las registradas.
+/// <see cref="IContribucionReferenciasArchivo"/> (ADR-013, mecanismo 10). Fuera de los tests solo se construye con
+/// <see cref="Crear"/>, que toma del contenedor todas las contribuciones registradas: así ningún llamador puede dejar
+/// fuera las de un módulo.
 /// </summary>
-public sealed class ReparacionAdjuntosTemporales(
-    DbContext db, IEnumerable<IContribucionReferenciasArchivo> contribuciones, ILogger? logger = null)
+public sealed class ReparacionAdjuntosTemporales
 {
-    private readonly ILogger _logger = logger ?? NullLogger.Instance;
+    private readonly DbContext db;
+    private readonly ILogger _logger;
+
+    internal ReparacionAdjuntosTemporales(
+        DbContext db, IEnumerable<IContribucionReferenciasArchivo> contribuciones, ILogger? logger = null)
+    {
+        this.db = db;
+        CamposAportados = contribuciones.SelectMany(c => c.Campos).ToList();
+        _logger = logger ?? NullLogger.Instance;
+    }
+
+    /// <summary>La reparación con las contribuciones de todos los módulos registradas en <paramref name="servicios"/>.</summary>
+    public static ReparacionAdjuntosTemporales Crear(IServiceProvider servicios, DbContext db, ILogger? logger = null) =>
+        new(db, servicios.GetServices<IContribucionReferenciasArchivo>(), logger);
+
+    /// <summary>Los campos que aportan los módulos, en el orden en que se recogen.</summary>
+    internal IReadOnlyList<CampoReferenciaArchivo> CamposAportados { get; }
+
     public const string Argumento = "--reparar-adjuntos-temporales";
     private static readonly Regex Sufijo = new(@"\.tmp-[0-9a-f]{32}\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -73,7 +92,7 @@ public sealed class ReparacionAdjuntosTemporales(
         await RecogerAsync<TipoDocumentoCentro>("ArchivoUrl", referencias, cancellationToken);
         // Los campos aportados se recogen donde se recogía la evidencia Inbound antes de ADR-013 M2 (K-17): el orden de
         // recogida fija el del informe, que así no cambia.
-        foreach (var campo in contribuciones.SelectMany(c => c.Campos))
+        foreach (var campo in CamposAportados)
             await campo.Recoger(this, referencias, cancellationToken);
         await RecogerAsync<PlantillaDocumentoVersion>("ArchivoOriginalUrl", referencias, cancellationToken);
         await RecogerAsync<SolicitudCertificacionTgss>("EvidenciaArchivoRuta", referencias, cancellationToken);
