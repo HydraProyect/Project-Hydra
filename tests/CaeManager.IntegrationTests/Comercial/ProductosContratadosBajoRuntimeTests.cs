@@ -17,8 +17,9 @@ namespace CaeManager.IntegrationTests.Comercial;
 /// <summary>
 /// El Producto Contratado mínimo (A5b; RQ-30, D-6) contra PostgreSQL real y como <c>cae_app_runtime</c>,
 /// porque con la conexión de pruebas, que es superusuario, la política no se evalúa (OWASP ASVS 4.0.3
-/// V4.1.3, V4.2.1). Las filas las siembra la conexión de pruebas: hasta A6 ningún rol de la aplicación las
-/// escribe. La mitad positiva (el Tenant beneficiario ve su fila) evita que los rechazos pasen con una
+/// V4.1.3, V4.2.1). Las filas las siembra la conexión de pruebas; la única vía de escritura de la aplicación, la
+/// línea Inbound bajo <c>cae_app_aprovisionamiento</c>, la prueba <c>ContratarLineaInboundPorAprovisionamientoTests</c>.
+/// La mitad positiva (el Tenant beneficiario ve su fila) evita que los rechazos pasen con una
 /// política que lo prohibiera todo.
 /// </summary>
 public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
@@ -96,12 +97,12 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
     [InlineData("cae_app_soporte", "UPDATE", false)]
     [InlineData("cae_app_soporte", "DELETE", false)]
     [InlineData("cae_app_aprovisionamiento", "SELECT", false)]
-    [InlineData("cae_app_aprovisionamiento", "INSERT", false)]
+    [InlineData("cae_app_aprovisionamiento", "INSERT", true)]
     [InlineData("cae_app_aprovisionamiento", "UPDATE", false)]
     [InlineData("cae_app_aprovisionamiento", "DELETE", false)]
     [InlineData("public", "SELECT", false)]
     [InlineData("public", "INSERT", false)]
-    public async Task Solo_runtime_y_soporte_leen_y_ningun_rol_de_la_aplicacion_escribe(string rol, string privilegio, bool esperado)
+    public async Task Solo_runtime_y_soporte_leen_y_solo_aprovisionamiento_inserta(string rol, string privilegio, bool esperado)
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -111,7 +112,8 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
         comando.Parameters.AddWithValue("privilegio", privilegio);
 
         ((bool)(await comando.ExecuteScalarAsync())!).Should().Be(esperado,
-            "hasta que A6 abra la vía de escritura, ningún Tenant cambia lo contratado ni quién lo paga");
+            "ningún Tenant cambia lo contratado ni quién lo paga; solo el rol de una Sesión Privilegiada de " +
+            "Aprovisionamiento inserta (D-C), y ni lee ni cambia lo insertado");
     }
 
     [Theory]

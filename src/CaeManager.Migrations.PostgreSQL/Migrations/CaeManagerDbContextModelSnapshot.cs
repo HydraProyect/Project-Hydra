@@ -1518,6 +1518,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductosContratados_InboundVigentePorTenant")
+                        .HasFilter("\"Linea\" = 'Inbound' AND \"Estado\" = 'Vigente' AND NOT \"EstaEliminado\"");
+
                     b.HasIndex("TenantId", "Estado")
                         .HasDatabaseName("IX_ProductosContratados_TenantId_Estado");
 

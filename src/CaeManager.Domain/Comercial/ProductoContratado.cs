@@ -27,10 +27,11 @@ namespace CaeManager.Domain.Comercial;
 /// La base repite los CHECK de valores y de coherencia entre estado y vigencia.
 /// </para>
 /// <para>
-/// Ningún flujo lo crea todavía: lo hará <c>CompletarAltaAutonomaCommand</c> (A6), que abrirá también la vía
-/// de escritura en la base, y la línea Inbound el alta del Tenant del Cliente empresarial (B-04). Hasta entonces
-/// la migración solo concede lectura. Ninguna de esas vías puede dejar que el propio Tenant beneficiario se
-/// conceda la línea Inbound (detalle en <c>ProductoContratadoConfiguration</c>).
+/// Un solo flujo lo crea hoy: <c>ContratarLineaInboundCommand</c> (B-04a), que contrata la línea Inbound bajo una
+/// Sesión Privilegiada de Aprovisionamiento sobre el Tenant beneficiario, con un Producto Contratado de esa línea
+/// vigente como mucho por Tenant (D-B). <c>CompletarAltaAutonomaCommand</c> (A6) creará las de Outbound y abrirá su
+/// propia vía. Ninguna vía puede dejar que el propio Tenant beneficiario se conceda la línea Inbound (detalle en
+/// <c>ProductoContratadoConfiguration</c>).
 /// </para>
 /// <para>
 /// Gate comercial de Inbound (DN-7, opción (a)): las funciones de lectura entre Tenants <c>app_inbound_*</c> solo
@@ -148,6 +149,16 @@ public class ProductoContratado : EntidadBase
         ExigirUtc(instanteUtc, nameof(instanteUtc));
         return instanteUtc >= VigenteDesdeUtc && (VigenteHastaUtc is null || instanteUtc < VigenteHastaUtc);
     }
+
+    /// <summary>
+    /// Si <see cref="Contratar"/> aceptaría este Customer de Stripe como Pagador TALVEG: no vacío, solo
+    /// <c>[A-Za-z0-9_]</c> y como mucho <see cref="LongitudMaximaPagadorStripeCustomerId"/> caracteres. No comprueba que
+    /// el Customer exista en Stripe.
+    /// </summary>
+    public static bool EsPagadorStripeCustomerIdValido(string? pagadorStripeCustomerId) =>
+        !string.IsNullOrEmpty(pagadorStripeCustomerId)
+        && pagadorStripeCustomerId.Length <= LongitudMaximaPagadorStripeCustomerId
+        && EsFormatoDeCustomerStripe(pagadorStripeCustomerId);
 
     /// <summary>
     /// Mismo criterio que el CHECK <c>CK_ProductosContratados_PagadorFormato</c> de la base: solo
