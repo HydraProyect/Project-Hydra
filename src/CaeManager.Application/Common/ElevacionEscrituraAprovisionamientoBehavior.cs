@@ -83,11 +83,12 @@ public class ElevacionEscrituraAprovisionamientoBehavior<TRequest, TResponse>(
         finally
         {
             // Orden normativo: limpiar el AsyncLocal ANTES del SET ROLE de
-            // vuelta, para que el caso habitual —SaveChangesAsync ya cerró la
-            // conexión antes de llegar aquí— también quede seguro sin
-            // depender de que el SET ROLE llegue a ejecutarse: sin ámbito
-            // abierto, la próxima apertura cae en cae_app_soporte por la
-            // rama normal del interceptor.
+            // vuelta, para que la vuelta quede segura sin depender de que el
+            // SET ROLE llegue a ejecutarse: sin ámbito abierto, el siguiente
+            // comando de la operación (la conexión suele seguir retenida por
+            // PuertaAccesoDatos) realinea a cae_app_soporte, y la próxima
+            // apertura, si la conexión ya se cerró, cae en él por la rama
+            // normal del interceptor.
             ambito.Dispose();
 
             // CancellationToken.None a propósito (revisión de Codex): este
