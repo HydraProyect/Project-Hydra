@@ -215,22 +215,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     ('b1400000-0000-4000-8000-0000000000e1', 'puesta-a-disposicion-ett', 'Contrato de puesta a disposición de la ETT',
                      'Ley 14/1994, de empresas de trabajo temporal, arts. 6 y 28, y RD 216/1999. Pendiente de revisión legal (R-14).',
                      'N1', false, true)
-                ON CONFLICT ("Codigo") DO NOTHING;
+                ON CONFLICT ("Codigo") DO UPDATE SET "Activo" = false, "PendienteRevisionLegal" = true;
                 """);
+            // Si el código ya existía (alta manual en otra ranura), no se respeta su estado: R-14 lo deja inactivo y
+            // pendiente hasta la revisión legal, igual que a la fila sembrada.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("""
-                DELETE FROM public."CatalogoRequisitosBase" WHERE "Id" IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1');
-                """);
-
+            // Primero las tablas: RequisitosPlantilla tiene una FK RESTRICT al catálogo base, y un A1 o ETT ya adoptado
+            // impediría borrar la semilla.
             migrationBuilder.DropTable(
                 name: "RequisitosPlantilla");
 
             migrationBuilder.DropTable(
                 name: "PlantillasRequisitos");
+
+            migrationBuilder.Sql("""
+                DELETE FROM public."CatalogoRequisitosBase" WHERE "Id" IN ('b1400000-0000-4000-8000-0000000000a1', 'b1400000-0000-4000-8000-0000000000e1');
+                """);
 
             migrationBuilder.DropColumn(
                 name: "PendienteRevisionLegal",

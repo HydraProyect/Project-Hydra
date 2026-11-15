@@ -23,5 +23,11 @@ public static class PlantillaRequisitosErrores
     public static readonly Error NombreDuplicado =
         Error.Crear("PlantillaRequisitos.NombreDuplicado", "Ya existe un tipo de documento con este nombre.");
 
+    /// <summary>
+    /// Toda escritura sobre una plantilla trae la versión que leyó: sin ella, <c>ConcurrenciaOptimista</c> no comprueba nada y
+    /// dos Gestores CAE que editan a la vez se pisarían sin verlo.
+    /// </summary>
+    public const string MensajeVersionObligatoria = "Falta la versión de la plantilla que leíste: vuelve a abrirla.";
+
     public static Error Invalido(string mensaje) => Error.Crear("PlantillaRequisitos.Invalido", mensaje);
 }

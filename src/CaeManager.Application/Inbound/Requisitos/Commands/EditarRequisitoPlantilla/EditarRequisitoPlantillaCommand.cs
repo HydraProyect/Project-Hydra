@@ -23,6 +23,7 @@ public class EditarRequisitoPlantillaCommandValidator : AbstractValidator<Editar
     {
         RuleFor(c => c.PlantillaId).NotEmpty();
         RuleFor(c => c.RequisitoId).NotEmpty();
+        RuleFor(c => c.Version).NotEmpty().WithMessage(PlantillaRequisitosErrores.MensajeVersionObligatoria);
         RuleFor(c => c.Atributos).NotNull().SetValidator(new AtributosRequisitoValidator());
     }
 }

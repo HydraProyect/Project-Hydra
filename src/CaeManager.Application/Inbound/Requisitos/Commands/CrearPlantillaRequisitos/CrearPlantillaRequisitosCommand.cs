@@ -62,7 +62,9 @@ public class CrearPlantillaRequisitosCommandHandler(
                     plantilla = PlantillaRequisitos.ParaCentro(request.ReferenciaId);
                     break;
                 case TipoPlantillaRequisitos.ExigenciasClienteEmpresarial:
-                    if (!await empresas.Empresas.AnyAsync(e => e.Id == request.ReferenciaId, cancellationToken))
+                    // Una Empresa contratista no es Cliente empresarial: EsCritico != null lo identifica, como en
+                    // AlcanceDatosService. Con acceso total la cartera no lo filtra, así que se comprueba aquí.
+                    if (!await empresas.Empresas.AnyAsync(e => e.Id == request.ReferenciaId && e.EsCritico != null, cancellationToken))
                         return Result.Fallo<Guid>(PlantillaRequisitosErrores.ReferenciaNoEncontrada);
                     plantilla = PlantillaRequisitos.ParaExigenciasDe(request.ReferenciaId);
                     break;

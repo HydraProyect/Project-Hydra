@@ -75,7 +75,7 @@ public sealed class RequisitoPlantilla : EntidadConTenant
         PlantillaId = plantilla.Id;
         TipoDocumentoId = tipo.Id;
         Entidad = EntidadDe(tipo);
-        Aplicar(plantilla, tipo, requisitoBase, atributos);
+        Aplicar(plantilla, tipo, requisitoBase, atributos, adopta: true);
     }
 
     /// <summary>
@@ -96,7 +96,15 @@ public sealed class RequisitoPlantilla : EntidadConTenant
             throw new InvalidOperationException("Un requisito retirado no se edita: se añade otro.");
         if (tipo.Id != TipoDocumentoId)
             throw new ArgumentException("El tipo de documento de un requisito no cambia: se añade otro requisito.", nameof(tipo));
-        Aplicar(plantilla, tipo, requisitoBase, atributos);
+        // Uno propio nació sin catálogo ni norma detrás: editarlo no lo convierte en obligación legal, de convenio ni de
+        // Actividad («llamar ley a una práctica del sector»).
+        if (Origen == OrigenRequisito.PropioTenant && atributos?.Origen != OrigenRequisito.PropioTenant)
+            throw new ArgumentException("Un requisito propio del Tenant TCE conserva su origen.", nameof(atributos));
+        // El requisito de base que adopta, como el tipo, no cambia al editar: omitirlo desadoptaría en silencio y dejaría
+        // subir el origen sin la guarda de nivel. Adoptar otro, o ninguno, es otro requisito.
+        if (requisitoBase?.Id != RequisitoBaseId)
+            throw new ArgumentException("El requisito de base que adopta no cambia al editar: se añade otro requisito.", nameof(requisitoBase));
+        Aplicar(plantilla, tipo, requisitoBase, atributos, adopta: false);
     }
 
     internal void Retirar() => Activo = false;
@@ -111,14 +119,15 @@ public sealed class RequisitoPlantilla : EntidadConTenant
             nameof(tipo)),
     };
 
-    private void Aplicar(PlantillaRequisitos plantilla, TipoDocumento tipo, RequisitoBase? requisitoBase, AtributosRequisito atributos)
+    private void Aplicar(
+        PlantillaRequisitos plantilla, TipoDocumento tipo, RequisitoBase? requisitoBase, AtributosRequisito atributos, bool adopta)
     {
         ArgumentNullException.ThrowIfNull(atributos);
         if (tipo.Archivado)
             throw new InvalidOperationException("Un tipo de documento archivado no se pide en una plantilla: se pide su sustituto.");
 
         var origen = ReglasCatalogoBase.ValidarEnum(atributos.Origen, nameof(atributos.Origen));
-        ValidarOrigen(plantilla, origen, requisitoBase);
+        ValidarOrigen(plantilla, origen, requisitoBase, adopta);
 
         var modo = ReglasCatalogoBase.ValidarEnum(atributos.ModoVigencia, nameof(atributos.ModoVigencia));
         if ((modo == ModoVigenciaRequisito.Fija) != atributos.VigenciaMeses.HasValue)
@@ -177,7 +186,11 @@ public sealed class RequisitoPlantilla : EntidadConTenant
     /// <see cref="NaturalezaJuridica"/>): un requisito que adopta uno de base no sube su nivel, uno propio no adopta ninguno
     /// y una exigencia del Cliente empresarial es siempre N3 (D-15).
     /// </summary>
-    private static void ValidarOrigen(PlantillaRequisitos plantilla, OrigenRequisito origen, RequisitoBase? requisitoBase)
+    /// <param name="adopta">
+    /// True al añadir el requisito. Solo entonces se exige que el de base siga activo: si Plataforma lo retira después, el
+    /// Tenant TCE sigue pudiendo editar el criterio o la vigencia del que ya adoptó, en vez de quedar bloqueado.
+    /// </param>
+    private static void ValidarOrigen(PlantillaRequisitos plantilla, OrigenRequisito origen, RequisitoBase? requisitoBase, bool adopta)
     {
         if (plantilla.Tipo == TipoPlantillaRequisitos.ExigenciasClienteEmpresarial && origen != OrigenRequisito.ExigenciaN3)
             throw new ArgumentException("En la plantilla de exigencias del Cliente empresarial todo requisito es una exigencia N3.", nameof(origen));
@@ -185,7 +198,7 @@ public sealed class RequisitoPlantilla : EntidadConTenant
         if (requisitoBase is null)
             return;
 
-        if (!requisitoBase.Activo)
+        if (adopta && !requisitoBase.Activo)
             throw new InvalidOperationException("Un requisito retirado del catálogo base no se adopta.");
         if (origen == OrigenRequisito.PropioTenant)
             throw new ArgumentException("Un requisito propio del Tenant TCE no adopta uno del catálogo base.", nameof(origen));

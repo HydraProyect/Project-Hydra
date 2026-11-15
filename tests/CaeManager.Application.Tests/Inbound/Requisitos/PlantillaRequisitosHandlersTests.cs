@@ -36,8 +36,8 @@ public class PlantillaRequisitosHandlersTests
         BloqueaAcceso: true, Criterio: null, DestinatarioRequisito.Todos, TiposContratacion.Todos, [],
         AmbitoDocumentoRequisito.GeneralTec);
 
-    private readonly Empresa _cliente = new("Cliente empresarial de la cartera", "B10380186");
-    private readonly Empresa _otroCliente = new("Cliente empresarial de otra cartera", "B10380202");
+    private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente empresarial de la cartera", "B10380186", false, null, null);
+    private readonly Empresa _otroCliente = Empresa.CrearComoCliente("Cliente empresarial de otra cartera", "B10380202", false, null, null);
     private readonly Centro _centro;
     private readonly Centro _centroAjeno;
     private readonly ActividadCatalogo _actividad = new("actividad-prueba", "Actividad de prueba");
@@ -124,6 +124,67 @@ public class PlantillaRequisitosHandlersTests
             new CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos.PorActividad, _actividad.Id), CancellationToken.None);
         total.EsExitoso.Should().BeTrue();
         _plantillas.Plantillas.Should().ContainSingle(p => p.ActividadId == _actividad.Id);
+    }
+
+    [Fact]
+    public async Task Una_Asignacion_de_Cartera_universal_sin_acceso_total_si_cambia_las_plantillas_por_Actividad()
+    {
+        // AlcanzaElTenantEntero, no TieneAccesoTotal: una cartera universal alcanza el Tenant entero sin acceso total. Con
+        // la otra condición este test falla, y con OperaDesdeElLadoDeGestion falla el de la cartera acotada.
+        var universal = new AlcanceUniversalSinAccesoTotal();
+        (await universal.TieneAccesoTotalAsync()).Should().BeFalse("el instrumento simula de verdad una cartera sin acceso total");
+
+        var resultado = await Crear(universal).Handle(
+            new CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos.PorActividad, _actividad.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _plantillas.Plantillas.Should().ContainSingle(p => p.ActividadId == _actividad.Id);
+    }
+
+    /// <summary>Cartera universal vigente: alcanza el Tenant entero, pero no tiene acceso total.</summary>
+    private sealed class AlcanceUniversalSinAccesoTotal() : AlcanceDatosServiceFalso(tieneAccesoTotal: false), IAlcanceDatosService
+    {
+        public Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    [Fact]
+    public async Task Las_exigencias_solo_son_de_un_Cliente_empresarial_aunque_el_acceso_sea_total()
+    {
+        // Una Empresa contratista (sin EsCritico) no es Cliente empresarial: no tiene exigencias N3 que imponer, y el acceso
+        // total no filtra por cartera, así que la comprobación tiene que hacerla el comando.
+        var contratista = new Empresa("Empresa contratista", "B10380210");
+        _empresas.ListaEmpresas.Add(contratista);
+
+        var rechazo = await Crear(Total()).Handle(
+            new CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos.ExigenciasClienteEmpresarial, contratista.Id), CancellationToken.None);
+        rechazo.Error.Codigo.Should().Be("PlantillaRequisitos.ReferenciaNoEncontrada");
+        _plantillas.Plantillas.Should().BeEmpty();
+
+        var alta = await Crear(Total()).Handle(
+            new CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos.ExigenciasClienteEmpresarial, _cliente.Id), CancellationToken.None);
+        alta.EsExitoso.Should().BeTrue();
+        _plantillas.Plantillas.Should().ContainSingle(p => p.ClienteEmpresarialId == _cliente.Id);
+    }
+
+    [Fact]
+    public void Toda_escritura_sobre_una_plantilla_exige_la_version_leida()
+    {
+        // Guid.Empty desactiva ConcurrenciaOptimista: el validador lo impide antes de llegar al comando.
+        var id = Guid.NewGuid();
+        new AnadirRequisitoAPlantillaCommandValidator().Validate(new AnadirRequisitoAPlantillaCommand(id, id, null, Basicos))
+            .Errors.Should().Contain(e => e.PropertyName == "Version");
+        new EditarRequisitoPlantillaCommandValidator().Validate(new EditarRequisitoPlantillaCommand(id, id, null, Basicos))
+            .Errors.Should().Contain(e => e.PropertyName == "Version");
+        new RetirarRequisitoPlantillaCommandValidator().Validate(new RetirarRequisitoPlantillaCommand(id, id))
+            .Errors.Should().Contain(e => e.PropertyName == "Version");
+        new RetirarPlantillaRequisitosCommandValidator().Validate(new RetirarPlantillaRequisitosCommand(id))
+            .Errors.Should().Contain(e => e.PropertyName == "Version");
+        new CrearRequisitoPropioCommandValidator()
+            .Validate(new CrearRequisitoPropioCommand(id, "Permiso propio", AmbitoAplicacion.Trabajador, null, null, Basicos))
+            .Errors.Should().Contain(e => e.PropertyName == "Version");
+
+        new RetirarPlantillaRequisitosCommandValidator().Validate(new RetirarPlantillaRequisitosCommand(id, Guid.NewGuid()))
+            .IsValid.Should().BeTrue("con la versión, el control positivo pasa");
     }
 
     [Fact]

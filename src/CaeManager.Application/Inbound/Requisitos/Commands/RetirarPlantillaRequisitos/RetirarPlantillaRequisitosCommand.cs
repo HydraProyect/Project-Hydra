@@ -13,7 +13,11 @@ public record RetirarPlantillaRequisitosCommand(Guid Id, Guid Version = default)
 
 public class RetirarPlantillaRequisitosCommandValidator : AbstractValidator<RetirarPlantillaRequisitosCommand>
 {
-    public RetirarPlantillaRequisitosCommandValidator() => RuleFor(c => c.Id).NotEmpty();
+    public RetirarPlantillaRequisitosCommandValidator()
+    {
+        RuleFor(c => c.Id).NotEmpty();
+        RuleFor(c => c.Version).NotEmpty().WithMessage(PlantillaRequisitosErrores.MensajeVersionObligatoria);
+    }
 }
 
 public class RetirarPlantillaRequisitosCommandHandler(

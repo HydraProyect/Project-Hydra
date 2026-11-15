@@ -40,6 +40,7 @@ public class CrearRequisitoPropioCommandValidator : AbstractValidator<CrearRequi
     public CrearRequisitoPropioCommandValidator()
     {
         RuleFor(c => c.PlantillaId).NotEmpty();
+        RuleFor(c => c.Version).NotEmpty().WithMessage(PlantillaRequisitosErrores.MensajeVersionObligatoria);
         RuleFor(c => c.Nombre).NotEmpty().WithMessage("El nombre es obligatorio.").MaximumLength(TipoDocumento.LongitudMaximaNombre);
         RuleFor(c => c.AmbitoAplicacion)
             .Must(a => a is AmbitoAplicacion.Empresa or AmbitoAplicacion.Trabajador or AmbitoAplicacion.Vehiculo)

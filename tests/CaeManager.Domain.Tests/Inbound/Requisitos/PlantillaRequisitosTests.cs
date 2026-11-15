@@ -259,6 +259,54 @@ public class PlantillaRequisitosTests
     }
 
     [Fact]
+    public void Un_requisito_propio_no_se_convierte_en_legal_al_editarlo()
+    {
+        var plantilla = DeCentro();
+        var tipo = Tipo();
+        var propio = plantilla.AnadirRequisito(tipo, null, Basicos with { Origen = OrigenRequisito.PropioTenant });
+
+        FluentActions.Invoking(() => plantilla.EditarRequisito(propio.Id, tipo, null, Basicos with { Origen = OrigenRequisito.LegalN1 }))
+            .Should().Throw<ArgumentException>();
+        propio.Origen.Should().Be(OrigenRequisito.PropioTenant);
+
+        plantilla.EditarRequisito(propio.Id, tipo, null, Basicos with { Origen = OrigenRequisito.PropioTenant, BloqueaAcceso = false });
+        propio.BloqueaAcceso.Should().BeFalse("el resto de atributos de uno propio sí se edita");
+    }
+
+    [Fact]
+    public void Editar_no_desadopta_el_requisito_de_base_ni_sube_su_origen()
+    {
+        var plantilla = DeCentro();
+        var tipo = Tipo();
+        var n3 = new RequisitoBase("requisito-n3", "Exigencia N3", "Fundamento", NivelExigencia.N3);
+        var otro = new RequisitoBase("requisito-otro", "Otro", "Fundamento", NivelExigencia.N1);
+        var requisito = plantilla.AnadirRequisito(tipo, n3, Basicos);
+
+        FluentActions.Invoking(() => plantilla.EditarRequisito(requisito.Id, tipo, null, Basicos with { Origen = OrigenRequisito.LegalN1 }))
+            .Should().Throw<ArgumentException>("omitir la base la desadoptaría y saltaría la guarda de nivel");
+        FluentActions.Invoking(() => plantilla.EditarRequisito(requisito.Id, tipo, otro, Basicos with { Origen = OrigenRequisito.LegalN1 }))
+            .Should().Throw<ArgumentException>("cambiar de base es otro requisito");
+        requisito.RequisitoBaseId.Should().Be(n3.Id);
+        requisito.Origen.Should().Be(OrigenRequisito.Actividad);
+    }
+
+    [Fact]
+    public void Un_requisito_que_adopto_una_base_retirada_despues_sigue_editandose()
+    {
+        var plantilla = DeCentro();
+        var tipo = Tipo();
+        var requisitoBase = new RequisitoBase("requisito-luego-retirado", "Luego retirado", "Fundamento", NivelExigencia.N1);
+        var requisito = plantilla.AnadirRequisito(tipo, requisitoBase, Basicos);
+        requisitoBase.Retirar();
+
+        plantilla.EditarRequisito(requisito.Id, tipo, requisitoBase, Basicos with { Criterio = "Criterio nuevo" });
+
+        requisito.Criterio.Should().Be("Criterio nuevo");
+        FluentActions.Invoking(() => DeCentro().AnadirRequisito(tipo, requisitoBase, Basicos))
+            .Should().Throw<InvalidOperationException>("adoptarla de nuevo sí exige que siga activa");
+    }
+
+    [Fact]
     public void A_quien_se_pide_tiene_sentido_para_el_sujeto()
     {
         var vehiculo = Tipo(AmbitoAplicacion.Vehiculo, grupo: null);

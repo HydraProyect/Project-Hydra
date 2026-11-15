@@ -17,6 +17,7 @@ public class RetirarRequisitoPlantillaCommandValidator : AbstractValidator<Retir
     {
         RuleFor(c => c.PlantillaId).NotEmpty();
         RuleFor(c => c.RequisitoId).NotEmpty();
+        RuleFor(c => c.Version).NotEmpty().WithMessage(PlantillaRequisitosErrores.MensajeVersionObligatoria);
     }
 }
 
