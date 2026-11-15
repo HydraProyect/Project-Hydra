@@ -297,6 +297,7 @@
     {
         var huboSubida = _huboSubida || _respuesta is { Resultado: ResultadoSubidaTec.Subido };
         _huboSubida = false;
+        _respuesta = null;
         await OnCerrado.InvokeAsync(huboSubida);
     }
 }
