@@ -370,13 +370,19 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         // Control positivo: los actos explícitos sí devuelven el acceso bajo la operación reabierta. La revocación
         // revocó también su fila heredada de Operador Delegado, y reactivar no la repone (la fila heredada falla
-        // cerrada sin reposición, PR #2237): primero vuelve la fila, luego la cartera.
+        // cerrada sin reposición, PR #2237): primero vuelve la fila, luego la cartera. La cartera la concede un acto
+        // explícito sobre la operación reabierta: AsegurarCarteraTenantEnteroAsync es la vía de las siembras y no
+        // emite a quien ya tuvo cartera en el par (FilaHeredadaPuedeEmitir).
         await using (var contexto = CrearContexto(_propietario))
         {
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(_delegacionId, _gestorConsultora, Roles.GestorCae));
             await contexto.SaveChangesAsync();
-            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            var reabierta = await contexto.AsignacionesOperacion.SingleAsync(
+                o => o.OrigenId == _delegacionId && o.Estado == EstadoAsignacion.Vigente);
+            var ahora = DateTime.UtcNow;
+            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                reabierta, _gestorConsultora, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             await contexto.SaveChangesAsync();
         }
 
