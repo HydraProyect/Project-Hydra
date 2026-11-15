@@ -35,9 +35,10 @@ public class CerrarContratoAccesoCommandHandler(
         if (ConcurrenciaOptimista.Verificar(contrato, request.Version, "este contrato de acceso") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        // «Ya cerrado» es solo el que tiene cierre real (Finalizado, o el que cerró la versión anterior durante el relevo:
-        // ContratoAcceso.EstadoEfectivo). Un Cancelado o un Rechazado no se cerró nunca: es una transición no permitida.
-        if (contrato.FechaCierreReal is not null)
+        // «Ya cerrado» es solo el Finalizado (también el que cerró la versión anterior durante el relevo:
+        // ContratoAcceso.EstadoEfectivo). Un Cancelado o un Rechazado no se finalizó nunca, aunque la versión anterior le
+        // haya escrito un cierre real: es una transición no permitida, que Finalizar rechaza.
+        if (contrato.EstadoEfectivo == EstadoContratoAcceso.Finalizado)
             return Result.Fallo(Error.Crear("ContratoAcceso.YaCerrado", "Este contrato de acceso ya está cerrado."));
 
         try

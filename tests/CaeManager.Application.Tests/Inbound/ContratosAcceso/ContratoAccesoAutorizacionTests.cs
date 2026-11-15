@@ -472,6 +472,37 @@ public class ContratoAccesoAutorizacionTests
     }
 
     [Fact]
+    public async Task Cerrar_un_cancelado_al_que_la_version_anterior_escribio_cierre_sigue_siendo_TransicionNoPermitida()
+    {
+        var contrato = ContratoExistente();
+        contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false);
+        typeof(ContratoAcceso).GetProperty(nameof(ContratoAcceso.FechaCierreReal))!.SetValue(contrato, Inicio.AddDays(5));
+
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "un Cancelado no se finalizó nunca");
+        contrato.EstadoEfectivo.Should().Be(EstadoContratoAcceso.Cancelado);
+        contrato.VigenteEn(Inicio).Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public void El_validador_mide_el_motivo_recortado_como_el_dominio()
+    {
+        var limite = new string('m', CondicionesContratoAcceso.LongitudMaximaMotivoCupo);
+        var validador = new CondicionesContratoAccesoDatosValidator();
+
+        var conRelleno = new CondicionesContratoAccesoDatos(CupoTrabajadores: 1, MotivoCupo: $"  {limite}  ");
+        validador.Validate(conRelleno).IsValid.Should().BeTrue("recortado cabe en el límite");
+        conRelleno.ADominio().EsExitoso.Should().BeTrue();
+
+        var largo = new CondicionesContratoAccesoDatos(CupoTrabajadores: 1, MotivoCupo: limite + "m");
+        validador.Validate(largo).IsValid.Should().BeFalse();
+        largo.ADominio().EsExitoso.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Cerrar_un_contrato_que_cerro_la_version_anterior_responde_YaCerrado_y_lo_muestra_Finalizado()
     {
         var contrato = ContratoConFin();

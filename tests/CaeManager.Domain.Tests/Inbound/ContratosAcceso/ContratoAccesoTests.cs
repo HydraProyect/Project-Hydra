@@ -438,6 +438,23 @@ public class ContratoAccesoTests
     }
 
     [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar)]
+    [InlineData(EstadoContratoAcceso.Cancelado)]
+    [InlineData(EstadoContratoAcceso.Rechazado)]
+    public void Un_cierre_de_la_version_anterior_en_un_estado_sin_periodo_no_lo_convierte_en_Finalizado(EstadoContratoAcceso guardado)
+    {
+        var contrato = CerradoPorLaVersionAnterior(guardado);
+
+        contrato.EstadoEfectivo.Should().Be(guardado);
+        contrato.EstaAbierto.Should().BeFalse();
+        contrato.VigenteEn(Inicio).Should().BeFalse("ni Pendiente, ni Cancelado, ni Rechazado dan acceso nunca");
+        CoincideConLaExpresion(contrato, Inicio);
+        foreach (var (nombre, (_, _, ejecutar)) in Acciones)
+            FluentActions.Invoking(() => ejecutar(contrato)).Should().Throw<InvalidOperationException>(nombre);
+        contrato.Estado.Should().Be(guardado);
+    }
+
+    [Theory]
     [MemberData(nameof(TodosLosEstados))]
     public void Sin_cierre_real_el_estado_efectivo_es_el_guardado(EstadoContratoAcceso estado)
     {

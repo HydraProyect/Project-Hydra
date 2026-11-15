@@ -89,10 +89,12 @@ public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
     /// <summary>
     /// El estado que vale para las transiciones y que se muestra: <see cref="Estado"/>, salvo un contrato Activo o
     /// Suspendido con <see cref="FechaCierreReal"/>, que es Finalizado. Ese caso solo lo produce el <c>Cerrar</c> de la
-    /// versión anterior a B-05 durante el relevo azul/verde (no conoce la columna <c>Estado</c> y deja el DEFAULT
-    /// 'Activo'); el periodo que da acceso es el mismo de un Finalizado (<see cref="VigenteEn"/>), así que solo cambia el
-    /// nombre del estado guardado. La columna no se corrige al leer: lo hará una migración de normalización posterior al
-    /// relevo, y hasta entonces ningún lector SQL filtra por <c>Estado = 'Finalizado'</c>.
+    /// versión anterior a B-05 durante el relevo azul/verde, que no conoce la columna <c>Estado</c>. Sobre un Activo, el
+    /// periodo que da acceso es el mismo de un Finalizado (<see cref="VigenteEn"/>); sobre un Suspendido, <see cref="VigenteEn"/>
+    /// sigue sin dar acceso (falla cerrado) aunque se muestre Finalizado. La misma versión puede escribir un cierre real en
+    /// un Pendiente de confirmar, un Cancelado o un Rechazado, que ella ve abiertos: conservan su estado, no dan acceso y no
+    /// admiten ninguna transición (<see cref="ExigirEstado"/>). La columna no se corrige al leer: lo hará una migración de
+    /// normalización posterior al relevo, y hasta entonces ningún lector SQL filtra por <c>Estado = 'Finalizado'</c>.
     /// </summary>
     public EstadoContratoAcceso EstadoEfectivo =>
         FechaCierreReal is not null && Estado is EstadoContratoAcceso.Activo or EstadoContratoAcceso.Suspendido

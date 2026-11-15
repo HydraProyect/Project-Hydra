@@ -314,7 +314,7 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("CK_ContratosAcceso_Estado","UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Prorrogado' WHERE \"Id\" = {0};")]
+    [InlineData("CK_ContratosAcceso_Estado", "UPDATE \"ContratosAcceso\" SET \"Estado\" = 'Prorrogado' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_Tipo", "UPDATE \"ContratosAcceso\" SET \"Tipo\" = 'Indefinido' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_PropiaActividad", "UPDATE \"ContratosAcceso\" SET \"PropiaActividad\" = 'Quiza' WHERE \"Id\" = {0};")]
     [InlineData("CK_ContratosAcceso_NivelMaxSubcontrata", "UPDATE \"ContratosAcceso\" SET \"NivelMaxSubcontrata\" = 4 WHERE \"Id\" = {0};")]

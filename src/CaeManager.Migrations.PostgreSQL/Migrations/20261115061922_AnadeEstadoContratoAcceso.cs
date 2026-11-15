@@ -25,7 +25,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>Estado = 'Activo'</c> y cierre real, que da acceso solo hasta el cierre, igual que antes. La columna se queda en
     /// 'Activo' (la ranura nueva no la reescribe: su <c>Cerrar</c> responde «ya cerrado»), pero el dominio de la ranura nueva
     /// lo trata como Finalizado (<c>ContratoAcceso.EstadoEfectivo</c>): no admite ninguna transición y se muestra Finalizado.
-    /// Normalizar la columna queda para una migración posterior al relevo, hueco acotado y declarado. Su <c>Reabrir</c> sobre
+    /// Normalizar la columna queda para una migración posterior al relevo, hueco acotado y declarado. Su <c>Cerrar</c> sobre
+    /// un Pendiente de confirmar, un Cancelado o un Rechazado de la ranura nueva (que ella ve abiertos) les escribe el cierre:
+    /// conservan su estado, siguen sin dar acceso y quedan sin transiciones. Su <c>Reabrir</c> sobre
     /// un contrato que ella misma cerró lo reabre, como antes; sobre uno que la ranura nueva ya finalizó
     /// falla por <c>CK_ContratosAcceso_FinalizadoConCierre</c>: D-21 retira Reabrir, y la base no deja reabrirlo por la puerta
     /// de atrás. Su edición del fin no deja fila en el historial de vigencia: los cambios hechos en la ventana del relevo no
