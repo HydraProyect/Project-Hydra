@@ -40,8 +40,9 @@ public interface IEvaluadorExpedienteVisitaService
 ///
 /// El sello es de un solo sentido: si después se añade un trabajador y vuelve a
 /// faltar papel, no se retira (ver <see cref="Visita.MarcarExpedienteCompleto"/>).
-/// La vía de revisión y reapertura por el Gestor CAE que pide D-4 está pendiente de
-/// una decisión de producto (estado al que vuelve, quién puede reabrir y qué se audita).
+/// La única vía que lo retira es la reapertura expresa del Gestor CAE con el Centro en su
+/// Asignación de Cartera (D-4, decisión del 2026-11-15: <c>ReabrirExpedienteVisitaCommand</c>),
+/// que vuelve a llamar a este evaluador al momento.
 /// </summary>
 public class EvaluadorExpedienteVisitaService(
     IVisitasQueryContext visitasContext,

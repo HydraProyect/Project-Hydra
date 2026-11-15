@@ -1,0 +1,126 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Encargo;
+using CaeManager.Application.Visitas.Antelacion;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Visitas;
+using FluentValidation;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
+
+/// <summary>
+/// D-4 (#2005, decisión del 2026-11-15, opción A + (i)): el Gestor CAE revisa y reabre el expediente sellado de una
+/// Visita. Reabrir retira el sello (<see cref="Visita.ReabrirExpediente"/>) y reevalúa al momento con la regla de
+/// bloqueo común; si sigue completo, se vuelve a sellar con una atribución nueva.
+/// <list type="bullet">
+/// <item>Quién: <b>solo</b> el Gestor CAE (rol efectivo <c>GestorCae</c>) con Asignación de Cartera sobre el Centro de
+/// la Visita (<see cref="AutorizacionReaperturaExpediente"/>). Ni el Administrador del Tenant propietario, ni Dirección
+/// CAE, ni Coordinador CAE: su alcance de gestión no es una Asignación de Cartera.</item>
+/// <item>Soporte TALVEG no es Gestor CAE: sin Sesión Privilegiada no tiene rol en el Tenant, y bajo una Sesión
+/// Privilegiada <c>AutorizacionEscrituraBehavior</c> deniega toda escritura que no sea de Aprovisionamiento. El camino
+/// de escritura de la impersonación (autorizar con los planos del Usuario simulado, ADR-011 § 4bis.2) no existe todavía;
+/// cuando exista, esta orden lo heredará con el rol efectivo del Usuario simulado.</item>
+/// <item>Auditoría: motivo obligatorio y fecha en la Visita; el registro de auditoría de la reapertura conserva en
+/// «antes» el sello retirado (fecha, antelaciones, tramo y atribución) y separa el Actor real del Usuario simulado
+/// (<c>AuditoriaInterceptor</c>). Un nuevo sello es otro registro.</item>
+/// <item>Concurrencia: la versión que el Gestor CAE vio es obligatoria, como en <c>ReactivarVisitaCommand</c>.</item>
+/// </list>
+/// </summary>
+[AreaDelEncargo("Visitas")]
+public record ReabrirExpedienteVisitaCommand(Guid Id, Guid VersionEsperada, string Motivo) : ICommand;
+
+public class ReabrirExpedienteVisitaCommandValidator : AbstractValidator<ReabrirExpedienteVisitaCommand>
+{
+    public ReabrirExpedienteVisitaCommandValidator()
+    {
+        RuleFor(c => c.Id).NotEmpty();
+        // Guid.Empty en ConcurrenciaOptimista significa «sin comprobación»: aquí no vale.
+        RuleFor(c => c.VersionEsperada).NotEmpty();
+        RuleFor(c => c.Motivo)
+            .NotEmpty().WithMessage("Indica el motivo de la reapertura.")
+            .MaximumLength(Visita.LongitudMaximaMotivo)
+            .WithMessage($"El motivo no puede superar los {Visita.LongitudMaximaMotivo} caracteres.");
+    }
+}
+
+/// <summary>
+/// Punto único de autorización de la reapertura del expediente de una Visita (D-4). Rol efectivo Gestor CAE y el Centro
+/// dentro de su Asignación de Cartera. El rol se pregunta explícitamente porque <see cref="IAlcanceDatosService"/>
+/// devuelve «sin restricción» al Administrador y a Dirección CAE: el alcance solo no excluiría al Administrador sin cartera.
+/// </summary>
+public static class AutorizacionReaperturaExpediente
+{
+    public const string RolQueReabre = "GestorCae";
+
+    public static Error NoEncontrada => AutorizacionCancelacionVisita.NoEncontrada;
+
+    public static Error SoloGestorCae => Error.Crear(
+        "Visita.ReaperturaSoloGestorCae",
+        "Solo el Gestor CAE con el Centro de la visita en su cartera puede reabrir el expediente.");
+
+    /// <summary>null si puede reabrir; si no, el error que se devuelve.</summary>
+    public static async Task<Error?> ComprobarAsync(
+        ICurrentUserService currentUser, IAlcanceDatosService alcanceDatos, Visita visita, CancellationToken cancellationToken)
+    {
+        // Fuera del alcance de gestión se responde igual que «no existe», sin revelar qué hay fuera.
+        if (!await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
+            return NoEncontrada;
+
+        if (await currentUser.ObtenerRolEfectivoAsync() != RolQueReabre)
+            return SoloGestorCae;
+
+        // Defensa en profundidad: el Gestor CAE siempre tiene alcance acotado. Uno «sin restricción» no es una
+        // Asignación de Cartera, así que no basta.
+        var cartera = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        return cartera is not null && cartera.Contains(visita.CentroId) ? null : SoloGestorCae;
+    }
+}
+
+public class ReabrirExpedienteVisitaCommandHandler(
+    IVisitaRepository repositorio, IUnitOfWork unitOfWork, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
+    IEvaluadorExpedienteVisitaService evaluadorExpediente, ILogger<ReabrirExpedienteVisitaCommandHandler> logger)
+    : IRequestHandler<ReabrirExpedienteVisitaCommand, Result>
+{
+    public async Task<Result> Handle(ReabrirExpedienteVisitaCommand request, CancellationToken cancellationToken)
+    {
+        if (request.VersionEsperada == Guid.Empty)
+            return Result.Fallo(Error.Crear("Visita.VersionRequerida", "Falta la versión de la visita que se vio."));
+        if (string.IsNullOrWhiteSpace(request.Motivo))
+            return Result.Fallo(Error.Crear("Visita.MotivoReaperturaRequerido", "Indica el motivo de la reapertura."));
+
+        var visita = await repositorio.ObtenerPorIdActualizadoAsync(request.Id, cancellationToken);
+        if (visita is null)
+            return Result.Fallo(AutorizacionReaperturaExpediente.NoEncontrada);
+
+        if (await AutorizacionReaperturaExpediente.ComprobarAsync(currentUser, alcanceDatos, visita, cancellationToken) is { } denegado)
+            return Result.Fallo(denegado);
+
+        if (ConcurrenciaOptimista.Verificar(visita, request.VersionEsperada, "esta visita") is not null)
+            return Result.Fallo(Error.Crear(
+                ConcurrenciaOptimista.CodigoConflicto,
+                "Esta visita cambió desde que la viste: otra persona la modificó. Hemos recargado la visita; revísala y reabre el expediente de nuevo si sigue sellado."));
+
+        if (visita.FechaHoraExpedienteCompletoUtc is null)
+            return Result.Fallo(Error.Crear("Visita.ExpedienteNoSellado", "El expediente de esta visita no está sellado: no hay nada que reabrir."));
+        if (visita.EstaCancelada)
+            return Result.Fallo(Error.Crear("Visita.Cancelada", "Esta visita está cancelada: reactívala antes de reabrir su expediente."));
+
+        visita.ReabrirExpediente(DateTime.UtcNow, request.Motivo);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Reevaluar al momento con la regla común (opción A). Si sigue completo, vuelve a sellarse con una atribución
+        // nueva en su propio guardado y su propio registro de auditoría. Un fallo aquí no deshace la reapertura: el
+        // siguiente disparador lo evaluará.
+        try
+        {
+            await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "No se pudo reevaluar el expediente reabierto de la visita {VisitaId}.", visita.Id);
+        }
+
+        return Result.Exito();
+    }
+}

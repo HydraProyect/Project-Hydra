@@ -12076,6 +12076,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("ExpedienteReabiertoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("FechaFin")
                         .HasColumnType("date");
 
@@ -12096,6 +12099,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<string>("MotivoReactivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MotivoReaperturaExpediente")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
