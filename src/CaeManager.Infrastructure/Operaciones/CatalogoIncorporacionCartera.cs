@@ -579,10 +579,11 @@ public class CatalogoIncorporacionCartera(
     /// En el alta, la solicitud aceptada y la propuesta de apoyo, el orden es el de la revocación por Soporte TALVEG
     /// (migración <c>SoporteRevocaOperacionesOutboundAcotadas</c>): primero la DelegacionTenant y después la operación y
     /// sus carteras. En el relevo del principal no: la transacción ya guardó el cierre o el apagado de una cartera antes
-    /// de llegar aquí, y frente a una revocación de Soporte concurrente puede acabar en interbloqueo (40P01), que
-    /// PostgreSQL resuelve abortando una de las dos; falla cerrado. La revocación por <c>DesactivarDelegacionTenantCommand</c>
-    /// sigue el mismo orden que la de Soporte: bloquea la delegación con <c>FOR UPDATE</c> antes de leer la operación y las
-    /// carteras que cierra, así que este bloqueo también la ordena (ronda 3 de la PR #2253). Bajo la RLS de quien escribe,
+    /// de llegar aquí, y frente a una revocación concurrente, de Soporte o de <c>DesactivarDelegacionTenantCommand</c>, puede
+    /// acabar en interbloqueo (40P01), que PostgreSQL resuelve abortando una de las dos; falla cerrado. La revocación por
+    /// <c>DesactivarDelegacionTenantCommand</c> sigue el mismo orden que la de Soporte: bloquea la delegación con
+    /// <c>FOR UPDATE</c> antes de leer la operación y las carteras que cierra, así que este bloqueo también la ordena (ronda 3
+    /// de la PR #2253). Bajo la RLS de quien escribe,
     /// como el trigger: las lecturas que deciden se hacen con la misma visibilidad, y
     /// una delegación invisible tampoco ampara nada.
     /// </para>

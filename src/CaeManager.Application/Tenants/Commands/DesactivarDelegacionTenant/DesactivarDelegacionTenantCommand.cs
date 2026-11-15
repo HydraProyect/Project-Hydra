@@ -149,7 +149,7 @@ public class DesactivarDelegacionTenantCommandHandler(
         if (!await repositorio.BloquearYReleerAsync(id, cancellationToken))
             return Result.Fallo(NoEncontrada);
         var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-        if (delegacion is null || delegacion.TenantClienteId != tenantPropietarioId)
+        if (delegacion is null)
             return Result.Fallo(NoEncontrada);
 
         if (!delegacion.Activa)
