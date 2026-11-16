@@ -47,6 +47,8 @@ public class AceptacionContractualGateTests : BunitContext
         public IReadOnlyList<DocumentoContractualPendienteDto>? PendientesTrasFallo { get; set; }
         /// <summary>Cuántas de las primeras consultas lanzan, como una base caída.</summary>
         public int ConsultasQueFallan { get; set; }
+        /// <summary>Si se fija, lo pendiente depende del Tenant que se vea al consultar, como la consulta real.</summary>
+        public Func<IReadOnlyList<DocumentoContractualPendienteDto>>? PendientesDelTenantActual { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -56,7 +58,8 @@ public class AceptacionContractualGateTests : BunitContext
                     Consultas++;
                     if (Consultas <= ConsultasQueFallan)
                         throw new InvalidOperationException("Fallo simulado de la consulta.");
-                    IReadOnlyList<DocumentoContractualPendienteDto> lista = Aceptaciones.Count == 0 ? pendientes
+                    IReadOnlyList<DocumentoContractualPendienteDto> lista = PendientesDelTenantActual is { } leer ? leer()
+                        : Aceptaciones.Count == 0 ? pendientes
                         : ResultadoAceptar.EsExitoso ? [] : PendientesTrasFallo ?? pendientes;
                     return Task.FromResult((TResponse)(object)lista);
                 case AceptarDocumentosContractualesCommand comando:
@@ -237,6 +240,61 @@ public class AceptacionContractualGateTests : BunitContext
 
         mediador.Consultas.Should().Be(2);
         gate.FindAll(".gate-contractual-error").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// El Tenant actual del circuito y su aviso de retirada, como <c>TenantActual</c> sobre la selección: al retirarse,
+    /// primero se ve el Tenant de origen y después se avisa.
+    /// </summary>
+    private sealed class TenantActualFalso(Guid origen, Guid seleccionado) : ITenantActual, IAvisoSeleccionRetirada
+    {
+        public Guid? TenantId { get; private set; } = seleccionado;
+        public int Oyentes => TenantSeleccionadoRetirado?.GetInvocationList().Length ?? 0;
+        public event Action<Guid>? TenantSeleccionadoRetirado;
+
+        public void RetirarSeleccion()
+        {
+            TenantId = origen;
+            TenantSeleccionadoRetirado?.Invoke(seleccionado);
+        }
+    }
+
+    private static readonly Guid TenantA = Guid.Parse("eeeeeeee-0000-0000-0000-0000000000aa");
+    private static readonly Guid TenantB = Guid.Parse("eeeeeeee-0000-0000-0000-0000000000bb");
+
+    [Fact]
+    public void Al_volver_al_Tenant_propietario_por_retirarse_la_seleccion_vuelve_a_consultar_y_bloquea()
+    {
+        // Revisión Codex de la PR #2270: el Administrador del Tenant propietario A tiene seleccionado el Tenant B por
+        // una Asignación de Operación; en A entra en vigor una versión; la Asignación caduca y la revalidación del
+        // circuito retira la selección sin recargar. El gate tiene que enterarse de que ahora el Tenant es A.
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var mediador = new MediatorFalso
+        {
+            PendientesDelTenantActual = () => tenant.TenantId == TenantA ? [Condiciones, Encargo] : [],
+        };
+        var gate = RenderGate(mediador);
+        gate.FindAll("[role=dialog]").Should().BeEmpty("en B no hay nada que aceptar");
+
+        tenant.RetirarSeleccion();
+
+        gate.WaitForAssertion(() => gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2));
+        mediador.Consultas.Should().Be(2);
+        Boton(gate).HasAttribute("disabled").Should().BeTrue("las casillas vuelven sin marcar");
+    }
+
+    [Fact]
+    public void Al_desmontarse_deja_de_escuchar_la_retirada_de_la_seleccion()
+    {
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var gate = RenderGate(new MediatorFalso());
+        tenant.Oyentes.Should().Be(1);
+
+        gate.Instance.Dispose();
+
+        tenant.Oyentes.Should().Be(0);
     }
 
     [Fact]

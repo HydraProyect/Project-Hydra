@@ -17,6 +17,12 @@
     no tendría salida. Si la consulta falla, en cambio, no deja pasar: pinta un modal de error con un
     botón para reintentar.
 
+    Lo pendiente es del Tenant actual, así que se vuelve a consultar cuando ese Tenant cambia dentro del
+    circuito. El único cambio en caliente es la retirada de la selección de Tenant beneficiario (Asignación
+    de Operación caducada o cerrada, ventana de soporte terminada), que devuelve el contexto al Tenant de
+    origen sin recargar y se avisa con IAvisoSeleccionRetirada; elegir otro Tenant pasa por el endpoint de
+    selección y una recarga completa, que monta un gate nuevo.
+
     La IP de quien acepta es la del contexto HTTP del prerenderizado, como en el alta: en el circuito no
     hay HttpContext, así que se lee al prerenderizar y pasa al circuito por el estado persistido. Se lee
     del HttpContext en cascada y, si no llega, de IHttpContextAccessor (como MainLayout).
@@ -91,6 +97,9 @@ else if (_pendientes.Count > 0)
     private string? _error;
     private string? _ip;
     private PersistingComponentStateSubscription _persistencia;
+    private IAvisoSeleccionRetirada? _avisoRetirada;
+    // Sube con cada cambio de Tenant: una consulta lanzada antes no pisa lo que ya se leyó del Tenant nuevo.
+    private int _generacion;
     private EstadoGate? _estado;
     private const string ClavePersistencia = "gate-contractual-estado-v1";
 
@@ -105,19 +114,34 @@ else if (_pendientes.Count > 0)
 
     protected override async Task OnInitializedAsync()
     {
+        // Primero el oyente y después la consulta, como SuscripcionMensajesDelTenantActual: al revés, una retirada
+        // entre las dos dejaría lo leído del Tenant retirado sin nadie que lo corrigiera (revisión Codex, PR #2270).
+        var generacion = _generacion;
+        _avisoRetirada = Servicios.GetService<ITenantActual>() as IAvisoSeleccionRetirada;
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado += AlRetirarseLaSeleccion;
+
         try
         {
             var usuario = Servicios.GetService<ICurrentUserService>() is { } actual
                 ? await actual.ObtenerUsuarioActualIdAsync() : null;
             var anterior = Restaurar(usuario);
             _ip = IpDeLaPeticion() ?? anterior?.Ip;
-            if (anterior is not null && Vigente(anterior))
-                _pendientes = anterior.Pendientes;
-            else
-                _pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            var pendientes = anterior is not null && Vigente(anterior)
+                ? anterior.Pendientes
+                : await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
 
-            if (usuario is { } leido)
-                _estado = new(leido, DateTimeOffset.UtcNow, _pendientes, _ip);
+            // Si el Tenant cambió mientras tanto, lo que vale es lo que ya leyó la reconsulta.
+            if (generacion == _generacion)
+            {
+                _pendientes = pendientes;
+                if (usuario is { } leido)
+                    _estado = new(leido, DateTimeOffset.UtcNow, _pendientes, _ip);
+            }
+        }
+        catch (Exception) when (generacion != _generacion)
+        {
+            // El fallo era del Tenant anterior: lo que vale es lo que ya leyó la reconsulta.
         }
         catch (Exception)
         {
@@ -139,10 +163,15 @@ else if (_pendientes.Count > 0)
         if (_consultando) return;
 
         _consultando = true;
+        var generacion = _generacion;
         try
         {
-            _pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
-            _errorConsulta = false;
+            var pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion == _generacion)
+            {
+                _pendientes = pendientes;
+                _errorConsulta = false;
+            }
         }
         catch (Exception)
         {
@@ -189,7 +218,41 @@ else if (_pendientes.Count > 0)
         return Task.CompletedTask;
     }
 
-    public void Dispose() => _persistencia.Dispose();
+    public void Dispose()
+    {
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado -= AlRetirarseLaSeleccion;
+        _persistencia.Dispose();
+    }
+
+    /// <summary>
+    /// El aviso llega en el hilo de quien retira la selección, y cuando ya se ve el Tenant de origen: se vuelve al
+    /// despachador y se lee lo pendiente de ese Tenant, con el modal limpio (las casillas eran de otros documentos).
+    /// </summary>
+    private void AlRetirarseLaSeleccion(Guid retirado) => _ = InvokeAsync(ReconsultarAsync);
+
+    private async Task ReconsultarAsync()
+    {
+        var generacion = ++_generacion;
+        _marcados.Clear();
+        _facultades = false;
+        _error = null;
+        try
+        {
+            var pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion != _generacion) return;
+            _pendientes = pendientes;
+            _errorConsulta = false;
+        }
+        catch (Exception)
+        {
+            if (generacion != _generacion) return;
+            // Falla cerrado, como al inicializar.
+            _pendientes = [];
+            _errorConsulta = true;
+        }
+        StateHasChanged();
+    }
 
     private void Marcar(string documento, bool marcado)
     {
@@ -215,18 +278,21 @@ else if (_pendientes.Count > 0)
 
         _aceptando = true;
         _error = null;
+        var generacion = _generacion;
         try
         {
             var resultado = await Mediator.Send(new AceptarDocumentosContractualesCommand(
                 _pendientes.Select(d => new DocumentoContractualAceptado(d.Documento, d.Version, d.HashSha256)).ToList(),
                 DeclaraFacultades: _facultades, _ip));
+            // Con el Tenant cambiado a mitad, el estado del modal ya es el de la reconsulta.
+            if (generacion != _generacion) return;
             if (resultado.EsFallido)
             {
                 _error = resultado.Error.Mensaje;
                 // Si lo pendiente cambió con el modal abierto (otra versión publicada, otra cuenta que ya aceptó),
                 // se vuelve a leer: con la lista vieja el Command fallaría siempre igual.
                 var actuales = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
-                if (!actuales.SequenceEqual(_pendientes))
+                if (generacion == _generacion && !actuales.SequenceEqual(_pendientes))
                 {
                     _pendientes = actuales;
                     _marcados.Clear();
@@ -235,13 +301,16 @@ else if (_pendientes.Count > 0)
                 return;
             }
 
-            _pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            var restantes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion != _generacion) return;
+            _pendientes = restantes;
             _marcados.Clear();
             _facultades = false;
         }
         catch (Exception)
         {
-            _error = Textos["ErrorRegistro"];
+            if (generacion == _generacion)
+                _error = Textos["ErrorRegistro"];
         }
         finally
         {
