@@ -890,4 +890,10 @@
   <data name="MenuInboundInformacionCentro" xml:space="preserve">
     <value>Informació del Centre</value>
   </data>
+  <data name="MenuInboundReglasAviso" xml:space="preserve">
+    <value>Regles d&apos;avís</value>
+  </data>
+  <data name="MenuInboundGobierno" xml:space="preserve">
+    <value>Govern d&apos;Inbound</value>
+  </data>
 </root>
