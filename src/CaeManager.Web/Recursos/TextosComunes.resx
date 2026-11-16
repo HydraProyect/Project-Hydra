@@ -519,6 +519,9 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si todavía no la tienes instalada, mira «Instalar la extensión», más abajo.</value>
   </data>
+  <data name="ExtensionVigenciaToken" xml:space="preserve">
+    <value>Dura como mucho 8 horas y no se renueva solo. Deja de valer antes si tu sesión se cierra, también por inactividad: usar la extensión no la mantiene abierta.</value>
+  </data>
   <data name="CumplimientoEtiqueta" xml:space="preserve">
     <value>{0} % de cumplimiento</value>
     <comment>{0}: porcentaje de 0 a 100. Nombre accesible por defecto de BarraCumplimiento.</comment>
