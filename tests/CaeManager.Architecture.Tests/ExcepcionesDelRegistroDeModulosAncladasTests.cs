@@ -105,6 +105,8 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
         { "Infrastructure.Persistence.Seed.ConocimientoDeteccionCampoSeedData", Modulo.Nucleo },
         { "Infrastructure.Persistence.Seed.SiembraEmpresaPropia", Modulo.Nucleo },
         { "Infrastructure.Persistence.Seed.DelegacionesSoporteSeeder", Modulo.Nucleo },
+        { "Infrastructure.Persistence.Seed.LineaInboundDemoSeeder", Modulo.Nucleo },
+        { "Infrastructure.Persistence.Seed.InboundDemoSeeder", Modulo.Composicion },
         { "Web.Components.Layout.CatalogoMenuLateral", Modulo.Composicion },
         { "Web.Api.V1.ClientesApiEndpoints", Modulo.Outbound },
         { "Web.Features.Integraciones.Pages.ConectoresCae", Modulo.Outbound },

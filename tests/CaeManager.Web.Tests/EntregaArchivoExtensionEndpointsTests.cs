@@ -260,7 +260,7 @@ public class EntregaArchivoExtensionEndpointsTests
         };
         if (autenticado)
             cliente.DefaultRequestHeaders.Add("Authorization",
-                "Extension " + TokenSesionExtension.Proteger(_proteccion, Usuario, sello, sesion ?? Guid.NewGuid()));
+                "Extension " + TokenSesionExtension.Proteger(_proteccion, Usuario, sello, sesion ?? Guid.NewGuid(), MarcasSesionDePrueba.Recientes()));
         return cliente;
     }
 

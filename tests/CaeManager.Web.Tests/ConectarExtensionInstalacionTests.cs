@@ -26,6 +26,7 @@ public class ConectarExtensionInstalacionTests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionSinSesion());
         Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        Services.AddSingleton<CaeManager.Infrastructure.Autenticacion.ISesionOrigenExtension>(new CaeManager.Web.Services.SesionOrigenExtension(new CaeManager.Web.Services.ActividadSesiones(), TimeProvider.System));
         Services.AddSingleton<IRegistroSesionesUsuario>(new SesionesQueNadieDebeTocar());
         Services.AddSingleton<ISelloSeguridadCuenta>(new SellosQueNadieDebeTocar());
         Services.AddScoped(_ => new UserManager<ApplicationUser>(

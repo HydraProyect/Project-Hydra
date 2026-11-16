@@ -72,6 +72,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // La guarda de siembra de cada Tenant TEC de la siembra Inbound de Development cuenta también las bajas: con el
+        // Tenant propietario explícito en el predicado y dentro de su AmbitoTenantExplicito (la RLS sigue aplicando).
+        [("src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs", "var yaSembrado = await dbContext.Trabajadores.IgnoreQueryFilters().AnyAsync(t => t.TenantId == tec.Id, cancellationToken) || await dbContext.Documentos.IgnoreQueryFilters().AnyAsync(d => d.TenantId == tec.Id, cancellationToken);")] = 1,
         // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
         // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
@@ -598,6 +601,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
 
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2010, D-7 (revisión Codex P2 de la PR #2274): la activación de un subencargado cierra las altas de Tenant
+        // propietario con LOCK TABLE en modo SHARE y lock_timeout local. Texto constante, sin parámetros; no lee ni escribe filas.
+        [("src/CaeManager.Infrastructure/Persistence/CerrojoAltasTenantPropietario.cs", "return dbContext.Database.ExecuteSqlRawAsync(\"SET LOCAL lock_timeout = '5s'; LOCK TABLE public.\\\"Tenants\\\" IN SHARE MODE\", cancellationToken);")] = 1,
 
         // Regla A-1 (revisión Codex de la PR #2074): mismo candado, por Tenant, para que el alta de un
         // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
