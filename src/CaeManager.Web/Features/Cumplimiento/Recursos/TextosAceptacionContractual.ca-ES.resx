@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloModal" xml:space="preserve">
+    <value>Documents contractuals pendents</value>
+  </data>
+  <data name="Introduccion" xml:space="preserve">
+    <value>Per continuar fent servir {0}, accepta les versions vigents d'aquests documents en nom de la teva organització.</value>
+  </data>
+  <data name="CasillaDocumento" xml:space="preserve">
+    <value>He llegit i accepto {0} (versió {1}).</value>
+  </data>
+  <data name="EnlaceTexto" xml:space="preserve">
+    <value>Llegir el text d'aquesta versió ↗</value>
+  </data>
+  <data name="CasillaFacultades" xml:space="preserve">
+    <value>Declaro que tinc facultats per acceptar aquests documents en nom de la meva organització.</value>
+  </data>
+  <data name="BotonAceptar" xml:space="preserve">
+    <value>Acceptar i continuar</value>
+  </data>
+  <data name="MotivoAceptar" xml:space="preserve">
+    <value>Marca cada document i la declaració de facultats per acceptar.</value>
+  </data>
+  <data name="ErrorRegistro" xml:space="preserve">
+    <value>No hem pogut registrar la teva acceptació. Torna-ho a provar.</value>
+  </data>
+  <data name="TituloErrorConsulta" xml:space="preserve">
+    <value>No hem pogut comprovar el teu compte</value>
+  </data>
+  <data name="ErrorConsulta" xml:space="preserve">
+    <value>Alguna cosa ha fallat en comprovar el teu compte. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>{0} — versió {1}</value>
+  </data>
+  <data name="Antetitulo" xml:space="preserve">
+    <value>Document contractual</value>
+  </data>
+  <data name="VigenteDesde" xml:space="preserve">
+    <value>Versió {0}, vigent des del {1}.</value>
+  </data>
+  <data name="NoPublicado" xml:space="preserve">
+    <value>Aquesta versió del document no està publicada.</value>
+  </data>
+</root>

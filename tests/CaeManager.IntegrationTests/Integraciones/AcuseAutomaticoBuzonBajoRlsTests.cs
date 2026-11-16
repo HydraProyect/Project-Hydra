@@ -348,12 +348,13 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito(new TokensGraphDto("access", "refresh", DateTime.UtcNow.AddHours(1))));
 
-        public Task<Result> EnviarRespuestaAsync(
+        public Task<Result<string?>> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+            Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
         {
             Respuestas.Add(mensajeExternoIdOrigen);
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(Result.Exito<string?>(null));
         }
 
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();
@@ -370,7 +371,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
             string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
-            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null) =>
+            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null, bool contenidoIaRevisada = false) =>
             throw new NotSupportedException();
 
         public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
