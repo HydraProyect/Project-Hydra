@@ -54,7 +54,8 @@ public class CrearEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    ILimiteEmpresaPropia limiteEmpresaPropia)
+    ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<CrearEmpresaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearEmpresaCommand request, CancellationToken cancellationToken)
@@ -72,6 +73,7 @@ public class CrearEmpresaCommandHandler(
         // EmpresaCliente.ClienteId ya apunta a Empresas (F3): el "cliente" que se
         // vincula aquí es un registro de Empresas, no de la tabla Clientes congelada.
         var clienteIds = request.ClienteIds.Distinct().ToList();
+        Task<bool> ClientesEmpresarialesEnCarteraAsync(CancellationToken ct) => alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, ct);
         var clientesEncontrados = await empresasContext.Empresas
             .Where(e => clienteIds.Contains(e.Id))
             .CountAsync(cancellationToken);
@@ -79,7 +81,7 @@ public class CrearEmpresaCommandHandler(
         // Asignación de Cartera: vincular la Empresa nueva a un Cliente empresarial es escribir sobre
         // él; fuera de la cartera ese Cliente «no existe».
         if (clientesEncontrados != clienteIds.Count
-            || !await alcanceDatos.TodosLosClientesVisiblesAsync(clienteIds, cancellationToken))
+            || !await ClientesEmpresarialesEnCarteraAsync(cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         // D-P11: una sola Empresa propia por Tenant propietario (ver ILimiteEmpresaPropia). El recuento y el guardado van
@@ -87,6 +89,12 @@ public class CrearEmpresaCommandHandler(
         Guid empresaId = default;
         var resultado = await limiteEmpresaPropia.SerializarAsync(async ct =>
         {
+            // Los Clientes empresariales se vuelven a decidir después de esperar el candado, sin el alcance memoizado de
+            // antes de la espera (issue #2118): una Asignación de Cartera revocada mientras tanto no vincula nada.
+            invalidadorAlcance?.Invalidar();
+            if (!await ClientesEmpresarialesEnCarteraAsync(ct))
+                return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
+
             if (await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);
 

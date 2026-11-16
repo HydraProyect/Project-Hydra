@@ -121,6 +121,8 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
     [InlineData("RegistrosInicioSesion")]
     [InlineData("AceptacionesContractualesTenant")]
     [InlineData("AcusesAceptacionContractualTenant")]
+    [InlineData("AvisosCambioSubencargado")]
+    [InlineData("ObjecionesSubencargado")]
     public async Task Runtime_solo_tiene_insert_y_select_sobre_la_auditoria(string tabla)
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);

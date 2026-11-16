@@ -20,7 +20,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.VincularTenant
 /// </para>
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record VincularTenantContratistaCommand(Guid ContratoAccesoId, Guid TenantContratistaId, Guid Version = default) : ICommand;
+public record VincularTenantContratistaCommand(Guid ContratoAccesoId, Guid TenantContratistaId, Guid Version = default) : ICommand, IComandoInbound;
 
 public class VincularTenantContratistaCommandValidator : AbstractValidator<VincularTenantContratistaCommand>
 {

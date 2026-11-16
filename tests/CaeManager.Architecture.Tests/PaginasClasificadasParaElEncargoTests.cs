@@ -52,6 +52,9 @@ public class PaginasClasificadasParaElEncargoTests
         ["src/CaeManager.Web/Features/Configuracion/Pages/Configuracion.razor"] =
             "el hub de Configuración: administrar el Tenant propietario es el objeto del encargo; sus entradas "
             + "excluidas las filtra el propio hub",
+        ["src/CaeManager.Web/Features/Inbound/Configuracion/Gobierno/GobiernoDeInbound.razor"] =
+            "Gobierno de Inbound (convalidación entre organizaciones): no puede ir en PaginasExcluidasDelEncargo porque el Núcleo no conoce "
+            + "a Inbound (ADR-013 § 4.1, regla 3); la página se reserva ella misma con RigenLasExclusiones y niega el encargo no pleno",
         ["src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor"] =
             "catálogo de tipos de documento; sus cuatro ajustes globales de IA se excluyen en Application por tipo",
         ["src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor"] =

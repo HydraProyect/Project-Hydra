@@ -184,6 +184,9 @@ public static class ApplicationServiceCollectionExtensions
         // bloqueado por rol ni siquiera necesita la consulta a Tenants que
         // hace este behavior (Horizonte 1.7, "Billing mínimo viable").
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GateComercialTenantBehavior<,>));
+        // La guarda por servicio (DN-21, B-02b), después del rol y del estado del Tenant: un comando de Inbound con papel
+        // Outbound, o uno que no es de Inbound con papel Inbound, falla cerrado antes del handler.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GuardaPorServicioBehavior<,>));
         // Después de la autorización de escritura: lo que el rol elevado por un Encargo de
         // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
         // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.

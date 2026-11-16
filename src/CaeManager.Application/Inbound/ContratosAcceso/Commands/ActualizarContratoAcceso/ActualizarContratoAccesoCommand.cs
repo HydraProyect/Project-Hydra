@@ -13,7 +13,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.ActualizarCont
 /// <c>RenovarContratoAccesoCommand</c>. Un cambio del fin queda en el historial de vigencia como edición (B-05).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record ActualizarContratoAccesoCommand(Guid Id, DateOnly? FechaFin, string? Notas, Guid Version = default) : ICommand;
+public record ActualizarContratoAccesoCommand(Guid Id, DateOnly? FechaFin, string? Notas, Guid Version = default) : ICommand, IComandoInbound;
 
 public class ActualizarContratoAccesoCommandValidator : AbstractValidator<ActualizarContratoAccesoCommand>
 {

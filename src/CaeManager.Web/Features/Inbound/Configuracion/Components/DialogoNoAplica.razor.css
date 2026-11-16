@@ -1,0 +1,14 @@
+.na-campo { display: flex; flex-direction: column; gap: 6px; }
+.na-etiqueta { font-size: 13px; line-height: 18px; font-weight: 600; }
+.na-ayuda { margin: 0; font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+.na-fila { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.na-falta { margin: 0; font-size: 12px; line-height: 16px; color: var(--color-warning-700); }
+
+.na-segmentos { display: inline-flex; align-self: flex-start; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); overflow: hidden; }
+.na-segmentos button { border: 0; border-left: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text); padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.na-segmentos button:first-child { border-left: 0; }
+.na-segmentos button[aria-pressed="true"] { background: var(--color-primary-50); color: var(--color-primary-700); font-weight: 600; }
+.na-segmentos button:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: -2px; }
+
+.na-previa { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--radius-md); background: var(--color-surface-subtle); font-size: 13px; line-height: 18px; }
+.na-previa h3 { margin: 0; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--color-text-muted); }

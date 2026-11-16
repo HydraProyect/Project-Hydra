@@ -16,7 +16,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CancelarContra
 /// asignaciones se sumarán cuando existan (B-17). El contrato no se borra: queda Cancelado y no da acceso nunca.
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record CancelarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand;
+public record CancelarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand, IComandoInbound;
 
 public class CancelarContratoAccesoCommandValidator : AbstractValidator<CancelarContratoAccesoCommand>
 {

@@ -31,7 +31,8 @@ public record RestaurarClienteCommand(Guid Id) : ICommand;
 
 public class RestaurarClienteCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RestaurarClienteCommand, Result>
 {
     public async Task<Result> Handle(RestaurarClienteCommand request, CancellationToken cancellationToken)
@@ -52,6 +53,12 @@ public class RestaurarClienteCommandHandler(
         // Empresa propia; entonces pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
         return await limiteEmpresaPropia.SerializarAsync(async ct =>
         {
+            // La Asignación de Cartera se vuelve a decidir después de esperar el candado, sin el alcance memoizado de
+            // antes de la espera (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, ct))
+                return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente eliminado."));
+
             if (empresa.EsPropia
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);

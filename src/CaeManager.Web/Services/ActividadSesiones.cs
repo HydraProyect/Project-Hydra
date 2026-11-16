@@ -7,7 +7,9 @@ namespace CaeManager.Web.Services;
 /// principal se queda como estaba al conectarse y no recibe la cookie renovada. Solo en
 /// memoria y por identificador de sesión: no se persiste, a propósito (ver
 /// <see cref="CaducidadSesion"/>). Tras un reinicio no hay entradas, pero tampoco circuitos:
-/// el circuito nuevo sale de una cookie que lleva su propia marca.
+/// el circuito nuevo sale de una cookie que lleva su propia marca. El token de la extensión
+/// también la lee (<see cref="SesionOrigenExtension"/>) y nunca anota: tras un reinicio vale la
+/// marca que lleva el propio token, que no es posterior a la última interacción real.
 /// </summary>
 public sealed class ActividadSesiones
 {
