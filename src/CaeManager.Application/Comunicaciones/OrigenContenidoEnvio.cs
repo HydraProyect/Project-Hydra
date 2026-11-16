@@ -53,7 +53,7 @@ public static class OrigenContenidoEnvio
 
     /// <summary>
     /// La sugerencia de Vega de la que parte <paramref name="cuerpo"/>, o null si lo escribió una persona; fallo si
-    /// <paramref name="respuestaSugeridaId"/> no es una sugerencia de Vega revisada o descartada de un hilo visible. Se llama después
+    /// <paramref name="respuestaSugeridaId"/> no es una sugerencia de Vega revisada, o descartada tras insertarla, de un hilo visible. Se llama después
     /// del bloqueo de la sugerencia y antes de enviar. <paramref name="conversacionId"/> es el hilo en el que se envía
     /// (null en un mensaje nuevo) y <paramref name="conexionIntegracionId"/>, el buzón o la línea cuyos hilos se miran.
     /// </summary>
