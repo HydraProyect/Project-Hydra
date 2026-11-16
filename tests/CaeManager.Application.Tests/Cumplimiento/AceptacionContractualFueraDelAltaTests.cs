@@ -40,6 +40,14 @@ public class AceptacionContractualFueraDelAltaTests
     {
         public Tenant Tenant { get; } = new("Tenant propietario de prueba");
         public Guid Administrador { get; } = Guid.NewGuid();
+
+        /// <summary>La cuenta de la sesión; por defecto, <see cref="Administrador"/>.</summary>
+        public Guid Cuenta { get; set; }
+
+        /// <summary>Las cuentas propias del Tenant, activas y con rol de Administrador, según el directorio.</summary>
+        public HashSet<Guid> Administradores { get; }
+
+        public bool SinTenant { get; set; }
         public string? Rol { get; set; } = "Administrador";
         public Guid? TenantOrigen { get; set; }
         public Guid? ActorReal { get; set; }
@@ -58,18 +66,21 @@ public class AceptacionContractualFueraDelAltaTests
             Unidad = new UnidadFalsa(Repositorio, Bitacora);
             Envio.Bitacora = Bitacora;
             Tenants.ListaTenants.Add(Tenant);
+            Cuenta = Administrador;
+            Administradores = [Administrador];
         }
 
-        private UsuarioActualFalso Usuario() => new(Rol, Administrador, TenantOrigen ?? Tenant.Id);
-        private ActorFalso Actor() => new(new ActorAuditoria(ActorReal ?? Administrador, UsuarioSimulado, TipoViaAcceso.Normal, null));
-        private DirectorioFalso Directorio() => new(Tenant.Id, CuentaPropiaActiva ? [Administrador] : []);
+        private UsuarioActualFalso Usuario() => new(Rol, Cuenta, TenantOrigen ?? Tenant.Id);
+        private ActorFalso Actor() => new(new ActorAuditoria(ActorReal ?? Cuenta, UsuarioSimulado, TipoViaAcceso.Normal, null));
+        private DirectorioFalso Directorio() => new(Tenant.Id, CuentaPropiaActiva ? Administradores : []);
+        private TenantFijo TenantActual() => new(SinTenant ? null : Tenant.Id);
 
         public ObtenerAceptacionesContractualesPendientesQueryHandler Consulta() => new(
-            Usuario(), new TenantFijo(Tenant.Id), new SesionFalsa(Sesion), Actor(), Directorio(), Tenants,
+            Usuario(), TenantActual(), new SesionFalsa(Sesion), Actor(), Directorio(), Tenants,
             new CatalogoFalso(Catalogo), Repositorio, new RelojFijo(Ahora));
 
         public AceptarDocumentosContractualesCommandHandler Aceptar() => new(
-            Usuario(), new TenantFijo(Tenant.Id), new SesionFalsa(Sesion), Actor(), Directorio(), Tenants,
+            Usuario(), TenantActual(), new SesionFalsa(Sesion), Actor(), Directorio(), Tenants,
             new CatalogoFalso(Catalogo), Repositorio, Unidad, Envio, new RelojFijo(Ahora),
             NullLogger<AceptarDocumentosContractualesCommandHandler>.Instance);
 
@@ -108,7 +119,7 @@ public class AceptacionContractualFueraDelAltaTests
     public static TheoryData<string> CuentasQueNoAceptan => new()
     {
         "otro-rol", "gestor-cae-externo", "administrador-operador-externo", "impersonacion", "actor-real-distinto",
-        "sesion-privilegiada", "cuenta-no-propia", "tenant-plataforma",
+        "sesion-privilegiada", "cuenta-no-propia", "tenant-plataforma", "usuario-simulado", "sin-tenant",
     };
 
     private static void Configurar(Escenario e, string cuenta)
@@ -126,6 +137,12 @@ public class AceptacionContractualFueraDelAltaTests
                 break;
             case "cuenta-no-propia": e.CuentaPropiaActiva = false; break;
             case "tenant-plataforma": e.Tenant.MarcarComoPlataforma(); break;
+            // Un Usuario simulado con el Actor real igual a la cuenta de la sesión: solo lo para la comprobación del
+            // Usuario simulado, porque el resto de guardas (Actor real, rol, Tenant de origen, directorio) pasan.
+            case "usuario-simulado": e.UsuarioSimulado = Guid.NewGuid(); break;
+            // Sin Tenant actual. Las guardas posteriores también lo rechazan (rol con Tenant nulo, directorio con
+            // Guid.Empty): la rama es defensa en profundidad y su mutación aislada es equivalente.
+            case "sin-tenant": e.SinTenant = true; break;
             default: throw new ArgumentOutOfRangeException(nameof(cuenta));
         }
     }
@@ -281,6 +298,25 @@ public class AceptacionContractualFueraDelAltaTests
     }
 
     [Fact]
+    public async Task Un_segundo_Administrador_que_acepta_lo_ya_aceptado_registra_su_propia_aceptacion()
+    {
+        var e = new Escenario();
+        await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
+        var segundo = Guid.NewGuid();
+        e.Administradores.Add(segundo);
+        e.Cuenta = segundo;
+
+        (await e.PendientesAsync()).Should().BeEmpty("lo aceptado obliga a la organización: al segundo no se le bloquea");
+        var resultado = await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
+
+        resultado.EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(4, "la idempotencia es por cuenta: el segundo deja su propia evidencia");
+        e.Repositorio.Aceptaciones.Where(a => a.UsuarioId == segundo).Select(a => a.Documento)
+            .Should().BeEquivalentTo(["Condiciones", "Encargo"]);
+        e.Envio.Destinatarios.Should().Equal(e.Administrador, segundo);
+    }
+
+    [Fact]
     public async Task Una_version_nueva_vuelve_a_bloquear_solo_por_ese_documento()
     {
         var e = new Escenario();
@@ -294,28 +330,34 @@ public class AceptacionContractualFueraDelAltaTests
         e.Repositorio.Aceptaciones.Should().HaveCount(3);
     }
 
+    /// <summary>
+    /// Defensa ante un catálogo incoherente, no un flujo válido: <c>CatalogoDocumentosContractuales</c> nunca edita
+    /// una versión publicada (un cambio de texto es una versión nueva). Si aun así llegara un despliegue con la misma
+    /// versión y otro texto, lo aceptado con el texto anterior no cubre el nuevo, porque la clave lleva el hash.
+    /// <c>ExigirCoherente</c> no lo detecta: solo mira una foto del catálogo, y el cambio ocurre entre dos despliegues.
+    /// </summary>
     [Fact]
-    public async Task Corregir_el_texto_de_una_version_sin_cambiar_su_numero_obliga_a_aceptarla_otra_vez()
+    public async Task Defensa_ante_un_catalogo_incoherente_un_hash_distinto_con_la_misma_version_se_vuelve_a_aceptar()
     {
         var e = new Escenario();
         await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
-        var corregida = CondicionesV1 with { Texto = "Texto de condiciones 1.0, corregido" };
+        var incoherente = CondicionesV1 with { Texto = "Texto de condiciones 1.0, cambiado sin versión nueva" };
         e.Catalogo.Remove(CondicionesV1);
-        e.Catalogo.Add(corregida);
-        corregida.HashSha256.Should().NotBe(CondicionesV1.HashSha256);
+        e.Catalogo.Add(incoherente);
+        incoherente.HashSha256.Should().NotBe(CondicionesV1.HashSha256);
         FluentActions.Invoking(() => ResolucionDocumentosContractuales.ExigirCoherente(e.Catalogo))
-            .Should().NotThrow("el catálogo publica una sola vez la versión 1.0, ahora con el texto corregido");
+            .Should().NotThrow("hueco conocido: ExigirCoherente solo ve una foto del catálogo y no detecta que la 1.0 cambió de texto entre despliegues");
 
         (await e.PendientesAsync()).Select(p => (p.Documento, p.Version, p.HashSha256))
-            .Should().Equal([("Condiciones", "1.0", corregida.HashSha256)]);
+            .Should().Equal([("Condiciones", "1.0", incoherente.HashSha256)]);
 
-        (await e.AceptarAsync(documentos: [corregida])).EsExitoso.Should().BeTrue();
-        e.Repositorio.Aceptaciones.Should().HaveCount(3, "la idempotencia incluye el hash: el texto corregido es otra aceptación");
-        e.Repositorio.Aceptaciones.Should().ContainSingle(a => a.Documento == "Condiciones" && a.HashSha256 == corregida.HashSha256);
-        (await e.PendientesAsync()).Should().BeEmpty();
+        (await e.AceptarAsync(documentos: [incoherente])).EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(3, "la idempotencia incluye el hash: el texto distinto es otra aceptación");
+        e.Repositorio.Aceptaciones.Should().ContainSingle(a => a.Documento == "Condiciones" && a.HashSha256 == incoherente.HashSha256);
+        (await e.PendientesAsync()).Should().BeEmpty("sin el hash en la clave, el aviso volvería a salir en bucle");
 
-        (await e.AceptarAsync(documentos: [corregida])).EsExitoso.Should().BeTrue();
-        e.Repositorio.Aceptaciones.Should().HaveCount(3, "repetir la aceptación del texto corregido ya no registra nada");
+        (await e.AceptarAsync(documentos: [incoherente])).EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(3, "repetir la aceptación del mismo texto ya no registra nada");
     }
 
     [Fact]

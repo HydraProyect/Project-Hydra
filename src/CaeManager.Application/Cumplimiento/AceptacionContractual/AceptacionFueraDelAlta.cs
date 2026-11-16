@@ -74,7 +74,12 @@ internal static class AceptanteFueraDelAlta
         return usuarioId;
     }
 
-    /// <summary>La versión que rige ahora de cada documento obligatorio del catálogo.</summary>
+    /// <summary>
+    /// La versión que rige ahora de cada documento obligatorio del catálogo: todo lo <c>ObligatorioEnAlta</c>, sin
+    /// distinguir qué documentos le tocan al Tenant propietario cuando el Pagador TALVEG es otro (por ejemplo, unas
+    /// condiciones generales que contrató quien paga). Esa elección queda para un incremento posterior rastreado en
+    /// #2009, antes de publicar el catálogo.
+    /// </summary>
     public static IReadOnlyList<DocumentoContractualPublicado> VigentesObligatorios(ICatalogoDocumentosContractuales catalogo, DateTime ahoraUtc) =>
         ResolucionDocumentosContractuales.VigentesEn(catalogo.Publicados, ahoraUtc).Where(d => d.ObligatorioEnAlta).ToList();
 
@@ -136,9 +141,16 @@ public class ObtenerAceptacionesContractualesPendientesQueryHandler(
 
 /// <summary>
 /// El Administrador del Tenant propietario acepta fuera del alta las versiones vigentes de los documentos
-/// contractuales obligatorios (#2009, D-6): en su primer acceso cuando el alta la hizo un Operador CAE externo, o
-/// cuando se publica una versión nueva. Registra una <see cref="AceptacionContractualTenant"/> por documento, sin
+/// contractuales obligatorios (#2009, D-6) cuando se publica una versión nueva: ante esa versión solo se bloquea al
+/// Administrador del Tenant propietario. Registra una <see cref="AceptacionContractualTenant"/> por documento, sin
 /// Solicitud de alta (<c>SolicitudAltaId = null</c>), y después del guardado envía el acuse con el texto aceptado.
+///
+/// <para>
+/// Fuera de este incremento, rastreado en #2009 y antes de publicar el catálogo: el primer acceso cuando el alta la
+/// hizo un Operador CAE externo, la elección de documentos cuando el Pagador TALVEG es otro (hoy se exige todo lo
+/// <c>ObligatorioEnAlta</c>) y el bloqueo de la carga de datos del Tenant mientras falte la aceptación (hoy solo se
+/// bloquea la interfaz del Administrador).
+/// </para>
 ///
 /// <para>
 /// Reglas: solo quien resuelve <see cref="AceptanteFueraDelAlta"/>; con la declaración de facultades; cada
@@ -213,9 +225,10 @@ public class AceptarDocumentosContractualesCommandHandler(
             return Result.Fallo(ErroresAceptacionContractual.FaltaDocumentoObligatorio);
 
         // Idempotencia por (Tenant, cuenta, documento, versión, hash): el repositorio ya lista solo el Tenant actual.
-        // El hash entra en la clave igual que en Pendientes: si se corrige el texto de una versión sin cambiar su
-        // número, lo aceptado con el texto anterior no cubre el nuevo, y sin el hash la Query lo daría pendiente
-        // mientras el Command devolvería éxito sin registrar, con el aviso volviendo a salir en bucle.
+        // El hash entra en la clave igual que en Pendientes, como defensa: el catálogo nunca edita una versión
+        // publicada, pero si llegara un catálogo incoherente (mismo número de versión con otro texto), lo aceptado con
+        // el texto anterior no cubriría el nuevo, y sin el hash la Query lo daría pendiente mientras el Command
+        // devolvería éxito sin registrar, con el aviso volviendo a salir en bucle.
         // shortcut: la base no la respalda fuera del alta (su índice único exige SolicitudAltaId), así que dos
         // aceptaciones simultáneas de la misma cuenta pueden dejar dos filas iguales; mejorarlo con un índice único
         // parcial (TenantId, UsuarioId, Documento, Version, HashSha256) WHERE SolicitudAltaId IS NULL en su propia
