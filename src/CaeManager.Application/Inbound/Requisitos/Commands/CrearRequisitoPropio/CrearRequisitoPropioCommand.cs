@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -53,11 +54,14 @@ public class CrearRequisitoPropioCommandValidator : AbstractValidator<CrearRequi
 
 public class CrearRequisitoPropioCommandHandler(
     IPlantillaRequisitosRepository repositorio, ITipoDocumentoRepository tipos, IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<CrearRequisitoPropioCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearRequisitoPropioCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         var plantilla = await repositorio.ObtenerPorIdAsync(request.PlantillaId, cancellationToken);
         // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
         if (plantilla is null || !await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(plantilla, alcanceDatos, cancellationToken))

@@ -38,6 +38,9 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        // La autorización de Inbound (B-03): capacidades desde el papel activo y el rol; todo handler Inbound la llama.
+        services.AddScoped<CaeManager.Application.Inbound.Autorizacion.IAutorizacionInbound,
+            CaeManager.Application.Inbound.Autorizacion.AutorizacionInbound>();
         // Coste de acceso a datos del mismo scope (lo lee la cabecera Server-Timing).
         services.AddScoped<CosteCarga>();
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,

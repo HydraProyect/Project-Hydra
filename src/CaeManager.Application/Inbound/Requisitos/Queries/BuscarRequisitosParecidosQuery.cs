@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.CatalogoBase;
 using CaeManager.Application.Tenants.Encargo;
@@ -43,11 +44,14 @@ public class BuscarRequisitosParecidosQueryValidator : AbstractValidator<BuscarR
 }
 
 public class BuscarRequisitosParecidosQueryHandler(
-    ITiposDocumentoQueryContext tipos, ICatalogoBaseQueryContext catalogo, IAlcanceDatosService alcanceDatos)
+    ITiposDocumentoQueryContext tipos, ICatalogoBaseQueryContext catalogo, IAlcanceDatosService alcanceDatos, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<BuscarRequisitosParecidosQuery, IReadOnlyList<RequisitoParecidoDto>>
 {
     public async Task<IReadOnlyList<RequisitoParecidoDto>> Handle(BuscarRequisitosParecidosQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return [];
+
         // El catálogo de tipos de documento es del Tenant entero, pero el usuario de portal no configura requisitos.
         if (!await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
             return [];

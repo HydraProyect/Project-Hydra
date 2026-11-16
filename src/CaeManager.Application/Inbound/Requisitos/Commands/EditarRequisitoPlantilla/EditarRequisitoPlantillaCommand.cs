@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.CatalogoBase;
 using CaeManager.Application.Tenants.Encargo;
@@ -31,11 +32,14 @@ public class EditarRequisitoPlantillaCommandValidator : AbstractValidator<Editar
 
 public class EditarRequisitoPlantillaCommandHandler(
     IPlantillaRequisitosRepository repositorio, ITipoDocumentoRepository tipos, ICatalogoBaseQueryContext catalogo,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<EditarRequisitoPlantillaCommand, Result>
 {
     public async Task<Result> Handle(EditarRequisitoPlantillaCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var plantilla = await repositorio.ObtenerPorIdAsync(request.PlantillaId, cancellationToken);
         // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
         if (plantilla is null || !await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(plantilla, alcanceDatos, cancellationToken))

@@ -1,3 +1,6 @@
+using CaeManager.Application.Operaciones;
+using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Persistence;
@@ -31,6 +34,19 @@ internal static class FuncionAmparoInbound
     /// <summary>Solo se traduce a SQL: llamarlo en memoria es un error.</summary>
     internal static bool Ampara(Guid asignacionOperacionId) =>
         throw new InvalidOperationException($"{Nombre} solo se evalúa en PostgreSQL, dentro de una consulta.");
+
+    /// <summary>
+    /// Las Asignaciones de Operación amparadas según su servicio (B-03): las Outbound por su DelegacionTenant de origen
+    /// (<see cref="AmparoDeOrigen.AmparadasPorSuOrigen"/>, como siempre) y las Inbound por la línea Inbound vigente de su
+    /// Tenant propietario (<see cref="Ampara"/>), nunca una por el amparo de la otra. No filtra el servicio: lo filtra la
+    /// consulta que la usa, en la misma sentencia.
+    /// </summary>
+    internal static IQueryable<AsignacionOperacion> AmparadasSegunServicio(
+        this IQueryable<AsignacionOperacion> operaciones, ServicioCae servicio, IQueryable<DelegacionTenant> delegaciones,
+        DateTime ahora) =>
+        servicio == ServicioCae.Inbound
+            ? operaciones.Where(o => o.Servicio == ServicioCae.Inbound && Ampara(o.Id))
+            : operaciones.AmparadasPorSuOrigen(delegaciones, ahora);
 
     internal static void MapearAmparoInbound(this ModelBuilder builder) =>
         builder.HasDbFunction(() => Ampara(default))

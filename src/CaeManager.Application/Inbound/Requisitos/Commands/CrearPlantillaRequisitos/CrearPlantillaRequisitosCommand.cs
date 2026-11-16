@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -30,11 +31,14 @@ public class CrearPlantillaRequisitosCommandValidator : AbstractValidator<CrearP
 
 public class CrearPlantillaRequisitosCommandHandler(
     IPlantillaRequisitosRepository repositorio, ICatalogoBaseQueryContext catalogo, ICentrosQueryContext centros,
-    IEmpresasQueryContext empresas, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresas, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<CrearPlantillaRequisitosCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearPlantillaRequisitosCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
         // Fuera de la cartera, la referencia «no existe»: el mismo error que si no existiera.
         if (!await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(request.Tipo, request.ReferenciaId, alcanceDatos, cancellationToken))

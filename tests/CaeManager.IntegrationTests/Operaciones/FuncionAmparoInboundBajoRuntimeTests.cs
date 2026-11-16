@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Comercial;
@@ -190,6 +191,35 @@ public class FuncionAmparoInboundBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Con_papel_Inbound_la_Gestora_CAE_alcanza_por_su_cartera_Inbound_y_con_papel_Outbound_no()
+    {
+        var gestora = Guid.NewGuid();
+        var (propietario, operacionId) = _casos["con línea"];
+        await using (var propio = ContextoPropietarioDeLaBase(tenant: null))
+        {
+            var operacion = await propio.AsignacionesOperacion.SingleAsync(o => o.Id == operacionId);
+            propio.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, gestora, "GestorCae", AmbitoAsignacion.Universal, DateTime.UtcNow.AddDays(-1), null, DateTime.UtcNow));
+            await propio.SaveChangesAsync();
+        }
+
+        async Task<bool> AlcanzaElTenantTce(PapelActivo papel)
+        {
+            var usuario = new CurrentUserServiceFalso(gestora, "GestorCae", tenantOrigenId: _operador.Id, porOperacion: true, papel: papel);
+            await using var contexto = ContextoRuntimeEnTce(propietario, usuario);
+            var alcance = new CaeManager.Infrastructure.Autorizacion.AlcanceDatosService(
+                contexto, usuario, new TenantActualAmbiental { TenantId = propietario }, new SesionPrivilegiadaAusente());
+            return await alcance.AlcanzaElTenantEnteroAsync();
+        }
+
+        (await AlcanzaElTenantTce(PapelActivo.Inbound)).Should().BeTrue(
+            "su Asignación de Cartera universal bajo la operación Inbound amparada por la línea Inbound del Tenant TCE");
+        (await AlcanzaElTenantTce(PapelActivo.Outbound)).Should().BeFalse(
+            "con papel Outbound solo cuenta una cartera de Outbound, y no tiene ninguna");
+        (await AlcanzaElTenantTce(PapelActivo.OperacionQueYaNoAutoriza)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Es_SECURITY_DEFINER_con_search_path_fijo_solo_devuelve_un_booleano_y_no_concede_la_tabla()
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
@@ -247,6 +277,21 @@ public class FuncionAmparoInboundBajoRuntimeTests : IAsyncLifetime
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(),
                     new CurrentUserServiceFalso(usuario, "Administrador", tenantOrigenId: tenant),
+                    BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>Contexto de runtime en el Tenant TCE activo, con el contexto firmado de una persona del Operador CAE.</summary>
+    private CaeManagerDbContext ContextoRuntimeEnTce(Guid tenantTce, CurrentUserServiceFalso usuario)
+    {
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantTce };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
+                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(
+                new TenantSelladoInterceptor(tenantActual),
+                new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario,
                     BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);

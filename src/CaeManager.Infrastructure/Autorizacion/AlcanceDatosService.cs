@@ -113,12 +113,20 @@ public class AlcanceDatosService(
     }
 
     /// <summary>
-    /// El papel con el que esta petición no tiene alcance de datos por este servicio: Inbound, hasta que B-03 calcule el de
-    /// Inbound, y una selección cuya operación ya no autoriza, para que una caducidad entre resolver el rol y el papel no
-    /// conceda el alcance del rol.
+    /// El papel con el que esta petición no tiene alcance de datos por este servicio: una selección cuya operación ya no
+    /// autoriza, para que una caducidad entre resolver el rol y el papel no conceda el alcance del rol (Codex, ronda 2 de
+    /// la PR #2293).
     /// </summary>
     private async Task<bool> PapelSinAlcanceDeDatosAsync() =>
-        await currentUserService.ObtenerPapelActivoAsync() is PapelActivo.Inbound or PapelActivo.OperacionQueYaNoAutoriza;
+        await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.OperacionQueYaNoAutoriza;
+
+    /// <summary>
+    /// El servicio de la cartera que da alcance (B-03): el de la Asignación de Operación seleccionada. Con papel Inbound,
+    /// solo cuentan las Asignaciones de Cartera bajo operaciones Inbound amparadas por la línea Inbound del Tenant TCE; en
+    /// cualquier otro papel, las de Outbound, como antes.
+    /// </summary>
+    private async Task<ServicioCae> ServicioDeLaCarteraAsync() =>
+        await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound ? ServicioCae.Inbound : ServicioCae.Outbound;
 
     /// <summary>
     /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
@@ -312,11 +320,9 @@ public class AlcanceDatosService(
         }
         else
         {
-            // Con papel Inbound (B-02b, DN-21), ningún perfil tiene acceso total de datos por su rol en este servicio: el
-            // de Administrador, Dirección CAE o Consulta abriría también los datos de Outbound del Tenant TCE. El alcance de
-            // Inbound lo decide B-03 (IAutorizacionInbound); hasta entonces, fallo cerrado. Solo cierra lo que pasa por este
-            // servicio: las páginas que se autorizan únicamente por rol (Auditoría, Usuarios, Configuración, Facturación)
-            // siguen abiertas al rol de origen, y hay que cerrarlas por papel antes de activar el selector Inbound.
+            // Con papel Inbound, los perfiles de organización del Operador CAE externo alcanzan el Tenant TCE entero, como
+            // en Outbound (decisión de Chris del 2026-11-16 para B-03): la vía de Operación Inbound solo les da papel con
+            // una operación del Tenant entero. Con una operación que ya no autoriza, nadie (fallo cerrado).
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
                           && !await PapelSinAlcanceDeDatosAsync();
         }
@@ -390,7 +396,7 @@ public class AlcanceDatosService(
         // contuviera.
         var resultado = real;
         if (await ObtenerGestorDeLenteAsync(cancellationToken) is { } gestorLente)
-            resultado = real.Intersecar(await ObtenerCarteraAsync([gestorLente], cancellationToken));
+            resultado = real.Intersecar(await ObtenerCarteraAsync([gestorLente], ServicioCae.Outbound, cancellationToken));
 
         Memoizar(_alcanceCartera, tenant, generacion, resultado);
         return resultado;
@@ -403,9 +409,9 @@ public class AlcanceDatosService(
         var rol = await RolQueDecideAlcanceAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        // Con papel Inbound (B-02b, DN-21), ni la cartera de Outbound ni el Tenant entero por operación dan alcance: el
-        // Gestor CAE que gestiona Outbound el mismo Tenant no puede usar esa cartera cuando valida en Inbound, y ningún otro
-        // perfil hereda el alcance de su rol. La cartera Inbound la calcula B-03; hasta entonces, alcance cero para todos.
+        // Con una operación que ya no autoriza, ningún alcance. Con papel Inbound, el Gestor CAE usa su cartera Inbound y
+        // nunca la de Outbound del mismo Tenant (B-03; ServicioDeLaCarteraAsync), y el Coordinador CAE alcanza el Tenant
+        // entero por la operación del Tenant entero, como en Outbound.
         if (await PapelSinAlcanceDeDatosAsync())
             return AlcanceCartera.Ninguno;
 
@@ -423,7 +429,7 @@ public class AlcanceDatosService(
         return (rol, usuarioId) switch
         {
             (Roles.Cliente, { } id) => AlcanceCartera.DeLista(await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken)),
-            (Roles.GestorCae, { } id) => await ObtenerCarteraAsync([id], cancellationToken),
+            (Roles.GestorCae, { } id) => await ObtenerCarteraAsync([id], await ServicioDeLaCarteraAsync(), cancellationToken),
             (Roles.CoordinadorCae, { } id) => await ObtenerCarteraParaCoordinadorAsync(id, cancellationToken),
             _ => AlcanceCartera.Ninguno
         };
@@ -478,7 +484,7 @@ public class AlcanceDatosService(
         // puede gestionar directamente un Tenant con una Asignación de Cartera suya —por decisión
         // o por relevo automático del principal—, sin que nadie de su equipo la tenga. Sigue
         // haciendo falta una cartera vigente: sin la suya ni la de su equipo, alcance cero.
-        return await ObtenerCarteraAsync([coordinadorUsuarioId, .. gestorIds], cancellationToken);
+        return await ObtenerCarteraAsync([coordinadorUsuarioId, .. gestorIds], ServicioCae.Outbound, cancellationToken);
     }
 
     /// <summary>
@@ -498,10 +504,10 @@ public class AlcanceDatosService(
     /// <item>su operación debe estar <b>vigente</b>. Una cartera bajo una
     /// operación cerrada o suspendida no concede nada, y el cierre en cascada
     /// puede no haber corrido todavía si la operación caducó por fecha.</item>
-    /// <item>su operación debe ser del servicio del contexto
-    /// (<c>TenantsBeneficiariosAutorizados.ServicioDelContexto</c>, Outbound). Una cartera
-    /// bajo una Asignación de Operación Inbound no concede nada en Outbound, tampoco
-    /// cuando es universal y la Outbound está acotada a un Cliente empresarial.</item>
+    /// <item>su operación debe ser de <paramref name="servicio"/>, el del papel activo (B-03): con papel Inbound, solo
+    /// Asignaciones de Operación Inbound amparadas por la línea Inbound vigente del Tenant TCE; en otro papel, solo
+    /// Outbound, amparadas por su DelegacionTenant de origen. Una cartera bajo una Asignación de Operación de un servicio
+    /// no concede nada en el otro, tampoco cuando es universal y la del otro está acotada a un Cliente empresarial.</item>
     /// </list>
     /// Cada cartera cuenta por su ámbito efectivo: la intersección con el de su
     /// operación. Una cartera universal bajo una operación universal da el Tenant
@@ -511,7 +517,7 @@ public class AlcanceDatosService(
     /// basta una universal efectiva.
     /// </summary>
     private async Task<AlcanceCartera> ObtenerCarteraAsync(
-        IReadOnlyList<Guid> usuarioIds, CancellationToken cancellationToken)
+        IReadOnlyList<Guid> usuarioIds, ServicioCae servicio, CancellationToken cancellationToken)
     {
         if (tenantActual.TenantId is not { } propietarioTenantId) return AlcanceCartera.Ninguno;
 
@@ -527,6 +533,10 @@ public class AlcanceDatosService(
 
         var ahora = DateTime.UtcNow;
 
+        // Con papel Inbound (B-03), la cartera cuelga de una Asignación de Operación Inbound, que no nace de ninguna
+        // DelegacionTenant: la ampara la línea Inbound vigente del Tenant TCE (app_operacion_inbound_amparada, decisión de
+        // Chris del 2026-11-16, opción A de B-02b). Cada servicio con su amparo, nunca el del otro; la vía Outbound no
+        // cambia su consulta.
         var carteras = await dbContext.AsignacionesCartera
             .Where(c => usuarioIds.Contains(c.UsuarioId)
                         && c.PropietarioTenantId == propietarioTenantId
@@ -552,10 +562,10 @@ public class AlcanceDatosService(
             // delegación vigente del par no la sostiene, una que sobrevivió a una revocación no vuelve al
             // reactivarse, y sin origen falla cerrada. La raíz y las internas no dependen de ninguna delegación.
             .Join(dbContext.AsignacionesOperacion
-                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
+                    .AmparadasSegunServicio(servicio, dbContext.DelegacionesTenant, ahora)
                     .Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
-                    && o.Servicio == TenantsBeneficiariosAutorizados.ServicioDelContexto
+                    && o.Servicio == servicio
                     && o.PropietarioTenantId == propietarioTenantId
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora

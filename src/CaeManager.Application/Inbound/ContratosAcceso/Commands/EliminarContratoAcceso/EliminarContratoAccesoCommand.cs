@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -17,11 +18,14 @@ public record EliminarContratoAccesoCommand(Guid Id, Guid Version = default) : I
 
 public class EliminarContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService, TimeProvider reloj)
+    ICurrentUserService currentUserService, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<EliminarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(EliminarContratoAccesoCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var contrato = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (contrato is null || !await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo(ContratoAccesoErrores.NoEncontrado);
