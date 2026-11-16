@@ -1,0 +1,103 @@
+.av-cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.av-insignia {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.av-iniciales {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font-weight: 700;
+}
+
+.av-nota {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--color-warning-50);
+}
+
+.av-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--color-surface-subtle);
+}
+
+.av-resumen dt {
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
+.av-resumen dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.av-centros {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.av-centro {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+}
+
+.av-centro-cabecera {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.av-propios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.av-mensajes {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.det-titulo {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.det-sub {
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .av-resumen,
+    .av-centros {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

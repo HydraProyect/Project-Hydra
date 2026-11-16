@@ -40,8 +40,10 @@ public static class RutaTrasCambioDeTenant
         if (Guid.TryParse(segmentos[0], out _) || segmentos[0].Equals(ArbolPlataforma, StringComparison.OrdinalIgnoreCase))
             return "/";
 
-        // El árbol /inbound/… tampoco tiene página en /inbound: sus listas cuelgan del segundo segmento
-        // (/inbound/contratos/{id} vuelve a /inbound/contratos).
+        // El árbol /inbound/… no tiene página en /inbound: agrupa varias listas (/inbound/contratos,
+        // /inbound/requerimientos, /inbound/quien-lee) que cuelgan del segundo segmento. La ficha de una de ellas
+        // (/inbound/contratos/{id}, /inbound/requerimientos/{id}/subir) vuelve a su lista; /inbound/{guid} o /inbound
+        // a secas vuelven al inicio, porque /inbound no es una página.
         if (segmentos[0].Equals(ArbolInbound, StringComparison.OrdinalIgnoreCase))
             return segmentos.Length > 1 && !Guid.TryParse(segmentos[1], out _) ? "/" + segmentos[0] + "/" + segmentos[1] : "/";
 

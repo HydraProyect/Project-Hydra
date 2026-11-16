@@ -340,6 +340,8 @@ CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExt
 CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
+// Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
+CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
 builder.Services.AddScoped<DisponibilidadAsistente>();

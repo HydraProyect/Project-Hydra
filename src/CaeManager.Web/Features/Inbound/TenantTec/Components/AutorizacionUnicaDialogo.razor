@@ -1,0 +1,85 @@
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+
+@* Autorización única de reutilización (consentimiento único, CA-22): se concede una vez por Empresa. Es la misma
+   autorización que «Quién lee mis documentos» muestra como concedida (plan de pantallas, § 5 bis). *@
+<ModalFormulario Visible="Visible" VisibleChanged="VisibleChanged" Ancho="AnchoModal.Grande" Sobretitulo="@Textos["AuSobretitulo"]"
+                 Titulo="@Textos["AuTitulo"]" Subtitulo="@Textos["AuIntro"]" HayCambios="() => _marcado"
+                 TextoGuardar="@Textos["Autorizar"]" TextoCancelar="@Textos["Cancelar"]"
+                 Guardando="Enviando" MensajeError="@Error" OnGuardar="OnAutorizar"
+                 MotivoGuardarDeshabilitado="@(_marcado ? null : Textos["AuMotivoCasilla"].Value)">
+        <div class="au-cuerpo">
+            <div class="au-columnas">
+                <section class="au-ocurre">
+                    <strong>@Textos["AuQueOcurre"]</strong>
+                    <ul>
+                        <li>@Textos["AuOcurre1"]</li>
+                        <li>@Textos["AuOcurre2"]</li>
+                        <li>@Textos["AuOcurre3"]</li>
+                    </ul>
+                </section>
+                <section class="au-no-ocurre">
+                    <strong>@Textos["AuQueNoOcurre"]</strong>
+                    <ul>
+                        <li>@Textos["AuNoOcurre1"]</li>
+                        <li>@Textos["AuNoOcurre2"]</li>
+                        <li>@Textos["AuNoOcurre3"]</li>
+                    </ul>
+                </section>
+            </div>
+
+            <section class="au-lectores">
+                <div class="au-lectores-cabecera">
+                    <strong>@Textos["AuQuienLeera"]</strong>
+                    <span class="det-sub">@Textos["AuLoVerasSiempre"]</span>
+                </div>
+                <ul>
+                    @foreach (var cliente in Clientes)
+                    {
+                        <li>
+                            <span class="au-lector-nombre">@cliente.Cliente</span>
+                            <span class="det-sub">@string.Join(" · ", cliente.Centros)</span>
+                            <Badge Tamano="TamanoBadge.Pequeno" Tono="TonoBadge.Advertencia">@Textos["AuAlConfirmar"]</Badge>
+                        </li>
+                    }
+                    <li>
+                        <span class="au-lector-nombre">@Textos["AuFuturos"]</span>
+                        <span class="det-sub">@Textos["AuFuturosDetalle"]</span>
+                        <Badge Tamano="TamanoBadge.Pequeno">@Textos["AuIncluidos"]</Badge>
+                    </li>
+                </ul>
+            </section>
+
+            <p class="det-sub">@Textos["AuNotaRetirar"]</p>
+            <p class="det-sub">@Textos["AuNotaExcluir"]</p>
+
+            <label class="au-casilla">
+                <input type="checkbox" checked="@_marcado" @onchange="e => _marcado = (bool)(e.Value ?? false)" />
+                <span>@Textos["AuCasilla"]</span>
+            </label>
+        </div>
+</ModalFormulario>
+
+@code {
+    private bool _marcado;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>Los Clientes empresariales con contrato que leerán los documentos al confirmar.</summary>
+    [Parameter] public IReadOnlyList<LecturaClienteTec> Clientes { get; set; } = [];
+
+    [Parameter] public bool Enviando { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnAutorizar { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!Visible)
+        {
+            _marcado = false;
+        }
+    }
+}
