@@ -34,7 +34,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Residual declarado: el propietario de la base (migraciones y mantenimiento) no pasa por las políticas y podría escribir
     /// un inicio futuro; el gate sigue sin conceder antes de ese inicio. Una fila escrita antes de esta migración con el inicio
     /// en el futuro queda como mucho 5 minutos por delante de su <c>now()</c>, así que al desplegar ya está en el pasado o lo
-    /// estará en esos minutos.
+    /// estará en esos minutos. El orden de arriba es de reloj de pared: si el reloj del servidor retrocede (un salto de NTP)
+    /// más que el tiempo entre el BEGIN del alta y una evaluación del gate, durante ese salto <c>clock_timestamp()</c> puede
+    /// quedar por detrás de un inicio confirmado, como ya podía pasar con la corrección; el gate sigue sin conceder antes de
+    /// ese inicio.
     /// </para>
     /// <para>
     /// Compatible con la ranura anterior durante el relevo: solo estrecha el WITH CHECK de dos políticas. La ranura anterior

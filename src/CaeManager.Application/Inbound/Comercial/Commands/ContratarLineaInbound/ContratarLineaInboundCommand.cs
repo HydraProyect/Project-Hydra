@@ -150,7 +150,9 @@ public class ContratarLineaInboundCommandHandler(
         // INSERT no admite un inicio posterior a ese now(), para que ninguna fila visible tenga la vigencia en el futuro y
         // el gate DN-7 dé el mismo resultado en cualquier momento de una consulta (STABLE). Con el reloj de la aplicación
         // adelantado, el alta se rechazaría. Pedirlo dentro de la misma transacción lo hace el mismo instante con el que la
-        // base comprueba la política.
+        // base comprueba la política. Como en la corrección, si el alta falla o lanza, ITransaccionDeComando deshace y vacía
+        // el ChangeTracker entero, también lo que el repositorio había dejado intacto de otro acto; el comando corre en su
+        // propio ámbito, así que no hay otro acto que perder.
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             var ahora = await productosContratados.InstanteDeLaTransaccionAsync(ct);

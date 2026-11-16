@@ -40,7 +40,7 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial;
 /// de Plataforma por su Sesión Privilegiada, y que la corrección finaliza y contrata en una transacción sin que el índice
 /// único parcial choque ni el gate DN-7 vea un instante sin línea vigente. Y la otra mitad, con SQL directo bajo cada rol:
 /// la única transición que el rol elevado puede escribir es Vigente→Finalizado de una fila Inbound de su Tenant, con el fin
-/// en now() ± 5 minutos, sin tocar ni leer lo contratado; el runtime y el soporte no actualizan nada.
+/// entre now() - 5 minutos y now(), nunca en el futuro (issue #2259), sin tocar ni leer lo contratado; el runtime y el soporte no actualizan nada.
 /// </para>
 /// </summary>
 public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifetime
@@ -136,8 +136,9 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
     {
         var anterior = await ContratarAsync("cus_PagadorErroneo");
 
-        // Hallazgo 2 de Codex (ronda 2): el reloj de la aplicación va 4 minutos por delante del de PostgreSQL, dentro del
-        // margen de las políticas. Si la corrección volviera a tomar el instante de la aplicación, la corregida empezaría
+        // Hallazgo 2 de Codex (ronda 2): el reloj de la aplicación va 4 minutos por delante del de PostgreSQL. Desde la
+        // issue #2259 las políticas no admiten ningún instante futuro, así que con él la corrección se rechazaría; y aunque
+        // lo admitieran, si la corrección volviera a tomar el instante de la aplicación, la corregida empezaría
         // después del now() del gate y la comprobación tras el COMMIT fallaría.
         _relojDeLaAplicacion = new RelojDesfasado(TimeSpan.FromMinutes(4));
 

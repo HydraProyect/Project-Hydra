@@ -61,8 +61,9 @@ public enum ResultadoFinalizacionInbound
     /// <summary>
     /// El fin quedaría antes del inicio de la vigencia: no se escribió nada. Ningún rol de la aplicación puede escribir hoy
     /// un inicio futuro (la política de INSERT exige un inicio no posterior al <c>now()</c> de la transacción, issue
-    /// #2259), así que solo lo produce una fila escrita por el propietario de la base, que no pasa por las políticas, o
-    /// una escrita antes de esa migración.
+    /// #2259). Lo producen una fila escrita por el propietario de la base, que no pasa por las políticas, una escrita antes
+    /// de esa migración, o una baja cuya transacción empezó antes que la del alta que ve confirmada (en READ COMMITTED su
+    /// <c>now()</c>, el fin, es anterior al inicio de esa alta).
     /// </summary>
     VigenciaAunNoIniciada,
 }
