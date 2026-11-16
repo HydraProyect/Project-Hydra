@@ -412,6 +412,8 @@ builder.Services.AddOptions<SecurityStampValidatorOptions>()
 // HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
 CaducidadSesion.ConfigurarHsts(builder.Services);
 builder.Services.AddSingleton<ActividadSesiones>();
+// La vigencia de la sesión de origen del token de la extensión (issue #1891): las reglas de la cookie, sin anotar nada.
+builder.Services.AddSingleton<CaeManager.Infrastructure.Autenticacion.ISesionOrigenExtension, SesionOrigenExtension>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {

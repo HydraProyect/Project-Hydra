@@ -9,7 +9,7 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.RetirarT
 
 /// <summary>Retira un Trabajador de una autorización sin revocar: borra su fila, que no tiene UPDATE.</summary>
 [AreaDelEncargo("AutorizacionesLectura")]
-public record RetirarTrabajadorAutorizacionCommand(Guid AutorizacionId, Guid TrabajadorId, Guid Version = default) : ICommand;
+public record RetirarTrabajadorAutorizacionCommand(Guid AutorizacionId, Guid TrabajadorId, Guid Version = default) : ICommand, IComandoInbound;
 
 public class RetirarTrabajadorAutorizacionCommandValidator : AbstractValidator<RetirarTrabajadorAutorizacionCommand>
 {

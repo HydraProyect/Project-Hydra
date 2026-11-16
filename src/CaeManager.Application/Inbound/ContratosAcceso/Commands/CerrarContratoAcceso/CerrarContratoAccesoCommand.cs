@@ -13,7 +13,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContrato
 /// le devolvería el acceso que la suspensión retiró (<c>ContratoAcceso.Finalizar</c>). La cascada a asignaciones y subcontratas llega con <c>FinalizarContratoAccesoCommand</c> (B-18).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand;
+public record CerrarContratoAccesoCommand(Guid Id, DateOnly FechaCierre, Guid Version = default) : ICommand, IComandoInbound;
 
 public class CerrarContratoAccesoCommandValidator : AbstractValidator<CerrarContratoAccesoCommand>
 {

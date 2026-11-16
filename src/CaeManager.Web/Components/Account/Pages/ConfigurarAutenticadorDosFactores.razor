@@ -156,7 +156,22 @@
                 }
             </section>
         }
-        else if (_claveCompartida is not null && Entrada is not null)
+        else if (_claveCompartida is null)
+        {
+            @* #2125, ASVS 4.0.3 V14.4 y V9.1 (BREACH): la clave del autenticador es estable entre cargas, y una
+               respuesta a un GET refleja la consulta (ReturnUrl, y toda la URL en el action que el renderizado
+               estático pone a cada formulario). Por eso un GET nunca la lleva: se enseña solo en la respuesta a un
+               POST con antiforgery, que un sitio ajeno no puede repetir para medir tamaños comprimidos. Quien viene
+               de iniciar sesión no repite la contraseña; solo pulsa continuar. *@
+            <section class="tarjeta-2fa tarjeta-mostrar-clave" aria-labelledby="mostrar-clave-titulo">
+                <h2 id="mostrar-clave-titulo">@Textos["MostrarClaveTitulo"]</h2>
+                <p class="texto-2fa-secundario">@Textos["MostrarClaveAyuda"]</p>
+                <EditForm Model="Mostrar" method="post" OnSubmit="MostrarClaveAsync" FormName="mostrar-clave-2fa">
+                    <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">@Textos["ReautenticacionContinuar"]</Boton>
+                </EditForm>
+            </section>
+        }
+        else if (Entrada is not null)
         {
             <div class="dos-factores-alta">
                 <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
@@ -284,8 +299,14 @@
     [SupplyParameterFromForm(FormName = "reautenticar-2fa")]
     private DatosReautenticacion? Reautenticacion { get; set; }
 
+    // Sin campos: el POST de «continuar» que enseña la clave a quien ya tiene autenticación reciente (#2125).
+    [SupplyParameterFromForm(FormName = "mostrar-clave-2fa")]
+    private DatosMostrarClave? Mostrar { get; set; }
+
     // Hay autenticación reciente: inicio de sesión de hace poco, contraseña acertada en esta página
-    // o una prueba vigente de cualquiera de las dos. Sin ella no se genera ni se enseña la clave.
+    // o una prueba vigente de cualquiera de las dos. Sin ella no se genera ni se enseña la clave. Con
+    // ella tampoco en un GET (#2125): la clave solo se genera y se enseña al responder a un POST con
+    // antiforgery (la contraseña, «continuar» o el código con su prueba).
     private bool _reautenticado;
 
     // La sesión entró por Microsoft o la cuenta no tiene contraseña local: la reautenticación es
@@ -300,6 +321,7 @@
         Entrada ??= new DatosEntrada();
         Regenerar ??= new DatosRegenerar();
         Reautenticacion ??= new DatosReautenticacion();
+        Mostrar ??= new DatosMostrarClave();
 
         if (DenegarEscrituraPrivilegiada())
         {
@@ -351,11 +373,17 @@
             var pruebaRecibida = PruebaReautenticacionEsValida(Entrada.Reautenticacion);
             _reautenticado = pruebaRecibida
                 || SignInManagerCuentaDesactivada.AutenticacionEsReciente(_principal, DateTimeOffset.UtcNow);
-            if (_reautenticado)
+            if (pruebaRecibida)
             {
-                if (!pruebaRecibida)
-                    Entrada.Reautenticacion = EmitirPruebaReautenticacion();
+                // La prueba solo viaja en el cuerpo del formulario del código: esto es un POST con antiforgery,
+                // y si el código falla la respuesta vuelve a enseñar la clave para reintentarlo.
                 await CargarClaveCompartidaAsync(_usuario);
+            }
+            else if (_reautenticado)
+            {
+                // Autenticación reciente sin prueba: un GET, o un POST de otro formulario. La clave no se carga
+                // aquí (#2125); la carga MostrarClaveAsync al responder al POST de «continuar».
+                Entrada.Reautenticacion = string.Empty;
             }
             else
             {
@@ -481,6 +509,29 @@
         await CargarClaveCompartidaAsync(cuenta);
     }
 
+    // POST de «continuar» (#2125): quien ya tiene autenticación reciente ve la clave en la respuesta a este
+    // formulario con antiforgery, nunca en la del GET. Mismas guardas que la contraseña: Sesión Privilegiada y
+    // sello de la cookie contra la base, otra vez aquí porque el cambio de credencial puede llegar tras la carga.
+    private async Task MostrarClaveAsync()
+    {
+        if (DenegarEscrituraPrivilegiada()) { mensajeError = MensajeSesionPrivilegiada; return; }
+        if (_usuario is null || _dosFactoresActivo || !_reautenticado || _errorCarga is not null
+            || _claveCompartida is not null || Entrada is null)
+            return;
+
+        if (!await SesionLlevaElSelloVigenteAsync())
+        {
+            RegistroAuditoria.LogWarning("Alta de 2FA rechazada al pedir la clave, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario.Id);
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
+            return;
+        }
+
+        Entrada.Reautenticacion = EmitirPruebaReautenticacion();
+        await CargarClaveCompartidaAsync(_usuario);
+    }
+
+    // Solo desde la respuesta a un POST con antiforgery (#2125): ReautenticarAsync, MostrarClaveAsync o la carga
+    // con la prueba que trae el formulario del código.
     private async Task CargarClaveCompartidaAsync(ApplicationUser usuario)
     {
         var claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
@@ -697,4 +748,6 @@
     }
 
     private sealed class DatosRegenerar { public string Codigo { get; set; } = string.Empty; }
+
+    private sealed class DatosMostrarClave { }
 }

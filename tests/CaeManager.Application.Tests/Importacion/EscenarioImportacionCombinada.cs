@@ -46,7 +46,9 @@ internal sealed class EscenarioImportacionCombinada
             CentroRepositorio,
             TrabajadorRepositorio,
             CentrosContexto, empresas, TrabajadoresContexto,
-            OperacionImportacionRepositorio, new AdministracionPermitida(autoridad), alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(), Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
+            OperacionImportacionRepositorio, new AdministracionPermitida(autoridad), alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(), Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia(),
+            // Un alcance memoizado de prueba (AlcanceMemoizadoRevocableFalso) es también su propio invalidador.
+            alcance as IInvalidadorAlcance);
     }
 
     public async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(

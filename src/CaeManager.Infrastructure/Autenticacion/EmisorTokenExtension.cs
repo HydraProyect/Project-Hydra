@@ -12,7 +12,8 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// extraídas de <c>ExtensionTokenEndpoints</c> (Incremento 1, PR #484) para
 /// que también las use la página Blazor "Conectar extensión"
 /// (<c>/cuenta/extension</c>, Incremento 4) sin repetirlas — ambas exigen
-/// exactamente lo mismo: sesión interactiva ya resuelta, ninguna Sesión Privilegiada
+/// exactamente lo mismo: sesión interactiva ya resuelta y vigente (también por su tope y su
+/// inactividad, <see cref="ISesionOrigenExtension"/>), ninguna Sesión Privilegiada
 /// seleccionada y una cuenta con security stamp. Se queda en Infrastructure, no en Application, porque ya
 /// depende directamente de <see cref="UserManager{TUser}"/> y
 /// <see cref="IDataProtectionProvider"/> — el mismo criterio por el que el
@@ -22,7 +23,8 @@ public static class EmisorTokenExtension
 {
     public static async Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirAsync(
         Guid usuarioId, Guid? sid, string? selloDeLaSesion, UserManager<ApplicationUser> userManager, IDataProtectionProvider dataProtectionProvider,
-        IRegistroSesionesUsuario sesiones, ISelloSeguridadCuenta sellos, IClienteActivoSeleccionado seleccion, ILoggerFactory fabricaRegistro)
+        IRegistroSesionesUsuario sesiones, ISelloSeguridadCuenta sellos, IClienteActivoSeleccionado seleccion, ILoggerFactory fabricaRegistro,
+        MarcasSesionOrigen? marcasSesion)
     {
         // Ninguna guarda del pipeline alcanza esta vía: las dos entradas llaman aquí sin pasar por MediatR
         // (OWASP ASVS 4.0.3 V4.1.3, V3.5). La señal es la coordenada en bruto y no ISesionPrivilegiadaActual,
@@ -44,7 +46,9 @@ public static class EmisorTokenExtension
                 "No se puede conectar la extensión durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar."));
         }
 
-        if (sid is null || sid == Guid.Empty || !await sesiones.EstaVigenteAsync(usuarioId, sid.Value))
+        // Sin marcas, la sesión de origen ya no está vigente (ISesionOrigenExtension.MarcasVigentes): pasó su tope o
+        // su plazo de inactividad. Un circuito que aún no lo ha notado no emite un token que nacería caducado.
+        if (marcasSesion is null || sid is null || sid == Guid.Empty || !await sesiones.EstaVigenteAsync(usuarioId, sid.Value))
             return Result.Fallo<(string, DateTime)>(Error.Crear("Extension.SesionNoVigente", "La sesión ya no está vigente. Vuelve a iniciar sesión."));
 
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
@@ -66,7 +70,7 @@ public static class EmisorTokenExtension
         if (!await sellos.EsVigenteAsync(usuarioId, usuario.TenantId, selloDeLaSesion))
             return Result.Fallo<(string, DateTime)>(Error.Crear("Extension.SesionNoVigente", "La sesión ya no está vigente. Vuelve a iniciar sesión."));
 
-        var token = TokenSesionExtension.Proteger(dataProtectionProvider, usuarioId, selloDeLaSesion!, sid.Value);
+        var token = TokenSesionExtension.Proteger(dataProtectionProvider, usuarioId, selloDeLaSesion!, sid.Value, marcasSesion);
         return Result.Exito((token, DateTime.UtcNow.Add(TokenSesionExtension.Vigencia)));
     }
 }
