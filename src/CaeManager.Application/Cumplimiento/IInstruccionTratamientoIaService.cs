@@ -20,6 +20,11 @@ namespace CaeManager.Application.Cumplimiento;
 /// toda clase de Application que reciba un puerto de IA tiene que recibir
 /// también esta interfaz.
 ///
+/// Desde la #2010 (D-7), también es el punto donde una objeción a un subencargado
+/// que se excluye por la IA apaga la IA para ese Tenant propietario: habilitada
+/// es «instrucción vigente y sin esa exclusión». Hoy hay un solo canal de IA, así
+/// que excluir el subencargado de IA apaga toda la IA del Tenant.
+///
 /// Nunca sabe nada de proveedor, modelo, región ni retención — eso es
 /// política técnica común de plataforma (§ 2 del documento de arriba), un
 /// plano distinto que esta interfaz no toca.
@@ -27,4 +32,13 @@ namespace CaeManager.Application.Cumplimiento;
 public interface IInstruccionTratamientoIaService
 {
     Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Solo la instrucción, sin la exclusión por objeción: para decirle a quien mira por qué la IA está apagada
+    /// («sin instrucción» frente a «desactivada por tu objeción a un subencargado»). Nunca decide si se llama al
+    /// proveedor: eso es <see cref="EstaHabilitadaAsync"/>. Por defecto coincide con ella, que es lo que hace un
+    /// doble que no modela objeciones.
+    /// </summary>
+    Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+        EstaHabilitadaAsync(tenantId, cancellationToken);
 }

@@ -374,7 +374,7 @@ public class ContratosAccesoPantallasTests : BunitContext
         var grupos = CatalogoMenuLateral.Visibles(ContextoMenu(lineaInbound: true));
 
         var inbound = grupos.Single(g => g.Grupo.Id == "inbound");
-        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/validacion");
+        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/centros", "inbound/validacion", "inbound/informacion-centro");
     }
 
     // El gate de la línea Inbound (LineaInboundVigenteDelProductoContratado y AdmisionDeDestinos) lo cubre
