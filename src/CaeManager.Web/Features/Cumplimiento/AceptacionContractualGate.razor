@@ -40,12 +40,15 @@
 <LimiteDeErrores Islote="this">
 @if (_errorConsulta)
 {
-    <ModalFormulario Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true" HayCambios="() => false"
-                     Guardando="_consultando" TextoGuardar="@Textos["BotonReintentar"]" TextoCancelar="" OnGuardar="ReintentarAsync">
+    @* No es un formulario: un Modal bloqueante con un único primario, sin nada que guardar ni descartar. *@
+    <Modal Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true">
         <ChildContent>
-            <p class="gate-contractual-error" role="alert">@Textos["ErrorConsulta"]</p>
+            <p class="gate-contractual-error">@Textos["ErrorConsulta"]</p>
         </ChildContent>
-    </ModalFormulario>
+        <Pie>
+            <Boton Variante="VarianteBoton.Primario" Deshabilitado="_consultando" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
+        </Pie>
+    </Modal>
 }
 else if (_pendientes.Count > 0)
 {
