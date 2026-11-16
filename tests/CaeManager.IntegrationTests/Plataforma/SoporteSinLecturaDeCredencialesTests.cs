@@ -102,7 +102,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             // listado; ninguna es un secreto.
             "RecuperacionHuecoAtascadaEnUtc", "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
             "RecuperacionHuecoListadoCompleto",
-            // Desempate del cursor compuesto (migración 20261116104750, issue #2263): recuperación, segundo e Id de un
+            // Desempate del cursor compuesto (migración 20261116105921, issue #2263): recuperación, segundo e Id de un
             // mensaje de Graph; no es un secreto.
             "RecuperacionHuecoCursorDesempate"] },
     };
