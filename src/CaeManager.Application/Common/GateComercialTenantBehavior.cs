@@ -74,6 +74,10 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(
                 "Tenant.Suspendido",
                 "Esta organización está suspendida. Contacta con nosotros."));
 
+        // El impago no impide al Tenant propietario sacar sus propios datos; la suspensión operativa de arriba sí.
+        if (request is IComandoDePortabilidadDelTenantPropietario)
+            return await next(cancellationToken);
+
         var error = tenant.EstadoComercial switch
         {
             EstadoComercialTenant.Suspendida => Error.Crear(

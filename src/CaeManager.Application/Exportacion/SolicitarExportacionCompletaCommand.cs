@@ -17,7 +17,7 @@ namespace CaeManager.Application.Exportacion;
 /// Tenant (y un índice único parcial que impide dos solicitudes Pendiente o EnCurso del mismo Tenant).</para>
 /// </summary>
 [AreaDelEncargo("Exportacion")]
-public sealed record SolicitarExportacionCompletaCommand : ICommand<SolicitudExportacionCompletaRegistrada>;
+public sealed record SolicitarExportacionCompletaCommand : ICommand<SolicitudExportacionCompletaRegistrada>, IComandoDePortabilidadDelTenantPropietario;
 
 public static class ErroresSolicitudExportacionCompleta
 {

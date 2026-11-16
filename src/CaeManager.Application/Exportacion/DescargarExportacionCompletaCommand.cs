@@ -16,7 +16,7 @@ namespace CaeManager.Application.Exportacion;
 /// <para>Hueco declarado: el punto de entrada HTTP que sirve el flujo llega con la pantalla, en una PR posterior.</para>
 /// </summary>
 [AreaDelEncargo("Exportacion")]
-public sealed record DescargarExportacionCompletaCommand(Guid SolicitudId) : ICommand<ExportacionCompletaDescargable>;
+public sealed record DescargarExportacionCompletaCommand(Guid SolicitudId) : ICommand<ExportacionCompletaDescargable>, IComandoDePortabilidadDelTenantPropietario;
 
 public static class ErroresDescargaExportacionCompleta
 {
