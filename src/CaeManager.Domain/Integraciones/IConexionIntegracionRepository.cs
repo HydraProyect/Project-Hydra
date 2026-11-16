@@ -26,5 +26,12 @@ public interface IConexionIntegracionRepository
     /// </summary>
     Task<IReadOnlyList<Guid>> ObtenerIdsConMarcaHuecoPorRegistrarAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las conexiones Habilitadas de Microsoft 365 del Tenant actual (filtro de Tenant y RLS) con
+    /// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/> puesta: las candidatas a la recuperación del hueco, que
+    /// vuelve a comprobar cada una antes de llamar a Graph.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ObtenerIdsConHuecoPendienteAsync(CancellationToken cancellationToken = default);
+
     void Agregar(ConexionIntegracion conexion);
 }
