@@ -267,7 +267,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
         ["src/CaeManager.Infrastructure/Comunicaciones/ContextoOperativoConversacionService.cs"] =
-            new(Categoria.DelegacionOClienteYaValidado, "Operador CAE de la Asignación de Operación vigente, validada bajo el Tenant propietario; solo avisos genéricos y sin contenido CAE"),
+            new(Categoria.DelegacionOClienteYaValidado, "Operador CAE de la Asignación de Operación vigente, validada bajo el Tenant propietario activo; solo avisos genéricos y sin contenido CAE"),
         ["src/CaeManager.Infrastructure/Comunicaciones/AvisosConversacionesCriticasHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "Enumeración propia de Tenants, un ámbito y scopes separados por conversación para reintentar avisos pendientes"),
         // ── DELEGACIÓN O CLIENTE YA VALIDADO (Application) ──────────────────────────
