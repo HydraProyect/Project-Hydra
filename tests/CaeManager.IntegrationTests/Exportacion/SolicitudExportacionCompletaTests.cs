@@ -467,6 +467,36 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Si_la_Lista_se_confirma_mientras_FallarAsync_guarda_la_Fallida_la_Lista_y_su_fichero_se_conservan()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var id = await SembrarAsync(_tenantA, DateTime.UtcNow, _ => { }, protector.Proteger("contrasena-de-prueba-del-conflicto-al-fallar"));
+        var ubicacion = AlmacenExportacionesCompletasEnDisco.UbicacionPara(_tenantA, id);
+        // El guardado de Lista falla sin confirmarse y FallarAsync lee la fila en curso; antes de que guarde la
+        // Fallida, la Lista se confirma (p. ej. el COMMIT en vuelo que llega tarde). Su UPDATE choca, relee la fila
+        // y la encuentra Lista con este mismo fichero: no debe borrarlo (ASVS 4.0.3 V11.1.6 y V8.3.8).
+        var falla = new FallaLaListaYSeConfirmaAlFallar(id, async () =>
+        {
+            await using var otro = CrearRuntime();
+            var solicitud = await otro.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id);
+            solicitud.MarcarLista(ubicacion, 1, DateTime.UtcNow);
+            await otro.SaveChangesAsync();
+        });
+        var (servicio, almacen) = CrearServicio(protector, interceptor: falla);
+
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        falla.Fallo.Should().BeTrue("el primer guardado de Lista debe fallar sin confirmarse");
+        falla.Compitio.Should().BeTrue("la prueba solo vale si la Lista se confirmó durante el guardado de la Fallida");
+        var lista = await LeerAsync(_tenantA, id);
+        lista.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Lista, "la Fallida chocó con la Lista y no se aplicó");
+        lista.UbicacionFichero.Should().Be(ubicacion);
+        (await almacen.AbrirAsync(_tenantA, ubicacion)).Dispose();
+        (await FasesAsync(_tenantA, id)).Should().NotContain(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida),
+            "la transición perdedora no se audita");
+    }
+
+    [Fact]
     public async Task Si_otro_proceso_caduca_la_anterior_mientras_se_marca_la_nueva_se_reintenta_y_la_nueva_queda_lista()
     {
         var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
@@ -939,6 +969,37 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
                 throw new InvalidOperationException("Fallo simulado después del commit de la Lista.");
             }
             return guardado;
+        }
+    }
+
+    /// <summary>
+    /// Hace fallar, antes de confirmarlo, el primer guardado que deja Lista la solicitud <paramref name="id"/>, y
+    /// cuando después se va a guardar su Fallida, ejecuta antes <paramref name="confirmarLista"/> en otro contexto.
+    /// </summary>
+    private sealed class FallaLaListaYSeConfirmaAlFallar(Guid id, Func<Task> confirmarLista)
+        : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public bool Fallo { get; private set; }
+        public bool Compitio { get; private set; }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            var propia = eventData.Context!.ChangeTracker.Entries<SolicitudExportacionCompleta>()
+                .Where(e => e.State == EntityState.Modified && e.Entity.Id == id).Select(e => e.Entity).SingleOrDefault();
+            if (!Fallo && propia?.Estado == EstadoSolicitudExportacionCompleta.Lista)
+            {
+                Fallo = true;
+                throw new InvalidOperationException("Fallo simulado del guardado de la Lista, antes del commit.");
+            }
+            if (Fallo && !Compitio && propia?.Estado == EstadoSolicitudExportacionCompleta.Fallida)
+            {
+                Compitio = true;
+                await confirmarLista();
+            }
+            return await base.SavingChangesAsync(eventData, result, cancellationToken);
         }
     }
 
