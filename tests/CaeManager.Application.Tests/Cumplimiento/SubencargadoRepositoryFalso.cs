@@ -75,7 +75,7 @@ public sealed class SubencargadoRepositoryFalso : ISubencargadoRepository, IUnit
             o.TenantId == tenantId
             && o.Objecion.Efecto == EfectoObjecionSubencargado.ExcluidoParaElTenant
             && o.Objecion.Conmutador == conmutador
-            && Subencargados.TryGetValue(o.Objecion.SubencargadoId, out var s) && s.Estado != EstadoSubencargado.Retirado));
+            && Subencargados.TryGetValue(o.Objecion.SubencargadoId, out var s) && s.Estado == EstadoSubencargado.Activo));
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

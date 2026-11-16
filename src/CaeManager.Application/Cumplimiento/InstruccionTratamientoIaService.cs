@@ -5,9 +5,11 @@ namespace CaeManager.Application.Cumplimiento;
 
 /// <summary>
 /// Habilitada si el Tenant propietario tiene una instrucción vigente y no ha excluido la IA objetando un subencargado
-/// que lo admite (#2010, D-7). La objeción no toca la instrucción: solo la deja sin efecto mientras ese subencargado
-/// no se retire. Las dos lecturas van acotadas al Tenant actual por filtro y RLS, así que, si la RLS oculta una,
-/// oculta también la otra y el resultado falla cerrado.
+/// activo que lo admite (#2010, D-7). La objeción no revoca la instrucción: solo la deja sin efecto mientras ese
+/// subencargado esté activo (antes de activarse ese Tenant no lo usa; retirado, no lo usa nadie). Las dos lecturas
+/// van acotadas al Tenant actual por filtro y RLS, así que, si la RLS oculta una, oculta también la otra y el
+/// resultado falla cerrado. <c>cae_app_runtime</c> y <c>cae_app_soporte</c> (Sesión Privilegiada de Soporte TALVEG)
+/// tienen SELECT sobre las tres tablas, así que el gate responde también dentro de una Sesión Privilegiada.
 /// </summary>
 public class InstruccionTratamientoIaService(
     IInstruccionTratamientoIaTenantPropietarioRepository repositorio,

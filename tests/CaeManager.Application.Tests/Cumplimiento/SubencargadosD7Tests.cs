@@ -121,6 +121,37 @@ public class SubencargadosD7Tests
     }
 
     [Fact]
+    public async Task Sin_Tenants_propietarios_activos_se_activa_al_vencer_el_plazo()
+    {
+        var subencargado = Avisado();
+        _repositorio.TenantsActivos.Clear();
+        _reloj.Ahora = Inicio.AddDays(30);
+
+        var resultado = await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        subencargado.Estado.Should().Be(EstadoSubencargado.Activo);
+    }
+
+    [Fact]
+    public async Task El_plazo_de_un_Tenant_avisado_mas_tarde_vence_justo_a_los_treinta_dias_de_su_aviso()
+    {
+        var subencargado = Avisado();
+        var avisoTardio = Inicio.AddDays(5);
+        _repositorio.AvisoGuardado(TenantA, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, Inicio);
+        _repositorio.AvisoGuardado(TenantB, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, avisoTardio);
+
+        _reloj.Ahora = avisoTardio + Subencargado.PlazoMinimoAviso - TimeSpan.FromTicks(1);
+        (await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None))
+            .Error.Codigo.Should().Be("Subencargado.NoActivable", "un instante antes de los 30 días del aviso de ese Tenant");
+        subencargado.Estado.Should().Be(EstadoSubencargado.Avisado);
+
+        _reloj.Ahora = avisoTardio + Subencargado.PlazoMinimoAviso;
+        (await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None))
+            .EsExitoso.Should().BeTrue("justo a los 30 días, sí");
+    }
+
+    [Fact]
     public async Task Sin_concesion_global_en_Sesion_Privilegiada_o_sin_segundo_factor_no_se_activa()
     {
         var subencargado = Avisado();
@@ -177,6 +208,27 @@ public class SubencargadosD7Tests
         _repositorio.Avisos.Count(a => a.TenantId == TenantB).Should().Be(4, "dos Administradores, dos fases cada uno");
         _repositorio.Avisos.Should().OnlyContain(a => a.Aviso.AvisadoPorUsuarioId == ActorPlataforma);
         correo.Enviados.Should().OnlyContain(e => e.Cuerpo.Contains("Proveedor de IA") && e.Cuerpo.Contains("16/12/2026"));
+        correo.Enviados.Should().OnlyContain(e => e.Cuerpo.Contains("respondiendo a este correo") && !e.Cuerpo.Contains("desde TALVEG"),
+            "no hay pantalla ni endpoint para objetar: el correo no promete un canal que no existe");
+    }
+
+    [Fact]
+    public async Task Cada_Tenant_recibe_su_propia_fecha_minima_su_aviso_mas_treinta_dias()
+    {
+        var subencargado = Propuesto();
+        _repositorio.Administradores[TenantB] = [];
+        await Avisador(new CorreoFalso(_repositorio)).Handle(new AvisarCambioSubencargadoCommand(subencargado.Id), CancellationToken.None);
+
+        // TenantB recibe a su Administrador diez días después: su plazo cuenta desde ese envío, no desde el primero.
+        _repositorio.Administradores[TenantB] = [new(Guid.NewGuid(), "admin.b.tardio@example.test")];
+        _reloj.Ahora = Inicio.AddDays(10);
+        var correo = new CorreoFalso(_repositorio);
+        (await Avisador(correo).Handle(new AvisarCambioSubencargadoCommand(subencargado.Id), CancellationToken.None))
+            .Valor.Should().Be(new ResultadoAvisoSubencargado(1, 1, 0, 0));
+
+        var cuerpo = correo.Enviados.Should().ContainSingle().Subject.Cuerpo;
+        cuerpo.Should().Contain("26/12/2026", "diez días después del primer aviso, más treinta");
+        cuerpo.Should().NotContain("16/12/2026", "la fecha mínima global sería una promesa falsa para este Tenant");
     }
 
     [Fact]
@@ -294,12 +346,36 @@ public class SubencargadosD7Tests
             "v1", "v1", Inicio, OrigenInstruccionTratamientoIa.AltaManualPlataforma, ActorPlataforma));
         var gate = new InstruccionTratamientoIaService(instrucciones, _repositorio);
 
-        (await gate.EstaHabilitadaAsync(tenant)).Should().BeFalse("el Tenant que objetó deja de usar la IA");
+        (await gate.EstaHabilitadaAsync(tenant)).Should().BeTrue(
+            "avisado y sin activar, el Tenant que objetó todavía no usa este subencargado: la objeción queda registrada y no apaga nada");
+
+        subencargado.Activar(Inicio.AddDays(30), 0, ActorPlataforma);
+        (await gate.EstaHabilitadaAsync(tenant)).Should().BeFalse("activo, el Tenant que objetó deja de usar la IA");
         (await gate.EstaHabilitadaAsync(otroTenant)).Should().BeTrue("la objeción no frena el subencargado para los demás");
-        instrucciones.Filas.Should().OnlyContain(i => i.RevocadaEnUtc == null, "la objeción no revoca la instrucción concedida");
+        instrucciones.Filas.Should().OnlyContain(i => i.RevocadaEnUtc == null, "la objeción excluye, no revoca la instrucción concedida");
 
         subencargado.Retirar("Se sustituye el proveedor", Inicio.AddDays(40));
         (await gate.EstaHabilitadaAsync(tenant)).Should().BeTrue("retirado el subencargado, su exclusión ya no aplica");
+        instrucciones.Filas.Should().OnlyContain(i => i.RevocadaEnUtc == null);
+    }
+
+    [Fact]
+    public async Task La_objecion_a_un_subencargado_ya_activo_apaga_la_IA_desde_ese_momento()
+    {
+        var subencargado = Avisado(admiteExclusion: true);
+        subencargado.Activar(Inicio.AddDays(30), 0, ActorPlataforma);
+        var tenant = TenantPropietario();
+        var instrucciones = new InstruccionTratamientoIaTenantPropietarioRepositoryFalso();
+        instrucciones.Agregar(new InstruccionTratamientoIaTenantPropietario(
+            "v1", "v1", Inicio, OrigenInstruccionTratamientoIa.AltaManualPlataforma, ActorPlataforma));
+        var gate = new InstruccionTratamientoIaService(instrucciones, _repositorio);
+        (await gate.EstaHabilitadaAsync(tenant)).Should().BeTrue("control: antes de objetar, la IA está habilitada");
+
+        (await Objetor(new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", tenant), tenant)
+            .Handle(new ObjetarSubencargadoCommand(subencargado.Id, "No queremos IA"), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        (await gate.EstaHabilitadaAsync(tenant)).Should().BeFalse();
+        instrucciones.Filas.Should().OnlyContain(i => i.RevocadaEnUtc == null);
     }
 
     [Fact]
@@ -439,6 +515,51 @@ public class SubencargadosD7Tests
         subencargado.Estado.Should().Be(EstadoSubencargado.Retirado);
         (await handler.Handle(new RetirarSubencargadoCommand(subencargado.Id, "Otra vez"), CancellationToken.None))
             .Error.Codigo.Should().Be("Subencargado.YaRetirado");
+    }
+
+    public static TheoryData<string> RechazosDeActorDePlataforma() =>
+        new() { "acotada", "sesion", "sin concesion", "sin doble factor", "sin totp" };
+
+    private (ICurrentUserService Usuario, IAutorizacionAdminPlataforma Autorizacion, SesionPrivilegiadaActiva? Sesion, string Codigo) Rechazo(string caso) =>
+        caso switch
+        {
+            "acotada" => (ActorConDobleFactor(), AutorizacionAdminPlataformaFalsa.AcotadaA(TenantA, TenantB), null, "Subencargado.SoloActorDePlataforma"),
+            "sesion" => (ActorConDobleFactor(), AutorizacionAdminPlataformaFalsa.Global(), Sesion(CapacidadPrivilegio.AdminPlataforma), "Subencargado.SoloActorDePlataforma"),
+            "sin concesion" => (ActorConDobleFactor(), AutorizacionAdminPlataformaFalsa.SinNada(), null, "Subencargado.SoloActorDePlataforma"),
+            "sin doble factor" => (new CurrentUserServiceFalso(ActorPlataforma, "Administrador", tieneDobleFactorActivo: false),
+                AutorizacionAdminPlataformaFalsa.Global(), null, "Subencargado.SinDobleFactor"),
+            _ => (new CurrentUserServiceFalso(ActorPlataforma, "Administrador", superoTotp: false),
+                AutorizacionAdminPlataformaFalsa.Global(), null, "Subencargado.TotpNoVerificado"),
+        };
+
+    [Theory]
+    [MemberData(nameof(RechazosDeActorDePlataforma))]
+    public async Task Proponer_lo_niega_fuera_del_Actor_de_Plataforma_TALVEG_global_con_segundo_factor(string caso)
+    {
+        var (usuario, autorizacion, sesion, codigo) = Rechazo(caso);
+        var handler = new ProponerSubencargadoCommandHandler(usuario, new SesionFalsa(sesion), autorizacion, _repositorio, _repositorio, _reloj);
+
+        var resultado = await handler.Handle(
+            new ProponerSubencargadoCommand("Proveedor", "Finalidad", "UE", true, ConmutadorExclusionSubencargado.Ia), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(codigo, caso);
+        _repositorio.Subencargados.Should().BeEmpty();
+        _repositorio.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
+    [MemberData(nameof(RechazosDeActorDePlataforma))]
+    public async Task Retirar_lo_niega_fuera_del_Actor_de_Plataforma_TALVEG_global_con_segundo_factor(string caso)
+    {
+        var subencargado = Avisado();
+        var (usuario, autorizacion, sesion, codigo) = Rechazo(caso);
+        var handler = new RetirarSubencargadoCommandHandler(usuario, new SesionFalsa(sesion), autorizacion, _repositorio, _repositorio, _reloj);
+
+        var resultado = await handler.Handle(new RetirarSubencargadoCommand(subencargado.Id, "Sustituido"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(codigo, caso);
+        subencargado.Estado.Should().Be(EstadoSubencargado.Avisado);
+        _repositorio.VecesGuardado.Should().Be(0);
     }
 
     // ---------- Dobles ----------

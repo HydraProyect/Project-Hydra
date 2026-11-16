@@ -53,7 +53,7 @@ public class SubencargadoRepository(CaeManagerDbContext dbContext) : ISubencarga
             o => o.TenantId == tenantId
                  && o.Efecto == EfectoObjecionSubencargado.ExcluidoParaElTenant
                  && o.Conmutador == conmutador
-                 && dbContext.Subencargados.Any(s => s.Id == o.SubencargadoId && s.Estado != EstadoSubencargado.Retirado),
+                 && dbContext.Subencargados.Any(s => s.Id == o.SubencargadoId && s.Estado == EstadoSubencargado.Activo),
             cancellationToken);
 
     public bool HayTransaccionAbierta =>

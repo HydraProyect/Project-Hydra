@@ -40,8 +40,10 @@ public interface ISubencargadoRepository
     void AgregarObjecion(ObjecionSubencargado objecion);
 
     /// <summary>
-    /// Si el Tenant propietario objetó un subencargado no retirado que se excluye por ese conmutador: entonces ese
-    /// Tenant no lo usa. Lee en el Tenant actual, como la instrucción de tratamiento con la que se combina.
+    /// Si el Tenant propietario objetó un subencargado <see cref="EstadoSubencargado.Activo"/> que se excluye por ese
+    /// conmutador: entonces ese Tenant deja de usarlo (D-7). Antes de activarse ese Tenant todavía no lo usa, y una
+    /// vez retirado ya no lo usa nadie, así que en ninguno de los dos casos la objeción apaga nada. Lee en el Tenant
+    /// actual, como la instrucción de tratamiento con la que se combina.
     /// </summary>
     Task<bool> ExcluyeConmutadorAsync(Guid tenantId, ConmutadorExclusionSubencargado conmutador, CancellationToken cancellationToken = default);
 

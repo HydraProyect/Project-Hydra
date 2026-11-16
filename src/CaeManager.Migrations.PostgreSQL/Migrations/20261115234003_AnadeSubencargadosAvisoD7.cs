@@ -126,8 +126,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // salida y constancia de solo inserción; el REVOKE quita lo que ALTER DEFAULT PRIVILEGES concede a
             // toda tabla nueva). Las políticas restrictivas atan cada alta a quien la puede hacer: el aviso, a un
             // Actor de Plataforma TALVEG con concesión global que firma con su propia identidad; la objeción, al
-            // Administrador de ese Tenant propietario, también con su propia identidad. Sin nada para
-            // cae_app_soporte ni cae_app_aprovisionamiento: no lo necesitan para atender ni para dar de alta.
+            // Administrador de ese Tenant propietario, también con su propia identidad.
+            //
+            // cae_app_soporte lee Subencargados y ObjecionesSubencargado, y nada más: es lo que consulta el gate de
+            // la IA (InstruccionTratamientoIaService), que también corre dentro de una Sesión Privilegiada de
+            // Soporte TALVEG, y es el mismo SELECT que la línea base le concede sobre
+            // InstruccionesTratamientoIaTenantPropietario. Sin él, el gate lanzaría 42501 en vez de responder. La
+            // RLS de la objeción sigue siendo la del Tenant del contexto. Los avisos no los lee el gate: ni Soporte
+            // TALVEG ni cae_app_aprovisionamiento tienen nada sobre ellos, ni aprovisionamiento sobre las otras dos.
             migrationBuilder.Sql("""
                 ALTER TABLE public."Subencargados" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."Subencargados" FORCE ROW LEVEL SECURITY;
@@ -140,6 +146,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     WITH CHECK ((SELECT public.app_es_admin_plataforma_global((SELECT public.app_ctx_usuario_id()))));
                 REVOKE ALL ON TABLE public."Subencargados" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT SELECT, INSERT, UPDATE ON TABLE public."Subencargados" TO cae_app_runtime;
+                GRANT SELECT ON TABLE public."Subencargados" TO cae_app_soporte;
 
                 ALTER TABLE public."AvisosCambioSubencargado" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."AvisosCambioSubencargado" FORCE ROW LEVEL SECURITY;
@@ -164,6 +171,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                                 AND "UsuarioId" = (SELECT public.app_ctx_usuario_id()));
                 REVOKE ALL ON TABLE public."ObjecionesSubencargado" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT SELECT, INSERT ON TABLE public."ObjecionesSubencargado" TO cae_app_runtime;
+                GRANT SELECT ON TABLE public."ObjecionesSubencargado" TO cae_app_soporte;
                 """);
         }
 

@@ -77,7 +77,6 @@ public class AvisarCambioSubencargadoCommandHandler(
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        var cuerpo = Cuerpo(subencargado);
         int avisados = 0, yaAvisados = 0, sinConfirmar = 0, sinDestinatario = 0;
         foreach (var tenantId in await repositorio.TenantsPropietariosActivosAsync(cancellationToken))
         {
@@ -97,6 +96,9 @@ public class AvisarCambioSubencargadoCommandHandler(
                 continue;
             }
 
+            // La fecha que se promete a este Tenant es la suya: la activación exige un aviso Enviado suyo de hace al
+            // menos el plazo, y ese aviso se registra después de este instante, así que no puede activarse antes.
+            var cuerpo = Cuerpo(subencargado, FechaMinimaParaEsteTenant(subencargado, Ahora()));
             var algunoEnviado = false;
             foreach (var administrador in administradores)
                 algunoEnviado |= await EnviarAsync(subencargado.Id, administrador, cuerpo, actor.Valor, cancellationToken);
@@ -122,7 +124,9 @@ public class AvisarCambioSubencargadoCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // 2. El envío, sin cancelación: con la preparación ya confirmada, cortarlo a medias solo dejaría más envíos de
-        //    resultado incierto.
+        //    resultado incierto. Pie Transaccional, como el acuse de la aceptación contractual: no hay un
+        //    TipoAvisoCorreo para avisos contractuales o de servicio, y los otros pies dicen algo falso aquí
+        //    (Seguridad: «si no has sido tú»; Informativo: «por tu responsabilidad de coordinación»).
         var envio = await correo.EnviarAsync(destinatario.Email, Asunto, cuerpo, TipoAvisoCorreo.Transaccional, cancellationToken: CancellationToken.None);
 
         // 3. El resultado. Si este guardado falla, el envío se queda en Preparado: incierto, no afirmado, y no cuenta
@@ -136,20 +140,31 @@ public class AvisarCambioSubencargadoCommandHandler(
     private DateTime Ahora() => reloj.GetUtcNow().UtcDateTime;
 
     /// <summary>
-    /// Texto neutro y factual, sin contenido contractual: nombre, finalidad, ubicación, fecha mínima de activación y
-    /// cómo objetar.
+    /// La fecha antes de la cual no se activa el subencargado, para un Tenant al que se avisa en
+    /// <paramref name="avisoUtc"/>: su aviso más el plazo, y nunca antes de la fecha mínima del subencargado.
     /// </summary>
-    internal static string Cuerpo(Subencargado subencargado)
+    internal static DateTime FechaMinimaParaEsteTenant(Subencargado subencargado, DateTime avisoUtc)
+    {
+        var propia = avisoUtc + Subencargado.PlazoMinimoAviso;
+        return subencargado.FechaMinimaActivacionUtc is { } global && global > propia ? global : propia;
+    }
+
+    /// <summary>
+    /// Texto neutro y factual, sin contenido contractual: nombre, finalidad, ubicación, la fecha mínima de activación
+    /// para ese Tenant y cómo objetar. Hoy no hay pantalla ni endpoint para objetar, así que el canal que se ofrece es
+    /// la respuesta a este correo.
+    /// </summary>
+    internal static string Cuerpo(Subencargado subencargado, DateTime fechaMinimaUtc)
     {
         var espanol = CultureInfo.GetCultureInfo("es-ES");
-        var fechaMinima = subencargado.FechaMinimaActivacionUtc!.Value.EnHoraPeninsular().ToString("dd/MM/yyyy", espanol);
+        var fechaMinima = fechaMinimaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy", espanol);
         var html = new StringBuilder();
         html.Append("<p>TALVEG va a incorporar un subencargado nuevo del tratamiento.</p>");
         html.Append("<p>Nombre: ").Append(Html(subencargado.Nombre))
             .Append("<br>Finalidad: ").Append(Html(subencargado.Finalidad))
             .Append("<br>Ubicación y transferencia: ").Append(Html(subencargado.UbicacionYTransferencia))
             .Append("<br>No se activará antes del ").Append(Html(fechaMinima)).Append(".</p>");
-        html.Append("<p>El Administrador de tu organización puede registrar una objeción desde TALVEG antes de esa fecha o después. ");
+        html.Append("<p>El Administrador de tu organización puede objetar respondiendo a este correo, antes de esa fecha o después. ");
         html.Append(subencargado.AdmiteExclusionPorTenant
             ? "Si objetas, tu organización dejará de usar este subencargado; las demás seguirán usándolo.</p>"
             : "Este subencargado no se puede excluir para una sola organización: si objetas, quedará constancia de tu objeción.</p>");
