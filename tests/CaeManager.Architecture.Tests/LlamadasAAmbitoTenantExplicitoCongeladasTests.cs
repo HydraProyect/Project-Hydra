@@ -267,7 +267,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
         ["src/CaeManager.Infrastructure/Comunicaciones/ContextoOperativoConversacionService.cs"] =
-            new(Categoria.DelegacionOClienteYaValidado, "Operador CAE de la Asignación de Operación vigente, validada bajo el Tenant propietario activo; solo avisos genéricos y sin contenido CAE"),
+            new(Categoria.DelegacionOClienteYaValidado, "Operador CAE de la Asignación de Operación vigente, validada bajo el Tenant propietario; solo avisos genéricos y sin contenido CAE"),
         ["src/CaeManager.Infrastructure/Comunicaciones/AvisosConversacionesCriticasHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "Enumeración propia de Tenants, un ámbito y scopes separados por conversación para reintentar avisos pendientes"),
         // ── DELEGACIÓN O CLIENTE YA VALIDADO (Application) ──────────────────────────
@@ -508,11 +508,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "request.TenantPropietarioId, mismo criterio que Registrar — lectura cruzada, no solo escritura"),
         ["src/CaeManager.Application/Cumplimiento/Subencargados/AvisarCambioSubencargadoCommand.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion,
-                "cada Tenant propietario activo que devuelve ISubencargadoRepository.TenantsPropietariosActivosAsync, tras " +
+                "cada Tenant propietario que devuelve ISubencargadoRepository.TenantsPropietariosAsync, tras " +
                 "AutorizacionSubencargados.ActorDePlataformaAsync confirmar AdminPlataforma global, 2FA y TOTP (#2010, D-7)"),
         ["src/CaeManager.Application/Cumplimiento/Subencargados/ActivarSubencargadoCommand.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion,
-                "cada Tenant propietario activo, mismo criterio que Avisar; solo lee si tiene aviso Enviado con plazo (#2010, D-7)"),
+                "cada Tenant propietario, mismo criterio que Avisar; solo lee si tiene aviso Enviado con plazo (#2010, D-7)"),
 
         // ── TENANT DE ORIGEN DEL USUARIO (Application) ──────────────────────────────
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] =

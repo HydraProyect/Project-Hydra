@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Cumplimiento;
 
 /// <summary>
-/// #2010, D-7: aviso de un subencargado nuevo a todos los Tenants propietarios activos, activación solo con aviso
+/// #2010, D-7: aviso de un subencargado nuevo a todos los Tenants propietarios, activación solo con aviso
 /// Enviado de hace al menos 30 días en cada uno, y objeción solo del Administrador del Tenant propietario, con su
 /// efecto en la IA. El aislamiento real por Tenant (RLS, WITH CHECK, sin UPDATE ni DELETE) lo prueba la suite de
 /// integración en CI (<c>SubencargadosBajoRlsTests</c>).
@@ -86,7 +86,7 @@ public class SubencargadosD7Tests
         var resultado = await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Subencargado.NoActivable");
-        resultado.Error.Mensaje.Should().Contain("Un Tenant propietario activo no tiene un aviso enviado");
+        resultado.Error.Mensaje.Should().Contain("Un Tenant propietario no tiene un aviso enviado");
         subencargado.Estado.Should().Be(EstadoSubencargado.Avisado);
         _repositorio.VecesGuardado.Should().Be(0);
     }
@@ -116,12 +116,12 @@ public class SubencargadosD7Tests
         var resultado = await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Subencargado.NoActivable");
-        resultado.Error.Mensaje.Should().Contain("30 días").And.Contain(Inicio.AddDays(30).ToString("dd/MM/yyyy"));
+        resultado.Error.Mensaje.Should().Contain("30 días").And.Contain(Inicio.AddDays(30).ToString("dd'/'MM'/'yyyy", System.Globalization.CultureInfo.InvariantCulture));
         subencargado.Estado.Should().Be(EstadoSubencargado.Avisado);
     }
 
     [Fact]
-    public async Task Sin_Tenants_propietarios_activos_se_activa_al_vencer_el_plazo()
+    public async Task Sin_Tenants_propietarios_se_activa_al_vencer_el_plazo()
     {
         var subencargado = Avisado();
         _repositorio.TenantsActivos.Clear();
@@ -208,7 +208,7 @@ public class SubencargadosD7Tests
         _repositorio.Avisos.Count(a => a.TenantId == TenantB).Should().Be(4, "dos Administradores, dos fases cada uno");
         _repositorio.Avisos.Should().OnlyContain(a => a.Aviso.AvisadoPorUsuarioId == ActorPlataforma);
         correo.Enviados.Should().OnlyContain(e => e.Cuerpo.Contains("Proveedor de IA") && e.Cuerpo.Contains("16/12/2026"));
-        correo.Enviados.Should().OnlyContain(e => e.Cuerpo.Contains("respondiendo a este correo") && !e.Cuerpo.Contains("desde TALVEG"),
+        correo.Enviados.Should().OnlyContain(e => e.Cuerpo.Contains("puede objetar") && !e.Cuerpo.Contains("respondiendo") && !e.Cuerpo.Contains("desde TALVEG"),
             "no hay pantalla ni endpoint para objetar: el correo no promete un canal que no existe");
     }
 
@@ -353,6 +353,13 @@ public class SubencargadosD7Tests
         (await gate.EstaHabilitadaAsync(tenant)).Should().BeFalse("activo, el Tenant que objetó deja de usar la IA");
         (await gate.EstaHabilitadaAsync(otroTenant)).Should().BeTrue("la objeción no frena el subencargado para los demás");
         instrucciones.Filas.Should().OnlyContain(i => i.RevocadaEnUtc == null, "la objeción excluye, no revoca la instrucción concedida");
+        (await gate.TieneInstruccionVigenteAsync(tenant)).Should().BeTrue("la instrucción sigue vigente: solo la IA está apagada");
+        (await new CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQueryHandler(
+                gate, new TenantActualFalso(tenant))
+            .Handle(new CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQuery(), CancellationToken.None))
+            .Should().Be(new CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.EstadoTratamientoIaActualDto(
+                InstruccionVigente: true, IaExcluidaPorObjecion: true),
+                "la pantalla no debe decir «sin instrucción vigente» cuando la causa es la objeción");
 
         subencargado.Retirar("Se sustituye el proveedor", Inicio.AddDays(40));
         (await gate.EstaHabilitadaAsync(tenant)).Should().BeTrue("retirado el subencargado, su exclusión ya no aplica");

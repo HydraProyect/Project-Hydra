@@ -40,7 +40,7 @@ public sealed class SubencargadoRepositoryFalso : ISubencargadoRepository, IUnit
     public Task<Subencargado?> ObtenerAsync(Guid subencargadoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Subencargados.GetValueOrDefault(subencargadoId));
 
-    public Task<IReadOnlyList<Guid>> TenantsPropietariosActivosAsync(CancellationToken cancellationToken = default) =>
+    public Task<IReadOnlyList<Guid>> TenantsPropietariosAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Guid>>([.. TenantsActivos]);
 
     public Task<bool> TieneAvisoProbadoAsync(Guid subencargadoId, DateTime? enviadoComoTardeEnUtc, CancellationToken cancellationToken = default)

@@ -10,7 +10,7 @@ namespace CaeManager.Application.Cumplimiento.Subencargados;
 
 /// <summary>
 /// Activa un subencargado avisado (#2010, D-7). Falla, y el error dice por qué, si no han pasado
-/// <see cref="Subencargado.PlazoMinimoAviso"/> desde el aviso o si algún Tenant propietario activo no tiene un aviso
+/// <see cref="Subencargado.PlazoMinimoAviso"/> desde el aviso o si algún Tenant propietario no tiene un aviso
 /// <see cref="FaseAvisoCambioSubencargado.Enviado"/> de hace al menos ese plazo: un envío Preparado o NoConfirmado no
 /// cuenta. Cada Tenant se comprueba en su propio ámbito, con su filtro y su RLS: ninguna lectura cruza Tenants.
 /// </summary>
@@ -45,9 +45,9 @@ public class ActivarSubencargadoCommandHandler(
         var enviadoComoTarde = ahoraUtc - Subencargado.PlazoMinimoAviso;
         var sinAvisoProbado = 0;
 
-        // shortcut: una consulta por Tenant propietario activo; vale mientras haya decenas de Tenants. Cuando sean
+        // shortcut: una consulta por Tenant propietario; vale mientras haya decenas de Tenants. Cuando sean
         // cientos, una función de solo lectura acotada al Actor de Plataforma TALVEG que devuelva los Tenants sin aviso.
-        foreach (var tenantId in await repositorio.TenantsPropietariosActivosAsync(cancellationToken))
+        foreach (var tenantId in await repositorio.TenantsPropietariosAsync(cancellationToken))
         {
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
             if (!await repositorio.TieneAvisoProbadoAsync(subencargado.Id, enviadoComoTarde, cancellationToken))

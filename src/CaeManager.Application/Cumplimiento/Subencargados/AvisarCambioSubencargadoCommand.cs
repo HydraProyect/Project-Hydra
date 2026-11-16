@@ -12,7 +12,7 @@ using MediatR;
 namespace CaeManager.Application.Cumplimiento.Subencargados;
 
 /// <summary>
-/// Avisa de un subencargado propuesto a los Administradores de todos los Tenants propietarios activos (#2010, D-7).
+/// Avisa de un subencargado propuesto a los Administradores de todos los Tenants propietarios (#2010, D-7).
 ///
 /// <para>
 /// La primera vez pasa el subencargado a Avisado, lo que fija la fecha mínima de activación (aviso +
@@ -32,7 +32,7 @@ namespace CaeManager.Application.Cumplimiento.Subencargados;
 public record AvisarCambioSubencargadoCommand(Guid SubencargadoId) : ICommand<ResultadoAvisoSubencargado>;
 
 /// <summary>
-/// Recuento por Tenant propietario activo: avisado ahora (al menos un Administrador con envío confirmado), ya avisado
+/// Recuento por Tenant propietario: avisado ahora (al menos un Administrador con envío confirmado), ya avisado
 /// antes, sin confirmar (ningún envío confirmado) y sin destinatario (ningún Administrador con correo).
 /// </summary>
 public sealed record ResultadoAvisoSubencargado(
@@ -78,7 +78,7 @@ public class AvisarCambioSubencargadoCommandHandler(
         }
 
         int avisados = 0, yaAvisados = 0, sinConfirmar = 0, sinDestinatario = 0;
-        foreach (var tenantId in await repositorio.TenantsPropietariosActivosAsync(cancellationToken))
+        foreach (var tenantId in await repositorio.TenantsPropietariosAsync(cancellationToken))
         {
             // Las filas del aviso son del Tenant propietario avisado: se leen y se sellan en su ámbito.
             using var _ = AmbitoTenantExplicito.Establecer(tenantId);
@@ -151,8 +151,11 @@ public class AvisarCambioSubencargadoCommandHandler(
 
     /// <summary>
     /// Texto neutro y factual, sin contenido contractual: nombre, finalidad, ubicación, la fecha mínima de activación
-    /// para ese Tenant y cómo objetar. Hoy no hay pantalla ni endpoint para objetar, así que el canal que se ofrece es
-    /// la respuesta a este correo.
+    /// para ese Tenant y el derecho a objetar con su efecto. No nombra un canal: hoy no hay pantalla ni endpoint de
+    /// <see cref="ObjetarSubencargadoCommand"/>, y responder al correo no registra ninguna objeción (nadie lee esa
+    /// respuesta y lo convierte en una, y el Command no deja hacerlo a un Actor de Plataforma). Ofrecer un canal que
+    /// no tiene efecto sería una promesa falsa. Qué canal se ofrece es una decisión pendiente; hasta entonces este
+    /// Command tampoco tiene punto de entrada en la aplicación.
     /// </summary>
     internal static string Cuerpo(Subencargado subencargado, DateTime fechaMinimaUtc)
     {
@@ -164,7 +167,7 @@ public class AvisarCambioSubencargadoCommandHandler(
             .Append("<br>Finalidad: ").Append(Html(subencargado.Finalidad))
             .Append("<br>Ubicación y transferencia: ").Append(Html(subencargado.UbicacionYTransferencia))
             .Append("<br>No se activará antes del ").Append(Html(fechaMinima)).Append(".</p>");
-        html.Append("<p>El Administrador de tu organización puede objetar respondiendo a este correo, antes de esa fecha o después. ");
+        html.Append("<p>Tu organización puede objetar a este subencargado, antes de esa fecha o después. ");
         html.Append(subencargado.AdmiteExclusionPorTenant
             ? "Si objetas, tu organización dejará de usar este subencargado; las demás seguirán usándolo.</p>"
             : "Este subencargado no se puede excluir para una sola organización: si objetas, quedará constancia de tu objeción.</p>");

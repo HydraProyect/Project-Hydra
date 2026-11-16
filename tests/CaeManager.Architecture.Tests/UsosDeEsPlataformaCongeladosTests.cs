@@ -310,7 +310,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "AutoridadSobreAceptacionContractual.EsAdministradorDelTenantPropietarioAsync"),
         ["src/CaeManager.Infrastructure/Persistence/Repositories/SubencargadoRepository.cs"] =
             new(1, CategoriaUso.Guarda,
-                "excluye el Tenant de Plataforma de los Tenants propietarios activos a los que se avisa y cuyo aviso " +
+                "excluye el Tenant de Plataforma de los Tenants propietarios a los que se avisa y cuyo aviso " +
                 "exige la activación de un subencargado (#2010, D-7); no concede nada"),
         ["src/CaeManager.Application/Comercial/Common/TenantComercialExtensions.cs"] =
             new(1, CategoriaUso.ReglaComercial,

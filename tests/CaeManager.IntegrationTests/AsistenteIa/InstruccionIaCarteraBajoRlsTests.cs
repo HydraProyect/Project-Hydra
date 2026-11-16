@@ -127,6 +127,9 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<IInstruccionTratamientoIaTenantPropietarioRepository>(
             new InstruccionTratamientoIaTenantPropietarioRepository(_runtime));
+        // El gate de la IA también lee las objeciones a subencargados (#2010, D-7).
+        servicios.AddSingleton<CaeManager.Domain.Cumplimiento.Subencargados.ISubencargadoRepository>(
+            new SubencargadoRepository(_runtime));
         servicios.AddSingleton<ICurrentUserService>(usuarioReal);
         _servicios = servicios.BuildServiceProvider();
     }

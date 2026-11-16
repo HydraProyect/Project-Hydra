@@ -32,4 +32,13 @@ namespace CaeManager.Application.Cumplimiento;
 public interface IInstruccionTratamientoIaService
 {
     Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Solo la instrucción, sin la exclusión por objeción: para decirle a quien mira por qué la IA está apagada
+    /// («sin instrucción» frente a «desactivada por tu objeción a un subencargado»). Nunca decide si se llama al
+    /// proveedor: eso es <see cref="EstaHabilitadaAsync"/>. Por defecto coincide con ella, que es lo que hace un
+    /// doble que no modela objeciones.
+    /// </summary>
+    Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+        EstaHabilitadaAsync(tenantId, cancellationToken);
 }

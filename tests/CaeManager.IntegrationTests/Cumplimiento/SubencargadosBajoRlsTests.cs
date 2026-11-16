@@ -26,7 +26,7 @@ namespace CaeManager.IntegrationTests.Cumplimiento;
 /// Administrador de ese Tenant; avisos y objeciones no se reescriben ni se borran, y cada Tenant ve solo
 /// los suyos (también la exclusión que apaga su IA, que solo cuenta con el subencargado activo). Fija además los
 /// predicados reales del repositorio (solo un aviso Enviado prueba el aviso, el límite de fecha es inclusivo,
-/// Tenants propietarios activos = Activo y no Plataforma) y el camino completo Avisar → Activar con los handlers reales.
+/// Tenants propietarios = todos los que no son de Plataforma, en cualquier estado) y el camino completo Avisar → Activar con los handlers reales.
 /// </summary>
 public class SubencargadosBajoRlsTests : IAsyncLifetime
 {
@@ -127,7 +127,8 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             (await new SubencargadoRepository(runtime).ExcluyeConmutadorAsync(_tenantSesion, ConmutadorExclusionSubencargado.Ia)).Should().BeFalse(
                 "la objeción del Tenant ajeno no excluye al de la sesión");
             (await new SubencargadoRepository(runtime).ExcluyeConmutadorAsync(_tenantAjeno, ConmutadorExclusionSubencargado.Ia)).Should().BeFalse(
-                "desde el Tenant de la sesión, la RLS no deja ver la objeción del ajeno aunque se pida por su Id");
+                "desde el Tenant de la sesión no se ve la objeción del ajeno aunque se pida por su Id (aquí actúan el filtro de " +
+                "Tenant y la RLS; que la RLS sola la oculta lo fija el test de lectura con IgnoreQueryFilters)");
         }
 
         await CambiarEstadoComoPropietarioAsync(s => s.Retirar("Se sustituye", DateTime.UtcNow));
@@ -160,7 +161,7 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Los_Tenants_propietarios_activos_son_los_Activos_que_no_son_el_de_Plataforma()
+    public async Task Los_Tenants_propietarios_son_todos_los_que_no_son_el_de_Plataforma_suspendidos_incluidos()
     {
         var suspendido = new Tenant("Tenant propietario suspendido");
         suspendido.Suspender();
@@ -170,10 +171,12 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
 
         await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
-        var activos = await new SubencargadoRepository(runtime).TenantsPropietariosActivosAsync();
+        var propietarios = await new SubencargadoRepository(runtime).TenantsPropietariosAsync();
 
-        activos.Should().Contain([_tenantSesion, _tenantAjeno]);
-        activos.Should().NotContain(suspendido.Id).And.NotContain(plataforma.Id);
+        propietarios.Should().Contain([_tenantSesion, _tenantAjeno]);
+        propietarios.Should().Contain(suspendido.Id,
+            "un Tenant suspendido se puede reactivar y su IA usaría el subencargado sin haber tenido sus 30 días de aviso");
+        propietarios.Should().NotContain(plataforma.Id);
         await using var limpio = CrearPropietarioLimpio();
         (await limpio.Tenants.AsNoTracking().CountAsync(t => t.Id == suspendido.Id || t.Id == plataforma.Id))
             .Should().Be(2, "control del instrumento: los dos existen");
@@ -182,10 +185,10 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Avisar_y_activar_con_los_handlers_reales_bajo_RLS_deja_el_subencargado_activo()
     {
-        // Cada Tenant propietario activo de la base (los del fixture y los que siembren las migraciones) con un
+        // Cada Tenant propietario de la base (los del fixture y los que siembren las migraciones) con un
         // Administrador con correo: si alguno se quedara sin aviso, la activación lo detectaría y fallaría.
         var activos = await _propietario.Tenants.AsNoTracking()
-            .Where(t => t.Estado == EstadoTenant.Activo && !t.EsPlataforma).Select(t => t.Id).ToListAsync();
+            .Where(t => !t.EsPlataforma).Select(t => t.Id).ToListAsync();
         foreach (var tenantId in activos)
             await AdministradorAsync(tenantId);
 

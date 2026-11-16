@@ -72,8 +72,8 @@ public class SubencargadoTests
     }
 
     [Theory]
-    [InlineData(1, "Un Tenant propietario activo")]
-    [InlineData(3, "3 Tenants propietarios activos")]
+    [InlineData(1, "Un Tenant propietario")]
+    [InlineData(3, "3 Tenants propietarios")]
     public void Con_algun_Tenant_sin_aviso_probado_no_se_activa_aunque_haya_vencido_el_plazo(int sinAviso, string texto)
     {
         var subencargado = Nuevo();

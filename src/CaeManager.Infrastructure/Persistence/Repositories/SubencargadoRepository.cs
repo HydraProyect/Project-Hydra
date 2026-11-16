@@ -1,5 +1,4 @@
 using CaeManager.Domain.Cumplimiento.Subencargados;
-using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Seguridad;
 using Microsoft.EntityFrameworkCore;
@@ -18,9 +17,9 @@ public class SubencargadoRepository(CaeManagerDbContext dbContext) : ISubencarga
     public Task<Subencargado?> ObtenerAsync(Guid subencargadoId, CancellationToken cancellationToken = default) =>
         dbContext.Subencargados.FirstOrDefaultAsync(s => s.Id == subencargadoId, cancellationToken);
 
-    public async Task<IReadOnlyList<Guid>> TenantsPropietariosActivosAsync(CancellationToken cancellationToken = default) =>
+    public async Task<IReadOnlyList<Guid>> TenantsPropietariosAsync(CancellationToken cancellationToken = default) =>
         await dbContext.Tenants.AsNoTracking()
-            .Where(t => t.Estado == EstadoTenant.Activo && !t.EsPlataforma)
+            .Where(t => !t.EsPlataforma)
             .OrderBy(t => t.Id)
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);

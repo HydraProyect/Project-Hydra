@@ -14,10 +14,11 @@ public interface ISubencargadoRepository
     Task<Subencargado?> ObtenerAsync(Guid subencargadoId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Los Tenants propietarios activos a los que hay que avisar: <c>Estado = Activo</c> y que no sean el Tenant de
-    /// Plataforma. La suspensión comercial no los excluye (es un eje aparte del estado del Tenant).
+    /// Los Tenants propietarios a los que hay que avisar: todos los que no son el Tenant de Plataforma, en cualquier
+    /// estado. Un Tenant suspendido también: si se reactiva después de la activación, su IA usaría el subencargado
+    /// sin haber tenido sus 30 días de aviso. La suspensión comercial tampoco los excluye.
     /// </summary>
-    Task<IReadOnlyList<Guid>> TenantsPropietariosActivosAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Guid>> TenantsPropietariosAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Si el Tenant actual tiene un aviso <see cref="FaseAvisoCambioSubencargado.Enviado"/> de ese subencargado,

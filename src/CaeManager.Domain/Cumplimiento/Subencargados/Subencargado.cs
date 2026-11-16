@@ -10,7 +10,7 @@ namespace CaeManager.Domain.Cumplimiento.Subencargados;
 /// Ciclo de vida: <see cref="EstadoSubencargado.Propuesto"/> → <see cref="EstadoSubencargado.Avisado"/> (se ha
 /// empezado a avisar a los Tenants propietarios) → <see cref="EstadoSubencargado.Activo"/> → <see
 /// cref="EstadoSubencargado.Retirado"/>. Un subencargado no se activa sin aviso probado (un envío
-/// <see cref="FaseAvisoCambioSubencargado.Enviado"/>) a todos los Tenants propietarios activos y sin que haya pasado
+/// <see cref="FaseAvisoCambioSubencargado.Enviado"/>) a todos los Tenants propietarios y sin que haya pasado
 /// <see cref="PlazoMinimoAviso"/> desde cada uno de esos avisos (lo comprueba <see cref="MotivoParaNoActivar"/>).
 /// </para>
 ///
@@ -119,7 +119,7 @@ public class Subencargado : Entity, IVersionable
 
     /// <summary>
     /// Null si se puede activar ahora; si no, por qué. <paramref name="tenantsSinAvisoProbadoConPlazo"/> son los
-    /// Tenants propietarios activos que no tienen un aviso Enviado de hace al menos <see cref="PlazoMinimoAviso"/>.
+    /// Tenants propietarios que no tienen un aviso Enviado de hace al menos <see cref="PlazoMinimoAviso"/>.
     /// </summary>
     public string? MotivoParaNoActivar(DateTime ahoraUtc, int tenantsSinAvisoProbadoConPlazo)
     {
@@ -134,8 +134,8 @@ public class Subencargado : Entity, IVersionable
             throw new ArgumentOutOfRangeException(nameof(tenantsSinAvisoProbadoConPlazo));
         if (tenantsSinAvisoProbadoConPlazo > 0)
             return tenantsSinAvisoProbadoConPlazo == 1
-                ? $"Un Tenant propietario activo no tiene un aviso enviado de hace al menos {PlazoMinimoAviso.Days} días."
-                : $"{tenantsSinAvisoProbadoConPlazo} Tenants propietarios activos no tienen un aviso enviado de hace al menos {PlazoMinimoAviso.Days} días.";
+                ? $"Un Tenant propietario no tiene un aviso enviado de hace al menos {PlazoMinimoAviso.Days} días."
+                : $"{tenantsSinAvisoProbadoConPlazo} Tenants propietarios no tienen un aviso enviado de hace al menos {PlazoMinimoAviso.Days} días.";
         return null;
     }
 

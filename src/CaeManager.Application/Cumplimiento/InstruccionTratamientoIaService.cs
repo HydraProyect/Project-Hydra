@@ -17,6 +17,9 @@ public class InstruccionTratamientoIaService(
     : IInstruccionTratamientoIaService
 {
     public async Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
-        await repositorio.ObtenerVigenteAsync(tenantId, cancellationToken) is not null
+        await TieneInstruccionVigenteAsync(tenantId, cancellationToken)
         && !await subencargados.ExcluyeConmutadorAsync(tenantId, ConmutadorExclusionSubencargado.Ia, cancellationToken);
+
+    public async Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+        await repositorio.ObtenerVigenteAsync(tenantId, cancellationToken) is not null;
 }
