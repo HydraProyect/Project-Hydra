@@ -71,7 +71,7 @@ public static class Ayudas
         catch (PlaywrightException ex)
         {
             throw new InvalidOperationException(
-                $"El campo de fecha no muestra {fecha:dd/MM/yyyy} tras rellenarlo. {await DiagnosticoFechaAsync(campo)}", ex);
+                $"El campo de fecha no muestra {fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)} tras rellenarlo. {await DiagnosticoFechaAsync(campo)}", ex);
         }
     }
 
@@ -90,14 +90,17 @@ public static class Ayudas
                     const activo = document.activeElement;
                     const foco = !activo ? 'ninguno'
                         : activo === el ? 'en el propio campo'
-                        : `${activo.tagName.toLowerCase()}#${activo.id || '-'}.${(activo.className || '').toString().trim().replace(/\s+/g, '.')}`
+                        : `${activo.tagName.toLowerCase()}#${activo.id || '-'}.${(activo.getAttribute('class') || '').trim().replace(/\s+/g, '.')}`
                           + ` [role=${activo.getAttribute('role') || '-'}, aria-label=${activo.getAttribute('aria-label') || '-'}]`;
                     const ahora = new Date();
                     const local = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
                     return `Campo: valor «${el.value}». Foco: ${foco}. Navegador: huso ${Intl.DateTimeFormat().resolvedOptions().timeZone}, `
                         + `fecha local ${local}, UTC ${ahora.toISOString()}.`;
                 }
-                """);
+                """,
+                null,
+                // Corto: si el campo ya no está (drawer cerrado, campo recreado), el fallo original no espera 30 s más.
+                new LocatorEvaluateOptions { Timeout = 2_000 });
             return $"{navegador} {test}";
         }
         catch (PlaywrightException diagnostico)
