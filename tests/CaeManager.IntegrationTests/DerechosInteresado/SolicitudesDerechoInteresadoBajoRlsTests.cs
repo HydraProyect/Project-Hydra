@@ -193,6 +193,42 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_auditoria_de_la_denegacion_lleva_su_accion_el_actor_real_y_enmascara_el_motivo()
+    {
+        const string MotivoDenegacion = "Motivo-de-denegacion-reconocible";
+        var auditoria = new AuditoriaInterceptor(new ActorAuditoriaFijo(ActorAuditoria.Normal(_usuarioId)));
+        Guid id;
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var solicitud = Solicitud();
+            runtime.SolicitudesDerechoInteresado.Add(solicitud);
+            await runtime.SaveChangesAsync();
+            id = solicitud.Id;
+        }
+
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var solicitud = await new SolicitudDerechoInteresadoRepository(runtime).ObtenerPorIdAsync(id, default);
+            solicitud!.Denegar(MotivoDenegacion, _usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+
+        var registros = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == id)
+            .ToListAsync();
+
+        registros.Select(r => r.Accion).Should().BeEquivalentTo(
+            ["Creado", RegistroAuditoria.AccionSolicitudDenegada],
+            "la denegación deja su propia acción");
+        registros.Should().AllSatisfy(r => r.ActorRealUsuarioId.Should().Be(_usuarioId));
+        var denegacion = registros.Single(r => r.Accion == RegistroAuditoria.AccionSolicitudDenegada);
+        denegacion.DatosDespues.Should().Contain("MotivoDenegacion",
+            "control positivo: el motivo está en lo que cambió, enmascarado");
+        var textos = string.Join("\n", registros.Select(r => (r.DatosAntes ?? string.Empty) + (r.DatosDespues ?? string.Empty)));
+        textos.Should().NotContain(MotivoDenegacion);
+    }
+
+    [Fact]
     public async Task No_hay_dos_concesiones_vigentes_de_la_misma_cuenta_y_capacidad()
     {
         var beneficiario = Guid.NewGuid();
