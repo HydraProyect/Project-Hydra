@@ -7,8 +7,10 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura;
 /// Quién concede, cambia, revoca y lee las autorizaciones de lectura documental del Tenant de la Empresa contratista.
 ///
 /// <para>
-/// <b>Solo rol efectivo Administrador en el Tenant activo</b>, y falla cerrado. DN-2 (quién concede) sigue abierta:
-/// esto no es «solo el Administrador miembro del Tenant propietario», porque el rol efectivo Administrador incluye
+/// <b>Solo rol efectivo Administrador en el Tenant activo</b>, y falla cerrado. Antes, los handlers pasan por la capacidad
+/// ParticipanteTec de <c>IAutorizacionInbound</c> (B-03), que aplica DN-2: el Administrador del Tenant TEC, en su propio
+/// Tenant o como Operador CAE externo que lo opera en Outbound, nunca con papel Inbound ni sin papel. Esto no es «solo el
+/// Administrador miembro del Tenant propietario», porque el rol efectivo Administrador incluye
 /// también a quien administra por encargo pleno y al Administrador de un Operador CAE externo con Asignación de
 /// Operación (ver abajo). Con encargo no pleno, el área entera queda fuera (<c>ActosExcluidosDelEncargo.AreasExcluidas</c>).
 /// Es el mismo mecanismo que los demás actos solo de Administrador

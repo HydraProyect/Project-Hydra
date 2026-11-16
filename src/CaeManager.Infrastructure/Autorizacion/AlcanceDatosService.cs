@@ -179,6 +179,7 @@ public class AlcanceDatosService(
 
         if (_inicioGeneracion.ContainsKey(tenant)) _generacion++;
         _accesoTotal.Remove(tenant);
+        _servicioDeAlcance.Remove(tenant);
         _alcanceCartera.Remove(tenant);
         _clienteIds.Remove(tenant);
         _centroIds.Remove(tenant);

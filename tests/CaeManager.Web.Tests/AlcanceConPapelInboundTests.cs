@@ -138,6 +138,26 @@ public class AlcanceConPapelInboundTests
         }
     }
 
+    /// <summary>
+    /// Un «sin alcance» memoizado (una operación que dejó de autorizar un instante) no dura más que la generación: pasada la
+    /// caducidad, con la operación de nuevo vigente, el alcance vuelve (Codex, ronda 2 de B-03).
+    /// </summary>
+    [Fact]
+    public async Task Sin_alcance_memoizado_caduca_con_la_generacion()
+    {
+        await using var contexto = ContextoSinServidor();
+        var usuario = new UsuarioConPapelMutable("Administrador", PapelActivo.OperacionQueYaNoAutoriza);
+        var reloj = new RelojAvanzable();
+        var alcance = new AlcanceDatosService(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce },
+            new SinSesionPrivilegiada(), reloj: reloj);
+
+        (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("control: con la operación que ya no autoriza");
+        usuario.Papel = PapelActivo.Outbound;
+        (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("dentro de la generación sigue lo memoizado");
+
+        reloj.Avanzar(TimeSpan.FromSeconds(61));
+        (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("caducada la generación, el papel se vuelve a leer");
+    }
     [Theory]
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]
@@ -195,6 +215,25 @@ public class AlcanceConPapelInboundTests
         public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
     }
 
+    private sealed class UsuarioConPapelMutable(string rol, PapelActivo papel) : ICurrentUserService
+    {
+        public PapelActivo Papel { get; set; } = papel;
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(Papel);
+    }
+
+    /// <summary>Reloj de marcas de tiempo que solo avanza cuando el test lo pide.</summary>
+    private sealed class RelojAvanzable : TimeProvider
+    {
+        private long _marca = 1_000_000;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _marca;
+        public void Avanzar(TimeSpan cuanto) => _marca += cuanto.Ticks;
+    }
     private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>

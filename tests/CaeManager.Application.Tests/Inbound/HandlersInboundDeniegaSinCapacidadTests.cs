@@ -108,9 +108,8 @@ public class HandlersInboundDeniegaSinCapacidadTests
         var peticion = RuntimeHelpers.GetUninitializedObject(tipoPeticion);
         var handle = interfaz.GetMethod(nameof(IRequestHandler<IRequest<object>, object>.Handle))!;
 
-        var tarea = (Task)handle.Invoke(handler, [peticion, CancellationToken.None])!;
-        await tarea;
-        var respuesta = tarea.GetType().GetProperty(nameof(Task<object>.Result))!.GetValue(tarea);
+        // Todo Handle devuelve Task<T>: se espera con dynamic para leer el resultado sin bloquear.
+        object? respuesta = await (dynamic)handle.Invoke(handler, [peticion, CancellationToken.None])!;
 
         puerta.Pedidas.Should().Equal([Esperada[nombre]], "pide su capacidad, una vez, y ninguna otra");
         EsDenegacion(tipoRespuesta, respuesta).Should().BeTrue($"responde la denegación ({tipoRespuesta.Name})");
