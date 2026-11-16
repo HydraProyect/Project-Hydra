@@ -33,7 +33,7 @@ public record CrearRequisitoPropioCommand(
     IReadOnlyList<string>? Aliases,
     string? Descripcion,
     AtributosRequisito Atributos,
-    Guid Version = default) : ICommand<Guid>;
+    Guid Version = default) : ICommand<Guid>, IComandoInbound;
 
 public class CrearRequisitoPropioCommandValidator : AbstractValidator<CrearRequisitoPropioCommand>
 {
