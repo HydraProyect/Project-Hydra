@@ -43,6 +43,7 @@ public partial class FichaCentroInbound
     private bool _noEncontrado;
     private bool _errorCarga;
     private Guid _idCargado;
+    private bool _hayCarga;
 
     private string _busquedaAptos = string.Empty;
     private string _empresaAptos = string.Empty;
@@ -53,8 +54,9 @@ public partial class FichaCentroInbound
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_idCargado == CentroId)
+        if (_hayCarga && _idCargado == CentroId)
             return;
+        _hayCarga = true;
         _idCargado = CentroId;
         await CargarAsync();
     }

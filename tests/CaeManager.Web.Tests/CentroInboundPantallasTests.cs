@@ -124,7 +124,7 @@ public class CentroInboundPantallasTests : BunitContext
         foreach (var pestana in new[] { "Aptos hoy", "Requisitos del Centro", "Empresas contratistas", "Información del Centro" })
             cut.FindAll("[role=tab]").Should().Contain(t => t.TextContent.Contains(pestana));
         cut.FindAll("[role=tab]").Should().HaveCount(4, "Concurrencia, Coordinación e Incidencias no entran en esta pantalla");
-        cut.Markup.Should().Contain("nunca el motivo");
+        cut.Markup.Should().Contain("nunca su motivo");
         cut.Markup.Should().Contain("Aptos hoy no está disponible");
         cut.FindAll("table").Should().BeEmpty("sin backend no se inventa ninguna fila");
         cut.Find("[data-kpi=aptos]").TextContent.Should().Contain("—");
@@ -209,6 +209,25 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public void El_modelo_de_Aptos_hoy_no_puede_llevar_un_motivo_medico()
+    {
+        var propiedades = typeof(TrabajadorAptoHoy).GetProperties().Select(p => p.Name).ToList();
+
+        propiedades.Should().NotContain(n => n.Contains("Motivo", StringComparison.OrdinalIgnoreCase) || n.Contains("Medic", StringComparison.OrdinalIgnoreCase)
+            || n.Contains("Salud", StringComparison.OrdinalIgnoreCase) || n.Contains("Clinic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Un_contrato_repetido_de_la_misma_Empresa_cuenta_una_vez_en_el_indicador()
+    {
+        Preparar(contratos: [Contrato(), Contrato()]);
+
+        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        cut.Find("[data-kpi=empresas]").TextContent.Should().Contain("1 con contrato activo");
+    }
+
+    [Fact]
     public void Requisitos_del_Centro_sin_backend_dice_que_no_esta_disponible()
     {
         Preparar(contratos: Contrato());
@@ -240,6 +259,7 @@ public class CentroInboundPantallasTests : BunitContext
 
         cut.FindAll("table").Should().BeEmpty();
         cut.FindAll("[role=tab]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("esqueleto-lista");
     }
 
     // ---------------------------------------------------------------- Centros (entrada de menú)

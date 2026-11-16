@@ -69,7 +69,7 @@
             </div>
             <div class="inbound-kpi" data-kpi="empresas">
                 <span class="inbound-kpi-etiqueta">Empresas contratistas</span>
-                <span class="inbound-kpi-valor">@_contratos.Count(c => c.Contrato.Estado == EstadoContratoAcceso.Activo) <small class="cin-de">con contrato activo</small></span>
+                <span class="inbound-kpi-valor">@_contratos.Where(c => c.Contrato.Estado == EstadoContratoAcceso.Activo).Select(c => c.Contrato.EmpresaContratistaId).Distinct().Count() <small class="cin-de">con contrato activo</small></span>
                 <span class="inbound-secundario">@_contratos.Count(c => c.Contrato.Estado == EstadoContratoAcceso.PendienteDeConfirmar) pendiente de confirmar · @_contratos.Count(c => c.Contrato.Estado == EstadoContratoAcceso.Rechazado) rechazado</span>
             </div>
             <div class="inbound-kpi" data-kpi="requisitos">
@@ -122,7 +122,7 @@
     private RenderFragment PanelAptos() => __builder =>
     {
         <div class="cin-panel" data-pieza="aptos-hoy">
-            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas. Calculado a las 07:00 y al validar cada documento. Al imprimir para la portería solo salen nombre, DNI parcial, Empresa contratista y apto o no apto, nunca el motivo.</span></div>
+            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas. Enseña el requisito que bloquea o vence, nunca su motivo.</span></div>
             @if (_aptos is null)
             {
                 <EstadoVacio NombreIcono="vacio" Titulo="Aptos hoy no está disponible"
