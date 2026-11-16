@@ -93,6 +93,12 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private AsignacionLista? _delegacionARevocar;
     private (Guid EntidadId, OperadorDelegadoDto Operador)? _operadorARetirar;
     private AsignacionLista? _verActividadDe;
+
+    /// <summary>
+    /// Sesión Privilegiada cuya actividad se está viendo (issue #2016); excluyente con
+    /// <see cref="_verActividadDe"/>: el cajón enseña una sola visita.
+    /// </summary>
+    private AccesoSoporteTalvegDto? _verActividadDeSesion;
     private IReadOnlyList<ActividadSoporteDto> _actividad = [];
     private bool _cargandoActividad;
     private AsignacionLista? _delegacionSoporteAAbrir;
@@ -582,6 +588,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _operadorARetirar = null;
             _delegacionSoporteAAbrir = null;
             _verActividadDe = null;
+            _verActividadDeSesion = null;
             _actividad = [];
         }
         return _generacionEntidad;
@@ -614,6 +621,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         if (!visible && !_cargandoActividad)
         {
             _verActividadDe = null;
+            _verActividadDeSesion = null;
             _actividad = [];
         }
     }
@@ -675,12 +683,13 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         var generacion = PrepararEntidad(delegacion.Id);
         var token = _cicloCarga.Token;
         _verActividadDe = delegacion;
+        _verActividadDeSesion = null;
         _actividad = [];
         _cargandoActividad = true;
         StateHasChanged();
         try
         {
-            var actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id), token);
+            var actividad = await Mediator.Send(ObtenerActividadSoporteQuery.PorViaHeredada(delegacion.Id), token);
             if (EsEntidadVigente(generacion, delegacion.Id))
             {
                 _actividad = actividad;
@@ -700,6 +709,48 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         finally
         {
             if (EsEntidadVigente(generacion, delegacion.Id))
+            {
+                _cargandoActividad = false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Lecturas de Soporte TALVEG en una Sesión Privilegiada sobre el Tenant propietario
+    /// (issue #2016). Solo se ofrece en la sección de accesos, que solo existe para su
+    /// Administrador; la puerta es el handler, que vuelve a comprobarlo.
+    /// </summary>
+    private async Task VerActividadDeSesionAsync(AccesoSoporteTalvegDto acceso)
+    {
+        var generacion = PrepararEntidad(acceso.SesionId);
+        var token = _cicloCarga.Token;
+        _verActividadDe = null;
+        _verActividadDeSesion = acceso;
+        _actividad = [];
+        _cargandoActividad = true;
+        StateHasChanged();
+        try
+        {
+            var actividad = await Mediator.Send(ObtenerActividadSoporteQuery.PorSesionPrivilegiada(acceso.SesionId), token);
+            if (EsEntidadVigente(generacion, acceso.SesionId))
+            {
+                _actividad = actividad;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (EsEntidadVigente(generacion, acceso.SesionId))
+            {
+                Logger.LogError(ex, "Error al cargar la actividad de la Sesión Privilegiada {SesionId}.", acceso.SesionId);
+                ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+            }
+        }
+        finally
+        {
+            if (EsEntidadVigente(generacion, acceso.SesionId))
             {
                 _cargandoActividad = false;
             }

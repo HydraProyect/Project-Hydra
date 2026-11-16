@@ -79,6 +79,9 @@ public partial class DelegacionesGen2Tests : BunitContext
         /// que es lo que recibe quien no es Administrador del Tenant propietario.
         /// </summary>
         public IReadOnlyList<AccesoSoporteTalvegDto>? AccesosSoporteTalveg { get; set; }
+
+        /// <summary>Respuesta de <see cref="ObtenerActividadSoporteQuery"/>; por defecto, ninguna actividad.</summary>
+        public Func<ObtenerActividadSoporteQuery, IReadOnlyList<ActividadSoporteDto>> Actividad { get; set; } = _ => [];
         public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
         public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
 
@@ -113,7 +116,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
                 EsTenantOrigenPlataformaQuery => EsTenantOrigenPlataforma,
                 ObtenerDelegacionesQuery => Delegaciones,
-                ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
+                ObtenerActividadSoporteQuery q => Actividad(q),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
                 RevocarAsignacionOperadorDelegadoCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => ResultadoCreacion,
@@ -957,5 +960,65 @@ public partial class DelegacionesGen2Tests : BunitContext
         filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado")
             .And.Contain("Aprovisionamiento, con escritura", "un acceso que escribe no se presenta como una lectura");
         seccion.TextContent.Should().Contain("Soporte TALVEG");
+    }
+
+    // ── Issue #2016: las lecturas de Soporte TALVEG en cada Sesión Privilegiada ──
+
+    [Fact]
+    public async Task El_Administrador_ve_las_lecturas_de_una_Sesion_Privilegiada_con_cuando_y_que_operacion()
+    {
+        var ahora = DateTime.UtcNow;
+        var sesion = Guid.NewGuid();
+        var lectura = new DateTime(2026, 11, 16, 9, 15, 30, DateTimeKind.Utc);
+        _configurarMediador = m =>
+        {
+            m.AccesosSoporteTalveg =
+            [
+                new AccesoSoporteTalvegDto(sesion, CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", "TCK-42",
+                    ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
+            ];
+            m.Actividad = q => q.SesionPrivilegiadaId == sesion
+                ? [new ActividadSoporteDto(Guid.NewGuid(), null, TipoActividadSoporte.Lectura, "EjecutarImportacionCommand", lectura, sesion)]
+                : [];
+        };
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        await cut.Find(".accesos-soporte-talveg").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Ver actividad registrada").ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas.Select(x => x.Peticion).OfType<ObtenerActividadSoporteQuery>().Should().ContainSingle().Subject;
+        consulta.SesionPrivilegiadaId.Should().Be(sesion);
+        consulta.DelegacionTenantId.Should().BeNull("la visita cuelga de la Sesión Privilegiada, no de una delegación");
+
+        cut.WaitForAssertion(() =>
+        {
+            var cabecera = cut.Find(".delegaciones-actividad-cabecera").TextContent;
+            cabecera.Should().Contain("Soporte TALVEG", "quién: Soporte TALVEG, sin la identidad del técnico")
+                .And.Contain("Revisar importación fallida", "en qué Sesión Privilegiada");
+            var fila = cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle().Subject.TextContent;
+            fila.Should().Contain("Consultó").And.Contain("EjecutarImportacionCommand", "qué operación");
+            fila.Should().Contain(lectura.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm:ss"), "cuándo");
+        });
+    }
+
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_sin_lecturas_lo_dice_en_vez_de_hablar_de_una_delegacion()
+    {
+        var ahora = DateTime.UtcNow;
+        _configurarMediador = m => m.AccesosSoporteTalveg =
+        [
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", null,
+                ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
+        ];
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
+
+        await cut.Find(".accesos-soporte-talveg").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Ver actividad registrada").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("Soporte TALVEG no registró actividad en esta Sesión Privilegiada.");
+            cut.Markup.Should().NotContain("No hay actividad disponible para esta delegación.");
+        });
     }
 }

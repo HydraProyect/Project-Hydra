@@ -66,4 +66,13 @@
   <data name="ActividadLectura" xml:space="preserve">
     <value>Va consultar</value>
   </data>
+  <data name="ColumnaActividad" xml:space="preserve">
+    <value>Activitat</value>
+  </data>
+  <data name="VerActividad" xml:space="preserve">
+    <value>Veure l'activitat registrada</value>
+  </data>
+  <data name="ActividadVacia" xml:space="preserve">
+    <value>Suport TALVEG no va registrar activitat en aquesta Sessió Privilegiada.</value>
+  </data>
 </root>
