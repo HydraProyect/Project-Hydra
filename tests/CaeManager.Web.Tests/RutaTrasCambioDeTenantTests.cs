@@ -32,6 +32,7 @@ public class RutaTrasCambioDeTenantTests
     [InlineData("/empresas/" + Id + "/deteccion-trabajadores", "/empresas")]
     [InlineData("/documentos/tipos/" + Id, "/documentos")]
     [InlineData("/plantillas/" + Id + "/editar", "/plantillas")]
+    [InlineData("/inbound/requerimientos/" + Id + "/subir", "/inbound/requerimientos")]
     [InlineData("/trabajadores/" + Id + "?ctx=Trabajador:" + Id + ":resumen&q=x", "/trabajadores")]
     [InlineData("/TRABAJADORES/" + "11111111-2222-3333-4444-55555555AAAA", "/TRABAJADORES")]
     public void Desde_una_ficha_por_Id_vuelve_a_la_lista_de_ese_arbol(string camino, string lista) =>

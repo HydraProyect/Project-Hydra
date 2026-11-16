@@ -37,6 +37,9 @@ Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja
 BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1
 Calendario.Queries :: ObtenerCapasCalendarioQueryHandler[Calendario.Queries.ObtenerCapasCalendarioQuery] = 1
 Inbound.CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[Inbound.CatalogoBase.Queries.ObtenerCatalogoBaseQuery] = 1
+# B-14: sugiere tipos de documento del catalogo del Tenant TCE (con sus alias) y requisitos activos del catalogo base de
+# Plataforma; ninguno tiene cartera. Solo el lado de gestion (OperaDesdeElLadoDeGestionAsync) recibe sugerencias.
+Inbound.Requisitos.Queries :: BuscarRequisitosParecidosQueryHandler[Inbound.Requisitos.Queries.BuscarRequisitosParecidosQuery] = 1
 Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
