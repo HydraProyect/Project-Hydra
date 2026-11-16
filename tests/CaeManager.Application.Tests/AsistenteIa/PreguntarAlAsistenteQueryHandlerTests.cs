@@ -343,9 +343,13 @@ public class PreguntarAlAsistenteQueryHandlerTests
     }
 
     /// <summary>Nivel 0 (DEC-33/REC-035) — el gate en sí tiene su propia suite (InstruccionTratamientoIaGateTests).</summary>
-    private sealed class InstruccionTratamientoIaFalsa(bool habilitada) : IInstruccionTratamientoIaService
+    private sealed class InstruccionTratamientoIaFalsa(bool habilitada, bool excluidaPorObjecion = false) : IInstruccionTratamientoIaService
     {
-        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(habilitada);
+        public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(habilitada && !excluidaPorObjecion);
+
+        public Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(habilitada);
     }
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
@@ -426,6 +430,20 @@ public class PreguntarAlAsistenteQueryHandlerTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
         resultado.Error.Mensaje.Should().StartWith("Esta organización todavía no tiene").And.NotContainEquivalentOf("tenant");
+    }
+
+    [Fact]
+    public async Task Con_la_IA_desactivada_por_objecion_no_llama_al_servicio_y_dice_la_causa()
+    {
+        // #2010, D-7: la instrucción sigue vigente; lo que apaga la IA es la objeción a un subencargado.
+        var handler = CrearHandler(
+            new AsistenteIaServiceLanzaSiSeInvoca(), new InstruccionTratamientoIaFalsa(habilitada: true, excluidaPorObjecion: true),
+            new TenantActualFalso(TenantId), new CarteraFalsa());
+
+        var resultado = await handler.Handle(new PreguntarAlAsistenteQuery([new(RolMensajeChat.Usuario, "Consulta de prueba")]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        resultado.Error.Mensaje.Should().Contain("al objetar a un subencargado").And.NotContain("todavía no tiene");
     }
 
     [Fact]
