@@ -36,10 +36,18 @@ namespace CaeManager.Architecture.Tests;
 /// con huecos constantes) de <c>src</c> forma una sentencia de transacción, según el valor
 /// constante que calcula Roslyn en el proyecto compilado (#2113);</item>
 /// <item>ninguna rama de <c>#if</c>, <c>#elif</c> o <c>#else</c> de <c>src</c> queda sin tomarse en
-/// Debug, en Release y sin símbolos: lo que solo existe bajo otro símbolo, bajo <c>#if false</c> o
-/// bajo una <c>#else</c> inalcanzable no lo ve ninguno de los análisis anteriores, así que su sola
-/// existencia hace fallar el trinquete (#2113).</item>
+/// Debug ni en Release (las dos configuraciones que compila el análisis semántico): lo que solo
+/// existe bajo otro símbolo, bajo <c>#if false</c>, bajo una <c>#else</c> inalcanzable o bajo
+/// <c>#if !TRACE</c> no lo ve ese análisis, así que su sola existencia hace fallar el trinquete (#2113).</item>
 /// </list>
+///
+/// Límites conocidos: el trinquete es léxico y constante. No ve una transacción cuyo texto se arma
+/// en tiempo de ejecución (<c>string.Concat</c>, <c>string.Join</c>, <c>string.Format</c>, variables
+/// locales, una concatenación con un operando que no es constante), ni en un .razor la concatenación
+/// de constantes nombradas o con huecos (solo une cadenas literales contiguas). En un .razor, una
+/// comilla suelta del marcado en la misma línea que el código puede desalinear la cadena de esa
+/// línea (el recorrido sigue en la comilla siguiente al literal, no desde las interiores); la unión
+/// con la expresión anterior es lo único que lo mitiga, y es un límite que ya existía.
 /// </summary>
 public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
 {
@@ -236,7 +244,9 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     /// </summary>
     private static IEnumerable<int> ConcatenacionesInfractorasEnRazor(string limpio, IReadOnlyList<EscanerDeCadenasEnRazor.Cadena> cadenas)
     {
-        var principales = cadenas.Where(c => !c.EsDeInterior).ToList();
+        // Todas las cadenas, también las que salen de reescanear el interior de una cruda multilínea:
+        // las que se solapan no se unen (el siguiente empieza antes de que acabe el anterior).
+        var principales = cadenas.OrderBy(c => c.Inicio).ToList();
         for (var i = 0; i < principales.Count; i++)
         {
             var valor = ValoresDeCadenaEnRazor(limpio.Substring(principales[i].Inicio, principales[i].Longitud)).First();
@@ -1016,6 +1026,45 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         cadenas.Infractoras.Should().Equal([3]);
     }
 
+    /// <summary>
+    /// La concatenación también se une entre las cadenas que salen de reescanear el interior de unas
+    /// comillas triples del marcado que se tragan el <c>@code</c>.
+    /// </summary>
+    [Fact]
+    public void El_detector_de_razor_une_una_concatenacion_dentro_de_unas_comillas_triples_del_marcado()
+    {
+        const string fuente = "<p>\"\"\"\n</p>\n@code {\n    void F() { Db.Database.ExecuteSqlRaw(\"BEG\" + \"IN;\"); }\n}\n\"\"\"</p>";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty();
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([4]);
+    }
+
+    /// <summary>
+    /// Una comilla suelta del marcado dentro de un bloque Razor que se lee como código, en un fichero
+    /// con CR solo: la cadena normal sin cerrar acaba con la línea (CR), no se traga el resto del
+    /// fichero; si lo hiciera, el comentario de después no se quitaría y su texto contaría como cadena.
+    /// </summary>
+    [Fact]
+    public void Una_cadena_normal_sin_cerrar_en_razor_con_CR_solo_acaba_con_la_linea()
+    {
+        const string fuente = "@if (x) {\r<p>5\" dolares</p>\r}\r@code {\r    // \"BEGIN;\"\r    void F() { }\r}";
+
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().BeEmpty("el comentario con BEGIN se quita");
+    }
+
+    /// <summary>NEL, LS y PS también terminan línea en C#: el comentario <c>//</c> acaba y la línea se numera.</summary>
+    [Theory]
+    [InlineData(0x0085)]
+    [InlineData(0x2028)]
+    [InlineData(0x2029)]
+    public void Los_terminadores_de_linea_NEL_LS_y_PS_terminan_comentarios_y_numeran_lineas(int terminador)
+    {
+        var t = ((char)terminador).ToString();
+        var fuente = "@code {" + t + "    // nota" + t + "    void F() { Db.Database.ExecuteSqlRaw(\"BEGIN;\"); }" + t + "}";
+
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([3]);
+    }
+
     /// <summary>Hueco 4 en .razor: <c>"BEG" + "IN;"</c> son dos cadenas inocuas; juntas, una transacción.</summary>
     [Theory]
     [InlineData("\"BEG\" + \"IN;\"")]
@@ -1048,7 +1097,8 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     /// constantes, <c>x + "BEG" + "IN;"</c> (la racha de sumandos constantes contiguos) y la
     /// interpolada con huecos constantes. El valor lo calcula el modelo semántico de Roslyn
     /// (<c>GetConstantValue</c>), también el de una constante declarada en otro fichero del proyecto.
-    /// Una concatenación con un operando que no es constante no tiene valor conocido y no cuenta.
+    /// Una concatenación con un operando que no es constante no tiene valor conocido: solo cuentan sus
+    /// rachas de dos o más sumandos constantes contiguos.
     /// </summary>
     internal static IEnumerable<(int Linea, string Valor)> ConstantesCompuestas(CSharpCompilation compilacion, SyntaxTree arbol)
     {
@@ -1133,7 +1183,8 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     private static bool PuedeSerConstante(ExpressionSyntax e) => e switch
     {
         LiteralExpressionSyntax or InterpolatedStringExpressionSyntax or IdentifierNameSyntax or ParenthesizedExpressionSyntax
-            or BinaryExpressionSyntax or CastExpressionSyntax or ConditionalExpressionSyntax or PrefixUnaryExpressionSyntax => true,
+            or BinaryExpressionSyntax or CastExpressionSyntax or ConditionalExpressionSyntax or PrefixUnaryExpressionSyntax
+            or PostfixUnaryExpressionSyntax => true,
         MemberAccessExpressionSyntax m => m.IsKind(SyntaxKind.SimpleMemberAccessExpression),
         InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.ValueText: "nameof" } } => true,
         _ => false,
@@ -1210,16 +1261,20 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     }
 
     /// <summary>
-    /// Las ramas condicionales (<c>#if</c>, <c>#elif</c>, <c>#else</c>) de un fuente que no se toman en
-    /// ninguna de las configuraciones que analiza el trinquete (Debug, Release y sin símbolos): su
-    /// contenido es invisible a <see cref="Cadenas"/> y al análisis semántico. Cubre cualquier símbolo
-    /// ajeno (<c>#if STAGING</c>), <c>#if false</c>, <c>#if A &amp;&amp; B</c> inalcanzable, una versión
-    /// de .NET que no se define, y la <c>#else</c> de una condición que siempre se cumple.
+    /// Las ramas condicionales (<c>#if</c>, <c>#elif</c>, <c>#else</c>) de un fuente que no se toman ni
+    /// en Debug ni en Release, las dos configuraciones que compila el análisis semántico: su contenido
+    /// es invisible a ese análisis y, salvo la rama que solo existe sin símbolos, también a
+    /// <see cref="Cadenas"/>. Cubre cualquier símbolo ajeno (<c>#if STAGING</c>), <c>#if false</c>,
+    /// <c>#if A &amp;&amp; B</c> inalcanzable, una versión de .NET que no se define, la <c>#else</c> de
+    /// una condición que siempre se cumple y <c>#if !TRACE</c>.
     /// </summary>
     internal static IEnumerable<(int Linea, string Directiva)> RamasCondicionalesSinExaminar(string fuente)
     {
         var ramas = new Dictionary<int, (int Linea, string Directiva, bool Tomada)>();
-        foreach (var opciones in Configuraciones.Select(c => c.Opciones).Append(CSharpParseOptions.Default))
+        // Solo Debug y Release: son las únicas configuraciones que compila el análisis semántico (las
+        // llamadas de transacción y las constantes compuestas); la rama que solo existe sin símbolos
+        // (#if !TRACE) la ve Cadenas pero no el análisis semántico, así que también falla.
+        foreach (var opciones in Configuraciones.Select(c => c.Opciones))
         {
             var raiz = CSharpSyntaxTree.ParseText(fuente, opciones).GetRoot();
             foreach (var directiva in raiz.DescendantTrivia().Where(t => t.IsDirective).Select(t => t.GetStructure()).OfType<BranchingDirectiveTriviaSyntax>())
@@ -1254,6 +1309,9 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         #else
                 cmd.CommandText = "BEGIN TRANSACTION";
         #endif
+        #if !TRACE
+                cmd.CommandText = "SELECT 9";
+        #endif
             }
         }
         """;
@@ -1271,9 +1329,6 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         #endif
         #if TRACE
                 cmd.CommandText = "SELECT 3";
-        #endif
-        #if !TRACE
-                cmd.CommandText = "SELECT 4";
         #endif
         #if NET10_0_OR_GREATER && !RELEASE
                 cmd.CommandText = "SELECT 5";
@@ -1296,8 +1351,8 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
             "ninguna de las cadenas con transacción está en una rama que Debug, Release o sin símbolos tomen: así era antes");
 
         RamasCondicionalesSinExaminar(FuenteConRamasInvisibles).Should().Equal(
-            [(5, "#if STAGING"), (8, "#if false"), (11, "#if DEBUG && RELEASE"), (14, "#if NET9_0"), (19, "#else")],
-            "las ramas que ninguna configuración toma, incluida la #else de una condición que siempre se cumple");
+            [(5, "#if STAGING"), (8, "#if false"), (11, "#if DEBUG && RELEASE"), (14, "#if NET9_0"), (19, "#else"), (22, "#if !TRACE")],
+            "las ramas que ni Debug ni Release toman, incluidas la #else de una condición que siempre se cumple y la que solo existe sin símbolos");
     }
 
     [Fact]
@@ -1321,8 +1376,8 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
 
         salida.WriteLine($".cs con '#': {conAlmohadilla}; ramas sin examinar: {infractoras.Count}");
         infractoras.Should().BeEmpty(
-            "el trinquete analiza Debug, Release y sin símbolos: el código bajo un #if con otro símbolo, bajo #if false o " +
-            "bajo una #else que nunca se toma no lo ve nadie; quita la condición o amplía las configuraciones");
+            "el análisis semántico compila Debug y Release: el código bajo un #if con otro símbolo, bajo #if false, " +
+            "bajo #if !TRACE o bajo una #else que nunca se toma no lo ve nadie; quita la condición o amplía las configuraciones");
     }
 
     private static string BuscarRaizDelRepositorio()
