@@ -137,10 +137,23 @@ public sealed class BorradorRegla
 
     public static BorradorRegla De(ReglaAviso r) => new()
     {
-        Id = r.Id, DeSerie = r.DeSerie, Activa = r.Activa, Nombre = r.Nombre, Disparador = r.Disparador, Dias = r.DiasUmbral,
-        Repeticion = r.RepetirCadaDias, Estados = [.. r.Estados], DiaResumen = r.DiaResumen, ParaEmpresa = r.ParaEmpresa,
-        ParaGestor = r.ParaGestor, PorCorreo = r.PorCorreo, AlIniciarSesion = r.AlIniciarSesion, SoloAlgunosCentros = r.Centros.Count > 0,
-        Centros = [.. r.Centros], Asunto = r.Asunto, Cuerpo = r.Cuerpo,
+        Id = r.Id,
+        DeSerie = r.DeSerie,
+        Activa = r.Activa,
+        Nombre = r.Nombre,
+        Disparador = r.Disparador,
+        Dias = r.DiasUmbral,
+        Repeticion = r.RepetirCadaDias,
+        Estados = [.. r.Estados],
+        DiaResumen = r.DiaResumen,
+        ParaEmpresa = r.ParaEmpresa,
+        ParaGestor = r.ParaGestor,
+        PorCorreo = r.PorCorreo,
+        AlIniciarSesion = r.AlIniciarSesion,
+        SoloAlgunosCentros = r.Centros.Count > 0,
+        Centros = [.. r.Centros],
+        Asunto = r.Asunto,
+        Cuerpo = r.Cuerpo,
     };
 
     /// <summary>La regla que se envía: solo lleva los campos de su disparador (lo que quedó de otro disparador no viaja).</summary>
