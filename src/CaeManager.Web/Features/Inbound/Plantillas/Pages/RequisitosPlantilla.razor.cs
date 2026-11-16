@@ -121,12 +121,12 @@ public partial class RequisitosPlantilla
     }
 
     // Tras un error del comando (típicamente un conflicto de versión) se vuelve a leer la plantilla y el panel sigue con la Version vigente.
-    private async Task RefrescarTrasFalloAsync()
+    private async Task RefrescarTrasFalloAsync(string mensaje)
     {
-        var requisitoId = _editando?.Id;
+        // El panel parte de lo que el usuario leyó: se cierra para que lo reabra con lo vigente y no reenvíe a ciegas.
+        _drawerVisible = false;
         await CargarAsync();
-        if (requisitoId is { } id)
-            _editando = _plantilla?.Requisitos.FirstOrDefault(r => r.Id == id) ?? _editando;
+        ToastService.Mostrar(mensaje, TonoToast.Error);
     }
 
     private void CerrarRetirar(bool visible)
@@ -149,7 +149,9 @@ public partial class RequisitosPlantilla
             var resultado = await Mediator.Send(new RetirarRequisitoPlantillaCommand(_plantilla.Id, requisito.Id, _plantilla.Version));
             if (!resultado.EsExitoso)
             {
-                _errorRetirar = resultado.Error.Mensaje;
+                _retirando = null;
+                _errorRetirar = null;
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 await CargarAsync();
                 return;
             }

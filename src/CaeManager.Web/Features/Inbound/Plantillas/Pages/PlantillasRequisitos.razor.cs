@@ -164,7 +164,11 @@ public partial class PlantillasRequisitos
         _detalle = null;
         try
         {
-            _detalle = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(elegida.Plantilla.Id));
+            var leido = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(elegida.Plantilla.Id));
+            // Una respuesta tardía de otra plantilla ya no vale: se descarta.
+            if (SeleccionVisible?.Plantilla.Id != elegida.Plantilla.Id)
+                return;
+            _detalle = leido;
             _errorDetalle = _detalle is null;
         }
         catch (Exception)
@@ -202,7 +206,7 @@ public partial class PlantillasRequisitos
 
     private async Task RetirarAsync()
     {
-        if (_detalle is null)
+        if (_detalle is null || _detalle.Id != SeleccionVisible?.Plantilla.Id)
         {
             _errorRetirar = Textos["ErrorDetalleDetalle"];
             return;
@@ -215,8 +219,10 @@ public partial class PlantillasRequisitos
             var resultado = await Mediator.Send(new RetirarPlantillaRequisitosCommand(_detalle.Id, _detalle.Version));
             if (!resultado.EsExitoso)
             {
-                _errorRetirar = resultado.Error.Mensaje;
-                // Un conflicto de versión se resuelve volviendo a leer la plantilla.
+                // Un conflicto de versión: se relee y se cierra el diálogo para no reconfirmar a ciegas.
+                _retirando = false;
+                _errorRetirar = null;
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                 _detalle = null;
                 await CargarDetalleAsync();
                 return;

@@ -29,6 +29,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
     private static readonly Guid ActividadId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
     private static readonly Guid TipoLegalId = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
     private static readonly Guid TipoPropioId = Guid.Parse("cccccccc-0000-0000-0000-000000000002");
+    private static readonly Guid TipoLibreId = Guid.Parse("cccccccc-0000-0000-0000-000000000003");
     private static readonly Guid ReqLegalId = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
     private static readonly Guid ReqPropioId = Guid.Parse("dddddddd-0000-0000-0000-000000000002");
     private static readonly Guid VersionPlantilla = Guid.Parse("eeeeeeee-0000-0000-0000-000000000001");
@@ -74,7 +75,9 @@ public class PlantillasRequisitosPantallasTests : BunitContext
                 {
                     Tipo(TipoLegalId, "Aptitud médica", AmbitoAplicacion.Trabajador),
                     Tipo(TipoPropioId, "Registro de entrega de EPI", AmbitoAplicacion.Trabajador),
+                    Tipo(TipoLibreId, "Formación en altura", AmbitoAplicacion.Trabajador),
                 } as IReadOnlyList<TipoDocumentoListaDto>,
+                CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand => (object)CaeManager.Domain.Common.Result.Exito(Guid.NewGuid()),
                 BuscarRequisitosParecidosQuery => Array.Empty<RequisitoParecidoDto>() as IReadOnlyList<RequisitoParecidoDto>,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             });
@@ -195,6 +198,32 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.Markup.Should().Contain("Formulario del Centro");
         cut.Markup.Should().Contain("Contratos a los que se aplica");
         cut.FindAll("[data-pieza='insignia-proximamente']").Count.Should().BeGreaterOrEqualTo(3);
+    }
+
+    [Fact]
+    public void Anadir_un_requisito_del_catalogo_envia_origen_PropioTenant_y_la_Version_leida()
+    {
+        var mediador = Preparar();
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
+        // Los tipos que ya están en la plantilla salen deshabilitados; «Formación en altura» es libre.
+        cut.Find("input[type='search']").Input("altura");
+        cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().ContainSingle());
+        cut.Find("button[role='option']").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Se añadirá"));
+        cut.WaitForAssertion(() => cut.FindAll("button").Where(b => b.TextContent.Trim() == "Guardar").Should().NotBeEmpty());
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar").Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>()
+            .Should().ContainSingle());
+        var enviado = mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single();
+        enviado.Atributos.Origen.Should().Be(OrigenRequisito.PropioTenant);
+        enviado.Version.Should().Be(VersionPlantilla);
+        enviado.TipoDocumentoId.Should().Be(TipoLibreId);
     }
 
     [Fact]

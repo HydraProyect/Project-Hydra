@@ -136,7 +136,7 @@
     @if (_destinatario != DestinatarioRequisito.Nacionales)
     {
         <div class="campo">
-            <label for="cfg-eq">@Textos["CampoEquivalencias"]</label>
+            <span class="cfg-etq">@Textos["CampoEquivalencias"]</span>
             <p class="cfg-ayuda">@Textos["EquivalenciasAyuda", AtributosRequisito.MaximoEquivalencias]</p>
             <CampoTextarea Valor="@_equivalencias" ValorChanged="v => { _equivalencias = v; _errores.Remove(CampoEquivalencias); }" Filas="3"
                            MensajeError="@ErrorDe(CampoEquivalencias)" />
@@ -179,7 +179,7 @@
     </div>
 
     <div class="campo">
-        <label for="cfg-crit">@Textos["CampoCriterio"]</label>
+        <span class="cfg-etq">@Textos["CampoCriterio"]</span>
         <p class="cfg-ayuda">@Textos["CriterioAyuda"]</p>
         <CampoTextarea Valor="@_criterio" ValorChanged="v => { _criterio = v; _errores.Remove(CampoCriterio); }" Filas="5"
                        MensajeError="@ErrorDe(CampoCriterio)" />
@@ -228,7 +228,7 @@
     [Parameter] public EventCallback<bool> OnGuardado { get; set; }
 
     /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer la plantilla para tener su Version vigente.</summary>
-    [Parameter] public EventCallback OnFallo { get; set; }
+    [Parameter] public EventCallback<string> OnFallo { get; set; }
 
     private static readonly AmbitoAplicacion[] AmbitosPropios = [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador, AmbitoAplicacion.Vehiculo];
 
@@ -377,7 +377,7 @@
     private OrigenRequisito OrigenDeAlta() =>
         _propio ? OrigenRequisito.PropioTenant
         : Plantilla.Tipo == TipoPlantillaRequisitos.ExigenciasClienteEmpresarial ? OrigenRequisito.ExigenciaN3
-        : OrigenRequisito.Actividad;
+        : OrigenRequisito.PropioTenant; // sin requisito de base el dominio exige PropioTenant o ExigenciaN3 (ValidarOrigen)
 
     private bool TryAtributos(out AtributosRequisito atributos)
     {
@@ -434,7 +434,7 @@
             if (!resultado.EsExitoso)
             {
                 _mensajeError = resultado.Error.Mensaje;
-                await OnFallo.InvokeAsync();
+                await OnFallo.InvokeAsync(resultado.Error.Mensaje);
                 return;
             }
 
@@ -444,7 +444,10 @@
         {
             foreach (var grupo in ex.Errors.GroupBy(e => e.PropertyName))
                 _errores[grupo.Key] = grupo.First().ErrorMessage;
-            _mensajeError = _errores.Count == 0 ? Textos["ErrorGuardar"].Value : null;
+            // Los campos sin control propio (nombre, tolerancia, equivalencias de más) se dicen en el aviso del panel.
+            _mensajeError = _errores.Keys.All(k => k is CampoVigencia or CampoCriterio)
+                ? (_errores.Count == 0 ? Textos["ErrorGuardar"].Value : null)
+                : ex.Errors.First().ErrorMessage;
         }
         catch (Exception)
         {
