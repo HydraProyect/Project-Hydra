@@ -197,6 +197,31 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Con_el_reloj_de_la_aplicacion_adelantado_el_alta_empieza_en_el_now_de_la_base_y_el_gate_la_ve_en_el_acto()
+    {
+        // Issue #2259: la política de INSERT ya no admite un inicio futuro, así que el alta no puede tomar el reloj de la
+        // aplicación. Con él 4 minutos por delante del de PostgreSQL, el alta de antes se rechazaría (42501), y con la
+        // política de antes la fila empezaría en el futuro: el gate DN-7 no la vería hasta pasados esos minutos, y dentro
+        // de una misma consulta podría dar dos valores distintos.
+        _relojDeLaAplicacion = new RelojDesfasado(TimeSpan.FromMinutes(4));
+
+        var alta = await ContratarAsync("cus_PagadorTce");
+
+        await using var observador = new NpgsqlConnection(_cadenaConexion);
+        await observador.OpenAsync();
+        (await GateInboundVeVigenteAsync(observador)).Should().BeTrue("el inicio ya ha llegado en cuanto se ve el COMMIT");
+        await using var consultarAhora = new NpgsqlCommand("SELECT now();", observador);
+        var ahoraDeLaBase = (DateTime)(await consultarAhora.ExecuteScalarAsync())!;
+
+        var fila = (await FilasComoPropietarioAsync()).Should().ContainSingle().Subject;
+        fila.Id.Should().Be(alta);
+        fila.VigenteDesdeUtc.Should().BeOnOrBefore(ahoraDeLaBase.ToUniversalTime(),
+            "el inicio es el now() de la transacción que insertó, anterior a cualquier lectura que vea la fila");
+        fila.VigenteDesdeUtc.Should().BeBefore(DateTime.UtcNow.AddMinutes(1),
+            "control: no es el reloj de la aplicación adelantado 4 minutos");
+    }
+
+    [Fact]
     public async Task Si_la_corregida_no_se_inserta_tampoco_se_confirma_la_baja()
     {
         var anterior = await ContratarAsync("cus_PagadorTce");
@@ -383,9 +408,9 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         // Control positivo: sin él, los rechazos de abajo pasarían igual con un rol que no pudiera actualizar nada.
         (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, Finalizar(FilaSustituida)))
             .Should().Be(((string?)null, 1, (string?)null));
-        foreach (var desfase in new[] { "now() - interval '4 minutes'", "now() + interval '4 minutes'" })
+        foreach (var desfase in new[] { "now() - interval '4 minutes'", "now()" })
             (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, Finalizar(FilaSustituida, desfase)))
-                .Should().Be(((string?)null, 1, (string?)null), $"dentro del margen de 5 minutos: {desfase}");
+                .Should().Be(((string?)null, 1, (string?)null), $"dentro del margen: {desfase}");
 
         // Filas que el USING no deja ver para actualizar: el UPDATE no falla, no toca nada.
         foreach (var (sql, motivo) in new[]
@@ -413,6 +438,11 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
                 .Should().BeOneOf([PostgresErrorCodes.InsufficientPrivilege, PostgresErrorCodes.CheckViolation], motivo);
         (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, Finalizar(FilaSustituida, "now() + interval '6 minutes'")))
             .SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "el margen lo pone la política, no el CHECK");
+        // Issue #2259: el fin nunca queda en el futuro, ni dentro del antiguo margen del reloj de la aplicación. Lo rechaza
+        // la política (42501), no el CHECK: el inicio de la fila es de ayer.
+        foreach (var desfase in new[] { "now() + interval '4 minutes'", "now() + interval '1 millisecond'" })
+            (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, Finalizar(FilaSustituida, desfase)))
+                .SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, $"un fin futuro: {desfase}");
 
         // Columnas sin privilegio: lo contratado, la papelera, el Tenant y la línea no se cambian, y lo contratado no se lee.
         foreach (var sql in new[]

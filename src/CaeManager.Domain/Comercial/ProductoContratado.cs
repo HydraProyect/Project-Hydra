@@ -33,11 +33,11 @@ namespace CaeManager.Domain.Comercial;
 /// con los datos corregidos, en una transacción. Bajo la misma sesión, <c>DarDeBajaLineaInboundCommand</c> la finaliza. La
 /// corrección no sobrescribe la fila (opción B del 2026-11-15). Las dos finalizan en la base, sin pasar por
 /// <see cref="Finalizar"/>, porque el rol elevado no lee la fila entera. La base repite casi todas sus reglas: solo
-/// Vigente a Finalizado, fin no anterior al inicio (CHECK) y Finalizado como final. Difiere en una: <see cref="Finalizar"/>
-/// rechaza un fin posterior al instante actual, y la política <c>aprovisionamiento_solo_finaliza_inbound_vigente</c>
-/// admite un fin hasta 5 minutos después del <c>now()</c> de la transacción (y hasta 5 antes), el margen para el
-/// desfase entre el reloj de la aplicación y el de la base. Los dos comandos no lo usan: ponen como fin el propio
-/// <c>now()</c> de la transacción. <c>CompletarAltaAutonomaCommand</c> (A6) creará las de Outbound y abrirá su
+/// Vigente a Finalizado, fin no anterior al inicio (CHECK) y Finalizado como final. Como <see cref="Contratar"/> y
+/// <see cref="Finalizar"/>, las políticas de <c>cae_app_aprovisionamiento</c> rechazan un inicio o un fin posterior al
+/// instante actual, que en la base es el <c>now()</c> de la transacción (issue #2259), y admiten hasta 5 minutos antes.
+/// Por eso los tres comandos toman como inicio y como fin ese <c>now()</c>, no el reloj de la aplicación.
+/// <c>CompletarAltaAutonomaCommand</c> (A6) creará las de Outbound y abrirá su
 /// propia vía. Ninguna vía puede dejar que el propio Tenant beneficiario se conceda la línea Inbound (detalle en
 /// <c>ProductoContratadoConfiguration</c>).
 /// </para>
