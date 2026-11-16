@@ -46,8 +46,8 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// identidad del técnico (ADR-011 § 8.7, minimización): el DTO no lleva
 /// <see cref="ActividadSoporteDto.UsuarioSoporteId"/> y la pantalla dice
 /// «Soporte TALVEG». La RLS de <c>RegistrosActividadSoporte</c> aísla por Tenant,
-/// no por rol (a diferencia de <c>administrador_del_tenant_objetivo</c> en
-/// <c>SesionesPrivilegiadas</c>): la comprobación de rol de este handler es la
+/// no por rol (a diferencia de la política <c>administrador_del_tenant_objetivo</c>
+/// de las Sesiones Privilegiadas): la comprobación de rol de este handler es la
 /// única barrera de rol, no una redundancia.
 /// </para>
 /// </summary>

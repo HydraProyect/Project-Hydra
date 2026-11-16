@@ -996,9 +996,9 @@ public partial class DelegacionesGen2Tests : BunitContext
             cabecera.Should().Contain("Soporte TALVEG", "quién: Soporte TALVEG, sin la identidad del técnico")
                 .And.Contain("Revisar importación fallida", "en qué Sesión Privilegiada");
             var fila = cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle().Subject.TextContent;
-            fila.Should().Contain("Operación").And.Contain("EjecutarImportacionCommand", "qué operación");
+            fila.Should().Contain("Petición").And.Contain("EjecutarImportacionCommand", "qué operación");
             fila.Should().Contain(lectura.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm:ss"), "cuándo");
-            cut.Markup.Should().Contain("Hoy solo dejan registro las operaciones del Importador",
+            cut.Markup.Should().Contain("Hoy solo dejan registro las peticiones marcadas para ello",
                 "lo que no deja fila no se puede presentar como «no hubo actividad»");
         });
     }
@@ -1020,7 +1020,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         cut.WaitForAssertion(() =>
         {
             cut.Markup.Should().Contain(
-                "No hay actividad registrada en esta Sesión Privilegiada. Hoy solo dejan registro las operaciones del Importador");
+                "No hay actividad registrada en esta Sesión Privilegiada. Hoy solo dejan registro las peticiones marcadas para ello");
             cut.Markup.Should().NotContain("No hay actividad disponible para esta delegación.");
         });
     }

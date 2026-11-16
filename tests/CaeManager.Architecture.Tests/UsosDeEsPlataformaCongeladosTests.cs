@@ -259,7 +259,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "en 0). Lo retira el bloque B junto con los dos comandos que lo llaman"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
-                ":106 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
+                ":109 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
                 "reescribe el predicado por concesión propia. AVISO: D-6 obliga a conservar la rama del " +
                 "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del Tenant propietario visitado la cubren " +
                 "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
