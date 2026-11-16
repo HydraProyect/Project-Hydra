@@ -115,7 +115,8 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         var soporteSobreW = DelegacionTenant.ParaSoporte(_plataforma, _empresaW);
         soporteSobreW.ActivarParaSoporte("Incidencia de prueba en W", ahora.AddHours(2), ahora);
         // W: la operación Outbound del Tenant entero de P nace amparada por una DelegacionTenant de Operador CAE externo
-        // de P sobre W, aparte de la de Soporte TALVEG. Sin origen, el amparo la excluiría por sí solo y el caso no
+        // de P sobre W, aparte de la de Soporte TALVEG: un estado de fixture que producción no genera (TALVEG no es por
+        // defecto un Operador CAE). Sin origen, el amparo la excluiría por sí solo y el caso no
         // mediría la guarda de Soporte (revisión puente de la ronda 6 de la PR #2237).
         var operadorPSobreW = new DelegacionTenant(_plataforma, _empresaW);
         propietario.DelegacionesTenant.AddRange(sobreX, sobreY, sobreZ, soporteSobreX, sobreV, soporteSobreW, operadorPSobreW);
