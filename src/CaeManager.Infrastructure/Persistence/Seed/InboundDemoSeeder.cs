@@ -64,11 +64,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Development: comparte la contraseña pública de <see cref="CredencialesDemo"/>, así que cualquier otro entorno lanza antes
 /// de escribir nada, y también si uno de sus nombres de Tenant ya existe sin el marcador de datos de demo. No envía correo:
 /// las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente por Tenant, con una guarda que la
-/// interfaz no puede alterar en el Tenant TCE (su historial de vigencia), y Trabajadores o Documentos en cada Tenant TEC; cada
-/// Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo siembra entero. Lo que el
-/// revisor edite después (el rol o la cartera de la Gestora CAE, las notas de un contrato) no se vuelve a tocar; si dio de
-/// baja todos los Trabajadores y Documentos de un Tenant TEC, sus DNI siguen ocupados y el arranque avisa y sigue (para
-/// empezar de cero, se retiran los Tenants de la demo).
+/// interfaz no puede alterar en el Tenant TCE (su historial de vigencia), y Trabajadores o Documentos, dados de baja incluidos,
+/// en cada Tenant TEC; cada Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo
+/// siembra entero. Lo que el revisor edite después (el rol o la cartera de la Gestora CAE, las notas de un contrato, las bajas
+/// de un Tenant TEC) no se vuelve a tocar; la única reparación es la de una cuenta que una pasada cortada dejó sin ningún rol,
+/// que recibe el suyo y la aceptación de términos (para empezar de cero, se retiran los Tenants de la demo).
 /// </para>
 ///
 /// <para>
@@ -178,10 +178,12 @@ public static class InboundDemoSeeder
                               dbContext, userManager, credenciales, logger, tenantId, email, nombre, rol, cancellationToken)
                           ?? throw new InvalidOperationException($"No se pudo sembrar el usuario Inbound {email}.");
 
-            // El alta de la cuenta y la de su rol son dos guardados: una pasada cortada entre los dos deja una cuenta sin rol que
-            // la siguiente reutilizaría tal cual (y la cartera de la Gestora CAE no se podría emitir). Solo una cuenta sin
-            // ningún rol se completa: un rol que el revisor haya cambiado desde la interfaz no se toca.
             using (AmbitoTenantExplicito.Establecer(tenantId))
+            {
+                // El alta de la cuenta, la de su rol y la aceptación de términos son guardados distintos: una pasada cortada
+                // entre ellos deja una cuenta sin rol que la siguiente reutilizaría tal cual (y la cartera de la Gestora CAE no
+                // se podría emitir). Solo una cuenta sin ningún rol se completa: la interfaz mantiene siempre un rol, así que
+                // uno que el revisor haya cambiado no se toca.
                 if ((await userManager.GetRolesAsync(usuario)).Count == 0)
                 {
                     var conRol = await userManager.AddToRoleAsync(usuario, rol);
@@ -189,12 +191,14 @@ public static class InboundDemoSeeder
                         throw new InvalidOperationException(
                             $"No se pudo asignar el rol {rol} al usuario Inbound {email}: " +
                             string.Join(", ", conRol.Errors.Select(e => e.Description)));
+                    if (!await dbContext.AceptacionesTerminos.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
+                        await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);
                 }
 
-            // P1-13: todo Administrador lleva 2FA. Solo si aún no la tiene, para que otro arranque no reescriba la cuenta.
-            if (segundoFactor && !usuario.TwoFactorEnabled)
-                using (AmbitoTenantExplicito.Establecer(tenantId))
+                // P1-13: todo Administrador lleva 2FA. Solo si aún no la tiene, para que otro arranque no reescriba la cuenta.
+                if (segundoFactor && !usuario.TwoFactorEnabled)
                     await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(usuario, userManager, userStore, entorno, cancellationToken);
+            }
 
             return usuario;
         }
