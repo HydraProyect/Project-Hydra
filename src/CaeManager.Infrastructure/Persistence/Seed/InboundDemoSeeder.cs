@@ -178,6 +178,19 @@ public static class InboundDemoSeeder
                               dbContext, userManager, credenciales, logger, tenantId, email, nombre, rol, cancellationToken)
                           ?? throw new InvalidOperationException($"No se pudo sembrar el usuario Inbound {email}.");
 
+            // El alta de la cuenta y la de su rol son dos guardados: una pasada cortada entre los dos deja una cuenta sin rol que
+            // la siguiente reutilizaría tal cual (y la cartera de la Gestora CAE no se podría emitir). Solo una cuenta sin
+            // ningún rol se completa: un rol que el revisor haya cambiado desde la interfaz no se toca.
+            using (AmbitoTenantExplicito.Establecer(tenantId))
+                if ((await userManager.GetRolesAsync(usuario)).Count == 0)
+                {
+                    var conRol = await userManager.AddToRoleAsync(usuario, rol);
+                    if (!conRol.Succeeded)
+                        throw new InvalidOperationException(
+                            $"No se pudo asignar el rol {rol} al usuario Inbound {email}: " +
+                            string.Join(", ", conRol.Errors.Select(e => e.Description)));
+                }
+
             // P1-13: todo Administrador lleva 2FA. Solo si aún no la tiene, para que otro arranque no reescriba la cuenta.
             if (segundoFactor && !usuario.TwoFactorEnabled)
                 using (AmbitoTenantExplicito.Establecer(tenantId))
@@ -270,9 +283,11 @@ public static class InboundDemoSeeder
         foreach (var tec in tecs)
             using (AmbitoTenantExplicito.Establecer(tec.Id))
             {
-                // Sembrado ya si tiene Trabajadores o Documentos; en una transacción, como el Tenant TCE. Si el revisor los dio
-                // todos de baja, siguen ocupando sus DNI y el choque se avisa sin tumbar el arranque.
-                if (!await dbContext.Trabajadores.AnyAsync(cancellationToken) && !await dbContext.Documentos.AnyAsync(cancellationToken))
+                // Sembrado ya si tiene Trabajadores o Documentos, dados de baja incluidos: si el revisor los dio todos de baja
+                // (y cambió sus DNI), no se vuelven a sembrar encima. Sin el filtro de bajas, pero con el Tenant propietario
+                // explícito y la RLS del ámbito intacta. En una transacción, como el Tenant TCE.
+                var yaSembrado = await dbContext.Trabajadores.IgnoreQueryFilters().AnyAsync(t => t.TenantId == tec.Id, cancellationToken) || await dbContext.Documentos.IgnoreQueryFilters().AnyAsync(d => d.TenantId == tec.Id, cancellationToken);
+                if (!yaSembrado)
                 {
                     var contratos = contratosPorTec.GetValueOrDefault(tec.Id) ?? new Dictionary<string, Guid>();
                     await EnUnaTransaccionAsync(dbContext, logger, tec.RazonSocial,

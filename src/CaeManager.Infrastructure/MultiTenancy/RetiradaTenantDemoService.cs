@@ -147,7 +147,11 @@ public static class RetiradaTenantDemoService
     private static bool ExigenMarcador(string nombre) =>
         SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
         CatalogoPilotoOutbound.NombresTenants.Contains(nombre) ||
-        nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
+        nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet
+            // La siembra Inbound pone siempre el marcador al aprovisionar y se niega ante un nombre suyo sin él: la retirada
+            // aplica la misma regla, aunque sus nombres lleven sufijo «(Inbound demo)».
+            or InboundDemoSeeder.NombreTenantTce or InboundDemoSeeder.NombreTenantMoncayo
+            or InboundDemoSeeder.NombreTenantRibera or InboundDemoSeeder.NombreTenantSomontano;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =
         typeof(RetiradaTenantDemoService).GetMethod(nameof(CargarFilasDeTenantAsync), BindingFlags.NonPublic | BindingFlags.Static)!;

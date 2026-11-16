@@ -343,6 +343,10 @@ public sealed class InboundDemoSeederMarcadorTests : IAsyncLifetime
         (await lectura.ProductosContratados.IgnoreQueryFilters().CountAsync(p => p.TenantId == ajeno.Id)).Should().Be(0);
         (await lectura.Tenants.CountAsync(t => InboundDemoSeeder.NombresTenants.Contains(t.Nombre))).Should().Be(1,
             "ni siquiera aprovisiona los Tenants TEC");
+
+        // La retirada aplica la misma regla: un Tenant con el nombre de la siembra pero sin marcador podría ser real.
+        var retirada = () => RetiradaTenantDemoService.ValidarTenantRetirableAsync(sp.GetRequiredService<CaeManagerDbContext>(), ajeno.Id);
+        await retirada.Should().ThrowAsync<InvalidOperationException>().WithMessage("*NO lleva el marcador de datos de demo*");
     }
 }
 
@@ -419,12 +423,81 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
         var resembrar = SembrarAsync;
         await resembrar.Should().NotThrowAsync();
 
+        // Después, el revisor da de baja todo lo del Tenant TEC: la guarda cuenta las bajas y no vuelve a sembrar encima.
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                foreach (var t in await db.Trabajadores.ToListAsync())
+                    t.MarcarComoEliminado(Guid.NewGuid());
+                foreach (var d in await db.Documentos.ToListAsync())
+                    d.MarcarComoEliminado(Guid.NewGuid());
+                await db.SaveChangesAsync();
+                (await db.Trabajadores.AnyAsync() || await db.Documentos.AnyAsync()).Should().BeFalse("MEDIDO: no queda nada visible");
+            }
+        }
+
+        await resembrar.Should().NotThrowAsync();
+
         await using var lectura = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
         (await lectura.ContratosAcceso.IgnoreQueryFilters().CountAsync(c => c.TenantId == tceId)).Should().Be(8, "los siete de la siembra y el del revisor");
         (await lectura.AsignacionesCartera.IgnoreQueryFilters().CountAsync(a => a.PropietarioTenantId == tceId)).Should().Be(1,
             "la cartera de la Gestora CAE no se vuelve a emitir");
-        (await lectura.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == moncayoId)).Should().Be(3, "el dado de baja no se repone");
+        (await lectura.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == moncayoId)).Should().Be(3, "los dados de baja no se reponen");
+        (await lectura.Documentos.IgnoreQueryFilters().CountAsync(d => d.TenantId == moncayoId)).Should().Be(9, "los dados de baja no se reponen");
         (await lectura.AutorizacionesLecturaDocumental.IgnoreQueryFilters().CountAsync(a => a.TenantId == moncayoId)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Una_cuenta_que_una_pasada_cortada_dejo_sin_rol_se_completa_y_la_cartera_se_emite()
+    {
+        // El corte entre el alta de la cuenta de la Gestora CAE y la de su rol: el Tenant TCE ya existe con su marcador y la
+        // cuenta, sin ningún rol.
+        var tce = new CaeManager.Domain.Tenants.Tenant(InboundDemoSeeder.NombreTenantTce, CaeManager.Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto);
+        tce.MarcarDatosDemoCompletados();
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var sp = ambito.ServiceProvider;
+            await using (var bootstrap = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+            using (AmbitoTenantExplicito.Establecer(tce.Id))
+            {
+                bootstrap.Tenants.Add(tce);
+                await bootstrap.SaveChangesAsync();
+            }
+
+            var usuarios = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            using (AmbitoTenantExplicito.Establecer(tce.Id))
+            {
+                var cuenta = new ApplicationUser
+                {
+                    UserName = InboundDemoSeeder.EmailGestoraTce,
+                    Email = InboundDemoSeeder.EmailGestoraTce,
+                    NombreCompleto = "Gestora CAE cortada (Inbound demo)",
+                    EmailConfirmed = true,
+                    TenantId = tce.Id,
+                };
+                (await usuarios.CreateAsync(cuenta, CredencialesDemo.Resolver(_configuracion, EntornoDePrueba.Desarrollo).Contrasena))
+                    .Succeeded.Should().BeTrue();
+            }
+        }
+
+        var sembrar = SembrarAsync;
+        await sembrar.Should().NotThrowAsync();
+
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            using (AmbitoTenantExplicito.Establecer(tce.Id))
+            {
+                var gestora = (await usuarios.FindByEmailAsync(InboundDemoSeeder.EmailGestoraTce))!;
+                (await usuarios.GetRolesAsync(gestora)).Should().Equal(Roles.GestorCae);
+            }
+        }
+
+        await using var lectura = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        (await lectura.AsignacionesCartera.IgnoreQueryFilters().CountAsync(a => a.PropietarioTenantId == tce.Id)).Should().Be(1);
+        (await lectura.HistorialVigenciaContratos.IgnoreQueryFilters().AnyAsync(h => h.TenantId == tce.Id)).Should().BeTrue();
     }
 }
 
