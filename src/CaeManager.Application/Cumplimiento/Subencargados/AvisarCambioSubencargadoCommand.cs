@@ -152,8 +152,8 @@ public class AvisarCambioSubencargadoCommandHandler(
     }
 
     /// <summary>
-    /// Texto neutro y factual, sin contenido contractual: nombre, finalidad, ubicación, la fecha mínima de activación
-    /// para ese Tenant y el derecho a objetar con su efecto. No nombra un canal: hoy no hay pantalla ni endpoint de
+    /// Texto neutro y factual, sin cláusulas ni plazos nuevos (solo repite el efecto que ya fija D-7): nombre,
+    /// finalidad, ubicación, la fecha mínima de activación para ese Tenant y el derecho a objetar con su efecto. No nombra un canal: hoy no hay pantalla ni endpoint de
     /// <see cref="ObjetarSubencargadoCommand"/>, y responder al correo no registra ninguna objeción (nadie lee esa
     /// respuesta y lo convierte en una, y el Command no deja hacerlo a un Actor de Plataforma). Ofrecer un canal que
     /// no tiene efecto sería una promesa falsa. Qué canal se ofrece es una decisión pendiente; hasta entonces este
