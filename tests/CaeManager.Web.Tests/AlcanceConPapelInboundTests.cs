@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// El alcance de <see cref="AlcanceDatosService"/> según el papel activo (B-02b y B-03). Con papel Inbound, los perfiles
-/// de organización del Operador CAE externo alcanzan el Tenant TCE entero, como en Outbound (decisión de Chris del
+/// El alcance de <see cref="AlcanceDatosService"/> según el papel activo (B-02b y B-03). Con papel Inbound, y solo dentro
+/// de una petición de Inbound (<see cref="AmbitoPeticionInbound"/>), los perfiles de organización del Operador CAE externo alcanzan el Tenant TCE entero, como en Outbound (decisión de Chris del
 /// 2026-11-16): la vía de Operación Inbound solo les da papel con una operación del Tenant entero. Con una operación que
 /// ya no autoriza, ningún perfil tiene acceso total ni cartera, aunque el rol se resolviera un instante antes. La cartera
 /// Inbound del Gestor CAE se prueba bajo PostgreSQL en <c>FuncionAmparoInboundBajoRuntimeTests</c>. Estas pruebas deciden
@@ -25,12 +25,60 @@ public class AlcanceConPapelInboundTests
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]
     [InlineData("Consulta")]
-    public async Task Con_papel_Inbound_los_perfiles_de_organizacion_alcanzan_el_Tenant_entero(string rol)
+    public async Task Con_papel_Inbound_los_perfiles_de_organizacion_alcanzan_el_Tenant_entero_dentro_de_una_peticion_de_Inbound(string rol)
     {
         await using var contexto = ContextoSinServidor();
         var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.Inbound));
 
-        (await alcance.TieneAccesoTotalAsync()).Should().BeTrue();
+        using (AmbitoPeticionInbound.Abrir())
+            (await alcance.TieneAccesoTotalAsync()).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Fuera de una petición de Inbound (Trabajadores, Documentos, Empresas… de Outbound), el papel Inbound no da alcance a
+    /// ningún perfil: el papel Inbound no abre los lectores de Outbound del Tenant TCE (revisor-puente Opus, ronda 1 de B-03).
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("Consulta")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Con_papel_Inbound_fuera_de_una_peticion_de_Inbound_ningun_perfil_tiene_alcance(string rol)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.Inbound));
+
+        (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+        (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse();
+        (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
+    }
+
+    /// <summary>Una misma instancia, dentro y fuera de una petición de Inbound, en los dos órdenes.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Lo_memoizado_dentro_de_una_peticion_de_Inbound_no_vale_fuera_ni_al_reves(bool dentroPrimero)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("Administrador", PapelActivo.Inbound));
+
+        async Task<bool> Dentro()
+        {
+            using (AmbitoPeticionInbound.Abrir())
+                return await alcance.TieneAccesoTotalAsync();
+        }
+
+        if (dentroPrimero)
+        {
+            (await Dentro()).Should().BeTrue();
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("fuera no reutiliza el acceso total de dentro");
+        }
+        else
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+            (await Dentro()).Should().BeTrue("dentro no reutiliza el cero de fuera");
+        }
     }
 
     [Fact]
@@ -39,7 +87,8 @@ public class AlcanceConPapelInboundTests
         await using var contexto = ContextoSinServidor();
         var alcance = Alcance(contexto, new Usuario("CoordinadorCae", PapelActivo.Inbound));
 
-        (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue();
+        using (AmbitoPeticionInbound.Abrir())
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue();
     }
 
     [Theory]

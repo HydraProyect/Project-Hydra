@@ -105,5 +105,7 @@ public class ComandosInboundConGuardaDeServicioTests
             "después de la autorización de escritura, que decide antes las Sesiones Privilegiadas y el rol");
         guarda.Should().BeGreaterThan(behaviors.IndexOf(typeof(GateComercialTenantBehavior<,>)));
         guarda.Should().BeLessThan(behaviors.IndexOf(typeof(ValidationBehavior<,>)), "antes de llegar al handler");
+        behaviors.IndexOf(typeof(AmbitoInboundBehavior<,>)).Should().BeGreaterThan(guarda,
+            "el ámbito de petición de Inbound (B-03) se abre después de la guarda por servicio, alrededor del handler");
     }
 }

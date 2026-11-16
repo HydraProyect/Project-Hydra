@@ -190,6 +190,9 @@ public static class ApplicationServiceCollectionExtensions
         // La guarda por servicio (DN-21, B-02b), después del rol y del estado del Tenant: un comando de Inbound con papel
         // Outbound, o uno que no es de Inbound con papel Inbound, falla cerrado antes del handler.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GuardaPorServicioBehavior<,>));
+        // El ámbito de petición de Inbound (B-03), dentro de la guarda: con papel Inbound, AlcanceDatosService solo da alcance
+        // dentro de una petición de Inbound; los lectores de otros módulos siguen en alcance cero.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AmbitoInboundBehavior<,>));
         // Después de la autorización de escritura: lo que el rol elevado por un Encargo de
         // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
         // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.

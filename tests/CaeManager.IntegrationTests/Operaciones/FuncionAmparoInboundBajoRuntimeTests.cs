@@ -212,11 +212,38 @@ public class FuncionAmparoInboundBajoRuntimeTests : IAsyncLifetime
             return await alcance.AlcanzaElTenantEnteroAsync();
         }
 
-        (await AlcanzaElTenantTce(PapelActivo.Inbound)).Should().BeTrue(
-            "su Asignación de Cartera universal bajo la operación Inbound amparada por la línea Inbound del Tenant TCE");
+        using (AmbitoPeticionInbound.Abrir())
+            (await AlcanzaElTenantTce(PapelActivo.Inbound)).Should().BeTrue(
+                "su Asignación de Cartera universal bajo la operación Inbound amparada por la línea Inbound del Tenant TCE");
+        (await AlcanzaElTenantTce(PapelActivo.Inbound)).Should().BeFalse(
+            "fuera de una petición de Inbound, el papel Inbound no abre los lectores de Outbound");
         (await AlcanzaElTenantTce(PapelActivo.Outbound)).Should().BeFalse(
             "con papel Outbound solo cuenta una cartera de Outbound, y no tiene ninguna");
         (await AlcanzaElTenantTce(PapelActivo.OperacionQueYaNoAutoriza)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_la_linea_Inbound_vigente_la_cartera_Inbound_no_da_alcance()
+    {
+        var gestora = Guid.NewGuid();
+        var (propietario, operacionId) = _casos["sin línea"];
+        await using (var propio = ContextoPropietarioDeLaBase(tenant: null))
+        {
+            var operacion = await propio.AsignacionesOperacion.SingleAsync(o => o.Id == operacionId);
+            propio.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, gestora, "GestorCae", AmbitoAsignacion.Universal, DateTime.UtcNow.AddDays(-1), null, DateTime.UtcNow));
+            await propio.SaveChangesAsync();
+        }
+
+        var usuario = new CurrentUserServiceFalso(gestora, "GestorCae", tenantOrigenId: _operador.Id, porOperacion: true,
+            papel: PapelActivo.Inbound);
+        await using var contexto = ContextoRuntimeEnTce(propietario, usuario);
+        var alcance = new CaeManager.Infrastructure.Autorizacion.AlcanceDatosService(
+            contexto, usuario, new TenantActualAmbiental { TenantId = propietario }, new SesionPrivilegiadaAusente());
+
+        using (AmbitoPeticionInbound.Abrir())
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse(
+                "sin la línea Inbound vigente del Tenant TCE, app_operacion_inbound_amparada no ampara la operación");
     }
 
     [Fact]

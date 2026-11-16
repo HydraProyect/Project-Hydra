@@ -73,6 +73,7 @@ public class AlcanceDatosService(
     // falta un flag "resuelto" aparte por alcance como antes de indexar por
     // tenant.
     private readonly Dictionary<Guid, bool> _accesoTotal = new();
+    private readonly Dictionary<Guid, ServicioCae?> _servicioDeAlcance = new();
     private readonly Dictionary<Guid, AlcanceCartera> _alcanceCartera = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _clienteIds = new();
     private readonly Dictionary<Guid, IReadOnlyList<Guid>?> _centroIds = new();
@@ -100,33 +101,58 @@ public class AlcanceDatosService(
     /// lista del selector, siempre con papel Outbound). Con la misma clave para los dos, el fan-out que recorre el Tenant
     /// TCE seleccionado con papel Inbound dejaba memoizado su acceso total de Outbound, y la lectura siguiente con papel
     /// Inbound lo reutilizaba durante la caducidad (Codex, ronda 2 de la PR #2293); y al revés. Un ámbito explícito usa
-    /// una clave derivada que nunca coincide con la del contexto seleccionado.
+    /// una clave derivada que nunca coincide con la del contexto seleccionado. Lo mismo dentro y fuera de una petición de
+    /// Inbound (<see cref="AmbitoPeticionInbound"/>, B-03): con papel Inbound, el alcance de dentro no vale fuera.
     /// </summary>
     private static Guid ClaveTenant(Guid? tenantId)
     {
         var tenant = tenantId ?? Guid.Empty;
-        if (AmbitoTenantExplicito.TenantIdActual is null) return tenant;
+        var explicito = AmbitoTenantExplicito.TenantIdActual is not null;
+        var inbound = AmbitoPeticionInbound.Activo;
+        if (!explicito && !inbound) return tenant;
 
+        var mascara = (byte)((explicito ? 0xA5 : 0) ^ (inbound ? 0x5A : 0));
         var bytes = tenant.ToByteArray();
-        for (var i = 0; i < bytes.Length; i++) bytes[i] ^= 0xA5;
+        for (var i = 0; i < bytes.Length; i++) bytes[i] ^= mascara;
         return new Guid(bytes);
     }
 
     /// <summary>
-    /// El papel con el que esta petición no tiene alcance de datos por este servicio: una selección cuya operación ya no
-    /// autoriza, para que una caducidad entre resolver el rol y el papel no conceda el alcance del rol (Codex, ronda 2 de
-    /// la PR #2293).
+    /// El servicio con el que esta petición tiene alcance de datos, leído una sola vez por clave y generación (revisor-puente
+    /// Opus, ronda 1 de B-03), o <c>null</c> si no tiene ninguno:
+    /// <list type="bullet">
+    /// <item>una selección cuya operación ya no autoriza: ninguno, para que una caducidad entre resolver el rol y el papel
+    /// no conceda el alcance del rol (Codex, ronda 2 de la PR #2293);</item>
+    /// <item>papel Inbound: Inbound solo dentro de una petición de Inbound (<see cref="AmbitoPeticionInbound"/>); fuera,
+    /// ninguno, para que el papel Inbound no abra los lectores de Outbound del Tenant TCE (B-03);</item>
+    /// <item>cualquier otro papel: Outbound, como antes.</item>
+    /// </list>
     /// </summary>
-    private async Task<bool> PapelSinAlcanceDeDatosAsync() =>
-        await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.OperacionQueYaNoAutoriza;
+    private async Task<ServicioCae?> ServicioDeAlcanceAsync()
+    {
+        var tenant = ClaveTenantVigente();
+        var generacion = _generacion;
+        if (_servicioDeAlcance.TryGetValue(tenant, out var cacheado)) return cacheado;
+
+        ServicioCae? servicio = await currentUserService.ObtenerPapelActivoAsync() switch
+        {
+            PapelActivo.OperacionQueYaNoAutoriza => null,
+            PapelActivo.Inbound => AmbitoPeticionInbound.Activo ? ServicioCae.Inbound : null,
+            _ => ServicioCae.Outbound,
+        };
+
+        Memoizar(_servicioDeAlcance, tenant, generacion, servicio);
+        return servicio;
+    }
+
+    private async Task<bool> PapelSinAlcanceDeDatosAsync() => await ServicioDeAlcanceAsync() is null;
 
     /// <summary>
-    /// El servicio de la cartera que da alcance (B-03): el de la Asignación de Operación seleccionada. Con papel Inbound,
-    /// solo cuentan las Asignaciones de Cartera bajo operaciones Inbound amparadas por la línea Inbound del Tenant TCE; en
-    /// cualquier otro papel, las de Outbound, como antes.
+    /// El servicio de la cartera que da alcance (B-03): con papel Inbound dentro de una petición de Inbound, solo las
+    /// Asignaciones de Cartera bajo operaciones Inbound amparadas por la línea Inbound del Tenant TCE; si no, las de
+    /// Outbound. Sin alcance (<see cref="PapelSinAlcanceDeDatosAsync"/>) no se llega a pedir cartera.
     /// </summary>
-    private async Task<ServicioCae> ServicioDeLaCarteraAsync() =>
-        await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound ? ServicioCae.Inbound : ServicioCae.Outbound;
+    private async Task<ServicioCae> ServicioDeLaCarteraAsync() => await ServicioDeAlcanceAsync() ?? ServicioCae.Outbound;
 
     /// <summary>
     /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
@@ -188,6 +214,7 @@ public class AlcanceDatosService(
         _generacion++;
         _inicioGeneracion.Clear();
         _accesoTotal.Clear();
+        _servicioDeAlcance.Clear();
         _alcanceCartera.Clear();
         _clienteIds.Clear();
         _centroIds.Clear();
@@ -320,9 +347,10 @@ public class AlcanceDatosService(
         }
         else
         {
-            // Con papel Inbound, los perfiles de organización del Operador CAE externo alcanzan el Tenant TCE entero, como
-            // en Outbound (decisión de Chris del 2026-11-16 para B-03): la vía de Operación Inbound solo les da papel con
-            // una operación del Tenant entero. Con una operación que ya no autoriza, nadie (fallo cerrado).
+            // Con papel Inbound y dentro de una petición de Inbound, los perfiles de organización del Operador CAE externo
+            // alcanzan el Tenant TCE entero, como en Outbound (decisión de Chris del 2026-11-16 para B-03): la vía de
+            // Operación Inbound solo les da papel con una operación del Tenant entero. Fuera de una petición de Inbound, o con
+            // una operación que ya no autoriza, nadie (fallo cerrado): el papel Inbound no abre los lectores de Outbound.
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
                           && !await PapelSinAlcanceDeDatosAsync();
         }
@@ -393,10 +421,11 @@ public class AlcanceDatosService(
         // Lente de demo Gestor: la Asignación de Cartera de ESE Gestor CAE, calculada con el mismo
         // camino que su propia sesión (ObtenerCarteraAsync), e INTERSECADA con lo que la cuenta ya
         // alcanzaba. Sin restricción ∩ cartera = cartera; nunca sale nada que el resultado real no
-        // contuviera.
+        // contuviera. La cartera de la lente es la del servicio del papel activo (B-03): con papel Inbound, la Inbound de
+        // ese Gestor CAE, nunca su cartera de Outbound sobre el mismo Tenant (Codex, ronda 1 de B-03).
         var resultado = real;
         if (await ObtenerGestorDeLenteAsync(cancellationToken) is { } gestorLente)
-            resultado = real.Intersecar(await ObtenerCarteraAsync([gestorLente], ServicioCae.Outbound, cancellationToken));
+            resultado = real.Intersecar(await ObtenerCarteraAsync([gestorLente], await ServicioDeLaCarteraAsync(), cancellationToken));
 
         Memoizar(_alcanceCartera, tenant, generacion, resultado);
         return resultado;
@@ -409,9 +438,10 @@ public class AlcanceDatosService(
         var rol = await RolQueDecideAlcanceAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        // Con una operación que ya no autoriza, ningún alcance. Con papel Inbound, el Gestor CAE usa su cartera Inbound y
-        // nunca la de Outbound del mismo Tenant (B-03; ServicioDeLaCarteraAsync), y el Coordinador CAE alcanza el Tenant
-        // entero por la operación del Tenant entero, como en Outbound.
+        // Sin alcance (operación que ya no autoriza, o papel Inbound fuera de una petición de Inbound), ninguno. Con papel
+        // Inbound dentro de una petición de Inbound, el Gestor CAE usa su cartera Inbound y nunca la de Outbound del mismo
+        // Tenant (B-03; ServicioDeLaCarteraAsync), y el Coordinador CAE alcanza el Tenant entero por la operación del Tenant
+        // entero, como en Outbound.
         if (await PapelSinAlcanceDeDatosAsync())
             return AlcanceCartera.Ninguno;
 
@@ -553,9 +583,9 @@ public class AlcanceDatosService(
             // datos; la consulta lo repite para fallar en cerrado si una fila mal formada llegara a existir
             // —o si la FK se relajara—, en vez de conceder el ámbito de una Operación de otro Tenant.
             //
-            // Y tiene que ser del servicio del contexto (Outbound, B-02a): una Asignación de Cartera bajo una
-            // Asignación de Operación Inbound universal del mismo Operador CAE y Tenant propietario convertiría en
-            // el Tenant entero el ámbito de una Outbound acotada a un Cliente empresarial.
+            // Y tiene que ser del servicio del papel (B-02a y B-03): una Asignación de Cartera bajo una Asignación de
+            // Operación de un servicio, universal, del mismo Operador CAE y Tenant propietario convertiría en el Tenant
+            // entero el ámbito de una del otro servicio acotada a un Cliente empresarial.
             //
             // Y una Asignación de Operación externa solo autoriza amparada por la DelegacionTenant concreta de la
             // que nació, activa, sin caducar y sin revocaciones desde entonces (AmparoDeOrigen): otra

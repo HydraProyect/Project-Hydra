@@ -31,7 +31,8 @@ public class RetirarPlantillaRequisitosCommandHandler(
             return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
 
         var plantilla = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
+        // La capacidad (GestionarInbound) la pide arriba IAutorizacionInbound (B-03); el alcance de cartera del
+        // recurso lo decide PlantillaRequisitosAutorizacion con IAlcanceDatosService, del servicio del papel activo.
         if (plantilla is null || !await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(plantilla, alcanceDatos, cancellationToken))
             return Result.Fallo(PlantillaRequisitosErrores.NoEncontrada);
 
