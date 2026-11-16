@@ -3520,6 +3520,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ProyectoId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("SubidoPorActorRealUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SubidoPorUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("SustituidoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
