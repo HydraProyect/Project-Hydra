@@ -416,6 +416,43 @@ public class NavMenuCaracterizacionTests
         }
     }
 
+    // Cableado del gate de la sección «Inbound» en el menú pintado (no solo en el catálogo): lo que diga
+    // ILineaInboundVigente llega a ContextoMenuLateral; sin servicio o si falla, no hay sección.
+    [Theory]
+    [InlineData("vigente", true)]
+    [InlineData("no-vigente", false)]
+    [InlineData("falla", false)]
+    [InlineData("sin-servicio", false)]
+    public void La_seccion_Inbound_del_menu_pintado_sigue_a_la_linea_Inbound_vigente(string linea, bool esperada)
+    {
+        var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
+        ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
+            Options.Create(new ComunicacionesOptions { Activo = false }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
+            new Combinacion(Roles.Administrador, null, false, false, PerfilVocabularioTenant.Consultora, 1)));
+        if (linea != "sin-servicio")
+            ctx.Services.AddSingleton<ILineaInboundVigente>(new LineaInboundDePrueba(linea));
+
+        var cut = ctx.Render<NavMenu>();
+
+        cut.FindAll("[data-grupo]").Any(g => g.GetAttribute("data-grupo") == "inbound")
+            .Should().Be(esperada, $"línea Inbound «{linea}»");
+    }
+
+    private sealed class LineaInboundDePrueba(string linea) : ILineaInboundVigente
+    {
+        public Task<bool> EstaVigenteAsync(CancellationToken cancellationToken = default) => linea switch
+        {
+            "vigente" => Task.FromResult(true),
+            "falla" => throw new InvalidOperationException("lectura de la línea no disponible"),
+            _ => Task.FromResult(false),
+        };
+    }
+
     private static IRenderedComponent<NavMenu> Pintar(Combinacion c, OrdenMenuLateralDto? orden)
     {
         var ctx = new BunitContext();

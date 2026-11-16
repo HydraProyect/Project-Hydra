@@ -131,8 +131,8 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
                 beneficiario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
             var vinculo = new DelegacionTenant(_operador.Id, beneficiario.Id);
-            contexto.AsignacionesOperacion.Add(operacion);
             contexto.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
             return (operacion, vinculo);
         }
 

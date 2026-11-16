@@ -105,7 +105,7 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
 
             var operacion = AsignacionOperacion.Externa(
                 _tenantConCartera, _tenantOrigen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora);
-            _propietario.AsignacionesOperacion.Add(operacion);
+            OperacionExternaAmparada.Agregar(_propietario, operacion, delegacionConCartera);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _usuario, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             await _propietario.SaveChangesAsync();
@@ -119,8 +119,9 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
         {
             var cliente = Empresa.CrearComoCliente("Cervezas Duff sin cartera", "B10380194", false, null, null);
             _propietario.Empresas.Add(cliente);
-            _propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
-                _tenantSinCartera, _tenantOrigen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora));
+            OperacionExternaAmparada.Agregar(_propietario, AsignacionOperacion.Externa(
+                _tenantSinCartera, _tenantOrigen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora),
+                delegacionSinCartera);
             await _propietario.SaveChangesAsync();
             _clienteSinCartera = cliente.Id;
         }

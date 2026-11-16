@@ -158,7 +158,15 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
                 esOperadorCaeExterno: false);
 
-            await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken);
+            // Revocada desde la interfaz, la rama no reabre nada: el writer lanzaría sin delegación vigente y el arranque
+            // caería (PR #2237).
+            if (!await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken))
+            {
+                logger.LogWarning(
+                    "Rama E2E de Gestor CAE con cartera multi-Tenant: la delegación de {Tenant} está revocada; no se reabre.",
+                    rama.NombreTenant);
+                continue;
+            }
             if (rama.ConGestorDeApoyo)
                 await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, gestorDeApoyo, cancellationToken);
 
@@ -200,9 +208,9 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// La delegación del Tenant beneficiario al Operador CAE externo, bajo el ámbito
     /// del Operador (le pertenece). Con Gestor CAE, además su asignación de operador
     /// delegado; sin él (Tenant fuera de cartera), la delegación queda sin nadie del
-    /// Operador que la opere como Gestor CAE.
+    /// Operador que la opere como Gestor CAE. Devuelve si la delegación sigue activa.
     /// </summary>
-    private static async Task AbrirOperacionHeredadaAsync(
+    private static async Task<bool> AbrirOperacionHeredadaAsync(
         CaeManagerDbContext dbContext, Guid tenantOperadorId, Guid tenantBeneficiarioId, ApplicationUser? gestor,
         CancellationToken cancellationToken)
     {
@@ -217,14 +225,18 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 
+            // Revocada, o con historia (revocada y reactivada, filas heredadas revocadas, operaciones sin ninguna
+            // amparada): la siembra no reabre nada (rondas 1 y 2 de Codex en la PR #2237).
+            if (!delegacion.Activa || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
+                return false;
             if (gestor is null
-                || await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                    a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == gestor.Id, cancellationToken))
-                return;
+                || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, gestor.Id, cancellationToken))
+                return true;
 
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae));
+                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae, delegacion.Revocaciones));
             await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
         }
     }
 
