@@ -393,13 +393,14 @@ public class GuardaEnvioCorreoTests
         public int Respuestas { get; private set; }
         public List<bool> MarcasIa { get; } = [];
 
-        public Task<Result> EnviarRespuestaAsync(
+        public Task<Result<string?>> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+            Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
         {
             Respuestas++;
             MarcasIa.Add(contenidoIaRevisada);
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(Result.Exito<string?>(null));
         }
 
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(

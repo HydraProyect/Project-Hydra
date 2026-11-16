@@ -101,9 +101,10 @@ public class ResponderConversacionCommandHandler(
                 contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega, cancellationToken);
             if (envioResultado.EsFallido)
                 return Result.Fallo(envioResultado.Error);
-            mensajeCreado = envioResultado.Valor;
+            mensajeCreado = envioResultado.Valor.Mensaje;
             huboEnvioReal = true;
-            OrigenContenidoEnvio.TrazarEnvioAceptado(logger, "Microsoft 365", conversacion.Id, mensajeCreado.MensajeExternoId, sugerencia);
+            OrigenContenidoEnvio.TrazarEnvioAceptado(
+                logger, "Microsoft 365", conversacion.Id, envioResultado.Valor.MensajeExternoId, sugerencia);
         }
         else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
@@ -152,25 +153,25 @@ public class ResponderConversacionCommandHandler(
         }
     }
 
-    private async Task<Result<Mensaje>> EnviarPorGraphAsync(
+    private async Task<Result<(Mensaje Mensaje, string? MensajeExternoId)>> EnviarPorGraphAsync(
         Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos,
         bool contenidoIaRevisada, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
         if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
-            return Result.Fallo<Mensaje>(Error.Crear(
+            return Result.Fallo<(Mensaje, string?)>(Error.Crear(
                 "Conversacion.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
 
         // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada.
         if (!conexion.OperativaVerificada(DateTime.UtcNow))
-            return Result.Fallo<Mensaje>(ErroresBuzonSinVerificar.Crear());
+            return Result.Fallo<(Mensaje, string?)>(ErroresBuzonSinVerificar.Crear());
 
         var ultimoMensajeEntrante = conversacion.Mensajes
             .Where(m => m.Direccion == DireccionMensaje.Entrante && m.MensajeExternoId is not null)
             .OrderByDescending(m => m.FechaUtc)
             .FirstOrDefault();
         if (ultimoMensajeEntrante is null)
-            return Result.Fallo<Mensaje>(Error.Crear(
+            return Result.Fallo<(Mensaje, string?)>(Error.Crear(
                 "Conversacion.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
 
         // Solo aquí: el remitente simulado de las demos no saca nada del sistema. El destinatario
@@ -180,21 +181,25 @@ public class ResponderConversacionCommandHandler(
 
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (accessTokenResultado.EsFallido)
-            return Result.Fallo<Mensaje>(accessTokenResultado.Error);
+            return Result.Fallo<(Mensaje, string?)>(accessTokenResultado.Error);
 
         // Puerta justo antes de enviar: se relee de la base, la instancia cargada antes puede estar obsoleta.
         if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
-            return Result.Fallo<Mensaje>(ErroresBuzonSinVerificar.Crear());
+            return Result.Fallo<(Mensaje, string?)>(ErroresBuzonSinVerificar.Crear());
 
+        // La respuesta con marca son varias llamadas a Graph: la misma puerta otra vez justo antes del envío.
         var envioResultado = await graphClient.EnviarRespuestaAsync(
             accessTokenResultado.Valor, BuzonGraph.De(conexion), ultimoMensajeEntrante.MensajeExternoId!, cuerpoHtml, adjuntos, cancellationToken,
-            contenidoIaRevisada: contenidoIaRevisada);
+            contenidoIaRevisada: contenidoIaRevisada,
+            puertaAntesDeEnviar: ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct));
         if (envioResultado.EsFallido)
-            return Result.Fallo<Mensaje>(envioResultado.Error);
+            return Result.Fallo<(Mensaje, string?)>(envioResultado.Error);
 
         // Sent Items no está en el recurso vigilado por la suscripción (solo
         // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así
-        // que no necesita MensajeExternoId para idempotencia.
-        return Result.Exito(conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, cuerpoHtml));
+        // que no necesita MensajeExternoId para idempotencia. El Id que da Graph
+        // (solo la respuesta con marca) va a la traza de origen.
+        return Result.Exito<(Mensaje, string?)>(
+            (conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, cuerpoHtml), envioResultado.Valor));
     }
 }

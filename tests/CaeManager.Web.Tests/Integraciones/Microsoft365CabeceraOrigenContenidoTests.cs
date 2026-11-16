@@ -36,6 +36,12 @@ public class Microsoft365CabeceraOrigenContenidoTests
         /// <summary>Se cancela al leer las cabeceras del borrador, como una petición que el usuario abandona a medias.</summary>
         public CancellationTokenSource? CancelarAlLeer { get; set; }
 
+        /// <summary>
+        /// Se cancela al recibir el DELETE: si el borrado viaja con el token de la petición, lo ve cancelado y Graph lo
+        /// abandonaría; con <see cref="CancellationToken.None"/> no lo ve.
+        /// </summary>
+        public CancellationTokenSource? CancelarAlBorrar { get; set; }
+
         /// <summary>Si el borrado del borrador llegó con su token ya cancelado (no se habría ejecutado).</summary>
         public bool? BorradoConTokenCancelado { get; private set; }
 
@@ -77,13 +83,17 @@ public class Microsoft365CabeceraOrigenContenidoTests
                     await CancelarAlLeer.CancelAsync();
                     cancellationToken.ThrowIfCancellationRequested();
                 }
+
                 return CabecerasDelBorrador is null
                     ? Json(HttpStatusCode.OK, """{"internetMessageHeaders":null}""")
                     : Json(HttpStatusCode.OK, CabecerasDelBorrador);
             }
 
             if (request.Method == HttpMethod.Delete)
+            {
+                if (CancelarAlBorrar is not null) await CancelarAlBorrar.CancelAsync();
                 BorradoConTokenCancelado = cancellationToken.IsCancellationRequested;
+            }
 
             return new HttpResponseMessage(HttpStatusCode.Accepted);
         }
@@ -92,10 +102,11 @@ public class Microsoft365CabeceraOrigenContenidoTests
             new(estado) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     }
 
+
     private static Microsoft365GraphClient Cliente(GraphSimulado graph) =>
         new(new HttpClient(graph), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
 
-    private static Task<CaeManager.Domain.Common.Result> ResponderAsync(
+    private static Task<CaeManager.Domain.Common.Result<string?>> ResponderAsync(
         GraphSimulado graph, bool contenidoIaRevisada, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos = null, bool compartido = false) =>
         Cliente(graph).EnviarRespuestaAsync(
             "token", new BuzonGraph("buzon@tenant.example", compartido), "origen-1", Cuerpo, adjuntos, CancellationToken.None,
@@ -151,6 +162,50 @@ public class Microsoft365CabeceraOrigenContenidoTests
         await envio.Should().ThrowAsync<OperationCanceledException>();
         graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
         graph.BorradoConTokenCancelado.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Revisión Codex r4: si la petición se cancela después de leer un borrador sin la marca, el borrado no puede usar el
+    /// token de la petición, o el borrador se quedaría en Borradores listo para enviarse desde Outlook.
+    /// </summary>
+    [Fact]
+    public async Task Un_borrador_sin_marca_se_borra_aunque_la_peticion_se_cancele_tras_leerlo()
+    {
+        using var cts = new CancellationTokenSource();
+        var graph = new GraphSimulado { CabecerasDelBorrador = null, CancelarAlBorrar = cts };
+
+        var resultado = await Cliente(graph).EnviarRespuestaAsync(
+            "token", new BuzonGraph("buzon@tenant.example", false), "origen-1", Cuerpo, null, cts.Token,
+            contenidoIaRevisada: true);
+
+        resultado.EsFallido.Should().BeTrue();
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+        graph.BorradoConTokenCancelado.Should().BeFalse();
+    }
+
+    /// <summary>Revisión Codex r4: la respuesta con marca vuelve a pasar la puerta del llamador antes de /send.</summary>
+    [Fact]
+    public async Task La_respuesta_con_marca_no_se_envia_si_no_pasa_la_puerta_y_el_borrador_se_borra()
+    {
+        var graph = new GraphSimulado();
+
+        var resultado = await Cliente(graph).EnviarRespuestaAsync(
+            "token", new BuzonGraph("buzon@tenant.example", false), "origen-1", Cuerpo, null, CancellationToken.None,
+            contenidoIaRevisada: true, puertaAntesDeEnviar: _ => Task.FromResult(false));
+
+        resultado.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Crear().Codigo);
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+    }
+
+    /// <summary>La respuesta con marca devuelve el Id inmutable del correo que salió; /reply no da ninguno.</summary>
+    [Fact]
+    public async Task La_respuesta_con_marca_devuelve_el_id_del_correo_enviado()
+    {
+        var conMarca = await ResponderAsync(new GraphSimulado(), contenidoIaRevisada: true);
+        var sinMarca = await ResponderAsync(new GraphSimulado(), contenidoIaRevisada: false);
+
+        conMarca.Valor.Should().Be("borrador-1");
+        sinMarca.Valor.Should().BeNull();
     }
 
     private static async Task<JsonElement> EnviarNuevoAsync(bool contenidoIaRevisada)

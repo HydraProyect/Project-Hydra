@@ -139,11 +139,19 @@ public interface IMicrosoft365GraphClient
     /// del lado del llamador antes de invocar esto.
     /// <paramref name="contenidoIaRevisada"/> añade la cabecera
     /// <c>OrigenContenidoEnvio.NombreCabecera</c> con <c>ia-revisada</c>: el texto lo redactó Vega y lo revisó una persona
-    /// (issue #2007). No añade nada visible al cuerpo.
+    /// (issue #2007). No añade nada visible al cuerpo. Con la marca son tres llamadas (crear el borrador de respuesta,
+    /// comprobar que lleva la cabecera, enviarlo): <paramref name="puertaAntesDeEnviar"/>, si se pasa, se evalúa justo antes
+    /// de enviar, como en <see cref="EnviarNuevoMensajeAsync"/>; si devuelve false o lanza, el borrador se borra y el
+    /// resultado es <see cref="ErroresBuzonSinVerificar"/>.
+    /// <para>
+    /// El valor es el Id inmutable del correo que salió cuando Graph lo da (la respuesta con marca); null por /reply, que
+    /// responde sin cuerpo.
+    /// </para>
     /// </summary>
-    Task<Result> EnviarRespuestaAsync(
+    Task<Result<string?>> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false);
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+        Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null);
 
     /// <summary>
     /// Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).

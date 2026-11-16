@@ -114,18 +114,29 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         return Task.FromResult(Result.Exito(identidad));
     }
 
-    public Task<Result> EnviarRespuestaAsync(
+    /// <summary>Id inmutable que devuelve una respuesta con marca (la de /reply no devuelve ninguno, como el cliente real).</summary>
+    public const string IdRespuestaConMarca = "respuesta-marcada-123";
+
+    /// <summary>
+    /// Como el cliente real: la respuesta con marca evalúa la puerta del llamador antes de enviar y, si no la pasa, no sale
+    /// ni cuenta como enviada.
+    /// </summary>
+    public async Task<Result<string?>> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+        Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
     {
         BuzonesUsados.Add(buzon);
+        if (contenidoIaRevisada && puertaAntesDeEnviar is not null && !await puertaAntesDeEnviar(cancellationToken))
+            return Result.Fallo<string?>(ErroresBuzonSinVerificar.Crear());
+
         VecesEnviado++;
         UltimoMensajeExternoIdRespondido = mensajeExternoIdOrigen;
         UltimoCuerpoRespondido = cuerpoHtml;
         UltimaMarcaIaRevisada = contenidoIaRevisada;
-        return Task.FromResult(FallaEnvio
-            ? Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
-            : Result.Exito());
+        return FallaEnvio
+            ? Result.Fallo<string?>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
+            : Result.Exito<string?>(contenidoIaRevisada ? IdRespuestaConMarca : null);
     }
 
     /// <summary>

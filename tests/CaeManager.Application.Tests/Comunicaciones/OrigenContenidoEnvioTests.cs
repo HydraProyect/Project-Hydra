@@ -187,6 +187,50 @@ public class OrigenContenidoEnvioTests
         UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
     }
 
+    /// <summary>
+    /// Decisión de Chris del 2026-11-16 (#2007), rama de descarte: la persona descarta la sugerencia de Vega que insertó,
+    /// se queda con el texto editado y lo envía. El origen de IA se conserva porque el texto siguió en el redactor.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_id_de_una_sugerencia_de_Vega_descartada_tras_insertarla_sigue_marcado_como_de_IA()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var sugerencia = Propuesta(conversacion);
+        sugerencia.Insertar();
+        sugerencia.Descartar();
+
+        var resultado = await Responder(
+            conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>", sugerencia.Id);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+        var mensaje = UltimoSaliente(conversacion);
+        mensaje.OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
+        mensaje.RespuestaSugeridaId.Should().Be(sugerencia.Id);
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-11-16 (#2007), rama de rechazo: otra sesión descarta la sugerencia, o el panel la
+    /// sustituye por otra generación, mientras su texto sigue en este redactor. Antes el servidor rechazaba el id y el
+    /// redactor lo olvidaba, de modo que el reintento salía como Persona; ahora el envío sale con el origen de IA.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_id_de_una_sugerencia_de_Vega_sustituida_por_otra_generacion_sigue_marcado_como_de_IA()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var sustituida = Propuesta(conversacion);
+        sustituida.Insertar();
+        sustituida.Descartar();
+        Propuesta(conversacion, texto: "<p>Una generación nueva que todavía nadie ha insertado en el redactor.</p>");
+
+        var resultado = await Responder(
+            conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>", sustituida.Id);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graph.UltimaMarcaIaRevisada.Should().BeTrue();
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sustituida.Id);
+    }
+
     [Fact]
     public async Task El_id_de_una_macro_se_rechaza_sin_enviar()
     {
@@ -296,6 +340,46 @@ public class OrigenContenidoEnvioTests
         UltimoSaliente(conversacion).OrigenContenido.Should().Be(OrigenContenidoMensaje.Persona);
     }
 
+    /// <summary>
+    /// Revisión Codex r4: si el hilo sale de la cartera de quien envía entre la lectura de los ids y la del lote de textos,
+    /// su sugerencia ya no se compara. La primera lectura de sugerencias es la de los ids; la segunda, la del lote.
+    /// </summary>
+    [Fact]
+    public async Task Sin_id_una_sugerencia_cuyo_hilo_sale_de_la_cartera_antes_de_leer_el_lote_no_cuenta()
+    {
+        var buzon = Buzon();
+        var clienteVisible = Guid.NewGuid();
+        var otroHilo = HiloDeCorreo(buzon, clienteVisible);
+        Revisada(otroHilo);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
+        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
+        {
+            if (lectura == 2)
+                otroHilo.AsignarCliente(Guid.NewGuid());
+        };
+
+        var origen = await _comunicaciones.OrigenDelEnvioAsync(
+            alcance, respuestaSugeridaId: null, conversacionId: null, buzon.Id, TextoSugerido, CancellationToken.None);
+
+        _comunicaciones.LecturasDeRespuestasSugeridas.Should().Be(2, "una lectura de ids y una de lote");
+        origen.Valor.Should().BeNull();
+    }
+
+    /// <summary>Control del anterior: sin la reasignación, la misma sugerencia sí cuenta.</summary>
+    [Fact]
+    public async Task Sin_id_una_sugerencia_de_un_hilo_que_sigue_en_cartera_cuenta()
+    {
+        var buzon = Buzon();
+        var clienteVisible = Guid.NewGuid();
+        var sugerencia = Revisada(HiloDeCorreo(buzon, clienteVisible));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
+
+        var origen = await _comunicaciones.OrigenDelEnvioAsync(
+            alcance, respuestaSugeridaId: null, conversacionId: null, buzon.Id, TextoSugerido, CancellationToken.None);
+
+        origen.Valor!.Id.Should().Be(sugerencia.Id);
+    }
+
     /// <summary>Regla A: se elimina la heurística de «no consumida»; una propuesta de Vega revisada no marca un texto distinto.</summary>
     [Fact]
     public async Task Sin_id_un_texto_distinto_de_la_sugerencia_de_Vega_revisada_es_Persona()
@@ -385,6 +469,31 @@ public class OrigenContenidoEnvioTests
         await Responder(conversacion, TextoSugerido, sugerencia.Id);
 
         TrazaDeOrigen(OrigenContenidoMensaje.VegaRevisada, sugerencia.Id);
+        // Con el Id del correo que salió: dos respuestas del mismo hilo se distinguen en la traza (revisión Codex r4).
+        _trazas.Should().Contain(t => t.Contains($"mensaje externo {Microsoft365GraphClientFalso.IdRespuestaConMarca},"));
+    }
+
+    /// <summary>
+    /// Revisión Codex r4: la respuesta con marca vuelve a comprobar el buzón justo antes de enviar. La primera relectura
+    /// es la del comando, antes de llamar a Graph; la segunda, la puerta entre crear el borrador y enviarlo.
+    /// </summary>
+    [Fact]
+    public async Task Responder_con_marca_no_sale_si_el_buzon_deja_de_estar_operativo_antes_del_envio()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var sugerencia = Revisada(conversacion);
+        _conexiones.AlReleer = vez =>
+        {
+            if (vez == 2)
+                _conexiones.NoOperativasEnBase.Add(conexion.Id);
+        };
+
+        var resultado = await Responder(conversacion, TextoSugerido, sugerencia.Id);
+
+        resultado.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Crear().Codigo);
+        _conexiones.VecesReleido.Should().Be(2);
+        SinEnvio(conversacion);
     }
 
     /// <summary>El correo ya salió cuando falla el guardado: la traza queda aunque no quede el Mensaje.</summary>

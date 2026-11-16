@@ -1289,24 +1289,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>
     /// El id que viaja en el comando de envío (issue #2007): la sugerencia de Vega de este redactor en esta apertura. El
     /// servidor la valida y marca el correo como contenido de IA revisado; una macro no viaja, porque no es de Vega.
+    /// <para>
+    /// El origen de IA se conserva mientras el texto de la sugerencia siga en el redactor, aunque se descarte, el panel la
+    /// sustituya por otra generación o el servidor rechace un envío (decisión de Chris del 2026-11-16): ni el descarte ni
+    /// el rechazo sueltan el id. Lo sueltan vaciar el redactor (<see cref="CambiarTextoRespuesta"/>), insertar otra
+    /// sugerencia, cambiar de conversación y enviar con éxito.
+    /// </para>
     /// </summary>
     private Guid? SugerenciaDeVegaEnRedactor =>
         _sugerenciaEnRedactor is { Origen: OrigenRespuestaSugerida.Vega } enRedactor && enRedactor.Apertura == _aperturaVigente
             ? enRedactor.Id
             : null;
-
-    /// <summary>
-    /// El servidor rechazó la sugerencia de Vega que viajó (otra sesión la descartó, o el panel la sustituyó por una nueva):
-    /// el redactor la olvida, para que el siguiente envío no repita el mismo rechazo para siempre. El texto se queda y el
-    /// servidor lo compara con las sugerencias de Vega revisadas del buzón (regla A, issue #2007): no se degrada en silencio,
-    /// porque la persona ve el rechazo antes de volver a enviar.
-    /// </summary>
-    private void OlvidarSugerenciaRechazada(Error error, Guid? sugerenciaQueViajo)
-    {
-        if (sugerenciaQueViajo is { } id && error.Codigo == OrigenContenidoEnvio.SugerenciaNoUtilizable.Codigo &&
-            _sugerenciaEnRedactor?.Id == id)
-            _sugerenciaEnRedactor = null;
-    }
 
     /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
     private bool EsLaConversacionAbierta(Guid conversacionId) =>
@@ -1321,12 +1314,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var sugerencia = aviso.Sugerencia;
         if (aviso.Seleccion == _aperturaVigente && EsLaConversacionAbierta(sugerencia.ConversacionId) &&
             !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
-            _textoRespuesta = string.Empty;
+            CambiarTextoRespuesta(string.Empty);
 
-        // Descartada ya no es una sugerencia que se pueda enviar: si el texto se queda, es de la persona (issue #2007).
-        if (_sugerenciaEnRedactor?.Id == sugerencia.Id)
-            _sugerenciaEnRedactor = null;
-
+        // Si el texto se queda, sigue saliendo de la sugerencia de Vega: el id se conserva (SugerenciaDeVegaEnRedactor).
         return Task.CompletedTask;
     }
 
@@ -1520,8 +1510,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             {
                 // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
                 // los adjuntos — el gestor corrige y vuelve a darle a Enviar
-                // sin reescribir la respuesta entera.
-                OlvidarSugerenciaRechazada(resultado.Error, sugerenciaDeVega);
+                // sin reescribir la respuesta entera. Tampoco la sugerencia de Vega del redactor, aunque el servidor la
+                // rechace (ver SugerenciaDeVegaEnRedactor).
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
@@ -1586,7 +1576,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto, sugerenciaDeVega), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                OlvidarSugerenciaRechazada(resultado.Error, sugerenciaDeVega);
                 ToastService.MostrarError(resultado.Error);
                 return;
             }

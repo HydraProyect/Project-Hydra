@@ -21,18 +21,20 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     IOptions<EnvioCorreoOptions> opciones,
     ILogger<GuardaEnvioMicrosoft365GraphClient> logger) : IMicrosoft365GraphClient
 {
-    public Task<Result> EnviarRespuestaAsync(
+    public Task<Result<string?>> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+        Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([]))
             return interno.EnviarRespuestaAsync(
-                accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken, contenidoIaRevisada);
+                accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken, contenidoIaRevisada,
+                puertaAntesDeEnviar);
 
         AnotarBloqueo(config, "respuesta");
-        return Task.FromResult(Result.Fallo(config.ErrorEnvioCerrado()));
+        return Task.FromResult(Result.Fallo<string?>(config.ErrorEnvioCerrado()));
     }
 
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(

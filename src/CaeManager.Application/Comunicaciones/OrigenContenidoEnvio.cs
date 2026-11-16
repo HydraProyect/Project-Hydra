@@ -14,9 +14,12 @@ namespace CaeManager.Application.Comunicaciones;
 ///
 /// <list type="number">
 /// <item>Si el redactor dice qué sugerencia insertó (<c>RespuestaSugeridaId</c> del comando), el servidor exige que esté
-/// <see cref="EstadoRespuestaSugerida.Revisada"/>, sea de <see cref="OrigenRespuestaSugerida.Vega"/> y pertenezca a un hilo
-/// que quien envía puede ver. Si no cumple, el envío se rechaza: no se degrada a Persona en silencio. El origen es
-/// <see cref="OrigenContenidoMensaje.VegaRevisada"/> aunque la persona haya rehecho el texto: lo tenía en el redactor.</item>
+/// <see cref="EstadoRespuestaSugerida.Revisada"/> o <see cref="EstadoRespuestaSugerida.Descartada"/>, sea de
+/// <see cref="OrigenRespuestaSugerida.Vega"/> y pertenezca a un hilo que quien envía puede ver. Si no cumple, el envío se
+/// rechaza: no se degrada a Persona en silencio. El origen es <see cref="OrigenContenidoMensaje.VegaRevisada"/> aunque la
+/// persona haya rehecho el texto: lo tenía en el redactor. Descartada cuenta porque el origen de IA se conserva mientras
+/// el texto siga en el redactor, aunque la sugerencia se descarte, se sustituya por otra generación o se rechace un envío
+/// anterior (decisión de Chris del 2026-11-16); el bloqueo de la sugerencia ya impide enviar ese texto sin editarlo.</item>
 /// <item>Sin id, se compara el cuerpo con las sugerencias de Vega revisadas de los hilos visibles del buzón (y del propio
 /// hilo): el mismo texto, el texto entero contenido en el cuerpo (desde
 /// <see cref="BloqueoRespuestaSugerida.LongitudMinimaTextoContenido"/> caracteres normalizados) o casi el mismo (a lo sumo
@@ -27,7 +30,8 @@ namespace CaeManager.Application.Comunicaciones;
 ///
 /// <para>
 /// Límite declarado: un texto de Vega editado más allá de ese umbral y pegado fuera del redactor (sin el id) sale como
-/// Persona y sin la cabecera. Una macro no se atribuye: lo que la persona envía tras aplicarla cuenta como Persona.
+/// Persona y sin la cabecera. Dentro del redactor no hay límite por descarte ni por rechazo: el redactor conserva el id
+/// mientras conserve el texto. Una macro no se atribuye: lo que la persona envía tras aplicarla cuenta como Persona.
 /// </para>
 /// </summary>
 public static class OrigenContenidoEnvio
@@ -42,13 +46,13 @@ public static class OrigenContenidoEnvio
 
     public static readonly Error SugerenciaNoUtilizable = Error.Crear(
         "RespuestaSugerida.NoUtilizable",
-        "La respuesta sugerida que insertaste ya no se puede enviar. Vuelve a pedirla o escribe la respuesta.");
+        "La respuesta sugerida que insertaste ya no se puede enviar. Vuelve a pedirla, o vacía el redactor y escribe la respuesta.");
 
     private const int LoteTextos = 50;
 
     /// <summary>
     /// La sugerencia de Vega de la que parte <paramref name="cuerpo"/>, o null si lo escribió una persona; fallo si
-    /// <paramref name="respuestaSugeridaId"/> no es una sugerencia de Vega revisada de un hilo visible. Se llama después
+    /// <paramref name="respuestaSugeridaId"/> no es una sugerencia de Vega revisada o descartada de un hilo visible. Se llama después
     /// del bloqueo de la sugerencia y antes de enviar. <paramref name="conversacionId"/> es el hilo en el que se envía
     /// (null en un mensaje nuevo) y <paramref name="conexionIntegracionId"/>, el buzón o la línea cuyos hilos se miran.
     /// </summary>
@@ -62,18 +66,28 @@ public static class OrigenContenidoEnvio
             return insertada is null ? Result.Fallo<RespuestaSugerida?>(SugerenciaNoUtilizable) : Result.Exito<RespuestaSugerida?>(insertada);
         }
 
-        var ids = await IdsDeVegaRevisadasAsync(comunicaciones, alcanceDatos, conversacionId, conexionIntegracionId, cancellationToken);
-        return Result.Exito(await MejorCoincidenteAsync(comunicaciones, ids, cuerpo, cancellationToken));
+        Expression<Func<Conversacion, bool>>? hilosVisibles = null;
+        if (conexionIntegracionId is { } conexion)
+            hilosVisibles = await BloqueoRespuestaSugerida.HilosVisiblesDelBuzonAsync(alcanceDatos, conexion, cancellationToken);
+        if (conversacionId is null && hilosVisibles is null)
+            return Result.Exito<RespuestaSugerida?>(null);
+
+        // Cada lectura (la de los ids y la de cada lote de textos) vuelve a aplicar estado, origen y alcance: un hilo que
+        // sale de la cartera de quien envía, o una sugerencia descartada, entre una lectura y otra no se compara.
+        IQueryable<RespuestaSugerida> Candidatas() => VegaRevisadasVisibles(comunicaciones, conversacionId, hilosVisibles);
+        var ids = await Candidatas().Select(r => r.Id).OrderBy(i => i).ToListAsync(cancellationToken);
+        return Result.Exito(await MejorCoincidenteAsync(Candidatas, ids, cuerpo, cancellationToken));
     }
 
     /// <summary>
     /// Deja en el log, en cuanto el canal acepta el envío, qué origen lleva (revisión Codex r3 de la #2007): si después falla
     /// el registro local (guardar adjuntos, el SaveChanges, un hilo de otro titular), el correo ya salió y este es el rastro
-    /// que permite reconciliar su origen y su sugerencia.
+    /// que permite reconciliar su origen y su sugerencia. Nivel Warning a propósito (revisión Codex r4): es un registro de
+    /// auditoría y no debe perderse con la configuración de log admitida, que filtra Information.
     /// </summary>
     public static void TrazarEnvioAceptado(
         ILogger logger, string canal, Guid? conversacionId, string? mensajeExternoId, RespuestaSugerida? sugerencia) =>
-        logger.LogInformation(
+        logger.LogWarning(
             "Envío aceptado por {Canal}: mensaje externo {MensajeExternoId}, conversación {ConversacionId}, origen del contenido {OrigenContenido}, respuesta sugerida {RespuestaSugeridaId}.",
             canal, mensajeExternoId, conversacionId, OrigenDe(sugerencia), sugerencia?.Id);
 
@@ -99,7 +113,9 @@ public static class OrigenContenidoEnvio
         var candidata = await (
                 from r in comunicaciones.RespuestasSugeridas.AsNoTracking()
                 join c in comunicaciones.Conversaciones on r.ConversacionId equals c.Id
-                where r.Id == id && r.Estado == EstadoRespuestaSugerida.Revisada && r.Origen == OrigenRespuestaSugerida.Vega
+                where r.Id == id &&
+                      (r.Estado == EstadoRespuestaSugerida.Revisada || r.Estado == EstadoRespuestaSugerida.Descartada) &&
+                      r.Origen == OrigenRespuestaSugerida.Vega
                 select new { Sugerencia = r, Conversacion = c })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -110,51 +126,39 @@ public static class OrigenContenidoEnvio
 
     /// <summary>
     /// Las sugerencias de Vega revisadas del hilo del envío y de los hilos del buzón que quien envía puede ver
-    /// (<see cref="BloqueoRespuestaSugerida.HilosVisiblesDelBuzonAsync"/>). Solo los identificadores: los textos se leen
-    /// después por lotes.
+    /// (<see cref="BloqueoRespuestaSugerida.HilosVisiblesDelBuzonAsync"/>), como consulta nueva en cada llamada: se usa
+    /// para leer los ids y otra vez para cada lote de textos, de modo que el filtro se evalúa contra la base en cada lectura.
     /// </summary>
-    private static async Task<List<Guid>> IdsDeVegaRevisadasAsync(
-        IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid? conversacionId,
-        Guid? conexionIntegracionId, CancellationToken cancellationToken)
+    private static IQueryable<RespuestaSugerida> VegaRevisadasVisibles(
+        IComunicacionesQueryContext comunicaciones, Guid? conversacionId, Expression<Func<Conversacion, bool>>? hilosVisibles)
     {
         var vegaRevisadas = comunicaciones.RespuestasSugeridas
             .Where(r => r.Estado == EstadoRespuestaSugerida.Revisada && r.Origen == OrigenRespuestaSugerida.Vega);
+        var hilo = conversacionId ?? Guid.Empty;
+        if (hilosVisibles is null)
+            return vegaRevisadas.Where(r => r.ConversacionId == hilo);
 
-        var ids = new HashSet<Guid>();
-        if (conversacionId is { } hilo)
-            ids.UnionWith(await vegaRevisadas.Where(r => r.ConversacionId == hilo).Select(r => r.Id).ToListAsync(cancellationToken));
-
-        if (conexionIntegracionId is { } conexion &&
-            await BloqueoRespuestaSugerida.HilosVisiblesDelBuzonAsync(alcanceDatos, conexion, cancellationToken) is { } hilosVisibles)
-        {
-            ids.UnionWith(await DelBuzon(comunicaciones, vegaRevisadas, hilosVisibles).ToListAsync(cancellationToken));
-        }
-
-        return ids.OrderBy(i => i).ToList();
+        var delBuzon = comunicaciones.Conversaciones.Where(hilosVisibles);
+        return conversacionId is null
+            ? vegaRevisadas.Where(r => delBuzon.Any(c => c.Id == r.ConversacionId))
+            : vegaRevisadas.Where(r => r.ConversacionId == hilo || delBuzon.Any(c => c.Id == r.ConversacionId));
     }
-
-    private static IQueryable<Guid> DelBuzon(
-        IComunicacionesQueryContext comunicaciones, IQueryable<RespuestaSugerida> sugerencias,
-        Expression<Func<Conversacion, bool>> hilosVisibles) =>
-        from r in sugerencias
-        join c in comunicaciones.Conversaciones.Where(hilosVisibles) on r.ConversacionId equals c.Id
-        select r.Id;
 
     /// <summary>
     /// De <paramref name="ids"/>, la sugerencia cuyo texto coincide con <paramref name="cuerpo"/> revisada más tarde (y a
     /// igualdad, la de mayor id), leídas por lotes de <see cref="LoteTextos"/> y sin seguimiento (cada texto puede ocupar
     /// hasta 1 MiB). Solo se conserva la mejor hasta ahora: la memoria no crece con el número de coincidencias (revisión
-    /// Codex r3 de la #2007).
+    /// Codex r3 de la #2007). Cada lote se lee de <paramref name="candidatas"/>, que vuelve a aplicar el alcance (r4).
     /// </summary>
     private static async Task<RespuestaSugerida?> MejorCoincidenteAsync(
-        IComunicacionesQueryContext comunicaciones, IReadOnlyList<Guid> ids, string cuerpo, CancellationToken cancellationToken)
+        Func<IQueryable<RespuestaSugerida>> candidatas, IReadOnlyList<Guid> ids, string cuerpo, CancellationToken cancellationToken)
     {
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
         var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
         RespuestaSugerida? mejor = null;
         foreach (var lote in ids.Chunk(LoteTextos))
         {
-            var sugerencias = await comunicaciones.RespuestasSugeridas
+            var sugerencias = await candidatas()
                 .AsNoTracking()
                 .Where(r => lote.Contains(r.Id))
                 .ToListAsync(cancellationToken);

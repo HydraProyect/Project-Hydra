@@ -348,12 +348,13 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito(new TokensGraphDto("access", "refresh", DateTime.UtcNow.AddHours(1))));
 
-        public Task<Result> EnviarRespuestaAsync(
+        public Task<Result<string?>> EnviarRespuestaAsync(
             string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+            Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
         {
             Respuestas.Add(mensajeExternoIdOrigen);
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(Result.Exito<string?>(null));
         }
 
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();

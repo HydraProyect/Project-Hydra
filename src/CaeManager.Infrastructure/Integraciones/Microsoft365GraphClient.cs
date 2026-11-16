@@ -401,12 +401,14 @@ public class Microsoft365GraphClient(
     internal static string RecursoBuzon(BuzonGraph buzon) =>
         buzon.EsCompartido ? $"users/{Uri.EscapeDataString(buzon.Direccion)}" : "me";
 
-    public async Task<Result> EnviarRespuestaAsync(
+    public async Task<Result<string?>> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, bool contenidoIaRevisada = false,
+        Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar = null)
     {
         if (contenidoIaRevisada)
-            return await EnviarRespuestaConMarcaAsync(accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, cancellationToken);
+            return await EnviarRespuestaConMarcaAsync(
+                accessToken, buzon, mensajeExternoIdOrigen, cuerpoHtml, adjuntos, puertaAntesDeEnviar, cancellationToken);
 
         // /reply preserva conversationId/threading automáticamente — nunca
         // reconstruir In-Reply-To/References a mano (ver
@@ -421,19 +423,20 @@ public class Microsoft365GraphClient(
         try
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            // /reply responde 202 sin cuerpo: no hay Id del correo que salió.
             if (respuesta.IsSuccessStatusCode)
-                return Result.Exito();
+                return Result.Exito<string?>(null);
 
             var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
                 "Microsoft Graph devolvió {StatusCode} al responder al mensaje {MensajeId}: {CodigoError}",
                 (int)respuesta.StatusCode, mensajeExternoIdOrigen, CodigoErrorGraph.Extraer(cuerpoError));
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar la respuesta."));
+            return Result.Fallo<string?>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar la respuesta."));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al responder al mensaje {MensajeId} vía Microsoft Graph.", mensajeExternoIdOrigen);
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<string?>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
     }
 
@@ -443,9 +446,10 @@ public class Microsoft365GraphClient(
     /// borrador de respuesta (createReply, que conserva el hilo igual que /reply), se lee y solo se envía si lleva la
     /// cabecera. Si no la lleva, o no se puede leer, falla cerrado: se borra el borrador y no sale nada.
     /// </summary>
-    private async Task<Result> EnviarRespuestaConMarcaAsync(
+    private async Task<Result<string?>> EnviarRespuestaConMarcaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>>? puertaAntesDeEnviar,
+        CancellationToken cancellationToken)
     {
         var errorEnvio = Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar la respuesta.");
         try
@@ -465,7 +469,7 @@ public class Microsoft365GraphClient(
                     (int)respuestaBorrador.StatusCode, mensajeExternoIdOrigen, CodigoErrorGraph.Extraer(cuerpoError));
                 // Como en el mensaje nuevo: un compartido sin «Application Mail.ReadWrite» responde por /reply pero no
                 // puede crear el borrador que exige la marca. Se nombra para que no parezca un fallo de Microsoft.
-                return Result.Fallo(
+                return Result.Fallo<string?>(
                     buzon.EsCompartido && respuestaBorrador.StatusCode == System.Net.HttpStatusCode.Forbidden
                         ? Error.Crear(CodigosErrorMicrosoft365.SinPermisoEscritura,
                             "Este buzón compartido no permite enviar respuestas redactadas por Vega desde TALVEG: el administrador de Exchange debe concederle a la aplicación permiso de escritura (Mail.ReadWrite).")
@@ -476,50 +480,59 @@ public class Microsoft365GraphClient(
             if (string.IsNullOrWhiteSpace(borrador?.Id))
             {
                 logger.LogError("Microsoft Graph no devolvió un Id al crear la respuesta al mensaje {MensajeId}.", mensajeExternoIdOrigen);
-                return Result.Fallo(errorEnvio);
+                return Result.Fallo<string?>(errorEnvio);
             }
 
             var borradorId = borrador.Id!;
-            bool llevaLaMarca;
+
+            // Desde aquí hay un borrador de Vega en el buzón: si no se envía, se borra siempre con un token propio, para
+            // que una cancelación (durante la lectura, la puerta o el propio borrado) no lo deje en Borradores listo para
+            // enviarse desde Outlook sin marca. La cancelación sigue subiendo (revisiones Codex r3 y r4 de la #2007).
             try
             {
-                llevaLaMarca = await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken);
+                if (!await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken))
+                {
+                    logger.LogError(
+                        "El borrador de respuesta {MensajeId} no lleva la cabecera {Cabecera}: no se envía.",
+                        borradorId, OrigenContenidoEnvio.NombreCabecera);
+                    await EliminarBorradorAsync(accessToken, buzon, borradorId, CancellationToken.None);
+                    return Result.Fallo<string?>(errorEnvio);
+                }
+
+                // Son tres llamadas a Graph: la conexión puede dejar de estar operativa entre crear el borrador y enviarlo.
+                if (puertaAntesDeEnviar is not null && !await PasaPuertaAsync(puertaAntesDeEnviar, cancellationToken))
+                {
+                    logger.LogWarning(
+                        "La conexión dejó de estar operativa entre crear la respuesta {MensajeId} y enviarla: no se envía.", borradorId);
+                    await EliminarBorradorAsync(accessToken, buzon, borradorId, CancellationToken.None);
+                    return Result.Fallo<string?>(ErroresBuzonSinVerificar.Crear());
+                }
             }
             catch (OperationCanceledException)
             {
-                // Cancelada la petición con el borrador ya creado: se borra con un token propio (si no, un borrador sin
-                // la marca podría enviarse desde Outlook) y la cancelación sigue subiendo (revisión Codex r3 de la #2007).
                 await EliminarBorradorAsync(accessToken, buzon, borradorId, CancellationToken.None);
                 throw;
-            }
-
-            if (!llevaLaMarca)
-            {
-                logger.LogError(
-                    "El borrador de respuesta {MensajeId} no lleva la cabecera {Cabecera}: no se envía.",
-                    borradorId, OrigenContenidoEnvio.NombreCabecera);
-                await EliminarBorradorAsync(accessToken, buzon, borradorId, cancellationToken);
-                return Result.Fallo(errorEnvio);
             }
 
             using var peticionEnvio = NuevaPeticionGraph(
                 HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(borradorId)}/send", accessToken);
             peticionEnvio.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
             using var respuestaEnvio = await httpClient.SendAsync(peticionEnvio, cancellationToken);
+            // El Id inmutable sobrevive al paso de Borradores a Elementos enviados: identifica el correo que salió.
             if (respuestaEnvio.IsSuccessStatusCode)
-                return Result.Exito();
+                return Result.Exito<string?>(borradorId);
 
             var errorDeEnvio = await respuestaEnvio.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError(
                 "Microsoft Graph devolvió {StatusCode} al enviar la respuesta {MensajeId}: {CodigoError}",
                 (int)respuestaEnvio.StatusCode, borradorId, CodigoErrorGraph.Extraer(errorDeEnvio));
-            await EliminarBorradorAsync(accessToken, buzon, borradorId, cancellationToken);
-            return Result.Fallo(errorEnvio);
+            await EliminarBorradorAsync(accessToken, buzon, borradorId, CancellationToken.None);
+            return Result.Fallo<string?>(errorEnvio);
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al responder al mensaje {MensajeId} vía Microsoft Graph.", mensajeExternoIdOrigen);
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<string?>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
     }
 

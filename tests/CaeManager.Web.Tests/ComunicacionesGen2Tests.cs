@@ -586,11 +586,11 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Issue #2007: si el servidor rechaza la sugerencia que viajó (otra sesión la descartó), el redactor la olvida; si no, cada
-    /// envío repetiría el mismo rechazo. El texto se queda y el servidor lo compara con las de Vega del buzón.
+    /// Issue #2007, decisión de Chris del 2026-11-16, rama de rechazo: si el servidor rechaza la sugerencia que viajó, el
+    /// redactor no la olvida mientras conserve su texto; el reintento sigue llevando el id y, con él, el origen de IA.
     /// </summary>
     [Fact]
-    public async Task Una_sugerencia_que_el_servidor_rechaza_se_olvida_y_el_siguiente_envio_va_sin_id()
+    public async Task Una_sugerencia_que_el_servidor_rechaza_no_se_olvida_mientras_siga_su_texto()
     {
         var (escenario, cut, mediador) = await SugerenciaRevisadaEnElRedactorAsync();
         var intentos = 0;
@@ -600,7 +600,7 @@ public class ComunicacionesGen2Tests : BunitContext
         await Enviar(cut);
 
         var envios = mediador.Enviados.OfType<ResponderConversacionCommand>().ToList();
-        envios.Select(c => c.RespuestaSugeridaId).Should().Equal(escenario.Sugerencia!.Id, null);
+        envios.Select(c => c.RespuestaSugeridaId).Should().Equal(escenario.Sugerencia!.Id, escenario.Sugerencia!.Id);
         envios[1].CuerpoHtml.Should().Be(envios[0].CuerpoHtml, "un rechazo no borra lo escrito");
     }
 
@@ -621,11 +621,15 @@ public class ComunicacionesGen2Tests : BunitContext
             .Should().Equal(escenario.Sugerencia!.Id, escenario.Sugerencia!.Id);
     }
 
-    /// <summary>Issue #2007: descartar una sugerencia ya editada más del umbral deja el texto, que es de la persona, sin su id.</summary>
+    /// <summary>
+    /// Issue #2007, decisión de Chris del 2026-11-16, rama de descarte: descartar una sugerencia ya editada más del umbral deja
+    /// el texto y también su id, porque el texto sigue saliendo de la sugerencia de Vega.
+    /// </summary>
     [Fact]
-    public async Task Descartar_la_sugerencia_editada_deja_el_texto_pero_no_su_id()
+    public async Task Descartar_la_sugerencia_editada_deja_el_texto_y_su_id()
     {
         var (escenario, _) = EscenarioConSugerencia();
+        var insertada = escenario.Sugerencia!.Id;
         var (cut, mediador) = Renderizar(escenario);
         await SeleccionarFila(cut, "Documentación pendiente");
         cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
@@ -638,7 +642,7 @@ public class ComunicacionesGen2Tests : BunitContext
 
         var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
         enviado.CuerpoHtml.Should().Contain("Lo miramos esta tarde", "lo editado más del umbral es de la persona y se respeta");
-        enviado.RespuestaSugeridaId.Should().BeNull("una sugerencia descartada no se puede enviar");
+        enviado.RespuestaSugeridaId.Should().Be(insertada, "el texto que sale sigue partiendo de la sugerencia de Vega");
     }
 
     [Fact]

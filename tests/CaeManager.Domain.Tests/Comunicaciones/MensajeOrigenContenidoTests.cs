@@ -80,19 +80,37 @@ public class MensajeOrigenContenidoTests
     [Theory]
     [InlineData(EstadoRespuestaSugerida.Propuesta)]
     [InlineData(EstadoRespuestaSugerida.SinRevisar)]
-    [InlineData(EstadoRespuestaSugerida.Descartada)]
     public void Una_sugerencia_no_revisada_no_puede_ser_el_origen(EstadoRespuestaSugerida estado)
     {
         var conversacionId = Guid.NewGuid();
         var sugerencia = RespuestaSugerida.DeVega(conversacionId, Guid.NewGuid(), "<p>Recibido</p>", Guid.NewGuid(), Ahora);
         if (estado == EstadoRespuestaSugerida.SinRevisar) sugerencia.Insertar();
-        if (estado == EstadoRespuestaSugerida.Descartada) sugerencia.Descartar();
         var mensaje = Saliente(conversacionId);
 
         var registrar = () => mensaje.RegistrarOrigenDesde(sugerencia);
 
         registrar.Should().Throw<InvalidOperationException>();
         mensaje.OrigenContenido.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-11-16 (#2007): el origen de IA se conserva mientras el texto siga en el redactor, aunque la
+    /// sugerencia se descarte o se sustituya después de insertarla.
+    /// </summary>
+    [Fact]
+    public void Una_sugerencia_de_Vega_descartada_tras_insertarla_es_el_origen_VegaRevisada()
+    {
+        var conversacionId = Guid.NewGuid();
+        var sugerencia = RespuestaSugerida.DeVega(conversacionId, Guid.NewGuid(), "<p>Recibido</p>", Guid.NewGuid(), Ahora);
+        sugerencia.Insertar();
+        sugerencia.Descartar();
+        var mensaje = Saliente(conversacionId);
+
+        mensaje.RegistrarOrigenDesde(sugerencia);
+
+        mensaje.OrigenContenido.Should().Be(OrigenContenidoMensaje.VegaRevisada);
+        mensaje.RespuestaSugeridaId.Should().Be(sugerencia.Id);
+        mensaje.ContenidoGeneradoPorIa.Should().BeTrue();
     }
 
     [Fact]
