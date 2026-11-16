@@ -31,7 +31,7 @@ namespace CaeManager.Web.Tests;
 /// <see cref="AccesoCuentaEscenaTests"/>: aquí hace falta, además, que sepa de
 /// clave de autenticador y de segundo factor.
 /// </summary>
-public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
+public partial class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 {
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
