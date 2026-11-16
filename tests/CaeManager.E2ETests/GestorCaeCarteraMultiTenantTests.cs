@@ -172,7 +172,11 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // La siembra fijó su día al arrancar la fixture, que puede ser el de ayer si la medianoche de
         // Madrid cayó entre medias (#2146): la fecha de la Visita sembrada se lee de la base, no se
         // recalcula con el «hoy» de ahora. Por empezar es lo que la lleva a la cola como «Visita próxima».
-        var fechaVisitaSembrada = await FechaVisitaActivaMasProximaAsync(CentroB);
+        var (fechaVisitaSembrada, diaDeLaSiembra) = await VisitaActivaMasProximaAsync(CentroB);
+        // Margen de dos días desde el día en que se sembró: es lo que aguanta esa medianoche, y lo
+        // comprueba cada ejecución, no solo las que la cruzan.
+        Assert.True(fechaVisitaSembrada.DayNumber - diaDeLaSiembra.DayNumber >= 2,
+            $"La Visita sembrada en {CentroB} ({fechaVisitaSembrada:yyyy-MM-dd}) está a menos de dos días del día de la siembra ({diaDeLaSiembra:yyyy-MM-dd}): una medianoche de Madrid durante la suite la saca de la cola.");
         Assert.True(fechaVisitaSembrada > hoy,
             $"La Visita sembrada en {CentroB} ({fechaVisitaSembrada:yyyy-MM-dd}) ya no está por empezar con el día de negocio {hoy:yyyy-MM-dd}: no puede salir como «Visita próxima».");
         var tenantB = await IdTenantAsync(TenantBeneficiarioB);
@@ -571,21 +575,29 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     private Task<string> IdCentroAsync(string nombre) =>
         fixture.LeerValorSqlAsync("""SELECT "Id"::text FROM "Centros" WHERE "Nombre" = @n""", ("n", nombre));
 
-    /// <summary>La Visita activa más cercana del Centro: antes de crear otra en el recorrido, la sembrada.</summary>
-    private async Task<DateOnly> FechaVisitaActivaMasProximaAsync(string nombreCentro) =>
-        DateOnly.ParseExact(
-            await fixture.LeerValorSqlAsync(
-                """
-                SELECT to_char(v."FechaInicio", 'YYYY-MM-DD')
-                FROM "Visitas" v
-                JOIN "Centros" c ON c."Id" = v."CentroId"
-                WHERE c."Nombre" = @n AND NOT v."EstaCancelada" AND NOT v."EstaEliminado"
-                ORDER BY v."FechaInicio"
-                LIMIT 1
-                """,
-                ("n", nombreCentro)),
-            "yyyy-MM-dd",
-            System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>
+    /// La Visita activa más cercana del Centro (antes de crear otra en el recorrido, la sembrada): su
+    /// fecha de inicio y el día de negocio (Madrid) en que se creó.
+    /// </summary>
+    private async Task<(DateOnly FechaInicio, DateOnly DiaDeCreacion)> VisitaActivaMasProximaAsync(string nombreCentro)
+    {
+        var fila = await fixture.LeerValorSqlAsync(
+            """
+            SELECT to_char(v."FechaInicio", 'YYYY-MM-DD') || ' '
+                   || to_char((v."CreadoEnUtc" AT TIME ZONE 'Europe/Madrid')::date, 'YYYY-MM-DD')
+            FROM "Visitas" v
+            JOIN "Centros" c ON c."Id" = v."CentroId"
+            WHERE c."Nombre" = @n AND NOT v."EstaCancelada" AND NOT v."EstaEliminado"
+            ORDER BY v."FechaInicio"
+            LIMIT 1
+            """,
+            ("n", nombreCentro));
+        var partes = fila.Split(' ');
+        return (Dia(partes[0]), Dia(partes[1]));
+
+        static DateOnly Dia(string iso) =>
+            DateOnly.ParseExact(iso, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     /// <param name="estado">EstadoAcreditacion: 2 = Aceptada, 3 = Rechazada.</param>
     private Task<string> IdAcreditacionAsync(string apellidosTrabajador, int estado) =>
