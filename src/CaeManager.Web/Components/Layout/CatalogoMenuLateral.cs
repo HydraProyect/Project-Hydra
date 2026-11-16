@@ -317,11 +317,11 @@ public static class CatalogoMenuLateral
             ClaveRotulo: "MenuInboundValidacion"),
         // Reglas de aviso (pantalla 18, CA-19): la gestiona el Gestor CAE y quien lo coordina.
         // shortcut: sin backend, cablear cuando entre B-31 (motor de reglas de aviso con las de serie).
-        new("inbound-reglas-aviso", "inbound-config", "inbound/reglas-aviso", "alertas", "MenuInboundReglasAviso",
+        new("inbound-reglas-aviso", "inbound-config", "inbound/reglas-aviso", "correo", "MenuInboundReglasAviso",
             ClaveRotulo: "MenuInboundReglasAviso"),
         // Gobierno de Inbound (pantalla 20, CA-21): solo el Administrador del Tenant TCE, como el resto de la configuración del Tenant.
         // shortcut: sin backend, cablear cuando entre B-36 (convalidación y Gobierno); la autorización es el rol Administrador.
-        new("inbound-gobierno", "inbound-config", "inbound/gobierno", "configuracion", "MenuInboundGobierno",
+        new("inbound-gobierno", "inbound-config", "inbound/gobierno", "roles", "MenuInboundGobierno",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)
                             && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario), ClaveRotulo: "MenuInboundGobierno"),
 
