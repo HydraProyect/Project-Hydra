@@ -98,8 +98,15 @@ public class CaeManagerDbContext(
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
         CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext,
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
-        CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext
+        CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext,
+        CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext
 {
+    // Plantillas de requisitos del Tenant TCE (B-14), con RLS por Tenant.
+    public DbSet<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos> PlantillasRequisitos => Set<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos>();
+    public DbSet<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla> RequisitosPlantilla => Set<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla>();
+    IQueryable<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos> CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext.PlantillasRequisitos => PlantillasRequisitos.AsNoTracking();
+    IQueryable<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla> CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext.RequisitosPlantilla => RequisitosPlantilla.AsNoTracking();
+
     // Catálogo base de Plataforma (B-13): global, sin Tenant ni RLS; el runtime solo tiene SELECT.
     public DbSet<CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo> CatalogoActividades => Set<CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo>();
     public DbSet<CaeManager.Domain.Inbound.CatalogoBase.CodigoOficialActividad> CatalogoActividadesCodigosOficiales => Set<CaeManager.Domain.Inbound.CatalogoBase.CodigoOficialActividad>();

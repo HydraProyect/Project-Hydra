@@ -63,11 +63,12 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",
         "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor.cs",
     ];
     /// <summary>
     /// Desde dónde se despacha la query que lleva el bloqueo y su causa a una persona: Bandeja y Mi trabajo del Gestor CAE (la vía de
     /// revisión: el test solo prueba que ese envío existe, no lo que la pantalla hace con él), Calendario, Reclamación y las pantallas de
-    /// Centro y de Cliente empresarial.
+    /// Centro, de Cliente empresarial y la ficha del Trabajador (que dice el bloqueo por Centro).
     /// </summary>
     private static readonly string[] SuperficiesQueMuestranElBloqueo =
     [
@@ -79,6 +80,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",
         "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.cs",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor.cs",
     ];
 
     /// <summary>

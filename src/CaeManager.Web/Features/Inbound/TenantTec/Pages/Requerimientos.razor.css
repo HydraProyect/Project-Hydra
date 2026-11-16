@@ -1,0 +1,60 @@
+.req-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+}
+
+.req-limpiar {
+    border: 0;
+    background: transparent;
+    padding: 4px 8px;
+    color: var(--color-primary-700);
+    font: inherit;
+    cursor: pointer;
+}
+
+.req-limpiar:hover {
+    text-decoration: underline;
+}
+
+.req-nombre {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--color-primary-700);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.req-nombre:hover {
+    text-decoration: underline;
+}
+
+.req-sub {
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+.req-motivo {
+    color: var(--color-danger-700);
+}
+
+.req-accion {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
