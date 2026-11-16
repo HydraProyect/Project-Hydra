@@ -211,7 +211,7 @@ public static class BloqueoRespuestaSugerida
     /// hilo de ese mismo destinatario; una sugerencia de la conversación con otra contraparte contesta a otra persona y no
     /// bloquea un mensaje independiente, aunque su texto diste 15 caracteres o menos. Correo sin distinguir mayúsculas.
     /// </summary>
-    private static IQueryable<Conversacion> HilosConElDestinatario(
+    internal static IQueryable<Conversacion> HilosConElDestinatario(
         IComunicacionesQueryContext comunicaciones, Expression<Func<Conversacion, bool>> hilosVisibles, List<string> direcciones) =>
         comunicaciones.Conversaciones.Where(hilosVisibles).Where(conversacion =>
             comunicaciones.ParticipantesConversacion.Any(p =>
@@ -220,7 +220,7 @@ public static class BloqueoRespuestaSugerida
                 m.ConversacionId == conversacion.Id && m.Direccion == DireccionMensaje.Entrante &&
                 direcciones.Contains(m.Remitente.ToLower())));
 
-    private static List<string> DireccionesNormalizadas(IEnumerable<string> destinatarios) =>
+    internal static List<string> DireccionesNormalizadas(IEnumerable<string> destinatarios) =>
         destinatarios
             .Where(d => !string.IsNullOrWhiteSpace(d))
             .Select(d => d.Trim().ToLowerInvariant())
@@ -277,7 +277,7 @@ public static class BloqueoRespuestaSugerida
     /// El cuerpo contiene el texto entero (desde <see cref="LongitudMinimaTextoContenido"/>) o es casi el mismo
     /// (<see cref="RevisionRespuestaSugerida.EsCasiLaMisma"/>): copiar la propuesta a mano y cambiarle una letra no la revisa.
     /// </summary>
-    private static bool CoincideConElTexto(string cuerpoNormalizado, string texto)
+    internal static bool CoincideConElTexto(string cuerpoNormalizado, string texto)
     {
         var textoNormalizado = RespuestaSugerida.NormalizarTexto(texto);
         return (textoNormalizado.Length >= LongitudMinimaTextoContenido &&

@@ -19,10 +19,23 @@ internal static class AutoridadSobreAceptacionContractual
         "AceptacionContractual.SoloAdministradorDelTenantPropietario",
         "Solo el Administrador del Tenant propietario puede consultar sus aceptaciones.");
 
+    public const string RolAdministrador = "Administrador";
+
     public static async Task<bool> EsAdministradorDelTenantPropietarioAsync(ICurrentUserService usuarioActual, ITenantActual tenantActual) =>
         tenantActual.TenantId is not null
-        && await usuarioActual.ObtenerRolEfectivoAsync() == "Administrador"
+        && await usuarioActual.ObtenerRolEfectivoAsync() == RolAdministrador
         && !RolesReservadosAlTenantDeOrigen.EsContextoCruzado(await usuarioActual.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+
+    /// <summary>
+    /// Reglas 2 y 3 de la #2009, leídas en la base: una cuenta propia del Tenant propietario, activa y con rol de
+    /// Administrador. La cuenta de un Operador CAE externo pertenece a su organización, no al Tenant propietario,
+    /// así que no pasa. La comparten el registro del alta y la aceptación fuera del alta.
+    /// </summary>
+    public static Task<bool> EsCuentaPropiaActivaDeAdministradorAsync(
+        IDirectorioUsuariosService directorioUsuarios, Guid usuarioId, Guid tenantId, CancellationToken cancellationToken) =>
+        usuarioId == Guid.Empty || tenantId == Guid.Empty
+            ? Task.FromResult(false)
+            : directorioUsuarios.EsCuentaActivaConRolAsync(usuarioId, tenantId, RolAdministrador, cancellationToken);
 }
 
 public record AceptacionContractualTenantDto(

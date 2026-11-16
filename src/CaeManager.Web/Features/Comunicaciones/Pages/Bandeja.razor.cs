@@ -979,6 +979,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _clienteActivo = null;
         _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
+        _sugerenciaEnRedactor = null;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
         NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
@@ -1258,7 +1259,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // los dos como texto (RevisionRespuestaSugerida.TextoComparable), así que el bloqueo es el mismo.
         _textoRespuesta = RespuestaSugeridaPanel.TextoParaRedactor(sugerencia, _detalle!.Canal == CanalConversacion.WhatsApp);
         _notaInternaActiva = false;
-        _sugerenciaEnRedactor = new SugerenciaEnRedactor(sugerencia.Id, _aperturaVigente);
+        _sugerenciaEnRedactor = new SugerenciaEnRedactor(sugerencia.Id, _aperturaVigente, sugerencia.Origen);
         return Task.CompletedTask;
     }
 
@@ -1269,7 +1270,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private SugerenciaEnRedactor? _sugerenciaEnRedactor;
 
-    private readonly record struct SugerenciaEnRedactor(Guid Id, int Apertura);
+    private readonly record struct SugerenciaEnRedactor(Guid Id, int Apertura, OrigenRespuestaSugerida Origen);
 
     /// <summary>
     /// Lo que la persona escribe en el redactor. Si lo vacía, lo que escriba después ya no sale de la sugerencia insertada:
@@ -1285,6 +1286,21 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Guid? SugerenciaEnRedactorVigente =>
         _sugerenciaEnRedactor is { } enRedactor && enRedactor.Apertura == _aperturaVigente ? enRedactor.Id : null;
 
+    /// <summary>
+    /// El id que viaja en el comando de envío (issue #2007): la sugerencia de Vega de este redactor en esta apertura. El
+    /// servidor la valida y marca el correo como contenido de IA revisado; una macro no viaja, porque no es de Vega.
+    /// <para>
+    /// El origen de IA se conserva mientras el texto de la sugerencia siga en el redactor, aunque se descarte, el panel la
+    /// sustituya por otra generación o el servidor rechace un envío (decisión de Chris del 2026-11-16): ni el descarte ni
+    /// el rechazo sueltan el id. Lo sueltan vaciar el redactor (<see cref="CambiarTextoRespuesta"/>), insertar otra
+    /// sugerencia, cambiar de conversación y enviar con éxito.
+    /// </para>
+    /// </summary>
+    private Guid? SugerenciaDeVegaEnRedactor =>
+        _sugerenciaEnRedactor is { Origen: OrigenRespuestaSugerida.Vega } enRedactor && enRedactor.Apertura == _aperturaVigente
+            ? enRedactor.Id
+            : null;
+
     /// <summary>La conversación seleccionada y la que muestra el detalle son esta: ni la anterior, ni una que aún carga.</summary>
     private bool EsLaConversacionAbierta(Guid conversacionId) =>
         _conversacionSeleccionadaId == conversacionId && _detalle?.Id == conversacionId;
@@ -1298,8 +1314,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var sugerencia = aviso.Sugerencia;
         if (aviso.Seleccion == _aperturaVigente && EsLaConversacionAbierta(sugerencia.ConversacionId) &&
             !RevisionRespuestaSugerida.EditadaLoSuficiente(_textoRespuesta, sugerencia.Texto))
-            _textoRespuesta = string.Empty;
+            CambiarTextoRespuesta(string.Empty);
 
+        // Si el texto se queda, sigue saliendo de la sugerencia de Vega: el id se conserva (SugerenciaDeVegaEnRedactor).
         return Task.CompletedTask;
     }
 
@@ -1477,20 +1494,24 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Instantánea exacta de lo que sale: con éxito se limpia solo eso (LimpiarLoEnviado). WhatsApp no lleva adjuntos.
         var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta,
             esWhatsApp ? [] : _adjuntosPendientes.ToList(), _errorAdjuntos, EmailFallback: null);
+        // Fijada con el texto, antes de esperar: la sugerencia de Vega que estaba en este redactor al pulsar (issue #2007).
+        var sugerenciaDeVega = SugerenciaDeVegaEnRedactor;
         try
         {
             if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, enviado.Texto)) return;
 
             var resultado = esWhatsApp
-                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, enviado.Texto.Trim()), _ciclo.Token)
+                ? await Mediator.Send(new ResponderConversacionWhatsAppCommand(conversacionId, enviado.Texto.Trim(), sugerenciaDeVega), _ciclo.Token)
                 : await Mediator.Send(new ResponderConversacionCommand(
-                    conversacionId, enviado.Texto, enviado.Adjuntos.Count > 0 ? enviado.Adjuntos.ToList() : null), _ciclo.Token);
+                    conversacionId, enviado.Texto, enviado.Adjuntos.Count > 0 ? enviado.Adjuntos.ToList() : null, sugerenciaDeVega),
+                    _ciclo.Token);
 
             if (resultado.EsFallido)
             {
                 // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
                 // los adjuntos — el gestor corrige y vuelve a darle a Enviar
-                // sin reescribir la respuesta entera.
+                // sin reescribir la respuesta entera. Tampoco la sugerencia de Vega del redactor, aunque el servidor la
+                // rechace (ver SugerenciaDeVegaEnRedactor).
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
@@ -1546,12 +1567,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _enviando = true;
         // El fallback no lleva adjuntos: la instantánea es el texto y la dirección.
         var enviado = new BorradorEnviado(CapturarVigencia(), _textoRespuesta, [], ErrorAdjuntos: null, _emailFallback);
+        var sugerenciaDeVega = SugerenciaDeVegaEnRedactor;
         try
         {
             if (!await AsegurarSugerenciaRevisadaAsync(conversacionId, enviado.Texto)) return;
 
             var resultado = await Mediator.Send(new MigrarConversacionACorreoCommand(
-                conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto), _ciclo.Token);
+                conversacionId, enviado.EmailFallback!.Trim(), enviado.Texto, sugerenciaDeVega), _ciclo.Token);
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -2439,6 +2461,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _redactarVisible = false;
         if (_drawerPrioridadVisible) CerrarDrawerPrioridad();
         _textoRespuesta = string.Empty;
+        _sugerenciaEnRedactor = null;
         _macroSeleccionadaId = string.Empty;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
@@ -2548,6 +2571,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         {
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
+            // Lo siguiente que se escriba ya no sale de la sugerencia enviada (issue #2007), como al vaciar el redactor a mano.
+            _sugerenciaEnRedactor = null;
         }
         _adjuntosPendientes.RemoveAll(a => enviado.Adjuntos.Any(e => ReferenceEquals(e, a)));
         if (enviado.ErrorAdjuntos is not null && _errorAdjuntos == enviado.ErrorAdjuntos) _errorAdjuntos = null;
