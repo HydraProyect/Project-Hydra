@@ -118,7 +118,9 @@ public class AvisarCambioSubencargadoCommandHandler(
         var envioId = IdentificadorEntidad.Nuevo();
 
         // 1. Lo que se va a enviar queda guardado antes de enviarlo. Si este guardado falla, la excepción sube y el
-        //    correo no sale.
+        //    correo no sale. La política solo_el_actor_de_plataforma_avisa exige que el destinatario siga siendo
+        //    Administrador del Tenant: si pierde el rol entre la consulta de destinatarios y este guardado, la base de
+        //    datos responde 42501 y el Command falla cerrado, sin enviar; repetirlo recalcula los destinatarios.
         repositorio.AgregarAviso(new AvisoCambioSubencargado(
             subencargadoId, envioId, destinatario.UsuarioId, FaseAvisoCambioSubencargado.Preparado, Ahora(), actorId));
         await unitOfWork.SaveChangesAsync(cancellationToken);

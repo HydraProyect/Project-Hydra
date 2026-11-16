@@ -135,10 +135,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // RLS de la objeción sigue siendo la del Tenant del contexto. Los avisos no los lee el gate: ni Soporte
             // TALVEG ni cae_app_aprovisionamiento tienen nada sobre ellos, ni aprovisionamiento sobre las otras dos.
             //
-            // La autoría también la firma el contexto: el alta queda a nombre de quien la hace y nace sin activar, y
-            // una fila que queda Activo tiene que estar activada por quien firma ese cambio. Las políticas no ven la
-            // fila anterior, así que no impiden reescribir después PropuestoPorUsuarioId, ni ActivadoPorUsuarioId de
-            // una fila retirada: eso necesitaría un disparador y es un hueco declarado (#2010, D-7).
+            // La autoría también la firma el contexto: el alta queda a nombre de quien la hace y nace Propuesto y sin
+            // activar, y una fila que queda Activo tiene que estar activada por quien firma ese cambio. Las políticas no
+            // ven la fila anterior, así que no impiden reescribir después PropuestoPorUsuarioId, ni ActivadoPorUsuarioId
+            // de una fila retirada, ni imponen la máquina de estados del UPDATE (por ejemplo, de Propuesto a Activo sin
+            // pasar por Avisado ni por los 30 días): la impone Application, y en la base necesitaría un disparador. Es
+            // un hueco declarado (#2010, D-7).
             //
             // El aviso solo se registra a nombre de un Administrador de su propio Tenant propietario:
             // app_es_administrador_del_tenant solo responde por el Tenant del contexto, que aislamiento_tenant ata ya
@@ -151,6 +153,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 CREATE POLICY subencargados_alta_por_admin_plataforma_global ON public."Subencargados"
                     FOR INSERT WITH CHECK ((SELECT public.app_es_admin_plataforma_global((SELECT public.app_ctx_usuario_id())))
                                            AND "PropuestoPorUsuarioId" = (SELECT public.app_ctx_usuario_id())
+                                           AND "Estado" = 'Propuesto'
                                            AND "ActivadoPorUsuarioId" IS NULL);
                 CREATE POLICY subencargados_cambio_por_admin_plataforma_global ON public."Subencargados"
                     FOR UPDATE USING ((SELECT public.app_es_admin_plataforma_global((SELECT public.app_ctx_usuario_id()))))

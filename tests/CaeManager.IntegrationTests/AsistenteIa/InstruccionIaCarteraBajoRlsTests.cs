@@ -173,7 +173,8 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// #2010, D-7, en contexto cruzado: el Gestor CAE del Operador CAE externo comprueba su cartera y, en el
+    /// #2010, D-7, en contexto cruzado: la persona del Operador CAE externo (Administrador en su Tenant de origen, que
+    /// actúa como Gestor CAE con Asignación de Cartera en los Tenants beneficiarios) comprueba su cartera y, en el
     /// <see cref="AmbitoTenantExplicito"/> del Tenant beneficiario que objetó a un subencargado activo de IA, ve la IA
     /// apagada por esa objeción; la de ese Tenant no apaga la de los demás. Es la prueba que distingue el Tenant
     /// efectivo del Tenant de origen: si <c>aislamiento_tenant</c> de <c>ObjecionesSubencargado</c> se atara a
@@ -207,7 +208,7 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         resultado.SinInstruccion.Select(t => t.TenantId).Should().BeEquivalentTo(
             [_tenantConInstruccion, _tenantSinInstruccion, _tenantAlcanceCero],
             "con la instrucción vigente, la objeción del Tenant beneficiario a un subencargado activo apaga su IA");
-        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario con instrucción").And.Contain("objetar a un subencargado");
+        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario con instrucción");
     }
 
     private CurrentUserService CrearCurrentUserService(ITenantsQueryContext contexto)

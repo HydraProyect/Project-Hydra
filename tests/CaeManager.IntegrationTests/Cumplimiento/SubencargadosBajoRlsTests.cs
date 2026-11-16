@@ -388,6 +388,33 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         await DebeRechazarAsync(runtime, "PropuestoPorUsuarioId tiene que ser la identidad del contexto firmado");
     }
 
+    [Theory]
+    [InlineData("Propuesto", false, false, true)]
+    [InlineData("Activo", false, true, false)]
+    [InlineData("Avisado", false, false, false)]
+    [InlineData("Propuesto", false, true, false)]
+    [InlineData("Propuesto", true, false, false)]
+    public async Task El_alta_del_catalogo_nace_propuesta_sin_activar_y_a_nombre_propio(
+        string estado, bool propuestoPorOtro, bool conActivador, bool seAdmite)
+    {
+        await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
+        var propuestoPor = propuestoPorOtro ? Guid.NewGuid() : _actorGlobal;
+        Guid? activadoPor = conActivador ? _actorGlobal : null;
+
+        var alta = () => runtime.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "Subencargados"
+                ("Id", "Nombre", "Finalidad", "UbicacionYTransferencia", "AdmiteExclusionPorTenant", "Conmutador", "Estado",
+                 "PropuestoEnUtc", "PropuestoPorUsuarioId", "ActivadoPorUsuarioId", "Version")
+            VALUES ({Guid.NewGuid()}, 'Proveedor', 'Finalidad', 'UE', false, NULL, {estado}, now(), {propuestoPor}, {activadoPor}, {Guid.NewGuid()})
+            """);
+
+        if (seAdmite)
+            (await alta()).Should().Be(1, "control del instrumento: la propuesta a nombre propio y sin activar se admite");
+        else
+            (await Record.ExceptionAsync(alta)).Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be("42501", $"un alta en {estado}, propuesta por otro: {propuestoPorOtro}, con activador: {conActivador}");
+    }
+
     [Fact]
     public async Task La_activacion_queda_a_nombre_de_quien_firma_el_contexto()
     {
@@ -415,7 +442,7 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_politica_no_deja_insertar_un_aviso_en_otro_Tenant_aunque_se_salte_el_sellado()
+    public async Task Un_aviso_en_otro_Tenant_se_rechaza_aunque_se_salte_el_sellado()
     {
         await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
         await runtime.Database.OpenConnectionAsync();
@@ -427,7 +454,8 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             """));
 
         // Lo rechazan el WITH CHECK de aislamiento_tenant y, por su cuenta, la comprobación del destinatario:
-        // app_es_administrador_del_tenant solo responde por el Tenant del contexto.
+        // app_es_administrador_del_tenant solo responde por el Tenant del contexto. Por eso este test ya no aísla
+        // aislamiento_tenant: el WITH CHECK genérico de aislamiento lo fija CoberturaRlsDelModeloTests.
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501",
             "ni aislamiento_tenant ni solo_el_actor_de_plataforma_avisa admiten una fila de otro Tenant");
     }
