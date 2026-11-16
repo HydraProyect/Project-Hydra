@@ -39,10 +39,12 @@ public class CentroInboundPantallasTests : BunitContext
             await Task.Yield();
             return (TResponse)(request switch
             {
-                ObtenerCentroPorIdQuery q => CentroNoVisible ? null! : (object)new CentroDetalleDto(
+                // Solo el Centro de prueba es visible: cualquier otro Id (p. ej. Guid.Empty) devuelve null, como la Query real.
+                ObtenerCentroPorIdQuery q => CentroNoVisible || q.Id != CentroId ? null! : (object)new CentroDetalleDto(
                     q.Id, ClienteId, "Logística Delta Sur S.A.", Guid.NewGuid(), "Logística Delta Sur S.A.", "Planta Zaragoza Norte", null,
                     "Polígono Malpica, calle E, 12 · 50016 Zaragoza", null, null, Guid.NewGuid()),
-                ObtenerContratosAccesoQuery => (object)Contratos,
+                // Solo devuelve contratos del Centro pedido: si la ficha dejara de acotar por CentroId, la ficha se quedaría sin datos.
+                ObtenerContratosAccesoQuery q => (object)Contratos.Where(c => q.CentroId is null || c.CentroId == q.CentroId).ToList(),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza Norte", "Logística Delta Sur S.A.", "Logística Delta Sur S.A.", ClienteId) },
                 ObtenerEmpresaPorIdQuery q => new EmpresaDetalleDto(q.Id, "Montajes Moncayo S.L.", "B12345674", DateTime.UtcNow, [], Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -64,12 +66,20 @@ public class CentroInboundPantallasTests : BunitContext
 
     private sealed class AptosFalsos(IReadOnlyList<TrabajadorAptoHoy>? filas) : IAptosHoyDelCentro
     {
-        public Task<IReadOnlyList<TrabajadorAptoHoy>?> ObtenerAsync(Guid centroId, CancellationToken cancellationToken = default) => Task.FromResult(filas);
+        // Datos solo para el Centro de prueba; con otro Id responde vacío.
+        public Task<IReadOnlyList<TrabajadorAptoHoy>?> ObtenerAsync(Guid centroId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(filas is null ? null : centroId == CentroId ? filas : (IReadOnlyList<TrabajadorAptoHoy>)[]);
     }
 
     private sealed class InformacionFalsa(IReadOnlyList<DocumentoInformacionCentro>? docs) : IInformacionDelCentro
     {
-        public Task<IReadOnlyList<DocumentoInformacionCentro>?> ListarAsync(Guid? centroId, CancellationToken cancellationToken = default) => Task.FromResult(docs);
+        public List<Guid?> Consultas { get; } = [];
+
+        public Task<IReadOnlyList<DocumentoInformacionCentro>?> ListarAsync(Guid? centroId, CancellationToken cancellationToken = default)
+        {
+            Consultas.Add(centroId);
+            return Task.FromResult(docs is null || centroId is null ? docs : (IReadOnlyList<DocumentoInformacionCentro>?)docs.Where(d => d.CentroId == centroId).ToList());
+        }
     }
 
     public CentroInboundPantallasTests()
@@ -83,6 +93,8 @@ public class CentroInboundPantallasTests : BunitContext
         new(ContratoId, ClienteId, CentroId, EmpresaId, new DateOnly(2020, 1, 1), new DateOnly(2099, 12, 31), null, true, true, null,
             Guid.NewGuid(), estado, TipoContratoAcceso.Recurrente, PropiaActividadContrato.Si, 1, 10, null, null);
 
+    private InformacionFalsa _informacion = new(null);
+
     private void Preparar(
         IReadOnlyList<TrabajadorAptoHoy>? aptos = null, IReadOnlyList<DocumentoInformacionCentro>? docs = null,
         bool centroNoVisible = false, params ContratoAccesoDto[] contratos)
@@ -93,7 +105,8 @@ public class CentroInboundPantallasTests : BunitContext
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<IAptosHoyDelCentro>(_ => new AptosFalsos(aptos));
-        Services.AddScoped<IInformacionDelCentro>(_ => new InformacionFalsa(docs));
+        _informacion = new InformacionFalsa(docs);
+        Services.AddScoped<IInformacionDelCentro>(_ => _informacion);
     }
 
     private static TrabajadorAptoHoy Apto(string nombre, EstadoAptitudHoy estado, string? bloquea = null, string empresa = "Montajes Moncayo S.L.") =>
@@ -221,11 +234,13 @@ public class CentroInboundPantallasTests : BunitContext
     [Fact]
     public void Un_CentroId_vacio_no_deja_la_ficha_cargando()
     {
-        Preparar(centroNoVisible: true);
+        Preparar(contratos: Contrato()); // el Centro de prueba es visible; Guid.Empty no es ninguno
 
         var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, Guid.Empty)));
 
         cut.FindAll("[role=tab]").Should().BeEmpty();
+        cut.WaitForAssertion(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle());
+        cut.Markup.Should().NotContain("esqueleto-lista");
     }
 
     [Fact]
@@ -236,6 +251,7 @@ public class CentroInboundPantallasTests : BunitContext
         var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Find("[data-kpi=empresas]").TextContent.Should().Contain("1 con contrato activo");
+        _informacion.Consultas.Should().Equal([(Guid?)CentroId], "la ficha pide la información de su Centro, no la de todos");
     }
 
     [Fact]
@@ -270,7 +286,9 @@ public class CentroInboundPantallasTests : BunitContext
 
         cut.FindAll("table").Should().BeEmpty();
         cut.FindAll("[role=tab]").Should().BeEmpty();
-        cut.Markup.Should().NotContain("esqueleto-lista");
+        // La ficha cae en FichaNoEncontrada (no en el error de carga con «Reintentar»).
+        cut.WaitForAssertion(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle());
+        cut.Markup.Should().NotContain("Reintentar").And.NotContain("esqueleto-lista");
     }
 
     // ---------------------------------------------------------------- Centros (entrada de menú)
