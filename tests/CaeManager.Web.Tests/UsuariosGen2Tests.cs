@@ -90,6 +90,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private readonly ToastService _toasts = new();
     private readonly MediatorFalso _mediador = new();
     private readonly CatalogoCarteraFalso _catalogo = new();
+    private readonly AvisoSinGestorCaeAnotado _avisoSinGestorCae = new();
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _identidad = new();
 
@@ -347,6 +348,21 @@ public partial class UsuariosGen2Tests : BunitContext
     {
         public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    /// <summary>El aviso a los Administradores se prueba en Application; aquí se anota.</summary>
+    private sealed class AvisoSinGestorCaeAnotado
+        : CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.IAvisoDeCarteraSinGestorCae
+    {
+        public List<IReadOnlyList<CaeManager.Application.Operaciones.TenantEnCarteraDeGestor>> Avisos { get; } = [];
+
+        public Task AvisarAsync(
+            Guid operadorTenantId, string nombreDesactivado,
+            IReadOnlyList<CaeManager.Application.Operaciones.TenantEnCarteraDeGestor> sinGestorCae, CancellationToken cancellationToken)
+        {
+            Avisos.Add(sinGestorCae);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class CorreoFalso : IEmailService
@@ -752,7 +768,7 @@ public partial class UsuariosGen2Tests : BunitContext
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                 cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
-                new OtroAdministradorSiempre()).Handle(c, ct),
+                new OtroAdministradorSiempre(), _avisoSinGestorCae).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
@@ -3003,6 +3019,86 @@ public partial class UsuariosGen2Tests : BunitContext
         await ConfirmarDesactivacionAsync(cut);
 
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+    }
+
+    // ---------- Desactivar a un Gestor CAE con empresas en su cartera (decisión de Chris del 2026-11-14) ----------
+
+    private async Task<IRenderedComponent<UsuariosControlados>> AbrirDesactivarDeAnderConEmpresasAsync()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae),
+            (Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga"), RolesIdentidad.GestorCae),
+            (Cuenta(Guid.Parse("c0c0c0c0-0000-0000-0000-00000000c0c0"), "c.consulta@talveg.es", "Carla Consulta"), RolesIdentidad.Consulta));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.EnCartera.Add(new TenantEnCarteraDeGestor(BeneficiarioNorte, "Talleres Norte"));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        cut.WaitForAssertion(() => cut.Find("[data-testid=desactivar-cartera-empresas]").TextContent.Should().Contain("Talleres Norte"));
+        return cut;
+    }
+
+    private static IElement SelectorDeDestino(IRenderedComponent<UsuariosControlados> cut) => cut.Find("[role=dialog] select");
+
+    [Fact]
+    public async Task Desactivar_a_un_Gestor_CAE_con_empresas_pregunta_a_quien_pasan_y_ofrece_solo_otros_Gestores_CAE()
+    {
+        var cut = await AbrirDesactivarDeAnderConEmpresasAsync();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Ander Beitia?");
+        dialogo.QuerySelector("label")!.TextContent.Should().Contain("Reasignar su cartera a");
+        SelectorDeDestino(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim())
+            .Should().Equal(["A nadie por ahora", "Iker Larrañaga (i.larra@talveg.es)"], "ni él mismo, ni una Administradora, ni Consulta");
+        dialogo.TextContent.Should().Contain("se quedarán sin Gestor CAE").And.Contain("La organización sigue activa");
+        cut.FindAll("[role=dialog] .modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Volver", "Desactivar");
+        _identidad.Actualizadas.Should().BeEmpty("abrir el diálogo no desactiva");
+    }
+
+    [Fact]
+    public async Task Desactivar_con_destino_envia_el_destino_y_la_cartera_pasa_a_el()
+    {
+        var cut = await AbrirDesactivarDeAnderConEmpresasAsync();
+
+        await SelectorDeDestino(cut).ChangeAsync(new() { Value = IkerId.ToString() });
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("se quedarán sin Gestor CAE");
+        await ConfirmarDesactivacionAsync(cut);
+
+        var orden = _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle().Subject;
+        orden.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, false, IkerId));
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        _catalogo.Retiradas.Should().Equal(BeneficiarioNorte);
+        _catalogo.Incorporadas.Should().Equal((BeneficiarioNorte, IkerId));
+        _avisoSinGestorCae.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Desactivar_sin_elegir_destino_deja_las_empresas_sin_Gestor_CAE_y_avisa()
+    {
+        var cut = await AbrirDesactivarDeAnderConEmpresasAsync();
+
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, false, null));
+        _catalogo.Retiradas.Should().Equal(BeneficiarioNorte);
+        _catalogo.Incorporadas.Should().BeEmpty();
+        _avisoSinGestorCae.Avisos.Should().ContainSingle().Which.Select(t => t.Nombre).Should().Equal("Talleres Norte");
+        _toasts.Mensajes.Should().Contain(t => t.Mensaje == "Usuario desactivado.");
+    }
+
+    [Fact]
+    public async Task Volver_con_un_destino_elegido_pregunta_antes_de_descartar_y_no_desactiva()
+    {
+        var cut = await AbrirDesactivarDeAnderConEmpresasAsync();
+
+        await SelectorDeDestino(cut).ChangeAsync(new() { Value = IkerId.ToString() });
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+
+        cut.Markup.Should().Contain("¿Descartar cambios?");
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
     }
 
     /// <summary>

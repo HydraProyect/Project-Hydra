@@ -492,9 +492,42 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Desactivar_al_principal_le_quita_la_marca_pero_no_la_cartera_y_releva_a_su_Coordinador_CAE()
+    public async Task Desactivar_al_principal_sin_destino_retira_su_cartera_releva_a_su_Coordinador_CAE_y_avisa()
     {
-        var resultado = await EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, sp) =>
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var resultado = await DesactivarAsync(_gestorA, destinoId: null, aviso);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var carteras = await CarterasAsync(_operacion);
+        carteras.Where(c => c.UsuarioId == _gestorA).Should().OnlyContain(
+            c => c.Estado == EstadoAsignacion.Cerrada && !c.EsPrincipal,
+            "decisión del 2026-11-14: nadie desactivado conserva una Asignación de Cartera vigente");
+        carteras.Single(c => c.UsuarioId == _coordinador).Should().Match<AsignacionCartera>(
+            c => c.EsPrincipal && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiario.Id);
+        (await PrincipalesAsync(_operacion)).Should().Equal(_coordinador);
+        (await PrincipalesAsync(_operacionSinPrincipal)).Should().BeEmpty("donde no era el principal no hay nada que relevar");
+        aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId)
+            .Should().Contain(_beneficiario.Id);
+    }
+
+    [Fact]
+    public async Task Desactivar_al_principal_con_destino_pasa_cartera_y_marca_al_destino_sin_aviso()
+    {
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var resultado = await DesactivarAsync(_gestorA, destinoId: _gestorB, aviso);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var carteras = await CarterasAsync(_operacion);
+        carteras.Where(c => c.UsuarioId == _gestorA).Should().OnlyContain(c => c.Estado == EstadoAsignacion.Cerrada);
+        carteras.Where(c => c.UsuarioId == _gestorB && c.Estado == EstadoAsignacion.Vigente).Should().ContainSingle()
+            .Which.EsPrincipal.Should().BeTrue("la marca va con la cartera reasignada, no al Coordinador CAE");
+        (await PrincipalesAsync(_operacion)).Should().Equal(_gestorB);
+        aviso.Avisos.Where(a => a.SinGestorCae.Any(t => t.PropietarioTenantId == _beneficiario.Id))
+            .Should().BeEmpty("el Tenant beneficiario no se quedó sin Gestor CAE");
+    }
+
+    private Task<Result> DesactivarAsync(Guid usuarioId, Guid? destinoId, AvisoSinGestorCaeAnotado aviso) =>
+        EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, sp) =>
         {
             var cuentas = new GestionCuentasUsuarioIdentity(
                 sp.GetRequiredService<UserManager<ApplicationUser>>(), sp.GetRequiredService<PuertaAccesoDatos>(), directorio, contexto);
@@ -502,19 +535,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     cuentas, usuario, sp.GetRequiredService<ITenantActual>(),
                     new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                     new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio,
-                    new AdministradoresDelTenant(contexto, directorio))
-                .Handle(new CambiarActivacionUsuarioCommand(_gestorA, Activar: false), CancellationToken.None);
+                    new AdministradoresDelTenant(contexto, directorio), aviso)
+                .Handle(new CambiarActivacionUsuarioCommand(usuarioId, Activar: false, destinoId), CancellationToken.None);
         });
-        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
-
-        var carteras = await CarterasAsync(_operacion);
-        carteras.Single(c => c.UsuarioId == _gestorA).Should().Match<AsignacionCartera>(
-            c => c.Estado == EstadoAsignacion.Vigente && !c.EsPrincipal, "opción C: pierde la marca, no el acceso");
-        carteras.Single(c => c.UsuarioId == _coordinador).Should().Match<AsignacionCartera>(
-            c => c.EsPrincipal && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiario.Id);
-        (await PrincipalesAsync(_operacion)).Should().Equal(_coordinador);
-        (await PrincipalesAsync(_operacionSinPrincipal)).Should().BeEmpty("donde no era el principal no hay nada que relevar");
-    }
 
     // ── Alerta, escalado y «Asumir» (I5) ────────────────────────────────────
 

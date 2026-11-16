@@ -42,6 +42,18 @@
   <data name="DesactivarConfirmar" xml:space="preserve">
     <value>Desactivar</value>
   </data>
+  <data name="DesactivarCarteraEmpresas" xml:space="preserve">
+    <value>Es el Gestor CAE de estas empresas: {0}. Elige a quién pasan.</value>
+  </data>
+  <data name="DesactivarDestinoEtiqueta" xml:space="preserve">
+    <value>Reasignar su cartera a</value>
+  </data>
+  <data name="DesactivarDestinoNadie" xml:space="preserve">
+    <value>A nadie por ahora</value>
+  </data>
+  <data name="DesactivarSinDestinoAyuda" xml:space="preserve">
+    <value>Esas empresas se quedarán sin Gestor CAE y avisaremos a los Administradores para que les asignen uno. La organización sigue activa.</value>
+  </data>
   <data name="ReenvioCorreoFallido" xml:space="preserve">
     <value>No pudimos enviar el correo</value>
   </data>

@@ -487,16 +487,18 @@
 
 @* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al
    primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma
-   y, si es un Gestor CAE con la cartera del Tenant entero, se dice que sigue abierta y
-   la conserva su Coordinador CAE (decisión del 2026-09-24). No hay traspaso: la cartera
-   ya no se reparte por Cliente empresarial (D-7, 2026-10-02), así que el diálogo no tiene ningún
-   campo ni elección que perder: «Volver», la X y Escape cierran sin preguntar. Regla de Chris
-   (2026-10-03): si algún día vuelve a haber una elección (p. ej. un Gestor CAE de destino), el
-   Modal pasa HayCambios y el pie llama a SolicitarCierreAsync; DrawerYModalConCamposPreguntanAlDescartarTests
-   lo exige en cuanto aparezca un campo. *@
-<Modal Visible="@(_usuarioADesactivar is not null)"
+   y, si es un Gestor CAE con la cartera interna del Tenant entero, se dice que sigue abierta y
+   la conserva su Coordinador CAE (decisión del 2026-09-24). Si además tiene Tenants
+   beneficiarios enteros en su cartera, el mismo paso pregunta a qué Gestor CAE pasan
+   (decisión de Chris del 2026-11-14); «Nadie» los deja sin Gestor CAE y avisa a los
+   Administradores. Con esa elección el Modal pasa HayCambios y «Volver» cierra por
+   SolicitarCierreAsync, como la X (regla de Chris del 2026-10-03,
+   DrawerYModalConCamposPreguntanAlDescartarTests). *@
+<Modal @ref="_modalDesactivar"
+       Visible="@(_usuarioADesactivar is not null)"
        VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
        Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
+       HayCambios="() => _destinoDeCartera is not null"
        CerrarAlHacerClicFuera="!_desactivando">
     <ChildContent>
         <p>@TextosUsuarios["DesactivarMensaje"]</p>
@@ -504,9 +506,25 @@
         {
             <p>@TextosUsuarios["DesactivarCarteraUniversal"]</p>
         }
+        @if (_empresasADesactivar.Count > 0)
+        {
+            <p data-testid="desactivar-cartera-empresas">@TextosUsuarios["DesactivarCarteraEmpresas", string.Join(", ", _empresasADesactivar)]</p>
+            <CampoSelect Etiqueta="@TextosUsuarios["DesactivarDestinoEtiqueta"]" Valor="@(_destinoDeCartera ?? string.Empty)"
+                         ValorChanged="v => _destinoDeCartera = string.IsNullOrEmpty(v) ? null : v">
+                <option value="">@TextosUsuarios["DesactivarDestinoNadie"]</option>
+                @foreach (var gestor in _destinosDeCartera)
+                {
+                    <option value="@gestor.Id">@gestor.NombreCompleto (@gestor.Email)</option>
+                }
+            </CampoSelect>
+            @if (_destinoDeCartera is null)
+            {
+                <p class="texto-ayuda-campo">@TextosUsuarios["DesactivarSinDestinoAyuda"]</p>
+            }
+        }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desactivando" OnClick="() => _usuarioADesactivar = null">@TextosUsuarios["DesactivarVolver"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desactivando" OnClick="() => _modalDesactivar!.SolicitarCierreAsync()">@TextosUsuarios["DesactivarVolver"]</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desactivando" OnClick="ConfirmarDesactivacionAsync">@TextosUsuarios["DesactivarConfirmar"]</Boton>
     </Pie>
 </Modal>
