@@ -13,7 +13,13 @@ namespace CaeManager.Application.Visitas.Antelacion;
 
 public interface IEvaluadorExpedienteVisitaService
 {
-    /// <summary>Evalúa una Visita concreta y sella su expediente si ya está completo. Devuelve true si esta llamada fue la que selló.</summary>
+    /// <summary>
+    /// Evalúa una Visita concreta y sella su expediente si ya está completo. Devuelve true si esta llamada fue la que
+    /// selló <b>y lo guardó</b>. Lee la Visita con el repositorio sin recargarla (<c>ObtenerPorIdAsync</c>): así recibe
+    /// la instancia rastreada con los cambios en memoria de quien la llama, y su guardado los incluye. La reapertura
+    /// (<c>ReabrirExpedienteVisitaCommand</c>) depende de las dos cosas para ser atómica; no cambiar a
+    /// <c>ObtenerPorIdActualizadoAsync</c>, que revertiría la reapertura antes de evaluarla.
+    /// </summary>
     Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default);
 
     /// <summary>

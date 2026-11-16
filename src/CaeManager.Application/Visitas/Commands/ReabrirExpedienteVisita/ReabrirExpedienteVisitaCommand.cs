@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
@@ -22,7 +23,8 @@ namespace CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
 /// de escritura de la impersonación (autorizar con los planos del Usuario simulado, ADR-011 § 4bis.2) no existe todavía;
 /// cuando exista, esta orden lo heredará con el rol efectivo del Usuario simulado.</item>
 /// <item>Auditoría: motivo obligatorio y fecha en la Visita; el registro de auditoría de la reapertura conserva en
-/// «antes» el sello retirado (fecha, antelaciones, tramo y atribución) y separa el Actor real del Usuario simulado
+/// «antes» los campos del sello retirado que cambian (siempre la fecha del sello; antelaciones, tramo y atribución
+/// cuando el resello les da otro valor) y separa el Actor real del Usuario simulado
 /// (<c>AuditoriaInterceptor</c>). La reapertura y el resello, si lo hay, son un único guardado: el «después» lleva el
 /// sello nuevo, y el motivo y la fecha de la reapertura distinguen ese registro de un sello ordinario.</item>
 /// <item>Concurrencia: la versión que el Gestor CAE vio es obligatoria, como en <c>ReactivarVisitaCommand</c>.</item>
@@ -127,7 +129,9 @@ public class ReabrirExpedienteVisitaCommandHandler(
         {
             reselladaPorElEvaluador = await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        // Un conflicto de concurrencia en el guardado del evaluador sigue su camino común (ConcurrenciaBehavior: «esta
+        // visita cambió», con recarga), igual que si lo hubiera guardado este handler.
+        catch (Exception ex) when (ex is not OperationCanceledException and not DbUpdateConcurrencyException)
         {
             logger.LogWarning(ex, "No se pudo reevaluar el expediente de la visita {VisitaId}; la reapertura no se guarda.", visita.Id);
             return Result.Fallo(Error.Crear(

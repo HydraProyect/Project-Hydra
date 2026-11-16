@@ -56,6 +56,14 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
+    private sealed class EvaluadorConConflicto : IEvaluadorExpedienteVisitaService
+    {
+        public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            throw new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("otra persona la modificó");
+
+        public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     private sealed class EvaluadorQueFalla : IEvaluadorExpedienteVisitaService
     {
         public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
@@ -149,6 +157,20 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Visita.ReaperturaNoEvaluada");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>revisor-puente (#2266): un conflicto en el guardado del evaluador llega a ConcurrenciaBehavior, no se traga.</summary>
+    [Fact]
+    public async Task Un_conflicto_de_concurrencia_al_resellar_se_propaga()
+    {
+        var visita = VisitaSellada();
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var reabrir = () => Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorConConflicto())
+            .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
+
+        await reabrir.Should().ThrowAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
