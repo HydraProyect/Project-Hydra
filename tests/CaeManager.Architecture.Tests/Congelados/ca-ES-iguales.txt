@@ -350,7 +350,6 @@ src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: Toast
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: UsuarioEliminado = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: ZonaSoltarFormatos = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: ZonaSoltarTitulo = 1
-src/CaeManager.Web/Features/Plataforma/Recursos/TextosPlataforma.resx :: RestablecerCampoAdministrador = 1
 src/CaeManager.Web/Features/Plataforma/Recursos/TextosPlataforma.resx :: RestablecerCampoVerificacion = 1
 src/CaeManager.Web/Features/Plataforma/Recursos/TextosPlataforma.resx :: RestablecerConfirmacion = 1
 src/CaeManager.Web/Features/Plataforma/Recursos/TextosPlataforma.resx :: RestablecerConfirmar = 1
