@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Integraciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Persistence.Repositories;
 
-public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository
+public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository, IMensajesExternosIngeridos
 {
     public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>

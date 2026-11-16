@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using Microsoft.Extensions.Logging;
 
@@ -84,7 +83,7 @@ public enum ResultadoRecuperacionHueco
 public class RecuperacionHuecoCorreoService(
     IConexionIntegracionRepository conexionRepositorio,
     IEventoWebhookRepository eventoRepositorio,
-    IConversacionRepository conversacionRepositorio,
+    IMensajesExternosIngeridos mensajesIngeridos,
     ISuscripcionWebhookRepository suscripcionRepositorio,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
@@ -344,7 +343,7 @@ public class RecuperacionHuecoCorreoService(
         if (unicos.Count == 0)
             return unicos;
 
-        var ingeridos = await conversacionRepositorio.ObtenerMensajesExternosExistentesAsync(
+        var ingeridos = await mensajesIngeridos.ObtenerMensajesExternosExistentesAsync(
             conexionId, [.. unicos.Select(m => m.MensajeExternoId)], cancellationToken);
         var enCurso = (await eventoRepositorio.ObtenerPayloadsDeRecuperacionesEnCursoAsync(conexionId, cancellationToken))
             .SelectMany(graphClient.ExtraerMensajeIdsDeNotificacion)

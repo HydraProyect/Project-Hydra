@@ -94,6 +94,7 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
         { "Infrastructure.Persistence.Migraciones", Modulo.Composicion },
         { "Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa", Modulo.Outbound },
         { "Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService", Modulo.Outbound },
+        { "Infrastructure.Persistence.Repositories.ConversacionRepository", Modulo.Outbound },
         { "Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions", Modulo.Outbound },
         { "Infrastructure.Persistence.Seed", Modulo.Outbound },
         { "Infrastructure.Persistence.Seed.TenantSeedData", Modulo.Nucleo },

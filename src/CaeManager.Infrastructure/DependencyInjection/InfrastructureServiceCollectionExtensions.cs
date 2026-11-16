@@ -481,6 +481,7 @@ public static class InfrastructureServiceCollectionExtensions
             CaeManager.Infrastructure.Auditing.EnmascaradoAuditoriaTrabajadorAnonimizado>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionRepository, ConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IMensajesExternosIngeridos, ConversacionRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();

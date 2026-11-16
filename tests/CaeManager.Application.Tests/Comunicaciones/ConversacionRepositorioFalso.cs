@@ -1,9 +1,10 @@
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Integraciones;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
 /// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
-public class ConversacionRepositorioFalso : IConversacionRepository
+public class ConversacionRepositorioFalso : IConversacionRepository, IMensajesExternosIngeridos
 {
     public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
