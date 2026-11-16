@@ -485,9 +485,11 @@ public class Microsoft365GraphClient(
 
             var borradorId = borrador.Id!;
 
-            // Desde aquí hay un borrador de Vega en el buzón: si no se envía, se borra siempre con un token propio, para
-            // que una cancelación (durante la lectura, la puerta o el propio borrado) no lo deje en Borradores listo para
-            // enviarse desde Outlook sin marca. La cancelación sigue subiendo (revisiones Codex r3 y r4 de la #2007).
+            // Desde aquí hay un borrador de Vega en el buzón. Si la lectura dice que no lleva la marca, si no pasa la puerta,
+            // si /send responde con error o si se cancela antes de /send, se borra con un token propio, para que no quede en
+            // Borradores listo para enviarse desde Outlook sin marca. La cancelación sigue subiendo (revisiones Codex r3 y r4
+            // de la #2007). Fuera de esa garantía: una excepción no prevista (ni de red, ni de JSON, ni cancelación) y un
+            // fallo de transporte durante el propio /send, en el que no se sabe si el correo salió.
             try
             {
                 if (!await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken))

@@ -15,7 +15,7 @@ public enum OrigenContenidoMensaje
 
     /// <summary>
     /// Parte de una <see cref="RespuestaSugerida"/> redactada por Vega que una persona revisó antes de enviar: confirmada, o
-    /// descartada después de insertarla con su texto aún en el redactor (decisión de Chris del 2026-11-16). Es el único
+    /// descartada después de insertarla, con su texto aún en el redactor (decisión de Chris del 2026-11-16). Es el único
     /// origen que lleva la marca de contenido generado por IA en el correo saliente.
     /// </summary>
     VegaRevisada = 2

@@ -93,6 +93,21 @@ public class MensajeOrigenContenidoTests
         mensaje.OrigenContenido.Should().BeNull();
     }
 
+    /// <summary>Una propuesta descartada sin insertarla nunca estuvo en un redactor: no puede ser el origen (revisor-puente r4).</summary>
+    [Fact]
+    public void Una_propuesta_descartada_sin_insertarla_no_puede_ser_el_origen()
+    {
+        var conversacionId = Guid.NewGuid();
+        var sugerencia = RespuestaSugerida.DeVega(conversacionId, Guid.NewGuid(), "<p>Recibido</p>", Guid.NewGuid(), Ahora);
+        sugerencia.Descartar();
+        var mensaje = Saliente(conversacionId);
+
+        var registrar = () => mensaje.RegistrarOrigenDesde(sugerencia);
+
+        registrar.Should().Throw<InvalidOperationException>();
+        mensaje.OrigenContenido.Should().BeNull();
+    }
+
     /// <summary>
     /// Decisión de Chris del 2026-11-16 (#2007): el origen de IA se conserva mientras el texto siga en el redactor, aunque la
     /// sugerencia se descarte o se sustituya después de insertarla.

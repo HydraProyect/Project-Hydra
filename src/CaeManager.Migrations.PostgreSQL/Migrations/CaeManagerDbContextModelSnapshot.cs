@@ -2318,6 +2318,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("GeneradaPorUsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("Insertada")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("MacroId")
                         .HasColumnType("uuid");
 

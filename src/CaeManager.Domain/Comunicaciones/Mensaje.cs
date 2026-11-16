@@ -136,23 +136,29 @@ public class Mensaje : EntidadConTenant
     /// si la redactó Vega, <see cref="OrigenContenidoMensaje.MacroRevisada"/> si sale de una macro. Solo una sugerencia
     /// <see cref="EstadoRespuestaSugerida.Revisada"/>: una sin revisar no puede salir. Puede ser de otro hilo del mismo
     /// buzón: un mensaje nuevo que copia el texto de una propuesta revisada en un hilo con ese destinatario parte de ella.
-    /// También una <see cref="EstadoRespuestaSugerida.Descartada"/> cuyo texto siguió en el redactor (decisión de Chris del
-    /// 2026-11-16 sobre la #2007): el origen de IA se conserva aunque la sugerencia se descarte o se sustituya, y la persona
-    /// la revisó al editarla, porque el bloqueo impide enviar el texto descartado sin editarlo. Una sin revisar
-    /// (<see cref="EstadoRespuestaSugerida.Propuesta"/> o <see cref="EstadoRespuestaSugerida.SinRevisar"/>) no puede salir.
+    /// También una <see cref="EstadoRespuestaSugerida.Descartada"/> que pasó por el redactor
+    /// (<see cref="RespuestaSugerida.Insertada"/>; decisión de Chris del 2026-11-16 sobre la #2007): el origen de IA se
+    /// conserva mientras su texto siga en el redactor, aunque la sugerencia se descarte o se sustituya; quien envía es una
+    /// persona que lo tuvo delante. Una propuesta descartada sin insertarla, o una sin revisar
+    /// (<see cref="EstadoRespuestaSugerida.Propuesta"/> o <see cref="EstadoRespuestaSugerida.SinRevisar"/>), no puede salir.
     /// </summary>
     public void RegistrarOrigenDesde(RespuestaSugerida sugerencia)
     {
         ArgumentNullException.ThrowIfNull(sugerencia);
         ComprobarQueAdmiteOrigen();
-        if (sugerencia.Estado is not (EstadoRespuestaSugerida.Revisada or EstadoRespuestaSugerida.Descartada))
-            throw new InvalidOperationException("Solo una respuesta sugerida revisada o descartada puede ser el origen de un mensaje enviado.");
+        if (!PuedeSerOrigen(sugerencia))
+            throw new InvalidOperationException(
+                "Solo una respuesta sugerida revisada, o descartada después de insertarla, puede ser el origen de un mensaje enviado.");
 
         OrigenContenido = sugerencia.Origen == OrigenRespuestaSugerida.Vega
             ? OrigenContenidoMensaje.VegaRevisada
             : OrigenContenidoMensaje.MacroRevisada;
         RespuestaSugeridaId = sugerencia.Id;
     }
+
+    private static bool PuedeSerOrigen(RespuestaSugerida sugerencia) =>
+        sugerencia.Estado == EstadoRespuestaSugerida.Revisada ||
+        (sugerencia.Estado == EstadoRespuestaSugerida.Descartada && sugerencia.Insertada);
 
     private void ComprobarQueAdmiteOrigen()
     {

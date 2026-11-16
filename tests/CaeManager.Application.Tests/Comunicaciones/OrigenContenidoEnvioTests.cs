@@ -231,6 +231,24 @@ public class OrigenContenidoEnvioTests
         UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(sustituida.Id);
     }
 
+    /// <summary>
+    /// Revisor-puente r4: una propuesta de Vega descartada sin insertarla nunca estuvo en un redactor. Su id no vale como
+    /// origen de IA: se rechaza sin enviar, como cualquier id que no cumple.
+    /// </summary>
+    [Fact]
+    public async Task El_id_de_una_propuesta_de_Vega_descartada_sin_insertarla_se_rechaza_sin_enviar()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var nuncaInsertada = Propuesta(conversacion);
+        nuncaInsertada.Descartar();
+
+        var resultado = await Responder(
+            conversacion, "<p>Hola Ana, te escribo yo con otras palabras y bastante más contexto del caso.</p>", nuncaInsertada.Id);
+
+        resultado.Error.Should().Be(OrigenContenidoEnvio.SugerenciaNoUtilizable);
+        SinEnvio(conversacion);
+    }
+
     [Fact]
     public async Task El_id_de_una_macro_se_rechaza_sin_enviar()
     {

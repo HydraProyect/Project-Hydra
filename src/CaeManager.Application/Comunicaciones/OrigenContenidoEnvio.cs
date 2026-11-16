@@ -14,12 +14,13 @@ namespace CaeManager.Application.Comunicaciones;
 ///
 /// <list type="number">
 /// <item>Si el redactor dice qué sugerencia insertó (<c>RespuestaSugeridaId</c> del comando), el servidor exige que esté
-/// <see cref="EstadoRespuestaSugerida.Revisada"/> o <see cref="EstadoRespuestaSugerida.Descartada"/>, sea de
-/// <see cref="OrigenRespuestaSugerida.Vega"/> y pertenezca a un hilo que quien envía puede ver. Si no cumple, el envío se
-/// rechaza: no se degrada a Persona en silencio. El origen es <see cref="OrigenContenidoMensaje.VegaRevisada"/> aunque la
-/// persona haya rehecho el texto: lo tenía en el redactor. Descartada cuenta porque el origen de IA se conserva mientras
-/// el texto siga en el redactor, aunque la sugerencia se descarte, se sustituya por otra generación o se rechace un envío
-/// anterior (decisión de Chris del 2026-11-16); el bloqueo de la sugerencia ya impide enviar ese texto sin editarlo.</item>
+/// <see cref="EstadoRespuestaSugerida.Revisada"/>, o <see cref="EstadoRespuestaSugerida.Descartada"/> después de pasar por
+/// el redactor (<see cref="RespuestaSugerida.Insertada"/>), sea de <see cref="OrigenRespuestaSugerida.Vega"/> y pertenezca
+/// a un hilo que quien envía puede ver. Si no cumple, el envío se rechaza: no se degrada a Persona en silencio. El origen
+/// es <see cref="OrigenContenidoMensaje.VegaRevisada"/> aunque la persona haya rehecho el texto: lo tenía en el redactor.
+/// La descartada tras insertarla cuenta porque el origen de IA se conserva mientras el texto siga en el redactor, aunque
+/// la sugerencia se descarte, se sustituya por otra generación o se rechace un envío anterior (decisión de Chris del
+/// 2026-11-16); una propuesta descartada sin insertarla nunca estuvo en un redactor y se rechaza.</item>
 /// <item>Sin id, se compara el cuerpo con las sugerencias de Vega revisadas de los hilos visibles del buzón (y del propio
 /// hilo): el mismo texto, el texto entero contenido en el cuerpo (desde
 /// <see cref="BloqueoRespuestaSugerida.LongitudMinimaTextoContenido"/> caracteres normalizados) o casi el mismo (a lo sumo
@@ -72,8 +73,10 @@ public static class OrigenContenidoEnvio
         if (conversacionId is null && hilosVisibles is null)
             return Result.Exito<RespuestaSugerida?>(null);
 
-        // Cada lectura (la de los ids y la de cada lote de textos) vuelve a aplicar estado, origen y alcance: un hilo que
-        // sale de la cartera de quien envía, o una sugerencia descartada, entre una lectura y otra no se compara.
+        // Cada lectura (la de los ids y la de cada lote de textos) vuelve a aplicar estado, origen y el filtro de hilos
+        // visibles contra la base: un hilo reasignado fuera de la cartera de quien envía, o una sugerencia descartada, entre
+        // una lectura y otra no se compara. La cartera y la visibilidad del buzón son las calculadas al empezar este envío
+        // (HilosVisiblesDelBuzonAsync): una Asignación de Cartera revocada a mitad de la comparación no se relee.
         IQueryable<RespuestaSugerida> Candidatas() => VegaRevisadasVisibles(comunicaciones, conversacionId, hilosVisibles);
         var ids = await Candidatas().Select(r => r.Id).OrderBy(i => i).ToListAsync(cancellationToken);
         return Result.Exito(await MejorCoincidenteAsync(Candidatas, ids, cuerpo, cancellationToken));
@@ -114,7 +117,8 @@ public static class OrigenContenidoEnvio
                 from r in comunicaciones.RespuestasSugeridas.AsNoTracking()
                 join c in comunicaciones.Conversaciones on r.ConversacionId equals c.Id
                 where r.Id == id &&
-                      (r.Estado == EstadoRespuestaSugerida.Revisada || r.Estado == EstadoRespuestaSugerida.Descartada) &&
+                      (r.Estado == EstadoRespuestaSugerida.Revisada ||
+                       (r.Estado == EstadoRespuestaSugerida.Descartada && r.Insertada)) &&
                       r.Origen == OrigenRespuestaSugerida.Vega
                 select new { Sugerencia = r, Conversacion = c })
             .FirstOrDefaultAsync(cancellationToken);
@@ -148,7 +152,7 @@ public static class OrigenContenidoEnvio
     /// De <paramref name="ids"/>, la sugerencia cuyo texto coincide con <paramref name="cuerpo"/> revisada más tarde (y a
     /// igualdad, la de mayor id), leídas por lotes de <see cref="LoteTextos"/> y sin seguimiento (cada texto puede ocupar
     /// hasta 1 MiB). Solo se conserva la mejor hasta ahora: la memoria no crece con el número de coincidencias (revisión
-    /// Codex r3 de la #2007). Cada lote se lee de <paramref name="candidatas"/>, que vuelve a aplicar el alcance (r4).
+    /// Codex r3 de la #2007). Cada lote se lee de <paramref name="candidatas"/>, que vuelve a aplicar estado, origen y el filtro de hilos visibles (r4).
     /// </summary>
     private static async Task<RespuestaSugerida?> MejorCoincidenteAsync(
         Func<IQueryable<RespuestaSugerida>> candidatas, IReadOnlyList<Guid> ids, string cuerpo, CancellationToken cancellationToken)
