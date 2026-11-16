@@ -289,7 +289,11 @@ public class AlcanceDatosService(
         }
         else
         {
-            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync());
+            // Con papel Inbound (B-02b, DN-21), ningún perfil alcanza el Tenant TCE entero por su rol: el acceso total de
+            // Administrador, Dirección CAE o Consulta abriría también los datos de Outbound del Tenant TCE. El alcance de
+            // Inbound lo decide B-03 (IAutorizacionInbound); hasta entonces, fallo cerrado.
+            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
+                          && await currentUserService.ObtenerPapelActivoAsync() != PapelActivo.Inbound;
         }
 
         Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
@@ -374,6 +378,12 @@ public class AlcanceDatosService(
         var rol = await RolQueDecideAlcanceAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        // Con papel Inbound (B-02b, DN-21), ni la cartera de Outbound ni el Tenant entero por operación dan alcance: el
+        // Gestor CAE que gestiona Outbound el mismo Tenant no puede usar esa cartera cuando valida en Inbound, y ningún otro
+        // perfil hereda el alcance de su rol. La cartera Inbound la calcula B-03; hasta entonces, alcance cero para todos.
+        if (await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
+            return AlcanceCartera.Ninguno;
+
         // Decisión Chris 2026-10-20: en un Tenant beneficiario delegado al que entra por la
         // Asignación de Operación de su organización (que cubre el Tenant entero), el Coordinador
         // CAE alcanza ese Tenant entero sin Asignación de Cartera. Solo el Gestor CAE sigue acotado
@@ -384,12 +394,6 @@ public class AlcanceDatosService(
             && currentUserService is IEncargoDeAdministracionActual senal
             && await senal.OperaPorAsignacionDeOperacionAsync())
             return AlcanceCartera.Universal;
-
-        // Con papel Inbound (B-02b, DN-21), la cartera de Outbound no da alcance: el Gestor CAE que gestiona Outbound el
-        // mismo Tenant no puede usar esa cartera cuando valida en Inbound. La cartera Inbound la calcula B-03; hasta
-        // entonces, alcance cero (fallo cerrado).
-        if (rol == Roles.GestorCae && await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
-            return AlcanceCartera.Ninguno;
 
         return (rol, usuarioId) switch
         {

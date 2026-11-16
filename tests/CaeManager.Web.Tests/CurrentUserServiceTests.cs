@@ -224,18 +224,6 @@ public class CurrentUserServiceTests
         new(authStateProvider, httpContextAccessor, new ClienteActivoSeleccionadoFalso(),
             new ServiceCollection().BuildServiceProvider());
 
-    private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
-    {
-        public Guid? TenantIdSeleccionado => null;
-        public Guid? AsignacionOperacionIdSeleccionada => null;
-        public Guid? SesionPrivilegiadaIdSeleccionada => null;
-    }
-
-    /// <summary>
-    /// Selección de plano 3: el token nombra una sesión privilegiada. Que
-    /// aquí no se revalide es deliberado — negar de más siempre es seguro, y
-    /// quien decide si la sesión vale es ISesionPrivilegiadaActual.
-    /// </summary>
     /// <summary>
     /// El papel activo (B-02b, DN-21) sin consultar la base: sin selección es el Tenant de origen; una Sesión
     /// Privilegiada, la vía heredada (selección sin Asignación de Operación) o un usuario sin Tenant de origen no tienen
@@ -275,6 +263,77 @@ public class CurrentUserServiceTests
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
+    /// <summary>
+    /// El papel de una selección con Asignación de Operación sale de la operación revalidada, cada una por la vía de su
+    /// servicio (B-02b, DN-21): una Outbound amparada da Outbound, una Inbound con la línea Inbound vigente del Tenant TCE
+    /// da Inbound, y una Inbound sin línea, cerrada o que el token pone sobre otro Tenant no da papel. Sobre SQLite en
+    /// memoria: no sustituye a los tests PostgreSQL/RLS de CI.
+    /// </summary>
+    [Theory]
+    [InlineData("outbound", PapelActivo.Outbound)]
+    [InlineData("inbound", PapelActivo.Inbound)]
+    [InlineData("inbound-sin-linea", PapelActivo.SinPapel)]
+    [InlineData("inbound-cerrada", PapelActivo.SinPapel)]
+    [InlineData("inbound-otro-tenant", PapelActivo.SinPapel)]
+    public async Task El_papel_de_una_operacion_seleccionada_es_su_servicio_revalidado(string caso, PapelActivo esperado)
+    {
+        var tenantOrigen = Guid.NewGuid();
+        var tenantTce = Guid.NewGuid();
+        var ahora = DateTime.UtcNow;
+        await using var db = await ClienteActivoEndpointsAutorizacionTests.CrearContexto();
+        var servicio = caso == "outbound" ? CaeManager.Domain.Operaciones.ServicioCae.Outbound : CaeManager.Domain.Operaciones.ServicioCae.Inbound;
+        var operacion = CaeManager.Domain.Operaciones.AsignacionOperacion.Externa(tenantTce, tenantOrigen, servicio,
+            CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal, ahora.AddDays(-2), null, ahora);
+        if (caso == "outbound")
+        {
+            var delegacion = new CaeManager.Domain.Tenants.DelegacionTenant(tenantOrigen, tenantTce);
+            operacion.FijarOrigen(delegacion);
+            db.Add(delegacion);
+        }
+        if (caso == "inbound-cerrada")
+            operacion.Cerrar(CaeManager.Domain.Operaciones.MotivoCierreAsignacion.Revocada, ahora);
+        db.Add(operacion);
+        if (caso != "inbound-sin-linea") db.TenantsConLineaInbound.Add(tenantTce);
+        await db.SaveChangesAsync();
+
+        var servicios = new ServiceCollection()
+            .AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(db)
+            .AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(db)
+            .BuildServiceProvider();
+        ClaimsPrincipal EnSuOrigen() => new(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, UsuarioIdDeEjemplo.ToString()),
+            new Claim(ClaimTypes.Role, "Administrador"),
+            new Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()),
+        ], "prueba"));
+        var seleccionado = caso == "inbound-otro-tenant" ? Guid.NewGuid() : tenantTce;
+        var servicio2 = new CurrentUserService(
+            new AuthenticationStateProviderFalso(EnSuOrigen()), new HttpContextAccessorFalso(null),
+            new SeleccionConOperacionFalsa(seleccionado, operacion.Id), servicios);
+
+        (await servicio2.ObtenerPapelActivoAsync()).Should().Be(esperado);
+    }
+
+    /// <summary>Selección de un Tenant con la Asignación de Operación del token.</summary>
+    private sealed class SeleccionConOperacionFalsa(Guid tenantId, Guid asignacionOperacionId) : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => tenantId;
+        public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    /// <summary>
+    /// Selección de plano 3: el token nombra una sesión privilegiada. Que
+    /// aquí no se revalide es deliberado — negar de más siempre es seguro, y
+    /// quien decide si la sesión vale es ISesionPrivilegiadaActual.
+    /// </summary>
     private sealed class ClienteActivoSeleccionadoConSesionPrivilegiadaFalso : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => Guid.Parse("33333333-3333-3333-3333-333333333333");

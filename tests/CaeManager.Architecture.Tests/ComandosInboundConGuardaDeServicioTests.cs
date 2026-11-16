@@ -90,7 +90,12 @@ public class ComandosInboundConGuardaDeServicioTests
         var servicios = new ServiceCollection();
         servicios.AddApplication();
 
-        servicios.Should().Contain(d =>
-            d.ServiceType == typeof(IPipelineBehavior<,>) && d.ImplementationType == typeof(GuardaPorServicioBehavior<,>));
+        var behaviors = servicios.Where(d => d.ServiceType == typeof(IPipelineBehavior<,>)).Select(d => d.ImplementationType).ToList();
+        var guarda = behaviors.IndexOf(typeof(GuardaPorServicioBehavior<,>));
+        guarda.Should().BeGreaterThanOrEqualTo(0, "la guarda tiene que estar registrada");
+        guarda.Should().BeGreaterThan(behaviors.IndexOf(typeof(AutorizacionEscrituraBehavior<,>)),
+            "después de la autorización de escritura, que decide antes las Sesiones Privilegiadas y el rol");
+        guarda.Should().BeGreaterThan(behaviors.IndexOf(typeof(GateComercialTenantBehavior<,>)));
+        guarda.Should().BeLessThan(behaviors.IndexOf(typeof(ValidationBehavior<,>)), "antes de llegar al handler");
     }
 }

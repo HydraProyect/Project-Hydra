@@ -431,7 +431,10 @@ public static class TenantsBeneficiariosAutorizados
     /// (decisión Chris 2026-10-20): es el perfil del usuario en su Tenant de origen
     /// (<paramref name="rolDeOrigen"/>), con todos sus poderes —también los de Propiedad—,
     /// siempre que <paramref name="asignacionOperacionId"/> le siga autorizando ese Tenant
-    /// por <see cref="OperacionesQueAutorizan"/>. Si no, <c>null</c> (fallo cerrado).
+    /// por la vía de su servicio (<see cref="SigueAutorizadoPorOperacionAsync"/>: <see cref="OperacionesQueAutorizan"/>
+    /// en Outbound, <see cref="OperacionesInboundQueAutorizan"/> en Inbound). Si no, <c>null</c> (fallo cerrado). Con una
+    /// operación Inbound el rol no trae alcance: <c>AlcanceDatosService</c> no da acceso total ni cartera con papel Inbound
+    /// hasta B-03.
     ///
     /// <para>
     /// El rol guardado en la Asignación de Cartera ya no decide: la cartera solo da acceso

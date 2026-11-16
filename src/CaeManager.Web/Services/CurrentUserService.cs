@@ -384,7 +384,7 @@ public class CurrentUserService(
     /// predicado (<see cref="TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync"/>), nunca lo que diga el
     /// cliente. Sin selección, el Tenant de origen. Sesión Privilegiada, vía heredada (DelegacionTenant, solo Outbound),
     /// una operación que ya no autoriza o un usuario sin resolver: <see cref="PapelActivo.SinPapel"/> (fallo cerrado). En
-    /// un ámbito explícito (el fan-out de lecturas), el papel Outbound de la operación que elegiría el selector.
+    /// un ámbito explícito (el fan-out de lecturas de la lista del selector, solo Outbound), Outbound fuera del origen.
     /// </summary>
     public async Task<PapelActivo> ObtenerPapelActivoAsync()
     {
@@ -401,15 +401,11 @@ public class CurrentUserService(
         IOperacionesQueryContext Operaciones() => serviceProvider.GetRequiredService<IOperacionesQueryContext>();
         ITenantsQueryContext Tenants() => serviceProvider.GetRequiredService<ITenantsQueryContext>();
 
+        // El ámbito explícito es el fan-out de lecturas sobre los Tenants de la lista del selector, que solo es de Outbound:
+        // nunca da papel Inbound, y no hace falta consultar la base para saberlo (la autorización de ese Tenant la decide
+        // el rol efectivo del mismo ámbito, no el papel).
         if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
-        {
-            if (tenantAmbito == tenantOrigenId) return PapelActivo.TenantDeOrigen;
-            return await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                    Operaciones(), Tenants(), usuarioId.Value, tenantOrigenId.Value, tenantAmbito,
-                    PerfilQueDecideAlcance(usuario), DateTime.UtcNow, CancellationToken.None) is not null
-                ? PapelActivo.Outbound
-                : PapelActivo.SinPapel;
-        }
+            return tenantAmbito == tenantOrigenId ? PapelActivo.TenantDeOrigen : PapelActivo.Outbound;
 
         if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado)
             return PapelActivo.TenantDeOrigen;

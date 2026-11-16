@@ -160,6 +160,36 @@ public class FuncionAmparoInboundBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Bajo_runtime_el_Gestor_CAE_abre_con_papel_Inbound_solo_con_su_cartera_bajo_la_operacion()
+    {
+        var gestora = Guid.NewGuid();
+        var (propietario, operacionId) = _casos["con línea"];
+        await using (var propio = ContextoPropietarioDeLaBase(tenant: null))
+        {
+            var operacion = await propio.AsignacionesOperacion.SingleAsync(o => o.Id == operacionId);
+            propio.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, gestora, "GestorCae", AmbitoAsignacion.Universal, DateTime.UtcNow.AddDays(-1), null, DateTime.UtcNow));
+            await propio.SaveChangesAsync();
+        }
+
+        var ahora = DateTime.UtcNow;
+        await using (var contexto = ContextoRuntime(_operador.Id, gestora))
+        {
+            (await TenantsBeneficiariosAutorizados.OperacionInboundQueAutorizaAsync(
+                    contexto, gestora, _operador.Id, propietario, "GestorCae", ahora, default))
+                .Should().Be(operacionId, "la cartera vigente de la Gestora CAE bajo la operación Inbound amparada");
+        }
+
+        var otraPersona = Guid.NewGuid();
+        await using (var contexto = ContextoRuntime(_operador.Id, otraPersona))
+        {
+            (await TenantsBeneficiariosAutorizados.OperacionInboundQueAutorizaAsync(
+                    contexto, otraPersona, _operador.Id, propietario, "GestorCae", ahora, default))
+                .Should().BeNull("sin cartera, un Gestor CAE no abre la operación");
+        }
+    }
+
+    [Fact]
     public async Task Es_SECURITY_DEFINER_con_search_path_fijo_solo_devuelve_un_booleano_y_no_concede_la_tabla()
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
