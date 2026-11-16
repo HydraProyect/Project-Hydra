@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.ActualizarContratoAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.CancelarContratoAcceso;
@@ -68,6 +69,9 @@ public class ContratoAccesoAutorizacionTests
 
     private CancelarContratoAccesoCommandHandler Cancelar(AlcanceDatosServiceFalso alcance, TimeProvider? reloj = null) =>
         new(_repositorio, new EvidenciasFalsas(_evidencias), alcance, _unitOfWork, reloj ?? AntesDelInicio);
+
+    private EliminarContratoAccesoCommandHandler Eliminar(AlcanceDatosServiceFalso alcance, TimeProvider? reloj = null) =>
+        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), reloj ?? AntesDelInicio);
 
     private FijarCondicionesContratoAccesoCommandHandler FijarCondiciones(AlcanceDatosServiceFalso alcance) =>
         new(_repositorio, alcance, _unitOfWork);
@@ -700,17 +704,112 @@ public class ContratoAccesoAutorizacionTests
     {
         var contrato = ContratoExistente();
 
-        var resultado = await new EliminarContratoAccesoCommandHandler(
-                _repositorio, AlcanceSinAcceso(), _unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()))
-            .Handle(new EliminarContratoAccesoCommand(contrato.Id), CancellationToken.None);
+        var resultado = await Eliminar(AlcanceSinAcceso())
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.NoEncontrado");
         contrato.EstaEliminado.Should().BeFalse();
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    // DN1 (DECISION_LOG 2026-11-15): solo se elimina un contrato Cancelado o que no ha empezado. El reloj de estas pruebas
+    // marca dos días antes del inicio (1 de marzo) salvo donde se dice.
+
     [Fact]
-    public async Task Cerrar_y_eliminar_dentro_del_alcance_guardan_y_cerrar_lo_finaliza()
+    public async Task Eliminar_un_contrato_que_no_ha_empezado_lo_elimina_con_su_usuario_y_guarda()
+    {
+        var contrato = ContratoExistente();
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id))
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contrato.EstaEliminado.Should().BeTrue();
+        contrato.EliminadoPorUsuarioId.Should().Be(_usuario);
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Eliminar_con_una_version_obsoleta_responde_el_conflicto_sin_eliminar_ni_guardar()
+    {
+        // El contrato aún no ha empezado: sin la Version, DN1 dejaría eliminarlo; solo la versión obsoleta lo impide.
+        var contrato = ContratoExistente();
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id))
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        contrato.EstaEliminado.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Eliminar_un_contrato_que_ya_empezo_y_no_esta_cancelado_responde_TransicionNoPermitida_sin_guardar()
+    {
+        var contrato = ContratoExistente();
+        var elDiaDeInicio = new RelojFijo(new DateTimeOffset(2026, 3, 1, 9, 0, 0, TimeSpan.Zero));
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id), elDiaDeInicio)
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
+        contrato.EstaEliminado.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Eliminar_un_contrato_finalizado_responde_TransicionNoPermitida_sin_guardar()
+    {
+        var contrato = ContratoExistente();
+        contrato.Finalizar(Inicio.AddDays(5));
+        var despuesDelCierre = new RelojFijo(new DateTimeOffset(2026, 3, 20, 9, 0, 0, TimeSpan.Zero));
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id), despuesDelCierre)
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
+        contrato.EstaEliminado.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Eliminar_a_las_23_30_UTC_del_dia_anterior_al_inicio_ya_es_el_dia_de_inicio_en_Madrid()
+    {
+        var contrato = ContratoExistente();
+        var horaYMediaAntes = new RelojFijo(new DateTimeOffset(2026, 2, 28, 22, 30, 0, TimeSpan.Zero));
+        var mediaHoraAntes = new RelojFijo(new DateTimeOffset(2026, 2, 28, 23, 30, 0, TimeSpan.Zero));
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id), mediaHoraAntes)
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida",
+            "a las 23:30 UTC del 28 de febrero son las 00:30 del 1 de marzo en Europe/Madrid: el contrato ya empezó");
+        contrato.EstaEliminado.Should().BeFalse();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+
+        // Control positivo: una hora antes todavía es el 28 en Madrid y Eliminar cabe.
+        (await Eliminar(AlcanceSinAcceso(_cliente.Id), horaYMediaAntes)
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        contrato.EstaEliminado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Eliminar_un_contrato_cancelado_lo_elimina_aunque_ya_pasara_su_fecha_de_inicio()
+    {
+        var contrato = ContratoExistente();
+        contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false);
+        var despuesDelInicio = new RelojFijo(new DateTimeOffset(2026, 3, 20, 9, 0, 0, TimeSpan.Zero));
+
+        var resultado = await Eliminar(AlcanceSinAcceso(_cliente.Id), despuesDelInicio)
+            .Handle(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contrato.EstaEliminado.Should().BeTrue();
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cerrar_dentro_del_alcance_lo_finaliza_y_cerrarlo_otra_vez_responde_YaCerrado()
     {
         var contrato = ContratoExistente();
         var alcance = AlcanceSinAcceso(_cliente.Id);
@@ -723,13 +822,7 @@ public class ContratoAccesoAutorizacionTests
         (await new CerrarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork)
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None))
             .Error.Codigo.Should().Be("ContratoAcceso.YaCerrado");
-
-        var usuario = Guid.NewGuid();
-        (await new EliminarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(usuario))
-            .Handle(new EliminarContratoAccesoCommand(contrato.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
-        contrato.EstaEliminado.Should().BeTrue();
-        contrato.EliminadoPorUsuarioId.Should().Be(usuario);
-        _unitOfWork.VecesGuardado.Should().Be(2);
+        _unitOfWork.VecesGuardado.Should().Be(1);
     }
 
     private ContratoAcceso ContratoConFin()
