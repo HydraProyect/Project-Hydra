@@ -166,9 +166,15 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     public async Task El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
     {
         // Día de negocio (Madrid), como la siembra (el seeder GestorCaeCarteraMultiTenantSeeder usa
-        // DiaDeNegocio.Hoy()): con el día UTC, entre las 22:00 y las 24:00 UTC «mañana»
-        // (la Visita sembrada) y «hoy» no serían los mismos días en los dos lados.
+        // DiaDeNegocio.Hoy()): con el día UTC, entre las 22:00 y las 24:00 UTC los días relativos
+        // de la siembra y los de este recorrido no serían los mismos en los dos lados.
         var hoy = Ayudas.HoyDeNegocio();
+        // La siembra fijó su día al arrancar la fixture, que puede ser el de ayer si la medianoche de
+        // Madrid cayó entre medias (#2146): la fecha de la Visita sembrada se lee de la base, no se
+        // recalcula con el «hoy» de ahora. Por empezar es lo que la lleva a la cola como «Visita próxima».
+        var fechaVisitaSembrada = await FechaVisitaActivaMasProximaAsync(CentroB);
+        Assert.True(fechaVisitaSembrada > hoy,
+            $"La Visita sembrada en {CentroB} ({fechaVisitaSembrada:yyyy-MM-dd}) ya no está por empezar con el día de negocio {hoy:yyyy-MM-dd}: no puede salir como «Visita próxima».");
         var tenantB = await IdTenantAsync(TenantBeneficiarioB);
         var rechazadaB = await IdAcreditacionAsync(TrabajadorB, estado: 3);
         var vencidaEnPlataformaB = await IdAcreditacionAsync(TrabajadorB, estado: 2);
@@ -261,8 +267,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Cancelar visita", Exact = true }).ClickAsync();
         await Expect(page.GetByText("Visita cancelada.", new() { Exact = true })).ToBeVisibleAsync();
         // Con «Solo activas» (marcado por defecto) la cancelada sale del listado. Barrera
-        // antes de la ausencia: la Visita sembrada de mañana, en el mismo Centro, sigue.
-        await Expect(page.Locator("tr", new() { HasText = CentroB }).Filter(new() { HasText = hoy.AddDays(1).ToString("dd/MM/yyyy") }))
+        // antes de la ausencia: la Visita sembrada, en el mismo Centro, sigue.
+        await Expect(page.Locator("tr", new() { HasText = CentroB }).Filter(new() { HasText = fechaVisitaSembrada.ToString("dd/MM/yyyy") }))
             .ToBeVisibleAsync();
         await Expect(filaVisita).ToHaveCountAsync(0);
 
@@ -564,6 +570,22 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
     private Task<string> IdCentroAsync(string nombre) =>
         fixture.LeerValorSqlAsync("""SELECT "Id"::text FROM "Centros" WHERE "Nombre" = @n""", ("n", nombre));
+
+    /// <summary>La Visita activa más cercana del Centro: antes de crear otra en el recorrido, la sembrada.</summary>
+    private async Task<DateOnly> FechaVisitaActivaMasProximaAsync(string nombreCentro) =>
+        DateOnly.ParseExact(
+            await fixture.LeerValorSqlAsync(
+                """
+                SELECT to_char(v."FechaInicio", 'YYYY-MM-DD')
+                FROM "Visitas" v
+                JOIN "Centros" c ON c."Id" = v."CentroId"
+                WHERE c."Nombre" = @n AND NOT v."EstaCancelada" AND NOT v."EstaEliminado"
+                ORDER BY v."FechaInicio"
+                LIMIT 1
+                """,
+                ("n", nombreCentro)),
+            "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture);
 
     /// <param name="estado">EstadoAcreditacion: 2 = Aceptada, 3 = Rechazada.</param>
     private Task<string> IdAcreditacionAsync(string apellidosTrabajador, int estado) =>
