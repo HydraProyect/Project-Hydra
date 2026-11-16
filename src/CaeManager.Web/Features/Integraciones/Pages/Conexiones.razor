@@ -122,6 +122,10 @@
                             {
                                 <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
                             }
+                            @if (conexion.RecuperacionDetenidaEnUtc is { } detenidaEn)
+                            {
+                                <span class="texto-aviso-verificacion" data-testid="aviso-recuperacion-detenida">@Textos["AvisoRecuperacionDetenida", detenidaEn.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm:ss")]</span>
+                            }
                             @if (conexion.HuecoSinRegistrar)
                             {
                                 <span class="texto-aviso-verificacion" data-testid="aviso-hueco-sin-registrar">@Textos["AvisoHuecoSinRegistrar"]</span>
