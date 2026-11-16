@@ -29,9 +29,11 @@ public class SubencargadosD7Tests
 
     private readonly SubencargadoRepositoryFalso _repositorio = new();
     private readonly RelojManual _reloj = new(Inicio);
+    private readonly TransaccionConCerrojo _transaccion;
 
     public SubencargadosD7Tests()
     {
+        _transaccion = new(_repositorio);
         _repositorio.TenantsActivos.AddRange([TenantA, TenantB]);
         _repositorio.Administradores[TenantA] = [new(Guid.NewGuid(), "admin.a@example.test")];
         _repositorio.Administradores[TenantB] = [new(Guid.NewGuid(), "admin.b1@example.test"), new(Guid.NewGuid(), "admin.b2@example.test")];
@@ -55,7 +57,42 @@ public class SubencargadosD7Tests
     private ActivarSubencargadoCommandHandler Activador(
         ICurrentUserService? usuario = null, IAutorizacionAdminPlataforma? autorizacion = null, SesionPrivilegiadaActiva? sesion = null) =>
         new(usuario ?? ActorConDobleFactor(), new SesionFalsa(sesion), autorizacion ?? AutorizacionAdminPlataformaFalsa.Global(),
-            _repositorio, _repositorio, _reloj);
+            _repositorio, _repositorio, _transaccion, _transaccion, _reloj);
+
+    [Fact]
+    public async Task Activar_cierra_las_altas_dentro_de_la_transaccion_despues_de_comprobar_y_antes_de_releer_y_guardar()
+    {
+        var subencargado = Avisado();
+        _repositorio.AvisoGuardado(TenantA, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, Inicio);
+        _repositorio.AvisoGuardado(TenantB, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, Inicio);
+        _reloj.Ahora = Inicio.AddDays(30);
+
+        var resultado = await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _transaccion.CerradoDentroDeLaTransaccion.Should().BeTrue("fuera de una transacción el LOCK TABLE no retendría nada");
+        _transaccion.LecturasDeTenantsAlCerrar.Should().Be(1, "el cerrojo va tras la comprobación por Tenant, que no puede ir dentro");
+        _repositorio.LecturasDeTenants.Should().Be(2, "con el cerrojo tomado se relee la lista de Tenants propietarios");
+        _transaccion.GuardadosAlCerrar.Should().Be(0, "el Activo se guarda con las altas ya cerradas");
+        _transaccion.GuardadosAlConfirmar.Should().Be(1, "y dentro de la misma transacción, que es la que suelta el cerrojo");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_propietario_dado_de_alta_durante_la_comprobacion_impide_activar()
+    {
+        var subencargado = Avisado();
+        _repositorio.AvisoGuardado(TenantA, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, Inicio);
+        _repositorio.AvisoGuardado(TenantB, subencargado.Id, FaseAvisoCambioSubencargado.Enviado, Inicio);
+        _reloj.Ahora = Inicio.AddDays(30);
+        _transaccion.AlCerrar = () => _repositorio.TenantsActivos.Add(Guid.NewGuid());
+
+        var resultado = await Activador().Handle(new ActivarSubencargadoCommand(subencargado.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("el Tenant nuevo no tiene aviso ni ha corrido su plazo");
+        resultado.Error.Codigo.Should().Be(ErroresSubencargado.AltaDeTenantDuranteLaActivacion.Codigo);
+        subencargado.Estado.Should().Be(EstadoSubencargado.Avisado, "sigue avisable: Avisar rechaza un subencargado Activo");
+        _repositorio.VecesGuardado.Should().Be(0);
+    }
 
     [Fact]
     public async Task Con_el_plazo_vencido_y_un_aviso_Enviado_en_cada_Tenant_se_activa()
@@ -599,6 +636,45 @@ public class SubencargadosD7Tests
     {
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
+    }
+
+    /// <summary>
+    /// Transacción y cerrojo de las altas de Tenant propietario en memoria. Anota en qué orden ocurre cada cosa respecto
+    /// del repositorio, y <see cref="AlCerrar"/> simula el alta que otra petición confirma justo antes de que el cerrojo
+    /// se conceda: lo que PostgreSQL hace esperar al <c>LOCK TABLE</c> hasta que esa alta termina.
+    /// </summary>
+    private sealed class TransaccionConCerrojo(SubencargadoRepositoryFalso repositorio) : ITransaccionDeComando, ICerrojoAltasTenantPropietario
+    {
+        public bool Abierta { get; private set; }
+        public bool CerradoDentroDeLaTransaccion { get; private set; }
+        public int? LecturasDeTenantsAlCerrar { get; private set; }
+        public int? GuardadosAlCerrar { get; private set; }
+        public int GuardadosAlConfirmar { get; private set; }
+        public Action? AlCerrar { get; set; }
+
+        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            Abierta = true;
+            try
+            {
+                var resultado = await operacion(cancellationToken);
+                GuardadosAlConfirmar = repositorio.VecesGuardado;
+                return resultado;
+            }
+            finally
+            {
+                Abierta = false;
+            }
+        }
+
+        public Task CerrarAsync(CancellationToken cancellationToken = default)
+        {
+            CerradoDentroDeLaTransaccion = Abierta;
+            LecturasDeTenantsAlCerrar = repositorio.LecturasDeTenants;
+            GuardadosAlCerrar = repositorio.VecesGuardado;
+            AlCerrar?.Invoke();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual

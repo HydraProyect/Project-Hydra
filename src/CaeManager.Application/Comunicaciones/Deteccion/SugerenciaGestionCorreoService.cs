@@ -73,8 +73,8 @@ public class SugerenciaGestionCorreoService(
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
         {
             logger.LogInformation(
-                "Detección de gestión por correo omitida para el mensaje {MensajeId}: el Tenant propietario no tiene instrucción de tratamiento IA vigente (Nivel 0).",
-                mensaje.Id);
+                "Detección de gestión por correo omitida para el mensaje {MensajeId}: {Motivo}.",
+                mensaje.Id, await MotivoIaNoHabilitada.DescribirAsync(instruccionTratamientoIa, tenantActual.TenantId, cancellationToken));
             return ResultadoDeteccionGestionDto.Vacio;
         }
 

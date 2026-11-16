@@ -42,6 +42,10 @@ public static class ErroresSubencargado
 
     public static readonly Error YaRetirado = Error.Crear("Subencargado.YaRetirado", "Este subencargado ya estaba retirado.");
 
+    public static readonly Error AltaDeTenantDuranteLaActivacion = Error.Crear(
+        "Subencargado.AltaDeTenantDuranteLaActivacion",
+        "Se dio de alta una organización mientras se comprobaban los avisos. No se ha activado; vuelve a intentarlo.");
+
     public static Error NoActivable(string motivo) => Error.Crear("Subencargado.NoActivable", motivo);
 }
 

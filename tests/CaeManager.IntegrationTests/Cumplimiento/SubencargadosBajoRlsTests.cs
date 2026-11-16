@@ -230,7 +230,8 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         {
             var activar = new ActivarSubencargadoCommandHandler(
                 ActorGlobal(), new SinSesionPrivilegiada(), new ConcesionGlobalDeclarada(),
-                new SubencargadoRepository(runtime), runtime, new RelojFijo(DateTime.UtcNow));
+                new SubencargadoRepository(runtime), runtime, new TransaccionDeComando(runtime),
+                new CerrojoAltasTenantPropietario(runtime), new RelojFijo(DateTime.UtcNow));
 
             var resultado = await activar.Handle(new ActivarSubencargadoCommand(propuesto.Id), CancellationToken.None);
 
@@ -502,6 +503,49 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
 
             ((bool)(await orden.ExecuteScalarAsync())!).Should().Be(esperados.Contains(privilegio), $"{rol} y {privilegio} sobre {tabla}");
         }
+    }
+
+    /// <summary>
+    /// Revisión Codex P2 de la PR #2274: el cerrojo que toma Activar, con el rol de runtime, retiene cualquier alta de
+    /// Tenant propietario hasta que su transacción termina. Se mide con el modo que toma todo INSERT en la tabla
+    /// (ROW EXCLUSIVE) y un lock_timeout corto, para no depender de un intercalado de hilos.
+    /// </summary>
+    [Fact]
+    public async Task El_cerrojo_de_Activar_retiene_las_altas_de_Tenant_hasta_terminar_su_transaccion()
+    {
+        // Cada intento en su propia conexión: tras el 55P03 la suya queda con la transacción abortada.
+        async Task IntentarAltaAsync()
+        {
+            await using var otra = new NpgsqlConnection(_cadenaConexion);
+            await otra.OpenAsync();
+            await using var orden = new NpgsqlCommand(
+                """BEGIN; SET LOCAL lock_timeout = '300ms'; LOCK TABLE public."Tenants" IN ROW EXCLUSIVE MODE; ROLLBACK;""", otra);
+            await orden.ExecuteNonQueryAsync();
+        }
+
+        await using (var runtime = CrearRuntime(_actorGlobal, Roles.Administrador))
+        {
+            await using var transaccion = await runtime.Database.BeginTransactionAsync();
+            await new CerrojoAltasTenantPropietario(runtime).CerrarAsync();
+
+            var excepcion = await Record.ExceptionAsync(IntentarAltaAsync);
+            excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("55P03",
+                "con el cerrojo tomado, un INSERT en Tenants espera a que la activación termine");
+
+            await transaccion.RollbackAsync();
+        }
+
+        (await Record.ExceptionAsync(IntentarAltaAsync)).Should().BeNull("control del instrumento: sin el cerrojo, el alta no espera");
+    }
+
+    [Fact]
+    public async Task El_cerrojo_de_Activar_exige_una_transaccion_en_curso()
+    {
+        await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
+
+        var excepcion = await Record.ExceptionAsync(() => new CerrojoAltasTenantPropietario(runtime).CerrarAsync());
+
+        excepcion.Should().BeOfType<InvalidOperationException>();
     }
 
     [Theory]
