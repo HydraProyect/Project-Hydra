@@ -40,6 +40,9 @@ Inbound.CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[Inbound.Catalogo
 # Plataforma; ninguno tiene cartera. Solo el lado de gestion (OperaDesdeElLadoDeGestionAsync) recibe sugerencias.
 Inbound.Requisitos.Queries :: BuscarRequisitosParecidosQueryHandler[Inbound.Requisitos.Queries.BuscarRequisitosParecidosQuery] = 1
 Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
+# Linea Inbound vigente del Tenant activo (plano comercial): lee solo el Producto Contratado del Tenant beneficiario, que no
+# tiene cartera, y devuelve un booleano para la interfaz (menu y paleta), nunca una fila.
+Inbound.Comercial.Queries.LineaInboundVigente :: LineaInboundVigenteQueryHandler[Inbound.Comercial.Queries.LineaInboundVigente.LineaInboundVigenteQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
 Configuracion.Queries :: ObtenerFiltrosGuardadosQueryHandler[Configuracion.Queries.ObtenerFiltrosGuardadosQuery] = 1

@@ -360,10 +360,6 @@ public class ContratosAccesoPantallasTests : BunitContext
         inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/validacion");
     }
 
-    [Fact]
-    public async Task Sin_lectura_de_la_linea_Inbound_el_gate_falla_cerrado()
-    {
-        (await new LineaInboundNoDisponible().EstaVigenteAsync()).Should().BeFalse(
-            "no hay Query de lectura de LineaProductoContratado: hasta que exista, el menú de Inbound no se enseña a nadie");
-    }
+    // El gate de la línea Inbound (LineaInboundVigenteDelProductoContratado y AdmisionDeDestinos) lo cubre
+    // LineaInboundVigenteGateTests.
 }

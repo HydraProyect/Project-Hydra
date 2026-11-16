@@ -316,7 +316,7 @@ builder.Services.Configure<CaeManager.Infrastructure.Autorizacion.VistaDemoOptio
 // Mi trabajo oculto para la demo del 2026-11-10 (MiTrabajo:Oculto=false lo devuelve): ver MiTrabajoVisibilidad.
 CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.RegistrarOpcion(builder.Services, builder.Configuration);
 // Pantallas de Inbound (contratos de acceso): sus lecturas sin backend fusionado van detrás de interfaces de Web con
-// implementación vacía (marca «shortcut: sin backend»). La línea Inbound falla cerrado hasta que haya Query que la lea.
+// implementación vacía (marca «shortcut: sin backend»). La línea Inbound la lee LineaInboundVigenteQuery y falla cerrado.
 CaeManager.Web.Features.Inbound.InboundServicios.Registrar(builder.Services);
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.ISolicitudVistaDemo, CaeManager.Web.Services.VistaDemoCookie>();
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.IVistaDemoActual, CaeManager.Infrastructure.Autorizacion.VistaDemoActual>();
