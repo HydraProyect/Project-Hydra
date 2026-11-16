@@ -41,9 +41,13 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public int VecesRefrescado { get; private set; }
 
+    /// <summary>La cancelación que recibió cada canje de token (refresco o token de aplicación), en orden.</summary>
+    public List<CancellationToken> CancelacionesDeToken { get; } = [];
+
     public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken)
     {
         VecesRefrescado++;
+        CancelacionesDeToken.Add(cancellationToken);
         return Task.FromResult(FallaRefresco
             ? Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "fallo simulado"))
             : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
@@ -54,6 +58,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
     {
         DirectoriosConTokenDeAplicacion.Add(directorioId);
+        CancelacionesDeToken.Add(cancellationToken);
         AlObtenerTokenAplicacion?.Invoke();
         return Task.FromResult(FallaTokenAplicacion
             ? Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.PermisoSinAcotar", "fallo simulado"))
@@ -305,7 +310,36 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Fallo del borrado de suscripción; null, éxito.</summary>
     public Error? ErrorEliminacion { get; set; }
 
-    public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
+    /// <summary>
+    /// Respuestas del listado de la recuperación del hueco, en el orden en que se piden: la n-ésima petición recibe la
+    /// n-ésima página, sea cual sea su fecha. Pasadas las de la lista, una página vacía sin más detrás.
+    /// </summary>
+    public List<Result<PaginaMensajesRecibidosGraphDto>> PaginasRecibidos { get; } = [];
+
+    /// <summary>Cada petición del listado de la recuperación: buzón y fecha desde la que lista.</summary>
+    public List<(BuzonGraph Buzon, DateTime DesdeUtc)> ListadosRecibidosPedidos { get; } = [];
+
+    /// <summary>Se ejecuta en cada petición del listado de la recuperación, antes de responder (para simular carreras).</summary>
+    public Action<int>? AlListarRecibidos { get; set; }
+
+    public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var indice = ListadosRecibidosPedidos.Count;
+        ListadosRecibidosPedidos.Add((buzon, desdeUtc));
+        AlListarRecibidos?.Invoke(indice);
+        return Task.FromResult(indice < PaginasRecibidos.Count
+            ? PaginasRecibidos[indice]
+            : Result.Exito(new PaginaMensajesRecibidosGraphDto([], false)));
+    }
+
+    public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) => "recuperacion:" + string.Join(",", mensajeIds);
+
+    public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) =>
+        payloadJson.StartsWith("recuperacion:", StringComparison.Ordinal)
+            ? payloadJson["recuperacion:".Length..].Split(',')
+            : MensajeIdsADevolver;
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
 

@@ -45,7 +45,10 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     /// quedarse vieja: <see cref="Un_listado_en_espera_sigue_sin_la_pieza"/> se pone en rojo en cuanto la
     /// página monta la pieza, y entonces se retira de aquí.
     /// </summary>
-    private static readonly string[] EnEspera = [];
+    // Documentos por validar (Inbound, tarjeta 10) todavía no recuerda la vista: hacerlo exige añadir su pantalla a
+    // PantallasConVistaRecordada (Application) y sincronizar los filtros con la URL, y esta PR no toca Application. Sale
+    // de aquí cuando la pantalla monte la pieza (B-21, cola paginada con filtros en servidor).
+    private static readonly string[] EnEspera = ["src/CaeManager.Web/Features/Inbound/Validacion/Pages/DocumentosPorValidar.razor"];
 
     /// <summary>Ruta → marcado sin comentarios de toda página con <c>&lt;BarraFiltros&gt;</c>, en espera o no.</summary>
     private static Dictionary<string, string> TodosLosListadosConBarra() =>

@@ -401,6 +401,12 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+            string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) => throw new NotSupportedException();
+
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();
 
         public string? ExtraerClientStateDeNotificacion(string payloadJson) => throw new NotSupportedException();

@@ -8481,6 +8481,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("RecuperacionHuecoAtascadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RecuperacionHuecoCubreDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RecuperacionHuecoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("RecuperacionHuecoListadoCompleto")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -8819,6 +8834,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CubreDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ErrorProcesado")
                         .HasMaxLength(1000)

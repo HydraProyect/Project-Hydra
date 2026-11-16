@@ -1,0 +1,66 @@
+@namespace CaeManager.Web.Features.Inbound.Validacion.Components
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+@* Componente invisible: registra los atajos de la pantalla «Validación» (atajos-validacion-inbound.js). La pantalla decide
+   qué hace con cada tecla vía OnAtajo. *@
+
+@code {
+    [Parameter] public EventCallback<string> OnAtajo { get; set; }
+
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _suscripcion;
+    private DotNetObjectReference<AtajosValidacion>? _referenciaDotNet;
+    private bool _desechado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-validacion-inbound.js");
+        if (!_desechado)
+        {
+            _referenciaDotNet = DotNetObjectReference.Create(this);
+            _suscripcion = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajosValidacion", _referenciaDotNet);
+        }
+
+        // Se salió de la página mientras llegaba el módulo: el manejador no puede quedarse escuchando.
+        if (_desechado)
+        {
+            await RetirarAsync();
+            _referenciaDotNet?.Dispose();
+        }
+    }
+
+    [JSInvokable]
+    public Task RecibirAtajo(string tecla) => OnAtajo.InvokeAsync(tecla);
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        await RetirarAsync();
+        _referenciaDotNet?.Dispose();
+    }
+
+    private async Task RetirarAsync()
+    {
+        // El circuito puede estar ya desconectado al navegar: no es un error real.
+        try
+        {
+            if (_suscripcion is { } suscripcion)
+            {
+                _suscripcion = null;
+                await suscripcion.InvokeVoidAsync("dispose");
+                await suscripcion.DisposeAsync();
+            }
+
+            if (_modulo is { } modulo)
+            {
+                _modulo = null;
+                await modulo.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}
