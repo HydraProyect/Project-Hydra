@@ -352,6 +352,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "propietarioTenantId de cada empresa a asignar (de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync) o a retirar (de ObtenerCarteraUniversalAsync del propio Gestor CAE), ambos del Operador CAE de origen tras AutoridadSobreCarteraDeGestorCae, que además se repite dentro del candado. Nunca un Guid de la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "propietarioTenantId de cada Tenant beneficiario de ObtenerCarteraUniversalAsync del Gestor CAE desactivado, y de ObtenerOperacionesDondeEsPrincipalAsync, ambos del Operador CAE de origen de quien desactiva, solo cuando ese origen es el Tenant activo y tras AutoridadSobreCuentas y AutoridadSobreCarteraDeGestorCae bajo el candado exclusivo de la cuenta. Nunca un Guid de la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/AvisoDeCarteraSinGestorCae.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "operadorTenantId que le pasa CambiarActivacionUsuarioCommand: el Tenant de origen de quien desactiva, igual al Tenant activo y propietario de la cuenta desactivada; sella la notificación de sus Administradores como los avisos de apoyo de cartera"),
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, en sus dos llamadas (la autoridad sobre un Gestor CAE y, desde I4, ResolverActorAsync para revocar un apoyo): para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -654,6 +660,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] = 2,
+            ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
