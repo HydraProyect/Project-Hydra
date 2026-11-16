@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261116120000_VigenciaProductoContratadoNuncaFutura")]
+    [Migration("20261116130000_VigenciaProductoContratadoNuncaFutura")]
     partial class VigenciaProductoContratadoNuncaFutura
     {
         /// <inheritdoc />
@@ -11531,6 +11531,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("MotivoRevocacion")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("RevocacionesDelOrigen")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("RevocadaEnUtc")
                         .HasColumnType("timestamp with time zone");
