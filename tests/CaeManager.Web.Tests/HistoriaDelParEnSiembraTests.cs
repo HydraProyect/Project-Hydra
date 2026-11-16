@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Linq.Expressions;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -22,8 +23,10 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// Lógica de la consulta, no RLS: el contexto sirve cada conjunto desde memoria (LINQ a objetos), con el proveedor
-/// SQLite solo para que exista el modelo. La lectura bajo <c>cae_app_runtime</c> la cubre
-/// <c>ProcedenciaDeOperacionExternaBajoRuntimeTests</c> en la suite de integración.
+/// SQLite solo para que exista el modelo. La lectura bajo <c>cae_app_runtime</c>, sin usuario y en el ámbito del
+/// Operador CAE externo como la hace la siembra, la fija
+/// <c>ProcedenciaDeOperacionExternaBajoRuntimeTests.Bajo_runtime_una_operacion_suspendida_y_amparada_del_par_es_historia_para_la_siembra</c>
+/// en la suite de integración.
 /// </para>
 /// </summary>
 public class HistoriaDelParEnSiembraTests
@@ -70,8 +73,8 @@ public class HistoriaDelParEnSiembraTests
         var suspendida = OperacionDelTenantEntero(delegacion, Ahora.AddDays(-30));
         suspendida.Suspender();
 
-        suspendida.EstaAmparadaPor(delegacion, Ahora).Should().BeTrue(
-            "control: la suspendida sigue amparada por su DelegacionTenant de origen");
+        new[] { suspendida }.AsQueryable().AmparadasPorSuOrigen(new[] { delegacion }.AsQueryable(), Ahora)
+            .Should().ContainSingle("control: la suspendida sigue amparada por su DelegacionTenant de origen");
         (await TieneHistoriaAsync(delegacion, suspendida)).Should().BeTrue(
             "la siembra no puede abrir otra Vigente del Tenant entero durante la suspensión");
     }
@@ -97,6 +100,55 @@ public class HistoriaDelParEnSiembraTests
         programada.Estado.Should().Be(EstadoAsignacion.Programada, "control: nace con la vigencia en el futuro");
         (await TieneHistoriaAsync(delegacion, programada)).Should().BeTrue(
             "ninguna siembra programa operaciones: la dejó así alguien");
+    }
+
+    [Fact]
+    public async Task Una_operacion_cerrada_junto_a_una_vigente_amparada_es_historia()
+    {
+        var delegacion = Delegacion();
+        var cerrada = OperacionDelTenantEntero(delegacion, Ahora.AddDays(-60));
+        cerrada.Cerrar(MotivoCierreAsignacion.Revocada, Ahora.AddDays(-31));
+        var vigente = OperacionDelTenantEntero(delegacion, Ahora.AddDays(-30));
+
+        (await TieneHistoriaAsync(delegacion, cerrada, vigente)).Should().BeTrue(
+            "ninguna siembra cierra operaciones fuera del arranque: reabrir repondría lo cerrado");
+    }
+
+    [Fact]
+    public async Task Solo_operaciones_vigentes_sin_amparo_son_historia()
+    {
+        var delegacion = Delegacion();
+        var sinOrigen = AsignacionOperacion.Externa(
+            _propietario, _operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora);
+
+        sinOrigen.Estado.Should().Be(EstadoAsignacion.Vigente, "control: no sale por el estado");
+        delegacion.Revocaciones.Should().Be(0, "control: no sale por una revocación contada");
+        (await TieneHistoriaAsync(delegacion, sinOrigen)).Should().BeTrue(
+            "una operación del par que su origen no ampara no autoriza, y la siembra no la sustituye");
+    }
+
+    [Fact]
+    public async Task Control_un_par_sin_operaciones_no_tiene_historia()
+    {
+        (await TieneHistoriaAsync(Delegacion())).Should().BeFalse("el primer arranque siembra el alta");
+    }
+
+    [Fact]
+    public async Task Una_suspendida_de_otro_par_o_de_Inbound_no_es_historia_de_este_par()
+    {
+        var delegacion = Delegacion();
+        var vigente = OperacionDelTenantEntero(delegacion, Ahora.AddDays(-30));
+        var deOtroOperador = AsignacionOperacion.Externa(
+            _propietario, Guid.NewGuid(), ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora);
+        var deOtroPropietario = AsignacionOperacion.Externa(
+            Guid.NewGuid(), _operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora);
+        var inbound = AsignacionOperacion.Externa(
+            _propietario, _operador, ServicioCae.Inbound, AmbitoAsignacion.Universal, Ahora.AddDays(-30), null, Ahora);
+        foreach (var ajena in new[] { deOtroOperador, deOtroPropietario, inbound })
+            ajena.Suspender();
+
+        (await TieneHistoriaAsync(delegacion, vigente, deOtroOperador, deOtroPropietario, inbound)).Should().BeFalse(
+            "solo cuentan las Asignaciones de Operación Outbound externas de este par");
     }
 
     // ---------------------------------------------------------------- Infraestructura de la prueba

@@ -106,7 +106,9 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
             _empresaV, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeV), desde, null, ahora);
         var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
         // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223),
-        // sellada como origen de cada operación Outbound para que EF inserte la delegación antes; la Inbound, sin origen.
+        // sellada como origen de cada operación para que EF inserte la delegación antes. La Inbound entera de V también
+        // nace amparada por la delegación de V (un estado que producción no genera): sin origen, el amparo la excluiría
+        // por sí solo y las aserciones de V no aislarían el filtro de Servicio (revisión puente de la ronda 6 de la PR #2237).
         var delegacionX = new DelegacionTenant(_operadorA, _empresaX);
         var delegacionY = new DelegacionTenant(_operadorA, _empresaY);
         var delegacionW = new DelegacionTenant(_operadorA, _empresaW);
@@ -119,7 +121,7 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
             OperacionExternaAmparada.Agregar(propietario, sobreW, delegacionW);
             OperacionExternaAmparada.Agregar(propietario, sobreZ, delegacionZ);
             OperacionExternaAmparada.Agregar(propietario, sobreVAcotada, delegacionV);
-            propietario.AsignacionesOperacion.Add(sobreVEntera);
+            OperacionExternaAmparada.Agregar(propietario, sobreVEntera, delegacionV);
         }
         using (AmbitoTenantExplicito.Establecer(_operadorA))
             propietario.DelegacionesTenant.AddRange(delegacionX, delegacionY, delegacionW, delegacionV);

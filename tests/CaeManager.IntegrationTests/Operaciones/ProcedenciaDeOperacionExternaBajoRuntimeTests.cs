@@ -667,6 +667,52 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             .Should().BeTrue("la operación se cerró: la siembra no la reabre");
     }
 
+    /// <summary>
+    /// Ronda 5 de Codex (media, solo demostración): una Asignación de Operación Outbound externa del Tenant entero
+    /// suspendida, aunque siga amparada por su DelegacionTenant de origen, es historia del par. Se lee como lo hace la
+    /// siembra: <c>cae_app_runtime</c>, sin usuario en la sesión y en el ámbito del Operador CAE externo, así que si
+    /// <c>HistoriaDelParEnSiembra</c> dejara de leer las operaciones en el ámbito del Tenant propietario la RLS las
+    /// ocultaría y el par saldría sin historia. Control: antes de suspender, sin historia.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_runtime_una_operacion_suspendida_y_amparada_del_par_es_historia_para_la_siembra()
+    {
+        (await TieneHistoriaComoLaSiembraAsync()).Should().BeFalse("control: la operación del alta, vigente y amparada");
+
+        await using (var contexto = ContextoPropietarioDeLaBase())
+        {
+            var vigentes = await contexto.AsignacionesOperacion
+                .Where(o => !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador
+                            && o.Estado == EstadoAsignacion.Vigente)
+                .ToListAsync();
+            vigentes.Should().NotBeEmpty("control: el alta abrió la operación");
+            foreach (var operacion in vigentes)
+                operacion.Suspender();
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var verificacion = ContextoPropietarioDeLaBase())
+            (await verificacion.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion)).Activa
+                .Should().BeTrue("control: la delegación de origen sigue activa y la suspendida sigue amparada");
+
+        (await TieneHistoriaComoLaSiembraAsync()).Should().BeTrue(
+            "la siembra no abre otra Vigente del Tenant entero durante la suspensión");
+    }
+
+    private async Task<bool> TieneHistoriaComoLaSiembraAsync()
+    {
+        _sesion.UsuarioId = null;
+        _sesion.TenantOrigenId = null;
+        _sesion.Rol = null;
+        using var ambito = _arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(_operador))
+        {
+            var delegacion = await contexto.DelegacionesTenant.AsNoTracking().SingleAsync(d => d.Id == _delegacion);
+            return await HistoriaDelParEnSiembra.TieneHistoriaAsync(contexto, delegacion, CancellationToken.None);
+        }
+    }
+
     private async Task<Guid> InsertarFilaHeredadaAsync(int? revocacionesDelOrigen)
     {
         await using var contexto = ContextoPropietarioDeLaBase();
