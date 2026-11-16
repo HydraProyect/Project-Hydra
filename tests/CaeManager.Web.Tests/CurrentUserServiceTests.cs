@@ -266,15 +266,16 @@ public class CurrentUserServiceTests
     /// <summary>
     /// El papel de una selección con Asignación de Operación sale de la operación revalidada, cada una por la vía de su
     /// servicio (B-02b, DN-21): una Outbound amparada da Outbound, una Inbound con la línea Inbound vigente del Tenant TCE
-    /// da Inbound, y una Inbound sin línea, cerrada o que el token pone sobre otro Tenant no da papel. Sobre SQLite en
+    /// da Inbound, y una Inbound sin línea, cerrada o que el token pone sobre otro Tenant da «operación que ya no
+    /// autoriza», que no tiene alcance de datos. Sobre SQLite en
     /// memoria: no sustituye a los tests PostgreSQL/RLS de CI.
     /// </summary>
     [Theory]
     [InlineData("outbound", PapelActivo.Outbound)]
     [InlineData("inbound", PapelActivo.Inbound)]
-    [InlineData("inbound-sin-linea", PapelActivo.SinPapel)]
-    [InlineData("inbound-cerrada", PapelActivo.SinPapel)]
-    [InlineData("inbound-otro-tenant", PapelActivo.SinPapel)]
+    [InlineData("inbound-sin-linea", PapelActivo.OperacionQueYaNoAutoriza)]
+    [InlineData("inbound-cerrada", PapelActivo.OperacionQueYaNoAutoriza)]
+    [InlineData("inbound-otro-tenant", PapelActivo.OperacionQueYaNoAutoriza)]
     public async Task El_papel_de_una_operacion_seleccionada_es_su_servicio_revalidado(string caso, PapelActivo esperado)
     {
         var tenantOrigen = Guid.NewGuid();

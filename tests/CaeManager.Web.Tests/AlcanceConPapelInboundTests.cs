@@ -38,6 +38,53 @@ public class AlcanceConPapelInboundTests
 
     [Theory]
     [InlineData("Administrador")]
+    [InlineData("Consulta")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Una_operacion_que_ya_no_autoriza_no_da_acceso_total_ni_cartera(string rol)
+    {
+        // El rol se resolvió con la operación todavía vigente; el papel, un instante después, ya no la encuentra.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.OperacionQueYaNoAutoriza));
+
+        (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+        (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse();
+        (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una misma instancia (un ámbito DI: la petición o el circuito) recorre el Tenant TCE en el fan-out, con papel
+    /// Outbound, y lo lee después en el contexto seleccionado, con papel Inbound, y al revés: lo memoizado en un lado no
+    /// vale en el otro.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Lo_memoizado_en_el_fan_out_no_se_reutiliza_con_papel_Inbound_ni_al_reves(bool fanOutPrimero)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new UsuarioConPapelSegunAmbito("Administrador"));
+
+        async Task<bool> EnElFanOut()
+        {
+            using (AmbitoTenantExplicito.Establecer(TenantTce))
+                return await alcance.TieneAccesoTotalAsync();
+        }
+
+        if (fanOutPrimero)
+        {
+            (await EnElFanOut()).Should().BeTrue("control: en el fan-out, Outbound, el Administrador tiene acceso total");
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("con papel Inbound no reutiliza el acceso total del fan-out");
+        }
+        else
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+            (await EnElFanOut()).Should().BeTrue("el fan-out no reutiliza el cero memoizado con papel Inbound");
+        }
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
     [InlineData("DireccionCae")]
     public async Task Control_con_papel_Outbound_el_mismo_perfil_tiene_acceso_total(string rol)
     {
@@ -56,7 +103,7 @@ public class AlcanceConPapelInboundTests
         (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue();
     }
 
-    private static AlcanceDatosService Alcance(CaeManagerDbContext contexto, Usuario usuario) =>
+    private static AlcanceDatosService Alcance(CaeManagerDbContext contexto, ICurrentUserService usuario) =>
         new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce }, new SinSesionPrivilegiada());
 
     /// <summary>Un contexto que nunca conecta: el puerto 1 de localhost no tiene ningún PostgreSQL.</summary>
@@ -78,6 +125,23 @@ public class AlcanceConPapelInboundTests
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
         public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel);
+        public Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(true);
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
+        public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);
+        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+        public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
+    }
+
+    /// <summary>Papel Outbound en el ámbito explícito del fan-out e Inbound fuera, como <c>CurrentUserService</c>.</summary>
+    private sealed class UsuarioConPapelSegunAmbito(string rol) : ICurrentUserService, IEncargoDeAdministracionActual
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<PapelActivo> ObtenerPapelActivoAsync() =>
+            Task.FromResult(AmbitoTenantExplicito.TenantIdActual is null ? PapelActivo.Inbound : PapelActivo.Outbound);
         public Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(true);
         public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
         public Task<Guid?> EncargoPlenoAsync() => Task.FromResult<Guid?>(null);

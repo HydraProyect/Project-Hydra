@@ -29,4 +29,12 @@ public enum PapelActivo
 
     /// <summary>La Asignación de Operación seleccionada es de Inbound.</summary>
     Inbound = 3,
+
+    /// <summary>
+    /// El token nombra una Asignación de Operación que ya no autoriza el Tenant seleccionado por ninguna de las dos vías
+    /// (cerrada, caducada, sin la línea Inbound, de otro Tenant). Distinto de <see cref="SinPapel"/>, que también es el
+    /// valor de quien no sabe el papel: con este, <c>AlcanceDatosService</c> no da acceso total ni cartera aunque el rol
+    /// se hubiera resuelto un instante antes con la operación todavía vigente (Codex, ronda 2 de la PR #2293).
+    /// </summary>
+    OperacionQueYaNoAutoriza = 4,
 }

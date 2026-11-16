@@ -95,7 +95,30 @@ public class AlcanceDatosService(
     private readonly TimeSpan _caducidad = CaducidadAlcanceOptions.Acotar(
         caducidad?.Value.Caducidad ?? CaducidadAlcanceOptions.CaducidadPorDefecto);
 
-    private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
+    /// <summary>
+    /// La clave de las memorias: el Tenant y si se calcula dentro de un ámbito explícito (el fan-out de lecturas sobre la
+    /// lista del selector, siempre con papel Outbound). Con la misma clave para los dos, el fan-out que recorre el Tenant
+    /// TCE seleccionado con papel Inbound dejaba memoizado su acceso total de Outbound, y la lectura siguiente con papel
+    /// Inbound lo reutilizaba durante la caducidad (Codex, ronda 2 de la PR #2293); y al revés. Un ámbito explícito usa
+    /// una clave derivada que nunca coincide con la del contexto seleccionado.
+    /// </summary>
+    private static Guid ClaveTenant(Guid? tenantId)
+    {
+        var tenant = tenantId ?? Guid.Empty;
+        if (AmbitoTenantExplicito.TenantIdActual is null) return tenant;
+
+        var bytes = tenant.ToByteArray();
+        for (var i = 0; i < bytes.Length; i++) bytes[i] ^= 0xA5;
+        return new Guid(bytes);
+    }
+
+    /// <summary>
+    /// El papel con el que esta petición no tiene alcance de datos por este servicio: Inbound, hasta que B-03 calcule el de
+    /// Inbound, y una selección cuya operación ya no autoriza, para que una caducidad entre resolver el rol y el papel no
+    /// conceda el alcance del rol.
+    /// </summary>
+    private async Task<bool> PapelSinAlcanceDeDatosAsync() =>
+        await currentUserService.ObtenerPapelActivoAsync() is PapelActivo.Inbound or PapelActivo.OperacionQueYaNoAutoriza;
 
     /// <summary>
     /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
@@ -295,7 +318,7 @@ public class AlcanceDatosService(
             // servicio: las páginas que se autorizan únicamente por rol (Auditoría, Usuarios, Configuración, Facturación)
             // siguen abiertas al rol de origen, y hay que cerrarlas por papel antes de activar el selector Inbound.
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
-                          && await currentUserService.ObtenerPapelActivoAsync() != PapelActivo.Inbound;
+                          && !await PapelSinAlcanceDeDatosAsync();
         }
 
         Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
@@ -383,7 +406,7 @@ public class AlcanceDatosService(
         // Con papel Inbound (B-02b, DN-21), ni la cartera de Outbound ni el Tenant entero por operación dan alcance: el
         // Gestor CAE que gestiona Outbound el mismo Tenant no puede usar esa cartera cuando valida en Inbound, y ningún otro
         // perfil hereda el alcance de su rol. La cartera Inbound la calcula B-03; hasta entonces, alcance cero para todos.
-        if (await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
+        if (await PapelSinAlcanceDeDatosAsync())
             return AlcanceCartera.Ninguno;
 
         // Decisión Chris 2026-10-20: en un Tenant beneficiario delegado al que entra por la

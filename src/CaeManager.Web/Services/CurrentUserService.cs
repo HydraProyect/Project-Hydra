@@ -382,8 +382,9 @@ public class CurrentUserService(
     /// <summary>
     /// El papel activo (DN-21, B-02b): el servicio de la Asignación de Operación del token, revalidada por su propio
     /// predicado (<see cref="TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync"/>), nunca lo que diga el
-    /// cliente. Sin selección, el Tenant de origen. Sesión Privilegiada, vía heredada (DelegacionTenant, solo Outbound),
-    /// una operación que ya no autoriza o un usuario sin resolver: <see cref="PapelActivo.SinPapel"/> (fallo cerrado). En
+    /// cliente. Sin selección, el Tenant de origen. Una operación del token que ya no autoriza:
+    /// <see cref="PapelActivo.OperacionQueYaNoAutoriza"/>. Sesión Privilegiada, vía heredada (DelegacionTenant, solo
+    /// Outbound) o un usuario sin resolver: <see cref="PapelActivo.SinPapel"/> (fallo cerrado para los comandos Inbound). En
     /// un ámbito explícito (el fan-out de lecturas de la lista del selector, solo Outbound), Outbound fuera del origen.
     /// </summary>
     public async Task<PapelActivo> ObtenerPapelActivoAsync()
@@ -419,7 +420,7 @@ public class CurrentUserService(
         {
             CaeManager.Domain.Operaciones.ServicioCae.Outbound => PapelActivo.Outbound,
             CaeManager.Domain.Operaciones.ServicioCae.Inbound => PapelActivo.Inbound,
-            _ => PapelActivo.SinPapel,
+            _ => PapelActivo.OperacionQueYaNoAutoriza,
         };
     }
 

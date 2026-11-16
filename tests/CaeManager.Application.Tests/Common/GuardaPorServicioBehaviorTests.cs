@@ -55,6 +55,7 @@ public class GuardaPorServicioBehaviorTests
     [InlineData(PapelActivo.Inbound, true)]
     [InlineData(PapelActivo.Outbound, false)]
     [InlineData(PapelActivo.SinPapel, false)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, false)]
     public async Task Un_comando_Inbound_solo_pasa_en_el_Tenant_de_origen_o_con_papel_Inbound(PapelActivo papel, bool pasa)
     {
         var (respuesta, llego) = await Ejecutar(new ComandoInbound(), papel, Result.Exito());
