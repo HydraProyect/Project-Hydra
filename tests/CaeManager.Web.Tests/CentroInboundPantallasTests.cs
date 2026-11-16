@@ -193,9 +193,10 @@ public class CentroInboundPantallasTests : BunitContext
         Preparar(aptos: [Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto)], contratos: Contrato());
         var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("button").First(b => b.TextContent.Contains("No aptos")).Click();
+        cut.WaitForElement("button.franja-estado-boton", TimeSpan.FromSeconds(5));
+        cut.FindAll("button.franja-estado-boton").First(b => b.TextContent.Contains("No aptos")).Click();
 
-        cut.Markup.Should().Contain("Ningún Trabajador coincide con los filtros");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún Trabajador coincide con los filtros"), TimeSpan.FromSeconds(5));
     }
 
     [Fact]
