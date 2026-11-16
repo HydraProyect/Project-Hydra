@@ -157,6 +157,24 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? RecuperacionHuecoCursorUtc { get; private set; }
 
     /// <summary>
+    /// Desempate del cursor compuesto (recepción, Id), issue #2263. Expandir y contraer: esta entrega solo crea la columna
+    /// y la limpia al empezar o anular una recuperación y al avanzar por fecha; ningún camino la escribe con valor. La
+    /// escribirá la entrega que active el recorrido por Id de un segundo con más mensajes de los que caben en una página.
+    /// Null: el cursor es solo la fecha.
+    /// </summary>
+    public string? RecuperacionHuecoCursorDesempate { get; private set; }
+
+    /// <summary>
+    /// La recuperación en curso recorrió algún segundo por Id (cursor compuesto, issue #2263). Lo leído se encola igual,
+    /// pero la marca no se limpia al terminar (<see cref="CompletarRecuperacionHueco"/>): el recorrido por Id está sin
+    /// verificar contra un buzón real, y el aviso de posible correo no recuperado se queda (avisa de más, nunca de menos).
+    /// Expandir y contraer: esta entrega ya respeta el veto, pero ningún camino lo pone a true; así, cuando la entrega que
+    /// recorre por Id conviva en el despliegue azul/verde con esta, la ranura anterior no limpia una marca que la nueva
+    /// recorrió por Id.
+    /// </summary>
+    public bool RecuperacionHuecoRecorridaPorId { get; private set; }
+
+    /// <summary>
     /// El listado de la recuperación en curso llegó al final: una página pedida desde el cursor volvió sin
     /// <c>@odata.nextLink</c>. No basta para limpiar la marca: además, ningún evento de recuperación de la conexión puede
     /// seguir sin ingerir.
@@ -426,6 +444,8 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoId = IdentificadorEntidad.Nuevo();
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
+        RecuperacionHuecoCursorDesempate = null;
+        RecuperacionHuecoRecorridaPorId = false;
         RecuperacionHuecoListadoCompleto = false;
         return desde;
     }
@@ -448,6 +468,8 @@ public class ConexionIntegracion : EntidadBase
         if (ultimoRecibidoUtc is { } ultimo && ultimo > cursor)
             RecuperacionHuecoCursorUtc = ultimo;
 
+        // Un desempate de la entrega que recorre por Id no se arrastra al avanzar por fecha.
+        RecuperacionHuecoCursorDesempate = null;
         RecuperacionHuecoAtascadaEnUtc = null;
         if (!hayMas)
             RecuperacionHuecoListadoCompleto = true;
@@ -483,7 +505,8 @@ public class ConexionIntegracion : EntidadBase
     /// sigue operativa, que su suscripción vive y que ningún evento de recuperación queda sin ingerir; aquí se exige que el
     /// listado esté completo y que la recuperación cubra la marca entera. Si estaba truncada por
     /// <see cref="AntiguedadMaximaRecuperacion"/>, la marca se queda y la recuperación también, terminada: no se vuelve a
-    /// listar hasta que otra pérdida la anule.
+    /// listar hasta que otra pérdida la anule. Lo mismo si recorrió algún segundo por Id
+    /// (<see cref="RecuperacionHuecoRecorridaPorId"/>): la marca se queda hasta verificar ese recorrido.
     /// </summary>
     /// <returns>true si la marca se limpió.</returns>
     public bool CompletarRecuperacionHueco()
@@ -491,7 +514,7 @@ public class ConexionIntegracion : EntidadBase
         if (!RecuperacionHuecoEnCurso || !RecuperacionHuecoListadoCompleto)
             throw new InvalidOperationException("La recuperación del hueco no ha terminado de listar.");
 
-        if (HuecoPendienteDesdeUtc is null || RecuperacionHuecoTruncada)
+        if (HuecoPendienteDesdeUtc is null || RecuperacionHuecoTruncada || RecuperacionHuecoRecorridaPorId)
             return false;
 
         HuecoPendienteDesdeUtc = null;
@@ -508,6 +531,8 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoId = null;
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
+        RecuperacionHuecoCursorDesempate = null;
+        RecuperacionHuecoRecorridaPorId = false;
         RecuperacionHuecoListadoCompleto = false;
         RecuperacionHuecoAtascadaEnUtc = null;
         return true;

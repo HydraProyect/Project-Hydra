@@ -184,6 +184,36 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
         enBase.RecuperacionHuecoEnCurso.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Issue #2263, expandir y contraer: las columnas del cursor compuesto persisten bajo RLS y, releída la fila, el veto
+    /// del recorrido por Id conserva la marca. Aquí ningún camino las escribe con valor (lo hará la entrega que recorre por
+    /// Id), así que se ponen por reflexión.
+    /// </summary>
+    [Fact]
+    public async Task El_indicador_de_recorrido_por_id_persiste_y_releido_no_deja_limpiar_la_marca()
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        await using (var runtime = CrearRuntime())
+        {
+            var conexion = await runtime.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonPropio);
+            conexion.IniciarRecuperacionHueco(DateTime.UtcNow);
+            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoRecorridaPorId))!
+                .SetValue(conexion, true);
+            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoCursorDesempate))!
+                .SetValue(conexion, "desempate-de-la-otra-ranura");
+            await runtime.SaveChangesAsync();
+        }
+
+        await using var relectura = CrearRuntime();
+        var leida = await relectura.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonPropio);
+        leida.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+        leida.RecuperacionHuecoCursorDesempate.Should().Be("desempate-de-la-otra-ranura");
+        leida.AvanzarRecuperacionHueco(null, hayMas: false);
+        leida.RecuperacionHuecoCursorDesempate.Should().BeNull("avanzar por fecha no arrastra el desempate");
+        leida.CompletarRecuperacionHueco().Should().BeFalse();
+        leida.HuecoPendienteDesdeUtc.Should().NotBeNull("el aviso de posible correo no recuperado se queda");
+    }
+
     private async Task<Guid> SembrarBuzonConMarcaAsync(Guid tenantId, string email)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);

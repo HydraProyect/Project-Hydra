@@ -56,6 +56,77 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoEnCurso.Should().BeTrue("queda terminada sin volver a listar");
     }
 
+    /// <summary>
+    /// Issue #2263, expandir y contraer: aquí ningún camino escribe el indicador ni el desempate; los pone la entrega que
+    /// recorre por Id, que convive con esta en el despliegue azul/verde. Se simulan por reflexión.
+    /// </summary>
+    private static void SimularRecorridoPorId(ConexionIntegracion conexion, string? desempate = "desempate")
+    {
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoRecorridaPorId))!
+            .SetValue(conexion, true);
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoCursorDesempate))!
+            .SetValue(conexion, desempate);
+    }
+
+    [Fact]
+    public void Una_recuperacion_recorrida_por_id_termina_sin_limpiar_la_marca()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        SimularRecorridoPorId(conexion, desempate: null);
+        conexion.AvanzarRecuperacionHueco(null, hayMas: false);
+
+        conexion.CompletarRecuperacionHueco().Should().BeFalse("el recorrido por Id está sin verificar contra Graph real");
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(Ahora.AddHours(-3), "el aviso de posible correo no recuperado se queda");
+        conexion.RecuperacionHuecoEnCurso.Should().BeTrue("queda terminada sin volver a listar");
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_recorrido_por_id_la_misma_recuperacion_limpia_la_marca()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHueco(null, hayMas: false);
+
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse("ningún camino de esta entrega lo pone a true");
+        conexion.CompletarRecuperacionHueco().Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void Retomar_conserva_el_indicador_y_avanzar_por_fecha_borra_el_desempate()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        SimularRecorridoPorId(conexion);
+
+        conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15)).Should().Be(Ahora.AddHours(-3), "retoma la misma recuperación");
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue("retomar no borra lo que recorrió la otra ranura");
+        conexion.RecuperacionHuecoCursorDesempate.Should().Be("desempate");
+
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), hayMas: true);
+
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull("avanzar por fecha no arrastra el desempate");
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Anular_la_recuperacion_borra_el_indicador_y_el_desempate()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        SimularRecorridoPorId(conexion);
+
+        conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2));
+
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse();
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse("la recuperación nueva empieza sin recorrido por Id");
+    }
+
     [Fact]
     public void El_cursor_solo_avanza_y_una_pagina_con_mas_no_completa_el_listado()
     {
