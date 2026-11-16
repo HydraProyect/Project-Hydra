@@ -13,7 +13,8 @@
     siempre una lista vacía y este modal no aparece. Lo fija AceptacionContractualGateTests.
 
     La IP de quien acepta es la del contexto HTTP del prerenderizado, como en el alta: en el circuito no
-    hay HttpContext, así que se lee al prerenderizar y pasa al circuito por el estado persistido.
+    hay HttpContext, así que se lee al prerenderizar y pasa al circuito por el estado persistido. Se lee
+    del HttpContext en cascada y, si no llega, de IHttpContextAccessor (como MainLayout).
 *@
 @using CaeManager.Application.Common
 @using CaeManager.Application.Cumplimiento.AceptacionContractual
@@ -28,6 +29,7 @@
 @inject PersistentComponentState EstadoPersistente
 @inject IServiceProvider Servicios
 @inject NavigationManager Navegacion
+@inject IHttpContextAccessor HttpContextAccessor
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
@@ -60,7 +62,7 @@
 </LimiteDeErrores>
 
 @code {
-    /// <summary>Solo en el prerenderizado: de ahí sale la IP de quien acepta.</summary>
+    /// <summary>Solo en el prerenderizado: de ahí sale la IP de quien acepta (o del accesor si no llega).</summary>
     [CascadingParameter] public HttpContext? ContextoHttp { get; set; }
 
     private IReadOnlyList<DocumentoContractualPendienteDto> _pendientes = [];
@@ -110,7 +112,10 @@
 
     private string? IpDeLaPeticion()
     {
-        var ip = ContextoHttp?.Connection.RemoteIpAddress;
+        // El HttpContext en cascada no está garantizado en un componente InteractiveServer montado en el layout;
+        // sin IP cada clic recargaría la página y el Administrador no saldría del modal. El accesor cubre ese hueco
+        // en el prerenderizado; si ninguno de los dos trae contexto, queda la IP persistida.
+        var ip = (ContextoHttp ?? HttpContextAccessor.HttpContext)?.Connection.RemoteIpAddress;
         return ip is null ? null : (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).ToString();
     }
 

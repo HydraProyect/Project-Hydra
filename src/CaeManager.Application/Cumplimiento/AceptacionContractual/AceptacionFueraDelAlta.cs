@@ -144,8 +144,8 @@ public class ObtenerAceptacionesContractualesPendientesQueryHandler(
 /// Reglas: solo quien resuelve <see cref="AceptanteFueraDelAlta"/>; con la declaración de facultades; cada
 /// documento una vez, y solo versiones vigentes ahora y obligatorias, con la versión y el hash que rigen; y tiene que
 /// cubrir todas las pendientes. <see cref="Ip"/> es la del contexto HTTP en el que se pintó el aviso, la que lee
-/// la Web como en el alta. Idempotente por (Tenant, cuenta, documento, versión): lo que esta cuenta ya aceptó no se
-/// vuelve a registrar.
+/// la Web como en el alta. Idempotente por (Tenant, cuenta, documento, versión, hash): lo que esta cuenta ya aceptó
+/// con ese mismo texto no se vuelve a registrar.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Cumplimiento")]
@@ -212,12 +212,17 @@ public class AceptarDocumentosContractualesCommandHandler(
         if (AceptanteFueraDelAlta.Pendientes(vigentes, aceptadas).Any(p => !claves.Contains(p.Documento)))
             return Result.Fallo(ErroresAceptacionContractual.FaltaDocumentoObligatorio);
 
-        // Idempotencia por (Tenant, cuenta, documento, versión): el repositorio ya lista solo el Tenant actual.
+        // Idempotencia por (Tenant, cuenta, documento, versión, hash): el repositorio ya lista solo el Tenant actual.
+        // El hash entra en la clave igual que en Pendientes: si se corrige el texto de una versión sin cambiar su
+        // número, lo aceptado con el texto anterior no cubre el nuevo, y sin el hash la Query lo daría pendiente
+        // mientras el Command devolvería éxito sin registrar, con el aviso volviendo a salir en bucle.
         // shortcut: la base no la respalda fuera del alta (su índice único exige SolicitudAltaId), así que dos
         // aceptaciones simultáneas de la misma cuenta pueden dejar dos filas iguales; mejorarlo con un índice único
-        // parcial (TenantId, UsuarioId, Documento, Version) WHERE SolicitudAltaId IS NULL en su propia migración.
+        // parcial (TenantId, UsuarioId, Documento, Version, HashSha256) WHERE SolicitudAltaId IS NULL en su propia
+        // migración.
         var nuevas = aceptadosVigentes
-            .Where(v => !aceptadas.Any(a => a.UsuarioId == usuarioId && a.Documento == v.Documento && a.Version == v.Version))
+            .Where(v => !aceptadas.Any(a => a.UsuarioId == usuarioId && a.Documento == v.Documento && a.Version == v.Version
+                && string.Equals(a.HashSha256, v.HashSha256, StringComparison.OrdinalIgnoreCase)))
             .ToList();
         if (nuevas.Count == 0)
             return Result.Exito();

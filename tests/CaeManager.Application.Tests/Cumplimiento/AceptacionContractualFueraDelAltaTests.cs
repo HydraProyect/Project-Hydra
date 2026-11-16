@@ -295,6 +295,30 @@ public class AceptacionContractualFueraDelAltaTests
     }
 
     [Fact]
+    public async Task Corregir_el_texto_de_una_version_sin_cambiar_su_numero_obliga_a_aceptarla_otra_vez()
+    {
+        var e = new Escenario();
+        await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
+        var corregida = CondicionesV1 with { Texto = "Texto de condiciones 1.0, corregido" };
+        e.Catalogo.Remove(CondicionesV1);
+        e.Catalogo.Add(corregida);
+        corregida.HashSha256.Should().NotBe(CondicionesV1.HashSha256);
+        FluentActions.Invoking(() => ResolucionDocumentosContractuales.ExigirCoherente(e.Catalogo))
+            .Should().NotThrow("el catálogo publica una sola vez la versión 1.0, ahora con el texto corregido");
+
+        (await e.PendientesAsync()).Select(p => (p.Documento, p.Version, p.HashSha256))
+            .Should().Equal([("Condiciones", "1.0", corregida.HashSha256)]);
+
+        (await e.AceptarAsync(documentos: [corregida])).EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(3, "la idempotencia incluye el hash: el texto corregido es otra aceptación");
+        e.Repositorio.Aceptaciones.Should().ContainSingle(a => a.Documento == "Condiciones" && a.HashSha256 == corregida.HashSha256);
+        (await e.PendientesAsync()).Should().BeEmpty();
+
+        (await e.AceptarAsync(documentos: [corregida])).EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(3, "repetir la aceptación del texto corregido ya no registra nada");
+    }
+
+    [Fact]
     public async Task Lo_aceptado_en_el_alta_cuenta_y_no_vuelve_a_bloquear()
     {
         var e = new Escenario();

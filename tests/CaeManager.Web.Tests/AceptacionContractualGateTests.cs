@@ -32,7 +32,11 @@ public class AceptacionContractualGateTests : BunitContext
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<ICurrentUserService>(new UsuarioFalso());
+        Services.AddSingleton<IHttpContextAccessor>(_accesorHttp);
     }
+
+    /// <summary>Sin contexto salvo que el test lo ponga: así el accesor no tapa la falta del HttpContext en cascada.</summary>
+    private readonly HttpContextAccessor _accesorHttp = new();
 
     private sealed class MediatorFalso(params DocumentoContractualPendienteDto[] pendientes) : IMediator
     {
@@ -116,6 +120,24 @@ public class AceptacionContractualGateTests : BunitContext
         var navegacion = Services.GetRequiredService<BunitNavigationManager>();
         navegacion.History.Should().ContainSingle().Which.Options.ForceLoad.Should().BeTrue(
             "la recarga vuelve a pasar por el prerenderizado, que lee la IP");
+    }
+
+    [Fact]
+    public void Sin_HttpContext_en_cascada_toma_la_IP_del_accesor_y_acepta_sin_recargar()
+    {
+        var contexto = new DefaultHttpContext();
+        contexto.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.30");
+        _accesorHttp.HttpContext = contexto;
+        var mediador = new MediatorFalso(Condiciones, Encargo);
+        var gate = RenderGate(mediador, conContextoHttp: false);
+
+        MarcarTodo(gate);
+        Boton(gate).Click();
+
+        mediador.Aceptaciones.Should().ContainSingle().Which.Ip.Should().Be("203.0.113.30",
+            "un gate InteractiveServer en el layout no siempre recibe el HttpContext en cascada");
+        Services.GetRequiredService<BunitNavigationManager>().History.Should().BeEmpty("con IP no hace falta recargar");
+        gate.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     [Fact]
