@@ -14,7 +14,7 @@ public class SolicitudExportacionCompletaConfiguration : IEntityTypeConfiguratio
         builder.ToTable("SolicitudesExportacionCompleta");
         builder.HasKey(s => s.Id);
 
-        // El estado es el token de concurrencia optimista (ASVS 4.0.3 V1.11.2 y V11.1.6): cada UPDATE lleva en su WHERE
+        // El estado es el token de concurrencia optimista (ASVS 4.0.3 V1.11.3 y V11.1.6): cada UPDATE lleva en su WHERE
         // el estado que se leyó, así que una transición sobre un estado que otro proceso ya cambió (p. ej. el barrido
         // de estancadas de un líder nuevo contra la Lista que acaba de confirmar el anterior) afecta a cero filas y
         // EF lanza DbUpdateConcurrencyException en vez de sobrescribir. Basta el estado, sin columna nueva: toda

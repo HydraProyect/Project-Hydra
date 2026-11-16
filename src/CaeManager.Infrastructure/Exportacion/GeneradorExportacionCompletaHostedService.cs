@@ -33,7 +33,7 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// <para>
 /// Dos procesos pueden creerse líderes a la vez (el anterior perdió la conexión que retenía el liderazgo y su
 /// generación sigue). Por eso cada transición de estado se guarda con el estado leído como token de concurrencia
-/// (ASVS 4.0.3 V1.11.2 y V11.1.6): gana el primer guardado, el segundo no se aplica ni se audita, y un fichero solo se
+/// (ASVS 4.0.3 V1.11.3 y V11.1.6): gana el primer guardado, el segundo no se aplica ni se audita, y un fichero solo se
 /// borra después de confirmar la transición que lo deja sin fila que lo nombre (salvo el de una caducada, que no
 /// tiene otro destino posible).
 /// </para>
@@ -208,7 +208,7 @@ public class GeneradorExportacionCompletaHostedService(
 
     /// <summary>
     /// Guarda una transición de estado junto con su fila de auditoría. El estado es el token de concurrencia de la
-    /// fila (<c>SolicitudExportacionCompletaConfiguration</c>; ASVS 4.0.3 V1.11.2 y V11.1.6): si otro proceso lo
+    /// fila (<c>SolicitudExportacionCompletaConfiguration</c>; ASVS 4.0.3 V1.11.3 y V11.1.6): si otro proceso lo
     /// cambió desde que se leyó, el UPDATE afecta a cero filas, el guardado entero (transición y auditoría) se revierte
     /// y se descarta lo pendiente del contexto. Devuelve si la transición se aplicó.
     /// </summary>
@@ -350,7 +350,7 @@ public class GeneradorExportacionCompletaHostedService(
             });
             ubicacionConfirmada = ubicacion;
 
-            // El estado es el token de concurrencia (ASVS 4.0.3 V1.11.2 y V11.1.6): si otro proceso dio esta por
+            // El estado es el token de concurrencia (ASVS 4.0.3 V1.11.3 y V11.1.6): si otro proceso dio esta por
             // fallida (estancada) desde que se leyó, el guardado choca, nada de él se aplica ni se audita, y el catch
             // la encuentra ya terminal y no la toca. Si con lo que chocó es con una anterior (que otro proceso caducó
             // entretanto), se vuelve a leer y se reintenta una vez: la exportación generada no se pierde por eso.
@@ -452,8 +452,17 @@ public class GeneradorExportacionCompletaHostedService(
         // Primero el estado: si el guardado de Lista llegó a confirmarse antes de la excepción, la fila ya es Lista y
         // su fichero es el que se descarga; borrarlo dejaría una exportación entregada sin fichero.
         var solicitud = await contexto.SolicitudesExportacionCompleta.SingleOrDefaultAsync(s => s.Id == id, CancellationToken.None);
-        if (solicitud?.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso))
+        if (solicitud is null)
             return;
+        if (solicitud.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso))
+        {
+            // Ya terminal: la terminó otro proceso (p. ej. la dio por estancada) o el guardado de Lista se confirmó. Si
+            // su fila no nombra el zip que generó este intento, nadie lo va a descargar: se borra ya, sin esperar las
+            // horas del barrido de huérfanos (ASVS 4.0.3 V8.3.8). Si lo nombra, es el de la Lista y no se toca.
+            if (ubicacionConfirmada is not null && solicitud.UbicacionFichero != ubicacionConfirmada)
+                BorrarSinBloquear(tenantId, [ubicacionConfirmada]);
+            return;
+        }
 
         solicitud.MarcarFallida(motivo, Ahora());
         contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(

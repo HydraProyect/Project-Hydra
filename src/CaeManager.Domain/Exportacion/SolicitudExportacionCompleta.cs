@@ -14,7 +14,7 @@ namespace CaeManager.Domain.Exportacion;
 /// <b>Transiciones.</b> Pendiente → EnCurso → Lista → Caducada, o Pendiente/EnCurso → Fallida. Ningún estado se
 /// repite, y cada guardado que cambia la fila cambia su <see cref="Estado"/>: por eso el estado es el token de
 /// concurrencia optimista de la fila (<c>SolicitudExportacionCompletaConfiguration</c>), y una transición hecha sobre
-/// un estado leído que otro proceso ya cambió no se aplica (ASVS 4.0.3 V1.11.2 y V11.1.6).
+/// un estado leído que otro proceso ya cambió no se aplica (ASVS 4.0.3 V1.11.3 y V11.1.6).
 /// </para>
 ///
 /// <para>

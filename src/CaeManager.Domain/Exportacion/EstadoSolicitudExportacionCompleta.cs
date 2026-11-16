@@ -14,7 +14,7 @@ public enum EstadoSolicitudExportacionCompleta
     /// <summary>El fichero cifrado existe y se puede descargar hasta <see cref="SolicitudExportacionCompleta.CaducaEnUtc"/> o hasta que otra del mismo Tenant queda lista; como mucho una por Tenant.</summary>
     Lista = 2,
 
-    /// <summary>La generación no terminó. No cuenta para el límite de una exportación cada 24 horas.</summary>
+    /// <summary>La generación no terminó. Cuenta igualmente para el límite de una exportación cada 24 horas (D-8, OWASP API4:2023).</summary>
     Fallida = 3,
 
     /// <summary>

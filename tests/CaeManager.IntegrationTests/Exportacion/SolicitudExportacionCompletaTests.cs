@@ -372,7 +372,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         (await FasesAsync(_tenantA, id)).Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida));
     }
 
-    // ---- Dos líderes a la vez: el estado es el token de concurrencia (ASVS 4.0.3 V1.11.2 y V11.1.6) ----
+    // ---- Dos líderes a la vez: el estado es el token de concurrencia (ASVS 4.0.3 V1.11.3 y V11.1.6) ----
 
     [Fact]
     public async Task Si_el_lider_anterior_marca_Lista_antes_que_el_barrido_de_estancadas_gana_la_Lista_y_el_barrido_no_audita()
@@ -443,6 +443,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         var fases = await FasesAsync(_tenantA, id);
         fases.Should().NotContain(f => f.Contains(AuditoriaExportacionCompleta.FaseLista), "la transición perdedora no se audita");
         fases.Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida), "solo la del ganador");
+        FicherosDe(_tenantA).Should().BeEmpty("ninguna fila nombra el zip del perdedor y se borra sin esperar al barrido de huérfanos");
     }
 
     [Fact]

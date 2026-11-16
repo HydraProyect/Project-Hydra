@@ -71,6 +71,17 @@ public class SolicitudExportacionCompletaTests
         fallida.MarcarFallida("Estancada", Ahora);
         ((Action)(() => fallida.MarcarEnCurso(Ahora))).Should().Throw<InvalidOperationException>();
         ((Action)(() => fallida.MarcarFallida("x", Ahora))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => fallida.MarcarLista("t/s.zip", 42, Ahora))).Should().Throw<InvalidOperationException>();
+
+        var enCurso = Nueva();
+        enCurso.MarcarEnCurso(Ahora);
+        ((Action)(() => enCurso.MarcarEnCurso(Ahora))).Should().Throw<InvalidOperationException>();
+
+        var lista = Nueva();
+        lista.MarcarEnCurso(Ahora);
+        lista.MarcarLista("t/s.zip", 42, Ahora);
+        ((Action)(() => lista.MarcarEnCurso(Ahora))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => lista.MarcarLista("t/s.zip", 42, Ahora))).Should().Throw<InvalidOperationException>();
 
         var caducada = Nueva();
         caducada.MarcarEnCurso(Ahora);
