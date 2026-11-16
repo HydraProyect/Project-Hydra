@@ -7,6 +7,8 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 
@@ -72,7 +74,8 @@ public class EnviarMensajeNuevoCommandHandler(
     IFileStorageService almacenamiento,
     IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork,
-    IRegistroExportacionService registroSalida)
+    IRegistroExportacionService registroSalida,
+    ILogger<EnviarMensajeNuevoCommandHandler>? logger = null)
     : IRequestHandler<EnviarMensajeNuevoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(EnviarMensajeNuevoCommand request, CancellationToken cancellationToken)
@@ -145,6 +148,9 @@ public class EnviarMensajeNuevoCommandHandler(
             contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
+        // El correo ya salió: lo que falle desde aquí (hilo de otro titular, adjuntos, guardado) no lo deshace.
+        OrigenContenidoEnvio.TrazarEnvioAceptado(
+            (ILogger?)logger ?? NullLogger.Instance, "Microsoft 365", conversacionId: null, envioResultado.Valor.MensajeExternoId, sugerencia);
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
         var anterior = conversacion is null

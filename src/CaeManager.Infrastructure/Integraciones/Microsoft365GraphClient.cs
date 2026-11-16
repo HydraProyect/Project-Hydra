@@ -480,7 +480,20 @@ public class Microsoft365GraphClient(
             }
 
             var borradorId = borrador.Id!;
-            if (!await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken))
+            bool llevaLaMarca;
+            try
+            {
+                llevaLaMarca = await BorradorLlevaLaMarcaAsync(accessToken, buzon, borradorId, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancelada la petición con el borrador ya creado: se borra con un token propio (si no, un borrador sin
+                // la marca podría enviarse desde Outlook) y la cancelación sigue subiendo (revisión Codex r3 de la #2007).
+                await EliminarBorradorAsync(accessToken, buzon, borradorId, CancellationToken.None);
+                throw;
+            }
+
+            if (!llevaLaMarca)
             {
                 logger.LogError(
                     "El borrador de respuesta {MensajeId} no lleva la cabecera {Cabecera}: no se envía.",

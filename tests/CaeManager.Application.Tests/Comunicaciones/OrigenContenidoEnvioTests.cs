@@ -12,6 +12,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -39,6 +40,23 @@ public class OrigenContenidoEnvioTests
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
     private readonly UnitOfWorkFalso _unidad = new();
     private readonly RegistroExportacionFalso _registro = new();
+    private readonly List<string> _trazas = [];
+
+    /// <summary>Anota cada línea de log ya formateada, para comprobar la traza de origen tras un envío aceptado.</summary>
+    private sealed class LoggerRecolector<T>(List<string> trazas) : ILogger<T>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            trazas.Add(formatter(state, exception));
+    }
+
+    private void TrazaDeOrigen(OrigenContenidoMensaje origen, Guid? respuestaSugeridaId) =>
+        _trazas.Should().ContainSingle(t => t.StartsWith("Envío aceptado por", StringComparison.Ordinal))
+            .Which.Should().Contain($"origen del contenido {origen}")
+            .And.Contain($"respuesta sugerida {respuestaSugeridaId?.ToString() ?? "(null)"}.");
 
     private RespuestaSugerida Revisada(
         Conversacion conversacion, bool deVega = true, DateTime? revisadaEnUtc = null, string texto = TextoSugerido)
@@ -106,7 +124,7 @@ public class OrigenContenidoEnvioTests
         new ResponderConversacionCommandHandler(
                 _conversaciones, _comunicaciones, _conexiones, alcance ?? new AlcanceDatosServiceFalso(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
-                Options.Create(new ComunicacionesRemitenteOptions()), _unidad, NullLogger<ResponderConversacionCommandHandler>.Instance,
+                Options.Create(new ComunicacionesRemitenteOptions()), _unidad, new LoggerRecolector<ResponderConversacionCommandHandler>(_trazas),
                 _registro, new DescarteCambiosPendientesFalso())
             .Handle(new ResponderConversacionCommand(conversacion.Id, cuerpo, RespuestaSugeridaId: respuestaSugeridaId), CancellationToken.None);
 
@@ -119,14 +137,16 @@ public class OrigenContenidoEnvioTests
     private Task<Result> MigrarACorreo(Conversacion conversacion, string cuerpo, Guid? respuestaSugeridaId = null) =>
         new MigrarConversacionACorreoCommandHandler(
                 _conversaciones, _comunicaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graph,
-                new AccesoGraphService(_credenciales, _graph), new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
+                new AccesoGraphService(_credenciales, _graph), new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro,
+                new LoggerRecolector<MigrarConversacionACorreoCommandHandler>(_trazas))
             .Handle(new MigrarConversacionACorreoCommand(conversacion.Id, Ana, cuerpo, respuestaSugeridaId), CancellationToken.None);
 
     private Task<Result<Guid>> EnviarNuevo(ConexionIntegracion conexion, string cuerpo) =>
         new EnviarMensajeNuevoCommandHandler(
                 _conexiones, _conversaciones, _comunicaciones, new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
-                new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
+                new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro,
+                new LoggerRecolector<EnviarMensajeNuevoCommandHandler>(_trazas))
             .Handle(new EnviarMensajeNuevoCommand(conexion.Id, [Ana], "Documentación", cuerpo), CancellationToken.None);
 
     private void SinEnvio(Conversacion conversacion)
@@ -339,6 +359,70 @@ public class OrigenContenidoEnvioTests
         await Responder(conversacion, TextoSugerido);
 
         UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(coincide.Id);
+    }
+
+    /// <summary>Si coinciden varias, vale la revisada más tarde, aunque se lea antes la otra.</summary>
+    [Fact]
+    public async Task Con_dos_revisadas_de_Vega_que_coinciden_vale_la_revisada_mas_tarde()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var reciente = Revisada(conversacion, revisadaEnUtc: DateTime.UtcNow);
+        Revisada(conversacion, revisadaEnUtc: DateTime.UtcNow.AddMinutes(-5));
+
+        await Responder(conversacion, TextoSugerido);
+
+        UltimoSaliente(conversacion).RespuestaSugeridaId.Should().Be(reciente.Id);
+    }
+
+    // ---- Traza de origen en cuanto el canal acepta el envío (revisión Codex r3) ----
+
+    [Fact]
+    public async Task Responder_deja_la_traza_de_origen_al_aceptar_Graph_el_envio()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var sugerencia = Revisada(conversacion);
+
+        await Responder(conversacion, TextoSugerido, sugerencia.Id);
+
+        TrazaDeOrigen(OrigenContenidoMensaje.VegaRevisada, sugerencia.Id);
+    }
+
+    /// <summary>El correo ya salió cuando falla el guardado: la traza queda aunque no quede el Mensaje.</summary>
+    [Fact]
+    public async Task Al_migrar_a_correo_la_traza_de_origen_queda_aunque_falle_el_guardado()
+    {
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddDays(-2));
+        var sugerencia = Revisada(conversacion);
+        Buzon();
+        _unidad.ExcepcionAlGuardar = new InvalidOperationException("la base se cayó");
+
+        var migrar = () => MigrarACorreo(conversacion, TextoSugerido, sugerencia.Id);
+
+        await migrar.Should().ThrowAsync<InvalidOperationException>();
+        TrazaDeOrigen(OrigenContenidoMensaje.VegaRevisada, sugerencia.Id);
+    }
+
+    [Fact]
+    public async Task Un_mensaje_nuevo_deja_la_traza_de_origen_aunque_falle_el_guardado()
+    {
+        var conexion = Buzon();
+        var sugerencia = Revisada(HiloDeCorreo(conexion));
+        _unidad.ExcepcionAlGuardar = new InvalidOperationException("la base se cayó");
+
+        var enviar = () => EnviarNuevo(conexion, TextoSugerido);
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>();
+        TrazaDeOrigen(OrigenContenidoMensaje.VegaRevisada, sugerencia.Id);
+    }
+
+    [Fact]
+    public async Task Un_mensaje_nuevo_escrito_a_mano_deja_la_traza_como_Persona()
+    {
+        var conexion = Buzon();
+
+        await EnviarNuevo(conexion, "<p>Te escribo yo, sin ninguna sugerencia de por medio.</p>");
+
+        TrazaDeOrigen(OrigenContenidoMensaje.Persona, null);
     }
 
     [Fact]

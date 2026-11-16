@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Comunicaciones;
 
@@ -62,12 +63,26 @@ public static class OrigenContenidoEnvio
         }
 
         var ids = await IdsDeVegaRevisadasAsync(comunicaciones, alcanceDatos, conversacionId, conexionIntegracionId, cancellationToken);
-        var coincidentes = await CoincidentesAsync(comunicaciones, ids, cuerpo, cancellationToken);
-        return Result.Exito(coincidentes
-            .OrderByDescending(r => r.RevisadaEnUtc)
-            .ThenByDescending(r => r.Id)
-            .FirstOrDefault());
+        return Result.Exito(await MejorCoincidenteAsync(comunicaciones, ids, cuerpo, cancellationToken));
     }
+
+    /// <summary>
+    /// Deja en el log, en cuanto el canal acepta el envío, qué origen lleva (revisión Codex r3 de la #2007): si después falla
+    /// el registro local (guardar adjuntos, el SaveChanges, un hilo de otro titular), el correo ya salió y este es el rastro
+    /// que permite reconciliar su origen y su sugerencia.
+    /// </summary>
+    public static void TrazarEnvioAceptado(
+        ILogger logger, string canal, Guid? conversacionId, string? mensajeExternoId, RespuestaSugerida? sugerencia) =>
+        logger.LogInformation(
+            "Envío aceptado por {Canal}: mensaje externo {MensajeExternoId}, conversación {ConversacionId}, origen del contenido {OrigenContenido}, respuesta sugerida {RespuestaSugeridaId}.",
+            canal, mensajeExternoId, conversacionId, OrigenDe(sugerencia), sugerencia?.Id);
+
+    private static OrigenContenidoMensaje OrigenDe(RespuestaSugerida? sugerencia) => sugerencia switch
+    {
+        null => OrigenContenidoMensaje.Persona,
+        { Origen: OrigenRespuestaSugerida.Vega } => OrigenContenidoMensaje.VegaRevisada,
+        _ => OrigenContenidoMensaje.MacroRevisada,
+    };
 
     /// <summary>Fija en <paramref name="mensaje"/> el origen resuelto por <see cref="OrigenDelEnvioAsync"/>.</summary>
     public static void RegistrarEn(Mensaje mensaje, RespuestaSugerida? sugerencia)
@@ -126,26 +141,36 @@ public static class OrigenContenidoEnvio
         select r.Id;
 
     /// <summary>
-    /// De <paramref name="ids"/>, las sugerencias cuyo texto coincide con <paramref name="cuerpo"/>, leídas por lotes de
-    /// <see cref="LoteTextos"/> y sin seguimiento (cada texto puede ocupar hasta 1 MiB): las que no coinciden se descartan
-    /// tras compararlas.
+    /// De <paramref name="ids"/>, la sugerencia cuyo texto coincide con <paramref name="cuerpo"/> revisada más tarde (y a
+    /// igualdad, la de mayor id), leídas por lotes de <see cref="LoteTextos"/> y sin seguimiento (cada texto puede ocupar
+    /// hasta 1 MiB). Solo se conserva la mejor hasta ahora: la memoria no crece con el número de coincidencias (revisión
+    /// Codex r3 de la #2007).
     /// </summary>
-    private static async Task<List<RespuestaSugerida>> CoincidentesAsync(
+    private static async Task<RespuestaSugerida?> MejorCoincidenteAsync(
         IComunicacionesQueryContext comunicaciones, IReadOnlyList<Guid> ids, string cuerpo, CancellationToken cancellationToken)
     {
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
         var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
-        var coincidentes = new List<RespuestaSugerida>();
+        RespuestaSugerida? mejor = null;
         foreach (var lote in ids.Chunk(LoteTextos))
         {
             var sugerencias = await comunicaciones.RespuestasSugeridas
                 .AsNoTracking()
                 .Where(r => lote.Contains(r.Id))
                 .ToListAsync(cancellationToken);
-            coincidentes.AddRange(sugerencias.Where(r =>
-                r.TextoHash == hash || BloqueoRespuestaSugerida.CoincideConElTexto(cuerpoNormalizado, r.Texto)));
+            foreach (var candidata in sugerencias)
+            {
+                if (EsMejor(candidata, mejor) &&
+                    (candidata.TextoHash == hash || BloqueoRespuestaSugerida.CoincideConElTexto(cuerpoNormalizado, candidata.Texto)))
+                    mejor = candidata;
+            }
         }
 
-        return coincidentes;
+        return mejor;
     }
+
+    private static bool EsMejor(RespuestaSugerida candidata, RespuestaSugerida? mejor) =>
+        mejor is null ||
+        candidata.RevisadaEnUtc > mejor.RevisadaEnUtc ||
+        (candidata.RevisadaEnUtc == mejor.RevisadaEnUtc && candidata.Id.CompareTo(mejor.Id) > 0);
 }

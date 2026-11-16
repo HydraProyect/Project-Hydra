@@ -8,6 +8,8 @@ using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 
@@ -56,7 +58,8 @@ public class MigrarConversacionACorreoCommandHandler(
     AccesoGraphService accesoGraph,
     IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork,
-    IRegistroExportacionService registroSalida)
+    IRegistroExportacionService registroSalida,
+    ILogger<MigrarConversacionACorreoCommandHandler>? logger = null)
     : IRequestHandler<MigrarConversacionACorreoCommand, Result>
 {
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
@@ -136,6 +139,9 @@ public class MigrarConversacionACorreoCommandHandler(
             contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
+        // El correo ya salió: si el guardado falla después, este es el rastro de su origen.
+        OrigenContenidoEnvio.TrazarEnvioAceptado(
+            (ILogger?)logger ?? NullLogger.Instance, "Microsoft 365", conversacion.Id, envioResultado.Valor.MensajeExternoId, sugerencia);
 
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml,

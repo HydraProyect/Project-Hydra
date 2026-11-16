@@ -33,6 +33,12 @@ public class Microsoft365CabeceraOrigenContenidoTests
         /// <summary>La lectura de las cabeceras del borrador falla con esta excepción (red o timeout de HttpClient).</summary>
         public Exception? FalloDeLectura { get; set; }
 
+        /// <summary>Se cancela al leer las cabeceras del borrador, como una petición que el usuario abandona a medias.</summary>
+        public CancellationTokenSource? CancelarAlLeer { get; set; }
+
+        /// <summary>Si el borrado del borrador llegó con su token ya cancelado (no se habría ejecutado).</summary>
+        public bool? BorradoConTokenCancelado { get; private set; }
+
         public List<string> Llamadas { get; } = [];
         public string? CuerpoRespuesta { get; private set; }
         public string? CuerpoCrearRespuesta { get; private set; }
@@ -66,10 +72,18 @@ public class Microsoft365CabeceraOrigenContenidoTests
             if (request.Method == HttpMethod.Get)
             {
                 if (FalloDeLectura is not null) throw FalloDeLectura;
+                if (CancelarAlLeer is not null)
+                {
+                    await CancelarAlLeer.CancelAsync();
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
                 return CabecerasDelBorrador is null
                     ? Json(HttpStatusCode.OK, """{"internetMessageHeaders":null}""")
                     : Json(HttpStatusCode.OK, CabecerasDelBorrador);
             }
+
+            if (request.Method == HttpMethod.Delete)
+                BorradoConTokenCancelado = cancellationToken.IsCancellationRequested;
 
             return new HttpResponseMessage(HttpStatusCode.Accepted);
         }
@@ -118,6 +132,25 @@ public class Microsoft365CabeceraOrigenContenidoTests
 
         resultado.EsFallido.Should().BeTrue();
         graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+    }
+
+    /// <summary>
+    /// Si se cancela la petición mientras se leen las cabeceras, el borrador ya creado se borra con un token propio (no con
+    /// el cancelado) y la cancelación sigue subiendo.
+    /// </summary>
+    [Fact]
+    public async Task Si_se_cancela_al_leer_las_cabeceras_el_borrador_se_borra_y_la_cancelacion_sube()
+    {
+        using var cts = new CancellationTokenSource();
+        var graph = new GraphSimulado { CancelarAlLeer = cts };
+
+        var envio = () => Cliente(graph).EnviarRespuestaAsync(
+            "token", new BuzonGraph("buzon@tenant.example", false), "origen-1", Cuerpo, null, cts.Token,
+            contenidoIaRevisada: true);
+
+        await envio.Should().ThrowAsync<OperationCanceledException>();
+        graph.Llamadas.Should().Equal("POST createReply", "GET borrador-1", "DELETE borrador-1");
+        graph.BorradoConTokenCancelado.Should().BeFalse();
     }
 
     private static async Task<JsonElement> EnviarNuevoAsync(bool contenidoIaRevisada)

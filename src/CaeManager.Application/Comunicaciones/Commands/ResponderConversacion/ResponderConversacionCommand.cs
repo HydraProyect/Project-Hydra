@@ -103,6 +103,7 @@ public class ResponderConversacionCommandHandler(
                 return Result.Fallo(envioResultado.Error);
             mensajeCreado = envioResultado.Valor;
             huboEnvioReal = true;
+            OrigenContenidoEnvio.TrazarEnvioAceptado(logger, "Microsoft 365", conversacion.Id, mensajeCreado.MensajeExternoId, sugerencia);
         }
         else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
