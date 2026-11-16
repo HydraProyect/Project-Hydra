@@ -257,15 +257,15 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         var cut = Render<ConfigurarAutenticadorDosFactores>();
 
-        cut.FindAll(".tarjeta-mostrar-clave form").Should().ContainSingle("la clave se pide con un POST con antiforgery");
-        cut.FindAll("img.qr-2fa, .clave-manual, .uri-otpauth, #codigo, #prueba-reautenticacion").Should().BeEmpty();
-        cut.Markup.Should().NotContain("otpauth");
-        _almacen.ClaveGuardada.Should().Be(clave, "un GET no genera ni rota la clave");
         if (clave is not null)
         {
-            cut.Markup.Should().NotContain(clave);
-            cut.Markup.Should().NotContain(ClaveAutenticadorTotp.FormatearClave(clave));
+            cut.Markup.Should().NotContain(clave, "la clave estable no viaja en la respuesta a un GET");
+            cut.Markup.Should().NotContain(ClaveAutenticadorTotp.FormatearClave(clave), "ni agrupada como se enseña");
         }
+        _almacen.ClaveGuardada.Should().Be(clave, "un GET no genera ni rota la clave");
+        cut.Markup.Should().NotContain("otpauth", "un GET no lleva la URI con el secreto");
+        cut.FindAll("img.qr-2fa, .clave-manual, .uri-otpauth, #codigo, #prueba-reautenticacion").Should().BeEmpty();
+        cut.FindAll(".tarjeta-mostrar-clave form").Should().ContainSingle("la clave se pide con un POST con antiforgery");
     }
 
     [Fact]
