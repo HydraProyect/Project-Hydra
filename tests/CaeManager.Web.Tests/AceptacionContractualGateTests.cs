@@ -8,6 +8,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Cumplimiento;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,9 +27,11 @@ public class AceptacionContractualGateTests : BunitContext
     private static readonly DocumentoContractualPendienteDto Encargo =
         new("Encargo", "Contrato de encargo de prueba", "2.1", new string('b', 64));
 
+    private readonly BunitPersistentComponentState _estadoPersistente;
+
     public AceptacionContractualGateTests()
     {
-        this.AddBunitPersistentComponentState();
+        _estadoPersistente = this.AddBunitPersistentComponentState();
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<ICurrentUserService>(new UsuarioFalso());
@@ -49,6 +52,11 @@ public class AceptacionContractualGateTests : BunitContext
         public int ConsultasQueFallan { get; set; }
         /// <summary>Si se fija, lo pendiente depende del Tenant que se vea al consultar, como la consulta real.</summary>
         public Func<IReadOnlyList<DocumentoContractualPendienteDto>>? PendientesDelTenantActual { get; set; }
+        /// <summary>Si se fija, la siguiente consulta queda en vuelo hasta que el test la complete; se consume al usarla.</summary>
+        public TaskCompletionSource<IReadOnlyList<DocumentoContractualPendienteDto>>? SiguienteConsultaEnVuelo { get; set; }
+
+        private static async Task<TResponse> EsperarConsulta<TResponse>(Task<IReadOnlyList<DocumentoContractualPendienteDto>> consulta) =>
+            (TResponse)(object)await consulta;
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -58,6 +66,11 @@ public class AceptacionContractualGateTests : BunitContext
                     Consultas++;
                     if (Consultas <= ConsultasQueFallan)
                         throw new InvalidOperationException("Fallo simulado de la consulta.");
+                    if (SiguienteConsultaEnVuelo is { } enVuelo)
+                    {
+                        SiguienteConsultaEnVuelo = null;
+                        return EsperarConsulta<TResponse>(enVuelo.Task);
+                    }
                     IReadOnlyList<DocumentoContractualPendienteDto> lista = PendientesDelTenantActual is { } leer ? leer()
                         : Aceptaciones.Count == 0 ? pendientes
                         : ResultadoAceptar.EsExitoso ? [] : PendientesTrasFallo ?? pendientes;
@@ -98,7 +111,9 @@ public class AceptacionContractualGateTests : BunitContext
 
     private IRenderedComponent<AceptacionContractualGate> RenderGate(MediatorFalso mediador, bool conContextoHttp = true)
     {
-        Services.AddSingleton<IMediator>(mediador);
+        // Un test que persiste estado del prerenderizado ya lo registró: después de leer servicios no se puede añadir.
+        if (!Services.Any(d => d.ServiceType == typeof(IMediator)))
+            Services.AddSingleton<IMediator>(mediador);
         if (!conContextoHttp)
             return Render<AceptacionContractualGate>();
 
@@ -281,7 +296,124 @@ public class AceptacionContractualGateTests : BunitContext
 
         gate.WaitForAssertion(() => gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2));
         mediador.Consultas.Should().Be(2);
-        Boton(gate).HasAttribute("disabled").Should().BeTrue("las casillas vuelven sin marcar");
+    }
+
+    [Fact]
+    public void La_reconsulta_tras_la_retirada_deja_las_casillas_sin_marcar()
+    {
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var mediador = new MediatorFalso
+        {
+            PendientesDelTenantActual = () => tenant.TenantId == TenantA ? [Condiciones, Encargo] : [Condiciones],
+        };
+        var gate = RenderGate(mediador);
+        Casilla(gate, "Condiciones").Change(true);
+        gate.Find(".campo-facultades input").Change(true);
+
+        tenant.RetirarSeleccion();
+
+        gate.WaitForAssertion(() => gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2));
+        Casilla(gate, "Condiciones").HasAttribute("checked").Should().BeFalse("lo marcado era de lo pendiente en otro Tenant");
+        gate.Find(".campo-facultades input").HasAttribute("checked").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Si_la_reconsulta_tras_la_retirada_falla_bloquea_con_el_error()
+    {
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var mediador = new MediatorFalso
+        {
+            PendientesDelTenantActual = () => tenant.TenantId == TenantA
+                ? throw new InvalidOperationException("Fallo simulado de la consulta.")
+                : [],
+        };
+        var gate = RenderGate(mediador);
+        gate.FindAll("[role=dialog]").Should().BeEmpty();
+
+        tenant.RetirarSeleccion();
+
+        gate.WaitForAssertion(() => gate.FindAll(".gate-contractual-error").Should().ContainSingle());
+    }
+
+    [Fact]
+    public void Una_consulta_inicial_del_Tenant_retirado_que_llega_tarde_no_pisa_la_reconsulta()
+    {
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var deB = new TaskCompletionSource<IReadOnlyList<DocumentoContractualPendienteDto>>();
+        var mediador = new MediatorFalso
+        {
+            SiguienteConsultaEnVuelo = deB,
+            PendientesDelTenantActual = () => tenant.TenantId == TenantA ? [Condiciones, Encargo] : [],
+        };
+        var gate = RenderGate(mediador);
+
+        tenant.RetirarSeleccion();
+        gate.WaitForAssertion(() => gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2));
+        var renders = gate.RenderCount;
+        deB.SetResult([]);
+
+        gate.WaitForAssertion(() => gate.RenderCount.Should().BeGreaterThan(renders));
+        gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2, "lo leído de B ya no vale");
+    }
+
+    [Fact]
+    public void Un_reintento_del_Tenant_retirado_que_llega_tarde_no_pisa_la_reconsulta()
+    {
+        var tenant = new TenantActualFalso(origen: TenantA, seleccionado: TenantB);
+        Services.AddSingleton<ITenantActual>(tenant);
+        var deB = new TaskCompletionSource<IReadOnlyList<DocumentoContractualPendienteDto>>();
+        var mediador = new MediatorFalso
+        {
+            ConsultasQueFallan = 1,
+            PendientesDelTenantActual = () => tenant.TenantId == TenantA ? [Condiciones, Encargo] : [],
+        };
+        var gate = RenderGate(mediador);
+        mediador.SiguienteConsultaEnVuelo = deB;
+        // Sin esperar: el reintento queda en vuelo con la consulta de B.
+        _ = BotonReintentar(gate).ClickAsync(new MouseEventArgs());
+
+        tenant.RetirarSeleccion();
+        gate.WaitForAssertion(() => gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2));
+        var renders = gate.RenderCount;
+        deB.SetResult([]);
+
+        gate.WaitForAssertion(() => gate.RenderCount.Should().BeGreaterThan(renders));
+        gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2, "lo leído de B ya no vale");
+    }
+
+    [Fact]
+    public void Lo_pendiente_del_prerenderizado_con_otro_Tenant_no_se_reutiliza()
+    {
+        // Revisor-puente sobre d50799d77: una selección retirada entre el prerenderizado y el montaje del circuito no
+        // deja aviso que escuchar; lo que dejó el prerenderizado era del Tenant B.
+        Services.AddSingleton<ITenantActual>(new TenantActualFalso(origen: TenantA, seleccionado: TenantA));
+        var mediador = new MediatorFalso(Condiciones, Encargo);
+        Services.AddSingleton<IMediator>(mediador);
+        _estadoPersistente.Persist("gate-contractual-estado-v1", new AceptacionContractualGate.EstadoGate(
+            Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"), DateTimeOffset.UtcNow, [], "203.0.113.20", TenantB));
+
+        var gate = RenderGate(mediador);
+
+        mediador.Consultas.Should().Be(1);
+        gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Lo_pendiente_del_prerenderizado_con_el_mismo_Tenant_se_reutiliza()
+    {
+        Services.AddSingleton<ITenantActual>(new TenantActualFalso(origen: TenantA, seleccionado: TenantA));
+        var mediador = new MediatorFalso(Condiciones, Encargo);
+        Services.AddSingleton<IMediator>(mediador);
+        _estadoPersistente.Persist("gate-contractual-estado-v1", new AceptacionContractualGate.EstadoGate(
+            Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"), DateTimeOffset.UtcNow, [], "203.0.113.20", TenantA));
+
+        var gate = RenderGate(mediador);
+
+        mediador.Consultas.Should().Be(0);
+        gate.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
     [Fact]

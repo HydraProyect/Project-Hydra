@@ -106,9 +106,11 @@ else if (_pendientes.Count > 0)
     /// <summary>
     /// Lo que el prerenderizado deja al circuito: de qué usuario es, cuándo se leyó, qué tenía pendiente y la IP
     /// de la petición. Lo pendiente solo se reutiliza dentro de la caducidad de las lecturas del layout; la IP, para
-    /// el mismo usuario, siempre, porque el circuito no tiene otra forma de conocerla.
+    /// el mismo usuario, siempre, porque el circuito no tiene otra forma de conocerla. Lo pendiente es del Tenant
+    /// con el que se leyó: si el circuito ve otro (una selección retirada antes de montarse, sin aviso que
+    /// escuchar todavía), se vuelve a consultar.
     /// </summary>
-    public sealed record EstadoGate(Guid Usuario, DateTimeOffset Creado, IReadOnlyList<DocumentoContractualPendienteDto> Pendientes, string? Ip);
+    public sealed record EstadoGate(Guid Usuario, DateTimeOffset Creado, IReadOnlyList<DocumentoContractualPendienteDto> Pendientes, string? Ip, Guid? Tenant);
 
     private bool TodoMarcado => _facultades && _pendientes.All(d => _marcados.Contains(d.Documento));
 
@@ -117,7 +119,8 @@ else if (_pendientes.Count > 0)
         // Primero el oyente y después la consulta, como SuscripcionMensajesDelTenantActual: al revés, una retirada
         // entre las dos dejaría lo leído del Tenant retirado sin nadie que lo corrigiera (revisión Codex, PR #2270).
         var generacion = _generacion;
-        _avisoRetirada = Servicios.GetService<ITenantActual>() as IAvisoSeleccionRetirada;
+        var tenantActual = Servicios.GetService<ITenantActual>();
+        _avisoRetirada = tenantActual as IAvisoSeleccionRetirada;
         if (_avisoRetirada is not null)
             _avisoRetirada.TenantSeleccionadoRetirado += AlRetirarseLaSeleccion;
 
@@ -125,9 +128,10 @@ else if (_pendientes.Count > 0)
         {
             var usuario = Servicios.GetService<ICurrentUserService>() is { } actual
                 ? await actual.ObtenerUsuarioActualIdAsync() : null;
+            var tenant = tenantActual?.TenantId;
             var anterior = Restaurar(usuario);
             _ip = IpDeLaPeticion() ?? anterior?.Ip;
-            var pendientes = anterior is not null && Vigente(anterior)
+            var pendientes = anterior is not null && Vigente(anterior) && anterior.Tenant == tenant
                 ? anterior.Pendientes
                 : await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
 
@@ -136,7 +140,7 @@ else if (_pendientes.Count > 0)
             {
                 _pendientes = pendientes;
                 if (usuario is { } leido)
-                    _estado = new(leido, DateTimeOffset.UtcNow, _pendientes, _ip);
+                    _estado = new(leido, DateTimeOffset.UtcNow, _pendientes, _ip, tenant);
             }
         }
         catch (Exception) when (generacion != _generacion)
