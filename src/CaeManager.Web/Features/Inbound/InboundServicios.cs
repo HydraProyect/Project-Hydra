@@ -1,4 +1,5 @@
 using CaeManager.Web.Components.Layout;
+using CaeManager.Web.Features.Inbound.Configuracion;
 using CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +18,9 @@ public static class InboundServicios
         servicios.AddScoped<IActividadDeContratoAcceso, ActividadDeContratoAccesoNoDisponible>();
         servicios.AddScoped<ISelectorEmpresasContratistas, SelectorEmpresasContratistasNoDisponible>();
         servicios.AddScoped<ResolutorContratosAcceso>();
+        servicios.AddScoped<IServicioNoAplica, ServicioNoAplicaSinBackend>();
+        servicios.AddScoped<IServicioReglasAviso, ServicioReglasAvisoSinBackend>();
+        servicios.AddScoped<IServicioGobiernoInbound, ServicioGobiernoInboundSinBackend>();
         return servicios;
     }
 }

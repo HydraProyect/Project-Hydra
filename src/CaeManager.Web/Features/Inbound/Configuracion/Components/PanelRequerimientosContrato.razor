@@ -1,0 +1,140 @@
+@* Pestaña «Requerimientos» del contrato de acceso (pantalla 19 de la maqueta de Inbound, «No aplica»): la tabla de requerimientos con su
+   estado y, en cada uno que lo admite, el botón «No aplica» (o «Editar» si ya lo tiene). Un requisito legal, preventivo o N1 sale con el
+   botón bloqueado. Sin backend fusionado (B-11 para los requerimientos, B-16 para la excepción): sin datos enseña el estado vacío que
+   enseñaba la pestaña, y no pinta ninguna fila. *@
+@inject IServicioNoAplica Servicio
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_datos is null)
+{
+    <EstadoVacio NombreIcono="documentos" Titulo="@TituloVacio" Descripcion="@DescripcionVacio" />
+}
+else if (_datos.Requerimientos.Count == 0)
+{
+    <EstadoVacio NombreIcono="documentos" Titulo="Este contrato no tiene requerimientos" Descripcion="Cuando el contrato exija requisitos, aparecerán aquí." />
+}
+else
+{
+    <table class="tabla-datos prc-tabla" aria-label="Requerimientos del contrato de acceso" data-pieza="tabla-requerimientos">
+        <thead><tr>
+            <th scope="col">Requisito</th>
+            <th scope="col">Entidad</th>
+            <th scope="col">Origen</th>
+            <th scope="col">Estado</th>
+            <th scope="col"><span class="sr-only">Acción</span></th>
+        </tr></thead>
+        <tbody>
+        @foreach (var r in _datos.Requerimientos)
+        {
+            <tr @key="r.Id" data-requerimiento="@r.Id">
+                <td>
+                    <span class="prc-nombre" title="@r.Nombre">@r.Nombre</span>
+                    <div class="inbound-secundario">@r.Nota</div>
+                </td>
+                <td>@r.Entidad</td>
+                <td>@r.OrigenTexto</td>
+                <td>
+                    @if (r.Excepcion is { } e)
+                    {
+                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@DialogoNoAplica.EtiquetaEstado</Badge>
+                        <div class="inbound-secundario">@Alcance(e)</div>
+                    }
+                    else
+                    {
+                        <Badge Tono="Tono(r.Estado)" Tamano="TamanoBadge.Pequeno">@Texto(r.Estado)</Badge>
+                        @if (!string.IsNullOrWhiteSpace(r.Detalle))
+                        {
+                            <div class="inbound-secundario">@r.Detalle</div>
+                        }
+                    }
+                </td>
+                <td class="prc-acciones">
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!r.AdmiteNoAplica)"
+                               title="@(r.AdmiteNoAplica ? null : "Requisito legal, preventivo o de nivel N1: no admite No aplica")"
+                               OnClick="() => Abrir(r)">@(r.Excepcion is null ? "No aplica" : "Editar")</Boton>
+                    </SoloConEscritura>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p class="inbound-secundario" data-pieza="nota-no-aplica">Los requisitos legales y preventivos no admiten No aplica. Una excepción la autoriza @_datos.TenantTce; el Gestor CAE solo la registra.</p>
+
+    <DialogoNoAplica Visible="_abierto" VisibleChanged="v => _abierto = v" ContratoId="@ContratoId" Requerimiento="_seleccionado"
+                     Empresa="@_datos.Empresa" Centro="@_datos.Centro" TenantTce="@_datos.TenantTce" Trabajadores="_datos.Trabajadores"
+                     OnGuardado="GuardadoAsync" />
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ContratoId { get; set; }
+    [Parameter] public string TituloVacio { get; set; } = string.Empty;
+    [Parameter] public string DescripcionVacio { get; set; } = string.Empty;
+
+    private RequerimientosDeContrato? _datos;
+    private bool _cargando = true;
+    private bool _abierto;
+    private RequerimientoDeContrato? _seleccionado;
+
+    private Guid? _cargadoDe;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Solo se vuelve a leer si cambia el contrato: un re-render del padre no puede vaciar la tabla ni cerrar el diálogo abierto.
+        if (_cargadoDe == ContratoId) return;
+        _cargadoDe = ContratoId;
+        await CargarAsync(conEsqueleto: true);
+    }
+
+    private async Task CargarAsync(bool conEsqueleto)
+    {
+        _cargando = conEsqueleto;
+        try
+        {
+            var respuesta = await Servicio.ObtenerAsync(ContratoId);
+            _datos = respuesta.Aceptada ? respuesta.Valor : null;
+        }
+        catch (Exception)
+        {
+            _datos = null;
+        }
+        _cargando = false;
+    }
+
+    private void Abrir(RequerimientoDeContrato requerimiento)
+    {
+        if (!requerimiento.AdmiteNoAplica) return;
+        _seleccionado = requerimiento;
+        _abierto = true;
+    }
+
+    private async Task GuardadoAsync(ExcepcionNoAplica excepcion)
+    {
+        _abierto = false;
+        await CargarAsync(conEsqueleto: false);
+    }
+
+    private static string Alcance(ExcepcionNoAplica e) =>
+        (e.TrabajadorNombre ?? "Todo el contrato") + (e.Hasta is { } h ? $" · hasta el {MascaraFecha.Formatear(h)}" : " · permanente");
+
+    private static TonoBadge Tono(EstadoRequerimientoContrato estado) => estado switch
+    {
+        EstadoRequerimientoContrato.Validado => TonoBadge.Exito,
+        EstadoRequerimientoContrato.PendienteDeValidar or EstadoRequerimientoContrato.Parcial => TonoBadge.Advertencia,
+        EstadoRequerimientoContrato.Incompleto or EstadoRequerimientoContrato.Rechazado => TonoBadge.Peligro,
+        _ => TonoBadge.Neutro,
+    };
+
+    private static string Texto(EstadoRequerimientoContrato estado) => estado switch
+    {
+        EstadoRequerimientoContrato.Validado => "Validado",
+        EstadoRequerimientoContrato.PendienteDeValidar => "Pendiente de validar",
+        EstadoRequerimientoContrato.PendienteDeSubir => "Pendiente de subir",
+        EstadoRequerimientoContrato.Parcial => "Parcial",
+        EstadoRequerimientoContrato.Incompleto => "Incompleto",
+        _ => "Rechazado",
+    };
+}

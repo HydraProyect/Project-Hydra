@@ -1,0 +1,201 @@
+@* Pantalla 19 de la maqueta de Inbound, «No aplica»: el Gestor CAE del Tenant TCE registra que un requerimiento no se exige en este contrato de
+   acceso. Nunca sobre un requisito N1, legal o preventivo (el botón de la fila ya sale bloqueado; aquí se vuelve a comprobar). Quien lo
+   autoriza es el Tenant TCE; el Gestor CAE solo lo registra. La Empresa contratista lo ve como «No exigido en este contrato» y no cuenta
+   como validado ni en el porcentaje. Sin backend fusionado (B-16): el servicio responde «no disponible» y no se guarda nada. *@
+@using CaeManager.Domain.Common
+@inject IServicioNoAplica Servicio
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="No aplica" Subtitulo="@Subtitulo"
+                  TextoGuardar="Guardar" TextoCancelar="Cancelar" HayCambios="() => _sucio" Guardando="_guardando"
+                  MensajeError="@(_mensajeError ?? MensajeNoAdmite)" MotivoGuardarDeshabilitado="@Falta" OnGuardar="GuardarAsync">
+    @if (Requerimiento is not null && Requerimiento.AdmiteNoAplica)
+    {
+        @if (Requerimiento.Entidad == EntidadTrabajadores)
+        {
+            <div class="na-campo" role="group" aria-labelledby="na-aplica-a">
+                <span class="na-etiqueta" id="na-aplica-a">A quién se aplica</span>
+                <div class="na-segmentos">
+                    <button type="button" aria-pressed="@(!_porTrabajador)" @onclick="() => Cambiar(() => _porTrabajador = false)">Todos los Trabajadores del contrato</button>
+                    <button type="button" aria-pressed="@_porTrabajador" @onclick="() => Cambiar(() => _porTrabajador = true)">Un Trabajador</button>
+                </div>
+                @if (_porTrabajador)
+                {
+                    <CampoSelect Etiqueta="Trabajador" Valor="@(_trabajadorId?.ToString() ?? string.Empty)"
+                                 ValorChanged="v => Cambiar(() => _trabajadorId = Guid.TryParse(v, out var id) ? id : null)">
+                        <option value="">Elige un Trabajador</option>
+                        @foreach (var t in Trabajadores)
+                        {
+                            <option value="@t.Id">@t.Nombre · @(t.TieneElDocumento ? "validado" : "sin el documento")</option>
+                        }
+                    </CampoSelect>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="na-campo">
+                <span class="na-etiqueta">A quién se aplica</span>
+                <span>Todo el contrato de acceso</span>
+            </div>
+        }
+
+        <div class="na-campo" role="group" aria-labelledby="na-duracion">
+            <span class="na-etiqueta" id="na-duracion">Duración</span>
+            <div class="na-segmentos">
+                <button type="button" aria-pressed="@(!_conVigencia)" @onclick="() => Cambiar(() => _conVigencia = false)">Permanente</button>
+                <button type="button" aria-pressed="@_conVigencia" @onclick="() => Cambiar(() => _conVigencia = true)">Con vigencia</button>
+            </div>
+            @if (_conVigencia)
+            {
+                <div class="na-fila">
+                    <span>Desde @Fecha(_hoy)</span>
+                    <CampoFecha Etiqueta="Hasta" Valor="_hasta" ValorChanged="v => Cambiar(() => _hasta = v)"
+                                NoValido="_hastaNoValida" NoValidoChanged="v => _hastaNoValida = v" Minimo="_hoy" />
+                </div>
+            }
+            <p class="na-ayuda">@(_conVigencia
+                ? "Al vencer, el requisito vuelve a exigirse y se avisa al Gestor CAE."
+                : "Dura mientras dure el contrato de acceso. Se puede quitar en cualquier momento con Editar.")</p>
+        </div>
+
+        <CampoTextarea Etiqueta="Motivo" Valor="@_motivo" ValorChanged="v => Cambiar(() => _motivo = v)" Placeholder="Por qué no se exige" Filas="3" />
+
+        <div class="na-campo">
+            <CampoTexto Etiqueta="@($"Autorizado por, en {TenantTce}")" Valor="@_autoriza" ValorChanged="v => Cambiar(() => _autoriza = v)" Placeholder="Nombre y cargo" />
+            <p class="na-ayuda">Quien autoriza la excepción es la organización que exige el requisito. Queda registrado también quién la marca (el Gestor CAE) y la fecha de hoy.</p>
+        </div>
+
+        <section class="na-previa" aria-labelledby="na-previa-titulo" data-pieza="vista-previa">
+            <h3 id="na-previa-titulo">Así se verá</h3>
+            <span><b>Empresa contratista:</b> «@EtiquetaEstado»</span>
+            <span><b>Aptitud:</b> @Efecto</span>
+        </section>
+    }
+</DrawerFormulario>
+
+@code {
+    /// <summary>El rótulo con el que la Empresa contratista ve el requerimiento (duda 7 de Experto CAE; no cuenta como validado).</summary>
+    public const string EtiquetaEstado = "No exigido en este contrato";
+
+    private const string EntidadTrabajadores = "Trabajadores";
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public Guid ContratoId { get; set; }
+    [Parameter] public RequerimientoDeContrato? Requerimiento { get; set; }
+    [Parameter] public string Empresa { get; set; } = string.Empty;
+    [Parameter] public string Centro { get; set; } = string.Empty;
+    [Parameter] public string TenantTce { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<TrabajadorDelContrato> Trabajadores { get; set; } = [];
+
+    /// <summary>Se invoca con la excepción cuando el servicio la aceptó; el padre recarga y avisa.</summary>
+    [Parameter] public EventCallback<ExcepcionNoAplica> OnGuardado { get; set; }
+
+    private DateOnly _hoy = DiaDeNegocio.Hoy();
+    private bool _porTrabajador;
+    private Guid? _trabajadorId;
+    private bool _conVigencia;
+    private DateOnly? _hasta;
+    private bool _hastaNoValida;
+    private string _motivo = string.Empty;
+    private string _autoriza = string.Empty;
+    private bool _sucio;
+    private bool _guardando;
+    private string? _mensajeError;
+    private bool _eraVisible;
+
+    private string? MensajeNoAdmite => Requerimiento is { AdmiteNoAplica: false } ? "Este requisito no admite «No aplica»: es legal, preventivo o de nivel N1." : null;
+
+    private string Subtitulo => $"{Requerimiento?.Nombre} · {Empresa} · {Centro}";
+
+    private string? Falta
+    {
+        get
+        {
+            if (Requerimiento is not { AdmiteNoAplica: true }) return "Este requisito no admite «No aplica».";
+            if (_porTrabajador && _trabajadorId is null) return "Falta elegir el Trabajador.";
+            if (string.IsNullOrWhiteSpace(_motivo)) return "Falta el motivo.";
+            if (string.IsNullOrWhiteSpace(_autoriza)) return "Falta quién lo autoriza.";
+            if (_conVigencia && (_hastaNoValida || _hasta is null)) return "Falta la fecha de fin.";
+            if (_conVigencia && _hasta <= _hoy) return "La fecha de fin debe ser posterior a hoy.";
+            return null;
+        }
+    }
+
+    private string Efecto
+    {
+        get
+        {
+            var quien = _porTrabajador && Trabajadores.FirstOrDefault(t => t.Id == _trabajadorId) is { } t ? t.Nombre : null;
+            var cuando = _conVigencia && _hasta is { } h ? $"mientras dure (hasta el {Fecha(h)}), " : "mientras dure, ";
+            var aQuien = quien is null ? "este requisito no bloquea a nadie del contrato" : $"este requisito no bloquea a {quien}";
+            return $"{cuando}{aQuien}. Lo demás se sigue exigiendo.";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Cada apertura empieza con lo que el requerimiento ya tiene (Editar) o limpia (No aplica): nada de la vez anterior se arrastra.
+        if (Visible && !_eraVisible)
+        {
+            _hoy = DiaDeNegocio.Hoy();
+            var e = Requerimiento?.Excepcion;
+            _porTrabajador = e?.TrabajadorId is not null;
+            _trabajadorId = e?.TrabajadorId;
+            _conVigencia = e?.Hasta is not null;
+            _hasta = e?.Hasta;
+            _hastaNoValida = false;
+            _motivo = e?.Motivo ?? string.Empty;
+            _autoriza = e?.AutorizadoPor ?? string.Empty;
+            _sucio = false;
+            _mensajeError = null;
+        }
+        _eraVisible = Visible;
+    }
+
+    private void Cambiar(Action cambio)
+    {
+        cambio();
+        _sucio = true;
+        _mensajeError = null;
+    }
+
+    private static string Fecha(DateOnly fecha) => MascaraFecha.Formatear(fecha);
+
+    private async Task GuardarAsync()
+    {
+        if (Falta is not null || Requerimiento is null) return;
+
+        _guardando = true;
+        _mensajeError = null;
+        try
+        {
+            var trabajador = _porTrabajador ? Trabajadores.FirstOrDefault(t => t.Id == _trabajadorId) : null;
+            var excepcion = new ExcepcionNoAplica(trabajador?.Id, trabajador?.Nombre, _conVigencia ? _hasta : null, _motivo.Trim(), _autoriza.Trim());
+            var respuesta = await Servicio.GuardarAsync(new SolicitudNoAplica(ContratoId, Requerimiento.Id, excepcion));
+            if (!respuesta.Disponible)
+            {
+                _mensajeError = "No se puede guardar todavía: «No aplica» aún no está disponible.";
+                return;
+            }
+
+            if (respuesta.Mensaje is not null)
+            {
+                _mensajeError = respuesta.Mensaje;
+                return;
+            }
+
+            _sucio = false;
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardado.InvokeAsync(excepcion);
+        }
+        catch (Exception)
+        {
+            _mensajeError = "No se pudo guardar. Inténtalo de nuevo.";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

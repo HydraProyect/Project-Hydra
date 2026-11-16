@@ -1,0 +1,3 @@
+.prc-tabla { width: 100%; table-layout: fixed; }
+.prc-nombre { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.prc-acciones { text-align: right; white-space: nowrap; }

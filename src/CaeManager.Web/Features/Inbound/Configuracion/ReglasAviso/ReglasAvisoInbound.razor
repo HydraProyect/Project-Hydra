@@ -1,0 +1,506 @@
+@page "/inbound/reglas-aviso"
+@* Pantalla 18 de la maqueta de Inbound, «Reglas de aviso» (CA-19): cuándo y con qué texto avisa el Tenant TCE a sus Empresas contratistas de lo que
+   vence o no está al día, y qué le llega al Gestor CAE. Las de serie las pone TALVEG: se pausan o se editan, no se eliminan. Sin backend
+   fusionado (no hay un B-xx propio de CA-19 en el plan de backend: las Commands y Queries de la tarjeta 18 cuelgan de B-31): el servicio
+   responde «no disponible» y la pantalla no pinta ninguna regla. La línea Inbound activa (gate B-01) la impone el menú y la base. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Web.Features.Inbound.Configuracion
+@inject IServicioReglasAviso Servicio
+@inject ToastService ToastService
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>Reglas de aviso — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Reglas de aviso — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design ra">
+    <CabeceraListado Grupo="Configuración" Titulo="Reglas de aviso" Contador="@(_datos is null ? null : _datos.Reglas.Count)">
+        <Primaria>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_datos is null)" OnClick="Anadir">Añadir</Boton></SoloConEscritura>
+        </Primaria>
+    </CabeceraListado>
+    <p class="ra-subtitulo">Cuándo y con qué texto avisa TALVEG a las Empresas contratistas de @(_datos?.TenantTce ?? "esta organización") de lo que vence o no está al día, y qué le llega al Gestor CAE. Las reglas de serie las pone TALVEG: se pausan o se editan, no se eliminan.</p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio Titulo="No se pudieron cargar las reglas" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_datos is null)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="Las reglas de aviso no están disponibles"
+                     Descripcion="Todavía no se pueden consultar las reglas de aviso. Cuando estén disponibles, aparecerán aquí." />
+    }
+    else
+    {
+        <div class="ra-notas">
+            <p class="ra-nota" data-pieza="nota-firma"><b>Quién firma los avisos.</b> La Empresa contratista recibe siempre el aviso de «@_datos.TenantTce vía TALVEG». Nunca ve el nombre del Gestor CAE que valida sus documentos.</p>
+            <p class="ra-nota ra-nota-tol" data-pieza="nota-tolerancia"><b>Tolerancia del vencimiento.</b> Pasada la fecha, el documento sigue valiendo durante la tolerancia y el aviso lo dice: <span class="ra-tol">Vencido · en tolerancia hasta 05/12</span></p>
+        </div>
+
+        @* Mismo marcado que ContratosAccesoLista (barra-filtros-pastillas de list-page.css), sin «Filtros guardados»: la maqueta de Reglas de
+           aviso no los trae (shortcut: cablear con las vistas recordadas cuando el listado crezca). *@
+        <section class="barra-filtros-pastillas" aria-label="Filtrar las reglas de aviso">
+            <div class="barra-filtros-pastillas-fila">
+                <div class="barra-filtros-buscador-pantalla">
+                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                    <CampoTexto Placeholder="Filtrar: regla, Centro o destinatario" Valor="@_busqueda" ValorChanged="v => { _busqueda = v; return Task.CompletedTask; }"
+                                aria-label="Filtrar: regla, Centro o destinatario" data-filtro-pantalla="" />
+                </div>
+            </div>
+            <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="v => _estado = v" Recuentos="Recuentos"
+                          TotalTodos="@BaseFiltrada.Count" TextoTodos="Todas" EtiquetaAccesible="Filtrar por estado" />
+            @if (HayFiltrosActivos)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">Quitar los filtros</Boton>
+            }
+        </section>
+
+        <div class="ra-tarjeta">
+            <table class="tabla-datos ra-tabla" aria-label="Reglas de aviso">
+                <thead><tr>
+                    <th scope="col">Regla</th><th scope="col">Se envía a</th><th scope="col">Cuándo</th><th scope="col">Canal</th>
+                    <th scope="col">Ámbito</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Acciones</span></th>
+                </tr></thead>
+                <tbody>
+                @foreach (var r in Visibles)
+                {
+                    <tr @key="r.Id" class="@(r.Activa ? null : "ra-pausada")" data-regla="@r.Id">
+                        <td>
+                            <span class="ra-nombre" title="@r.Nombre">@r.Nombre</span>
+                            <div class="inbound-secundario">@LogicaReglasAviso.Nombre(r.Disparador)</div>
+                            @if (r.DeSerie)
+                            {
+                                <span class="ra-serie" title="La pone TALVEG: se pausa o se edita, no se elimina">De serie</span>
+                            }
+                        </td>
+                        <td>@LogicaReglasAviso.Destino(r)</td>
+                        <td>@LogicaReglasAviso.Cuando(r)</td>
+                        <td>@LogicaReglasAviso.Canal(r)</td>
+                        <td>@LogicaReglasAviso.Ambito(r)</td>
+                        <td>
+                            @* Quien no puede escribir ve el estado como texto, no un interruptor que fallaría al pulsarlo. *@
+                            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="escritura">
+                                <Authorized>
+                                    <button type="button" class="ra-sw" role="switch" aria-checked="@(r.Activa ? "true" : "false")"
+                                            aria-label="@((r.Activa ? "Pausar la regla " : "Reanudar la regla ") + r.Nombre)" @onclick="() => CambiarEstadoAsync(r)">
+                                        <span class="ra-sw-pista"></span>@EstadoTexto(r)
+                                    </button>
+                                </Authorized>
+                                <NotAuthorized>@EstadoTexto(r)</NotAuthorized>
+                            </AuthorizeView>
+                        </td>
+                        <td class="ra-acciones">
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@("Editar la regla " + r.Nombre)" OnClick="() => Editar(r)">Editar</Boton>
+                                @if (!r.DeSerie)
+                                {
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@("Eliminar la regla " + r.Nombre)" OnClick="() => EliminarAsync(r)">Eliminar</Boton>
+                                }
+                            </SoloConEscritura>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+            @if (Visibles.Count == 0)
+            {
+                @if (HayFiltrosActivos)
+                {
+                    <div data-pieza="sin-coincidencias"><EstadoVacio NombreIcono="vacio" Titulo="Ninguna regla coincide con el filtro" Descripcion="Prueba con otro texto o quita los filtros." /></div>
+                }
+                else
+                {
+                    <p class="ra-vacio" data-pieza="sin-reglas">Esta organización todavía no tiene reglas de aviso.</p>
+                }
+            }
+        </div>
+    }
+
+    @if (_borrador is { } d)
+    {
+        var faltas = LogicaReglasAviso.Faltas(d);
+        <DrawerFormulario Visible="true" VisibleChanged="CerrarEditor" Ancho="AnchoDrawer.Ancho"
+                          Titulo="@(d.Nueva ? "Añadir regla de aviso" : "Editar regla de aviso")"
+                          Subtitulo="@(d.DeSerie ? "Regla de serie" : $"Regla propia de {_datos?.TenantTce}")"
+                          TextoGuardar="Guardar" TextoCancelar="Cancelar" HayCambios="() => _sucio" Guardando="_guardando"
+                          MensajeError="@_mensajeError" MotivoGuardarDeshabilitado="@(faltas.Count > 0 ? "Para guardar falta: " + string.Join(", ", faltas) + "." : null)"
+                          OnGuardar="GuardarAsync">
+            <CampoTexto Etiqueta="Nombre de la regla" Valor="@d.Nombre" ValorChanged="v => Editado(() => d.Nombre = v)" Deshabilitado="d.DeSerie" />
+            @if (d.DeSerie)
+            {
+                <p class="ra-ayuda">Es una regla de serie: el nombre y el disparador los fija TALVEG. Puedes cambiar el umbral, los destinatarios, el ámbito y el contenido.</p>
+            }
+
+            <div class="ra-campo" role="radiogroup" aria-labelledby="ra-disp">
+                <span class="ra-etiqueta" id="ra-disp">Disparador</span>
+                <div class="ra-segmentos">
+                    @foreach (var o in Enum.GetValues<DisparadorAviso>())
+                    {
+                        <button type="button" role="radio" aria-checked="@(d.Disparador == o ? "true" : "false")" aria-pressed="@(d.Disparador == o)"
+                                disabled="@(d.DeSerie && d.Disparador != o)" @onclick="() => ElegirDisparador(d, o)">@LogicaReglasAviso.Nombre(o)</button>
+                    }
+                </div>
+                <p class="ra-ayuda">@LogicaReglasAviso.Ayuda(d.Disparador)</p>
+            </div>
+
+            @if (d.Disparador == DisparadorAviso.Vencimiento)
+            {
+                <div class="ra-campo">
+                    <span class="ra-etiqueta">Umbral y repetición</span>
+                    <div class="ra-fila">
+                        <CampoTexto Type="number" Valor="@Numero(d.Dias)" ValorChanged="v => Editado(() => d.Dias = Entero(v))" aria-label="Días antes del vencimiento" />
+                        <span>días antes del vencimiento</span>
+                    </div>
+                    <div class="ra-fila">
+                        <span>Repetir cada</span>
+                        <CampoTexto Type="number" Valor="@Numero(d.Repeticion)" ValorChanged="v => Editado(() => d.Repeticion = Entero(v))" aria-label="Repetir cada cuántos días" />
+                        <span>días hasta que vence</span>
+                    </div>
+                    <p class="ra-ayuda">Con 0 días el aviso sale el día que vence. Con 0 en la repetición, sale una sola vez. El vencimiento tiene tolerancia: pasada la fecha, el aviso dice «Vencido · en tolerancia hasta» y la fecha en que acaba.</p>
+                </div>
+            }
+            else if (d.Disparador == DisparadorAviso.EstadoDelRequerimiento)
+            {
+                <div class="ra-campo" role="group" aria-labelledby="ra-est">
+                    <span class="ra-etiqueta" id="ra-est">Mientras el requerimiento esté</span>
+                    <div class="ra-opciones">
+                        @foreach (var e in LogicaReglasAviso.EstadosElegibles)
+                        {
+                            var estado = e;
+                            <button type="button" class="ra-opcion" aria-pressed="@d.Estados.Contains(estado)" @onclick="() => Editado(() => Alternar(d.Estados, estado))">
+                                <span class="ra-caja">@(d.Estados.Contains(estado) ? "✓" : "")</span><span class="ra-opcion-t">@estado</span>
+                            </button>
+                        }
+                    </div>
+                    <div class="ra-fila">
+                        <span>Repetir cada</span>
+                        <CampoTexto Type="number" Valor="@Numero(d.Repeticion)" ValorChanged="v => Editado(() => d.Repeticion = Entero(v))" aria-label="Repetir cada cuántos días" />
+                        <span>días</span>
+                    </div>
+                </div>
+            }
+            else if (d.Disparador == DisparadorAviso.DocumentoNuevo)
+            {
+                <div class="ra-campo">
+                    <span class="ra-etiqueta">Umbral</span>
+                    <p class="ra-ayuda">Sin umbral: el aviso sale en cuanto una Empresa contratista sube un documento que queda como Pendiente de validar, una sola vez por documento.</p>
+                </div>
+            }
+            else
+            {
+                <CampoSelect Etiqueta="Día del resumen semanal" Valor="@d.DiaResumen" ValorChanged="v => Editado(() => d.DiaResumen = v)">
+                    @foreach (var dia in LogicaReglasAviso.Dias)
+                    {
+                        <option value="@dia">@(char.ToUpperInvariant(dia[0]) + dia[1..])</option>
+                    }
+                </CampoSelect>
+                <p class="ra-ayuda">Reúne lo que vence en los próximos 14 días, lo rechazado y lo pendiente de validar de los Centros del ámbito.</p>
+            }
+
+            @{ var soloGestor = d.Disparador is DisparadorAviso.DocumentoNuevo or DisparadorAviso.ResumenPeriodico; }
+            <div class="ra-campo" role="group" aria-labelledby="ra-dest">
+                <span class="ra-etiqueta" id="ra-dest">Destinatarios</span>
+                <div class="ra-opciones">
+                    <button type="button" class="ra-opcion" aria-pressed="@d.ParaEmpresa" disabled="@soloGestor" @onclick="() => Editado(() => d.ParaEmpresa = !d.ParaEmpresa)">
+                        <span class="ra-caja">@(d.ParaEmpresa ? "✓" : "")</span>
+                        <span><span class="ra-opcion-t">Empresa contratista</span><span class="ra-opcion-d">@(soloGestor ? "Esta regla es solo para el Gestor CAE" : $"Recibe el aviso de {_datos?.TenantTce} vía TALVEG")</span></span>
+                    </button>
+                    <button type="button" class="ra-opcion" aria-pressed="@d.ParaGestor" @onclick="() => Editado(() => d.ParaGestor = !d.ParaGestor)">
+                        <span class="ra-caja">@(d.ParaGestor ? "✓" : "")</span>
+                        <span><span class="ra-opcion-t">Gestor CAE</span><span class="ra-opcion-d">@(soloGestor ? "Recibe el aviso directamente" : "Lo recibe dentro de su resumen")</span></span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="ra-campo" role="group" aria-labelledby="ra-canal">
+                <span class="ra-etiqueta" id="ra-canal">Canal</span>
+                <div class="ra-opciones">
+                    <button type="button" class="ra-opcion" aria-pressed="@d.PorCorreo" @onclick="() => Editado(() => d.PorCorreo = !d.PorCorreo)">
+                        <span class="ra-caja">@(d.PorCorreo ? "✓" : "")</span>
+                        <span><span class="ra-opcion-t">Correo</span><span class="ra-opcion-d">Al correo del Administrador de la Empresa contratista</span></span>
+                    </button>
+                    <button type="button" class="ra-opcion" aria-pressed="@d.AlIniciarSesion" @onclick="() => Editado(() => d.AlIniciarSesion = !d.AlIniciarSesion)">
+                        <span class="ra-caja">@(d.AlIniciarSesion ? "✓" : "")</span>
+                        <span><span class="ra-opcion-t">Aviso al iniciar sesión</span><span class="ra-opcion-d">Una franja al entrar en TALVEG</span></span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="ra-campo" role="radiogroup" aria-labelledby="ra-amb">
+                <span class="ra-etiqueta" id="ra-amb">Ámbito</span>
+                <div class="ra-segmentos">
+                    <button type="button" role="radio" aria-checked="@(!d.SoloAlgunosCentros ? "true" : "false")" aria-pressed="@(!d.SoloAlgunosCentros)"
+                            @onclick="() => Editado(() => { d.SoloAlgunosCentros = false; d.Centros.Clear(); })">Todos los Centros</button>
+                    <button type="button" role="radio" aria-checked="@(d.SoloAlgunosCentros ? "true" : "false")" aria-pressed="@d.SoloAlgunosCentros"
+                            @onclick="() => Editado(() => d.SoloAlgunosCentros = true)">Solo algunos Centros</button>
+                </div>
+                @if (d.SoloAlgunosCentros)
+                {
+                    <div class="ra-catalogo">
+                        <input class="ra-busca" type="search" placeholder="Buscar Centro" aria-label="Buscar Centro" value="@_buscaCentro" @oninput="e => _buscaCentro = e.Value?.ToString() ?? string.Empty" />
+                        @foreach (var c in CentrosVisibles)
+                        {
+                            var centro = c;
+                            <button type="button" class="ra-centro" aria-pressed="@d.Centros.Contains(centro)" @onclick="() => Editado(() => Alternar(d.Centros, centro))">
+                                <span class="ra-caja">@(d.Centros.Contains(centro) ? "✓" : "")</span>@centro
+                            </button>
+                        }
+                        @if (CentrosVisibles.Count == 0)
+                        {
+                            <p class="ra-sin-centros">Ningún Centro coincide con la búsqueda.</p>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="ra-campo">
+                <CampoTexto Etiqueta="Asunto" Valor="@d.Asunto" ValorChanged="v => Editado(() => d.Asunto = v)" />
+                <CampoTextarea Etiqueta="Cuerpo" Valor="@d.Cuerpo" ValorChanged="v => Editado(() => d.Cuerpo = v)" Filas="6" />
+                <div class="ra-variables"><span class="ra-ayuda">Variables:</span>
+                    @foreach (var v in LogicaReglasAviso.Variables)
+                    {
+                        var variable = v;
+                        <button type="button" class="ra-variable" aria-label="@($"Insertar {variable}")"
+                                @onclick="() => InsertarVariable(d, variable)">@variable</button>
+                    }
+                </div>
+                <p class="ra-ayuda">Los avisos a la Empresa contratista nunca llevan el nombre del Gestor CAE: sale «@_datos?.TenantTce vía TALVEG».</p>
+            </div>
+
+            @{ var tolerancia = d.Disparador == DisparadorAviso.Vencimiento && _momentoTolerancia
+                   || (d.Disparador == DisparadorAviso.EstadoDelRequerimiento && d.Estados.Count == 1 && d.Estados[0] == LogicaReglasAviso.EstadoTolerancia); }
+            <section class="ra-previa" aria-label="Vista previa del correo" data-pieza="vista-previa">
+                <h3>Vista previa con datos ficticios</h3>
+                @if (d.Disparador == DisparadorAviso.Vencimiento)
+                {
+                    <div class="ra-segmentos" role="group" aria-label="Momento del aviso">
+                        <button type="button" aria-pressed="@(!_momentoTolerancia)" @onclick="() => _momentoTolerancia = false">Antes de vencer</button>
+                        <button type="button" aria-pressed="@_momentoTolerancia" @onclick="() => _momentoTolerancia = true">En tolerancia</button>
+                    </div>
+                }
+                <div class="ra-correo">
+                    <div class="ra-correo-c"><b>De:</b> @_datos?.TenantTce vía TALVEG</div>
+                    <div class="ra-correo-c"><b>Para:</b> @(!d.ParaEmpresa && d.ParaGestor ? $"Gestores CAE de {_datos?.TenantTce}" : "Montajes Moncayo S.L.")</div>
+                    <div class="ra-correo-a">@(Vacio(LogicaReglasAviso.Sustituir(d.Asunto, "Montajes Moncayo S.L.", "Planta Zaragoza Norte"), "(sin asunto)"))</div>
+                    <div><span class="@(tolerancia ? "ra-tol" : "ra-situacion")">@Situacion(d, tolerancia)</span></div>
+                    <p class="ra-correo-t">@(Vacio(LogicaReglasAviso.Sustituir(d.Cuerpo, "Montajes Moncayo S.L.", "Planta Zaragoza Norte"), "(sin cuerpo)"))</p>
+                    <div class="ra-correo-s">Este aviso lo envía @_datos?.TenantTce a través de TALVEG. Entra en TALVEG para resolverlo.</div>
+                </div>
+            </section>
+        </DrawerFormulario>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    private ReglasDeAviso? _datos;
+    private bool _cargando = true;
+    private bool _error;
+    private string _busqueda = string.Empty;
+    private string? _estado;
+    private BorradorRegla? _borrador;
+    private bool _sucio;
+    private bool _guardando;
+    private string? _mensajeError;
+    private string _buscaCentro = string.Empty;
+    private bool _momentoTolerancia;
+
+    private static readonly IReadOnlyList<OpcionFranjaEstado> _opcionesEstado =
+    [
+        new("Activas", TonoBadge.Exito, "activa"),
+        new("Pausadas", TonoBadge.Neutro, "pausada"),
+    ];
+
+    private bool HayFiltrosActivos => _busqueda.Trim().Length > 0 || _estado is not null;
+
+    private IReadOnlyList<ReglaAviso> BaseFiltrada
+    {
+        get
+        {
+            if (_datos is null) return [];
+            var q = _busqueda.Trim();
+            return _datos.Reglas.Where(r => q.Length == 0 || string.Join(' ', r.Nombre, LogicaReglasAviso.Ambito(r), LogicaReglasAviso.Destino(r), LogicaReglasAviso.Cuando(r))
+                .Contains(q, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        }
+    }
+
+    private IReadOnlyList<ReglaAviso> Visibles =>
+        BaseFiltrada.Where(r => _estado is null || (_estado == "activa") == r.Activa).ToList();
+
+    private IReadOnlyDictionary<string, int> Recuentos => new Dictionary<string, int>
+    {
+        ["activa"] = BaseFiltrada.Count(r => r.Activa),
+        ["pausada"] = BaseFiltrada.Count(r => !r.Activa),
+    };
+
+    private IReadOnlyList<string> CentrosVisibles =>
+        (_datos?.Centros ?? []).Where(c => c.Contains(_buscaCentro.Trim(), StringComparison.CurrentCultureIgnoreCase)).ToList();
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        try
+        {
+            var respuesta = await Servicio.ObtenerAsync();
+            _datos = respuesta.Aceptada ? respuesta.Valor : null;
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        _cargando = false;
+    }
+
+    private void InsertarVariable(BorradorRegla d, string variable) =>
+        Editado(() => d.Cuerpo += (d.Cuerpo.Length > 0 && !char.IsWhiteSpace(d.Cuerpo[d.Cuerpo.Length - 1]) ? " " : string.Empty) + variable);
+
+    private static string EstadoTexto(ReglaAviso r) => r.Activa ? "Activa" : "Pausada";
+
+    private static string Numero(int? n) => n?.ToString() ?? string.Empty;
+
+    private static int? Entero(string v) => int.TryParse(v, out var n) ? n : null;
+
+    private static string Vacio(string texto, string alternativa) => string.IsNullOrWhiteSpace(texto) ? alternativa : texto;
+
+    private static void Alternar(List<string> lista, string valor)
+    {
+        if (!lista.Remove(valor)) lista.Add(valor);
+    }
+
+    private void LimpiarFiltros()
+    {
+        _busqueda = string.Empty;
+        _estado = null;
+    }
+
+    private void Anadir() => Abrir(BorradorRegla.Nuevo());
+
+    private void Editar(ReglaAviso regla) => Abrir(BorradorRegla.De(regla));
+
+    private void Abrir(BorradorRegla borrador)
+    {
+        _borrador = borrador;
+        _sucio = false;
+        _mensajeError = null;
+        _buscaCentro = string.Empty;
+        _momentoTolerancia = false;
+    }
+
+    private void CerrarEditor(bool visible)
+    {
+        if (!visible) _borrador = null;
+    }
+
+    private void Editado(Action cambio)
+    {
+        cambio();
+        _sucio = true;
+        _mensajeError = null;
+    }
+
+    private void ElegirDisparador(BorradorRegla d, DisparadorAviso nuevo)
+    {
+        if (d.DeSerie || d.Disparador == nuevo) return;
+        Editado(() =>
+        {
+            // Asunto y cuerpo siguen al disparador mientras sean los de la plantilla; si se editaron, se respetan.
+            var anterior = LogicaReglasAviso.Plantilla(d.Disparador);
+            if (d.Asunto == anterior.Asunto && d.Cuerpo == anterior.Cuerpo)
+            {
+                (d.Asunto, d.Cuerpo) = LogicaReglasAviso.Plantilla(nuevo);
+            }
+            if (nuevo == DisparadorAviso.Vencimiento) { d.Dias ??= 15; if (d.Disparador == DisparadorAviso.EstadoDelRequerimiento) d.Repeticion = 0; }
+            if (nuevo == DisparadorAviso.EstadoDelRequerimiento)
+            {
+                if (d.Estados.Count == 0) d.Estados.Add("Rechazado");
+                if (d.Repeticion is not >= 1) d.Repeticion = 3;
+            }
+            if (nuevo is DisparadorAviso.DocumentoNuevo or DisparadorAviso.ResumenPeriodico) { d.ParaEmpresa = false; d.ParaGestor = true; }
+            d.Disparador = nuevo;
+        });
+    }
+
+    private static string Situacion(BorradorRegla d, bool tolerancia) =>
+        tolerancia ? "Vencido · en tolerancia hasta 05/12"
+        : d.Disparador switch
+        {
+            DisparadorAviso.Vencimiento => d.Dias == 0 ? "Vence hoy" : "Vence el 25/11/2026",
+            DisparadorAviso.EstadoDelRequerimiento => d.Estados.FirstOrDefault() ?? "Sin estado elegido",
+            DisparadorAviso.DocumentoNuevo => "Pendiente de validar",
+            _ => "Resumen de la semana",
+        };
+
+    private async Task GuardarAsync()
+    {
+        if (_borrador is not { } d || LogicaReglasAviso.Faltas(d).Count > 0) return;
+        _guardando = true;
+        try
+        {
+            var respuesta = await Servicio.GuardarAsync(d.APublica());
+            if (!respuesta.Disponible)
+            {
+                _mensajeError = "No se puede guardar todavía: las reglas de aviso aún no están disponibles.";
+                return;
+            }
+            if (respuesta.Mensaje is not null)
+            {
+                _mensajeError = respuesta.Mensaje;
+                return;
+            }
+            var nombre = d.Nombre.Trim();
+            var nueva = d.Nueva;
+            _borrador = null;
+            _sucio = false;
+            await CargarAsync();
+            ToastService.Mostrar($"{(nueva ? "Regla añadida" : "Regla guardada")}: «{nombre}».", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            _mensajeError = "No se pudo guardar. Inténtalo de nuevo.";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync(ReglaAviso regla)
+    {
+        var activa = !regla.Activa;
+        var respuesta = await Servicio.CambiarEstadoAsync(regla.Id, activa);
+        if (respuesta.Aceptada)
+        {
+            await CargarAsync();
+            ToastService.Mostrar($"{(activa ? "Regla reanudada" : "Regla pausada")}: «{regla.Nombre}».", TonoToast.Exito);
+        }
+        else
+        {
+            ToastService.Mostrar(respuesta.Mensaje ?? "No se pudo cambiar el estado de la regla.", TonoToast.Error);
+        }
+    }
+
+    private async Task EliminarAsync(ReglaAviso regla)
+    {
+        if (regla.DeSerie) return;
+        var respuesta = await Servicio.EliminarAsync(regla.Id);
+        if (respuesta.Aceptada)
+        {
+            await CargarAsync();
+            ToastService.Mostrar($"Regla eliminada: «{regla.Nombre}».", TonoToast.Exito);
+        }
+        else
+        {
+            ToastService.Mostrar(respuesta.Mensaje ?? "No se pudo eliminar la regla.", TonoToast.Error);
+        }
+    }
+}

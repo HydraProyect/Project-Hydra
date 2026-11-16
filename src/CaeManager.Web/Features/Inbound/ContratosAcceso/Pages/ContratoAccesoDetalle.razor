@@ -5,6 +5,7 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.Configuracion.Components
 @using CaeManager.Web.Features.Inbound.ContratosAcceso.Components
 @using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
 @using Microsoft.Extensions.Localization
@@ -122,7 +123,15 @@
         <Pestanas Definiciones="_pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaPestanas"]">
             @* shortcut: sin backend, cablear cuando entren B-17 (Solicitudes y Trabajadores), B-19 (Empresas subcontratadas) y
                B-11 (Requerimientos). Cada panel dice qué hará, sin filas de ejemplo. *@
-            <EstadoVacio NombreIcono="@IconoPestana" Titulo="@TituloVacioPestana" Descripcion="@DescripcionVacioPestana" />
+            @if (_pestanaActiva == PestanaRequerimientos)
+            {
+                @* Pantalla 19, «No aplica» (shortcut: sin backend, cablear cuando entren B-11 y B-16): sin datos enseña el mismo estado vacío. *@
+                <PanelRequerimientosContrato ContratoId="@contrato.Id" TituloVacio="@TituloVacioPestana" DescripcionVacio="@DescripcionVacioPestana" />
+            }
+            else
+            {
+                <EstadoVacio NombreIcono="@IconoPestana" Titulo="@TituloVacioPestana" Descripcion="@DescripcionVacioPestana" />
+            }
         </Pestanas>
     }
 </div>
