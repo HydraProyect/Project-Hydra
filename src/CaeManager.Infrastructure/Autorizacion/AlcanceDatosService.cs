@@ -289,9 +289,11 @@ public class AlcanceDatosService(
         }
         else
         {
-            // Con papel Inbound (B-02b, DN-21), ningún perfil alcanza el Tenant TCE entero por su rol: el acceso total de
-            // Administrador, Dirección CAE o Consulta abriría también los datos de Outbound del Tenant TCE. El alcance de
-            // Inbound lo decide B-03 (IAutorizacionInbound); hasta entonces, fallo cerrado.
+            // Con papel Inbound (B-02b, DN-21), ningún perfil tiene acceso total de datos por su rol en este servicio: el
+            // de Administrador, Dirección CAE o Consulta abriría también los datos de Outbound del Tenant TCE. El alcance de
+            // Inbound lo decide B-03 (IAutorizacionInbound); hasta entonces, fallo cerrado. Solo cierra lo que pasa por este
+            // servicio: las páginas que se autorizan únicamente por rol (Auditoría, Usuarios, Configuración, Facturación)
+            // siguen abiertas al rol de origen, y hay que cerrarlas por papel antes de activar el selector Inbound.
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
                           && await currentUserService.ObtenerPapelActivoAsync() != PapelActivo.Inbound;
         }

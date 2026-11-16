@@ -433,8 +433,9 @@ public static class TenantsBeneficiariosAutorizados
     /// siempre que <paramref name="asignacionOperacionId"/> le siga autorizando ese Tenant
     /// por la vía de su servicio (<see cref="SigueAutorizadoPorOperacionAsync"/>: <see cref="OperacionesQueAutorizan"/>
     /// en Outbound, <see cref="OperacionesInboundQueAutorizan"/> en Inbound). Si no, <c>null</c> (fallo cerrado). Con una
-    /// operación Inbound el rol no trae alcance: <c>AlcanceDatosService</c> no da acceso total ni cartera con papel Inbound
-    /// hasta B-03.
+    /// operación Inbound el rol no trae alcance de datos (<c>AlcanceDatosService</c> no da acceso total ni cartera con papel
+    /// Inbound hasta B-03), pero sí abre lo que se autoriza solo por rol, sin pasar por el alcance: hueco declarado de
+    /// B-02b, que se cierra por papel antes de activar el selector Inbound.
     ///
     /// <para>
     /// El rol guardado en la Asignación de Cartera ya no decide: la cartera solo da acceso
