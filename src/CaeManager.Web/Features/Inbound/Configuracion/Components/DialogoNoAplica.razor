@@ -10,7 +10,7 @@
                   MensajeError="@(_mensajeError ?? MensajeNoAdmite)" MotivoGuardarDeshabilitado="@Falta" OnGuardar="GuardarAsync">
     @if (Requerimiento is not null && Requerimiento.AdmiteNoAplica)
     {
-        @if (Requerimiento.Entidad == EntidadTrabajadores)
+        @if (Requerimiento.AplicaATrabajadores)
         {
             <div class="na-campo" role="group" aria-labelledby="na-aplica-a">
                 <span class="na-etiqueta" id="na-aplica-a">A quién se aplica</span>
@@ -76,8 +76,6 @@
 @code {
     /// <summary>El rótulo con el que la Empresa contratista ve el requerimiento (duda 7 de Experto CAE; no cuenta como validado).</summary>
     public const string EtiquetaEstado = "No exigido en este contrato";
-
-    private const string EntidadTrabajadores = "Trabajadores";
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -180,9 +178,9 @@
                 return;
             }
 
-            if (respuesta.Mensaje is not null)
+            if (!respuesta.Aceptada)
             {
-                _mensajeError = respuesta.Mensaje;
+                _mensajeError = respuesta.Mensaje ?? "No se pudo guardar. Inténtalo de nuevo.";
                 return;
             }
 

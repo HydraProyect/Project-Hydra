@@ -43,7 +43,7 @@ public class InboundConfiguracionTests : BunitContext
 
     private static RequerimientoDeContrato Req(string nombre, OrigenRequerimiento origen, string entidad = "Empresa", bool n1 = false,
         ExcepcionNoAplica? excepcion = null) =>
-        new(Guid.NewGuid(), nombre, "Sin vencimiento", entidad, origen, origen.ToString(), n1, EstadoRequerimientoContrato.PendienteDeSubir, string.Empty, excepcion);
+        new(Guid.NewGuid(), nombre, "Sin vencimiento", entidad, entidad == "Trabajadores", origen, origen.ToString(), n1, EstadoRequerimientoContrato.PendienteDeSubir, string.Empty, excepcion);
 
     private static RequerimientosDeContrato Contrato(params RequerimientoDeContrato[] filas) =>
         new("Montajes Moncayo S.L.", "Planta Zaragoza Norte", "Logística Delta Sur S.A.", filas,
@@ -103,7 +103,7 @@ public class InboundConfiguracionTests : BunitContext
         Guardar(cut).HasAttribute("disabled").Should().BeTrue("falta quién lo autoriza");
         Escribir(cut, "input[placeholder='Nombre y cargo']", "Ricardo Ainsa Bel, director de operaciones");
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Un Trabajador").Click();
-        cut.Markup.Should().Contain("Elige un Trabajador");
+        await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("Elige un Trabajador"));
         Guardar(cut).HasAttribute("disabled").Should().BeTrue("falta elegir el Trabajador: " + Guardar(cut).OuterHtml);
         cut.Find("select").Change(TrabajadorPilar.ToString());
         cut.Markup.Should().Contain("este requisito no bloquea a Pilar Sanjuán Aznar");
@@ -227,8 +227,8 @@ public class InboundConfiguracionTests : BunitContext
         Guardar(cut).HasAttribute("disabled").Should().BeFalse();
         Guardar(cut).Click();
 
-        await cut.WaitForAssertionAsync(() => _reglas.Guardadas.Should().ContainSingle());
-        _reglas.Guardadas.Single().Nombre.Should().Be("Aviso a 20 días");
+        await cut.WaitForAssertionAsync(() => _reglas.Creadas.Should().ContainSingle());
+        _reglas.Creadas.Single().Nombre.Should().Be("Aviso a 20 días");
         _reglas.Guardadas.Single().DeSerie.Should().BeFalse();
     }
 
@@ -253,11 +253,12 @@ public class InboundConfiguracionTests : BunitContext
     private static GobiernoInbound GobiernoEjemplo(bool activa = true) => new(
         "Logística Delta Sur S.A.", "Gestiones CAE Ebro S.L.", "Vigente", new DateOnly(2026, 3, 1), new DateOnly(2027, 2, 28),
         ["Conservas Moncayo Norte S.A.", "Plásticos Jalón S.A."],
-        new ConvalidacionConfigurada(activa, [TenantConservas], ["Aptitud médica"]),
+        new ConvalidacionConfigurada(activa, [TenantConservas], ["trabajador/aptitud"]),
         [new TenantTceConvalidable(TenantConservas, "Conservas Moncayo Norte S.A.", "Gestionado por Gestiones CAE Ebro S.L."),
          new TenantTceConvalidable(TenantPlasticos, "Plásticos Jalón S.A.", "Gestionado por Gestiones CAE Ebro S.L.")],
-        [new TipoRequisitoConvalidable("Aptitud médica", "Trabajador"), new TipoRequisitoConvalidable("Entrega de EPI", "Trabajador"),
-         new TipoRequisitoConvalidable("Póliza de responsabilidad civil", "Empresa")],
+        [new TipoRequisitoConvalidable("trabajador/aptitud", "Aptitud médica", "Trabajador"), new TipoRequisitoConvalidable("trabajador/epi", "Entrega de EPI", "Trabajador"),
+         new TipoRequisitoConvalidable("empresa/poliza", "Póliza de responsabilidad civil", "Empresa"),
+         new TipoRequisitoConvalidable("vehiculo/seguro", "Seguro", "Vehículo"), new TipoRequisitoConvalidable("empresa/seguro", "Seguro", "Empresa")],
         [new CambioGobierno(new DateTime(2026, 11, 2, 10, 5, 0), "Elena Gracia Sanz", "Activó la convalidación entre Tenants TCE con Conservas Moncayo Norte S.A. y 1 tipo de requisito.")]);
 
     [Fact]
@@ -290,7 +291,7 @@ public class InboundConfiguracionTests : BunitContext
         cut.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar").Click();
         await cut.WaitForAssertionAsync(() => _gobierno.Guardadas.Should().ContainSingle());
         _gobierno.Guardadas.Single().Tenants.Should().BeEquivalentTo([TenantConservas, TenantPlasticos]);
-        _gobierno.Guardadas.Single().Tipos.Should().BeEquivalentTo(["Aptitud médica"]);
+        _gobierno.Guardadas.Single().Tipos.Should().BeEquivalentTo(["trabajador/aptitud"]);
     }
 
     [Fact]
@@ -452,6 +453,111 @@ public class InboundConfiguracionTests : BunitContext
         return dir?.FullName ?? throw new InvalidOperationException("No se encontró la raíz del repositorio.");
     }
 
+
+    [Fact]
+    public async Task Un_rechazo_al_escribir_se_dice_dentro_y_no_se_da_por_guardado()
+    {
+        // «No aplica»
+        _noAplica.Datos = Contrato(Req("Permiso de trabajos en caliente", OrigenRequerimiento.Centro));
+        _noAplica.RechazoAlGuardar = "El contrato ya no admite cambios";
+        var panel = RenderPanel();
+        panel.Find("tbody button").Click();
+        panel.Find("textarea").Input("Lo emite el Centro");
+        Escribir(panel, "input[placeholder='Nombre y cargo']", "Ricardo Ainsa Bel, director de operaciones");
+        Guardar(panel).Click();
+        await panel.WaitForAssertionAsync(() => panel.Markup.Should().Contain("El contrato ya no admite cambios"));
+        panel.Markup.Should().Contain("Autorizado por", "el diálogo sigue abierto");
+
+        // Reglas de aviso: guardar y pausar
+        _reglas.Datos = ReglasEjemplo();
+        _reglas.RechazoAlEscribir = "Sin permiso para escribir";
+        var reglas = Render<ReglasAvisoInbound>();
+        reglas.FindAll("button").Single(b => b.TextContent.Trim() == "Añadir").Click();
+        Escribir(reglas, "[role=dialog] input[type=text]", "Aviso a 20 días");
+        Guardar(reglas).Click();
+        await reglas.WaitForAssertionAsync(() => reglas.Markup.Should().Contain("Sin permiso para escribir"));
+        reglas.Markup.Should().Contain("Añadir regla de aviso", "el panel sigue abierto");
+
+        // Gobierno
+        _gobierno.Datos = GobiernoEjemplo();
+        _gobierno.RechazoAlGuardar = "Sin permiso sobre el gobierno";
+        var gobierno = Render<GobiernoDeInbound>();
+        gobierno.FindAll("[data-pieza=convalidacion] input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Plásticos Jalón")).Change(true);
+        gobierno.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar").Click();
+        await gobierno.WaitForAssertionAsync(() => gobierno.Markup.Should().Contain("Sin permiso sobre el gobierno"));
+        gobierno.Markup.Should().Contain("Hay cambios sin guardar.", "no se da por guardado");
+        gobierno.FindAll("[role=switch]").Should().NotBeEmpty("la pantalla sigue con sus datos");
+    }
+
+    [Fact]
+    public void El_alcance_por_Trabajador_lo_decide_el_discriminador_y_no_el_texto_de_la_columna()
+    {
+        var porTrabajador = Req("Aptitud médica", OrigenRequerimiento.Actividad, "Trabajador") with { AplicaATrabajadores = true };
+        _noAplica.Datos = Contrato(porTrabajador);
+        var cut = RenderPanel();
+
+        cut.Find("tbody button").Click();
+
+        cut.Markup.Should().Contain("Todos los Trabajadores del contrato").And.Contain("Un Trabajador");
+    }
+
+    [Fact]
+    public void Con_un_contrato_que_ya_no_admite_cambios_No_aplica_no_se_ofrece()
+    {
+        _noAplica.Datos = Contrato(Req("Permiso de trabajos en caliente", OrigenRequerimiento.Centro));
+
+        var cut = Render<PanelRequerimientosContrato>(p => p.Add(c => c.ContratoId, ContratoId).Add(c => c.SoloLectura, true));
+
+        cut.Find("tbody button").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Dos_tipos_con_el_mismo_nombre_en_entidades_distintas_se_marcan_por_separado()
+    {
+        _gobierno.Datos = GobiernoEjemplo();
+        var cut = Render<GobiernoDeInbound>();
+
+        var seguros = cut.FindAll("[data-pieza=convalidacion] input[type=checkbox]").Where(c => c.ParentElement!.TextContent.Trim() == "Seguro").ToList();
+        seguros.Should().HaveCount(2);
+        seguros[0].Change(true);
+
+        cut.FindAll("[data-pieza=convalidacion] input[type=checkbox]").Where(c => c.ParentElement!.TextContent.Trim() == "Seguro")
+            .Count(c => c.HasAttribute("checked")).Should().Be(1);
+    }
+
+    [Fact]
+    public void La_regla_que_se_envia_solo_lleva_los_campos_de_su_disparador()
+    {
+        var borrador = BorradorRegla.Nuevo();
+        borrador.Nombre = "Aviso";
+        borrador.Estados = ["Rechazado"];
+        borrador.Dias = 30;
+
+        var regla = borrador.APublica();
+
+        regla.Estados.Should().BeEmpty("es una regla de Vencimiento");
+        regla.DiasUmbral.Should().Be(30);
+
+        borrador.Disparador = DisparadorAviso.DocumentoNuevo;
+        var doc = borrador.APublica();
+        doc.DiasUmbral.Should().Be(0);
+        doc.RepetirCadaDias.Should().Be(0);
+        doc.Estados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_enlace_de_Reglas_de_aviso_coincide_con_los_roles_de_su_pagina()
+    {
+        var roles = typeof(ReglasAvisoInbound).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single().Roles!.Split(',');
+
+        foreach (var rol in new[] { Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta })
+        {
+            var visible = CatalogoMenuLateral.Visibles(ContextoMenu(true, rol)).SelectMany(g => g.Enlaces).Any(e => e.Ruta == "inbound/reglas-aviso");
+            visible.Should().Be(roles.Contains(rol), $"el menú y el [Authorize] de Reglas de aviso deben coincidir para {rol}");
+        }
+    }
+
     // ---------------------------------------------------------------- Menú y autorización
 
     private static ContextoMenuLateral ContextoMenu(bool lineaInbound, string rol) => new(
@@ -505,9 +611,12 @@ public class InboundConfiguracionTests : BunitContext
             Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<RequerimientosDeContrato>.Rechazada(Rechazo)
                 : Datos is null ? RespuestaConfiguracion<RequerimientosDeContrato>.NoDisponible : RespuestaConfiguracion<RequerimientosDeContrato>.Correcta(Datos));
 
+        public string? RechazoAlGuardar { get; set; }
+
         public Task<RespuestaConfiguracion<ExcepcionNoAplica>> GuardarAsync(SolicitudNoAplica solicitud, CancellationToken cancellationToken = default)
         {
             Guardadas.Add(solicitud);
+            if (RechazoAlGuardar is not null) return Task.FromResult(RespuestaConfiguracion<ExcepcionNoAplica>.Rechazada(RechazoAlGuardar));
             return Task.FromResult(RespuestaConfiguracion<ExcepcionNoAplica>.Correcta(solicitud.Excepcion));
         }
     }
@@ -528,15 +637,28 @@ public class InboundConfiguracionTests : BunitContext
             Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<ReglasDeAviso>.Rechazada(Rechazo)
                 : Datos is null ? RespuestaConfiguracion<ReglasDeAviso>.NoDisponible : RespuestaConfiguracion<ReglasDeAviso>.Correcta(Datos));
 
-        public Task<RespuestaConfiguracion<ReglaAviso>> GuardarAsync(ReglaAviso regla, CancellationToken cancellationToken = default)
+        public string? RechazoAlEscribir { get; set; }
+
+        public List<ReglaAviso> Creadas { get; } = [];
+
+        public Task<RespuestaConfiguracion<ReglaAviso>> CrearAsync(ReglaAviso regla, CancellationToken cancellationToken = default)
+        {
+            Creadas.Add(regla);
+            return Guardar(regla);
+        }
+
+        public Task<RespuestaConfiguracion<ReglaAviso>> EditarAsync(ReglaAviso regla, CancellationToken cancellationToken = default) => Guardar(regla);
+
+        private Task<RespuestaConfiguracion<ReglaAviso>> Guardar(ReglaAviso regla)
         {
             Guardadas.Add(regla);
-            return Task.FromResult(RespuestaConfiguracion<ReglaAviso>.Correcta(regla));
+            return Task.FromResult(RechazoAlEscribir is not null ? RespuestaConfiguracion<ReglaAviso>.Rechazada(RechazoAlEscribir) : RespuestaConfiguracion<ReglaAviso>.Correcta(regla));
         }
 
         public Task<RespuestaConfiguracion<ReglaAviso>> CambiarEstadoAsync(Guid id, bool activa, CancellationToken cancellationToken = default)
         {
             Cambios.Add((id, activa));
+            if (RechazoAlEscribir is not null) return Task.FromResult(RespuestaConfiguracion<ReglaAviso>.Rechazada(RechazoAlEscribir));
             return Task.FromResult(RespuestaConfiguracion<ReglaAviso>.Correcta(Datos!.Reglas.First(r => r.Id == id) with { Activa = activa }));
         }
 
@@ -559,9 +681,12 @@ public class InboundConfiguracionTests : BunitContext
             Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<GobiernoInbound>.Rechazada(Rechazo)
                 : Datos is null ? RespuestaConfiguracion<GobiernoInbound>.NoDisponible : RespuestaConfiguracion<GobiernoInbound>.Correcta(Datos));
 
+        public string? RechazoAlGuardar { get; set; }
+
         public Task<RespuestaConfiguracion<GobiernoInbound>> GuardarConvalidacionAsync(ConvalidacionConfigurada configuracion, CancellationToken cancellationToken = default)
         {
             Guardadas.Add(configuracion);
+            if (RechazoAlGuardar is not null) return Task.FromResult(RespuestaConfiguracion<GobiernoInbound>.Rechazada(RechazoAlGuardar));
             Datos = Datos! with { Convalidacion = configuracion };
             return Task.FromResult(RespuestaConfiguracion<GobiernoInbound>.Correcta(Datos));
         }

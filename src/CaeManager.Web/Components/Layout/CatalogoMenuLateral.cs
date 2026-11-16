@@ -214,7 +214,7 @@ public static class CatalogoMenuLateral
         new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto)),
 
         // Configuración de Inbound (pantallas 18 y 20 del plan): los ajustes del Tenant TCE. Mismo gate que «Inbound» (línea vigente), pero
-        // sin el rol Consulta: ninguna de sus páginas lo autoriza. Cada enlace lleva además su propia condición de rol.
+        // sin el rol Consulta: ninguna de sus páginas lo autoriza. «Reglas de aviso» hereda esta condición (un test la compara con el [Authorize] de su página); Gobierno añade la suya.
         new("inbound-config", "Configuración", AbiertoPorDefecto: true,
             c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental)),
 

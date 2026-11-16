@@ -42,15 +42,17 @@ public enum EstadoRequerimientoContrato
 /// <summary>
 /// La excepción «No aplica» de un requerimiento. <see cref="TrabajadorId"/> nulo es «todo el contrato de acceso» (o todos los
 /// Trabajadores); <see cref="Hasta"/> nulo es permanente. La marca el Gestor CAE; la autoriza el Tenant TCE
-/// (<see cref="AutorizadoPor"/>, nombre y cargo).
+/// (<see cref="AutorizadoPor"/>, nombre y cargo). <see cref="TrabajadorNombre"/> es solo para pintar: el servidor lo deriva del Trabajador.
 /// </summary>
 public sealed record ExcepcionNoAplica(
     Guid? TrabajadorId, string? TrabajadorNombre, DateOnly? Hasta, string Motivo, string AutorizadoPor);
 
 /// <summary>Una fila de la tabla de requerimientos del contrato de acceso.</summary>
+/// <param name="Entidad">Texto de la columna «Entidad» (solo para pintar: nada decide por él).</param>
+/// <param name="AplicaATrabajadores">El requisito se exige por Trabajador: el alcance de «No aplica» puede ser uno solo.</param>
 /// <param name="EsN1">Requisito de nivel N1: nunca admite «No aplica».</param>
 public sealed record RequerimientoDeContrato(
-    Guid Id, string Nombre, string Nota, string Entidad, OrigenRequerimiento Origen, string OrigenTexto, bool EsN1,
+    Guid Id, string Nombre, string Nota, string Entidad, bool AplicaATrabajadores, OrigenRequerimiento Origen, string OrigenTexto, bool EsN1,
     EstadoRequerimientoContrato Estado, string Detalle, ExcepcionNoAplica? Excepcion)
 {
     /// <summary>Un requisito legal, preventivo o N1 no admite «No aplica» (Q-9 y duda 7; plan de pantallas, pantalla 19).</summary>
@@ -84,7 +86,8 @@ public sealed class ServicioNoAplicaSinBackend : IServicioNoAplica
     public Task<RespuestaConfiguracion<RequerimientosDeContrato>> ObtenerAsync(Guid contratoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<RequerimientosDeContrato>.NoDisponible);
 
-    // shortcut: sin backend, cablear cuando entre B-16 («No aplica» con respaldo y vencimiento). B-16 vuelve a comprobar en servidor que el requisito no es
+    // shortcut: sin backend, cablear cuando entre B-16 («No aplica» con respaldo y vencimiento). B-16 comprueba en servidor que el Trabajador pertenece al
+    // ContratoId y deriva su nombre (el del DTO no se fía), y vuelve a comprobar que el requisito no es
     // N1, legal ni preventivo (la solicitud no lo lleva), y decide si un requerimiento admite una lista de excepciones (una por Trabajador) en lugar de una.
     public Task<RespuestaConfiguracion<ExcepcionNoAplica>> GuardarAsync(SolicitudNoAplica solicitud, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ExcepcionNoAplica>.NoDisponible);
@@ -118,7 +121,9 @@ public interface IServicioReglasAviso
 {
     Task<RespuestaConfiguracion<ReglasDeAviso>> ObtenerAsync(CancellationToken cancellationToken = default);
 
-    Task<RespuestaConfiguracion<ReglaAviso>> GuardarAsync(ReglaAviso regla, CancellationToken cancellationToken = default);
+    Task<RespuestaConfiguracion<ReglaAviso>> CrearAsync(ReglaAviso regla, CancellationToken cancellationToken = default);
+
+    Task<RespuestaConfiguracion<ReglaAviso>> EditarAsync(ReglaAviso regla, CancellationToken cancellationToken = default);
 
     Task<RespuestaConfiguracion<ReglaAviso>> CambiarEstadoAsync(Guid id, bool activa, CancellationToken cancellationToken = default);
 
@@ -132,8 +137,12 @@ public sealed class ServicioReglasAvisoSinBackend : IServicioReglasAviso
     public Task<RespuestaConfiguracion<ReglasDeAviso>> ObtenerAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ReglasDeAviso>.NoDisponible);
 
-    // shortcut: sin backend, cablear cuando entre B-31 (CrearReglaAviso / EditarReglaAviso). El servidor deriva «de serie» del registro: el valor del DTO no se fía.
-    public Task<RespuestaConfiguracion<ReglaAviso>> GuardarAsync(ReglaAviso regla, CancellationToken cancellationToken = default) =>
+    // shortcut: sin backend, cablear cuando entre B-31 (CrearReglaAviso). El Id lo asigna el servidor y «de serie» no se acepta del DTO.
+    public Task<RespuestaConfiguracion<ReglaAviso>> CrearAsync(ReglaAviso regla, CancellationToken cancellationToken = default) =>
+        Task.FromResult(RespuestaConfiguracion<ReglaAviso>.NoDisponible);
+
+    // shortcut: sin backend, cablear cuando entre B-31 (EditarReglaAviso). «De serie» se deriva del registro: el valor del DTO no se fía.
+    public Task<RespuestaConfiguracion<ReglaAviso>> EditarAsync(ReglaAviso regla, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ReglaAviso>.NoDisponible);
 
     // shortcut: sin backend, cablear cuando entre B-31 (DesactivarReglaAviso).
@@ -149,11 +158,12 @@ public sealed class ServicioReglasAvisoSinBackend : IServicioReglasAviso
 
 public sealed record TenantTceConvalidable(Guid Id, string Nombre, string Nota);
 
-public sealed record TipoRequisitoConvalidable(string Nombre, string Entidad);
+/// <param name="Clave">Identifica el tipo entre entidades (dos entidades pueden tener un tipo con el mismo nombre).</param>
+public sealed record TipoRequisitoConvalidable(string Clave, string Nombre, string Entidad);
 
 public sealed record CambioGobierno(DateTime CuandoUtc, string Quien, string Cambio);
 
-/// <summary>La configuración de convalidación entre Tenants TCE (CA-21) guardada.</summary>
+/// <summary>La configuración de convalidación entre Tenants TCE (CA-21) guardada. <see cref="Tipos"/> son las <see cref="TipoRequisitoConvalidable.Clave"/>.</summary>
 public sealed record ConvalidacionConfigurada(bool Activa, IReadOnlyList<Guid> Tenants, IReadOnlyList<string> Tipos);
 
 public sealed record GobiernoInbound(
@@ -178,6 +188,7 @@ public sealed class ServicioGobiernoInboundSinBackend : IServicioGobiernoInbound
 {
     // shortcut: sin backend, cablear cuando entre B-36 (ObtenerGobiernoInboundQuery: Asignación de Operación vigente y registro de cambios). B-36 fija qué
     // nombres de otras organizaciones gestionadas por el mismo Operador CAE externo puede ver un Administrador (aislamiento entre Tenants ≠ delegación operativa),
+    // y comprueba que cada organización de la configuración está gestionada por el mismo Operador CAE externo con Asignación de Operación vigente,
     // y cierra el comando en Application con los actos excluidos del encargo (la página ya se reserva sola).
     public Task<RespuestaConfiguracion<GobiernoInbound>> ObtenerAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<GobiernoInbound>.NoDisponible);

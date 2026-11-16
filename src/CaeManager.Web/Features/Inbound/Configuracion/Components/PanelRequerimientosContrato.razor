@@ -66,8 +66,8 @@ else
                 </td>
                 <td class="prc-acciones">
                     <SoloConEscritura>
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!r.AdmiteNoAplica)"
-                               title="@(r.AdmiteNoAplica ? null : "Requisito legal, preventivo o de nivel N1: no admite No aplica")"
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!r.AdmiteNoAplica || SoloLectura)"
+                               title="@(!r.AdmiteNoAplica ? "Requisito legal, preventivo o de nivel N1: no admite No aplica" : SoloLectura ? "El contrato de acceso ya no admite cambios" : null)"
                                OnClick="() => Abrir(r)">@(r.Excepcion is null ? "No aplica" : "Editar")</Boton>
                     </SoloConEscritura>
                 </td>
@@ -84,6 +84,8 @@ else
 
 @code {
     [Parameter, EditorRequired] public Guid ContratoId { get; set; }
+    /// <summary>El contrato de acceso ya no admite cambios (Cancelado, Finalizado o Rechazado): la tabla se ve, «No aplica» no se ofrece.</summary>
+    [Parameter] public bool SoloLectura { get; set; }
     [Parameter] public string TituloVacio { get; set; } = string.Empty;
     [Parameter] public string DescripcionVacio { get; set; } = string.Empty;
 
@@ -124,7 +126,7 @@ else
 
     private void Abrir(RequerimientoDeContrato requerimiento)
     {
-        if (!requerimiento.AdmiteNoAplica) return;
+        if (!requerimiento.AdmiteNoAplica || SoloLectura) return;
         _seleccionado = requerimiento;
         _abierto = true;
     }

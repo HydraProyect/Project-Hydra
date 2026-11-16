@@ -126,7 +126,7 @@
             @if (_pestanaActiva == PestanaRequerimientos)
             {
                 @* Pantalla 19, «No aplica» (shortcut: sin backend, cablear cuando entren B-11 y B-16): sin datos enseña el mismo estado vacío. *@
-                <PanelRequerimientosContrato ContratoId="@contrato.Id" TituloVacio="@TituloVacioPestana" DescripcionVacio="@DescripcionVacioPestana" />
+                <PanelRequerimientosContrato ContratoId="@contrato.Id" SoloLectura="@(contrato.Estado is EstadoContratoAcceso.Cancelado or EstadoContratoAcceso.Finalizado or EstadoContratoAcceso.Rechazado)" TituloVacio="@TituloVacioPestana" DescripcionVacio="@DescripcionVacioPestana" />
             }
             else
             {

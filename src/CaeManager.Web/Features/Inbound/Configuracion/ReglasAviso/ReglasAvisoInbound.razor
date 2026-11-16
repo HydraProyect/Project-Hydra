@@ -456,15 +456,15 @@
         _guardando = true;
         try
         {
-            var respuesta = await Servicio.GuardarAsync(d.APublica());
+            var respuesta = d.Nueva ? await Servicio.CrearAsync(d.APublica()) : await Servicio.EditarAsync(d.APublica());
             if (!respuesta.Disponible)
             {
                 _mensajeError = "No se puede guardar todavía: las reglas de aviso aún no están disponibles.";
                 return;
             }
-            if (respuesta.Mensaje is not null)
+            if (!respuesta.Aceptada)
             {
-                _mensajeError = respuesta.Mensaje;
+                _mensajeError = respuesta.Mensaje ?? "No se pudo guardar. Inténtalo de nuevo.";
                 return;
             }
             var nombre = d.Nombre.Trim();
@@ -487,15 +487,21 @@
     private async Task CambiarEstadoAsync(ReglaAviso regla)
     {
         var activa = !regla.Activa;
-        var respuesta = await Servicio.CambiarEstadoAsync(regla.Id, activa);
-        if (respuesta.Aceptada)
+        try
         {
-            await CargarAsync();
-            ToastService.Mostrar($"{(activa ? "Regla reanudada" : "Regla pausada")}: «{regla.Nombre}».", TonoToast.Exito);
-        }
-        else
-        {
+            var respuesta = await Servicio.CambiarEstadoAsync(regla.Id, activa);
+            if (respuesta.Aceptada)
+            {
+                await CargarAsync();
+                ToastService.Mostrar($"{(activa ? "Regla reanudada" : "Regla pausada")}: «{regla.Nombre}».", TonoToast.Exito);
+                return;
+            }
+
             ToastService.Mostrar(respuesta.Mensaje ?? "No se pudo cambiar el estado de la regla.", TonoToast.Error);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No se pudo cambiar el estado de la regla. Inténtalo de nuevo.", TonoToast.Error);
         }
     }
 
@@ -504,15 +510,21 @@
         var regla = _aEliminar;
         _aEliminar = null;
         if (regla is null || regla.DeSerie) return;
-        var respuesta = await Servicio.EliminarAsync(regla.Id);
-        if (respuesta.Aceptada)
+        try
         {
-            await CargarAsync();
-            ToastService.Mostrar($"Regla eliminada: «{regla.Nombre}».", TonoToast.Exito);
-        }
-        else
-        {
+            var respuesta = await Servicio.EliminarAsync(regla.Id);
+            if (respuesta.Aceptada)
+            {
+                await CargarAsync();
+                ToastService.Mostrar($"Regla eliminada: «{regla.Nombre}».", TonoToast.Exito);
+                return;
+            }
+
             ToastService.Mostrar(respuesta.Mensaje ?? "No se pudo eliminar la regla.", TonoToast.Error);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar("No se pudo eliminar la regla. Inténtalo de nuevo.", TonoToast.Error);
         }
     }
 }

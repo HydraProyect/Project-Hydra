@@ -143,7 +143,12 @@ public sealed class BorradorRegla
         Centros = [.. r.Centros], Asunto = r.Asunto, Cuerpo = r.Cuerpo,
     };
 
+    /// <summary>La regla que se envía: solo lleva los campos de su disparador (lo que quedó de otro disparador no viaja).</summary>
     public ReglaAviso APublica() => new(
-        Id, Nombre.Trim(), DeSerie, Disparador, Dias ?? 0, Repeticion ?? 0, Estados.ToArray(), DiaResumen, ParaEmpresa, ParaGestor,
+        Id, Nombre.Trim(), DeSerie, Disparador,
+        Disparador == DisparadorAviso.Vencimiento ? Dias ?? 0 : 0,
+        Disparador is DisparadorAviso.Vencimiento or DisparadorAviso.EstadoDelRequerimiento ? Repeticion ?? 0 : 0,
+        Disparador == DisparadorAviso.EstadoDelRequerimiento ? Estados.ToArray() : [],
+        Disparador == DisparadorAviso.ResumenPeriodico ? DiaResumen : "lunes", ParaEmpresa, ParaGestor,
         PorCorreo, AlIniciarSesion, SoloAlgunosCentros ? Centros.ToArray() : [], Activa, Asunto, Cuerpo);
 }

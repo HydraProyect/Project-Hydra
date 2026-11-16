@@ -82,7 +82,7 @@
                     @foreach (var grupo in Grupos)
                     {
                         var entidad = grupo.Key;
-                        var todos = _datos.Tipos.Where(x => x.Entidad == entidad).Select(x => x.Nombre).ToList();
+                        var todos = _datos.Tipos.Where(x => x.Entidad == entidad).Select(x => x.Clave).ToList();
                         var marcados = todos.Count(_tipos.Contains);
                         <div class="gb-ent">
                             <label class="gb-chk gb-ent-t">
@@ -92,10 +92,10 @@
                             </label>
                             @foreach (var tipo in grupo)
                             {
-                                var nombre = tipo.Nombre;
+                                var clave = tipo.Clave;
                                 <label class="gb-chk">
-                                    <input type="checkbox" checked="@_tipos.Contains(nombre)" disabled="@(!_activa)" @onchange="() => Cambiar(() => Marcar(_tipos, nombre))" />
-                                    <span>@nombre</span>
+                                    <input type="checkbox" checked="@_tipos.Contains(clave)" disabled="@(!_activa)" @onchange="() => Cambiar(() => Marcar(_tipos, clave))" />
+                                    <span>@tipo.Nombre</span>
                                 </label>
                             }
                         </div>
@@ -274,9 +274,9 @@
                 _mensajeError = "No se puede guardar todavía: el gobierno de Inbound aún no está disponible.";
                 return;
             }
-            if (respuesta.Mensaje is not null)
+            if (!respuesta.Aceptada)
             {
-                _mensajeError = respuesta.Mensaje;
+                _mensajeError = respuesta.Mensaje ?? "No se pudo guardar. Inténtalo de nuevo.";
                 return;
             }
             Aplicar(respuesta.Valor);
