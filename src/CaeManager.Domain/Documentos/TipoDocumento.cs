@@ -227,7 +227,9 @@ public class TipoDocumento : EntidadConTenant
     /// <summary>
     /// Grupo del tipo en la interfaz (catálogo aprobado el 2026-10-17, ver <see cref="GrupoTipoDocumento"/>). Nulo para
     /// los tipos de Vehículo y de Proyecto, que se agrupan por su ámbito, y para un tipo creado por un Tenant que todavía
-    /// no lo tiene asignado. Solo ordena y filtra en pantalla: no decide nada de cumplimiento.
+    /// no lo tiene asignado. Ordena y filtra en pantalla y, desde B-14, decide una sola cosa de cumplimiento: si un
+    /// requisito de plantilla Inbound admite tolerancia tras el vencimiento (R-6, <c>ReglaToleranciaRequisito</c>), que
+    /// nunca la tiene en Vigilancia de la salud, Formación PRL ni Seguros y mutua, ni tampoco un tipo sin grupo.
     /// </summary>
     public GrupoTipoDocumento? Grupo { get; private set; }
 

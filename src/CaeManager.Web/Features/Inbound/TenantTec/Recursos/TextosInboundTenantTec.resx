@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="AuAlConfirmar" xml:space="preserve">
+    <value>Al confirmar</value>
+  </data>
+  <data name="AuCasilla" xml:space="preserve">
+    <value>Autorizo, en nombre de mi Empresa, que TALVEG aporte mis documentos a los Clientes con los que tenga un contrato de acceso.</value>
+  </data>
+  <data name="AuFuturos" xml:space="preserve">
+    <value>Clientes futuros</value>
+  </data>
+  <data name="AuFuturosDetalle" xml:space="preserve">
+    <value>Al confirmar el primer contrato de cada uno</value>
+  </data>
+  <data name="AuIncluidos" xml:space="preserve">
+    <value>Incluidos</value>
+  </data>
+  <data name="AuIntro" xml:space="preserve">
+    <value>Subes cada documento una vez y TALVEG lo aporta a cada Cliente con el que tengas un contrato de acceso, ahora y en el futuro.</value>
+  </data>
+  <data name="AuLoVerasSiempre" xml:space="preserve">
+    <value>Lo verás siempre en «Quién lee mis documentos»</value>
+  </data>
+  <data name="AuMotivoCasilla" xml:space="preserve">
+    <value>Marca la casilla para poder autorizar.</value>
+  </data>
+  <data name="AuNoOcurre1" xml:space="preserve">
+    <value>Nadie ve a los Trabajadores que no le hayas asignado.</value>
+  </data>
+  <data name="AuNoOcurre2" xml:space="preserve">
+    <value>No se comparte la validación de un Cliente con otro.</value>
+  </data>
+  <data name="AuNoOcurre3" xml:space="preserve">
+    <value>No incluye conexiones por API con otros sistemas.</value>
+  </data>
+  <data name="AuNotaExcluir" xml:space="preserve">
+    <value>Para excluir a un Trabajador concreto, escribe a Soporte TALVEG.</value>
+  </data>
+  <data name="AuNotaRetirar" xml:space="preserve">
+    <value>Puedes retirar la autorización a cada Cliente cuando quieras. Lo que ya validó lo conserva como prueba, pero deja de recibir documentos nuevos.</value>
+  </data>
+  <data name="AuOcurre1" xml:space="preserve">
+    <value>Tus documentos de la Empresa se aportan a cada Cliente que los pida.</value>
+  </data>
+  <data name="AuOcurre2" xml:space="preserve">
+    <value>Los de un Trabajador se aportan solo cuando lo asignas a un contrato y a un Centro.</value>
+  </data>
+  <data name="AuOcurre3" xml:space="preserve">
+    <value>Cada Cliente los valida con sus propios criterios: llegan como «Pendiente de validar» hasta que su Gestor CAE los valide.</value>
+  </data>
+  <data name="AuQueNoOcurre" xml:space="preserve">
+    <value>Qué no ocurre</value>
+  </data>
+  <data name="AuQueOcurre" xml:space="preserve">
+    <value>Qué ocurre</value>
+  </data>
+  <data name="AuQuienLeera" xml:space="preserve">
+    <value>Quién leerá tus documentos al confirmar</value>
+  </data>
+  <data name="AuSobretitulo" xml:space="preserve">
+    <value>Una sola vez para toda tu Empresa</value>
+  </data>
+  <data name="AuTitulo" xml:space="preserve">
+    <value>Autoriza que tus documentos lleguen solos a tus Clientes</value>
+  </data>
+  <data name="Autorizar" xml:space="preserve">
+    <value>Autorizar</value>
+  </data>
+  <data name="AvActividades" xml:space="preserve">
+    <value>Actividades</value>
+  </data>
+  <data name="AvActivos" xml:space="preserve">
+    <value>Activos</value>
+  </data>
+  <data name="AvAsignaA" xml:space="preserve">
+    <value>Asigna los </value>
+  </data>
+  <data name="AvAsignaB" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="AvAsignaC" xml:space="preserve">
+    <value> que entrarán. Solo verá a esos, nunca al resto de tu plantilla.</value>
+  </data>
+  <data name="AvCentroLinea" xml:space="preserve">
+    <value>{0} · hasta {1} Trabajadores asignados</value>
+  </data>
+  <data name="AvDocsConocido" xml:space="preserve">
+    <value>Ya le hemos aportado {0} de {1} documentos de la Empresa que pide. {2} los validará.</value>
+  </data>
+  <data name="AvDocsNuevo" xml:space="preserve">
+    <value>Ya tienes {0} de {1} documentos de la Empresa que pide. Al confirmar se le aportarán solos, y {2} los validará.</value>
+  </data>
+  <data name="AvEntran" xml:space="preserve">
+    <value>Entran</value>
+  </data>
+  <data name="AvError" xml:space="preserve">
+    <value>No se ha podido registrar tu respuesta. Inténtalo de nuevo.</value>
+  </data>
+  <data name="AvFechaPor" xml:space="preserve">
+    <value>El {0}, por {1}</value>
+  </data>
+  <data name="AvNotaA" xml:space="preserve">
+    <value>Es la primera vez que este Cliente te da de alta. </value>
+  </data>
+  <data name="AvNotaB" xml:space="preserve">
+    <value>Confirma que trabajas para él</value>
+  </data>
+  <data name="AvNotaC" xml:space="preserve">
+    <value> antes de que reciba tus documentos. Solo se te pregunta esta vez: sus contratos siguientes quedarán activos solos.</value>
+  </data>
+  <data name="AvPendiente" xml:space="preserve">
+    <value>Pendiente de confirmar</value>
+  </data>
+  <data name="AvRequisitos" xml:space="preserve">
+    <value>{0} requisitos</value>
+  </data>
+  <data name="AvSobretitulo" xml:space="preserve">
+    <value>Desde tu última sesión</value>
+  </data>
+  <data name="AvSubeA" xml:space="preserve">
+    <value>Sube tu </value>
+  </data>
+  <data name="AvSubeB" xml:space="preserve">
+    <value>evaluación de riesgos</value>
+  </data>
+  <data name="AvSubeC" xml:space="preserve">
+    <value> para estos Centros.</value>
+  </data>
+  <data name="AvTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="AvTitulo" xml:space="preserve">
+    <value>{0} te ha dado de alta {1} contratos de acceso</value>
+  </data>
+  <data name="AvTituloUno" xml:space="preserve">
+    <value>{0} te ha dado de alta 1 contrato de acceso</value>
+  </data>
+  <data name="AvVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="Confirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="Continuar" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="DetALaVista" xml:space="preserve">
+    <value>A la vista</value>
+  </data>
+  <data name="DetAnterior" xml:space="preserve">
+    <value>Versión anterior</value>
+  </data>
+  <data name="DetAportado" xml:space="preserve">
+    <value>Aportado desde tu documentación (autorización única)</value>
+  </data>
+  <data name="DetCriterio" xml:space="preserve">
+    <value>Criterio de aceptación</value>
+  </data>
+  <data name="DetEmision" xml:space="preserve">
+    <value>Emisión {0}</value>
+  </data>
+  <data name="DetHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="DetLecturaAviso" xml:space="preserve">
+    <value>A revisar</value>
+  </data>
+  <data name="DetLecturaCorrecta" xml:space="preserve">
+    <value>Leído correctamente</value>
+  </data>
+  <data name="DetLecturaError" xml:space="preserve">
+    <value>No coincide</value>
+  </data>
+  <data name="DetMotivoRechazo" xml:space="preserve">
+    <value>Motivo del rechazo: {0}</value>
+  </data>
+  <data name="DetNivelExige" xml:space="preserve">
+    <value>Exige {0} · vence el {1}</value>
+  </data>
+  <data name="DetNoHayQueSubir" xml:space="preserve">
+    <value>No hay que subir ningún documento.</value>
+  </data>
+  <data name="DetNotaUnaVez" xml:space="preserve">
+    <value>Se pide una sola vez: un documento cubre los {0} niveles.</value>
+  </data>
+  <data name="DetPorQue" xml:space="preserve">
+    <value>Por qué se pide</value>
+  </data>
+  <data name="DetSinDocumento" xml:space="preserve">
+    <value>Todavía no has subido ningún documento.</value>
+  </data>
+  <data name="DetSinHistorial" xml:space="preserve">
+    <value>Sin documentos anteriores.</value>
+  </data>
+  <data name="DetSubidoPor" xml:space="preserve">
+    <value>Subido por {0}</value>
+  </data>
+  <data name="DetUltimo" xml:space="preserve">
+    <value>Último documento</value>
+  </data>
+  <data name="DetVer" xml:space="preserve">
+    <value>Ver</value>
+  </data>
+  <data name="DetVisorNoDisponible" xml:space="preserve">
+    <value>La vista previa del documento no está disponible.</value>
+  </data>
+  <data name="DetVolver" xml:space="preserve">
+    <value>Volver al último documento</value>
+  </data>
+  <data name="EntidadEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="EntidadTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="EntidadVehiculo" xml:space="preserve">
+    <value>Vehículo</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No se han podido cargar los datos. Inténtalo de nuevo.</value>
+  </data>
+  <data name="EstadoFranja" xml:space="preserve">
+    <value>Estado de los requerimientos</value>
+  </data>
+  <data name="EstadoIncompleto" xml:space="preserve">
+    <value>Incompleto</value>
+  </data>
+  <data name="EstadoPendienteSubir" xml:space="preserve">
+    <value>Pendiente de subir</value>
+  </data>
+  <data name="EstadoPendienteValidar" xml:space="preserve">
+    <value>Pendiente de validar</value>
+  </data>
+  <data name="EstadoRechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="EstadoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
+  <data name="Firmar" xml:space="preserve">
+    <value>Firmar</value>
+  </data>
+  <data name="MasTarde" xml:space="preserve">
+    <value>Más tarde</value>
+  </data>
+  <data name="QlAutorizacionTitulo" xml:space="preserve">
+    <value>Autorización única de reutilización</value>
+  </data>
+  <data name="QlAutorizarError" xml:space="preserve">
+    <value>No se ha podido conceder la autorización. Inténtalo de nuevo.</value>
+  </data>
+  <data name="QlAvisoValidar" xml:space="preserve">
+    <value>Los documentos se aportan como «Pendiente de validar»: cada Cliente los valida con sus propios criterios.</value>
+  </data>
+  <data name="QlCobertura" xml:space="preserve">
+    <value>Tus documentos de la Empresa se aportan a cada Cliente que los pida; los de un Trabajador, solo cuando lo asignas a un contrato y a un Centro.</value>
+  </data>
+  <data name="QlColAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="QlColCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="QlColContratos" xml:space="preserve">
+    <value>Contratos activos</value>
+  </data>
+  <data name="QlColDeQuien" xml:space="preserve">
+    <value>De quién</value>
+  </data>
+  <data name="QlColDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="QlColEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="QlColFecha" xml:space="preserve">
+    <value>Fecha y hora</value>
+  </data>
+  <data name="QlColLeidoPor" xml:space="preserve">
+    <value>Leído por</value>
+  </data>
+  <data name="QlColQueLee" xml:space="preserve">
+    <value>Qué lee</value>
+  </data>
+  <data name="QlColUltima" xml:space="preserve">
+    <value>Última lectura</value>
+  </data>
+  <data name="QlConcedida" xml:space="preserve">
+    <value>Concedida</value>
+  </data>
+  <data name="QlConcedidaPor" xml:space="preserve">
+    <value>El {0}, por {1}</value>
+  </data>
+  <data name="QlContratos" xml:space="preserve">
+    <value>{0} contratos activos</value>
+  </data>
+  <data name="QlCuenta" xml:space="preserve">
+    <value>{0} lecturas</value>
+  </data>
+  <data name="QlFiltroDesde" xml:space="preserve">
+    <value>Desde</value>
+  </data>
+  <data name="QlFiltroDocumento" xml:space="preserve">
+    <value>Documento</value>
+  </data>
+  <data name="QlFiltroHasta" xml:space="preserve">
+    <value>Hasta</value>
+  </data>
+  <data name="QlGrupo" xml:space="preserve">
+    <value>Mi documentación</value>
+  </data>
+  <data name="QlLee" xml:space="preserve">
+    <value>Lee</value>
+  </data>
+  <data name="QlLeia" xml:space="preserve">
+    <value>Leía: {0}</value>
+  </data>
+  <data name="QlLimpiar" xml:space="preserve">
+    <value>Limpiar filtros</value>
+  </data>
+  <data name="QlNoDisponibleDescripcion" xml:space="preserve">
+    <value>Esta pantalla se activará cuando TALVEG pueda registrar tu autorización única y las lecturas de tus Clientes.</value>
+  </data>
+  <data name="QlNoDisponibleTitulo" xml:space="preserve">
+    <value>Todavía no se puede consultar quién lee tus documentos</value>
+  </data>
+  <data name="QlNotaExcluir" xml:space="preserve">
+    <value>Para excluir un documento concreto, escribe a Soporte TALVEG.</value>
+  </data>
+  <data name="QlNotaRegistro" xml:space="preserve">
+    <value>El registro muestra a qué Cliente pertenece cada lectura, sin nombres de personas de su organización.</value>
+  </data>
+  <data name="QlQueLee" xml:space="preserve">
+    <value>Documentos de la Empresa, de {0} Trabajadores y de {1} vehículos</value>
+  </data>
+  <data name="QlRegistroTitulo" xml:space="preserve">
+    <value>Registro de lecturas</value>
+  </data>
+  <data name="QlRegistroVacio" xml:space="preserve">
+    <value>Ninguna lectura coincide con los filtros.</value>
+  </data>
+  <data name="QlRevocadoEl" xml:space="preserve">
+    <value>Revocado el {0}</value>
+  </data>
+  <data name="QlRevocar1" xml:space="preserve">
+    <value>Deja de leer tus documentos en vivo.</value>
+  </data>
+  <data name="QlRevocar2" xml:space="preserve">
+    <value>Lo que ya validó se conserva como prueba.</value>
+  </data>
+  <data name="QlRevocar3" xml:space="preserve">
+    <value>Tus Trabajadores pasan a «No apto» para él cuando venza lo que ya tiene validado.</value>
+  </data>
+  <data name="QlRevocar4" xml:space="preserve">
+    <value>Puedes volver a autorizarlo cuando quieras.</value>
+  </data>
+  <data name="QlRevocarError" xml:space="preserve">
+    <value>No se ha podido revocar la lectura. Inténtalo de nuevo.</value>
+  </data>
+  <data name="QlRevocarIntro" xml:space="preserve">
+    <value>Si lo confirmas:</value>
+  </data>
+  <data name="QlRevocarTitulo" xml:space="preserve">
+    <value>Revocar la lectura de {0}</value>
+  </data>
+  <data name="QlSinConceder" xml:space="preserve">
+    <value>Sin conceder</value>
+  </data>
+  <data name="QlSinLecturas" xml:space="preserve">
+    <value>Sin lecturas</value>
+  </data>
+  <data name="QlTitulo" xml:space="preserve">
+    <value>Quién lee mis documentos</value>
+  </data>
+  <data name="QlVacioDescripcion" xml:space="preserve">
+    <value>Cuando un Cliente te dé de alta un contrato de acceso y lo confirmes, aparecerá aquí.</value>
+  </data>
+  <data name="QlVacioTitulo" xml:space="preserve">
+    <value>Ningún Cliente lee todavía tus documentos</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rechazar</value>
+  </data>
+  <data name="ReqBuscador" xml:space="preserve">
+    <value>Filtrar esta pantalla: requerimiento, Trabajador o vehículo</value>
+  </data>
+  <data name="ReqColAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="ReqColCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ReqColEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReqColEntidad" xml:space="preserve">
+    <value>Entidad</value>
+  </data>
+  <data name="ReqColEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ReqColRequerimiento" xml:space="preserve">
+    <value>Requerimiento</value>
+  </data>
+  <data name="ReqColVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ReqCubre" xml:space="preserve">
+    <value>Cubre {0} niveles: {1}</value>
+  </data>
+  <data name="ReqEtiquetaClientes" xml:space="preserve">
+    <value>Clientes</value>
+  </data>
+  <data name="ReqFalta" xml:space="preserve">
+    <value>Falta: {0}</value>
+  </data>
+  <data name="ReqFiltroCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ReqFiltroEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="ReqFiltroEntidad" xml:space="preserve">
+    <value>Entidad</value>
+  </data>
+  <data name="ReqFiltroVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ReqGrupo" xml:space="preserve">
+    <value>Contratos de acceso</value>
+  </data>
+  <data name="ReqHasta" xml:space="preserve">
+    <value>hasta {0}</value>
+  </data>
+  <data name="ReqLimpiar" xml:space="preserve">
+    <value>Limpiar filtros</value>
+  </data>
+  <data name="ReqMotivo" xml:space="preserve">
+    <value>Motivo: {0}</value>
+  </data>
+  <data name="ReqNoDisponibleDescripcion" xml:space="preserve">
+    <value>Esta pantalla se activará cuando TALVEG pueda leer los contratos de acceso que tus Clientes te han dado de alta.</value>
+  </data>
+  <data name="ReqNoDisponibleTitulo" xml:space="preserve">
+    <value>Los requerimientos todavía no están disponibles</value>
+  </data>
+  <data name="ReqPestanaGlosa" xml:space="preserve">
+    <value>pendientes</value>
+  </data>
+  <data name="ReqSinCoincidencias" xml:space="preserve">
+    <value>Ningún requerimiento coincide con los filtros.</value>
+  </data>
+  <data name="ReqTitulo" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="ReqVacioDescripcion" xml:space="preserve">
+    <value>Cuando un Cliente te dé de alta un contrato de acceso, sus requerimientos aparecerán aquí.</value>
+  </data>
+  <data name="ReqVacioTitulo" xml:space="preserve">
+    <value>No tienes requerimientos</value>
+  </data>
+  <data name="ReqVigencias" xml:space="preserve">
+    <value>{0} vigencias</value>
+  </data>
+  <data name="Revocar" xml:space="preserve">
+    <value>Revocar</value>
+  </data>
+  <data name="SbAnteriores" xml:space="preserve">
+    <value>Documentos subidos antes</value>
+  </data>
+  <data name="SbAvisoSaludA" xml:space="preserve">
+    <value>Sube solo el certificado de aptitud; un informe con datos de salud no se acepta ni se guarda.</value>
+  </data>
+  <data name="SbAvisoSaludB" xml:space="preserve">
+    <value> No subas el informe médico ni los resultados de las pruebas: son datos de salud y el Cliente no puede verlos.</value>
+  </data>
+  <data name="SbCamara" xml:space="preserve">
+    <value>Usar la cámara</value>
+  </data>
+  <data name="SbCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="SbCheckEspera" xml:space="preserve">
+    <value>Elige un archivo para comprobarlo.</value>
+  </data>
+  <data name="SbCheckFechaMal" xml:space="preserve">
+    <value>La fecha de vencimiento es anterior a hoy: el documento ya está caducado.</value>
+  </data>
+  <data name="SbCheckFechaOk" xml:space="preserve">
+    <value>Vencimiento: {0}.</value>
+  </data>
+  <data name="SbCheckFormatoMal" xml:space="preserve">
+    <value>Formato no admitido: {0}. Sube un PDF, un Word o una foto (JPG, PNG, HEIC).</value>
+  </data>
+  <data name="SbCheckFormatoOk" xml:space="preserve">
+    <value>Formato admitido: {0}.</value>
+  </data>
+  <data name="SbCheckTamano" xml:space="preserve">
+    <value>El archivo supera los 10 MB.</value>
+  </data>
+  <data name="SbCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="SbComentarios" xml:space="preserve">
+    <value>Comentarios</value>
+  </data>
+  <data name="SbComprobacion" xml:space="preserve">
+    <value>Comprobación al momento</value>
+  </data>
+  <data name="SbConversion" xml:space="preserve">
+    <value>Se convertirá a PDF y solo se guardará la copia en PDF.</value>
+  </data>
+  <data name="SbDescartado" xml:space="preserve">
+    <value>El archivo se ha descartado. Sube solo el certificado de aptitud, sin informe médico ni resultados de pruebas.</value>
+  </data>
+  <data name="SbEmision" xml:space="preserve">
+    <value>Fecha de emisión</value>
+  </data>
+  <data name="SbError" xml:space="preserve">
+    <value>No se ha podido subir el documento. Inténtalo de nuevo.</value>
+  </data>
+  <data name="SbFormatos" xml:space="preserve">
+    <value>PDF, Word o foto (JPG, PNG, HEIC), hasta 10 MB.</value>
+  </data>
+  <data name="SbHechoTitulo" xml:space="preserve">
+    <value>Documento subido</value>
+  </data>
+  <data name="SbLoValidara" xml:space="preserve">
+    <value>Lo validará {0}. Si lo rechaza o lo marca incompleto, te avisaremos con el motivo.</value>
+  </data>
+  <data name="SbNoAceptado" xml:space="preserve">
+    <value>No aceptado: contiene datos de salud</value>
+  </data>
+  <data name="SbNoDisponible" xml:space="preserve">
+    <value>La subida de documentos todavía no está disponible: no se guardará nada hasta que TALVEG la active.</value>
+  </data>
+  <data name="SbNoEncontrado" xml:space="preserve">
+    <value>No se encuentra este requerimiento.</value>
+  </data>
+  <data name="SbNoGuardado" xml:space="preserve">
+    <value>{0} no se ha guardado.</value>
+  </data>
+  <data name="SbNoQuedan" xml:space="preserve">
+    <value>No te quedan más requerimientos pendientes de subir.</value>
+  </data>
+  <data name="SbPara" xml:space="preserve">
+    <value>Para</value>
+  </data>
+  <data name="SbRechazado" xml:space="preserve">
+    <value>Rechazado el {0}. Motivo: {1}</value>
+  </data>
+  <data name="SbSiguiente" xml:space="preserve">
+    <value>Siguiente pendiente: {0}</value>
+  </data>
+  <data name="SbTitulo" xml:space="preserve">
+    <value>Subir documento</value>
+  </data>
+  <data name="SbVencimiento" xml:space="preserve">
+    <value>Fecha de vencimiento</value>
+  </data>
+  <data name="SbZona" xml:space="preserve">
+    <value>Arrastra aquí el archivo o selecciónalo</value>
+  </data>
+  <data name="Subir" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="VigProximo" xml:space="preserve">
+    <value>Próximo</value>
+  </data>
+  <data name="VigSin" xml:space="preserve">
+    <value>Sin vigencia</value>
+  </data>
+  <data name="VigTolerancia" xml:space="preserve">
+    <value>Vencido · en tolerancia</value>
+  </data>
+  <data name="VigUrgente" xml:space="preserve">
+    <value>Urgente</value>
+  </data>
+  <data name="VigVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="VigVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+</root>

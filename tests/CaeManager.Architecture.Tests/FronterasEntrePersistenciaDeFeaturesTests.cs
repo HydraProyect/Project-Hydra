@@ -781,6 +781,20 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
+        // Plantillas de requisitos del Tenant TCE (B-14): un requisito se acredita con un Tipo de documento del catálogo
+        // propio y puede adoptar un requisito del catálogo base; el alta comprueba que la Actividad, el riesgo, el Centro o
+        // la Empresa Cliente empresarial existen, solo por su Id. El requisito propio crea su Tipo de documento.
+        ("Requisitos.AnadirRequisitoAPlantillaCommandHandler", "ICatalogoBaseQueryContext"),
+        ("Requisitos.AnadirRequisitoAPlantillaCommandHandler", "ITipoDocumentoRepository"),
+        ("Requisitos.EditarRequisitoPlantillaCommandHandler", "ICatalogoBaseQueryContext"),
+        ("Requisitos.EditarRequisitoPlantillaCommandHandler", "ITipoDocumentoRepository"),
+        ("Requisitos.CrearPlantillaRequisitosCommandHandler", "ICatalogoBaseQueryContext"),
+        ("Requisitos.CrearPlantillaRequisitosCommandHandler", "ICentrosQueryContext"),
+        ("Requisitos.CrearPlantillaRequisitosCommandHandler", "IEmpresasQueryContext"),
+        ("Requisitos.CrearRequisitoPropioCommandHandler", "ITipoDocumentoRepository"),
+        // «¿Es alguno de estos?» (D-28): compara con los Tipos de documento y sus alias y con el catálogo base.
+        ("Requisitos.BuscarRequisitosParecidosQueryHandler", "ICatalogoBaseQueryContext"),
+        ("Requisitos.BuscarRequisitosParecidosQueryHandler", "ITiposDocumentoQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),
