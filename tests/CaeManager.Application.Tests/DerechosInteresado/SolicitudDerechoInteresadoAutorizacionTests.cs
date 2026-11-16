@@ -178,6 +178,33 @@ public class SolicitudDerechoInteresadoAutorizacionTests
         (await impersonando.EsAdministradorDelTenantPropietarioAsync(default)).Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(TipoViaAcceso.OperacionDelegada)]
+    [InlineData(TipoViaAcceso.SesionPrivilegiada)]
+    public async Task Una_via_de_acceso_que_no_es_la_normal_no_resuelve_aunque_el_origen_sea_el_Tenant(TipoViaAcceso via)
+    {
+        // Solo cambia la vía: mismo usuario como actor real, sin usuario simulado, sin Sesión Privilegiada activa y con
+        // Tenant de origen igual al Tenant actual. Lo único que cierra es la comprobación de la vía.
+        var mundo = new Mundo();
+        var autoridad = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true,
+            actor: new ActorAuditoria(Administrador, null, via, null));
+
+        (await autoridad.TieneCapacidadAsync(CapacidadTenant.DerechosDelInteresado, default)).Should().BeFalse();
+        (await autoridad.EsAdministradorDelTenantPropietarioAsync(default)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_actor_real_distinto_del_usuario_de_la_sesion_no_resuelve()
+    {
+        // Solo cambia el actor real: vía normal, sin usuario simulado y con origen igual al Tenant actual.
+        var mundo = new Mundo();
+        var autoridad = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true,
+            actor: new ActorAuditoria(Guid.NewGuid(), null, TipoViaAcceso.Normal, null));
+
+        (await autoridad.TieneCapacidadAsync(CapacidadTenant.DerechosDelInteresado, default)).Should().BeFalse();
+        (await autoridad.EsAdministradorDelTenantPropietarioAsync(default)).Should().BeFalse();
+    }
+
     [Fact]
     public async Task Sin_Tenant_actual_o_sin_rol_efectivo_falla_cerrado()
     {

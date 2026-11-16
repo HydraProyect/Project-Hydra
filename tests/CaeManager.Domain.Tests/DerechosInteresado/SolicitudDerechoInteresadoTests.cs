@@ -43,7 +43,8 @@ public class SolicitudDerechoInteresadoTests
         // 31 de enero + 1 mes = 28 de febrero (fin de mes, como AddMonths y la base).
         s.PlazoOrdinario.Should().Be(new DateOnly(2026, 2, 28));
         s.PlazoVencimiento.Should().Be(s.PlazoOrdinario);
-        s.PlazoMaximoProrrogable.Should().Be(new DateOnly(2026, 4, 30));
+        // Plazo ordinario + 2 meses = 28 de abril; recepción + 3 meses daría el 30, un plazo más largo.
+        s.PlazoMaximoProrrogable.Should().Be(new DateOnly(2026, 4, 28));
         s.RegistradaPorUsuarioId.Should().Be(Registrador);
         s.EstaProrrogada.Should().BeFalse();
         s.EstaCerrada.Should().BeFalse();
@@ -173,9 +174,9 @@ public class SolicitudDerechoInteresadoTests
     {
         var s = Nueva();
 
-        s.Prorrogar(new DateOnly(2026, 4, 30), "  Complejidad y número de solicitudes.  ", Tramitador, Ahora);
+        s.Prorrogar(new DateOnly(2026, 4, 28), "  Complejidad y número de solicitudes.  ", Tramitador, Ahora);
 
-        s.PlazoVencimiento.Should().Be(new DateOnly(2026, 4, 30));
+        s.PlazoVencimiento.Should().Be(new DateOnly(2026, 4, 28));
         s.PlazoOrdinario.Should().Be(new DateOnly(2026, 2, 28), "el plazo ordinario no cambia");
         s.MotivoProrroga.Should().Be("Complejidad y número de solicitudes.");
         s.ProrrogadaPorUsuarioId.Should().Be(Tramitador);
@@ -189,7 +190,7 @@ public class SolicitudDerechoInteresadoTests
         var s = Nueva();
         s.Prorrogar(new DateOnly(2026, 3, 15), "Primera.", Tramitador, Ahora);
 
-        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 30), "Segunda.", Tramitador, Ahora))
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 28), "Segunda.", Tramitador, Ahora))
             .Should().Throw<InvalidOperationException>();
         s.PlazoVencimiento.Should().Be(new DateOnly(2026, 3, 15));
     }
@@ -199,8 +200,8 @@ public class SolicitudDerechoInteresadoTests
     {
         var s = Nueva();
 
-        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 5, 1), "Motivo.", Tramitador, Ahora))
-            .Should().Throw<ArgumentException>("tres meses desde la recepción es el máximo");
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 29), "Motivo.", Tramitador, Ahora))
+            .Should().Throw<ArgumentException>("el plazo ordinario más dos meses es el máximo");
         s.Invoking(x => x.Prorrogar(s.PlazoOrdinario, "Motivo.", Tramitador, Ahora))
             .Should().Throw<ArgumentException>("una prórroga que no alarga no es prórroga");
         s.Invoking(x => x.Prorrogar(new DateOnly(2026, 3, 31), "  ", Tramitador, Ahora))

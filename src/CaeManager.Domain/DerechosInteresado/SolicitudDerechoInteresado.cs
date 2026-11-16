@@ -92,8 +92,12 @@ public class SolicitudDerechoInteresado : EntidadConTenant, IVersionable, IAccio
         or EstadoSolicitudDerecho.Denegada
         or EstadoSolicitudDerecho.Reenviada;
 
-    /// <summary>El último día al que puede llevarse el plazo con la prórroga.</summary>
-    public DateOnly PlazoMaximoProrrogable => FechaRecepcion.AddMonths(MesesPlazoOrdinario + MesesMaximosProrroga);
+    /// <summary>
+    /// El último día al que puede llevarse el plazo con la prórroga: el plazo ordinario más dos meses. Se cuenta
+    /// desde el plazo ordinario y no desde la recepción más tres meses porque a fin de mes la segunda cuenta da un
+    /// día más tarde (31-ene: 28-abr frente a 30-abr); se toma la lectura que nunca alarga el plazo.
+    /// </summary>
+    public DateOnly PlazoMaximoProrrogable => PlazoOrdinario.AddMonths(MesesMaximosProrroga);
 
     private SolicitudDerechoInteresado()
     {

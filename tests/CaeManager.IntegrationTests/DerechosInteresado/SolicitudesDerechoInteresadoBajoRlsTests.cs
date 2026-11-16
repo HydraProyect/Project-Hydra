@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.DerechosInteresado;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -10,6 +12,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Xunit;
 
@@ -146,6 +149,50 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_auditoria_de_cada_paso_lleva_su_accion_el_actor_real_y_enmascara_los_datos_del_interesado()
+    {
+        const string Descripcion = "Pide copia de sus datos.";
+        const string MotivoProrroga = "Motivo-de-prorroga-reconocible";
+        const string Resultado = "Resultado-reconocible-entregado";
+        var auditoria = new AuditoriaInterceptor(new ActorAuditoriaFijo(ActorAuditoria.Normal(_usuarioId)));
+        Guid id;
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var solicitud = Solicitud();
+            runtime.SolicitudesDerechoInteresado.Add(solicitud);
+            await runtime.SaveChangesAsync();
+            id = solicitud.Id;
+        }
+
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var solicitud = await new SolicitudDerechoInteresadoRepository(runtime).ObtenerPorIdAsync(id, default);
+            solicitud!.VerificarIdentidad(_usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+            solicitud.Prorrogar(solicitud.PlazoMaximoProrrogable, MotivoProrroga, _usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+            solicitud.IniciarTramitacion(_usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+            solicitud.Resolver(Resultado, _usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+
+        var registros = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == id)
+            .ToListAsync();
+
+        registros.Select(r => r.Accion).Should().BeEquivalentTo(
+            ["Creado", RegistroAuditoria.AccionIdentidadVerificada, RegistroAuditoria.AccionPlazoProrrogado,
+             RegistroAuditoria.AccionTramitacionIniciada, RegistroAuditoria.AccionSolicitudResuelta],
+            "cada paso deja su propia acción");
+        registros.Should().AllSatisfy(r => r.ActorRealUsuarioId.Should().Be(_usuarioId));
+        var textos = string.Join("\n", registros.Select(r => (r.DatosAntes ?? string.Empty) + (r.DatosDespues ?? string.Empty)));
+        textos.Should().Contain("***", "control positivo: los campos sensibles están, enmascarados");
+        textos.Should().NotContain("Paula Campos").And.NotContain(Descripcion)
+            .And.NotContain(MotivoProrroga).And.NotContain(Resultado);
+    }
+
+    [Fact]
     public async Task No_hay_dos_concesiones_vigentes_de_la_misma_cuenta_y_capacidad()
     {
         var beneficiario = Guid.NewGuid();
@@ -239,16 +286,27 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant);
     }
 
-    private CaeManagerDbContext CrearRuntime()
+    private CaeManagerDbContext CrearRuntime() => CrearRuntime(auditoria: null);
+
+    private CaeManagerDbContext CrearRuntime(AuditoriaInterceptor? auditoria)
     {
+        IInterceptor[] deAuditoria = auditoria is null ? [] : [auditoria];
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
+            .AddInterceptors(deAuditoria)
             .AddInterceptors(
                 new TenantSelladoInterceptor(_tenantDeLaPeticion),
                 new ConcurrenciaOptimistaInterceptor(),
                 new TenantRlsConnectionInterceptor(_tenantDeLaPeticion, new SinClienteActivo(), Usuario(), BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), _tenantDeLaPeticion);
+    }
+
+    private sealed class ActorAuditoriaFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

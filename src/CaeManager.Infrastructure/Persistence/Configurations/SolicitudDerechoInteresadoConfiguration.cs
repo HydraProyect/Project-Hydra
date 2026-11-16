@@ -23,7 +23,7 @@ public class SolicitudDerechoInteresadoConfiguration : IEntityTypeConfiguration<
             t.HasCheckConstraint(
                 "CK_SolicitudesDerechoInteresado_Plazo",
                 "\"PlazoVencimiento\" >= \"PlazoOrdinario\" AND \"PlazoOrdinario\" > \"FechaRecepcion\""
-                + " AND \"PlazoVencimiento\" <= (\"FechaRecepcion\" + INTERVAL '3 months')::date");
+                + " AND \"PlazoVencimiento\" <= (\"PlazoOrdinario\" + INTERVAL '2 months')::date");
             // La prórroga es una sola y deja motivo, actor e instante juntos; sin prórroga, el plazo es el ordinario.
             t.HasCheckConstraint(
                 "CK_SolicitudesDerechoInteresado_ProrrogaCoherente",

@@ -3240,7 +3240,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_SolicitudesDerechoInteresado_MotivoSoloAlDenegar", "(\"Estado\" = 'Denegada') = (\"MotivoDenegacion\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_SolicitudesDerechoInteresado_Plazo", "\"PlazoVencimiento\" >= \"PlazoOrdinario\" AND \"PlazoOrdinario\" > \"FechaRecepcion\" AND \"PlazoVencimiento\" <= (\"FechaRecepcion\" + INTERVAL '3 months')::date");
+                            t.HasCheckConstraint("CK_SolicitudesDerechoInteresado_Plazo", "\"PlazoVencimiento\" >= \"PlazoOrdinario\" AND \"PlazoOrdinario\" > \"FechaRecepcion\" AND \"PlazoVencimiento\" <= (\"PlazoOrdinario\" + INTERVAL '2 months')::date");
 
                             t.HasCheckConstraint("CK_SolicitudesDerechoInteresado_ProrrogaCoherente", "(\"ProrrogadaEnUtc\" IS NULL) = (\"ProrrogadaPorUsuarioId\" IS NULL) AND (\"ProrrogadaEnUtc\" IS NULL) = (\"MotivoProrroga\" IS NULL) AND (\"ProrrogadaEnUtc\" IS NOT NULL OR \"PlazoVencimiento\" = \"PlazoOrdinario\")");
 
