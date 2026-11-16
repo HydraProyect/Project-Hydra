@@ -318,6 +318,140 @@ public class InboundConfiguracionTests : BunitContext
         cut.FindAll("[data-pieza=convalidacion] input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("disabled"));
     }
 
+
+    // ---------------------------------------------------------------- Revisión del revisor-puente: propiedades que faltaban
+
+    [Fact]
+    public void Editar_una_excepcion_de_un_Trabajador_que_ya_no_esta_en_el_contrato_exige_elegir_otro_y_no_la_ensancha()
+    {
+        var ausente = new ExcepcionNoAplica(Guid.NewGuid(), "Sergio Abadía Tena", null, "No maneja plataformas", "Ricardo Ainsa Bel, director de operaciones");
+        _noAplica.Datos = Contrato(Req("Aptitud médica", OrigenRequerimiento.Actividad, "Trabajadores", excepcion: ausente));
+        var cut = RenderPanel();
+
+        cut.FindAll("tbody button").Single().Click();
+
+        cut.Markup.Should().Contain("Elige un Trabajador");
+        Guardar(cut).HasAttribute("disabled").Should().BeTrue("el Trabajador ya no está en el contrato: no se degrada a «todo el contrato»");
+        Guardar(cut).GetAttribute("title").Should().Contain("Falta elegir el Trabajador");
+    }
+
+    [Fact]
+    public void Una_excepcion_de_un_solo_Trabajador_o_vencida_no_sustituye_el_estado_real_del_requerimiento()
+    {
+        var soloUno = new ExcepcionNoAplica(TrabajadorPilar, "Pilar Sanjuán Aznar", null, "No maneja plataformas", "Ricardo Ainsa Bel, director de operaciones");
+        var vencida = new ExcepcionNoAplica(null, null, new DateOnly(2020, 1, 1), "Cubierta por la póliza del grupo", "Ricardo Ainsa Bel, director de operaciones");
+        var todo = new ExcepcionNoAplica(null, null, null, "Cubierta por la póliza del grupo", "Ricardo Ainsa Bel, director de operaciones");
+        _noAplica.Datos = Contrato(
+            Req("Aptitud médica", OrigenRequerimiento.Actividad, "Trabajadores", excepcion: soloUno),
+            Req("Seguro propio", OrigenRequerimiento.ExigenciaDelCliente, excepcion: vencida),
+            Req("Póliza de responsabilidad civil", OrigenRequerimiento.ExigenciaDelCliente, excepcion: todo));
+
+        var cut = RenderPanel();
+
+        var filas = cut.FindAll("tbody tr");
+        filas[0].TextContent.Should().Contain("Pendiente de subir").And.Contain("No exigido en este contrato: Pilar Sanjuán Aznar");
+        filas[1].TextContent.Should().Contain("Pendiente de subir").And.Contain("Excepción vencida el 01/01/2020").And.NotContain("No exigido en este contrato");
+        filas[2].TextContent.Should().Contain("No exigido en este contrato").And.NotContain("Pendiente de subir");
+    }
+
+    [Fact]
+    public void Reabrir_el_dialogo_de_una_excepcion_la_precarga_y_Editar_guarda_con_los_mismos_datos()
+    {
+        var existente = new ExcepcionNoAplica(null, null, new DateOnly(2099, 12, 31), "Cubierta por la póliza del grupo", "Ricardo Ainsa Bel, director de operaciones");
+        _noAplica.Datos = Contrato(Req("Póliza de responsabilidad civil", OrigenRequerimiento.ExigenciaDelCliente, excepcion: existente));
+        var cut = RenderPanel();
+
+        cut.Find("tbody button").Click();
+
+        cut.Find("textarea").GetAttribute("value").Should().BeNull();
+        cut.Find("textarea").TextContent.Should().Contain("Cubierta por la póliza del grupo");
+        cut.Find("input[placeholder='Nombre y cargo']").GetAttribute("value").Should().Be("Ricardo Ainsa Bel, director de operaciones");
+        cut.Markup.Should().Contain("Al vencer, el requisito vuelve a exigirse");
+        Guardar(cut).HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_rechazo_del_servidor_no_se_confunde_con_la_pantalla_sin_backend()
+    {
+        _noAplica.Rechazo = "Sin permiso sobre este contrato";
+        _reglas.Rechazo = "Sin permiso sobre las reglas";
+        _gobierno.Rechazo = "Sin permiso sobre el gobierno";
+
+        RenderPanel().Markup.Should().Contain("No se pudieron cargar los requerimientos").And.Contain("Sin permiso sobre este contrato").And.Contain("Reintentar");
+        Render<ReglasAvisoInbound>().Markup.Should().Contain("No se pudieron cargar las reglas").And.Contain("Sin permiso sobre las reglas").And.NotContain("no están disponibles");
+        Render<GobiernoDeInbound>().Markup.Should().Contain("No se pudo cargar el gobierno de Inbound").And.Contain("Sin permiso sobre el gobierno").And.NotContain("no está disponible");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_regla_propia_pide_confirmacion_y_no_borra_hasta_confirmar()
+    {
+        _reglas.Datos = ReglasEjemplo();
+        var cut = Render<ReglasAvisoInbound>();
+        var propia = _reglas.Datos.Reglas.First(r => !r.DeSerie);
+
+        cut.Find($"button[aria-label='Eliminar la regla {propia.Nombre}']").Click();
+
+        _reglas.Eliminadas.Should().BeEmpty("un clic no elimina: antes hay que confirmar");
+        cut.Markup.Should().Contain("Se eliminará la regla").And.Contain("No se puede deshacer");
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar").Click();
+        await cut.WaitForAssertionAsync(() => _reglas.Eliminadas.Should().ContainSingle().Which.Should().Be(propia.Id));
+    }
+
+    [Fact]
+    public void Activar_la_convalidacion_sin_ninguna_organizacion_o_tipo_no_se_puede_guardar_y_una_busqueda_sin_resultados_lo_dice()
+    {
+        var vacio = GobiernoEjemplo(activa: false) with { Convalidacion = new ConvalidacionConfigurada(false, [], []) };
+        _gobierno.Datos = vacio;
+        var cut = Render<GobiernoDeInbound>();
+
+        cut.Find("[data-pieza=convalidacion] [role=switch]").Click();
+
+        cut.Markup.Should().Contain("Hay cambios sin guardar.");
+        var guardar = cut.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Contain("elige al menos una organización y un tipo");
+
+        cut.Find("input[type=search]").Input("zzz");
+        cut.Find("[data-pieza=sin-tipos]").TextContent.Should().Contain("Ningún tipo coincide con la búsqueda");
+    }
+
+    [Fact]
+    public void Gobierno_no_se_ofrece_en_el_menu_a_un_Administrador_por_encargo_no_pleno()
+    {
+        var porEncargo = new ContextoMenuLateral(
+            new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Role, Roles.Administrador),
+                 new Claim(CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, "1")], "prueba")),
+            null, true, false, PerfilVocabularioTenant.Consultora, false, LineaInboundVigente: true);
+
+        var config = CatalogoMenuLateral.Visibles(porEncargo).Single(g => g.Grupo.Id == "inbound-config");
+
+        config.Enlaces.Select(e => e.Ruta).Should().Contain("inbound/reglas-aviso").And.NotContain("inbound/gobierno");
+    }
+
+    [Fact]
+    public void Las_tres_pantallas_se_registran_con_su_implementacion_sin_backend_y_la_pestana_del_contrato_monta_el_panel()
+    {
+        var servicios = new ServiceCollection();
+        CaeManager.Web.Features.Inbound.InboundServicios.Registrar(servicios);
+        using var proveedor = servicios.BuildServiceProvider();
+
+        proveedor.GetRequiredService<IServicioNoAplica>().Should().BeOfType<ServicioNoAplicaSinBackend>();
+        proveedor.GetRequiredService<IServicioReglasAviso>().Should().BeOfType<ServicioReglasAvisoSinBackend>();
+        proveedor.GetRequiredService<IServicioGobiernoInbound>().Should().BeOfType<ServicioGobiernoInboundSinBackend>();
+
+        // La pestaña «Requerimientos» del detalle del contrato monta el panel: lo fija el marcado, y no un test que renderice el panel suelto.
+        var detalle = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src/CaeManager.Web/Features/Inbound/ContratosAcceso/Pages/ContratoAccesoDetalle.razor"));
+        detalle.Should().Contain("<PanelRequerimientosContrato ContratoId=\"@contrato.Id\"");
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CaeManager.slnx"))) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("No se encontró la raíz del repositorio.");
+    }
+
     // ---------------------------------------------------------------- Menú y autorización
 
     private static ContextoMenuLateral ContextoMenu(bool lineaInbound, string rol) => new(
@@ -363,10 +497,13 @@ public class InboundConfiguracionTests : BunitContext
     {
         public RequerimientosDeContrato? Datos { get; set; }
 
+        public string? Rechazo { get; set; }
+
         public List<SolicitudNoAplica> Guardadas { get; } = [];
 
         public Task<RespuestaConfiguracion<RequerimientosDeContrato>> ObtenerAsync(Guid contratoId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Datos is null ? RespuestaConfiguracion<RequerimientosDeContrato>.NoDisponible : RespuestaConfiguracion<RequerimientosDeContrato>.Correcta(Datos));
+            Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<RequerimientosDeContrato>.Rechazada(Rechazo)
+                : Datos is null ? RespuestaConfiguracion<RequerimientosDeContrato>.NoDisponible : RespuestaConfiguracion<RequerimientosDeContrato>.Correcta(Datos));
 
         public Task<RespuestaConfiguracion<ExcepcionNoAplica>> GuardarAsync(SolicitudNoAplica solicitud, CancellationToken cancellationToken = default)
         {
@@ -379,12 +516,17 @@ public class InboundConfiguracionTests : BunitContext
     {
         public ReglasDeAviso? Datos { get; set; }
 
+        public string? Rechazo { get; set; }
+
+        public List<Guid> Eliminadas { get; } = [];
+
         public List<ReglaAviso> Guardadas { get; } = [];
 
         public List<(Guid Id, bool Activa)> Cambios { get; } = [];
 
         public Task<RespuestaConfiguracion<ReglasDeAviso>> ObtenerAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Datos is null ? RespuestaConfiguracion<ReglasDeAviso>.NoDisponible : RespuestaConfiguracion<ReglasDeAviso>.Correcta(Datos));
+            Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<ReglasDeAviso>.Rechazada(Rechazo)
+                : Datos is null ? RespuestaConfiguracion<ReglasDeAviso>.NoDisponible : RespuestaConfiguracion<ReglasDeAviso>.Correcta(Datos));
 
         public Task<RespuestaConfiguracion<ReglaAviso>> GuardarAsync(ReglaAviso regla, CancellationToken cancellationToken = default)
         {
@@ -398,18 +540,24 @@ public class InboundConfiguracionTests : BunitContext
             return Task.FromResult(RespuestaConfiguracion<ReglaAviso>.Correcta(Datos!.Reglas.First(r => r.Id == id) with { Activa = activa }));
         }
 
-        public Task<RespuestaConfiguracion<Guid>> EliminarAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(RespuestaConfiguracion<Guid>.Correcta(id));
+        public Task<RespuestaConfiguracion<Guid>> EliminarAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            Eliminadas.Add(id);
+            return Task.FromResult(RespuestaConfiguracion<Guid>.Correcta(id));
+        }
     }
 
     private sealed class GobiernoFalso : IServicioGobiernoInbound
     {
         public GobiernoInbound? Datos { get; set; }
 
+        public string? Rechazo { get; set; }
+
         public List<ConvalidacionConfigurada> Guardadas { get; } = [];
 
         public Task<RespuestaConfiguracion<GobiernoInbound>> ObtenerAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Datos is null ? RespuestaConfiguracion<GobiernoInbound>.NoDisponible : RespuestaConfiguracion<GobiernoInbound>.Correcta(Datos));
+            Task.FromResult(Rechazo is not null ? RespuestaConfiguracion<GobiernoInbound>.Rechazada(Rechazo)
+                : Datos is null ? RespuestaConfiguracion<GobiernoInbound>.NoDisponible : RespuestaConfiguracion<GobiernoInbound>.Correcta(Datos));
 
         public Task<RespuestaConfiguracion<GobiernoInbound>> GuardarConvalidacionAsync(ConvalidacionConfigurada configuracion, CancellationToken cancellationToken = default)
         {

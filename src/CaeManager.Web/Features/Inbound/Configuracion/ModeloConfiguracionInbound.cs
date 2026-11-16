@@ -84,7 +84,8 @@ public sealed class ServicioNoAplicaSinBackend : IServicioNoAplica
     public Task<RespuestaConfiguracion<RequerimientosDeContrato>> ObtenerAsync(Guid contratoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<RequerimientosDeContrato>.NoDisponible);
 
-    // shortcut: sin backend, cablear cuando entre B-16 («No aplica» con respaldo y vencimiento; nunca sobre un requisito N1).
+    // shortcut: sin backend, cablear cuando entre B-16 («No aplica» con respaldo y vencimiento). B-16 vuelve a comprobar en servidor que el requisito no es
+    // N1, legal ni preventivo (la solicitud no lo lleva), y decide si un requerimiento admite una lista de excepciones (una por Trabajador) en lugar de una.
     public Task<RespuestaConfiguracion<ExcepcionNoAplica>> GuardarAsync(SolicitudNoAplica solicitud, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ExcepcionNoAplica>.NoDisponible);
 }
@@ -131,7 +132,7 @@ public sealed class ServicioReglasAvisoSinBackend : IServicioReglasAviso
     public Task<RespuestaConfiguracion<ReglasDeAviso>> ObtenerAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ReglasDeAviso>.NoDisponible);
 
-    // shortcut: sin backend, cablear cuando entre B-31 (CrearReglaAviso / EditarReglaAviso).
+    // shortcut: sin backend, cablear cuando entre B-31 (CrearReglaAviso / EditarReglaAviso). El servidor deriva «de serie» del registro: el valor del DTO no se fía.
     public Task<RespuestaConfiguracion<ReglaAviso>> GuardarAsync(ReglaAviso regla, CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<ReglaAviso>.NoDisponible);
 
@@ -175,7 +176,9 @@ public interface IServicioGobiernoInbound
 
 public sealed class ServicioGobiernoInboundSinBackend : IServicioGobiernoInbound
 {
-    // shortcut: sin backend, cablear cuando entre B-36 (ObtenerGobiernoInboundQuery: Asignación de Operación vigente y registro de cambios).
+    // shortcut: sin backend, cablear cuando entre B-36 (ObtenerGobiernoInboundQuery: Asignación de Operación vigente y registro de cambios). B-36 fija qué
+    // nombres de otras organizaciones gestionadas por el mismo Operador CAE externo puede ver un Administrador (aislamiento entre Tenants ≠ delegación operativa),
+    // y cierra el comando en Application con los actos excluidos del encargo (la página ya se reserva sola).
     public Task<RespuestaConfiguracion<GobiernoInbound>> ObtenerAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(RespuestaConfiguracion<GobiernoInbound>.NoDisponible);
 

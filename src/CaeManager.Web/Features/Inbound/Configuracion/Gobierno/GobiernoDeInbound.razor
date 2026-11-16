@@ -31,7 +31,7 @@
     }
     else if (_error)
     {
-        <EstadoVacio Titulo="No se pudo cargar el gobierno de Inbound" Descripcion="Inténtalo de nuevo en unos segundos.">
+        <EstadoVacio Titulo="No se pudo cargar el gobierno de Inbound" Descripcion="@(_errorCarga ?? "Inténtalo de nuevo en unos segundos.")">
             <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
@@ -74,6 +74,10 @@
                     <input type="search" value="@_busqueda" @oninput="e => _busqueda = e.Value?.ToString() ?? string.Empty"
                            placeholder="Buscar un tipo de requisito" aria-label="Buscar un tipo de requisito" disabled="@(!_activa)" />
                 </label>
+                @if (!Grupos.Any())
+                {
+                    <span class="gb-mut" data-pieza="sin-tipos">Ningún tipo coincide con la búsqueda.</span>
+                }
                 <div class="gb-ents">
                     @foreach (var grupo in Grupos)
                     {
@@ -93,10 +97,6 @@
                                     <input type="checkbox" checked="@_tipos.Contains(nombre)" disabled="@(!_activa)" @onchange="() => Cambiar(() => Marcar(_tipos, nombre))" />
                                     <span>@nombre</span>
                                 </label>
-                            }
-                            @if (!grupo.Any())
-                            {
-                                <span class="gb-mut">Ningún tipo coincide.</span>
                             }
                         </div>
                     }
@@ -156,7 +156,8 @@
                 <span class="gb-error" role="alert">@_mensajeError</span>
             }
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="SinCambios" OnClick="Cancelar">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(SinCambios || _guardando)" Cargando="_guardando" OnClick="GuardarAsync">Guardar</Boton>
+            <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(SinCambios || _guardando || MotivoNoGuardar is not null)" Cargando="_guardando"
+                   title="@MotivoNoGuardar" OnClick="GuardarAsync">Guardar</Boton>
         </div>
     }
 </div>
@@ -167,6 +168,7 @@
     private bool _cargando = true;
     private bool _error;
     private bool _reservada;
+    private string? _errorCarga;
     private bool _guardando;
     private string? _mensajeError;
     private bool _activa;
@@ -181,6 +183,11 @@
 
     // El nombre de la organización puede acabar en punto («S.A.»): no se duplica.
     private string NombreConPunto => _datos?.TenantTce is { Length: > 0 } n ? (n.EndsWith('.') ? n : n + ".") : "esta organización.";
+
+    // Activar la convalidación sin ninguna organización ni tipo no convalidaría nada: se pide al menos una y un tipo.
+    private string? MotivoNoGuardar => _activa && (_tenants.Count == 0 || _tipos.Count == 0)
+        ? "Para activar la convalidación elige al menos una organización y un tipo de requisito."
+        : null;
 
     private bool SinCambios =>
         _datos is null || (_activa == _datos.Convalidacion.Activa
@@ -198,10 +205,13 @@
     {
         _cargando = true;
         _error = false;
+        _errorCarga = null;
         try
         {
             var respuesta = await Servicio.ObtenerAsync();
             Aplicar(respuesta.Aceptada ? respuesta.Valor : null);
+            // «No disponible» es la pantalla sin backend; un rechazo del servidor es otro estado y dice su motivo.
+            if (respuesta.Disponible && respuesta.Mensaje is not null) { _error = true; _errorCarga = respuesta.Mensaje; }
         }
         catch (Exception)
         {
@@ -253,7 +263,7 @@
 
     private async Task GuardarAsync()
     {
-        if (SinCambios) return;
+        if (SinCambios || MotivoNoGuardar is not null) return;
         _guardando = true;
         _mensajeError = null;
         try

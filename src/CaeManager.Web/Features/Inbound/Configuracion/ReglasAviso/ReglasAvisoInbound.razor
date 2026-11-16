@@ -28,7 +28,7 @@
     }
     else if (_error)
     {
-        <EstadoVacio Titulo="No se pudieron cargar las reglas" Descripcion="Inténtalo de nuevo en unos segundos.">
+        <EstadoVacio Titulo="No se pudieron cargar las reglas" Descripcion="@(_errorCarga ?? "Inténtalo de nuevo en unos segundos.")">
             <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
@@ -41,7 +41,7 @@
     {
         <div class="ra-notas">
             <p class="ra-nota" data-pieza="nota-firma"><b>Quién firma los avisos.</b> La Empresa contratista recibe siempre el aviso de «@_datos.TenantTce vía TALVEG». Nunca ve el nombre del Gestor CAE que valida sus documentos.</p>
-            <p class="ra-nota ra-nota-tol" data-pieza="nota-tolerancia"><b>Tolerancia del vencimiento.</b> Pasada la fecha, el documento sigue valiendo durante la tolerancia y el aviso lo dice: <span class="ra-tol">Vencido · en tolerancia hasta 05/12</span></p>
+            <p class="ra-nota ra-nota-tol" data-pieza="nota-tolerancia"><b>Tolerancia del vencimiento.</b> Pasada la fecha, el documento sigue valiendo durante la tolerancia y el aviso lo dice, por ejemplo: <span class="ra-tol">Vencido · en tolerancia hasta 05/12</span></p>
         </div>
 
         @* Mismo marcado que ContratosAccesoLista (barra-filtros-pastillas de list-page.css), sin «Filtros guardados»: la maqueta de Reglas de
@@ -101,7 +101,7 @@
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@("Editar la regla " + r.Nombre)" OnClick="() => Editar(r)">Editar</Boton>
                                 @if (!r.DeSerie)
                                 {
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@("Eliminar la regla " + r.Nombre)" OnClick="() => EliminarAsync(r)">Eliminar</Boton>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-label="@("Eliminar la regla " + r.Nombre)" OnClick="() => _aEliminar = r">Eliminar</Boton>
                                 }
                             </SoloConEscritura>
                         </td>
@@ -122,6 +122,11 @@
             }
         </div>
     }
+
+    <DialogoConfirmacion Visible="_aEliminar is not null" VisibleChanged="v => { if (!v) _aEliminar = null; }" Titulo="Eliminar la regla"
+                         Mensaje="@($"Se eliminará la regla «{_aEliminar?.Nombre}». No se puede deshacer.")"
+                         TextoBotonConfirmar="Eliminar" TextoBotonDescartar="Cancelar" VarianteConfirmar="VarianteBoton.Destructivo"
+                         OnConfirmar="ConfirmarEliminarAsync" />
 
     @if (_borrador is { } d)
     {
@@ -287,7 +292,7 @@
                 }
                 <div class="ra-correo">
                     <div class="ra-correo-c"><b>De:</b> @_datos?.TenantTce vía TALVEG</div>
-                    <div class="ra-correo-c"><b>Para:</b> @(!d.ParaEmpresa && d.ParaGestor ? $"Gestores CAE de {_datos?.TenantTce}" : "Montajes Moncayo S.L.")</div>
+                    <div class="ra-correo-c"><b>Para:</b> @(!d.ParaEmpresa && d.ParaGestor ? "Gestores CAE de esta organización" : "Montajes Moncayo S.L.")</div>
                     <div class="ra-correo-a">@(Vacio(LogicaReglasAviso.Sustituir(d.Asunto, "Montajes Moncayo S.L.", "Planta Zaragoza Norte"), "(sin asunto)"))</div>
                     <div><span class="@(tolerancia ? "ra-tol" : "ra-situacion")">@Situacion(d, tolerancia)</span></div>
                     <p class="ra-correo-t">@(Vacio(LogicaReglasAviso.Sustituir(d.Cuerpo, "Montajes Moncayo S.L.", "Planta Zaragoza Norte"), "(sin cuerpo)"))</p>
@@ -306,6 +311,8 @@
     private string _busqueda = string.Empty;
     private string? _estado;
     private BorradorRegla? _borrador;
+    private ReglaAviso? _aEliminar;
+    private string? _errorCarga;
     private bool _sucio;
     private bool _guardando;
     private string? _mensajeError;
@@ -349,10 +356,13 @@
     {
         _cargando = true;
         _error = false;
+        _errorCarga = null;
         try
         {
             var respuesta = await Servicio.ObtenerAsync();
             _datos = respuesta.Aceptada ? respuesta.Valor : null;
+            // «No disponible» es la pantalla sin backend; un rechazo del servidor es otro estado y dice su motivo.
+            if (respuesta.Disponible && respuesta.Mensaje is not null) { _error = true; _errorCarga = respuesta.Mensaje; }
         }
         catch (Exception)
         {
@@ -489,9 +499,11 @@
         }
     }
 
-    private async Task EliminarAsync(ReglaAviso regla)
+    private async Task ConfirmarEliminarAsync()
     {
-        if (regla.DeSerie) return;
+        var regla = _aEliminar;
+        _aEliminar = null;
+        if (regla is null || regla.DeSerie) return;
         var respuesta = await Servicio.EliminarAsync(regla.Id);
         if (respuesta.Aceptada)
         {

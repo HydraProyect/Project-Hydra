@@ -322,7 +322,8 @@ public static class CatalogoMenuLateral
         // Gobierno de Inbound (pantalla 20, CA-21): solo el Administrador del Tenant TCE, como el resto de la configuración del Tenant.
         // shortcut: sin backend, cablear cuando entre B-36 (convalidación y Gobierno); la autorización es el rol Administrador.
         new("inbound-gobierno", "inbound-config", "inbound/gobierno", "configuracion", "MenuInboundGobierno",
-            Condicion: c => c.TieneAlgunRol(Roles.Administrador), ClaveRotulo: "MenuInboundGobierno"),
+            Condicion: c => c.TieneAlgunRol(Roles.Administrador)
+                            && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario), ClaveRotulo: "MenuInboundGobierno"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

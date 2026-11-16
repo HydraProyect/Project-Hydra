@@ -3,10 +3,17 @@
    botón bloqueado. Sin backend fusionado (B-11 para los requerimientos, B-16 para la excepción): sin datos enseña el estado vacío que
    enseñaba la pestaña, y no pinta ninguna fila. *@
 @inject IServicioNoAplica Servicio
+@inject ToastService ToastService
 
 @if (_cargando)
 {
     <EstadoCargando Filas="4" />
+}
+else if (_error is not null)
+{
+    <EstadoVacio Titulo="No se pudieron cargar los requerimientos" Descripcion="@_error">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="() => CargarAsync(conEsqueleto: true)">Reintentar</Boton></Accion>
+    </EstadoVacio>
 }
 else if (_datos is null)
 {
@@ -37,17 +44,23 @@ else
                 <td>@r.Entidad</td>
                 <td>@r.OrigenTexto</td>
                 <td>
-                    @if (r.Excepcion is { } e)
+                    @if (r.Excepcion is { } e && Vigente(e) && e.TrabajadorId is null)
                     {
+                        @* Todo el contrato: el requisito no se exige a nadie, y por eso no cuenta como validado. *@
                         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@DialogoNoAplica.EtiquetaEstado</Badge>
                         <div class="inbound-secundario">@Alcance(e)</div>
                     }
                     else
                     {
+                        @* Sin excepción, con la de un solo Trabajador (los demás siguen obligados) o con una vencida (vuelve a exigirse): el estado real. *@
                         <Badge Tono="Tono(r.Estado)" Tamano="TamanoBadge.Pequeno">@Texto(r.Estado)</Badge>
                         @if (!string.IsNullOrWhiteSpace(r.Detalle))
                         {
                             <div class="inbound-secundario">@r.Detalle</div>
+                        }
+                        @if (r.Excepcion is { } otra)
+                        {
+                            <div class="inbound-secundario" data-pieza="excepcion-parcial">@(Vigente(otra) ? $"{DialogoNoAplica.EtiquetaEstado}: {Alcance(otra)}" : $"Excepción vencida el {MascaraFecha.Formatear(otra.Hasta)}")</div>
                         }
                     }
                 </td>
@@ -75,6 +88,7 @@ else
     [Parameter] public string DescripcionVacio { get; set; } = string.Empty;
 
     private RequerimientosDeContrato? _datos;
+    private string? _error;
     private bool _cargando = true;
     private bool _abierto;
     private RequerimientoDeContrato? _seleccionado;
@@ -92,14 +106,18 @@ else
     private async Task CargarAsync(bool conEsqueleto)
     {
         _cargando = conEsqueleto;
+        _error = null;
         try
         {
             var respuesta = await Servicio.ObtenerAsync(ContratoId);
             _datos = respuesta.Aceptada ? respuesta.Valor : null;
+            // «No disponible» es la pantalla sin backend; un rechazo del servidor es otra cosa y se dice.
+            if (respuesta.Disponible && respuesta.Mensaje is not null) _error = respuesta.Mensaje;
         }
         catch (Exception)
         {
             _datos = null;
+            _error = "Inténtalo de nuevo en unos segundos.";
         }
         _cargando = false;
     }
@@ -111,10 +129,14 @@ else
         _abierto = true;
     }
 
+    private static bool Vigente(ExcepcionNoAplica e) => e.Hasta is null || e.Hasta >= CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+
     private async Task GuardadoAsync(ExcepcionNoAplica excepcion)
     {
+        var nombre = _seleccionado?.Nombre;
         _abierto = false;
         await CargarAsync(conEsqueleto: false);
+        ToastService.Mostrar($"Guardado: «{nombre}». {Alcance(excepcion)}.", TonoToast.Exito);
     }
 
     private static string Alcance(ExcepcionNoAplica e) =>

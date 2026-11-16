@@ -55,7 +55,7 @@
             }
             <p class="na-ayuda">@(_conVigencia
                 ? "Al vencer, el requisito vuelve a exigirse y se avisa al Gestor CAE."
-                : "Dura mientras dure el contrato de acceso. Se puede quitar en cualquier momento con Editar.")</p>
+                : "Dura mientras dure el contrato de acceso.")</p>
         </div>
 
         <CampoTextarea Etiqueta="Motivo" Valor="@_motivo" ValorChanged="v => Cambiar(() => _motivo = v)" Placeholder="Por qué no se exige" Filas="3" />
@@ -113,7 +113,7 @@
         get
         {
             if (Requerimiento is not { AdmiteNoAplica: true }) return "Este requisito no admite «No aplica».";
-            if (_porTrabajador && _trabajadorId is null) return "Falta elegir el Trabajador.";
+            if (_porTrabajador && Trabajadores.All(t => t.Id != _trabajadorId)) return "Falta elegir el Trabajador.";
             if (string.IsNullOrWhiteSpace(_motivo)) return "Falta el motivo.";
             if (string.IsNullOrWhiteSpace(_autoriza)) return "Falta quién lo autoriza.";
             if (_conVigencia && (_hastaNoValida || _hasta is null)) return "Falta la fecha de fin.";
@@ -141,7 +141,8 @@
             _hoy = DiaDeNegocio.Hoy();
             var e = Requerimiento?.Excepcion;
             _porTrabajador = e?.TrabajadorId is not null;
-            _trabajadorId = e?.TrabajadorId;
+            // Un Trabajador que ya no está en el contrato no se conserva: hay que elegir otro, y nunca se degrada a «todo el contrato».
+            _trabajadorId = e?.TrabajadorId is { } id && Trabajadores.Any(t => t.Id == id) ? id : null;
             _conVigencia = e?.Hasta is not null;
             _hasta = e?.Hasta;
             _hastaNoValida = false;
