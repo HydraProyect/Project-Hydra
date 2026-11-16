@@ -25,21 +25,37 @@ public sealed class RequisitoBase : Entity
 
     public bool Activo { get; private set; } = true;
 
+    /// <summary>
+    /// R-14 (DECISION_LOG 2026-11-14, tanda 8): el requisito existe pero espera revisión legal antes de pedirse. Nace
+    /// inactivo y no se reactiva hasta <see cref="ConfirmarRevisionLegal"/>; mientras, ninguna plantilla lo adopta.
+    /// </summary>
+    public bool PendienteRevisionLegal { get; private set; }
+
     private RequisitoBase()
     {
     }
 
-    public RequisitoBase(string codigo, string nombre, string fundamento, NivelExigencia nivel)
+    public RequisitoBase(string codigo, string nombre, string fundamento, NivelExigencia nivel, bool pendienteRevisionLegal = false)
     {
         Codigo = ReglasCatalogoBase.ValidarCodigo(codigo, nameof(codigo));
         Nombre = ReglasCatalogoBase.ValidarTexto(nombre, ReglasCatalogoBase.LongitudMaximaNombre, nameof(nombre));
         Fundamento = ReglasCatalogoBase.ValidarTexto(fundamento, ReglasCatalogoBase.LongitudMaximaFundamento, nameof(fundamento));
         Nivel = ReglasCatalogoBase.ValidarEnum(nivel, nameof(nivel));
+        PendienteRevisionLegal = pendienteRevisionLegal;
+        Activo = !pendienteRevisionLegal;
     }
 
     public void Retirar() => Activo = false;
 
-    public void Reactivar() => Activo = true;
+    public void Reactivar()
+    {
+        if (PendienteRevisionLegal)
+            throw new InvalidOperationException("Un requisito pendiente de revisión legal (R-14) no se activa hasta confirmarla.");
+        Activo = true;
+    }
+
+    /// <summary>Deja constancia de la revisión legal. No lo activa: activarlo es otra decisión (<see cref="Reactivar"/>).</summary>
+    public void ConfirmarRevisionLegal() => PendienteRevisionLegal = false;
 }
 
 /// <summary>

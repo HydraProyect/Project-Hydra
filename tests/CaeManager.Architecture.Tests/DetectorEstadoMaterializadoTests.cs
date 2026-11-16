@@ -69,6 +69,10 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Empresas.OficioEmpresa",
         "CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial",
         "CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound",
+        // Plantillas de requisitos del Tenant TCE (B-14): hoy solo se configuran; el cálculo no las lee. Cuando el
+        // estado de un contrato de acceso dependa de ellas, salen de aquí y entran en InventarioDisparadoresEstado.
+        "CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos",
+        "CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla",
         "CaeManager.Domain.Gestiones.Gestion",
         // La Gestión automática solo agrupa acreditaciones ya existentes; su estado se deriva de ellas, no al revés.
         "CaeManager.Domain.Gestiones.GestionAutomatica",

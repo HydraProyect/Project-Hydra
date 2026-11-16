@@ -63,6 +63,8 @@ public class ReferenciasACentroInventariadasTests
         "CanalGestionDocumental",
         "ContactoAgenda",
         "ContratoAcceso",
+        // B-14: la plantilla de requisitos de un Centro, con FK compuesta (TenantId, CentroId) en RESTRICT.
+        "PlantillaRequisitos",
         "TipoDocumentoCentro",
         "Gestion",
         "Incidencia",

@@ -74,6 +74,13 @@ public class PaginasClasificadasParaElEncargoTests
             "Cuadro de dirección: lectura agregada del Tenant propietario como el cuadro de mando (§ 9.7); ya lo abría "
             + "Dirección CAE por encargo y desde el 2026-10-19 también el Administrador (política PoliticaCuadroDireccion); "
             + "reabrir un mes sigue siendo solo de Dirección CAE",
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/Requerimientos.razor"] =
+            "pantalla del Tenant TEC sin backend (shortcut de B-09, B-11 y B-20): solo muestra «no disponible» y no lee datos, "
+            + "así que el Encargo de administración que la abra no ve nada; el gate es hoy solo el rol Administrador y la "
+            + "capacidad ParticipanteTec (EP-4/B-03) se aplica al cablear el backend, momento en que se revisa esta clasificación",
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/QuienLeeMisDocumentos.razor"] =
+            "pantalla del Tenant TEC sin backend (shortcut de B-09): quién lee sus documentos y su autorización única; "
+            + "mismo motivo y misma revisión pendiente que Requerimientos",
     };
 
 
