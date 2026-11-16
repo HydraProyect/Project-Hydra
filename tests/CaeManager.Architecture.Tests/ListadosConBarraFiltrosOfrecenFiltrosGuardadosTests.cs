@@ -25,7 +25,14 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     /// Listados que pueden montar <c>BarraFiltros</c> sin filtros guardados. Hoy ninguno: Visitas, la última,
     /// salió con sus filtros guardados. La última prueba exige retirar de aquí a quien ya los pase.
     /// </summary>
-    private static readonly string[] AunSinFiltrosGuardados = [];
+    private static readonly string[] AunSinFiltrosGuardados =
+    [
+        // Superficie nueva (2026-11-15): «Documentos por validar» de Inbound guarda su vista en memoria de página y no en la URL,
+        // y «Validación inbound» no es aún una Pantalla admitida de PantallasConFiltrosGuardados ni de PantallasConVistaRecordada
+        // (Application, con su RLS). Cablearlo es otro incremento: pasar los filtros a la URL, registrar la Pantalla en ambas listas
+        // y montar FiltrosGuardadosDeListado y VistaRecordadaDeListado. Al hacerlo, la última prueba exige quitar esta entrada.
+        CarpetaDeFeatures + "Inbound/Validacion/Pages/DocumentosPorValidar.razor"
+    ];
 
     /// <summary>Los doce que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
     private static readonly string[] ListadosConocidos =

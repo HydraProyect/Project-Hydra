@@ -325,6 +325,7 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<IngestaWebhookHostedService>();
             services.AddHostedService<RenovacionSuscripcionWebhookHostedService>();
             services.AddHostedService<ReintentoVerificacionIdentidadBuzonHostedService>();
+            services.AddHostedService<RecuperacionHuecoCorreoHostedService>();
         }
 
         // Configuración a medias (p. ej. una sola de las dos rutas del certificado): los
@@ -482,6 +483,7 @@ public static class InfrastructureServiceCollectionExtensions
             CaeManager.Infrastructure.Auditing.EnmascaradoAuditoriaTrabajadorAnonimizado>();
         services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
         services.AddScoped<IConversacionRepository, ConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IMensajesExternosIngeridos, ConversacionRepository>();
         services.AddScoped<IMacroRespuestaRepository, MacroRespuestaRepository>();
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
@@ -544,6 +546,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.SuscripcionAlRehabilitarService>();
         services.AddScoped<CaeManager.Application.Integraciones.RenovacionSuscripcionesWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.ReparacionMarcaHuecoService>();
+        services.AddScoped<CaeManager.Application.Integraciones.RecuperacionHuecoCorreoService>();
         services.AddSingleton<CaeManager.Application.Integraciones.ICerrojoVerificacionBuzon, CerrojoVerificacionBuzonPostgres>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();

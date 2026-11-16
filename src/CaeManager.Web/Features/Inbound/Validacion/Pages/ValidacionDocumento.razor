@@ -1,0 +1,394 @@
+@page "/inbound/validacion/{Id:guid}"
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Web.Features.Inbound.Validacion.Components
+
+<LimiteDeErrores Pagina="this">
+@* Tarjeta 8 de la maqueta de Inbound, «Validación»: el Gestor CAE del Tenant TCE decide sobre un documento. Sin backend
+   fusionado: el documento y su lectura previa son B-22, el veredicto del sistema B-24 y la propuesta de la IA B-26. Con
+   la implementación vacía la pantalla dice que no está disponible y no pinta ningún dato. *@
+<PageTitle>Validación — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Validación — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina vd">
+    <CabeceraPagina Titulo="Validación" Kicker="Validación">
+        <Acciones>
+            @if (_doc is not null && _ids.Count > 0)
+            {
+                <span class="vd-posicion" aria-live="polite">@(_indice + 1) de @_ids.Count</span>
+                <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(AnteriorId is null)" OnClick="IrAnterior">Anterior (K)</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(SiguienteId is null)" OnClick="IrSiguiente">Siguiente (J)</Boton>
+            }
+        </Acciones>
+    </CabeceraPagina>
+
+    @if (_veredicto is { } veredicto)
+    {
+        <AvisoDeshacer @key="veredicto.VeredictoId" Mensaje="@_textoVeredicto" Detalle="El aviso a la Empresa contratista sale al terminar el plazo."
+                       OnDeshacer="DeshacerAsync" OnVencido="CerrarAviso" />
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio Titulo="No se pudo cargar el documento" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_terminado)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="No te queda nada por validar"
+                     Descripcion="Has terminado la cola. Si las Empresas contratistas suben más documentos de tu cartera, aparecerán en Documentos por validar.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" Href="/inbound/validacion">Volver a Documentos por validar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_doc is null)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="El documento no está disponible"
+                     Descripcion="Todavía no se puede abrir el documento para validarlo, o ya lo ha resuelto otra persona.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" Href="/inbound/validacion">Volver a Documentos por validar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        var doc = _doc;
+        <div class="vd-resumen">
+            <Badge Tono="TonoBadge.Neutro">@(_ids.Count == 0 ? 1 : _ids.Count) por validar</Badge>
+            <Badge Tono="TonoBadge.Exito">@Recuento(ResultadoLectura.Correcto) correctos</Badge>
+            <Badge Tono="TonoBadge.Advertencia">@Recuento(ResultadoLectura.SinDetectar) sin detectar</Badge>
+            <Badge Tono="TonoBadge.Peligro">@Recuento(ResultadoLectura.ConError) con errores</Badge>
+            <span class="vd-mut">Hoy llevas @HechosHoy</span>
+            <div class="vd-pendientes">
+                <button type="button" class="vd-pendientes-boton" aria-expanded="@(_selectorAbierto ? "true" : "false")" @onclick="() => _selectorAbierto = !_selectorAbierto">Pendientes</button>
+                @if (_selectorAbierto)
+                {
+                    <div class="vd-pendientes-panel" role="dialog" aria-label="Pendientes">
+                        <input class="vd-campo" type="search" placeholder="Buscar" aria-label="Buscar entre los pendientes" value="@_busquedaPendientes"
+                               @oninput="e => _busquedaPendientes = e.Value?.ToString() ?? string.Empty" />
+                        <div class="vd-filtros-entidad" role="group" aria-label="Entidad de los pendientes">
+                            @foreach (var (clave, texto) in FiltrosEntidad)
+                            {
+                                var actual = clave;
+                                <button type="button" class="@("vd-chip" + (_filtroEntidad == actual ? " vd-chip-activo" : ""))" aria-pressed="@(_filtroEntidad == actual ? "true" : "false")"
+                                        @onclick="() => _filtroEntidad = actual">@texto</button>
+                            }
+                        </div>
+                        @if (Pendientes.Count == 0)
+                        {
+                            <p class="vd-mut">Ningún pendiente coincide.</p>
+                        }
+                        else
+                        {
+                            <table class="vd-tabla-pendientes">
+                                <thead><tr><th>Requerimiento</th><th>Titular</th><th>Entidad</th><th>Empresa contratista</th><th>Centro</th><th>Subido a TALVEG</th></tr></thead>
+                                <tbody>
+                                    @foreach (var pendiente in Pendientes)
+                                    {
+                                        var idPendiente = pendiente.Id;
+                                        <tr class="@(idPendiente == Id ? "vd-fila-actual" : "")">
+                                            <td>@pendiente.Requerimiento</td>
+                                            <td><a href="/inbound/validacion/@idPendiente" @onclick="() => AbrirPendiente(idPendiente)" @onclick:preventDefault>@pendiente.Titular</a></td>
+                                            <td>@LogicaValidacionInbound.Texto(pendiente.Entidad)</td>
+                                            <td>@pendiente.EmpresaContratista</td>
+                                            <td>@LogicaValidacionInbound.TextoCentros(pendiente.Centros)</td>
+                                            <td>@LogicaValidacionInbound.TextoSubido(pendiente.SubidoUtc)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="vd-columnas">
+            <section class="vd-visor" aria-label="Documento">
+                <div class="vd-visor-barra">
+                    <strong class="vd-archivo" title="@doc.NombreArchivo">@doc.NombreArchivo</strong>
+                    <span class="vd-leyenda"><span class="vd-punto vd-punto-ok"></span> Correcto</span>
+                    <span class="vd-leyenda"><span class="vd-punto vd-punto-error"></span> Con error</span>
+                    @for (var p = 0; p < PaginasVisibles.Count; p++)
+                    {
+                        var numero = p;
+                        <button type="button" class="@("vd-chip" + (_pagina == numero ? " vd-chip-activo" : ""))" aria-pressed="@(_pagina == numero ? "true" : "false")"
+                                @onclick="() => _pagina = numero">Pág. @(numero + 1)</button>
+                    }
+                    <a class="vd-descargar" href="@doc.UrlDescarga" download>Descargar</a>
+                </div>
+                @if (_anterior is { } anterior)
+                {
+                    <div class="vd-anterior" role="status">
+                        <span>Versión anterior del @LogicaValidacionInbound.TextoSubido(anterior.FechaUtc): @anterior.Estado.</span>
+                        <button type="button" class="vd-enlace" @onclick="VolverAlActual">Volver al documento actual</button>
+                    </div>
+                }
+                @if (PaginasVisibles.Count == 0)
+                {
+                    <p class="vd-mut vd-sin-paginas">El documento no se puede mostrar. Descárgalo para revisarlo.</p>
+                }
+                else
+                {
+                    var pagina = PaginasVisibles[Math.Min(_pagina, PaginasVisibles.Count - 1)];
+                    <div class="vd-pagina">
+                        <img src="@pagina.UrlImagen" alt="@pagina.Alt" />
+                        @foreach (var caja in pagina.Cajas.Where(c => c.Resultado != ResultadoLectura.SinDetectar))
+                        {
+                            <span class="@($"vd-caja vd-caja-{LogicaValidacionInbound.ClaseResultado(caja.Resultado)}")" title="@caja.Nota"
+                                  style="@EstiloCaja(caja)"></span>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="vd-datos" aria-label="Datos a verificar">
+                <h2 class="vd-h2">Datos a verificar</h2>
+                <div class="vd-criterio">
+                    <strong>Criterio de aceptación</strong>
+                    <p class="@(_criterioExpandido ? "" : "vd-recortado")">@doc.Criterio.Texto</p>
+                    <div class="vd-chips-leidos">
+                        @foreach (var campo in doc.Criterio.CamposLeidos)
+                        {
+                            <Badge Tono="TonoBadge.Info">@campo</Badge>
+                        }
+                    </div>
+                    <button type="button" class="vd-enlace" @onclick="() => _criterioExpandido = !_criterioExpandido">@(_criterioExpandido ? "Ver menos" : "Ver todo")</button>
+                </div>
+
+                @foreach (var dato in doc.DatosAVerificar)
+                {
+                    <article class="@($"vd-dato vd-dato-{LogicaValidacionInbound.ClaseResultado(dato.Resultado)}")">
+                        <header><strong>@dato.Etiqueta</strong> <span class="@($"vd-estado vd-estado-{LogicaValidacionInbound.ClaseResultado(dato.Resultado)}")">@LogicaValidacionInbound.TextoIa(dato.Resultado)</span></header>
+                        <dl class="vd-comparacion">
+                            <div><dt>Ficha en TALVEG</dt><dd>@dato.ValorFicha</dd></div>
+                            <div><dt>Documento</dt><dd>@(dato.ValorDocumento ?? "No detectado")</dd></div>
+                        </dl>
+                        @if (dato.Resultado == ResultadoLectura.SinDetectar && !string.IsNullOrWhiteSpace(dato.Nota))
+                        {
+                            <p class="vd-mut">@dato.Nota</p>
+                        }
+                    </article>
+                }
+
+                @if (doc.Chequeos.Count > 0)
+                {
+                    <ul class="vd-chequeos" aria-label="Lectura con IA">
+                        @foreach (var chequeo in doc.Chequeos)
+                        {
+                            <li class="@($"vd-chequeo vd-chequeo-{LogicaValidacionInbound.ClaseResultado(chequeo.Resultado)}")">
+                                <strong>@chequeo.Etiqueta</strong> · @LogicaValidacionInbound.TextoIa(chequeo.Resultado)
+                                @if (!string.IsNullOrWhiteSpace(chequeo.Detalle))
+                                {
+                                    <span class="vd-mut"> — @chequeo.Detalle</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <details class="vd-historial" open="@_historialAbierto" @ontoggle="() => _historialAbierto = !_historialAbierto">
+                    <summary>Historial (@doc.Anteriores.Count)</summary>
+                    @if (doc.Anteriores.Count == 0)
+                    {
+                        <p class="vd-mut">Este documento no tiene versiones anteriores.</p>
+                    }
+                    else
+                    {
+                        <ul>
+                            @foreach (var version in doc.Anteriores)
+                            {
+                                var versionActual = version;
+                                <li>
+                                    <span>@LogicaValidacionInbound.TextoSubido(version.FechaUtc) · @version.Estado · @version.Por@(string.IsNullOrWhiteSpace(version.Motivo) ? "" : " · " + version.Motivo)</span>
+                                    @if (_anterior?.Id == version.Id)
+                                    {
+                                        <button type="button" class="vd-enlace" @onclick="VolverAlActual">Ver el actual</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="vd-enlace" @onclick="() => VerAnterior(versionActual)">Ver este documento</button>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </details>
+            </section>
+
+            <aside class="vd-lateral" aria-label="Veredicto">
+                @if (doc.Propio)
+                {
+                    <div class="vd-aviso-propio" role="alert">No puedes validarlo: lo subiste tú en nombre de la Empresa contratista. Tiene que validarlo otro Gestor CAE con este contrato en su cartera.</div>
+                }
+
+                <section class="vd-bloque">
+                    <h3 class="vd-h3">Empresa contratista</h3>
+                    <p class="vd-valor">@doc.EmpresaContratista <span class="vd-mut">@doc.RolEmpresaContratista</span></p>
+                    <p class="vd-mut">CIF @doc.CifEmpresaContratista</p>
+                </section>
+
+                <section class="vd-bloque">
+                    <h3 class="vd-h3">Fechas</h3>
+                    <div data-campo-emision>
+                        <CampoFecha Etiqueta="Emisión" Valor="_emision" ValorChanged="CambiarEmision" Deshabilitado="@(!PuedeActuar)"
+                                    NoValido="_emisionNoValida" NoValidoChanged="v => _emisionNoValida = v" />
+                    </div>
+                    @if (doc.VigenciaMeses is { } meses)
+                    {
+                        <p class="vd-valor">Vencimiento: @LogicaValidacionInbound.TextoFecha(_vencimiento) <span class="vd-mut">(vigencia de @LogicaValidacionInbound.TextoVigencia(meses))</span></p>
+                    }
+                    else
+                    {
+                        <CampoFecha Etiqueta="Vencimiento" Valor="_vencimiento" ValorChanged="v => _vencimiento = v" Deshabilitado="@(!PuedeActuar)"
+                                    NoValido="_vencimientoNoValido" NoValidoChanged="v => _vencimientoNoValido = v" />
+                    }
+                    @if (TextoFechaMala is { } fechaMala)
+                    {
+                        <p class="vd-error" role="alert">@fechaMala</p>
+                    }
+                </section>
+
+                <section class="vd-bloque">
+                    <dl class="vd-contexto">
+                        <div><dt>Requerimiento</dt><dd>@doc.Requerimiento</dd></div>
+                        <div><dt>Centro</dt><dd>@LogicaValidacionInbound.TextoCentrosLargo(doc.Centros)</dd></div>
+                        <div><dt>Subido a TALVEG</dt><dd>@LogicaValidacionInbound.TextoSubido(doc.SubidoUtc)</dd></div>
+                        <div><dt>Origen</dt><dd>@doc.Origen</dd></div>
+                    </dl>
+                </section>
+
+                @if (doc.Destinos.Count > 0)
+                {
+                    <section class="vd-bloque">
+                        <h3 class="vd-h3">También vale para</h3>
+                        @foreach (var destino in doc.Destinos)
+                        {
+                            var idDestino = destino.Id;
+                            <label class="vd-destino">
+                                <input type="checkbox" checked="@_destinos.Contains(idDestino)" disabled="@(!PuedeActuar)" @onchange="e => AlternarDestino(idDestino, (bool)e.Value!)" />
+                                <span>@destino.Centro <span class="vd-mut">@destino.Ahora</span></span>
+                            </label>
+                        }
+                    </section>
+                }
+
+                @if (_modo == ModoVeredicto.Rechazando)
+                {
+                    <section class="vd-bloque vd-formulario" aria-label="Motivo de rechazo">
+                        <h3 class="vd-h3">Motivo de rechazo</h3>
+                        <select class="vd-campo" aria-label="Motivo de rechazo" value="@_motivo" @onchange="e => _motivo = e.Value?.ToString() ?? string.Empty">
+                            @foreach (var motivo in MotivosRechazo)
+                            {
+                                <option value="@motivo" selected="@(motivo == _motivo)">@motivo</option>
+                            }
+                        </select>
+                        <label class="vd-etiqueta" for="vd-explicacion-rechazo">Qué tiene que corregir (lo verá la Empresa contratista)</label>
+                        <textarea id="vd-explicacion-rechazo" class="vd-campo vd-area" rows="3" value="@_explicacion" @oninput="e => _explicacion = e.Value?.ToString() ?? string.Empty"></textarea>
+                    </section>
+                }
+                else if (_modo == ModoVeredicto.Incompleto)
+                {
+                    <section class="vd-bloque vd-formulario" aria-label="Qué falta">
+                        <h3 class="vd-h3">Qué falta</h3>
+                        <select class="vd-campo" aria-label="Qué falta" value="@_falta" @onchange="e => _falta = e.Value?.ToString() ?? string.Empty">
+                            @foreach (var falta in Faltas)
+                            {
+                                <option value="@falta" selected="@(falta == _falta)">@falta</option>
+                            }
+                        </select>
+                        <label class="vd-etiqueta" for="vd-explicacion-incompleto">Qué tiene que completar (lo verá la Empresa contratista)</label>
+                        <textarea id="vd-explicacion-incompleto" class="vd-campo vd-area" rows="3" value="@_explicacion" @oninput="e => _explicacion = e.Value?.ToString() ?? string.Empty"></textarea>
+                        <p class="vd-mut">El requerimiento queda Incompleto: la Empresa contratista ve qué falta y lo completa subiendo de nuevo.</p>
+                    </section>
+                }
+
+                <section class="vd-acciones">
+                    <p class="@($"vd-ayuda vd-ayuda-{ClaseAyuda}")">@TextoAyuda</p>
+
+                    @if (doc.Propuesta is { } propuesta)
+                    {
+                        <div class="vd-propuesta">
+                            <h3 class="vd-h3">Propuesta de la IA</h3>
+                            <p>@propuesta.Texto</p>
+                            <p class="vd-mut">La decisión es tuya; se registra junto a la propuesta.</p>
+                        </div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(doc.NotaSinPropuesta))
+                    {
+                        <div class="vd-propuesta">
+                            <h3 class="vd-h3">Propuesta de la IA</h3>
+                            <p class="vd-mut">@doc.NotaSinPropuesta</p>
+                        </div>
+                    }
+
+                    <div class="vd-botones">
+                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeActuar || FechaMala || _enviando)" OnClick="ValidarPulsado">Validar</Boton>
+                        <Boton Variante="@(Lectura == ResultadoLectura.ConError ? VarianteBoton.Destructivo : VarianteBoton.Secundario)" Deshabilitado="@(!PuedeActuar || _enviando)" OnClick="RechazarPulsado">Rechazar</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(!PuedeActuar || _enviando)" OnClick="IncompletoPulsado">Marcar incompleto</Boton>
+                        @if (_modo != ModoVeredicto.Ninguno)
+                        {
+                            <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarModo">Cancelar</Boton>
+                        }
+                    </div>
+
+                    <div class="vd-frontera" role="note" aria-label="Rechazado o incompleto">
+                        <strong>Rechazado o incompleto</strong>
+                        <p><b>Rechazar</b>: el documento no vale (ilegible, equivocado, con datos erróneos o fuera de vigencia). La Empresa contratista tiene que subir otro.</p>
+                        <p><b>Marcar incompleto</b>: lo subido es correcto, pero falta algo (una página, la firma o el sello, un anexo). El requerimiento queda Incompleto: la Empresa contratista ve qué falta y lo completa subiendo de nuevo.</p>
+                    </div>
+
+                    <label class="vd-destino">
+                        <input type="checkbox" checked="@_pasarAlSiguiente" @onchange="e => _pasarAlSiguiente = (bool)e.Value!" />
+                        <span>Al terminar, pasar al siguiente</span>
+                    </label>
+                    <div class="vd-pie">
+                        <button type="button" class="vd-enlace" @onclick="() => _ayudaAtajos = true">Atajos (?)</button>
+                        @if (SiguienteTexto is { } siguiente)
+                        {
+                            <span class="vd-mut vd-siguiente" title="@siguiente">Siguiente: @siguiente</span>
+                        }
+                    </div>
+                </section>
+            </aside>
+        </div>
+    }
+</div>
+
+<AtajosValidacion OnAtajo="ManejarAtajoAsync" />
+
+<DialogoConfirmacion @bind-Visible="_confirmandoValidar" Titulo="@TituloConfirmacion" Mensaje="Revisa lo que ha detectado la lectura antes de validar."
+                     TextoBotonConfirmar="Validar" VarianteConfirmar="VarianteBoton.Primario" EnProgreso="_enviando" OnConfirmar="ConfirmarValidarAsync">
+    <ul class="vd-confirma-lista">
+        @foreach (var (etiqueta, nota, resultado) in Problemas)
+        {
+            <li class="@($"vd-chequeo vd-chequeo-{LogicaValidacionInbound.ClaseResultado(resultado)}")"><strong>@etiqueta</strong> · @nota</li>
+        }
+    </ul>
+    <p class="vd-mut">Pulsa Validar para confirmar o Esc para cancelar.</p>
+</DialogoConfirmacion>
+
+<Modal @bind-Visible="_ayudaAtajos" Titulo="Atajos de teclado">
+    <ChildContent>
+        <dl class="vd-atajos">
+            <dt><kbd>Espacio</kbd> <kbd>V</kbd></dt><dd>Validar (si hay errores o algo sin detectar, pide confirmarlo)</dd>
+            <dt><kbd>R</kbd></dt><dd>Rechazar (otra vez R para confirmar)</dd>
+            <dt><kbd>I</kbd></dt><dd>Marcar incompleto (otra vez I para confirmar)</dd>
+            <dt><kbd>E</kbd></dt><dd>Ir a la fecha de emisión</dd>
+            <dt><kbd>J</kbd> <kbd>K</kbd></dt><dd>Siguiente y anterior</dd>
+            <dt><kbd>?</kbd></dt><dd>Ver estos atajos</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Cancelar lo que estés haciendo</dd>
+        </dl>
+    </ChildContent>
+</Modal>
+</LimiteDeErrores>

@@ -1,0 +1,22 @@
+@namespace CaeManager.Web.Features.Inbound.Validacion.Components
+@* Barra de lote de «Documentos por validar» (tarjeta 10): aparece al marcar filas y dice cuántas se abrirán para revisión.
+   La muestra y el tope los fija el Administrador del Tenant TCE; la barra solo los enseña (B-27). *@
+<div class="blv" role="region" aria-label="Validación en lote">
+    <div class="blv-textos">
+        <strong>@Seleccionados @(Seleccionados == 1 ? "seleccionado" : "seleccionados")</strong>
+        <span class="blv-nota">Se abrirá 1 de cada @UnoDeCada para revisión (@ParaRevision en este lote). Máximo @Tope por lote.</span>
+    </div>
+    <div class="blv-acciones">
+        <Boton Variante="VarianteBoton.Primario" OnClick="OnValidar">Validar</Boton>
+        <Boton Variante="VarianteBoton.Fantasma" OnClick="OnCancelar">Cancelar</Boton>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Seleccionados { get; set; }
+    [Parameter] public int ParaRevision { get; set; }
+    [Parameter] public int UnoDeCada { get; set; } = 5;
+    [Parameter] public int Tope { get; set; }
+    [Parameter] public EventCallback OnValidar { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+}

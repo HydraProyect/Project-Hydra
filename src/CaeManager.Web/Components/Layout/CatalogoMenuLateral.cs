@@ -19,6 +19,8 @@ namespace CaeManager.Web.Components.Layout;
 /// «Trabajadores» (UsaRotulosPrimeraPersonaQuery: perfil Cliente Directo y usuario del propio Tenant
 /// propietario). El perfil solo no basta: un Operador CAE externo dentro de un Tenant beneficiario
 /// ve una lista ajena.</param>
+/// <param name="LineaInboundVigente">El Producto Contratado del Tenant beneficiario tiene activa la línea Inbound
+/// (<see cref="ILineaInboundVigente"/>). Es el gate de la sección «Inbound»; sin la línea no hay grupo.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
@@ -29,7 +31,8 @@ public sealed record ContextoMenuLateral(
     bool ParticipaEnIncorporacionCartera = false,
     bool RotulosPrimeraPersona = false,
     bool HerramientasPdfDisponibles = true,
-    bool MiTrabajoOculto = false)
+    bool MiTrabajoOculto = false,
+    bool LineaInboundVigente = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -205,6 +208,11 @@ public static class CatalogoMenuLateral
         // llevan «closed»; el colapsado de Control venía del informe de consolidación de 2026-09-01.
         new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
+        // Inbound (plan de pantallas Inbound, § 1): la sección del Tenant beneficiario que recibe contratistas en sus Centros
+        // (Contratos de acceso y Documentos por validar). Existe solo con la línea Inbound activa en el Producto Contratado
+        // (ContextoMenuLateral.LineaInboundVigente) y con los roles del menú completo.
+        new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto)),
+
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
         // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
         new("administracion", "Administración", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
@@ -293,6 +301,15 @@ public static class CatalogoMenuLateral
         // Operación, al final del grupo. Mismos roles que su [Authorize] (los cinco del menú completo; un test los compara).
         new("incidencias", "operacion", "incidencias", "incidencias", "SeccionIncidencias",
             Condicion: c => c.TieneAlgunRol(CatalogoSeccionesMenu.RolesDeIncidencias), ClaveRotulo: "SeccionIncidencias"),
+
+        // Inbound del Tenant beneficiario que recibe contratistas (el Tenant TCE del plan de pantallas). Las rutas son fijas: las
+        // páginas de «Documentos por validar» las crea otra línea de trabajo. Las entradas del Tenant TEC (Requerimientos y
+        // Quién lee mis documentos) no están todavía: no hay forma de identificar al Tenant TEC participante (falta EP-4/B-03).
+        // shortcut: sin backend, cablear cuando entre B-09/EP-4 (enlaces inbound/requerimientos e inbound/quien-lee, solo para el Tenant TEC).
+        new("inbound-contratos", "inbound", "inbound/contratos", "solicitud", "MenuInboundContratos",
+            ClaveRotulo: "MenuInboundContratos"),
+        new("inbound-validacion", "inbound", "inbound/validacion", "seleccion", "MenuInboundValidacion",
+            ClaveRotulo: "MenuInboundValidacion"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

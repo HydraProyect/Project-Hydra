@@ -1,0 +1,74 @@
+@namespace CaeManager.Web.Features.Inbound.Validacion.Components
+@implements IDisposable
+@* Aviso con «Deshacer (10 s)» que sigue a cada veredicto (tarjeta 8) y a la validación en lote (tarjeta 10). El plazo lo
+   cuenta la pantalla; quien lo hace valer es el servidor (B-22): pasado el plazo, rechaza el Deshacer. El aviso a la Empresa
+   contratista sale al terminar el plazo, por eso el texto lo dice. *@
+<div class="avd" role="status" aria-live="polite">
+    <div class="avd-textos">
+        <strong class="avd-mensaje">@Mensaje</strong>
+        @if (!string.IsNullOrEmpty(Detalle))
+        {
+            <span class="avd-detalle">@Detalle</span>
+        }
+    </div>
+    <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="@(_restan <= 0 || _hecho)" OnClick="DeshacerAsync">Deshacer (@_restan s)</Boton>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Mensaje { get; set; } = string.Empty;
+    [Parameter] public string? Detalle { get; set; }
+    [Parameter] public int Segundos { get; set; } = 10;
+
+    /// <summary>Intervalo entre segundos; solo cambia en los tests.</summary>
+    [Parameter] public TimeSpan Intervalo { get; set; } = TimeSpan.FromSeconds(1);
+
+    [Parameter] public EventCallback OnDeshacer { get; set; }
+    [Parameter] public EventCallback OnVencido { get; set; }
+
+    private readonly CancellationTokenSource _cancelacion = new();
+    private int _restan;
+    private bool _hecho;
+
+    protected override void OnInitialized()
+    {
+        _restan = Segundos;
+        _ = CuentaAtrasAsync();
+    }
+
+    private async Task CuentaAtrasAsync()
+    {
+        try
+        {
+            using var temporizador = new PeriodicTimer(Intervalo);
+            while (_restan > 0 && await temporizador.WaitForNextTickAsync(_cancelacion.Token))
+            {
+                _restan--;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (_restan == 0 && !_hecho)
+                await InvokeAsync(() => OnVencido.InvokeAsync());
+        }
+        catch (OperationCanceledException)
+        {
+            // El aviso se descartó: nada que cerrar.
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task DeshacerAsync()
+    {
+        if (_hecho || _restan <= 0) return;
+        _hecho = true;
+        await _cancelacion.CancelAsync();
+        await OnDeshacer.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        _cancelacion.Cancel();
+        _cancelacion.Dispose();
+    }
+}
