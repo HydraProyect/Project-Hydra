@@ -310,6 +310,12 @@
     @if (_identidad?.CapacidadActiva == CapacidadPrivilegio.Aprovisionamiento)
     {
         <CaeManager.Web.Features.EncargoDeAdministracion.EncargoAdministracionPanel PermiteRegistrar="true" />
+        @* Tarjeta 31: la línea Inbound del Tenant activo se contrata, corrige o da de baja en su propia pantalla, también
+           solo dentro de esta Sesión Privilegiada. La autoridad la deciden sus comandos. *@
+        @if (_identidad is { UsuarioSimuladoId: null })
+        {
+            <a href="/plataforma/inbound/alta-tenant-tce" class="administracion-global-enlace-auditoria">Alta del Tenant TCE: contratar la línea Inbound →</a>
+        }
     }
 
     <section class="administracion-global-seccion" aria-labelledby="registro-global">

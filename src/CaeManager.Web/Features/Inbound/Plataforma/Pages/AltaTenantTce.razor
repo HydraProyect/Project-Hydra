@@ -1,0 +1,231 @@
+@page "/plataforma/inbound/alta-tenant-tce"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@using CaeManager.Domain.AltaAutonoma
+@using CaeManager.Web.Features.Inbound.Plataforma.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAltaTenantTce> Textos
+
+@* Tarjeta 31 (maqueta AltaTenantTCE.dc.html). Plano de Plataforma: la pantalla solo ofrece sus acciones dentro de una
+   Sesión Privilegiada de Aprovisionamiento sin impersonación, pero eso es solo presentación. La autoridad la deciden
+   ContratarLineaInboundCommand, CorregirLineaInboundCommand y DarDeBajaLineaInboundCommand (AutoridadSobreLaLineaInbound):
+   capacidad Aprovisionamiento, camino de escritura, Tenant objetivo = Tenant activo y sin Usuario simulado. *@
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina alta-tce">
+    <header class="alta-tce-cab">
+        <span class="alta-tce-kicker">@Textos["Kicker"]</span>
+        <h1 class="titulo-pagina">@Textos["TituloPagina"]</h1>
+        <span class="alta-tce-subtitulo">@Textos["Subtitulo"]</span>
+    </header>
+
+    <div class="alta-tce-aviso" role="note">
+        <Icono Nombre="info" Tamano="TamanoIcono.Pequeno" />
+        <div><strong>@Textos["AvisoActorTitulo"]</strong> @Textos["AvisoActorTexto"]</div>
+    </div>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_errorCarga)
+    {
+        <div class="alta-tce-tarjeta alta-tce-bloqueo" role="alert">
+            <p>@Textos["ErrorCarga"]</p>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+        </div>
+    }
+    else if (Acceso == AccesoPantalla.Impersonacion)
+    {
+        <div class="alta-tce-tarjeta alta-tce-bloqueo" role="status" data-estado="impersonacion">
+            <h2>@Textos["ImpersonacionTitulo"]</h2>
+            <p>@Textos["ImpersonacionTexto"]</p>
+        </div>
+    }
+    else if (Acceso == AccesoPantalla.SinSesion)
+    {
+        <div class="alta-tce-tarjeta alta-tce-bloqueo" role="status" data-estado="sin-sesion">
+            <h2>@Textos["SinSesionTitulo"]</h2>
+            <p>@Textos["SinSesionTexto"]</p>
+            <a href="/delegaciones">@Textos["SinSesionEnlace"]</a>
+        </div>
+    }
+    else if (_productoContratadoId is not null)
+    {
+        <div class="alta-tce-tarjeta">
+            <div class="alta-tce-ok" role="status">
+                <h2>@string.Format(Textos["HechoTitulo"].Value, NombreTenant)</h2>
+                <p>@string.Format(Textos["HechoTexto"].Value, NombreTenant, _pagador.Trim(), TextoTramo(_tramo), TextoModalidad(_modalidad))</p>
+                <a href="/configuracion/plataforma">@Textos["VolverPlataforma"]</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alta-tce-tarjeta">
+            <div class="alta-tce-pasos">
+                <IndicadorPasos Pasos="Pasos" PasoActual="@PasoClave(_paso)" PasosCompletados="PasosHechos"
+                                EtiquetaGrupo="@Textos["PasosEtiqueta"]" />
+            </div>
+
+            <div class="alta-tce-cuerpo">
+                @switch (_paso)
+                {
+                    case 1:
+                        <div class="campo">
+                            <span class="campo-label">@Textos["CampoTenantTce"]</span>
+                            <div class="alta-tce-solo-lectura" data-campo="tenant">@NombreTenant</div>
+                            <span class="campo-ayuda">@Textos["CampoTenantTceAyuda"]</span>
+                        </div>
+                        @* shortcut: sin backend, cablear cuando entre B-04 (alta completa del Tenant TCE: nombre, CIF y
+                           Empresa propia en esta misma pantalla). Hoy el Tenant se crea antes por la vía vigente (D-A). *@
+                        <p class="alta-tce-nota" data-shortcut="B-04">@Textos["Paso1NoDisponible"]</p>
+                        break;
+                    case 2:
+                        <fieldset class="alta-tce-radios">
+                            <legend>@Textos["OperacionLeyenda"]</legend>
+                            <label class="alta-tce-opc off"><input type="radio" name="alta-tce-operacion" disabled /><span><b>@Textos["OperacionExternoTitulo"]</b><span>@Textos["OperacionExternoAyuda"]</span></span></label>
+                            <label class="alta-tce-opc off"><input type="radio" name="alta-tce-operacion" disabled /><span><b>@Textos["OperacionPropioTitulo"]</b><span>@Textos["OperacionPropioAyuda"]</span></span></label>
+                        </fieldset>
+                        @* shortcut: sin backend, cablear cuando entre B-04b (Asignación de Operación Inbound y encargo de
+                           administración pleno del Operador CAE externo, D-D). *@
+                        <p class="alta-tce-nota" data-shortcut="B-04b">@Textos["Paso2NoDisponible"]</p>
+                        break;
+                    case 3:
+                        <p class="alta-tce-nota"><strong>@Textos["ProductoNotaTitulo"]</strong> @Textos["ProductoNotaTexto"]</p>
+                        <CamposLinea Pagador="@_pagador" PagadorChanged="v => { _pagador = v; _error = null; }"
+                                     Tramo="@_tramo" TramoChanged="v => { _tramo = v; _error = null; }"
+                                     Modalidad="@_modalidad" ModalidadChanged="v => { _modalidad = v; _error = null; }"
+                                     Prefijo="alta" />
+                        <div class="alta-tce-fila">
+                            <div class="campo">
+                                <span class="campo-label">@Textos["CampoBeneficiario"]</span>
+                                <div class="alta-tce-solo-lectura">@NombreTenant</div>
+                                <span class="campo-ayuda">@Textos["CampoBeneficiarioAyuda"]</span>
+                            </div>
+                            <div class="campo">
+                                <span class="campo-label">@Textos["CampoVigencia"]</span>
+                                <div class="alta-tce-solo-lectura">@Textos["CampoVigenciaValor"]</div>
+                                <span class="campo-ayuda">@Textos["CampoVigenciaAyuda"]</span>
+                            </div>
+                        </div>
+                        break;
+                    case 4:
+                        @* shortcut: sin backend, cablear cuando entre B-04b (el Administrador del Tenant TCE por
+                           invitación, D-D). No se envía ningún correo. *@
+                        <p class="alta-tce-nota" data-shortcut="B-04b">@Textos["Paso4NoDisponible"]</p>
+                        break;
+                    default:
+                        <section class="alta-tce-seccion" aria-label="@Textos["SeccionTenant"]">
+                            <h3 class="alta-tce-sec-cab"><span>@Textos["SeccionTenant"]</span></h3>
+                            <dl class="alta-tce-res">
+                                <dt>@Textos["CampoTenantTce"]</dt><dd>@NombreTenant</dd>
+                            </dl>
+                        </section>
+                        <section class="alta-tce-seccion" aria-label="@Textos["SeccionOperacion"]">
+                            <h3 class="alta-tce-sec-cab"><span>@Textos["SeccionOperacion"]</span></h3>
+                            <dl class="alta-tce-res">
+                                <dt>@Textos["ResumenOperador"]</dt><dd>@Textos["ResumenNoDisponible"]</dd>
+                            </dl>
+                        </section>
+                        <section class="alta-tce-seccion" aria-label="@Textos["SeccionProducto"]">
+                            <h3 class="alta-tce-sec-cab"><span>@Textos["SeccionProducto"]</span><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => IrA(3)">@Textos["Editar"]</Boton></h3>
+                            <dl class="alta-tce-res">
+                                <dt>@Textos["ResumenProducto"]</dt><dd>Inbound</dd>
+                                <dt>@Textos["CampoPagador"]</dt><dd>@_pagador.Trim()</dd>
+                                <dt>@Textos["CampoTramo"]</dt><dd>@TextoTramo(_tramo)</dd>
+                                <dt>@Textos["CampoModalidad"]</dt><dd>@TextoModalidad(_modalidad)</dd>
+                                <dt>@Textos["CampoBeneficiario"]</dt><dd>@NombreTenant</dd>
+                                <dt>@Textos["CampoVigencia"]</dt><dd>@Textos["CampoVigenciaValor"]</dd>
+                            </dl>
+                        </section>
+                        <section class="alta-tce-seccion" aria-label="@Textos["SeccionAdministrador"]">
+                            <h3 class="alta-tce-sec-cab"><span>@Textos["SeccionAdministrador"]</span></h3>
+                            <dl class="alta-tce-res">
+                                <dt>@Textos["ResumenAdministrador"]</dt><dd>@Textos["ResumenNoDisponible"]</dd>
+                            </dl>
+                        </section>
+                        break;
+                }
+
+                @if (_error is not null)
+                {
+                    <p class="alta-tce-err" role="alert">@_error</p>
+                }
+            </div>
+
+            <footer class="alta-tce-pie">
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="Cancelar" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
+                <span class="alta-tce-sep"></span>
+                @if (_paso > 1)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="Atras" Deshabilitado="_enviando">@Textos["Atras"]</Boton>
+                }
+                @if (_paso < 5)
+                {
+                    <Boton Variante="VarianteBoton.Primario" OnClick="Continuar">@Textos["Continuar"]</Boton>
+                }
+                else
+                {
+                    <Boton Variante="VarianteBoton.Primario" OnClick="DarDeAltaAsync" Cargando="_enviando">@Textos["DarDeAlta"]</Boton>
+                }
+            </footer>
+        </div>
+
+        @if (_cancelado)
+        {
+            <p class="alta-tce-mut" role="status">@Textos["Cancelado"]</p>
+        }
+    }
+
+    @if (Acceso == AccesoPantalla.Permitida && !_cargando && !_errorCarga)
+    {
+        @* Baja y corrección (#2256). La pantalla no lee todavía la línea vigente (lectura en curso en #2277): las dos
+           acciones las ofrece siempre y el comando responde si no hay línea vigente. *@
+        <section class="alta-tce-tarjeta alta-tce-linea" aria-labelledby="alta-tce-linea-titulo">
+            <div class="alta-tce-linea-cab">
+                <h2 id="alta-tce-linea-titulo">@Textos["LineaTitulo"]</h2>
+                @if (!_editandoLinea)
+                {
+                    <span class="alta-tce-linea-acciones">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="EmpezarEdicion" Deshabilitado="_enviandoLinea">@Textos["Editar"]</Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" OnClick="() => _confirmarBaja = true" Deshabilitado="_enviandoLinea">@Textos["DarDeBaja"]</Boton>
+                    </span>
+                }
+            </div>
+            <p class="alta-tce-mut">@Textos["LineaTexto"]</p>
+            @if (_editandoLinea)
+            {
+                <p class="alta-tce-nota">@Textos["CorreccionNota"]</p>
+                <CamposLinea Pagador="@_pagadorCorr" PagadorChanged="v => { _pagadorCorr = v; _errorLinea = null; }"
+                             Tramo="@_tramoCorr" TramoChanged="v => { _tramoCorr = v; _errorLinea = null; }"
+                             Modalidad="@_modalidadCorr" ModalidadChanged="v => { _modalidadCorr = v; _errorLinea = null; }"
+                             Prefijo="corr" />
+                <div class="alta-tce-linea-acciones">
+                    <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarEdicion" Deshabilitado="_enviandoLinea">@Textos["Cancelar"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="GuardarCorreccionAsync" Cargando="_enviandoLinea">@Textos["Guardar"]</Boton>
+                </div>
+            }
+            @if (_errorLinea is not null)
+            {
+                <p class="alta-tce-err" role="alert">@_errorLinea</p>
+            }
+            @if (_exitoLinea is not null)
+            {
+                <p class="alta-tce-exito" role="status">@_exitoLinea</p>
+            }
+        </section>
+
+        <DialogoConfirmacion @bind-Visible="_confirmarBaja"
+                             Titulo="@Textos["BajaTitulo"]"
+                             Mensaje="@string.Format(Textos["BajaMensaje"].Value, NombreTenant)"
+                             TextoBotonConfirmar="@Textos["DarDeBaja"]"
+                             TextoBotonDescartar="@Textos["Cancelar"]"
+                             EnProgreso="_enviandoLinea"
+                             OnConfirmar="DarDeBajaAsync" />
+    }
+</div>
+</LimiteDeErrores>

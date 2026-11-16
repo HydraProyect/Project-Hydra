@@ -1,0 +1,46 @@
+@using CaeManager.Domain.AltaAutonoma
+@using CaeManager.Web.Features.Inbound.Plataforma.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAltaTenantTce> Textos
+
+@* Lo que contratan y corrigen ContratarLineaInboundCommand y CorregirLineaInboundCommand (D-B, 2026-11-15): el Customer de
+   Stripe del Pagador TALVEG, que ya existe en Stripe, el tramo y la modalidad. La vigencia no se elige: empieza al contratar. *@
+<div class="campo">
+    <label class="campo-label" for="@($"{Prefijo}-pagador")">@Textos["CampoPagador"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+    <input class="campo-input cifras" id="@($"{Prefijo}-pagador")" value="@Pagador" placeholder="cus_…"
+           maxlength="@CaeManager.Domain.Comercial.ProductoContratado.LongitudMaximaPagadorStripeCustomerId"
+           @oninput="e => PagadorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+    <span class="campo-ayuda">@Textos["CampoPagadorAyuda"]</span>
+</div>
+<div class="alta-tce-fila">
+    <div class="campo">
+        <label class="campo-label" for="@($"{Prefijo}-tramo")">@Textos["CampoTramo"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+        <select class="campo-select" id="@($"{Prefijo}-tramo")" value="@Tramo.ToString()"
+                @onchange="e => TramoChanged.InvokeAsync(Enum.Parse<TramoTrabajadoresActivos>(e.Value?.ToString() ?? nameof(TramoTrabajadoresActivos.De1A10)))">
+            @foreach (var tramo in Enum.GetValues<TramoTrabajadoresActivos>())
+            {
+                <option value="@tramo.ToString()" selected="@(tramo == Tramo)">@AltaTenantTce.TextoTramo(Textos, tramo)</option>
+            }
+        </select>
+    </div>
+    <div class="campo">
+        <label class="campo-label" for="@($"{Prefijo}-modalidad")">@Textos["CampoModalidad"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+        <select class="campo-select" id="@($"{Prefijo}-modalidad")" value="@Modalidad.ToString()"
+                @onchange="e => ModalidadChanged.InvokeAsync(Enum.Parse<ModalidadSuscripcionAlta>(e.Value?.ToString() ?? nameof(ModalidadSuscripcionAlta.Mensual)))">
+            @foreach (var modalidad in Enum.GetValues<ModalidadSuscripcionAlta>())
+            {
+                <option value="@modalidad.ToString()" selected="@(modalidad == Modalidad)">@AltaTenantTce.TextoModalidad(Textos, modalidad)</option>
+            }
+        </select>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Pagador { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PagadorChanged { get; set; }
+    [Parameter] public TramoTrabajadoresActivos Tramo { get; set; }
+    [Parameter] public EventCallback<TramoTrabajadoresActivos> TramoChanged { get; set; }
+    [Parameter] public ModalidadSuscripcionAlta Modalidad { get; set; }
+    [Parameter] public EventCallback<ModalidadSuscripcionAlta> ModalidadChanged { get; set; }
+    [Parameter, EditorRequired] public string Prefijo { get; set; } = string.Empty;
+}
