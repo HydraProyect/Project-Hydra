@@ -384,7 +384,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 contexto.DelegacionesTenant.Add(vinculo);
                 // Las tres nacen amparadas por su delegación (revisión puente de la ronda 5 de la PR #2237): sin
                 // origen, el amparo las excluiría a todas por igual y ni el filtro de Servicio ni el de la delegación
-                // desactivada quedarían aislados.
+                // desactivada quedarían aislados. Producción no da origen a una Inbound: aquí fija el filtro de
+                // Servicio como defensa en profundidad.
                 OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
                 var cartera = AsignacionCartera.Externa(operacion, _coordinadorAjeno, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
                 cartera.DesignarPrincipal();

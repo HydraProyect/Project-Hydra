@@ -154,15 +154,16 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         }
 
         var origen = $"""(SELECT o."OrigenId" FROM public."AsignacionesOperacion" o WHERE o."Id" = '{operacion}')""";
-        // now() quedó fijado al empezar la transacción; la delegación caduca un segundo después del reloj de pared.
+        // now() quedó fijado al empezar la transacción; la delegación caduca tres segundos después del reloj de pared
+        // (margen para que el control previo no caiga en un runner cargado; la sensibilidad no depende de la magnitud).
         await EjecutarAsync($"""
-            UPDATE public."DelegacionesTenant" SET "ExpiraEnUtc" = pg_catalog.clock_timestamp() + interval '1 second'
+            UPDATE public."DelegacionesTenant" SET "ExpiraEnUtc" = pg_catalog.clock_timestamp() + interval '3 seconds'
              WHERE "Id" = {origen};
             """);
         (await EjecutarAsync($"SELECT {Funcion.Replace("(uuid)", "", StringComparison.Ordinal)}('{operacion}');"))
             .Should().Be(true, "control: antes de la caducidad está amparada");
 
-        await EjecutarAsync("SELECT pg_catalog.pg_sleep(1.5);");
+        await EjecutarAsync("SELECT pg_catalog.pg_sleep(3.5);");
 
         (await EjecutarAsync($"""SELECT pg_catalog.now() < d."ExpiraEnUtc" FROM public."DelegacionesTenant" d WHERE d."Id" = {origen};"""))
             .Should().Be(true, "control: comparada con now(), la delegación seguiría vigente");

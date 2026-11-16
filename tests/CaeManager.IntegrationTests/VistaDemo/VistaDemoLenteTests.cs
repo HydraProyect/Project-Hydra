@@ -134,7 +134,9 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios. Las operaciones
         // Outbound de esos pares nacen amparadas por su delegación (EF inserta la delegación antes), y también la Inbound
         // del Tenant 3, para que solo la excluya el Servicio y no la falta de origen (revisión puente de la ronda 5 de la
-        // PR #2237); la del Tenant real propio y la del otro Operador CAE (sin delegación de su par) se siembran sin origen.
+        // PR #2237). Producción no da origen a una Inbound (el writer solo abre Outbound): el fixture fija el filtro de
+        // Servicio como defensa en profundidad. La del Tenant real propio y la del otro Operador CAE (sin delegación de
+        // su par) se siembran sin origen.
         var delegaciones = new Dictionary<Guid, DelegacionTenant>();
         foreach (var propietario in new[] { _p1, _p2, _p3 })
         {
