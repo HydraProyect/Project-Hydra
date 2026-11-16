@@ -7,18 +7,10 @@ public class AlcanceDatosServiceFalso(
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
-    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null,
-    bool? alcanzaElTenantEntero = null)
+    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
-
-    /// <summary>
-    /// Por defecto igual que el acceso total (como la implementación por defecto de la interfaz); <c>alcanzaElTenantEntero:
-    /// true</c> con <c>tieneAccesoTotal: false</c> simula una Asignación de Cartera universal sin acceso total.
-    /// </summary>
-    public Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(alcanzaElTenantEntero ?? tieneAccesoTotal);
 
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(tieneAccesoTotal ? null : clienteIdsVisibles ?? []);

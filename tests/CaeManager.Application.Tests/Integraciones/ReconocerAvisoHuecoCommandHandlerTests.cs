@@ -68,7 +68,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         conexion.IniciarRecuperacionHueco(DateTime.UtcNow);
         conexion.RecuperacionHuecoEnCurso.Should().BeTrue("control: hay una recuperación que anular");
         var unitOfWork = new UnitOfWorkFalso();
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: accesoTotal, alcanzaElTenantEntero: alcanzaElTenantEntero);
+        var alcance = new Alcance(accesoTotal, alcanzaElTenantEntero ?? accesoTotal);
 
         var resultado = await Handler(conexiones, unitOfWork, rol, alcance)
             .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
@@ -98,7 +98,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         var (conexion, conexiones, marca) = ConMarca();
         var unitOfWork = new UnitOfWorkFalso();
         var cerrojo = new CerrojoVerificacionBuzonFalso();
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, alcanzaElTenantEntero: alcanzaElTenantEntero);
+        var alcance = new Alcance(false, alcanzaElTenantEntero);
 
         var resultado = await Handler(conexiones, unitOfWork, rol, alcance, cerrojo)
             .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
@@ -107,6 +107,13 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         conexion.HuecoPendienteDesdeUtc.Should().Be(marca);
         cerrojo.Pedidos.Should().BeEmpty("se corta antes de leer la conexión");
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Alcance de un Gestor CAE: <paramref name="alcanzaElTenantEntero"/> simula su Asignación de Cartera universal sin acceso total.</summary>
+    private sealed class Alcance(bool tieneAccesoTotal, bool alcanzaElTenantEntero, IReadOnlyList<Guid>? clienteIdsVisibles = null)
+        : AlcanceDatosServiceFalso(tieneAccesoTotal: tieneAccesoTotal, clienteIdsVisibles: clienteIdsVisibles), IAlcanceDatosService
+    {
+        public Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) => Task.FromResult(alcanzaElTenantEntero);
     }
 
     private sealed class SesionPrivilegiadaActualFalsa(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
@@ -176,7 +183,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         var conexiones = new ConexionIntegracionRepositorioFalso();
         conexiones.Agregar(conexion);
         var unitOfWork = new UnitOfWorkFalso();
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()], alcanzaElTenantEntero: true);
+        var alcance = new Alcance(false, true, [Guid.NewGuid()]);
 
         var resultado = await Handler(conexiones, unitOfWork, "GestorCae", alcance)
             .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
