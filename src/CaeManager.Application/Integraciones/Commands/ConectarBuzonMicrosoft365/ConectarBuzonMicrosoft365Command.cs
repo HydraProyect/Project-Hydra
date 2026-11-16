@@ -36,7 +36,7 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// </para>
 /// <para>
 /// Solo el Administrador conecta, y el rol efectivo se mira en el handler, antes de leer nada: el endpoint del callback
-/// exige el rol del claim de sesión, que dentro de un Delegated Workspace no es el efectivo, y ninguna entrada es una
+/// exige el rol del claim de sesión, que dentro de un Workspace operativo derivado no es el efectivo, y ninguna entrada es una
 /// frontera de autorización por sí sola.
 /// </para>
 /// </summary>
@@ -85,6 +85,9 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     : IRequestHandler<ConectarBuzonMicrosoft365Command, Result<Guid>>
 {
     public const string CodigoBuzonYaConectado = "Integraciones.Microsoft365.BuzonYaConectado";
+
+    /// <summary>Sin rol efectivo Administrador: el mismo código que Desconectar, Reactivar, Reparar y Fijar responsable.</summary>
+    public const string CodigoSoloAdministrador = DesconectarBuzon.DesconectarBuzonCommandHandler.CodigoSoloAdministrador;
     public const string CodigoBuzonYaConectadoEnEstaOrganizacion = "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion";
 
     /// <summary>
@@ -99,8 +102,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     {
         if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
             return Result.Fallo<Guid>(Error.Crear(
-                DesconectarBuzon.DesconectarBuzonCommandHandler.CodigoSoloAdministrador,
-                "Solo el Administrador puede conectar un buzón."));
+                CodigoSoloAdministrador, "Solo el Administrador puede conectar un buzón."));
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (request.ClienteId is { } clienteId)

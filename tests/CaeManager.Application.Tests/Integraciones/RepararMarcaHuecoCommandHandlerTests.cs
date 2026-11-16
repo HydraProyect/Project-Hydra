@@ -94,6 +94,17 @@ public class RepararMarcaHuecoCommandHandlerTests
         conexion.HuecoPendienteDesdeUtc.Should().Be(marcaAntes, "la marca no se registra");
     }
 
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new RepararMarcaHuecoCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
+    }
+
     [Fact]
     public async Task Una_reactivacion_entre_la_carga_y_el_cerrojo_no_se_desconecta_ni_se_toca()
     {

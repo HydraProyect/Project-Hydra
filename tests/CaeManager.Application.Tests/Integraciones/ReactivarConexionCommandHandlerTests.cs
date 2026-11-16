@@ -79,6 +79,17 @@ public class ReactivarConexionCommandHandlerTests
         reclamaciones.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.SoloAdministrador");
+    }
+
     [Fact]
     public async Task El_Administrador_reactiva_una_conexion_con_error()
     {

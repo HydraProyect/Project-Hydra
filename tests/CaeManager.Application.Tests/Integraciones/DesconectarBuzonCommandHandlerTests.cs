@@ -171,6 +171,19 @@ public class DesconectarBuzonCommandHandlerTests
         graph.SuscripcionesEliminadas.Should().BeEmpty();
     }
 
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            new CredencialIntegracionRepositorioFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
+    }
+
     [Fact]
     public async Task El_Administrador_desconecta()
     {

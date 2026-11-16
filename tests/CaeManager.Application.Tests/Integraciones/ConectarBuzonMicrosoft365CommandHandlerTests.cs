@@ -56,8 +56,8 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     }
 
     /// <summary>
-    /// El endpoint del callback exige el rol del claim de sesión; el handler exige el efectivo, que dentro de un Delegated
-    /// Workspace puede ser otro. Sin Administrador efectivo no se lee ni se escribe nada, ni se llama a Graph.
+    /// El endpoint del callback exige el rol del claim de sesión; el handler exige el efectivo, que dentro de un Workspace
+    /// operativo derivado puede ser otro. Sin Administrador efectivo no se lee ni se escribe nada, ni se llama a Graph.
     /// </summary>
     [Theory]
     [InlineData("DireccionCae")]
@@ -88,6 +88,32 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         reclamaciones.Reclamaciones.Should().BeEmpty();
         reclamaciones.VecesGuardado.Should().Be(0);
         graph.VecesSuscrito.Should().Be(0);
+    }
+
+    /// <summary>
+    /// El rol se mira antes de comprobar la Empresa y el Gestor CAE: sin Administrador efectivo no se distingue una
+    /// Empresa inexistente o un Gestor CAE ajeno de unos válidos.
+    /// </summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_el_rechazo_llega_antes_de_mirar_la_Empresa_y_el_Gestor()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new CredencialIntegracionRepositorioFalso(),
+            new SuscripcionWebhookRepositorioFalso(), new ReclamacionBuzonIntegracionRepositorioFalso(),
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            new DirectorioUsuariosServiceFalso(esVisible: false), rol: "GestorCae");
+
+        var conEmpresaInexistente = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "cae@tenant.com", "Buzón CAE", ClienteId: Guid.NewGuid(), "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
+            CancellationToken.None);
+        var conGestorAjeno = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x",
+                GestorPropietarioId: Guid.NewGuid()),
+            CancellationToken.None);
+
+        conEmpresaInexistente.Error.Codigo.Should().Be(ConectarBuzonMicrosoft365CommandHandler.CodigoSoloAdministrador);
+        conGestorAjeno.Error.Codigo.Should().Be(ConectarBuzonMicrosoft365CommandHandler.CodigoSoloAdministrador);
     }
 
     private const string Directorio = "11111111-2222-3333-4444-555555555555";
