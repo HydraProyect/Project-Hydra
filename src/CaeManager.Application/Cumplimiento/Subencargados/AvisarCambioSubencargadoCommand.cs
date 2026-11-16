@@ -157,7 +157,9 @@ public class AvisarCambioSubencargadoCommandHandler(
     /// <see cref="ObjetarSubencargadoCommand"/>, y responder al correo no registra ninguna objeción (nadie lee esa
     /// respuesta y lo convierte en una, y el Command no deja hacerlo a un Actor de Plataforma). Ofrecer un canal que
     /// no tiene efecto sería una promesa falsa. Qué canal se ofrece es una decisión pendiente; hasta entonces este
-    /// Command tampoco tiene punto de entrada en la aplicación.
+    /// Command tampoco tiene punto de entrada en la aplicación. El efecto de objetar sigue a
+    /// <see cref="Subencargado.EfectoDeUnaObjecion"/> (D-7): si admite exclusión, ese Tenant propietario deja de usarlo;
+    /// si no, puede resolver el contrato sin penalización.
     /// </summary>
     internal static string Cuerpo(Subencargado subencargado, DateTime fechaMinimaUtc)
     {
@@ -172,7 +174,8 @@ public class AvisarCambioSubencargadoCommandHandler(
         html.Append("<p>Tu organización puede objetar a este subencargado, antes de esa fecha o después. ");
         html.Append(subencargado.AdmiteExclusionPorTenant
             ? "Si objetas, tu organización dejará de usar este subencargado; las demás seguirán usándolo.</p>"
-            : "Este subencargado no se puede excluir para una sola organización: si objetas, quedará constancia de tu objeción.</p>");
+            : "Este subencargado no se puede excluir para una sola organización: si objetas, quedará constancia de tu objeción "
+              + "y tu organización podrá resolver el contrato sin penalización.</p>");
         return html.ToString();
     }
 

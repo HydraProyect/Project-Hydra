@@ -250,6 +250,28 @@ public class SubencargadosD7Tests
     }
 
     [Fact]
+    public void El_aviso_de_un_subencargado_excluible_dice_que_ese_Tenant_propietario_dejara_de_usarlo()
+    {
+        var cuerpo = AvisarCambioSubencargadoCommandHandler.Cuerpo(Propuesto(), Inicio.AddDays(30));
+
+        cuerpo.Should().Contain("Si objetas, tu organización dejará de usar este subencargado");
+        cuerpo.Should().NotContain("sin penalización", "si se puede excluir, el efecto de objetar es dejar de usarlo (D-7)");
+    }
+
+    [Fact]
+    public void El_aviso_de_un_subencargado_no_excluible_dice_que_ese_Tenant_propietario_puede_resolver_sin_penalizacion()
+    {
+        var noExcluible = new Subencargado(
+            "Alojamiento", "Infraestructura de la plataforma", "UE; sin transferencia", false, null, ActorPlataforma, Inicio);
+
+        var cuerpo = AvisarCambioSubencargadoCommandHandler.Cuerpo(noExcluible, Inicio.AddDays(30));
+
+        cuerpo.Should().Contain("podrá resolver el contrato sin penalización",
+            "D-7: si no se puede dejar de usarlo, el Tenant propietario puede resolver sin penalización");
+        cuerpo.Should().NotContain("dejará de usar");
+    }
+
+    [Fact]
     public async Task Cada_Tenant_recibe_su_propia_fecha_minima_su_aviso_mas_treinta_dias()
     {
         var subencargado = Propuesto();
