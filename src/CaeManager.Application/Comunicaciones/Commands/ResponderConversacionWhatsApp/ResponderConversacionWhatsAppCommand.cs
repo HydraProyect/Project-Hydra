@@ -12,7 +12,8 @@ namespace CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWh
 
 /// <summary>Texto libre — WhatsApp no lleva HTML; el composer del chat envía texto plano.</summary>
 [AreaDelEncargo("Comunicaciones")]
-public record ResponderConversacionWhatsAppCommand(Guid ConversacionId, string Texto) : ICommand;
+/// <param name="RespuestaSugeridaId">La sugerencia de Vega que insertó el redactor, si la hay; la valida el servidor (issue #2007).</param>
+public record ResponderConversacionWhatsAppCommand(Guid ConversacionId, string Texto, Guid? RespuestaSugeridaId = null) : ICommand;
 
 public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<ResponderConversacionWhatsAppCommand>
 {
@@ -92,6 +93,12 @@ public class ResponderConversacionWhatsAppCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.Texto, cancellationToken);
         if (bloqueo.EsFallido)
             return bloqueo;
+        // WhatsApp no tiene cabeceras: el origen queda solo en el Mensaje (issue #2007).
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, request.RespuestaSugeridaId, conversacion.Id, conexion.Id, request.Texto, cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo(origen.Error);
+        var sugerencia = origen.Valor;
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.RespuestaWhatsApp, conexion.Id, [conversacion.TelefonoContacto], copia: null, adjuntos: null, cancellationToken);
 
@@ -103,6 +110,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor);
         mensaje.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
+        OrigenContenidoEnvio.RegistrarEn(mensaje, sugerencia);
 
         try
         {
@@ -111,8 +119,8 @@ public class ResponderConversacionWhatsAppCommandHandler(
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "El mensaje se envió por WhatsApp (wamid {Wamid}) pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
-                envio.Valor, request.ConversacionId);
+                "El mensaje se envió por WhatsApp (wamid {Wamid}) pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual. Origen del contenido {OrigenContenido}, respuesta sugerida {RespuestaSugeridaId}.",
+                envio.Valor, request.ConversacionId, mensaje.OrigenContenido, mensaje.RespuestaSugeridaId);
             descarteCambios.DescartarCambiosPendientes();
         }
 

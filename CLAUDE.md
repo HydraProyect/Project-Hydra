@@ -39,6 +39,14 @@ incumple la regla de arriba igual que uno con datos sensibles.
   dominio o negocio que no puedas verificar en el código mismo — para eso hace
   falta el repositorio local.
 
+## Compilación distribuida (ROG + Dell)
+
+- Las compilaciones se reparten con `bld` (guion de máquina, fuera del repositorio): como mucho 4 a la vez en el equipo principal y 2 en el nodo auxiliar, 6 en total; sin el nodo auxiliar, 4.
+- El nodo auxiliar compila `origin/<rama>`, así que la rama debe estar empujada; ahí nunca se ejecuta integración, E2E ni mutaciones, que solo corren en CI.
+- Si el nodo auxiliar no responde, `bld` compila en el equipo principal sin bloquear.
+- Arquitectura, alta, baja y diagnóstico: `Project-Hydra-Negocio/tecnico/RUNBOOK-COMPILACION-DISTRIBUIDA-ROG-DELL.md`.
+- Claves SSH y contraseñas de las máquinas no se guardan en este repositorio.
+
 ---
 
 # Reglas de trabajo

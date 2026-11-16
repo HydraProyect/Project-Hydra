@@ -8,6 +8,8 @@ using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 
@@ -29,7 +31,9 @@ namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorr
 /// Conversation Matching Engine (§ 13.2, paso 4, sin construir).
 /// </summary>
 [AreaDelEncargo("Comunicaciones")]
-public record MigrarConversacionACorreoCommand(Guid ConversacionId, string EmailDestino, string CuerpoHtml) : ICommand;
+/// <param name="RespuestaSugeridaId">La sugerencia de Vega que insertó el redactor, si la hay; la valida el servidor (issue #2007).</param>
+public record MigrarConversacionACorreoCommand(
+    Guid ConversacionId, string EmailDestino, string CuerpoHtml, Guid? RespuestaSugeridaId = null) : ICommand;
 
 public class MigrarConversacionACorreoCommandValidator : AbstractValidator<MigrarConversacionACorreoCommand>
 {
@@ -54,7 +58,8 @@ public class MigrarConversacionACorreoCommandHandler(
     AccesoGraphService accesoGraph,
     IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork,
-    IRegistroExportacionService registroSalida)
+    IRegistroExportacionService registroSalida,
+    ILogger<MigrarConversacionACorreoCommandHandler>? logger = null)
     : IRequestHandler<MigrarConversacionACorreoCommand, Result>
 {
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
@@ -74,6 +79,15 @@ public class MigrarConversacionACorreoCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return bloqueo;
+
+        // La respuesta sugerida del hilo de WhatsApp puede salir por correo: lleva la misma marca (issue #2007).
+        // Los hilos que se miran son los de la línea de WhatsApp de la conversación.
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, request.RespuestaSugeridaId, conversacion.Id, conversacion.ConexionIntegracionId, request.CuerpoHtml,
+            cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo(origen.Error);
+        var sugerencia = origen.Valor;
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también
@@ -121,13 +135,18 @@ public class MigrarConversacionACorreoCommandHandler(
         // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
-            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken);
+            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken,
+            contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
+        // El correo ya salió: si el guardado falla después, este es el rastro de su origen.
+        OrigenContenidoEnvio.TrazarEnvioAceptado(
+            (ILogger?)logger ?? NullLogger.Instance, "Microsoft 365", conversacion.Id, envioResultado.Valor.MensajeExternoId, sugerencia);
 
-        conversacion.AgregarMensaje(
+        var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+        OrigenContenidoEnvio.RegistrarEn(mensaje, sugerencia);
         var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
             request.EmailDestino, conversacion.ClienteId, cancellationToken);
         conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);

@@ -1,0 +1,53 @@
+@*
+    El texto exacto de una versión publicada de un documento contractual (#2009), el que enlaza
+    AceptacionContractualGate desde cada casilla. Sale del catálogo (ICatalogoDocumentosContractuales):
+    es el mismo texto cuyo hash se acepta y el que se envía en el acuse. Con AuthLayout y no con
+    MainLayout, para que el propio gate no tape el documento que se quiere leer antes de aceptarlo.
+    Página estática, sin interactividad: solo pinta.
+*@
+@page "/legal/contrato/{Documento}/{Version}"
+@layout CaeManager.Web.Components.Layout.AuthLayout
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CaeManager.Application.Cumplimiento.AceptacionContractual
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Cumplimiento.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosAceptacionContractual> Textos
+
+@if (_documento is { } documento)
+{
+    <PageTitle>@Textos["TituloPagina", documento.Titulo, documento.Version]</PageTitle>
+
+    <main class="documento-legal" aria-labelledby="titulo-documento-contractual">
+        <header class="documento-legal-cabecera">
+            <p class="documento-legal-eyebrow">@Textos["Antetitulo"]</p>
+            <h1 id="titulo-documento-contractual">@documento.Titulo</h1>
+            <p>@Textos["VigenteDesde", documento.Version, documento.VigenteDesdeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")]</p>
+        </header>
+        @* El texto tal cual, con sus saltos de línea y espacios (white-space: pre-wrap): es el mismo cuyo hash se
+           acepta, así que no se reparte en párrafos ni se recorta. *@
+        <div class="documento-legal-contenido documento-contractual-literal">@documento.Texto</div>
+    </main>
+}
+else if (_leido)
+{
+    <main class="documento-legal">
+        <p class="documento-legal-pendiente">@Textos["NoPublicado"]</p>
+    </main>
+}
+
+@code {
+    [Parameter] public string Documento { get; set; } = string.Empty;
+    [Parameter] public string Version { get; set; } = string.Empty;
+
+    private TextoDocumentoContractualDto? _documento;
+    private bool _leido;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _documento = await Mediator.Send(new ObtenerTextoDocumentoContractualQuery(Documento, Version));
+        _leido = true;
+    }
+}

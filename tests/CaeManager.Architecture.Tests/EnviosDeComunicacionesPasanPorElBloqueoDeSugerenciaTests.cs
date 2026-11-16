@@ -78,6 +78,74 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             LlamadasSinTextoDeUnaPersona, "una llamada de más en un fichero exceptuado es un envío nuevo sin bloqueo");
     }
 
+    [GeneratedRegex(@"\.OrigenDelEnvioAsync\(")]
+    private static partial Regex ResolucionDelOrigen();
+
+    [GeneratedRegex(@"OrigenContenidoEnvio\.RegistrarEn\(")]
+    private static partial Regex RegistroDelOrigen();
+
+    [GeneratedRegex(@"\.(EnviarRespuestaAsync|EnviarNuevoMensajeAsync)\(")]
+    private static partial Regex LlamadaAGraph();
+
+    /// <summary>
+    /// El argumento nombrado dentro de la propia llamada y con un valor que no sea el literal <c>false</c> (revisión puente
+    /// r3 de la #2007): contar apariciones por fichero lo daba por bueno con un comentario o con <c>contenidoIaRevisada: false</c>.
+    /// </summary>
+    [GeneratedRegex(@"\bcontenidoIaRevisada:\s*(?!false\b)\S")]
+    private static partial Regex PasoDeLaMarca();
+
+    /// <summary>
+    /// Los argumentos de la llamada a Graph que empieza en <paramref name="inicio"/>: hasta su paréntesis de cierre, sin
+    /// comentarios de línea.
+    /// </summary>
+    private static string ArgumentosDeLaLlamada(string texto, int inicio)
+    {
+        var apertura = texto.IndexOf('(', inicio);
+        var profundidad = 0;
+        var fin = apertura;
+        for (; fin < texto.Length; fin++)
+        {
+            if (texto[fin] == '(') profundidad++;
+            else if (texto[fin] == ')' && --profundidad == 0) break;
+        }
+
+        return Regex.Replace(texto[apertura..Math.Min(fin + 1, texto.Length)], @"//[^\n]*", string.Empty);
+    }
+
+    /// <summary>
+    /// Issue #2007: todo envío de texto de una persona resuelve el origen del contenido antes de enviar (para que la marca
+    /// de IA vaya en el correo) y lo registra en el Mensaje. Un comando de envío nuevo sin ello sacaría texto de Vega sin
+    /// marca. Mismos ficheros y mismas excepciones que el bloqueo.
+    /// </summary>
+    [Fact]
+    public void Todo_envio_de_una_persona_resuelve_y_registra_el_origen_del_contenido()
+    {
+        var raiz = Path.Combine(BuscarRaizDelRepositorio(), "src");
+
+        var ficherosQueEnvian = new List<string>();
+        var sinOrigen = new List<string>();
+        foreach (var fichero in FicherosDeCodigo(raiz))
+        {
+            var ruta = Path.GetRelativePath(raiz, fichero).Replace('\\', '/');
+            var texto = File.ReadAllText(fichero);
+            var envios = LlamadaAlCanal().Matches(texto);
+            if (envios.Count == 0 || LlamadasSinTextoDeUnaPersona.ContainsKey(ruta))
+                continue;
+
+            ficherosQueEnvian.Add(ruta);
+            // Como el bloqueo: cada envío tiene su propia resolución antes, no basta una para varios.
+            var resoluciones = ResolucionDelOrigen().Matches(texto);
+            if (envios.Select((envio, indice) => (envio, indice)).Any(e => resoluciones.Count(r => r.Index < e.envio.Index) <= e.indice) ||
+                !RegistroDelOrigen().IsMatch(texto) ||
+                // Un envío por Graph sin el argumento saldría con el valor por defecto, sin marca.
+                LlamadaAGraph().Matches(texto).Any(llamada => !PasoDeLaMarca().IsMatch(ArgumentosDeLaLlamada(texto, llamada.Index))))
+                sinOrigen.Add(ruta);
+        }
+
+        ficherosQueEnvian.Should().HaveCountGreaterThanOrEqualTo(4, "control del instrumento: los cuatro comandos de hoy envían");
+        sinOrigen.Should().BeEmpty("el origen se resuelve antes de enviar y se registra en el Mensaje");
+    }
+
     private static IEnumerable<string> FicherosDeCodigo(string raiz) =>
         Directory.EnumerateFiles(raiz, "*.cs", SearchOption.AllDirectories)
             .Where(fichero => !fichero.Split(Path.DirectorySeparatorChar).Any(parte => parte is "bin" or "obj"));

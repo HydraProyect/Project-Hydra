@@ -76,6 +76,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
+        // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
+        ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
+        ("Cumplimiento.ObtenerAceptacionesContractualesPendientesQueryHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único
