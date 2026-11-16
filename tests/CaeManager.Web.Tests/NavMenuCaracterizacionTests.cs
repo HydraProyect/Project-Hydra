@@ -483,8 +483,10 @@ public class NavMenuCaracterizacionTests
         var inbound = cut.Find(".nav-linea-rotulo[data-linea=inbound]");
         inbound.PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("control", "Inbound abre justo tras el último grupo de Outbound");
         inbound.NextElementSibling!.GetAttribute("data-grupo").Should().Be("inbound");
-        cut.Find("[data-grupo=administracion]").PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("inbound-config",
-            "Administración sigue sin rótulo y al final");
+        var cierre = cut.Find("[data-grupo=administracion]").PreviousElementSibling!;
+        cierre.LocalName.Should().Be("hr", "Administración queda fuera del tramo de Inbound, cerrado por una regla sin texto");
+        cierre.ClassList.Should().Contain("nav-linea-fin");
+        cierre.PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("inbound-config");
     }
 
     [Theory]
@@ -501,6 +503,13 @@ public class NavMenuCaracterizacionTests
 
             cut.Find(".nav-linea-rotulo[data-linea=outbound]").TextContent.Trim().Should().Be(outbound);
             cut.Find(".nav-linea-rotulo[data-linea=inbound]").TextContent.Trim().Should().Be(inbound);
+
+            // Con valores iguales a es-ES, ResourceManager caería al neutral si faltara la clave: se comprueba que está en su recurso.
+            var recurso = new System.Resources.ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes))
+                .GetResourceSet(System.Globalization.CultureInfo.GetCultureInfo(cultura), createIfNotExists: true, tryParents: false);
+            recurso.Should().NotBeNull($"existe el recurso {cultura}");
+            recurso!.GetString("MenuLineaOutbound").Should().Be(outbound);
+            recurso.GetString("MenuLineaInboundTce").Should().Be(inbound);
         }
         finally
         {
@@ -542,10 +551,24 @@ public class NavMenuCaracterizacionTests
             Grupo("negocio", LineaMenu.Outbound), Grupo("administracion", LineaMenu.SinLinea), Grupo("operacion", LineaMenu.Outbound),
             Grupo("inbound", LineaMenu.Inbound), Grupo("control", LineaMenu.Outbound)]);
 
+        // Administración, en medio de un tramo, lo cierra (SinLinea) y Operación reabre Outbound.
         rotulos.Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
         {
-            ["negocio"] = LineaMenu.Outbound, ["inbound"] = LineaMenu.Inbound, ["control"] = LineaMenu.Outbound,
+            ["negocio"] = LineaMenu.Outbound, ["administracion"] = LineaMenu.SinLinea, ["operacion"] = LineaMenu.Outbound,
+            ["inbound"] = LineaMenu.Inbound, ["control"] = LineaMenu.Outbound,
         });
+    }
+
+    [Fact]
+    public void RotulosDeLinea_cierra_el_tramo_con_el_primer_grupo_sin_linea_y_no_con_los_siguientes()
+    {
+        CatalogoMenuLateral.RotulosDeLinea([
+            Grupo("dashboards", LineaMenu.SinLinea), Grupo("negocio", LineaMenu.Outbound), Grupo("inbound", LineaMenu.Inbound),
+            Grupo("administracion", LineaMenu.SinLinea), Grupo("plataforma", LineaMenu.SinLinea)])
+            .Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
+            {
+                ["negocio"] = LineaMenu.Outbound, ["inbound"] = LineaMenu.Inbound, ["administracion"] = LineaMenu.SinLinea,
+            }, "Dashboards, antes de todo tramo, no lleva nada; Plataforma sigue al cierre de Administración");
     }
 
     [Fact]

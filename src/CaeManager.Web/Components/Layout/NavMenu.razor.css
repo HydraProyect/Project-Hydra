@@ -94,8 +94,22 @@
     background: var(--color-border);
 }
 
+/* Cierre del tramo de línea: una regla que separa Administración y Plataforma de lo de arriba. */
+.nav-linea-fin {
+    margin: var(--space-3) 10px 0;
+    border: 0;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.nav-linea-fin + .nav-grupo-detalle {
+    margin-top: var(--space-2);
+}
+
 .nav-principal:has([data-menu-filtro]:not(:placeholder-shown)) .nav-linea-rotulo,
-html[data-menu-compacto] .barra-lateral .nav-linea-rotulo {
+.nav-principal:has([data-menu-filtro]:not(:placeholder-shown)) .nav-linea-fin,
+html[data-menu-compacto] .barra-lateral .nav-linea-rotulo,
+html[data-menu-compacto] .barra-lateral .nav-linea-fin {
     display: none;
 }
 

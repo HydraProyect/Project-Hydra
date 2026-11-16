@@ -504,18 +504,21 @@ public static class CatalogoMenuLateral
     /// enseña grupos con enlaces de las DOS líneas; con una sola el menú queda como si los rótulos no existieran.
     /// Se rotula cada cambio de línea en el orden pintado (con el orden por defecto, un rótulo por línea; si el
     /// orden guardado por el Actor de Plataforma TALVEG las intercala, el rótulo se repite en vez de mentir sobre
-    /// qué línea es cada grupo). Los grupos sin línea (Dashboards, Administración) no cierran ni abren tramo.
+    /// qué línea es cada grupo). El primer grupo sin línea (Administración, Plataforma) que sigue a un tramo con
+    /// rótulo lleva <see cref="LineaMenu.SinLinea"/>: no es un rótulo sino el cierre del tramo, para que no parezca
+    /// parte de Inbound. Los grupos sin línea previos a todo tramo (Dashboards) no llevan nada.
     /// </summary>
-    /// <returns>Id del grupo → línea que lo precede con rótulo. Vacío si no hay dos líneas.</returns>
+    /// <returns>Id del grupo → línea que lo precede con rótulo, o <see cref="LineaMenu.SinLinea"/> si lo que lo precede
+    /// es el cierre de un tramo. Vacío si no hay dos líneas.</returns>
     public static IReadOnlyDictionary<string, LineaMenu> RotulosDeLinea(IReadOnlyList<GrupoVisible> visibles)
     {
-        var conLinea = visibles.Where(g => g.Enlaces.Count > 0 && g.Grupo.Linea != LineaMenu.SinLinea).ToList();
+        var pintados = visibles.Where(g => g.Enlaces.Count > 0).ToList();
         var rotulos = new Dictionary<string, LineaMenu>();
-        if (conLinea.Select(g => g.Grupo.Linea).Distinct().Count() < 2)
+        if (pintados.Where(g => g.Grupo.Linea != LineaMenu.SinLinea).Select(g => g.Grupo.Linea).Distinct().Count() < 2)
             return rotulos;
 
         var anterior = LineaMenu.SinLinea;
-        foreach (var g in conLinea)
+        foreach (var g in pintados)
         {
             if (g.Grupo.Linea != anterior)
                 rotulos[g.Grupo.Id] = g.Grupo.Linea;
