@@ -55,12 +55,12 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         // Barrera (#2187): que haya una tabla visible no prueba que Buscar haya terminado. BuscarAsync recarga la lista
         // después del Command, y esa recarga cambia la tabla por el estado de carga y desecha los botones de cada fila:
-        // un clic que el navegador ya ha enviado sobre la tabla anterior se pierde sin error y sin llegar al mediador
-        // (run 43122999105: «He avisado a la organización» se pulsó a ~15 ms de BuscarDatosPurgablesCommand y
+        // un clic que el navegador ya ha enviado sobre la tabla anterior puede perderse sin error y sin llegar al
+        // mediador (run 43122999105: «He avisado a la organización» se pulsó a ~15 ms de BuscarDatosPurgablesCommand y
         // MarcarTenantAvisadoCommand no aparece en el log). El aviso de Buscar dice que el Command terminó y cuántas
         // propuestas creó; el botón vuelve a habilitarse solo cuando Buscar ha terminado del todo, recarga incluida
-        // (Cargando="_buscando", Deshabilitado="… || _cargando"). Las dos propuestas las crea este Buscar y no un
-        // barrido anterior: si ya existieran, el aviso diría que no hay nada nuevo y la tabla sería otra.
+        // (Cargando="_buscando", Deshabilitado="… || _cargando"). Que sean dos propuestas nuevas fija además que las
+        // crea este Buscar y no un barrido anterior: si ya existieran, el aviso diría que no hay nada nuevo.
         await Assertions.Expect(page.Locator(".anfitrion-toasts"))
             .ToContainTextAsync("2 propuesta(s) nueva(s) pendientes de revisión.", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         await Assertions.Expect(botonBuscar).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
