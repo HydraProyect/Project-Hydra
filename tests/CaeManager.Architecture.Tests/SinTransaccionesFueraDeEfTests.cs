@@ -46,8 +46,8 @@ namespace CaeManager.Architecture.Tests;
 /// locales, una concatenación con un operando que no es constante), ni en un .razor la concatenación
 /// de constantes nombradas o con huecos (solo une cadenas literales contiguas). En un .razor, una
 /// comilla suelta del marcado en la misma línea que el código puede desalinear la cadena de esa
-/// línea (el recorrido sigue en la comilla siguiente al literal, no desde las interiores); la unión
-/// con la expresión anterior es lo único que lo mitiga, y es un límite que ya existía.
+/// línea (el recorrido sigue en la comilla siguiente al literal, no desde las interiores). La unión
+/// con la expresión anterior no lo mitiga: lee igual ese desalineamiento. Es un límite que ya existía.
 /// </summary>
 public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
 {
