@@ -385,6 +385,12 @@ public class AlcanceDatosService(
             && await senal.OperaPorAsignacionDeOperacionAsync())
             return AlcanceCartera.Universal;
 
+        // Con papel Inbound (B-02b, DN-21), la cartera de Outbound no da alcance: el Gestor CAE que gestiona Outbound el
+        // mismo Tenant no puede usar esa cartera cuando valida en Inbound. La cartera Inbound la calcula B-03; hasta
+        // entonces, alcance cero (fallo cerrado).
+        if (rol == Roles.GestorCae && await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
+            return AlcanceCartera.Ninguno;
+
         return (rol, usuarioId) switch
         {
             (Roles.Cliente, { } id) => AlcanceCartera.DeLista(await ObtenerClienteIdsParaRolClienteAsync(id, cancellationToken)),

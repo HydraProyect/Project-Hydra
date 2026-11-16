@@ -17,7 +17,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.CrearPlantillaRequi
 /// </summary>
 /// <param name="ReferenciaId">El Id de la Actividad, el riesgo, el Centro o la Empresa Cliente empresarial, según <paramref name="Tipo"/>.</param>
 [AreaDelEncargo("TiposDocumento")]
-public record CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos Tipo, Guid ReferenciaId) : ICommand<Guid>;
+public record CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos Tipo, Guid ReferenciaId) : ICommand<Guid>, IComandoInbound;
 
 public class CrearPlantillaRequisitosCommandValidator : AbstractValidator<CrearPlantillaRequisitosCommand>
 {

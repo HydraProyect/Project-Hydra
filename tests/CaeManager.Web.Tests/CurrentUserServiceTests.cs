@@ -236,6 +236,45 @@ public class CurrentUserServiceTests
     /// aquí no se revalide es deliberado — negar de más siempre es seguro, y
     /// quien decide si la sesión vale es ISesionPrivilegiadaActual.
     /// </summary>
+    /// <summary>
+    /// El papel activo (B-02b, DN-21) sin consultar la base: sin selección es el Tenant de origen; una Sesión
+    /// Privilegiada, la vía heredada (selección sin Asignación de Operación) o un usuario sin Tenant de origen no tienen
+    /// papel (fallo cerrado). El proveedor vacío demuestra que estos casos no tocan los catálogos; el papel de una
+    /// operación seleccionada sale de la operación revalidada y se prueba con contexto real en CaeManager.IntegrationTests.
+    /// </summary>
+    [Fact]
+    public async Task El_papel_activo_sin_operacion_seleccionada_no_consulta_la_base_y_falla_cerrado()
+    {
+        var tenantOrigen = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        ClaimsPrincipal EnSuOrigen() => new(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, UsuarioIdDeEjemplo.ToString()),
+            new Claim(ClaimTypes.Role, "Administrador"),
+            new Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()),
+        ], "prueba"));
+        CurrentUserService Con(IClienteActivoSeleccionado seleccion, ClaimsPrincipal? usuario = null) => new(
+            new AuthenticationStateProviderFalso(usuario ?? EnSuOrigen()), new HttpContextAccessorFalso(null), seleccion,
+            new ServiceCollection().BuildServiceProvider());
+
+        (await Con(new ClienteActivoSeleccionadoFalso()).ObtenerPapelActivoAsync()).Should().Be(PapelActivo.TenantDeOrigen);
+        (await Con(new ClienteActivoSeleccionadoConSesionPrivilegiadaFalso()).ObtenerPapelActivoAsync())
+            .Should().Be(PapelActivo.SinPapel);
+        (await Con(new SeleccionPorViaHeredadaFalsa()).ObtenerPapelActivoAsync())
+            .Should().Be(PapelActivo.SinPapel, "la vía heredada es DelegacionTenant, que solo es de Outbound y no da papel Inbound");
+        (await Con(new ClienteActivoSeleccionadoFalso(), UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador"))
+            .ObtenerPapelActivoAsync()).Should().Be(PapelActivo.SinPapel, "sin Tenant de origen no hay papel");
+        using (AmbitoTenantExplicito.Establecer(tenantOrigen))
+            (await Con(new ClienteActivoSeleccionadoFalso()).ObtenerPapelActivoAsync()).Should().Be(PapelActivo.TenantDeOrigen);
+    }
+
+    /// <summary>Selección de un Tenant sin Asignación de Operación en el token: la vía heredada.</summary>
+    private sealed class SeleccionPorViaHeredadaFalsa : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => Guid.Parse("77777777-7777-7777-7777-777777777777");
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
     private sealed class ClienteActivoSeleccionadoConSesionPrivilegiadaFalso : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => Guid.Parse("33333333-3333-3333-3333-333333333333");

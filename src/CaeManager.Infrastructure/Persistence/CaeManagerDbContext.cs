@@ -392,6 +392,8 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     IQueryable<Guid> IOperacionesQueryContext.TenantsSuspendidosIds =>
         Tenants.Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
+    IQueryable<AsignacionOperacion> IOperacionesQueryContext.OperacionesInboundAmparadas =>
+        AsignacionesOperacion.Where(o => o.Servicio == ServicioCae.Inbound && FuncionAmparoInbound.Ampara(o.Id));
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
@@ -700,6 +702,7 @@ public class CaeManagerDbContext(
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
         builder.MapearTextoDeBusqueda();
         builder.MapearAmparoDeOrigen();
+        builder.MapearAmparoInbound();
 
         // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(
