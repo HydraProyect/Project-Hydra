@@ -42,13 +42,17 @@ public class ExtensionAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// </para>
 ///
 /// <para>
-/// <b>Cinco motivos de rechazo que la cookie no comprueba en cada petición</b>
-/// y aquí sí, deliberadamente, porque este credencial vive fuera del
-/// navegador y de sus protecciones:
+/// <b>Seis motivos de rechazo</b>, cinco de ellos que la cookie no comprueba en
+/// cada petición y aquí sí, deliberadamente, porque este credencial vive fuera
+/// del navegador y de sus protecciones:
 /// </para>
 /// <list type="number">
 ///   <item>Security stamp distinto del de la base — revocación global.</item>
 ///   <item>Sesión de origen revocada o inexistente — revocación individual.</item>
+///   <item>Sesión de origen vencida por su tope desde el inicio o por inactividad
+///   (<see cref="ISesionOrigenExtension"/>, issue #1891), con el plazo del Tenant
+///   propietario de la cuenta leído ahora de la base. Usar la extensión no
+///   renueva la actividad: este handler no anota nada.</item>
 ///   <item>Cuenta bloqueada (<c>LockoutEnd</c> vigente). Identity no toca el
 ///   security stamp al bloquear, así que sin esto un bloqueo no surtiría
 ///   efecto hasta que el token caducara.</item>
@@ -68,7 +72,8 @@ public class ExtensionAuthenticationHandler(
     UserManager<ApplicationUser> userManager,
     IUserClaimsPrincipalFactory<ApplicationUser> fabricaPrincipal,
     IRegistroSesionesUsuario sesiones,
-    IEstadoOperativoTenant estadoOperativo)
+    IEstadoOperativoTenant estadoOperativo,
+    ISesionOrigenExtension sesionOrigen)
     : AuthenticationHandler<ExtensionAuthenticationSchemeOptions>(options, logger, encoder)
 {
     private const string EsquemaCabecera = "Extension";
@@ -115,6 +120,11 @@ public class ExtensionAuthenticationHandler(
             return AuthenticateResult.Fail("La organización está suspendida.");
 
         var principal = await fabricaPrincipal.CreateAsync(usuario);
+
+        // El plazo sale de este principal, construido ahora para la cuenta del token: el de su
+        // Tenant propietario, vigente en la base, nunca el de un Tenant visitado ni uno de la petición.
+        if (!sesionOrigen.SigueVigente(principal, carga.Sid, carga.Marcas))
+            return AuthenticateResult.Fail("Token inválido o caducado.");
 
         if (principal.HasClaim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true"))
             return AuthenticateResult.Fail("La cuenta está a medio activar.");

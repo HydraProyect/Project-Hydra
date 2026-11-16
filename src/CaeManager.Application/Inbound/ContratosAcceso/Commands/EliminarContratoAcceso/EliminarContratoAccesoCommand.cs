@@ -13,7 +13,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.EliminarContra
 /// cambió desde entonces (p. ej. alguien lo canceló o lo finalizó), responde el conflicto de concurrencia.
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record EliminarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand;
+public record EliminarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand, IComandoInbound;
 
 public class EliminarContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,

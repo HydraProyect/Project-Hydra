@@ -12,7 +12,7 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.RevocarA
 /// ese Tenant ya guardó se quedan. Volver a autorizar es conceder otra.
 /// </summary>
 [AreaDelEncargo("AutorizacionesLectura")]
-public record RevocarAutorizacionLecturaCommand(Guid AutorizacionId, Guid Version = default) : ICommand;
+public record RevocarAutorizacionLecturaCommand(Guid AutorizacionId, Guid Version = default) : ICommand, IComandoInbound;
 
 public class RevocarAutorizacionLecturaCommandValidator : AbstractValidator<RevocarAutorizacionLecturaCommand>
 {

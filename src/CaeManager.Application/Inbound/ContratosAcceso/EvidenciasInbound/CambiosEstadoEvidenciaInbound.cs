@@ -16,7 +16,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 // Cliente empresarial, y revocar la autorización no la toca.
 
 [AreaDelEncargo("ContratosAcceso")]
-public record RechazarEvidenciaInboundCommand(Guid EvidenciaId, CausaRechazoAcreditacion Causa, string Motivo) : ICommand;
+public record RechazarEvidenciaInboundCommand(Guid EvidenciaId, CausaRechazoAcreditacion Causa, string Motivo) : ICommand, IComandoInbound;
 
 public class RechazarEvidenciaInboundCommandValidator : AbstractValidator<RechazarEvidenciaInboundCommand>
 {
@@ -29,7 +29,7 @@ public class RechazarEvidenciaInboundCommandValidator : AbstractValidator<Rechaz
 }
 
 [AreaDelEncargo("ContratosAcceso")]
-public record ValidarEvidenciaInboundCommand(Guid EvidenciaId) : ICommand;
+public record ValidarEvidenciaInboundCommand(Guid EvidenciaId) : ICommand, IComandoInbound;
 
 public class RechazarEvidenciaInboundCommandHandler(
     IEvidenciaInboundRepository repositorio, IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos,

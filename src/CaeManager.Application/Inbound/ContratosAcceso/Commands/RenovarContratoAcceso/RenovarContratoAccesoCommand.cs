@@ -13,7 +13,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.RenovarContrat
 /// vigencia (B-05).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record RenovarContratoAccesoCommand(Guid Id, DateOnly NuevaFechaFin, Guid Version = default) : ICommand;
+public record RenovarContratoAccesoCommand(Guid Id, DateOnly NuevaFechaFin, Guid Version = default) : ICommand, IComandoInbound;
 
 public class RenovarContratoAccesoCommandValidator : AbstractValidator<RenovarContratoAccesoCommand>
 {

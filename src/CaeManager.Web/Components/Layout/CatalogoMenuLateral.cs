@@ -313,9 +313,13 @@ public static class CatalogoMenuLateral
         // shortcut: sin backend, cablear cuando entre B-09/EP-4 (enlaces inbound/requerimientos e inbound/quien-lee, solo para el Tenant TEC).
         new("inbound-contratos", "inbound", "inbound/contratos", "solicitud", "MenuInboundContratos",
             ClaveRotulo: "MenuInboundContratos"),
+        new("inbound-centros", "inbound", "inbound/centros", "asignaciones", "MenuInboundCentros",
+            ClaveRotulo: "MenuInboundCentros"),
         new("inbound-validacion", "inbound", "inbound/validacion", "seleccion", "MenuInboundValidacion",
             ClaveRotulo: "MenuInboundValidacion"),
-        new("inbound-plantillas", "inbound-config", "inbound/plantillas", "tipos-documento", "MenuInboundPlantillas",
+        new("inbound-informacion-centro", "inbound", "inbound/informacion-centro", "tipos-documento", "MenuInboundInformacionCentro",
+            ClaveRotulo: "MenuInboundInformacionCentro"),
+        new("inbound-plantillas", "inbound-config", "inbound/plantillas", "editar", "MenuInboundPlantillas",
             ClaveRotulo: "MenuInboundPlantillas"),
         // Reglas de aviso (pantalla 18, CA-19): la gestiona el Gestor CAE y quien lo coordina.
         // shortcut: sin backend, cablear cuando entre B-31 (motor de reglas de aviso con las de serie).

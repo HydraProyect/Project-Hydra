@@ -51,9 +51,11 @@ public class RelevanciaCaeService(
         // semanas después y sin rastro del motivo.
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
         {
-            logger.LogInformation(
-                "Detección de relevancia CAE omitida para la conversación {ConversacionId}: el Tenant propietario no tiene instrucción de tratamiento IA vigente (Nivel 0).",
-                conversacion.Id);
+            // La causa cuesta una consulta: solo se pide si el registro la va a escribir.
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInformation(
+                    "Detección de relevancia CAE omitida para la conversación {ConversacionId}: {Motivo}.",
+                    conversacion.Id, await MotivoIaNoHabilitada.DescribirAsync(instruccionTratamientoIa, tenantActual.TenantId, cancellationToken));
             return;
         }
 

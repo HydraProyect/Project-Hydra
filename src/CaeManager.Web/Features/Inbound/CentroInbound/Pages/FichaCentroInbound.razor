@@ -1,0 +1,292 @@
+@page "/inbound/centros/{CentroId:guid}"
+@* Tarjeta 14 · Centro (Inbound), vista del Gestor CAE del Tenant TCE. Sigue la línea de Centro 360: cabecera, indicadores y pestañas.
+   Cableado: ficha del Centro (ObtenerCentroPorIdQuery) y Empresas contratistas con su contrato (B-05). Aptos hoy (B-28) e Información
+   del Centro (B-29) van tras su puerto, sin datos mientras no hay backend. Requisitos del Centro depende de B-15. Las pestañas
+   Concurrencia, Coordinación e Incidencias no entran en esta pantalla. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using CaeManager.Web.Features.Inbound.InformacionDelCentro
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosContratosAcceso> TextosContrato
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_centro?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_centro?.Nombre ?? "Centro")} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina cin">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de navegación" />
+
+    @if (_noEncontrado)
+    {
+        <FichaNoEncontrada RutaLista="/inbound/centros" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No se pudo cargar el Centro" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando || _centro is null)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else
+    {
+        @* Sin «Exportar a Excel» de la maqueta: no hay endpoint hasta B-28. *@
+        <CabeceraIdentidad Titulo="@_centro.Nombre" Kicker="Inbound">
+            <Datos>
+                <div class="inbound-datos-contrato" data-pieza="datos-centro">
+                    @if (!string.IsNullOrWhiteSpace(_centro.Direccion))
+                    {
+                        <span>@_centro.Direccion</span>
+                        <span aria-hidden="true">·</span>
+                    }
+                    <span>@_centro.ClienteRazonSocial</span>
+                    <span aria-hidden="true">·</span>
+                    <span>Hoy: @MascaraFecha.Formatear(_hoy)</span>
+                </div>
+            </Datos>
+        </CabeceraIdentidad>
+
+        <section class="inbound-kpis" aria-label="Indicadores del Centro" data-pieza="kpis-centro">
+            <div class="inbound-kpi" data-kpi="aptos">
+                <span class="inbound-kpi-etiqueta">Aptos hoy</span>
+                @if (_aptos is null)
+                {
+                    @* shortcut: sin backend, cablear cuando entre B-28 (aptitud materializada). *@
+                    <span class="inbound-kpi-valor" title="@SinDatoTitulo">@SinDato</span>
+                    <span class="inbound-secundario">Todavía no disponible</span>
+                }
+                else
+                {
+                    <span class="inbound-kpi-valor">@_aptos.Count(a => a.Estado != EstadoAptitudHoy.NoApto) <small class="cin-de">de @_aptos.Count Trabajadores</small></span>
+                    <span class="inbound-secundario">@_aptos.Count(a => a.Estado == EstadoAptitudHoy.EnTolerancia) en tolerancia · @_aptos.Count(a => a.Estado == EstadoAptitudHoy.NoApto) no aptos</span>
+                }
+            </div>
+            <div class="inbound-kpi" data-kpi="empresas">
+                <span class="inbound-kpi-etiqueta">Empresas contratistas</span>
+                <span class="inbound-kpi-valor">@_contratos.Where(c => c.Contrato.Estado == EstadoContratoAcceso.Activo).Select(c => c.Contrato.EmpresaContratistaId).Distinct().Count() <small class="cin-de">con contrato activo</small></span>
+                <span class="inbound-secundario">@_contratos.Count(c => c.Contrato.Estado == EstadoContratoAcceso.PendienteDeConfirmar) pendiente de confirmar · @_contratos.Count(c => c.Contrato.Estado == EstadoContratoAcceso.Rechazado) rechazado</span>
+            </div>
+            <div class="inbound-kpi" data-kpi="requisitos">
+                <span class="inbound-kpi-etiqueta">Requisitos del Centro</span>
+                @* shortcut: sin backend, cablear cuando entre B-15 (resolución por capas de lo que se exige en el Centro). *@
+                <span class="inbound-kpi-valor" title="@SinDatoTitulo">@SinDato</span>
+                <span class="inbound-secundario">Todavía no disponible</span>
+            </div>
+            <div class="inbound-kpi" data-kpi="informacion">
+                <span class="inbound-kpi-etiqueta">Información del Centro</span>
+                @if (_informacion is null)
+                {
+                    @* shortcut: sin backend, cablear cuando entre B-29 (Información del Centro). *@
+                    <span class="inbound-kpi-valor" title="@SinDatoTitulo">@SinDato</span>
+                    <span class="inbound-secundario">Todavía no disponible</span>
+                }
+                else
+                {
+                    var pendientes = _informacion.Count(d => d.Pendiente);
+                    <span class="inbound-kpi-valor">@_informacion.Count <small class="cin-de">documentos</small></span>
+                    <span class="inbound-secundario @(pendientes > 0 ? "cin-ambar" : null)">@(pendientes > 0 ? $"{pendientes} con acuses pendientes" : "Todo al día")</span>
+                }
+            </div>
+        </section>
+
+        <Pestanas Definiciones="_pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Centro" Pagina360="true">
+            @switch (_pestanaActiva)
+            {
+                case PestanaAptos:
+                    @PanelAptos()
+                    break;
+                case PestanaRequisitos:
+                    @* shortcut: sin backend, cablear cuando entre B-15. Sin filas de ejemplo. *@
+                    <EstadoVacio NombreIcono="vacio" Titulo="Los requisitos del Centro no están disponibles"
+                                 Descripcion="Todavía no se puede consultar lo que se exige en este Centro a toda Empresa contratista. Cuando esté disponible, aparecerá aquí." />
+                    break;
+                case PestanaEmpresas:
+                    @PanelEmpresas()
+                    break;
+                case PestanaInformacion:
+                    @PanelInformacion()
+                    break;
+            }
+        </Pestanas>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    private RenderFragment PanelAptos() => __builder =>
+    {
+        <div class="cin-panel" data-pieza="aptos-hoy">
+            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas. Enseña el requisito que bloquea o vence, nunca su motivo.</span></div>
+            @if (_aptos is null)
+            {
+                <EstadoVacio NombreIcono="vacio" Titulo="Aptos hoy no está disponible"
+                             Descripcion="Todavía no se puede consultar quién puede entrar hoy en este Centro. Cuando esté disponible, aparecerá aquí." />
+            }
+            else if (_aptos.Count == 0)
+            {
+                <EstadoVacio NombreIcono="vacio" Titulo="Ningún Trabajador asignado a este Centro"
+                             Descripcion="Cuando una Empresa contratista asigne Trabajadores, aparecerán aquí con su estado de hoy." />
+            }
+            else
+            {
+                <section class="barra-filtros-pastillas" aria-label="Filtrar Aptos hoy">
+                    <div class="barra-filtros-pastillas-fila">
+                        <div class="barra-filtros-buscador-pantalla">
+                            <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                            <CampoTexto Placeholder="Filtrar: Trabajador o DNI" Valor="@_busquedaAptos" ValorChanged="BuscarAptos"
+                                        aria-label="Filtrar: Trabajador o DNI" data-filtro-pantalla="" />
+                        </div>
+                        <PastillaFiltro Etiqueta="Empresa contratista" TextoTodos="Todas" Valor="@_empresaAptos" ValorChanged="CambiarEmpresaAptos" Opciones="OpcionesEmpresaAptos" />
+                    </div>
+                    <FranjaEstado Opciones="_opcionesAptitud" Valor="@_estadoAptos" ValorChanged="CambiarEstadoAptos" Recuentos="RecuentosAptos"
+                                  EtiquetaAccesible="Filtrar por estado de hoy" />
+                </section>
+                @* Sin «Imprimir»: la impresión para la portería deja traza (D-30) y es B-28. *@
+                @if (AptosVisibles.Count == 0)
+                {
+                    <EstadoVacio NombreIcono="vacio" Titulo="Ningún Trabajador coincide con los filtros"
+                                 Descripcion="Prueba con otra búsqueda o quita algún filtro." />
+                }
+                else
+                {
+                    <TarjetaListado>
+                        <Contenido>
+                            <table class="tabla-datos" aria-label="Aptos hoy en @_centro!.Nombre">
+                                <thead><tr>
+                                    <th scope="col">Trabajador</th>
+                                    <th scope="col">Empresa contratista</th>
+                                    <th scope="col">Hoy</th>
+                                    <th scope="col">Lo que bloquea o vence</th>
+                                </tr></thead>
+                                <tbody>
+                                @foreach (var fila in AptosVisibles)
+                                {
+                                    <tr @key="fila.TrabajadorId" data-trabajador="@fila.TrabajadorId">
+                                        <td><span class="nombre-fila-entidad">@fila.Nombre</span><div class="inbound-secundario">@fila.DniParcial</div></td>
+                                        <td>@fila.EmpresaContratista<div class="inbound-secundario">@fila.TipoDeContrato</div></td>
+                                        <td>
+                                            <Badge Tono="TonoDe(fila.Estado)" Tamano="TamanoBadge.Pequeno">@TextoDe(fila.Estado)</Badge>
+                                            <div class="inbound-secundario @(fila.Estado == EstadoAptitudHoy.NoApto ? "cin-rojo" : fila.Estado == EstadoAptitudHoy.EnTolerancia ? "cin-ambar" : null)">@(fila.Estado == EstadoAptitudHoy.NoApto ? "No puede entrar hoy" : "Puede entrar hoy")</div>
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(fila.RequisitoQueBloquea) ? "Todo validado" : fila.RequisitoQueBloquea)<div class="inbound-secundario">@fila.Detalle</div></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </Contenido>
+                    </TarjetaListado>
+                }
+            }
+        </div>
+    };
+
+    private RenderFragment PanelEmpresas() => __builder =>
+    {
+        <div class="cin-panel" data-pieza="empresas-centro">
+            @if (_contratos.Count == 0)
+            {
+                <EstadoVacio NombreIcono="proyectos" Titulo="Este Centro no tiene contratos de acceso"
+                             Descripcion="Cuando se dé de alta un contrato de acceso para este Centro, la Empresa contratista aparecerá aquí." />
+            }
+            else
+            {
+                <TarjetaListado>
+                    <Contenido>
+                        <table class="tabla-datos" aria-label="Empresas contratistas del Centro">
+                            <thead><tr>
+                                <th scope="col">Empresa contratista</th>
+                                <th scope="col">Tipo</th>
+                                <th scope="col">Vigencia</th>
+                                <th scope="col">Aptos hoy</th>
+                                <th scope="col">Pendiente</th>
+                                <th scope="col" class="col-estado">Estado</th>
+                            </tr></thead>
+                            <tbody>
+                            @foreach (var fila in _contratos)
+                            {
+                                var contrato = fila.Contrato;
+                                <tr @key="contrato.Id" data-contrato="@contrato.Id">
+                                    <td>
+                                        <a class="enlace-nombre-fila nombre-fila-entidad" href="@($"/inbound/contratos/{contrato.Id}")">@(fila.EmpresaNombre ?? TextosContrato["EmpresaNoDisponible"].Value)</a>
+                                        @if (!string.IsNullOrWhiteSpace(fila.EmpresaCif))
+                                        {
+                                            <div class="inbound-secundario">@fila.EmpresaCif</div>
+                                        }
+                                    </td>
+                                    <td>@(contrato.Tipo is { } tipo ? TextosContrato[ContratoAccesoUi.ClaveTipo(tipo)].Value : "—")</td>
+                                    <td>
+                                        <div>@ContratoAccesoUi.Rango(contrato.FechaInicio, contrato.FechaFin, TextosContrato)</div>
+                                        <div class="inbound-secundario">@ContratoAccesoUi.Vigencia(new ContratoAccesoVista(contrato.Estado, contrato.FechaInicio, contrato.FechaFin, contrato.FechaCierreReal), _hoy, TextosContrato)</div>
+                                    </td>
+                                    <td>
+                                        @* shortcut: sin backend, cablear cuando entren B-28 (Aptos hoy por Empresa contratista) y B-17 (Trabajadores con cupo). *@
+                                        <span title="@SinDatoTitulo">@SinDato</span>
+                                        <div class="inbound-secundario">@ContratoAccesoUi.TextoCupo(contrato.CupoTrabajadores, TextosContrato)</div>
+                                    </td>
+                                    <td>
+                                        @* shortcut: sin backend, cablear cuando entren B-17 (solicitudes) y B-11 (requerimientos). *@
+                                        <span title="@SinDatoTitulo">@SinDato</span>
+                                    </td>
+                                    <td class="col-estado">
+                                        <Badge Tono="ContratoAccesoUi.Tono(contrato.Estado)" Tamano="TamanoBadge.Pequeno">@TextosContrato[ContratoAccesoUi.ClaveEstado(contrato.Estado)]</Badge>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </Contenido>
+                </TarjetaListado>
+            }
+        </div>
+    };
+
+    private RenderFragment PanelInformacion() => __builder =>
+    {
+        <div class="cin-panel" data-pieza="informacion-centro">
+            <span class="inbound-secundario">Lo que este Centro entrega a cada Empresa contratista. «Firmado» exige firma; «Leído», acuse de lectura. Una versión nueva vuelve a pedirlo y, sin él, no se puede asignar a nadie más. Se gestiona en <a href="/inbound/informacion-centro">Información del Centro</a>.</span>
+            @if (_informacion is null)
+            {
+                <EstadoVacio NombreIcono="vacio" Titulo="La información del Centro no está disponible"
+                             Descripcion="Todavía no se puede consultar lo que este Centro entrega a las Empresas contratistas. Cuando esté disponible, aparecerá aquí." />
+            }
+            else if (_informacion.Count == 0)
+            {
+                <EstadoVacio NombreIcono="vacio" Titulo="Este Centro no tiene información publicada"
+                             Descripcion="Añade un documento en Información del Centro para pedir su firma o su lectura a las Empresas contratistas." />
+            }
+            else
+            {
+                <TarjetaListado>
+                    <Contenido>
+                        <table class="tabla-datos" aria-label="Información del Centro">
+                            <thead><tr>
+                                <th scope="col">Documento</th>
+                                <th scope="col">Modalidad</th>
+                                <th scope="col">Versión</th>
+                                <th scope="col">Empresas contratistas</th>
+                            </tr></thead>
+                            <tbody>
+                            @foreach (var d in _informacion)
+                            {
+                                <tr @key="d.Id">
+                                    <td><span class="nombre-fila-entidad">@d.Nombre</span><div class="inbound-secundario">@d.Tipo</div></td>
+                                    <td>@(d.Modalidad == ModalidadInformacion.Firmado ? "Firmado" : "Leído")</td>
+                                    <td>@d.Version<div class="inbound-secundario">Publicada el @MascaraFecha.Formatear(d.Fecha)</div></td>
+                                    <td>@d.EmpresasAlDia de @d.EmpresasTotal @(d.Modalidad == ModalidadInformacion.Firmado ? "firmaron" : "leyeron")
+                                        <div class="inbound-secundario @(d.Pendiente ? "cin-ambar" : null)">@(d.Pendiente ? $"Faltan {d.EmpresasTotal - d.EmpresasAlDia}: no pueden asignar a nadie más" : "Todas al día")</div></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </Contenido>
+                </TarjetaListado>
+            }
+        </div>
+    };
+}

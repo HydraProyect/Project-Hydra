@@ -87,7 +87,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAlcanceDatosService alcanceDatos,
-    ILimiteEmpresaPropia limiteEmpresaPropia)
+    ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
     /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
@@ -680,6 +681,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 // PR #2193, MEDIO 1).
                 if (!await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, ct))
                 {
+                    // Lo que cada fila dio por dentro del ámbito se decidió antes de esperar este candado: se invalida el
+                    // alcance y se relee aquí. Si algo quedó fuera, no se escribe nada (issue #2118).
+                    invalidadorAlcance?.Invalidar();
+                    if (!await ambito.SigueDentroBajoElCandadoAsync(alcanceDatos, ct))
+                        return Result.Fallo(ErroresCargaMasiva.AmbitoCambiadoAlConfirmar);
                     if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, ct) is { } limite)
                         return Result.Fallo(limite);
                     if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))

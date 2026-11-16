@@ -36,4 +36,15 @@ public interface IOperacionesQueryContext
     /// las filas de las que el Tenant activo es uno de los dos extremos.
     /// </summary>
     IQueryable<DelegacionTenant> DelegacionesTenant { get; }
+
+    /// <summary>
+    /// Las Asignaciones de Operación Inbound externas amparadas (decisión de Chris del 2026-11-16, opción A de B-02b):
+    /// sin DelegacionTenant, basta con que el Tenant propietario tenga la línea Inbound de su Producto Contratado
+    /// vigente. La vigencia y el estado de la propia operación los pone quien consulta
+    /// (<c>TenantsBeneficiariosAutorizados</c>). En PostgreSQL lo responde <c>app_operacion_inbound_amparada</c>,
+    /// porque la RLS de <c>ProductosContratados</c> no deja al Operador CAE externo leer la línea del Tenant TCE.
+    /// Por defecto, ninguna: una implementación que no lo sepa falla en cerrado.
+    /// </summary>
+    IQueryable<AsignacionOperacion> OperacionesInboundAmparadas =>
+        AsignacionesOperacion.Where(o => o.Servicio == ServicioCae.Inbound).Where(_ => false);
 }

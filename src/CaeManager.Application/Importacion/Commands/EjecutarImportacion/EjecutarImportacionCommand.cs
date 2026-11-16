@@ -123,7 +123,8 @@ public class EjecutarImportacionCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
-    ILimiteEmpresaPropia limiteEmpresaPropia)
+    ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
@@ -717,6 +718,9 @@ public class EjecutarImportacionCommandHandler(
                 // rechazo, en vez de «ya ejecutada» (revisión Codex r2 de la PR #2193, MEDIO 1).
                 if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, c))
                     return FalloYaEjecutada();
+                // Es la última espera antes del COMMIT: el ámbito se vuelve a decidir aquí, después de ella (issue #2118).
+                if (await AmbitoCambiadoAsync(c))
+                    return Result.Fallo(ErroresCargaMasiva.AmbitoCambiadoAlConfirmar);
                 if (await limiteEmpresaPropia.ComprobarGuardadoAsync(empresasCreadas, c) is { } limite)
                     return Result.Fallo(limite);
                 var guardadoOperacion = await GuardarOperacionAsync(c);
@@ -744,6 +748,12 @@ public class EjecutarImportacionCommandHandler(
             return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
         }
 
+        async Task<bool> AmbitoCambiadoAsync(CancellationToken ct)
+        {
+            invalidadorAlcance?.Invalidar();
+            return !await ambito.SigueDentroBajoElCandadoAsync(alcanceDatos, ct);
+        }
+
         async Task<Result> GuardarOperacionAsync(CancellationToken ct)
         {
             return await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct)
@@ -759,9 +769,16 @@ public class EjecutarImportacionCommandHandler(
         // nueva (todas omitidas) también lo toma: solo se sabe después de leer. Lo importado ya está agregado al contexto,
         // así que la serialización no reintenta: un fallo transitorio falla la importación en vez de confirmar solo
         // una parte, y la hoja de Asignaciones no se recorre dos veces.
+        //
+        // Regla A-1 bajo el candado (issue #2118): el ámbito se resolvió al empezar, y una Asignación de Cartera revocada
+        // durante la espera no lo cambia, porque además el alcance está memoizado. Bajo el candado se invalida y se relee:
+        // si algo que las hojas anteriores ya dieron por dentro quedó fuera, no se escribe nada; si no, la hoja de
+        // Asignaciones decide con las listas releídas.
         var guardado = plan.Asignaciones.Count > 0
             ? await serializacionAltas.EjecutarAsync(async ct =>
             {
+                if (await AmbitoCambiadoAsync(ct))
+                    return Result.Fallo(ErroresCargaMasiva.AmbitoCambiadoAlConfirmar);
                 await AgregarAsignacionesAsync(ct);
                 return await GuardarAsync(ct);
             }, cancellationToken)

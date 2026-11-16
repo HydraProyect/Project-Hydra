@@ -42,8 +42,8 @@ public record InstruccionIaCarteraDto(
     public Error? ErrorSiFalta() => SinInstruccion.Count == 0
         ? null
         : Error.Crear(CodigoError, SinInstruccion.Count == 1
-            ? $"No se ha enviado tu mensaje al asistente: {SinInstruccion[0].Nombre} está en tu cartera y no tiene una instrucción de tratamiento con IA vigente. Tu mensaje podría nombrar a personas de esa organización."
-            : $"No se ha enviado tu mensaje al asistente: {string.Join(", ", SinInstruccion.Select(t => t.Nombre))} están en tu cartera y no tienen una instrucción de tratamiento con IA vigente. Tu mensaje podría nombrar a personas de esas organizaciones.");
+            ? $"No se ha enviado tu mensaje al asistente: {SinInstruccion[0].Nombre} está en tu cartera y no tiene la IA habilitada (sin instrucción de tratamiento con IA vigente, o la ha desactivado al objetar a un subencargado). Tu mensaje podría nombrar a personas de esa organización."
+            : $"No se ha enviado tu mensaje al asistente: {string.Join(", ", SinInstruccion.Select(t => t.Nombre))} están en tu cartera y no tienen la IA habilitada (sin instrucción de tratamiento con IA vigente, o la han desactivado al objetar a un subencargado). Tu mensaje podría nombrar a personas de esas organizaciones.");
 }
 
 public class ComprobarInstruccionIaCarteraQueryHandler(

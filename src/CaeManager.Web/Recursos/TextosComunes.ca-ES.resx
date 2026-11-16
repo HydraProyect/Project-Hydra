@@ -505,6 +505,9 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si encara no la tens instal·lada, mira «Instal·la l'extensió», més avall.</value>
   </data>
+  <data name="ExtensionVigenciaToken" xml:space="preserve">
+    <value>Dura com a molt 8 hores i no es renova sol. Deixa de valer abans si la teva sessió es tanca, també per inactivitat: fer servir l'extensió no la manté oberta.</value>
+  </data>
   <data name="CumplimientoEtiqueta" xml:space="preserve">
     <value>{0} % de compliment</value>
     <comment>{0}: percentatge de 0 a 100. Nom accessible per defecte de BarraCumplimiento.</comment>
@@ -883,6 +886,12 @@
   </data>
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documents per validar</value>
+  </data>
+  <data name="MenuInboundCentros" xml:space="preserve">
+    <value>Centres</value>
+  </data>
+  <data name="MenuInboundInformacionCentro" xml:space="preserve">
+    <value>Informació del Centre</value>
   </data>
   <data name="MenuInboundPlantillas" xml:space="preserve">
     <value>Plantilles de requisits</value>
