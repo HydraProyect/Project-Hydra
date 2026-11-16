@@ -27,7 +27,7 @@ public partial class PlantillasRequisitos
     [Inject] private IUsoDePlantillasRequisitos Uso { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
-    // Las lecturas comparten el DbContext del circuito: se hacen de una en una (también las del panel de alta).
+    // Las lecturas comparten el DbContext del circuito: se hacen de una en una (las del listado, el detalle y, en la pantalla de requisitos, también la búsqueda y el guardado del panel).
     private readonly SerieDeLecturas _serie = new();
     private IReadOnlyList<FilaPlantilla> _todas = [];
     private IReadOnlyList<FilaPlantilla> _visibles = [];

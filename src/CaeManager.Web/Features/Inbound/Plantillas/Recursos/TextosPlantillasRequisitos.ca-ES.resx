@@ -474,4 +474,7 @@
   <data name="ToleranciaAyudaPropio" xml:space="preserve">
     <value>Un requisit propi encara no té grup de document i no admet tolerància.</value>
   </data>
+  <data name="NombreNoDisponible" xml:space="preserve">
+    <value>Aquest nom ja existeix al catàleg i no es pot demanar com a requisit: està arxivat o és d&apos;un altre tipus de document.</value>
+  </data>
 </root>

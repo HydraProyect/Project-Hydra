@@ -50,7 +50,12 @@
             {
                 <p class="cfg-info">@Textos["CatalogoElegido", NombreElegido]</p>
             }
-            @if (!string.IsNullOrWhiteSpace(_busca) && !_propio && !TiposVisibles.Any(t => string.Equals(t.Nombre, _busca.Trim(), StringComparison.CurrentCultureIgnoreCase)))
+            @if (!string.IsNullOrWhiteSpace(_busca) && !_propio && CoincideConTipoNoAdmitido)
+            {
+                @* El nombre es el de un tipo archivado o de otro ámbito: crear uno propio con ese nombre acabaría en «nombre duplicado». *@
+                <p class="cfg-info" data-pieza="nombre-no-disponible">@Textos["NombreNoDisponible"]</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_busca) && !_propio && !CoincideConAlgunTipo)
             {
                 <div class="cfg-nuevo">
                     @if (_parecidos.Count > 0)
@@ -279,6 +284,12 @@
             .Take(50)
             .ToList();
 
+    private bool CoincideConAlgunTipo =>
+        Referencias.Tipos.Values.Any(t => string.Equals(t.Nombre, _busca.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+    private bool CoincideConTipoNoAdmitido =>
+        CoincideConAlgunTipo && !TiposVisibles.Any(t => string.Equals(t.Nombre, _busca.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
     private string NombreElegido => _propio ? _busca.Trim()
         : _tipoId is { } id && Referencias.Tipos.TryGetValue(id, out var t) ? t.Nombre : Textos["RequisitoNoDisponible"].Value;
 
@@ -371,8 +382,12 @@
             }
 
             // Solo vale la respuesta de la última pulsación.
+            // Los parecidos del Tenant pasan por el mismo filtro que el catálogo: sin archivados ni ámbito Cliente o Proyecto.
             if (version == _versionBusqueda)
-                _parecidos = encontrados;
+                _parecidos = encontrados
+                    .Where(p => p.Origen != OrigenSugerencia.TipoDocumentoDelTenant
+                        || (Referencias.Tipos.TryGetValue(p.Id, out var tipo) && Referencias.AdmiteAlta(tipo)))
+                    .ToList();
         }
         catch (OperationCanceledException)
         {
@@ -431,7 +446,7 @@
             vigencia = meses;
         }
 
-        var equivalencias = _destinatario == DestinatarioRequisito.Nacionales
+        var equivalencias = DestinatarioEnviado == DestinatarioRequisito.Nacionales
             ? []
             : _equivalencias.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
         atributos = new AtributosRequisito(
@@ -459,15 +474,19 @@
         try
         {
             CaeManager.Domain.Common.Result resultado;
-            if (Requisito is { } existente)
-                resultado = await Mediator.Send(new EditarRequisitoPlantillaCommand(Plantilla.Id, existente.Id, atributos, Plantilla.Version));
-            else if (_propio)
-                resultado = await Mediator.Send(new CrearRequisitoPropioCommand(
-                    Plantilla.Id, _busca.Trim(), _ambito, null, null, atributos, Plantilla.Version));
-            else if (_tipoId is { } tipoId)
-                resultado = await Mediator.Send(new AnadirRequisitoAPlantillaCommand(Plantilla.Id, tipoId, null, atributos, Plantilla.Version));
-            else
-                return;
+            // El comando también usa el DbContext del circuito: toma el turno de la serie, y lo suelta antes de avisar al padre.
+            using (await SerieDeLecturas.TomarSiHayAsync(Serie, CancellationToken.None))
+            {
+                if (Requisito is { } existente)
+                    resultado = await Mediator.Send(new EditarRequisitoPlantillaCommand(Plantilla.Id, existente.Id, atributos, Plantilla.Version));
+                else if (_propio)
+                    resultado = await Mediator.Send(new CrearRequisitoPropioCommand(
+                        Plantilla.Id, _busca.Trim(), _ambito, null, null, atributos, Plantilla.Version));
+                else if (_tipoId is { } tipoId)
+                    resultado = await Mediator.Send(new AnadirRequisitoAPlantillaCommand(Plantilla.Id, tipoId, null, atributos, Plantilla.Version));
+                else
+                    return;
+            }
 
             if (!resultado.EsExitoso)
             {

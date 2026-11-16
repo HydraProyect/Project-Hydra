@@ -27,6 +27,10 @@
         </Primaria>
     </CabeceraListado>
     <p class="inbound-secundario"><a href="/inbound/plantillas">@Textos["VolverPlantillas"]</a></p>
+    @if (_plantilla is { Activa: false })
+    {
+        <p class="inbound-secundario" data-pieza="plantilla-retirada">@Textos["PlantillaRetiradaAviso"]</p>
+    }
 
     @if (_cargando)
     {

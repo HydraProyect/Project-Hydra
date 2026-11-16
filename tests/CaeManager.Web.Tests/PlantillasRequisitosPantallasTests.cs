@@ -79,6 +79,8 @@ public class PlantillasRequisitosPantallasTests : BunitContext
             Tipo(TipoVehiculoId, "Revisión de la grúa", AmbitoAplicacion.Vehiculo),
         ];
 
+        public IReadOnlyList<RequisitoParecidoDto> Parecidos { get; set; } = [];
+
         /// <summary>Los tipos que no salen con <c>ParaAltaNueva</c>, como los archivados en el catálogo real.</summary>
         public HashSet<Guid> Archivados { get; } = [TipoArchivadoId];
 
@@ -103,7 +105,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
                 CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla.EditarRequisitoPlantillaCommand
                     or CaeManager.Application.Inbound.Requisitos.Commands.RetirarRequisitoPlantilla.RetirarRequisitoPlantillaCommand
                     or CaeManager.Application.Inbound.Requisitos.Commands.RetirarPlantillaRequisitos.RetirarPlantillaRequisitosCommand => Escritura,
-                BuscarRequisitosParecidosQuery => Array.Empty<RequisitoParecidoDto>() as IReadOnlyList<RequisitoParecidoDto>,
+                BuscarRequisitosParecidosQuery => Parecidos,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             });
         }
@@ -368,6 +370,9 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
         cut.WaitForAssertion(() => cut.FindAll("input[type='search']").Should().NotBeEmpty());
+        // Una tolerancia elegida antes de pasar a «propio» no se arrastra al comando.
+        cut.WaitForAssertion(() => cut.FindAll("button").Where(b => b.TextContent.Trim() == "7 días").Should().NotBeEmpty());
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "7 días").Click();
         cut.Find("input[type='search']").Input("Documento nuevo del Centro");
         cut.WaitForAssertion(() => cut.FindAll("button[aria-label='Crear el requisito propio Documento nuevo del Centro']").Should().NotBeEmpty());
         cut.Find("button[aria-label='Crear el requisito propio Documento nuevo del Centro']").Click();
@@ -428,6 +433,92 @@ public class PlantillasRequisitosPantallasTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
         cut.FindAll("button").Where(b => b.TextContent.Trim() is "Añadir" or "Editar" or "Retirar").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Al_pasar_de_Trabajador_a_Vehiculo_las_equivalencias_escritas_se_envian_y_el_destinatario_es_Todos()
+    {
+        var mediador = Preparar();
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
+        cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("Formación en altura")).Click();
+        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").Should().NotBeEmpty());
+        cut.FindAll("button[role='radio']").First(b => b.TextContent.Trim() == "Nacionales").Click();
+        cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("grúa")).Click();
+        cut.WaitForAssertion(() => cut.FindAll("textarea").Should().NotBeEmpty());
+        cut.Find("textarea").Input("Certificado equivalente");
+        Guardar(cut);
+
+        cut.WaitForAssertion(() => mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Should().ContainSingle());
+        var atributos = mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single().Atributos;
+        atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
+        atributos.Equivalencias.Should().Equal("Certificado equivalente");
+    }
+
+    [Fact]
+    public void Un_nombre_que_ya_es_de_un_tipo_archivado_no_ofrece_crear_uno_propio_y_lo_dice()
+    {
+        Preparar();
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("input[type='search']").Should().NotBeEmpty());
+
+        cut.Find("input[type='search']").Input("Tipo archivado");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='nombre-no-disponible']").Should().ContainSingle());
+        cut.FindAll("button[aria-label^='Crear el requisito propio']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Los_parecidos_de_ambito_Cliente_o_archivados_no_ofrecen_Anadir()
+    {
+        var mediador = Preparar();
+        mediador.Parecidos =
+        [
+            new RequisitoParecidoDto(OrigenSugerencia.TipoDocumentoDelTenant, TipoClienteId, "Tipo de Cliente parecido", "su nombre", 0.9),
+            new RequisitoParecidoDto(OrigenSugerencia.TipoDocumentoDelTenant, TipoLibreId, "Formación en altura parecida", "su nombre", 0.8),
+        ];
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("input[type='search']").Should().NotBeEmpty());
+
+        cut.Find("input[type='search']").Input("parecido");
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-parecido]").Should().ContainSingle());
+        cut.Find("[data-parecido]").GetAttribute("data-parecido").Should().Be(TipoLibreId.ToString());
+    }
+
+    [Fact]
+    public void Una_plantilla_retirada_lo_dice_y_un_enlace_de_anadir_no_abre_el_panel()
+    {
+        var mediador = Preparar();
+        mediador.Detalle = mediador.Detalle! with { Activa = false };
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/inbound/plantillas/{PlantillaId}/requisitos?anadir=true");
+
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='plantilla-retirada']").Should().ContainSingle());
+        cut.Markup.Should().NotContain("Tolerancia tras el vencimiento");
+    }
+
+    [Fact]
+    public void El_listado_de_una_plantilla_retirada_no_ofrece_acciones_sobre_sus_requisitos_y_lo_dice()
+    {
+        var mediador = Preparar();
+        mediador.Detalle = mediador.Detalle! with { Activa = false };
+
+        var cut = Cargada(Render<PlantillasRequisitos>());
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='plantilla-retirada']").Should().ContainSingle());
+        cut.FindAll("a[href*='anadir=true']").Should().BeEmpty();
+        cut.FindAll("a[href*='editar=']").Should().BeEmpty();
+        cut.FindAll("button").Where(b => b.TextContent.Trim() == "Retirar").Should().BeEmpty();
     }
 
     // ------------------------------------------------------------ Menú y autorización
