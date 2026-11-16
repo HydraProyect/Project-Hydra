@@ -162,8 +162,9 @@ public static class AdmisionDeDestinos
 
     /// <summary>
     /// El contexto del menú para quien está en la sesión <paramref name="estado"/>, o null si no hay estado
-    /// de autenticación. Resuelve lo opcional (lente de demo, Comunicaciones, mediador) del contenedor, y un
-    /// fallo al consultarlo nunca rompe la paleta ni un atajo: la consulta de plataforma falla a «no».
+    /// de autenticación. Resuelve lo opcional (lente de demo, Comunicaciones, mediador, línea Inbound) del contenedor, y un
+    /// fallo al consultarlo nunca rompe la paleta ni un atajo: la consulta de plataforma y la de la línea Inbound
+    /// (<see cref="ILineaInboundVigente"/>) fallan a «no».
     /// </summary>
     /// <param name="consultarPlataforma">Solo la paleta ofrece destinos de plataforma (Delegaciones); los atajos no necesitan la consulta.</param>
     public static async Task<ContextoMenuLateral?> ContextoAsync(
@@ -200,9 +201,25 @@ public static class AdmisionDeDestinos
 
         var comunicacionesActivo = servicios.GetService<IOptions<ComunicacionesOptions>>()?.Value.Activo ?? false;
 
+        // Gate de los destinos de Inbound, el mismo que el de la sección del menú lateral (NavMenu): la línea Inbound del
+        // Producto Contratado del Tenant beneficiario. Falla cerrado: sin sesión, sin el servicio registrado o si falla, no.
+        var lineaInboundVigente = false;
+        if (usuario.Identity?.IsAuthenticated == true && servicios.GetService<ILineaInboundVigente>() is { } lineaInbound)
+        {
+            try
+            {
+                lineaInboundVigente = await lineaInbound.EstaVigenteAsync(ct);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                lineaInboundVigente = false;
+            }
+        }
+
         return new ContextoMenuLateral(
             usuario, vista, comunicacionesActivo, esAdministradorPlataforma,
             default(PerfilVocabularioTenant), VariosTenants: false,
-            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(servicios));
+            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(servicios),
+            LineaInboundVigente: lineaInboundVigente);
     }
 }

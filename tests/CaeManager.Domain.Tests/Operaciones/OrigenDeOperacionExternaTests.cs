@@ -6,10 +6,11 @@ using Xunit;
 namespace CaeManager.Domain.Tests.Operaciones;
 
 /// <summary>
-/// Procedencia de la Asignación de Operación externa, fase de expansión (decisión de Chris del 2026-11-15 sobre la
-/// PR #2237): la operación guarda la DelegacionTenant de la que nace y cuántas revocaciones llevaba, y la delegación
-/// cuenta sus revocaciones. La base de datos aplica la misma regla con los triggers de la migración
-/// <c>AnadeOrigenDeOperacionExterna</c>; el amparo lo evalúan los lectores con <c>AmparoDeOrigen</c>.
+/// Procedencia de la Asignación de Operación externa (decisión de Chris del 2026-11-15 sobre la PR #2237, opción c):
+/// la operación guarda la DelegacionTenant de la que nace y cuántas revocaciones llevaba, y la delegación cuenta sus
+/// revocaciones. La base de datos aplica la misma regla con los triggers de las migraciones
+/// <c>AnadeOrigenDeOperacionExterna</c> y <c>AnadeProcedenciaDeOperacionExterna</c>; el amparo lo evalúan los lectores
+/// con <c>AmparoDeOrigen</c>.
 /// </summary>
 public class OrigenDeOperacionExternaTests
 {

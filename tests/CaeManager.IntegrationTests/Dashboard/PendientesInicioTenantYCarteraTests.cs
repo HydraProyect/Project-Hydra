@@ -65,10 +65,12 @@ public class PendientesInicioTenantYCarteraTests : IAsyncLifetime
             var ahora = DateTime.UtcNow;
             var operacion = AsignacionOperacion.Externa(_tenantA, _tenantB, ServicioCae.Outbound,
                 AmbitoAsignacion.DeRelacionCliente(dentro.Empresa), ahora.AddDays(-1), null, ahora);
-            _siembra.AsignacionesOperacion.Add(operacion);
             // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
-            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
-            _siembra.DelegacionesTenant.Add(new DelegacionTenant(_tenantB, _tenantA));
+            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223), sellada
+            // como origen de la operación para que EF inserte la delegación antes.
+            var delegacion = new DelegacionTenant(_tenantB, _tenantA);
+            _siembra.DelegacionesTenant.Add(delegacion);
+            OperacionExternaAmparada.Agregar(_siembra, operacion, delegacion);
             _siembra.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestor, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
             await _siembra.SaveChangesAsync();

@@ -205,12 +205,15 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
         var carteraBeta = AsignacionCartera.Externa(
             operacionBeta, _usuarioGestor, Roles.GestorCae, AmbitoAsignacion.Universal, desde, null, ahora);
 
-        _dbContext.AsignacionesOperacion.AddRange(operacionAlfa, operacionBeta);
-        _dbContext.AsignacionesCartera.AddRange(carteraAlfa, carteraBeta);
         // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
-        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
-        _dbContext.DelegacionesTenant.AddRange(
-            new DelegacionTenant(_tenantConsultora, _tenantAlfa), new DelegacionTenant(_tenantConsultora, _tenantBeta));
+        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223), y sellada
+        // como origen de la operación para que EF inserte la delegación antes.
+        var delegacionAlfa = new DelegacionTenant(_tenantConsultora, _tenantAlfa);
+        var delegacionBeta = new DelegacionTenant(_tenantConsultora, _tenantBeta);
+        _dbContext.DelegacionesTenant.AddRange(delegacionAlfa, delegacionBeta);
+        OperacionExternaAmparada.Agregar(_dbContext, operacionAlfa, delegacionAlfa);
+        OperacionExternaAmparada.Agregar(_dbContext, operacionBeta, delegacionBeta);
+        _dbContext.AsignacionesCartera.AddRange(carteraAlfa, carteraBeta);
         await _dbContext.SaveChangesAsync();
     }
 

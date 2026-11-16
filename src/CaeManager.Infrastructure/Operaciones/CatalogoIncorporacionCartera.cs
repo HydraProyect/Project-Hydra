@@ -78,10 +78,10 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        // Con origen, amparada por la DelegacionTenant concreta de la que nació (AmparoDeOrigen), no por cualquiera del
-        // par; sin origen, como antes de la fase de expansión: la decide la delegación activa del par de abajo.
+        // Con la DelegacionTenant concreta de la que nació, no cualquiera del par
+        // (AmparoDeOrigen): activa, sin caducar y sin revocaciones desde entonces.
         return from operacion in dbContext.AsignacionesOperacion
-                   .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
+                   .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
                    .Where(OperacionDelServicioVigente(ahora))
                where !operacion.EsRaiz
                      && operacion.PropietarioTenantId != operacion.OperadorTenantId
@@ -89,12 +89,6 @@ public class CatalogoIncorporacionCartera(
                      && operacion.AmbitoCentroId == null
                      && operacion.AmbitoTrabajadorId == null
                      && operacion.AmbitoProyectoId == null
-                     && dbContext.DelegacionesTenant.Any(d =>
-                         d.TenantClienteId == operacion.PropietarioTenantId
-                         && d.TenantConsultoraId == operacion.OperadorTenantId
-                         && d.Proposito == PropositoDelegacion.OperadorExterno
-                         && d.Activa
-                         && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
                select operacion;
     }
 
@@ -126,17 +120,15 @@ public class CatalogoIncorporacionCartera(
 
     /// <summary>
     /// Las Asignaciones de Operación de <see cref="Servicio"/> que autorizan hoy: vigentes por estado y fechas
-    /// (<see cref="OperacionDelServicioVigente"/>) y, si son externas con origen, amparadas por la DelegacionTenant
-    /// concreta de la que nacieron (<see cref="AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen"/>). Es la base de este
-    /// catálogo para emitir una cartera o una fila heredada, sostener la fila heredada y decidir qué carteras autorizan
-    /// (ronda 1 de Codex en la PR #2253, alta 2): una operación que sobrevivió a la revocación de su delegación sigue
-    /// figurando Vigente, y por estado y fechas habría dejado aceptar una solicitud o una propuesta y emitir una fila
-    /// heredada nueva, que autoriza el Tenant beneficiario por la vía heredada sin consultar el amparo. Sin origen se
-    /// comporta como antes de la fase de expansión.
+    /// (<see cref="OperacionDelServicioVigente"/>) y, si son externas, amparadas por la DelegacionTenant concreta de la
+    /// que nacieron (<see cref="AmparoDeOrigen"/>). Es la única base de este catálogo para emitir una cartera o una fila
+    /// heredada, sostener la fila heredada y decidir qué carteras autorizan (ronda 1 de Codex en la PR #2237): una
+    /// operación que sobrevivió a la revocación o a la caducidad de su delegación sigue figurando Vigente, y por estado y
+    /// fechas habría dejado aceptar una solicitud o una propuesta pendiente y emitir una fila heredada nueva.
     /// </summary>
     private static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(CaeManagerDbContext dbContext, DateTime ahora) =>
         dbContext.AsignacionesOperacion
-            .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
+            .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
             .Where(OperacionDelServicioVigente(ahora));
 
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
@@ -203,7 +195,10 @@ public class CatalogoIncorporacionCartera(
         // trabajo y el rol dentro de un ámbito explícito enumeran todavía los
         // Tenants por la fila heredada, no por las carteras. Sin ella la
         // cartera existiría y el Gestor CAE no vería el Tenant en ningún sitio.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, usuarioId, RolIncorporado);
+        // Con el contador sellado de la operación: el vínculo es su DelegacionTenant de origen, y el trigger de
+        // inserción rechaza la fila si entre esta lectura y el guardado se revocó o se amplió (ronda 3 de Codex, alta 1).
+        var filaHeredada = new AsignacionOperadorDelegado(
+            vinculoId.Value, usuarioId, RolIncorporado, operacion.RevocacionesDelOrigen);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);
@@ -266,7 +261,8 @@ public class CatalogoIncorporacionCartera(
         dbContext.AsignacionesCartera.Add(cartera);
 
         // Misma doble escritura de F1 que IncorporarAsync.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, propuesta.DestinatarioUsuarioId, RolIncorporado);
+        var filaHeredada = new AsignacionOperadorDelegado(
+            vinculoId.Value, propuesta.DestinatarioUsuarioId, RolIncorporado, operacion.RevocacionesDelOrigen);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoApoyoCartera(cartera, filaHeredada.Id, null);
@@ -327,7 +323,7 @@ public class CatalogoIncorporacionCartera(
     {
         var ahora = DateTime.UtcNow;
 
-        // Bajo una operación que autoriza, amparo de origen incluido (ronda 1 de Codex en la PR #2253).
+        // Bajo una operación que autoriza, amparo de origen incluido (ronda 1 de Codex en la PR #2237).
         return CarterasDelOperadorBajo(OperacionesQueAutorizan(dbContext, ahora), operadorTenantId)
             .Where(c => c.VigenciaDesde <= ahora);
     }
@@ -538,23 +534,23 @@ public class CatalogoIncorporacionCartera(
         // CAE tendría la cartera y no vería el Tenant en el selector.
         if (filaHeredada is null)
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(vinculoId.Value, coordinadorUsuarioId, RolDeRelevo));
+                new AsignacionOperadorDelegado(
+                    vinculoId.Value, coordinadorUsuarioId, RolDeRelevo, operacion.RevocacionesDelOrigen));
 
         return ResultadoRelevoPrincipal.CarteraEmitida;
     }
 
     /// <summary>
     /// La delegación viva de Operador CAE externo de ese Tenant propietario hacia ese Operador CAE
-    /// (la más antigua si hubiera varias), de la que cuelga la fila heredada de la doble escritura. Si la
-    /// operación tiene origen (<paramref name="origenId"/>), solo esa DelegacionTenant: una fila heredada colgada de
-    /// otra delegación del par sobreviviría a la revocación de la que de verdad ampara la operación (ronda 1 de Codex
-    /// en la PR #2253). Sin origen, como antes de la fase de expansión.
+    /// de la que cuelga la fila heredada de la doble escritura: la DelegacionTenant de origen de la operación
+    /// (<paramref name="origenId"/>), no cualquiera viva del par. Una fila heredada colgada de otra delegación del
+    /// par sobreviviría a la revocación de la que de verdad ampara la operación (ronda 1 de Codex en la PR #2237).
+    /// Sin origen no hay vínculo: falla cerrada.
     /// </summary>
     private Task<Guid?> VinculoVivoConElOperadorAsync(
-        Guid propietarioTenantId, Guid operadorTenantId, Guid? origenId, DateTime ahora,
-        CancellationToken cancellationToken) =>
+        Guid propietarioTenantId, Guid operadorTenantId, Guid? origenId, DateTime ahora, CancellationToken cancellationToken) =>
         dbContext.DelegacionesTenant
-            .Where(d => (origenId == null || d.Id == origenId)
+            .Where(d => d.Id == origenId
                         && d.TenantClienteId == propietarioTenantId
                         && d.TenantConsultoraId == operadorTenantId
                         && d.Proposito == PropositoDelegacion.OperadorExterno
@@ -816,13 +812,13 @@ public class CatalogoIncorporacionCartera(
         Guid? soloFilaId = null)
     {
         // Solo la cartera bajo una operación que autoriza, amparo de origen incluido, sostiene la fila heredada: la de
-        // una operación con origen que sobrevivió a una revocación no (ronda 1 de Codex en la PR #2253). Escrito en
-        // línea (es OperacionesQueAutorizan) para que la fuente del join sea la tabla a la vista del trinquete de
-        // acceso crudo (ADR-013 § 4.6).
+        // una operación sin origen o que sobrevivió a una revocación no (ronda 1 de Codex en las PR #2253 y #2237).
+        // Escrito en línea (es OperacionesQueAutorizan) para que la fuente del join sea la tabla con su filtro de
+        // Servicio a la vista del trinquete de acceso crudo (ADR-013 § 4.6).
         var leQuedaOtra = await (
             from c in dbContext.AsignacionesCartera.Where(CarteraDelTenantEntero)
             join o in dbContext.AsignacionesOperacion
-                    .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
+                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
                     .Where(OperacionDelServicioVigente(ahora))
                 on c.AsignacionOperacionId equals o.Id
             where c.UsuarioId == usuarioId
@@ -831,6 +827,7 @@ public class CatalogoIncorporacionCartera(
                   && c.Estado == EstadoAsignacion.Vigente
                   && c.VigenciaDesde <= ahora
                   && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                  && o.Servicio == Servicio
                   && o.OperadorTenantId == operadorTenantId
                   && o.PropietarioTenantId == propietarioTenantId
                   && o.PropietarioTenantId != operadorTenantId
@@ -903,14 +900,14 @@ public class CatalogoIncorporacionCartera(
 
         // La cartera y la Asignación de Operación que la sostiene, las dos vigentes (mismo
         // criterio que ObtenerOperacionVigenteAsync): una operación caducada o suspendida deja
-        // la cartera sin efecto aunque la propia cartera siga marcada como vigente. Y, si la operación
-        // tiene origen, amparada por él, como en los demás lectores de este catálogo (ronda 1 de Codex
-        // en la PR #2253).
+        // la cartera sin efecto aunque la propia cartera siga marcada como vigente. Y la operación
+        // amparada por su origen, como en los demás lectores de este catálogo (Codex r2 en la
+        // PR #2237, media 9): una DelegacionTenant revocada deja sin efecto la cartera.
         var ahora = DateTime.UtcNow;
         var vigentes = await (
                 from c in dbContext.AsignacionesCartera
                 join o in dbContext.AsignacionesOperacion
-                    .SinOrigenOAmparadasPorSuOrigen(dbContext, ahora)
+                    .AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora)
                     .Where(OperacionDelServicioVigente(ahora)) on c.AsignacionOperacionId equals o.Id
                 where asignacionCarteraIds.Contains(c.Id)
                       && c.Estado == EstadoAsignacion.Vigente

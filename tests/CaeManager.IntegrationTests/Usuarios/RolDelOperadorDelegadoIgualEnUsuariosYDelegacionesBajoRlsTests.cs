@@ -103,24 +103,9 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
 
         var ahora = DateTime.UtcNow;
         var desde = ahora.AddDays(-10);
-        using (AmbitoTenantExplicito.Establecer(_operadorA))
-            propietario.AsignacionesOperacion.AddRange(
-                AsignacionOperacion.Externa(_empresaX, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora),
-                AsignacionOperacion.Externa(
-                    _empresaY, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeY), desde, null, ahora),
-                AsignacionOperacion.Externa(
-                    _empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, ahora.AddDays(-1), ahora),
-                // Otro servicio: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola operación vigente del
-                // Tenant entero por propietario y servicio, y X ya tiene la Outbound de A. Desde B-02a
-                // OperacionesDelTenantEntero solo cuenta Outbound, así que esta Inbound no rotula a nadie; el caso de
-                // Soporte TALVEG con una operación Outbound entera vive en W.
-                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora),
-                // V: la única operación del Tenant entero de A es Inbound, así que no rige el perfil de origen (B-02a).
-                AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora),
-                // W: Soporte TALVEG con una operación Outbound del Tenant entero de P; ni así sube a su perfil de origen.
-                AsignacionOperacion.Externa(_empresaW, _plataforma, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
-        await propietario.SaveChangesAsync();
-
+        // Las delegaciones van antes que las operaciones: una operación externa solo autoriza amparada por la
+        // DelegacionTenant de Operador CAE externo de la que nació (AmparoDeOrigen, PR #2237), y el origen se sella al
+        // insertarla. Las de Soporte TALVEG no originan operaciones: la Inbound de la plataforma sobre X queda sin origen.
         var sobreX = new DelegacionTenant(_operadorA, _empresaX);
         var sobreY = new DelegacionTenant(_operadorA, _empresaY);
         var sobreZ = new DelegacionTenant(_operadorA, _empresaZ);
@@ -129,7 +114,42 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
         var sobreV = new DelegacionTenant(_operadorA, _empresaV);
         var soporteSobreW = DelegacionTenant.ParaSoporte(_plataforma, _empresaW);
         soporteSobreW.ActivarParaSoporte("Incidencia de prueba en W", ahora.AddHours(2), ahora);
-        propietario.DelegacionesTenant.AddRange(sobreX, sobreY, sobreZ, soporteSobreX, sobreV, soporteSobreW);
+        // W: la operación Outbound del Tenant entero de P nace amparada por una DelegacionTenant de Operador CAE externo
+        // de P sobre W, aparte de la de Soporte TALVEG: un estado de fixture que producción no genera (TALVEG no es por
+        // defecto un Operador CAE). Sin origen, el amparo la excluiría por sí solo y el caso no
+        // mediría la guarda de Soporte (revisión puente de la ronda 6 de la PR #2237).
+        var operadorPSobreW = new DelegacionTenant(_plataforma, _empresaW);
+        propietario.DelegacionesTenant.AddRange(sobreX, sobreY, sobreZ, soporteSobreX, sobreV, soporteSobreW, operadorPSobreW);
+        using (AmbitoTenantExplicito.Establecer(_operadorA))
+        {
+            OperacionExternaAmparada.Agregar(propietario,
+                AsignacionOperacion.Externa(_empresaX, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora),
+                sobreX);
+            OperacionExternaAmparada.Agregar(propietario,
+                AsignacionOperacion.Externa(
+                    _empresaY, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeY), desde, null, ahora),
+                sobreY);
+            OperacionExternaAmparada.Agregar(propietario,
+                AsignacionOperacion.Externa(
+                    _empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, ahora.AddDays(-1), ahora),
+                sobreZ);
+            propietario.AsignacionesOperacion.AddRange(
+                // Otro servicio: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola operación vigente del
+                // Tenant entero por propietario y servicio, y X ya tiene la Outbound de A. Desde B-02a
+                // OperacionesDelTenantEntero solo cuenta Outbound, así que esta Inbound no rotula a nadie; el caso de
+                // Soporte TALVEG con una operación Outbound entera vive en W.
+                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
+            // W: Soporte TALVEG con una operación Outbound del Tenant entero de P, amparada; ni así sube a su perfil de origen.
+            OperacionExternaAmparada.Agregar(propietario,
+                AsignacionOperacion.Externa(_empresaW, _plataforma, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora),
+                operadorPSobreW);
+            // V: la única operación del Tenant entero de A es Inbound, así que no rige el perfil de origen (B-02a).
+            OperacionExternaAmparada.Agregar(propietario,
+                AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora),
+                sobreV);
+        }
+        await propietario.SaveChangesAsync();
+
         propietario.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(sobreX.Id, _administradoraDeA, "GestorCae"),
             new AsignacionOperadorDelegado(sobreX.Id, _gestoraDeA, "GestorCae"),

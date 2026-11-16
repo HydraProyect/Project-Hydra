@@ -26,17 +26,16 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Operaciones;
 
 /// <summary>
-/// Fase de expansión de la procedencia de la Asignación de Operación Outbound externa (decisión de Chris del
-/// 2026-11-15 sobre la PR #2237, opción c) contra Postgres real: los triggers de la migración
-/// <c>AnadeOrigenDeOperacionExterna</c> y el filtro <c>AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen</c> de los
-/// lectores.
+/// Procedencia de la Asignación de Operación Outbound externa (decisión de Chris del 2026-11-15, opción c) contra
+/// Postgres real: los triggers de las migraciones <c>AnadeOrigenDeOperacionExterna</c> (expansión, PR #2253) y
+/// <c>AnadeProcedenciaDeOperacionExterna</c> (contracción, PR #2237) y el filtro <c>AmparoDeOrigen.AmparadasPorSuOrigen</c>
+/// de los lectores.
 /// <list type="bullet">
 /// <item>La inserción sella el origen: el alta real lo fija y la inserción que no lo trae (la ranura anterior) lo
 /// deduce si el par tiene una sola DelegacionTenant de Operador CAE externo activa.</item>
 /// <item>Con origen, la operación solo autoriza mientras esa DelegacionTenant siga activa y sin revocaciones desde que
 /// nació: revocada, revocada y reactivada, o sustituida por otra del par, deja de autorizar.</item>
-/// <item>Sin origen, la operación autoriza como antes de la migración: lo decide el resto del predicado de cada
-/// lector (en <c>CarterasPorOperacionDeLaOrganizacion</c>, una delegación activa del par).</item>
+/// <item>Sin origen, la operación externa no autoriza (falla cerrada), aunque el par tenga una delegación activa.</item>
 /// </list>
 /// <para>
 /// La delegación nace por el alta real (<see cref="CrearDelegacionTenantCommandHandler"/>) bajo el cableado de
@@ -197,7 +196,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sin_origen_la_operacion_autoriza_como_antes_de_la_migracion()
+    public async Task Sin_origen_la_operacion_no_autoriza_ni_con_una_delegacion_activa_del_par()
     {
         // Sin delegación activa al insertar, el trigger no tiene de dónde deducir el origen.
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = false WHERE "Id" = '{_delegacion}'""");
@@ -208,12 +207,12 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
                 .Should().BeNull("control: nació sin delegación vigente de la que deducir el origen");
 
         (await CarterasAutorizadasDelOperadorAsync()).Should().NotContain(acotada,
-            "como antes: sin ninguna delegación activa del par no autoriza");
+            "sin ninguna delegación activa del par no autoriza");
 
         await EjecutarComoPropietarioAsync($"""UPDATE "DelegacionesTenant" SET "Activa" = true WHERE "Id" = '{_delegacion}'""");
 
-        (await CarterasAutorizadasDelOperadorAsync()).Should().Contain(acotada,
-            "fase de expansión: sin origen, una delegación activa del par la autoriza, como antes de la migración");
+        (await CarterasAutorizadasDelOperadorAsync()).Should().NotContain(acotada,
+            "contracción (PR #2237): sin origen falla cerrada, aunque una delegación activa del par la autorizaba en la expansión");
     }
 
     [Fact]
