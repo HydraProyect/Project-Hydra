@@ -390,28 +390,28 @@ public static class InboundDemoSeeder
 
             void PlantillaDelCentro()
             {
-            var delCentro = PlantillaRequisitos.ParaCentro(centro.Id);
-            Requisito(delCentro, AptitudMedica, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.Fija, 12, true,
-                "Apto para trabajos en altura.", AmbitoDocumentoRequisito.GeneralTec);
-            Requisito(delCentro, FormacionArt19, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, true,
-                null, AmbitoDocumentoRequisito.GeneralTec);
-            Requisito(delCentro, EntregaEpi, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, false,
-                "Calzado de seguridad y chaleco de alta visibilidad.", AmbitoDocumentoRequisito.EspecificoCentro);
-            db.PlantillasRequisitos.Add(delCentro);
+                var delCentro = PlantillaRequisitos.ParaCentro(centro.Id);
+                Requisito(delCentro, AptitudMedica, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.Fija, 12, true,
+                    "Apto para trabajos en altura.", AmbitoDocumentoRequisito.GeneralTec);
+                Requisito(delCentro, FormacionArt19, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, true,
+                    null, AmbitoDocumentoRequisito.GeneralTec);
+                Requisito(delCentro, EntregaEpi, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, false,
+                    "Calzado de seguridad y chaleco de alta visibilidad.", AmbitoDocumentoRequisito.EspecificoCentro);
+                db.PlantillasRequisitos.Add(delCentro);
             }
 
             void PlantillaDeExigencias()
             {
-            var exigencias = PlantillaRequisitos.ParaExigenciasDe(cliente.Id);
-            Requisito(exigencias, SeguroResponsabilidadCivil, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.LaPoneElDocumento, null, true,
-                "Cobertura mínima de 600.000 € por siniestro.", AmbitoDocumentoRequisito.EspecificoTce);
-            Requisito(exigencias, CorrienteSeguridadSocial, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 1, true,
-                null, AmbitoDocumentoRequisito.GeneralTec);
-            Requisito(exigencias, CorrienteHacienda, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 12, false,
-                null, AmbitoDocumentoRequisito.GeneralTec);
-            Requisito(exigencias, Rnt, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 1, false,
-                null, AmbitoDocumentoRequisito.GeneralTec);
-            db.PlantillasRequisitos.Add(exigencias);
+                var exigencias = PlantillaRequisitos.ParaExigenciasDe(cliente.Id);
+                Requisito(exigencias, SeguroResponsabilidadCivil, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.LaPoneElDocumento, null, true,
+                    "Cobertura mínima de 600.000 € por siniestro.", AmbitoDocumentoRequisito.EspecificoTce);
+                Requisito(exigencias, CorrienteSeguridadSocial, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 1, true,
+                    null, AmbitoDocumentoRequisito.GeneralTec);
+                Requisito(exigencias, CorrienteHacienda, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 12, false,
+                    null, AmbitoDocumentoRequisito.GeneralTec);
+                Requisito(exigencias, Rnt, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 1, false,
+                    null, AmbitoDocumentoRequisito.GeneralTec);
+                db.PlantillasRequisitos.Add(exigencias);
             }
         }
     }

@@ -248,7 +248,7 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
         return new Dictionary<string, int>
         {
             ["ProductosContratados"] = await bootstrap.ProductosContratados.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
-            ["Auditoria"] =await bootstrap.RegistrosAuditoria.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
+            ["Auditoria"] = await bootstrap.RegistrosAuditoria.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["Requisitos"] = await bootstrap.PlantillasRequisitos.IgnoreQueryFilters().Where(e => tenants.Contains(e.TenantId)).SelectMany(p => p.Requisitos).CountAsync(),
             ["Operaciones"] = await bootstrap.AsignacionesOperacion.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.PropietarioTenantId)),
             ["Tenants"] = tenants.Count,
