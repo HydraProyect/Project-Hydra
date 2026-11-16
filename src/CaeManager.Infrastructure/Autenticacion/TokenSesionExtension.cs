@@ -23,12 +23,23 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// </para>
 ///
 /// <para>
+/// <b>Marcas de la sesión de origen (issue #1891, ASVS 4.0.3 V3.3.2).</b> También lleva la
+/// hora de inicio de la sesión de origen y su última interacción conocida al emitir
+/// (<see cref="MarcasSesionOrigen"/>), las mismas marcas que la cookie. Con ellas
+/// <see cref="ISesionOrigenExtension"/> deja de admitir el token en cuanto la sesión de origen
+/// supera su tope desde el inicio o el plazo de inactividad del Tenant propietario de la
+/// cuenta. Usar la extensión no es una interacción: no mueve ninguna de las dos marcas.
+/// Un token sin ellas, emitido antes de este cambio, no se admite.
+/// </para>
+///
+/// <para>
 /// La vigencia es corta a propósito: el token vive en el almacenamiento de
 /// una extensión, en la máquina del gestor, fuera del tarro de cookies del
 /// navegador y de sus protecciones. Ocho horas cubren una jornada completa
 /// sin renovar, y acotan a una jornada la ventana de un portátil perdido.
-/// No hay refresco: al caducar se vuelve a pasar por Hydra, que es donde ya
-/// hay sesión iniciada.
+/// Es solo la cota exterior: antes vence la sesión de origen, por inactividad
+/// o por su tope. No hay refresco: al caducar se vuelve a pasar por Hydra,
+/// que es donde ya hay sesión iniciada.
 /// </para>
 /// </summary>
 public static class TokenSesionExtension
@@ -52,12 +63,19 @@ public static class TokenSesionExtension
     /// consume el token lo compara con el de la base: si no coinciden, el
     /// token es de antes de una invalidación y no vale.
     /// </param>
-    public static string Proteger(IDataProtectionProvider dataProtectionProvider, Guid usuarioId, string securityStamp, Guid sid)
+    /// <param name="marcas">
+    /// Las marcas de la sesión de origen <b>vigentes al emitir</b>
+    /// (<see cref="ISesionOrigenExtension.MarcasVigentes"/>).
+    /// </param>
+    public static string Proteger(
+        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, string securityStamp, Guid sid, MarcasSesionOrigen marcas)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(securityStamp);
+        ArgumentNullException.ThrowIfNull(marcas);
         if (sid == Guid.Empty) throw new ArgumentException("Identificador de sesión vacío.", nameof(sid));
 
-        return CrearProtector(dataProtectionProvider).Protect($"{usuarioId:N}|{securityStamp}|{sid:N}", Vigencia);
+        return CrearProtector(dataProtectionProvider).Protect(
+            $"{usuarioId:N}|{securityStamp}|{sid:N}|{Sello(marcas.Inicio)}|{Sello(marcas.UltimaInteraccion)}", Vigencia);
     }
 
     /// <summary>
@@ -92,10 +110,11 @@ public static class TokenSesionExtension
     /// </summary>
     public static CargaUtilTokenExtension? ParsearCargaUtil(string cargaUtil)
     {
-        // El security stamp de Identity es Base32 (sin '|'), así que tres
-        // partes exactas es la única forma válida.
+        // El security stamp de Identity es Base32 (sin '|'), así que cinco
+        // partes exactas es la única forma válida. La de tres, sin las marcas de
+        // la sesión de origen, es la de antes del issue #1891 y no vale.
         var partes = cargaUtil.Split('|');
-        if (partes.Length != 3)
+        if (partes.Length != 5)
             return null;
 
         if (!Guid.TryParseExact(partes[0], "N", out var usuarioId) || usuarioId == Guid.Empty)
@@ -107,12 +126,24 @@ public static class TokenSesionExtension
         if (!Guid.TryParseExact(partes[2], "N", out var sid) || sid == Guid.Empty)
             return null;
 
-        return new CargaUtilTokenExtension(usuarioId, partes[1], sid);
+        if (LeerSello(partes[3]) is not { } inicio || LeerSello(partes[4]) is not { } ultimaInteraccion)
+            return null;
+
+        return new CargaUtilTokenExtension(usuarioId, partes[1], sid, new MarcasSesionOrigen(inicio, ultimaInteraccion));
     }
+
+    private static string Sello(DateTimeOffset momento) =>
+        momento.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private static DateTimeOffset? LeerSello(string sello) =>
+        long.TryParse(sello, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var segundos)
+        && segundos <= DateTimeOffset.MaxValue.ToUnixTimeSeconds()
+            ? DateTimeOffset.FromUnixTimeSeconds(segundos)
+            : null;
 
     private static ITimeLimitedDataProtector CrearProtector(IDataProtectionProvider dataProtectionProvider) =>
         dataProtectionProvider.CreateProtector(PropositoProtector).ToTimeLimitedDataProtector();
 }
 
 /// <summary>Contenido verificado de un token de extensión — ver <see cref="TokenSesionExtension"/>.</summary>
-public record CargaUtilTokenExtension(Guid UsuarioId, string SecurityStamp, Guid Sid);
+public record CargaUtilTokenExtension(Guid UsuarioId, string SecurityStamp, Guid Sid, MarcasSesionOrigen Marcas);

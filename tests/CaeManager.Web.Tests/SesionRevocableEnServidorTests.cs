@@ -12,6 +12,7 @@ using CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Authentication;
@@ -41,12 +42,13 @@ public class SesionRevocableEnServidorTests
         var (gestor, _, sesiones, cuenta) = Montar(estadoOperativo: estado);
         var protector = new EphemeralDataProtectionProvider();
         var sid = Guid.NewGuid();
-        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid);
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, MarcasSesionDePrueba.Recientes());
         async Task<AuthenticateResult> Autenticar(string valor)
         {
             var handler = new ExtensionAuthenticationHandler(
                 new MonitorExtension(), NullLoggerFactory.Instance, UrlEncoder.Default, protector,
-                gestor.UserManager, new UserClaimsPrincipalFactory<ApplicationUser>(gestor.UserManager, Opciones.Create(new IdentityOptions())), sesiones, estado);
+                gestor.UserManager, new UserClaimsPrincipalFactory<ApplicationUser>(gestor.UserManager, Opciones.Create(new IdentityOptions())), sesiones, estado,
+                new SesionOrigenExtension(new ActividadSesiones(), TimeProvider.System));
             var http = new DefaultHttpContext();
             http.Request.Headers.Authorization = $"Extension {valor}";
             await handler.InitializeAsync(new AuthenticationScheme("Extension", null, typeof(ExtensionAuthenticationHandler)), http);
@@ -62,10 +64,107 @@ public class SesionRevocableEnServidorTests
         estado.Suspendido = null;
         await sesiones.RevocarAsync(cuenta.Id, sid);
         (await Autenticar(token)).Succeeded.Should().BeFalse();
-        var otroToken = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, Guid.NewGuid());
+        var otroToken = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, Guid.NewGuid(), MarcasSesionDePrueba.Recientes());
         (await Autenticar(otroToken)).Succeeded.Should().BeTrue();
         cuenta.SecurityStamp = "sello-rotado";
         (await Autenticar(otroToken)).Succeeded.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Issue #1891 (ASVS 4.0.3 V3.3.2): el token deja de autenticar cuando su sesión de origen vence por inactividad,
+    /// con el plazo que trae el principal construido para la cuenta del token, y usarlo no renueva esa sesión. Solo una
+    /// interacción de la interfaz web, anotada en <see cref="ActividadSesiones"/>, la mantiene viva.
+    /// </summary>
+    [Fact]
+    public async Task El_token_de_extension_deja_de_autenticar_al_vencer_su_sesion_de_origen_por_inactividad()
+    {
+        var (gestor, _, sesiones, cuenta) = Montar();
+        var protector = new EphemeralDataProtectionProvider();
+        var actividad = new ActividadSesiones();
+        var reloj = new RelojFijo(DateTimeOffset.UtcNow);
+        var sid = Guid.NewGuid();
+        var emision = reloj.Ahora;
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(emision.AddMinutes(-1), emision));
+        var fabrica = new FabricaConPlazo(gestor.UserManager, minutos: 5);
+        async Task<AuthenticateResult> Autenticar()
+        {
+            var handler = new ExtensionAuthenticationHandler(
+                new MonitorExtension(), NullLoggerFactory.Instance, UrlEncoder.Default, protector,
+                gestor.UserManager, fabrica, sesiones, new EstadoOperativoFalso(), new SesionOrigenExtension(actividad, reloj));
+            var http = new DefaultHttpContext();
+            http.Request.Headers.Authorization = $"Extension {token}";
+            await handler.InitializeAsync(new AuthenticationScheme("Extension", null, typeof(ExtensionAuthenticationHandler)), http);
+            return await handler.AuthenticateAsync();
+        }
+
+        reloj.Ahora = emision.AddMinutes(4);
+        (await Autenticar()).Succeeded.Should().BeTrue("dentro del plazo de 5 minutos del Tenant propietario");
+        actividad.Leer(sid).Should().BeNull("usar la extensión no es una interacción de la sesión de origen");
+
+        reloj.Ahora = emision.AddMinutes(5);
+        var vencido = await Autenticar();
+        vencido.Succeeded.Should().BeFalse("cinco minutos sin interacción vencen la sesión de origen y con ella el token");
+        vencido.Failure!.Message.Should().Be("Token inválido o caducado.");
+
+        fabrica.Minutos = 30;
+        (await Autenticar()).Succeeded.Should().BeTrue("el plazo es el del principal de la cuenta, leído en cada petición");
+        fabrica.Minutos = 5;
+
+        actividad.Anotar(sid, emision.AddMinutes(3));
+        (await Autenticar()).Succeeded.Should().BeTrue("una interacción de la interfaz web dentro del plazo mantiene viva la sesión");
+        actividad.Anotar(Guid.NewGuid(), reloj.Ahora);
+        reloj.Ahora = emision.AddMinutes(8);
+        (await Autenticar()).Succeeded.Should().BeFalse("la interacción de otra sesión no cuenta");
+    }
+
+    /// <summary>Issue #1891: el tope desde el inicio de la sesión de origen corta el token aunque haya interacción reciente.</summary>
+    [Fact]
+    public async Task El_token_de_extension_no_sobrevive_al_tope_de_su_sesion_de_origen()
+    {
+        var (gestor, _, sesiones, cuenta) = Montar();
+        var protector = new EphemeralDataProtectionProvider();
+        var reloj = new RelojFijo(DateTimeOffset.UtcNow);
+        var sid = Guid.NewGuid();
+        var actividad = new ActividadSesiones();
+        var inicio = reloj.Ahora.AddHours(-12).AddMinutes(1);
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(inicio, reloj.Ahora));
+        async Task<AuthenticateResult> Autenticar()
+        {
+            var handler = new ExtensionAuthenticationHandler(
+                new MonitorExtension(), NullLoggerFactory.Instance, UrlEncoder.Default, protector,
+                gestor.UserManager, new FabricaConPlazo(gestor.UserManager, minutos: 480), sesiones, new EstadoOperativoFalso(),
+                new SesionOrigenExtension(actividad, reloj));
+            var http = new DefaultHttpContext();
+            http.Request.Headers.Authorization = $"Extension {token}";
+            await handler.InitializeAsync(new AuthenticationScheme("Extension", null, typeof(ExtensionAuthenticationHandler)), http);
+            return await handler.AuthenticateAsync();
+        }
+
+        (await Autenticar()).Succeeded.Should().BeTrue();
+        reloj.Ahora = reloj.Ahora.AddMinutes(1);
+        actividad.Anotar(sid, reloj.Ahora);
+        (await Autenticar()).Succeeded.Should().BeFalse("doce horas desde el inicio de la sesión de origen");
+    }
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public DateTimeOffset Ahora { get; set; } = ahora;
+        public override DateTimeOffset GetUtcNow() => Ahora;
+    }
+
+    /// <summary>La fábrica de Identity más el plazo de inactividad del Tenant propietario, como hace <see cref="TenantClaimsPrincipalFactory"/>.</summary>
+    private sealed class FabricaConPlazo(UserManager<ApplicationUser> userManager, int minutos)
+        : UserClaimsPrincipalFactory<ApplicationUser>(userManager, Opciones.Create(new IdentityOptions()))
+    {
+        public int Minutos { get; set; } = minutos;
+
+        public override async Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
+        {
+            var principal = await base.CreateAsync(user);
+            ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(
+                TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, Minutos.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            return principal;
+        }
     }
 
     [Fact]
@@ -75,10 +174,21 @@ public class SesionRevocableEnServidorTests
         var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
         var protector = new EphemeralDataProtectionProvider();
         var sid = Guid.NewGuid();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsExitoso.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes())).EsFallido.Should().BeTrue();
+        // Issue #1891: sin marcas, la sesión de origen ya venció por su tope o por inactividad.
+        var sinMarcas = await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, null);
+        sinMarcas.EsFallido.Should().BeTrue();
+        sinMarcas.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
+        var marcas = new MarcasSesionOrigen(DateTimeOffset.UtcNow.AddMinutes(-7), DateTimeOffset.UtcNow.AddMinutes(-2));
+        var emitido = await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, marcas);
+        emitido.EsExitoso.Should().BeTrue();
+        TokenSesionExtension.Leer(protector, emitido.Valor.Token)!.Marcas.Should().Be(
+            new MarcasSesionOrigen(
+                DateTimeOffset.FromUnixTimeSeconds(marcas.Inicio.ToUnixTimeSeconds()),
+                DateTimeOffset.FromUnixTimeSeconds(marcas.UltimaInteraccion.ToUnixTimeSeconds())),
+            "el token lleva las marcas de la sesión de origen que se le pasan, al segundo");
         await sesiones.RevocarAsync(cuenta.Id, sid);
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes())).EsFallido.Should().BeTrue();
     }
 
     [Theory]
@@ -90,7 +200,7 @@ public class SesionRevocableEnServidorTests
         var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
         var protector = new EphemeralDataProtectionProvider();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloDeLaCookie, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloDeLaCookie, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes());
 
         resultado.EsFallido.Should().BeTrue("el token saldría con el sello nuevo para una sesión que no lo ha visto");
         resultado.Error.Codigo.Should().Be("Extension.SesionNoVigente");
@@ -108,7 +218,7 @@ public class SesionRevocableEnServidorTests
         var selloEnLaCookie = cuenta.SecurityStamp;
         sellos.EnBase = "sello-del-restablecimiento";
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloEnLaCookie, gestor.UserManager, new EphemeralDataProtectionProvider(), sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloEnLaCookie, gestor.UserManager, new EphemeralDataProtectionProvider(), sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes());
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Extension.SesionNoVigente");
@@ -124,7 +234,7 @@ public class SesionRevocableEnServidorTests
         const string selloVigente = "sello-del-restablecimiento";
         sellos.EnBase = selloVigente;
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloVigente, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloVigente, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes());
 
         resultado.EsExitoso.Should().BeTrue();
         TokenSesionExtension.Leer(protector, resultado.Valor.Token)!.SecurityStamp.Should().Be(selloVigente);

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -73,6 +74,18 @@ namespace CaeManager.Web.Services;
 /// petición. Que el identificador siga vivo en la base lo comprueba la revalidación
 /// del sello (<c>SignInManagerCuentaDesactivada.ValidateSecurityStampAsync</c>),
 /// cada 60 s, para la cookie y para el circuito por igual.
+/// </para>
+///
+/// <para>
+/// <b>Token de la extensión (issue #1891).</b> Lleva la hora de inicio y la última interacción
+/// de la sesión de la que salió (<see cref="MarcasParaExtension"/>), y vale mientras esa sesión
+/// valdría con estas mismas reglas (<see cref="SesionOrigenVigente"/>, que aplica
+/// <see cref="SesionOrigenExtension"/>): tope desde el inicio y plazo del Tenant propietario de la
+/// cuenta, con la interacción más reciente entre la del token y la anotada en
+/// <see cref="ActividadSesiones"/>. Usar la extensión no cuenta como interacción. Por eso vencer
+/// por inactividad no necesita revocar el identificador de sesión: sin una señal de la interfaz
+/// web, que la cookie ya caducada no admite, ninguna de las dos marcas avanza, tampoco tras un
+/// reinicio, que solo vacía la memoria.
 /// </para>
 ///
 /// <para>
@@ -245,6 +258,33 @@ public static class CaducidadSesion
         SigueActiva(principal, ultimaRegistrada, ahora, PlazoInactividad(principal));
 
     /// <summary>
+    /// Las marcas que se guardan en el token de la extensión (issue #1891): la hora de inicio y la
+    /// interacción más reciente entre la del principal y <paramref name="ultimaRegistrada"/>. Sin marca
+    /// de interacción cuenta el inicio. <c>null</c> si la sesión ya no está vigente: sin inicio legible,
+    /// pasada de <see cref="DuracionMaxima"/> o caducada con el <see cref="PlazoInactividad"/> del principal.
+    /// </summary>
+    public static MarcasSesionOrigen? MarcasParaExtension(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
+    {
+        if (Leer(principal.FindFirst(MarcaInicio)?.Value) is not { } inicio || !EsVigente(inicio, ahora))
+            return null;
+
+        var marca = Leer(principal.FindFirst(MarcaInteraccion)?.Value) ?? inicio;
+        var ultima = marca < ultimaRegistrada ? ultimaRegistrada.Value : marca;
+        return SigueActiva(ultima, ahora, PlazoInactividad(principal)) ? new MarcasSesionOrigen(inicio, ultima) : null;
+    }
+
+    /// <summary>
+    /// ¿Sigue vigente la sesión de origen de un token de extensión? Las mismas reglas que la cookie:
+    /// menos de <see cref="DuracionMaxima"/> desde el inicio y una interacción, la del token o
+    /// <paramref name="ultimaRegistrada"/> si es posterior, dentro del <see cref="PlazoInactividad"/> de
+    /// <paramref name="cuenta"/>. El uso del token no cuenta como interacción: nadie anota nada por él.
+    /// </summary>
+    public static bool SesionOrigenVigente(
+        ClaimsPrincipal cuenta, MarcasSesionOrigen marcas, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
+        EsVigente(marcas.Inicio, ahora)
+        && SigueActiva(marcas.UltimaInteraccion < ultimaRegistrada ? ultimaRegistrada : marcas.UltimaInteraccion, ahora, PlazoInactividad(cuenta));
+
+    /// <summary>
     /// ¿Admite el ajuste vigente del Tenant, recién leído de la base en <paramref name="vigente"/>,
     /// un circuito que sigue con el principal de cuando se conectó? No, si con el plazo vigente la
     /// sesión ya caducó o si la cuenta tiene ahora una activación que antes no tenía: esa solo se
@@ -280,7 +320,10 @@ public static class CaducidadSesion
         && peticion.Headers["Sec-Fetch-Site"] == "same-origin";
 
     private static bool EsVigente(string? marca, DateTimeOffset ahora) =>
-        Leer(marca) is { } inicio && inicio <= ahora && ahora - inicio < DuracionMaxima;
+        Leer(marca) is { } inicio && EsVigente(inicio, ahora);
+
+    private static bool EsVigente(DateTimeOffset inicio, DateTimeOffset ahora) =>
+        inicio <= ahora && ahora - inicio < DuracionMaxima;
 
     private static DateTimeOffset? Leer(string? marca) =>
         long.TryParse(marca, NumberStyles.None, CultureInfo.InvariantCulture, out var segundos)

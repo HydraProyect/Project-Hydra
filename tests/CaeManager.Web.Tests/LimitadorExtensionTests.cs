@@ -63,7 +63,7 @@ public class LimitadorExtensionTests
         var victima = Guid.NewGuid();
         var legitimo = sitio.Token(victima);
         legitimo.Length.Should().BeLessThan(1024);
-        var forjado = TokenSesionExtension.Proteger(new EphemeralDataProtectionProvider(), victima, "SELLO", Guid.NewGuid());
+        var forjado = TokenSesionExtension.Proteger(new EphemeralDataProtectionProvider(), victima, "SELLO", Guid.NewGuid(), MarcasSesionDePrueba.Recientes());
         (await sitio.PedirAsync("/extension/uno", forjado)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await sitio.PedirAsync("/extension/uno", forjado)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await sitio.PedirAsync("/extension/uno", forjado)).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
@@ -122,7 +122,7 @@ public class LimitadorExtensionTests
             return new Sitio(app, new HttpClient { BaseAddress = new Uri(direccion) }, proteccion);
         }
 
-        public string Token(Guid usuario, Guid? sid = null) => TokenSesionExtension.Proteger(proteccion, usuario, "SELLO", sid ?? Guid.NewGuid());
+        public string Token(Guid usuario, Guid? sid = null) => TokenSesionExtension.Proteger(proteccion, usuario, "SELLO", sid ?? Guid.NewGuid(), MarcasSesionDePrueba.Recientes());
 
         public async Task<HttpResponseMessage> PedirAsync(string ruta, string? token)
         {
