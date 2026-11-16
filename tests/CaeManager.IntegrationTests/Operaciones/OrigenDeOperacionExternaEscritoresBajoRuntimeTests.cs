@@ -450,8 +450,8 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
         sellada.RevocacionesDelOrigen.Should().Be(1, "nace con el contador que la delegación tiene al reactivarse");
         (await verificacion.AsignacionesOperacion.SingleAsync(o => o.Id == anterior)).OrigenId
             .Should().BeNull("nació en otra transacción, con la delegación revocada");
-        (await CarterasAutorizadasDelOperadorAsync()).Should().Contain(anterior,
-            "control: sin origen sigue como antes de la migración, con la delegación del par activa");
+        (await CarterasAutorizadasDelOperadorAsync()).Should().NotContain(anterior,
+            "sin origen falla cerrada (contracción, PR #2237), aunque la delegación del par esté activa");
     }
 
     // ── Montaje de los escritores ────────────────────────────────────────────
