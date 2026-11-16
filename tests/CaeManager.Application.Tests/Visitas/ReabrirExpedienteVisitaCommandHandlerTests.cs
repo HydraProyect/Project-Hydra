@@ -29,13 +29,17 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
     }
 
     /// <summary>Simula la regla común: si el expediente sigue completo, lo vuelve a sellar con la atribución que toca ahora.</summary>
-    private sealed class EvaluadorQueResella(Visita visita, bool sigueCompleto) : IEvaluadorExpedienteVisitaService
+    private sealed class EvaluadorQueResella(Visita visita, bool sigueCompleto, UnitOfWorkFalso? unitOfWork = null) : IEvaluadorExpedienteVisitaService
     {
         public int Evaluaciones { get; private set; }
+
+        /// <summary>Cuántos guardados había hecho la orden al reevaluar (revisor-puente r3: fija el orden).</summary>
+        public int? GuardadosAlEvaluar { get; private set; }
 
         public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default)
         {
             Evaluaciones++;
+            GuardadosAlEvaluar = unitOfWork?.VecesGuardado;
             if (visitaId != visita.Id || !sigueCompleto)
                 return Task.FromResult(false);
             return Task.FromResult(visita.MarcarExpedienteCompleto(DateTime.UtcNow,
@@ -112,7 +116,7 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
     {
         var visita = VisitaSellada();
         var unitOfWork = new UnitOfWorkFalso();
-        var evaluador = new EvaluadorQueResella(visita, sigueCompleto: true);
+        var evaluador = new EvaluadorQueResella(visita, sigueCompleto: true, unitOfWork);
         var transaccion = new TransaccionDeComandoFalsa();
 
         var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", evaluador, transaccion)
@@ -121,6 +125,7 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(1, "la reapertura se guarda antes de reevaluar; el resello lo guarda el evaluador (aquí, un doble en memoria)");
         transaccion.Confirmadas.Should().Be(1, "Codex r3 (#2266): reapertura y resello, en una sola transacción");
+        evaluador.GuardadosAlEvaluar.Should().Be(1, "la reapertura se guarda antes de reevaluar: si no, va en el mismo registro que el resello");
         evaluador.Evaluaciones.Should().Be(1, "opción A: se reevalúa al momento");
         visita.FechaHoraExpedienteCompletoUtc.Should().NotBe(Sello).And.NotBeNull();
         visita.Tramo.Should().Be(TramoAntelacion.Estandar);

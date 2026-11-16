@@ -137,8 +137,8 @@ public class ReabrirExpedienteVisitaCommandHandler(
         {
             await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
         }
-        // Un conflicto de concurrencia en el guardado del evaluador sigue su camino común (ConcurrenciaBehavior: «esta
-        // visita cambió», con recarga), igual que si lo hubiera guardado este handler.
+        // Un conflicto de concurrencia en cualquiera de los dos guardados sigue su camino común: la transacción se
+        // deshace y ConcurrenciaBehavior lo devuelve como Concurrencia.Conflicto.
         catch (Exception ex) when (ex is not OperationCanceledException and not DbUpdateConcurrencyException)
         {
             logger.LogWarning(ex, "No se pudo reevaluar el expediente de la visita {VisitaId}; la reapertura no se guarda.", visita.Id);
