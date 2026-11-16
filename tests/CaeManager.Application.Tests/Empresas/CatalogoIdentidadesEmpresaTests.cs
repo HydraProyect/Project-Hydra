@@ -50,9 +50,8 @@ public class CatalogoIdentidadesEmpresaTests
             var esperada = await repositorio.ObtenerDuplicadaPorCifAsync(cif, excluir);
             var obtenida = catalogo.DuplicadaPorCif(cif, excluir);
 
-            obtenida?.Id.Should().Be(esperada?.Id);
-            (obtenida is null).Should().Be(esperada is null, $"CIF «{cif}», excluyendo {excluir}");
-            obtenida?.EstaEliminado.Should().Be(esperada!.EstaEliminado);
+            (obtenida?.Id).Should().Be(esperada?.Id, $"CIF «{cif}», excluyendo {excluir}");
+            (obtenida?.EstaEliminado).Should().Be(esperada?.EstaEliminado);
         }
     }
 
