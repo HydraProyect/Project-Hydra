@@ -149,7 +149,8 @@ public class CargaMasivaCarteraRevocadaBajoElCandadoTests
         candado.Candado.Ejecuciones.Should().Be(1);
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ErroresCargaMasiva.AmbitoCambiadoAlConfirmar.Codigo);
-        escenario.OperacionImportacionRepositorio.ExisteAsync(PlanCombinado().OperacionId).Result.Should().BeFalse();
+        (await escenario.OperacionImportacionRepositorio.ExisteAsync(PlanCombinado().OperacionId))
+            .Should().BeFalse("la marca de la operación no se guarda: no se confirma nada");
         alcance.Invalidaciones.Should().BeGreaterThan(0);
         _ = dentro;
     }
