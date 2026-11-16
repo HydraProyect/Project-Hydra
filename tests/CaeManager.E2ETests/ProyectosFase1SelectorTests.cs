@@ -365,7 +365,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
                 """)),
             "Aria snapshot de la franja: " + await MedirAsync(() => page.Locator(".franja-estado").AriaSnapshotAsync(new() { Timeout = 1000 })),
             "Pregunta de «Salir y descartar»: " + await MedirAsync(async () =>
-                $"{await d.Pregunta.CountAsync()} en el DOM, visible: {await d.Pregunta.First.IsVisibleAsync()}"),
+                $"{await d.Pregunta.CountAsync()} en el DOM, visible: {await d.Pregunta.IsVisibleAsync()}"),
             "Diálogos visibles: " + await MedirAsync(async () =>
                 string.Join(" | ", await page.GetByRole(AriaRole.Dialog).AllInnerTextsAsync())),
             "Pastilla de Cliente empresarial: " + await MedirAsync(async () =>
