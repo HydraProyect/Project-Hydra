@@ -902,4 +902,10 @@
   <data name="MenuInboundPlantillas" xml:space="preserve">
     <value>Plantillas de requisitos</value>
   </data>
+  <data name="MenuInboundReglasAviso" xml:space="preserve">
+    <value>Reglas de aviso</value>
+  </data>
+  <data name="MenuInboundGobierno" xml:space="preserve">
+    <value>Gobierno de Inbound</value>
+  </data>
 </root>

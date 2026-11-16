@@ -213,8 +213,10 @@ public static class CatalogoMenuLateral
         // (ContextoMenuLateral.LineaInboundVigente) y con los roles del menú completo.
         new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Configuración de Inbound (maqueta: grupo «Configuración» bajo «Inbound»): Plantillas de requisitos. Mismo gate que «Inbound».
-        new("inbound-config", "Configuración", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental)),
+        // Configuración de Inbound (pantallas 18 y 20 del plan): los ajustes del Tenant TCE. Mismo gate que «Inbound» (línea vigente), pero
+        // sin el rol Consulta: ninguna de sus páginas lo autoriza. «Reglas de aviso» hereda esta condición (un test la compara con el [Authorize] de su página); Gobierno añade la suya.
+        new("inbound-config", "Configuración", AbiertoPorDefecto: true,
+            c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental)),
 
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
         // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
@@ -315,6 +317,15 @@ public static class CatalogoMenuLateral
             ClaveRotulo: "MenuInboundValidacion"),
         new("inbound-plantillas", "inbound-config", "inbound/plantillas", "tipos-documento", "MenuInboundPlantillas",
             ClaveRotulo: "MenuInboundPlantillas"),
+        // Reglas de aviso (pantalla 18, CA-19): la gestiona el Gestor CAE y quien lo coordina.
+        // shortcut: sin backend, cablear cuando entre B-31 (motor de reglas de aviso con las de serie).
+        new("inbound-reglas-aviso", "inbound-config", "inbound/reglas-aviso", "correo", "MenuInboundReglasAviso",
+            ClaveRotulo: "MenuInboundReglasAviso"),
+        // Gobierno de Inbound (pantalla 20, CA-21): solo el Administrador del Tenant TCE, como el resto de la configuración del Tenant.
+        // shortcut: sin backend, cablear cuando entre B-36 (convalidación y Gobierno); la autorización es el rol Administrador.
+        new("inbound-gobierno", "inbound-config", "inbound/gobierno", "roles", "MenuInboundGobierno",
+            Condicion: c => c.TieneAlgunRol(Roles.Administrador)
+                            && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario), ClaveRotulo: "MenuInboundGobierno"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

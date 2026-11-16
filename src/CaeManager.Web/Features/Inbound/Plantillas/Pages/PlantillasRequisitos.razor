@@ -157,7 +157,8 @@
                                     <thead><tr>
                                         <th scope="col">@Textos["ColRequisito"]</th>
                                         <th scope="col" class="pl-col-origen">@Textos["ColOrigen"]</th>
-                                        <th scope="col" class="pl-col-tol">@Textos["ColTolerancia"]<span class="pl-sec">@Textos["ColToleranciaDecision"]</span></th>
+                                        <th scope="col" class="pl-col-tol">@Textos["ColTolerancia"]</th>
+                                        <th scope="col" class="pl-col-tol">@Textos["ColToleranciaDecision"]</th>
                                         <th scope="col" class="pl-col-acc"><span class="sr-only">@Textos["ColAccion"]</span></th>
                                     </tr></thead>
                                     <tbody>
@@ -178,6 +179,8 @@
                                                 }
                                             </td>
                                             <td><span class="pl-tol">@PlantillaRequisitosUi.Tolerancia(r, Textos)</span></td>
+                                            @* shortcut: sin backend, cablear cuando entre B-15 (decisión del Cliente sobre la tolerancia). *@
+                                            <td><span class="pl-sec">—</span></td>
                                             <td class="pl-col-acc">
                                                 @if (legal)
                                                 {
