@@ -2298,3 +2298,65 @@
 .lista-trabajadores-acordeon:not(.lista-trabajadores-acordeon-listado) .fila-relacion-titulo {
     flex-wrap: nowrap;
 }
+
+/* Inbound · Contratos de acceso (listado, detalle y alta): clases propias de la sección, con las variables del sistema. */
+.inbound-secundario {
+  font: var(--font-caption);
+  color: var(--color-text-muted);
+}
+
+.inbound-aviso {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  font: var(--font-body-sm);
+  color: var(--color-text-muted);
+}
+
+.inbound-datos-contrato {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--font-body-sm);
+  color: var(--color-text-muted);
+}
+
+.inbound-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+
+.inbound-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.inbound-kpi-etiqueta {
+  font: var(--font-label-md);
+  color: var(--color-text-muted);
+}
+
+.inbound-kpi-valor {
+  font: var(--font-heading-md);
+  color: var(--color-text);
+}
+
+.inbound-notas {
+  margin: 0 0 var(--space-4);
+  font: var(--font-body-sm);
+  color: var(--color-text);
+  white-space: pre-line;
+}

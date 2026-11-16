@@ -210,13 +210,29 @@
         var herramientasPdfDisponibles = Servicios.GetService<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf>() is not { } disponibilidadPdf
             || await disponibilidadPdf.EstaDisponibleAsync();
 
+        // Gate de la sección «Inbound»: la línea Inbound del Producto Contratado. Opcional como la lente de demo y fallo
+        // cerrado: sin el servicio registrado (otro host, tests) o si falla, no hay sección.
+        var lineaInboundVigente = false;
+        if (Servicios.GetService<ILineaInboundVigente>() is { } lineaInbound)
+        {
+            try
+            {
+                lineaInboundVigente = await lineaInbound.EstaVigenteAsync();
+            }
+            catch (Exception)
+            {
+                lineaInboundVigente = false;
+            }
+        }
+
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             marco.EsAdministradorPlataforma, marco.PerfilVocabulario, VariosTenants: marco.ClientesAutorizados.Count > 1,
             ParticipaEnIncorporacionCartera: marco.ParticipaEnIncorporacionCartera,
             RotulosPrimeraPersona: marco.RotulosPrimeraPersona,
             HerramientasPdfDisponibles: herramientasPdfDisponibles,
-            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios));
+            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios),
+            LineaInboundVigente: lineaInboundVigente);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

@@ -1,0 +1,377 @@
+@* Alta de un contrato de acceso (tarjetas 1 a 3 de Inbound): Drawer de tres pasos, Empresa contratista, Contrato y Requisitos y
+   control, con un único CrearContratoAccesoCommand. Del backend fusionado (B-05) salen el Centro, la Empresa contratista, las
+   fechas y las condiciones (tipo, propia actividad, nivel, cupos y motivo). Lo demás va como aviso «Próximamente» con su B-xx. *@
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Inbound.ContratosAcceso
+@using CaeManager.Application.Inbound.ContratosAcceso.Commands.CrearContratoAcceso
+@using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using FluentValidation
+@using Microsoft.Extensions.Localization
+@inject MediatR.IMediator Mediator
+@inject ISelectorEmpresasContratistas SelectorEmpresas
+@inject IStringLocalizer<TextosContratosAcceso> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["AltaTitulo"]" Ancho="AnchoDrawer.Ancho"
+                  Pasos="_pasos" PasoActual="@_paso" PasosCompletados="_completados" EtiquetaPasos="@Textos["AltaTitulo"]"
+                  OnPasoSeleccionado="IrAPaso" OnSiguiente="SiguienteAsync" OnAtras="Atras"
+                  MotivoSiguienteDeshabilitado="@MotivoSiguiente" MotivoGuardarDeshabilitado="@MotivoGuardar"
+                  TextoSiguiente="@Textos["BotonContinuar"]" TextoAtras="@Textos["BotonAtras"]" TextoCancelar="@Textos["BotonCancelar"]"
+                  TextoGuardar="@Textos["BotonDarDeAlta"]" TextoGuardarYTerminar="@Textos["BotonDarDeAlta"]"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeError"
+                  HayErroresDeCampo="@(_errores.Count > 0)" OnGuardar="GuardarAsync">
+    @if (_cargandoOpciones)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_paso == PasoEmpresa)
+    {
+        @* shortcut: sin backend, cablear cuando entren B-07 (cotejo de CIF y autorrelleno) y B-06 (alta de una Empresa nueva, país y
+           contacto obligatorio). Hoy solo se puede elegir una Empresa contratista que ya exista. *@
+        <div>
+            <CampoSelect Etiqueta="@Textos["AltaEmpresaEtiqueta"]" Valor="@_empresaId" ValorChanged="v => { _empresaId = v; _errores.Remove(nameof(CrearContratoAccesoCommand.EmpresaContratistaId)); }">
+                <option value="">@Textos["AltaEmpresaElegir"]</option>
+                @foreach (var empresa in _empresas)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
+            @if (_errores.TryGetValue(nameof(CrearContratoAccesoCommand.EmpresaContratistaId), out var errorEmpresa))
+            {
+                <p class="campo-mensaje-error" aria-live="polite">@errorEmpresa</p>
+            }
+        </div>
+        <p class="inbound-aviso" data-pieza="aviso-cotejo"><InsigniaProximamente /> @Textos["AltaAvisoCotejo"]</p>
+        @if (_empresas.Count == 0)
+        {
+            <EstadoVacio NombreIcono="empresas" Titulo="@Textos["AltaSinEmpresasTitulo"]" Descripcion="@Textos["AltaSinEmpresasDescripcion"]" />
+        }
+    }
+    else if (_paso == PasoContrato)
+    {
+        <div>
+            <CampoSelect Etiqueta="@Textos["AltaCentro"]" Valor="@_centroId" ValorChanged="v => { _centroId = v; _errores.Remove(nameof(CrearContratoAccesoCommand.CentroId)); }">
+                <option value="">@Textos["AltaCentroElegir"]</option>
+                @foreach (var centro in _centros)
+                {
+                    <option value="@centro.Id">@Textos["AltaCentroOpcion", centro.Nombre, centro.ClienteRazonSocial]</option>
+                }
+            </CampoSelect>
+            @if (_errores.TryGetValue(nameof(CrearContratoAccesoCommand.CentroId), out var errorCentro))
+            {
+                <p class="campo-mensaje-error" aria-live="polite">@errorCentro</p>
+            }
+        </div>
+        @* shortcut: sin backend, cablear cuando entre B-06 (alta agrupada: un contrato por Centro marcado). *@
+        <p class="inbound-aviso" data-pieza="aviso-alta-agrupada"><InsigniaProximamente /> @Textos["AltaAvisoAgrupada"]</p>
+
+        <div class="campo">
+            <label>@Textos["AltaTipoContrato"]</label>
+            <div class="lista-seleccion-multiple">
+                @foreach (var tipo in ContratoAccesoUi.Tipos)
+                {
+                    var valor = tipo.ToString();
+                    <label class="campo-checkbox">
+                        <input type="radio" name="alta-tipo" checked="@(_tipo == valor)" @onchange="() => _tipo = valor" />
+                        @Textos[ContratoAccesoUi.ClaveTipo(tipo)]
+                    </label>
+                }
+            </div>
+        </div>
+
+        <div>
+            <CampoFecha Etiqueta="@Textos["AltaInicio"]" Valor="_inicio" ValorChanged="v => { _inicio = v; _errores.Remove(nameof(CrearContratoAccesoCommand.FechaInicio)); }"
+                        NoValido="_inicioNoValido" NoValidoChanged="v => _inicioNoValido = v"
+                        MensajeError="@ErrorDe(nameof(CrearContratoAccesoCommand.FechaInicio))" />
+        </div>
+        <div>
+            <CampoFecha Etiqueta="@Textos["AltaFin"]" Valor="_fin" ValorChanged="v => { _fin = v; _errores.Remove(nameof(CrearContratoAccesoCommand.FechaFin)); }"
+                        NoValido="_finNoValido" NoValidoChanged="v => _finNoValido = v"
+                        Minimo="_inicio" MensajeError="@ErrorDe(nameof(CrearContratoAccesoCommand.FechaFin))" />
+            <p class="inbound-secundario">@Textos["AltaFinAyuda"]</p>
+        </div>
+
+        @* shortcut: sin backend, cablear cuando entre B-15 (resolución por capas: qué entra en el Centro, Trabajadores, Vehículos y Maquinaria). *@
+        <p class="inbound-aviso" data-pieza="aviso-que-entra"><InsigniaProximamente /> <strong>@Textos["AltaQueEntra"]</strong> @Textos["AltaQueEntraAviso"]</p>
+
+        <div>
+            <CampoTexto Etiqueta="@Textos["AltaCupoTrabajadores"]" Type="number" Placeholder="@Textos["AltaSinLimite"]" Valor="@_cupoTrabajadores"
+                        ValorChanged="v => { _cupoTrabajadores = v; _errores.Remove(CampoCupoTrabajadores); }" MensajeError="@ErrorDe(CampoCupoTrabajadores)" />
+        </div>
+        <div>
+            <CampoTexto Etiqueta="@Textos["AltaCupoSubcontratas"]" Type="number" Placeholder="@Textos["AltaSinLimite"]" Valor="@_cupoSubcontratas"
+                        ValorChanged="v => { _cupoSubcontratas = v; _errores.Remove(CampoCupoSubcontratas); }" MensajeError="@ErrorDe(CampoCupoSubcontratas)" />
+        </div>
+        <div>
+            <CampoSelect Etiqueta="@Textos["AltaNivelSubcontrata"]" Valor="@_nivel" ValorChanged="v => { _nivel = v; _errores.Remove(CampoNivel); }">
+                <option value="">@Textos["AltaSinFijar"]</option>
+                @foreach (var nivel in ContratoAccesoUi.Niveles)
+                {
+                    <option value="@nivel">@nivel</option>
+                }
+            </CampoSelect>
+            @if (ErrorDe(CampoNivel) is { } errorNivel)
+            {
+                <p class="campo-mensaje-error" aria-live="polite">@errorNivel</p>
+            }
+        </div>
+        <div>
+            <CampoTexto Etiqueta="@Textos["AltaMotivoCupo"]" Valor="@_motivoCupo"
+                        ValorChanged="v => { _motivoCupo = v; _errores.Remove(CampoMotivo); }" MensajeError="@ErrorDe(CampoMotivo)" />
+        </div>
+        @* shortcut: sin backend, cablear cuando entre B-19 (alta de subcontratas, sus dos modos). *@
+        <p class="inbound-aviso" data-pieza="aviso-subcontratas"><InsigniaProximamente /> <strong>@Textos["AltaSubcontratas"]</strong> @Textos["AltaSubcontratasAviso"]</p>
+
+        <div class="campo">
+            <label>@Textos["AltaPropiaActividad"]</label>
+            <div class="lista-seleccion-multiple">
+                @foreach (var valor in ContratoAccesoUi.PropiasActividad)
+                {
+                    var nombre = valor.ToString();
+                    <label class="campo-checkbox">
+                        <input type="radio" name="alta-propia" checked="@(_propiaActividad == nombre)" @onchange="() => _propiaActividad = nombre" />
+                        @Textos[ContratoAccesoUi.ClavePropiaActividad(valor)]
+                    </label>
+                }
+            </div>
+        </div>
+        <div>
+            <CampoTexto Etiqueta="@Textos["AltaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" MensajeError="@ErrorDe(nameof(CrearContratoAccesoCommand.Notas))" />
+        </div>
+    }
+    else
+    {
+        @* shortcut: sin backend, cablear cuando entren B-14 (plantillas y atributos del requisito) y B-15 (resolución por capas): añadir
+           requisito, dónde aplica y «No aplica». *@
+        <EstadoVacio NombreIcono="documentos" Titulo="@Textos["AltaRequisitosTitulo"]" Descripcion="@Textos["AltaRequisitosAviso"]" />
+    }
+</DrawerFormulario>
+
+@code {
+    private const string PasoEmpresa = "empresa";
+    private const string PasoContrato = "contrato";
+    private const string PasoRequisitos = "requisitos";
+    private const string CampoCupoTrabajadores = "Condiciones.CupoTrabajadores";
+    private const string CampoCupoSubcontratas = "Condiciones.CupoSubcontratas";
+    private const string CampoNivel = "Condiciones.NivelMaxSubcontrata";
+    private const string CampoMotivo = "Condiciones.MotivoCupo";
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>El contrato desde el que se da de alta de nuevo (un Finalizado): precarga Empresa contratista y Centro.</summary>
+    [Parameter] public ContratoAccesoFila? Origen { get; set; }
+
+    [Parameter] public EventCallback<Guid> OnCreado { get; set; }
+
+    private IReadOnlyList<PasoDefinicion> _pasos = [];
+    private IReadOnlyList<EmpresaContratistaOpcion> _empresas = [];
+    private IReadOnlyList<CentroSelectorDto> _centros = [];
+    private readonly HashSet<string> _completados = [];
+    private readonly Dictionary<string, string> _errores = [];
+    private string _paso = PasoEmpresa;
+    private string _empresaId = string.Empty;
+    private string _centroId = string.Empty;
+    private string _tipo = string.Empty;
+    private string _propiaActividad = string.Empty;
+    private string _nivel = string.Empty;
+    private string _cupoTrabajadores = string.Empty;
+    private string _cupoSubcontratas = string.Empty;
+    private string _motivoCupo = string.Empty;
+    private string _notas = string.Empty;
+    private DateOnly? _inicio;
+    private DateOnly? _fin;
+    private bool _inicioNoValido;
+    private bool _finNoValido;
+    private bool _cargandoOpciones;
+    private bool _guardando;
+    private bool _eraVisible;
+    private string? _mensajeError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _pasos =
+        [
+            new(PasoEmpresa, Textos["PasoEmpresa"].Value),
+            new(PasoContrato, Textos["PasoContrato"].Value),
+            new(PasoRequisitos, Textos["PasoRequisitos"].Value),
+        ];
+
+        // Cada apertura parte de cero (o del contrato de origen) y vuelve a leer las opciones.
+        // _eraVisible se fija antes del await: un re-render durante la carga no debe volver a iniciar el alta y borrar lo escrito.
+        var abriendo = Visible && !_eraVisible;
+        _eraVisible = Visible;
+        if (abriendo)
+            await IniciarAsync();
+    }
+
+    // Un error de campo en un paso que no está a la vista no se puede corregir: se vuelve al paso del primer campo con error.
+    private void IrAlPasoDelError()
+    {
+        if (_errores.Count == 0)
+            return;
+
+        // La Empresa contratista es el paso 1; Centro, fechas, cupos, nivel y notas viven en el paso 2.
+        _paso = _errores.ContainsKey(nameof(CrearContratoAccesoCommand.EmpresaContratistaId)) ? PasoEmpresa : PasoContrato;
+    }
+
+    private async Task IniciarAsync()
+    {
+        _paso = PasoEmpresa;
+        _completados.Clear();
+        _errores.Clear();
+        _mensajeError = null;
+        _empresaId = Origen?.Contrato.EmpresaContratistaId.ToString() ?? string.Empty;
+        _centroId = Origen?.Contrato.CentroId.ToString() ?? string.Empty;
+        _tipo = _propiaActividad = _nivel = _cupoTrabajadores = _cupoSubcontratas = _motivoCupo = _notas = string.Empty;
+        _inicio = _fin = null;
+        _inicioNoValido = _finNoValido = false;
+
+        _cargandoOpciones = true;
+        try
+        {
+            // Empresas contratistas: las Empresas contraparte que ya existen en el Tenant, tras un puerto sin backend hoy (ver
+            // ISelectorEmpresasContratistas). El alta de una Empresa contratista nueva y su cotejo por CIF son B-06 y B-07.
+            _empresas = await SelectorEmpresas.ListarAsync();
+            _centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
+        }
+        catch (Exception)
+        {
+            _empresas = [];
+            _centros = [];
+            _mensajeError = Textos["ErrorCargaOpciones"];
+        }
+        finally
+        {
+            _cargandoOpciones = false;
+        }
+    }
+
+    private bool HayCambiosSinGuardar =>
+        !string.IsNullOrEmpty(_tipo) || !string.IsNullOrEmpty(_propiaActividad) || !string.IsNullOrEmpty(_nivel)
+        || !string.IsNullOrEmpty(_cupoTrabajadores) || !string.IsNullOrEmpty(_cupoSubcontratas) || !string.IsNullOrEmpty(_motivoCupo)
+        || !string.IsNullOrEmpty(_notas) || _inicio is not null || _fin is not null
+        || (Origen is null ? !string.IsNullOrEmpty(_empresaId) || !string.IsNullOrEmpty(_centroId)
+            : _empresaId != Origen.Contrato.EmpresaContratistaId.ToString() || _centroId != Origen.Contrato.CentroId.ToString());
+
+    private string? MotivoSiguiente => _paso switch
+    {
+        PasoEmpresa when !EmpresaElegida => Textos["AltaMotivoEmpresa"].Value,
+        PasoContrato when !ContratoCompleto => Textos["AltaMotivoContrato"].Value,
+        _ => null,
+    };
+
+    // «Dar de alta» desde cualquier paso: necesita lo mismo que el comando (Empresa contratista, Centro y fecha de inicio).
+    private string? MotivoGuardar => EmpresaElegida && ContratoCompleto ? null : Textos["AltaMotivoGuardar"].Value;
+
+    private bool EmpresaElegida => Guid.TryParse(_empresaId, out _);
+
+    private bool ContratoCompleto => Guid.TryParse(_centroId, out _) && _inicio is not null && !_inicioNoValido && !_finNoValido;
+
+    private string? ErrorDe(string campo) => _errores.GetValueOrDefault(campo);
+
+    private void IrAPaso(string paso)
+    {
+        // Solo hacia atrás o a un paso ya recorrido: avanzar es «Continuar», que valida el paso en el que se está.
+        if (paso == _paso || (_completados.Contains(paso) || Array.IndexOf(PasosEnOrden, paso) < Array.IndexOf(PasosEnOrden, _paso)))
+            _paso = paso;
+    }
+
+    private static readonly string[] PasosEnOrden = [PasoEmpresa, PasoContrato, PasoRequisitos];
+
+    private Task SiguienteAsync()
+    {
+        if (MotivoSiguiente is not null)
+            return Task.CompletedTask;
+
+        _completados.Add(_paso);
+        _paso = _paso == PasoEmpresa ? PasoContrato : PasoRequisitos;
+        return Task.CompletedTask;
+    }
+
+    private void Atras() => _paso = _paso == PasoRequisitos ? PasoContrato : PasoEmpresa;
+
+    private async Task GuardarAsync()
+    {
+        _errores.Clear();
+        _mensajeError = null;
+
+        if (!Guid.TryParse(_empresaId, out var empresaId) || !Guid.TryParse(_centroId, out var centroId) || _inicio is not { } inicio)
+        {
+            _mensajeError = MotivoGuardar;
+            return;
+        }
+
+        var centro = _centros.FirstOrDefault(c => c.Id == centroId);
+        if (centro is null || centro.ClienteEmpresarialId == Guid.Empty)
+        {
+            _errores[nameof(CrearContratoAccesoCommand.CentroId)] = Textos["AltaCentroInvalido"];
+            IrAlPasoDelError();
+            return;
+        }
+
+        if (!TryEntero(_cupoTrabajadores, CampoCupoTrabajadores, out var cupoTrabajadores)
+            | !TryEntero(_cupoSubcontratas, CampoCupoSubcontratas, out var cupoSubcontratas)
+            | !TryEntero(_nivel, CampoNivel, out var nivel))
+        {
+            IrAlPasoDelError();
+            return;
+        }
+
+        var condiciones = new CondicionesContratoAccesoDatos(
+            Tipo: Enum.TryParse<TipoContratoAcceso>(_tipo, out var tipo) ? tipo : null,
+            PropiaActividad: Enum.TryParse<PropiaActividadContrato>(_propiaActividad, out var propia) ? propia : null,
+            NivelMaxSubcontrata: nivel,
+            CupoTrabajadores: cupoTrabajadores,
+            CupoSubcontratas: cupoSubcontratas,
+            MotivoCupo: string.IsNullOrWhiteSpace(_motivoCupo) ? null : _motivoCupo.Trim());
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CrearContratoAccesoCommand(
+                centro.ClienteEmpresarialId, centroId, empresaId, inicio, _fin,
+                string.IsNullOrWhiteSpace(_notas) ? null : _notas.Trim(), condiciones));
+
+            if (!resultado.EsExitoso)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            await OnCreado.InvokeAsync(resultado.Valor);
+        }
+        catch (ValidationException ex)
+        {
+            foreach (var grupo in ex.Errors.GroupBy(e => e.PropertyName))
+                _errores[grupo.Key] = grupo.First().ErrorMessage;
+            _mensajeError = _errores.Count == 0 ? Textos["ErrorGuardar"].Value : null;
+            IrAlPasoDelError();
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    // Un campo numérico vacío es «sin valor»; uno que no es un entero se señala en su campo antes de llamar al comando.
+    private bool TryEntero(string texto, string campo, out int? valor)
+    {
+        valor = null;
+        if (string.IsNullOrWhiteSpace(texto))
+            return true;
+        if (int.TryParse(texto, out var n))
+        {
+            valor = n;
+            return true;
+        }
+
+        _errores[campo] = Textos["AltaNumeroInvalido"];
+        return false;
+    }
+}
