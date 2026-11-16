@@ -893,4 +893,10 @@
   <data name="CampoFechaInstrucciones" xml:space="preserve">
     <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
   </data>
+  <data name="MenuInboundContratos" xml:space="preserve">
+    <value>Contratos de acceso</value>
+  </data>
+  <data name="MenuInboundValidacion" xml:space="preserve">
+    <value>Documentos por validar</value>
+  </data>
 </root>

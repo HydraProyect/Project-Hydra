@@ -1,0 +1,99 @@
+@* Renovar un contrato de acceso (RenovarContratoAccesoCommand): una nueva fecha de fin posterior a la actual. El mismo
+   diálogo en el listado y en el detalle; el error del comando (versión, transición, fecha) se enseña dentro, sin cerrar. *@
+@using CaeManager.Application.Inbound.ContratosAcceso.Commands.RenovarContratoAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using Microsoft.Extensions.Localization
+@inject MediatR.IMediator Mediator
+@inject IStringLocalizer<TextosContratosAcceso> Textos
+
+<DialogoConfirmacion Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["RenovarTitulo"]"
+                     Mensaje="@Textos["RenovarMensaje", Empresa ?? Textos["EmpresaNoDisponible"].Value]"
+                     TextoBotonConfirmar="@Textos["BotonRenovar"]" TextoBotonDescartar="@Textos["BotonCancelar"]"
+                     VarianteConfirmar="VarianteBoton.Primario" EnProgreso="_enProgreso" OnConfirmar="ConfirmarAsync"
+                     HayCambios="() => _nuevaFecha is not null || _fechaNoValida">
+    <CampoFecha Etiqueta="@Textos["RenovarNuevaFechaFin"]" Valor="_nuevaFecha" ValorChanged="v => { _nuevaFecha = v; _error = null; }"
+                NoValido="_fechaNoValida" NoValidoChanged="v => _fechaNoValida = v"
+                Minimo="@(FinActual?.AddDays(1))" MensajeError="@_error" />
+    @if (FinActual is { } fin)
+    {
+        <p class="inbound-secundario">@Textos["RenovarFinActual", ContratoAccesoUi.Fecha(fin)]</p>
+    }
+</DialogoConfirmacion>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public Guid ContratoId { get; set; }
+    [Parameter] public Guid Version { get; set; }
+    [Parameter] public DateOnly? FinActual { get; set; }
+    [Parameter] public string? Empresa { get; set; }
+
+    /// <summary>Se invoca con la nueva fecha cuando el comando salió bien; el padre recarga y avisa.</summary>
+    [Parameter] public EventCallback<DateOnly> OnRenovado { get; set; }
+
+    /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer el contrato para tener la Version vigente.</summary>
+    [Parameter] public EventCallback OnFallo { get; set; }
+
+    private DateOnly? _nuevaFecha;
+    private bool _fechaNoValida;
+    private string? _error;
+    private bool _enProgreso;
+    private bool _eraVisible;
+
+    protected override void OnParametersSet()
+    {
+        // Cada apertura empieza limpia: la fecha y el error de la vez anterior no se arrastran.
+        if (Visible && !_eraVisible)
+        {
+            _nuevaFecha = null;
+            _fechaNoValida = false;
+            _error = null;
+        }
+        _eraVisible = Visible;
+    }
+
+    private async Task ConfirmarAsync()
+    {
+        // Una fecha a medias o ilegible llega como null: se pide corregirla en lugar de dar por vacío el campo.
+        if (_fechaNoValida)
+        {
+            _error = Textos["RenovarFechaObligatoria"];
+            return;
+        }
+
+        if (_nuevaFecha is not { } nueva)
+        {
+            _error = Textos["RenovarFechaObligatoria"];
+            return;
+        }
+
+        if (FinActual is { } fin && nueva <= fin)
+        {
+            _error = Textos["RenovarFechaPosterior"];
+            return;
+        }
+
+        _enProgreso = true;
+        try
+        {
+            var resultado = await Mediator.Send(new RenovarContratoAccesoCommand(ContratoId, nueva, Version));
+            if (!resultado.EsExitoso)
+            {
+                _error = resultado.Error.Mensaje;
+                await OnFallo.InvokeAsync();
+                return;
+            }
+
+            await VisibleChanged.InvokeAsync(false);
+            await OnRenovado.InvokeAsync(nueva);
+        }
+        catch (Exception)
+        {
+            _error = Textos["ErrorAccion"];
+        }
+        finally
+        {
+            _enProgreso = false;
+        }
+    }
+}
