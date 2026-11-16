@@ -44,9 +44,11 @@ public class SugerenciaVisitaCorreoService(
         // pantalla que muestre "sin sugerencias".
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
         {
-            logger.LogInformation(
-                "Detección de visita por correo omitida para el mensaje {MensajeId}: {Motivo}.",
-                mensaje.Id, await MotivoIaNoHabilitada.DescribirAsync(instruccionTratamientoIa, tenantActual.TenantId, cancellationToken));
+            // La causa cuesta una consulta: solo se pide si el registro la va a escribir.
+            if (logger.IsEnabled(LogLevel.Information))
+                logger.LogInformation(
+                    "Detección de visita por correo omitida para el mensaje {MensajeId}: {Motivo}.",
+                    mensaje.Id, await MotivoIaNoHabilitada.DescribirAsync(instruccionTratamientoIa, tenantActual.TenantId, cancellationToken));
             return;
         }
 

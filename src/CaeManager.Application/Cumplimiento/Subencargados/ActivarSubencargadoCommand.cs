@@ -74,8 +74,10 @@ public class ActivarSubencargadoCommandHandler(
             if (altasDuranteLaComprobacion.Any())
                 return Result.Fallo(ErroresSubencargado.AltaDeTenantDuranteLaActivacion);
 
-            // Releído dentro: si la estrategia de reintentos repite el cuerpo, parte del estado guardado y no del
-            // objeto que el intento anterior dejó activado.
+            // Releído dentro para el reintento: tras un fallo, la transacción limpia el seguimiento y el cuerpo repetido
+            // parte del estado guardado, no del objeto que el intento anterior dejó activado. En el primer intento EF
+            // devuelve la instancia ya seguida, sin refrescarla: si otro la cambió mientras tanto, lo para el token
+            // Version al guardar (excepción de concurrencia, sin guardar nada).
             var aActivar = await repositorio.ObtenerAsync(request.SubencargadoId, ct);
             if (aActivar is null)
                 return Result.Fallo(ErroresSubencargado.NoEncontrado);
