@@ -69,23 +69,7 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(
         if (tenant is null || tenant.EsPlataforma)
             return await next(cancellationToken);
 
-        if (tenant.Estado is EstadoTenant.Suspendido)
-            return CrearRespuestaFallo<TResponse>(Error.Crear(
-                "Tenant.Suspendido",
-                "Esta organización está suspendida. Contacta con nosotros."));
-
-        var error = tenant.EstadoComercial switch
-        {
-            EstadoComercialTenant.Suspendida => Error.Crear(
-                "Comercial.Suspendido",
-                "Esta cuenta está suspendida por impago. Contacta con nosotros para reactivarla."),
-            EstadoComercialTenant.SoloLectura => Error.Crear(
-                "Comercial.SoloLectura",
-                "Esta cuenta está en modo de solo lectura por un impago pendiente. Contacta con nosotros para regularizarlo."),
-            _ => null,
-        };
-
-        if (error is not null)
+        if (BloqueoEscrituraPorEstadoTenant.ErrorDe(tenant.Estado, tenant.EstadoComercial) is { } error)
             return CrearRespuestaFallo<TResponse>(error);
 
         return await next(cancellationToken);

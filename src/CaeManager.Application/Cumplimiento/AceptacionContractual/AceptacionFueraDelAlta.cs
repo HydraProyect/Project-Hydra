@@ -105,6 +105,13 @@ internal static class AceptanteFueraDelAlta
 /// (<see cref="AceptanteFueraDelAlta"/>). Con el catálogo vacío también es vacía, y sin tocar la base: hoy
 /// <c>CatalogoDocumentosContractuales</c> no publica nada, así que no se bloquea a nadie.
 /// </para>
+///
+/// <para>
+/// Mientras las escrituras del Tenant propietario estén bloqueadas por su estado (solo lectura o suspensión
+/// comercial, o suspensión operativa: <see cref="BloqueoEscrituraPorEstadoTenant"/>, la misma regla que
+/// <see cref="GateComercialTenantBehavior{TRequest,TResponse}"/>), también es vacía: el Command se rechazaría siempre
+/// y el modal no tendría salida. La aceptación se pide al regularizar (opción (a) de la PR #2270).
+/// </para>
 /// </summary>
 [AreaDelEncargo("Cumplimiento")]
 public record ObtenerAceptacionesContractualesPendientesQuery : IRequest<IReadOnlyList<DocumentoContractualPendienteDto>>;
@@ -130,6 +137,16 @@ public class ObtenerAceptacionesContractualesPendientesQueryHandler(
 
         if (await AceptanteFueraDelAlta.ResolverAsync(
                 usuarioActual, tenantActual, sesionPrivilegiada, actorAuditoria, directorioUsuarios, tenants, cancellationToken) is null)
+            return [];
+
+        // Con las escrituras del Tenant propietario bloqueadas, GateComercialTenantBehavior rechazaría siempre el
+        // Command y el modal no tendría salida: no se pide hasta que se regularice (opción (a) de la PR #2270).
+        var tenantId = tenantActual.TenantId!.Value;
+        var estado = await tenants.Tenants
+            .Where(t => t.Id == tenantId)
+            .Select(t => new { t.Estado, t.EstadoComercial })
+            .SingleAsync(cancellationToken);
+        if (BloqueoEscrituraPorEstadoTenant.ErrorDe(estado.Estado, estado.EstadoComercial) is not null)
             return [];
 
         var aceptadas = await repositorio.ListarAsync(cancellationToken);
@@ -175,6 +192,7 @@ public class AceptarDocumentosContractualesCommandHandler(
     IAceptacionContractualTenantRepository repositorio,
     IUnitOfWork unitOfWork,
     IEnvioAcuseAceptacionContractual envioAcuse,
+    IDescarteCambiosPendientes descarteCambios,
     TimeProvider reloj,
     ILogger<AceptarDocumentosContractualesCommandHandler> logger)
     : IRequestHandler<AceptarDocumentosContractualesCommand, Result>
@@ -275,6 +293,11 @@ public class AceptarDocumentosContractualesCommandHandler(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // Un guardado del acuse que falla deja sus filas en el contexto, que en Blazor Server vive lo que el
+            // circuito; como este Command devuelve éxito, RestauracionCambiosDeComandoBehavior las conservaría y el
+            // siguiente Command las guardaría o fallaría por ellas. La aceptación ya está confirmada en la base:
+            // descartar el rastreo solo suelta lo del acuse.
+            descarteCambios.DescartarCambiosPendientes();
             logger.LogWarning(ex, "Aceptación contractual registrada; el acuse no se pudo preparar en el Tenant {TenantId}.", tenantActual.TenantId);
         }
 

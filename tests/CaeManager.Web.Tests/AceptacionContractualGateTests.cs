@@ -45,6 +45,8 @@ public class AceptacionContractualGateTests : BunitContext
         public Result ResultadoAceptar { get; set; } = Result.Exito();
         /// <summary>Lo que devuelve la consulta después de un intento fallido; por defecto, lo mismo que antes.</summary>
         public IReadOnlyList<DocumentoContractualPendienteDto>? PendientesTrasFallo { get; set; }
+        /// <summary>Cuántas de las primeras consultas lanzan, como una base caída.</summary>
+        public int ConsultasQueFallan { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -52,6 +54,8 @@ public class AceptacionContractualGateTests : BunitContext
             {
                 case ObtenerAceptacionesContractualesPendientesQuery:
                     Consultas++;
+                    if (Consultas <= ConsultasQueFallan)
+                        throw new InvalidOperationException("Fallo simulado de la consulta.");
                     IReadOnlyList<DocumentoContractualPendienteDto> lista = Aceptaciones.Count == 0 ? pendientes
                         : ResultadoAceptar.EsExitoso ? [] : PendientesTrasFallo ?? pendientes;
                     return Task.FromResult((TResponse)(object)lista);
@@ -178,6 +182,61 @@ public class AceptacionContractualGateTests : BunitContext
         mediador.Consultas.Should().Be(1);
         gate.FindAll("[role=dialog]").Should().BeEmpty("sin documentos publicados no hay nada que aceptar");
         gate.FindAll("input[type=checkbox]").Should().BeEmpty();
+    }
+
+    private static IElement BotonReintentar(IRenderedComponent<AceptacionContractualGate> gate) =>
+        gate.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar");
+
+    [Fact]
+    public void Si_la_consulta_falla_bloquea_con_un_error_y_no_lo_toma_por_sin_pendientes()
+    {
+        var mediador = new MediatorFalso(Condiciones, Encargo) { ConsultasQueFallan = 1 };
+
+        var gate = RenderGate(mediador);
+
+        gate.FindAll("[role=dialog]").Should().ContainSingle("sin la consulta no se sabe si falta aceptar");
+        gate.Find(".gate-contractual-error").TextContent.Should().Be(
+            "Algo ha fallado al comprobar tu cuenta. Vuelve a intentarlo en unos segundos.");
+        gate.FindAll("button").Select(b => b.TextContent.Trim()).Should().Equal(["Reintentar"],
+            "es bloqueante: no hay forma de cerrarlo sin volver a consultar");
+        gate.FindAll(".documento-contractual-pendiente").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_reintento_vuelve_a_consultar_y_abre_lo_pendiente()
+    {
+        var mediador = new MediatorFalso(Condiciones, Encargo) { ConsultasQueFallan = 1 };
+        var gate = RenderGate(mediador);
+
+        BotonReintentar(gate).Click();
+
+        mediador.Consultas.Should().Be(2);
+        gate.FindAll(".gate-contractual-error").Should().BeEmpty();
+        gate.FindAll(".documento-contractual-pendiente").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void El_reintento_sin_pendientes_cierra_el_bloqueo()
+    {
+        var mediador = new MediatorFalso { ConsultasQueFallan = 1 };
+        var gate = RenderGate(mediador);
+
+        BotonReintentar(gate).Click();
+
+        mediador.Consultas.Should().Be(2);
+        gate.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_reintento_que_vuelve_a_fallar_sigue_bloqueando()
+    {
+        var mediador = new MediatorFalso { ConsultasQueFallan = 2 };
+        var gate = RenderGate(mediador);
+
+        BotonReintentar(gate).Click();
+
+        mediador.Consultas.Should().Be(2);
+        gate.FindAll(".gate-contractual-error").Should().ContainSingle();
     }
 
     [Fact]

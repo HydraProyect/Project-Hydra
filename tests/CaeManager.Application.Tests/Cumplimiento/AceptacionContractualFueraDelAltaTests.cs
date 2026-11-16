@@ -57,6 +57,7 @@ public class AceptacionContractualFueraDelAltaTests
         public List<DocumentoContractualPublicado> Catalogo { get; } = [CondicionesV1, EncargoV1, OpcionalV1];
         public RepositorioFalso Repositorio { get; } = new();
         public EnvioFalso Envio { get; } = new();
+        public DescarteFalso Descarte { get; }
         public UnidadFalsa Unidad { get; }
         public List<string> Bitacora { get; } = [];
         public TenantsQueryContextFalso Tenants { get; } = new();
@@ -65,6 +66,8 @@ public class AceptacionContractualFueraDelAltaTests
         {
             Unidad = new UnidadFalsa(Repositorio, Bitacora);
             Envio.Bitacora = Bitacora;
+            Envio.Repositorio = Repositorio;
+            Descarte = new DescarteFalso(Repositorio);
             Tenants.ListaTenants.Add(Tenant);
             Cuenta = Administrador;
             Administradores = [Administrador];
@@ -81,7 +84,7 @@ public class AceptacionContractualFueraDelAltaTests
 
         public AceptarDocumentosContractualesCommandHandler Aceptar() => new(
             Usuario(), TenantActual(), new SesionFalsa(Sesion), Actor(), Directorio(), Tenants,
-            new CatalogoFalso(Catalogo), Repositorio, Unidad, Envio, new RelojFijo(Ahora),
+            new CatalogoFalso(Catalogo), Repositorio, Unidad, Envio, Descarte, new RelojFijo(Ahora),
             NullLogger<AceptarDocumentosContractualesCommandHandler>.Instance);
 
         public async Task<IReadOnlyList<DocumentoContractualPendienteDto>> PendientesAsync() =>
@@ -222,6 +225,62 @@ public class AceptacionContractualFueraDelAltaTests
 
         resultado.EsExitoso.Should().BeTrue("la aceptación ya está guardada; el acuse se puede reenviar");
         e.Repositorio.Aceptaciones.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Un_acuse_cuyo_guardado_falla_no_deja_cambios_pendientes_para_el_siguiente_Command()
+    {
+        var e = new Escenario();
+        e.Envio.AgregaYLanza = true;
+
+        var resultado = await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
+
+        resultado.EsExitoso.Should().BeTrue();
+        e.Repositorio.Aceptaciones.Should().HaveCount(2, "la aceptación ya confirmada se conserva");
+        e.Repositorio.HayCambiosPendientes.Should().BeFalse(
+            "el Command devuelve éxito, el behavior de restauración no restaura y el contexto vive lo que el circuito");
+        e.Descarte.Veces.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_acuse_que_sale_bien_no_descarta_nada()
+    {
+        var e = new Escenario();
+
+        (await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1])).EsExitoso.Should().BeTrue();
+        e.Descarte.Veces.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(EstadoComercialTenant.SoloLectura)]
+    [InlineData(EstadoComercialTenant.Suspendida)]
+    public async Task Con_las_escrituras_bloqueadas_por_impago_no_se_pide_la_aceptacion(EstadoComercialTenant estado)
+    {
+        var e = new Escenario();
+        e.Tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", estado);
+
+        (await e.PendientesAsync()).Should().BeEmpty(
+            "GateComercialTenantBehavior rechazaría siempre el Command y el modal no tendría salida");
+    }
+
+    [Fact]
+    public async Task Con_el_Tenant_suspendido_no_se_pide_la_aceptacion()
+    {
+        var e = new Escenario();
+        e.Tenant.Suspender();
+
+        (await e.PendientesAsync()).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(EstadoComercialTenant.Activa)]
+    [InlineData(EstadoComercialTenant.AvisoImpago)]
+    public async Task Con_las_escrituras_abiertas_se_pide_la_aceptacion(EstadoComercialTenant estado)
+    {
+        var e = new Escenario();
+        e.Tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", estado);
+
+        (await e.PendientesAsync()).Select(p => p.Documento).Should().BeEquivalentTo(["Condiciones", "Encargo"]);
     }
 
     [Fact]
@@ -392,9 +451,11 @@ public class AceptacionContractualFueraDelAltaTests
         public List<AceptacionContractualTenant> SinGuardar { get; } = [];
 
         public void Agregar(AceptacionContractualTenant aceptacion) => SinGuardar.Add(aceptacion);
-        public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => throw new NotSupportedException();
+        public List<AcuseAceptacionContractualTenant> AcusesSinGuardar { get; } = [];
+
+        public void AgregarAcuse(AcuseAceptacionContractualTenant acuse) => AcusesSinGuardar.Add(acuse);
         public bool HayTransaccionAbierta => false;
-        public bool HayCambiosPendientes => SinGuardar.Count > 0;
+        public bool HayCambiosPendientes => SinGuardar.Count > 0 || AcusesSinGuardar.Count > 0;
 
         public Task<bool> ExistenDeSolicitudAltaAsync(Guid solicitudAltaId, Guid usuarioId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -429,13 +490,38 @@ public class AceptacionContractualFueraDelAltaTests
         public List<string>? Bitacora { get; set; }
         public bool Lanza { get; set; }
 
+        /// <summary>Como el envío real cuando falla su guardado: deja una fila del acuse sin guardar y lanza.</summary>
+        public bool AgregaYLanza { get; set; }
+
+        public RepositorioFalso? Repositorio { get; set; }
+
         public Task<Result> EnviarAsync(Guid usuarioDestinatarioId, CancellationToken cancellationToken = default)
         {
             Bitacora?.Add("acuse");
+            if (AgregaYLanza)
+            {
+                var aceptacion = Repositorio!.Aceptaciones[0];
+                Repositorio.AgregarAcuse(new AcuseAceptacionContractualTenant(
+                    aceptacion.Id, usuarioDestinatarioId, Guid.NewGuid(), FaseAcuseAceptacionContractual.Preparado, Ahora));
+                throw new InvalidOperationException("Fallo simulado al guardar el acuse.");
+            }
             if (Lanza)
                 throw new InvalidOperationException("Fallo simulado al preparar el acuse.");
             Destinatarios.Add(usuarioDestinatarioId);
             return Task.FromResult(Result.Exito());
+        }
+    }
+
+    /// <summary>Como el descarte del contexto: suelta todo lo que el repositorio tiene sin guardar.</summary>
+    private sealed class DescarteFalso(RepositorioFalso repositorio) : IDescarteCambiosPendientes
+    {
+        public int Veces { get; private set; }
+
+        public void DescartarCambiosPendientes()
+        {
+            Veces++;
+            repositorio.SinGuardar.Clear();
+            repositorio.AcusesSinGuardar.Clear();
         }
     }
 

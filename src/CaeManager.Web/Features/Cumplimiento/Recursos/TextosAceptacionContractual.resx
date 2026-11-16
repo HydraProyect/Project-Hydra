@@ -36,6 +36,15 @@
   <data name="ErrorRegistro" xml:space="preserve">
     <value>No pudimos registrar tu aceptación. Inténtalo de nuevo.</value>
   </data>
+  <data name="TituloErrorConsulta" xml:space="preserve">
+    <value>No hemos podido comprobar tu cuenta</value>
+  </data>
+  <data name="ErrorConsulta" xml:space="preserve">
+    <value>Algo ha fallado al comprobar tu cuenta. Vuelve a intentarlo en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
   <data name="TituloPagina" xml:space="preserve">
     <value>{0} — versión {1}</value>
   </data>

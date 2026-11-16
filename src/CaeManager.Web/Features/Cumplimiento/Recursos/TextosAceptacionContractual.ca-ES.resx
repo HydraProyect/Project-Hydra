@@ -36,6 +36,15 @@
   <data name="ErrorRegistro" xml:space="preserve">
     <value>No hem pogut registrar la teva acceptació. Torna-ho a provar.</value>
   </data>
+  <data name="TituloErrorConsulta" xml:space="preserve">
+    <value>No hem pogut comprovar el teu compte</value>
+  </data>
+  <data name="ErrorConsulta" xml:space="preserve">
+    <value>Alguna cosa ha fallat en comprovar el teu compte. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
   <data name="TituloPagina" xml:space="preserve">
     <value>{0} — versió {1}</value>
   </data>

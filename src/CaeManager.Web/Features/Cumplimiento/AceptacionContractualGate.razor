@@ -12,6 +12,11 @@
     publica ningún documento, porque los textos son borradores del abogado, así que la consulta devuelve
     siempre una lista vacía y este modal no aparece. Lo fija AceptacionContractualGateTests.
 
+    Tampoco bloquea mientras las escrituras del Tenant propietario estén bloqueadas por su estado (solo
+    lectura o suspensión): la consulta devuelve vacío, porque el Command se rechazaría siempre y el modal
+    no tendría salida. Si la consulta falla, en cambio, no deja pasar: pinta un modal de error con un
+    botón para reintentar.
+
     La IP de quien acepta es la del contexto HTTP del prerenderizado, como en el alta: en el circuito no
     hay HttpContext, así que se lee al prerenderizar y pasa al circuito por el estado persistido. Se lee
     del HttpContext en cascada y, si no llega, de IHttpContextAccessor (como MainLayout).
@@ -33,7 +38,16 @@
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
-@if (_pendientes.Count > 0)
+@if (_errorConsulta)
+{
+    <ModalFormulario Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true"
+                     Guardando="_consultando" TextoGuardar="@Textos["BotonReintentar"]" TextoCancelar="" OnGuardar="ReintentarAsync">
+        <ChildContent>
+            <p class="gate-contractual-error" role="alert">@Textos["ErrorConsulta"]</p>
+        </ChildContent>
+    </ModalFormulario>
+}
+else if (_pendientes.Count > 0)
 {
     <ModalFormulario Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande"
                      HayCambios="() => _marcados.Count > 0 || _facultades" Guardando="_aceptando" MensajeError="@_error"
@@ -69,6 +83,8 @@
     private readonly HashSet<string> _marcados = new(StringComparer.Ordinal);
     private bool _facultades;
     private bool _aceptando;
+    private bool _errorConsulta;
+    private bool _consultando;
     private string? _error;
     private string? _ip;
     private PersistingComponentStateSubscription _persistencia;
@@ -102,12 +118,34 @@
         }
         catch (Exception)
         {
-            // Mejor esfuerzo, como AceptacionTerminosGate: si la comprobación falla, no bloquea con un gate que no
-            // se puede completar; se reintenta en la siguiente navegación. El bloqueo de verdad lo hace la consulta,
-            // y el Command vuelve a comprobarlo todo al aceptar.
+            // Falla cerrado (revisión Codex de la PR #2270): una consulta que falla no es «sin pendientes». Nada más
+            // bloquea al Administrador del Tenant propietario mientras le falte aceptar, así que tomar el error por
+            // una lista vacía le dejaría seguir sin aceptar. El modal de error bloquea también a cualquier otra
+            // cuenta, porque sin la consulta no se sabe si es quien acepta; la consulta no lanza para quien no
+            // acepta (le devuelve una lista vacía), así que a esas cuentas solo las retiene un fallo real, con el
+            // reintento a mano.
             _pendientes = [];
+            _errorConsulta = true;
         }
         _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirAsync);
+    }
+
+    private async Task ReintentarAsync()
+    {
+        _consultando = true;
+        try
+        {
+            _pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            _errorConsulta = false;
+        }
+        catch (Exception)
+        {
+            _errorConsulta = true;
+        }
+        finally
+        {
+            _consultando = false;
+        }
     }
 
     private string? IpDeLaPeticion()
