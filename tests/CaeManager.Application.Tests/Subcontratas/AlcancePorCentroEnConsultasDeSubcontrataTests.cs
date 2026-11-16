@@ -178,6 +178,53 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
         centros.Should().BeEmpty("una lista vacía de Centros visibles no deja pasar nada");
     }
 
+    // ---- Lote de varias Subcontratas (Cliente 360, #2130): la misma derivación que la de una ----
+
+    private ObtenerCentrosConActividadDeSubcontratasQueryHandler CentrosDeSubcontratas(AlcanceDatosServiceFalso alcance) =>
+        new(_asignaciones, _centros, _empresas, _trabajadores, alcance);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task El_lote_de_Subcontratas_da_a_cada_una_lo_mismo_que_su_consulta_sola(int caso)
+    {
+        var otra = Empresa.CrearComoSubcontrata("Segunda subcontrata SL", "B12345674", "Estandar");
+        _empresas.ListaEmpresas.Add(otra);
+        var deLaOtra = Trabajador.DeSubcontrata(otra.Id, "Rosa", "Vera", "60005304Y");
+        _trabajadores.ListaTrabajadores.Add(deLaOtra);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(deLaOtra.Id, _centroAjeno.Id, Hoy.AddDays(-2)));
+        var alcance = caso switch
+        {
+            0 => AlcanceTotal(),
+            1 => AlcanceSoloAlCentroPropio(),
+            _ => new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [_subcontrata.Id, otra.Id],
+                centroIdsVisibles: [_centroPropio.Id, _centroAjeno.Id]),
+        };
+        var pedidas = new[] { _subcontrata.Id, otra.Id, _contratista.Id };
+
+        var lote = await CentrosDeSubcontratas(alcance).Handle(new ObtenerCentrosConActividadDeSubcontratasQuery(pedidas), CancellationToken.None);
+
+        foreach (var id in pedidas)
+        {
+            var sola = await CentrosDeSubcontrata(alcance).Handle(new ObtenerCentrosConActividadDeSubcontrataQuery(id), CancellationToken.None);
+            (lote.GetValueOrDefault(id) ?? []).Should().Equal(sola, $"caso {caso}, Empresa {id}");
+            lote.ContainsKey(id).Should().Be(sola.Count > 0, "sin actividad visible no trae clave");
+        }
+        if (caso != 1)
+            lote[otra.Id].Should().ContainSingle().Which.Id.Should().Be(_centroAjeno.Id, "control positivo: la segunda Subcontrata se ejercita");
+    }
+
+    [Fact]
+    public async Task El_lote_de_Subcontratas_omite_la_que_no_es_visible_aunque_trabaje_en_un_Centro_visible()
+    {
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [], centroIdsVisibles: [_centroPropio.Id]);
+
+        var lote = await CentrosDeSubcontratas(alcance).Handle(new ObtenerCentrosConActividadDeSubcontratasQuery([_subcontrata.Id]), CancellationToken.None);
+
+        lote.Should().BeEmpty();
+    }
+
     // ---- Consulta gemela de Empresa (sin consumidor en Web hoy; misma derivación) ----
 
     [Fact]

@@ -45,7 +45,9 @@ namespace CaeManager.Domain.Comercial;
 /// Gate comercial de Inbound (DN-7, opción (a)): las funciones de lectura entre Tenants <c>app_inbound_*</c> solo
 /// responden al Tenant lector que tenga un Producto Contratado de <see cref="LineaProductoContratado.Inbound"/>
 /// <see cref="EstadoProductoContratado.Vigente"/>, no eliminado y con el inicio ya alcanzado; lo comprueba la base,
-/// en <c>app_inbound_tenant_contratista_del_contrato</c>. Cuenta el Tenant beneficiario (el
+/// en <c>app_inbound_tenant_contratista_del_contrato</c>. Con el mismo criterio, <c>LineaInboundVigenteQuery</c> lo lee
+/// bajo <c>cae_app_runtime</c> para la interfaz (sección «Inbound» del menú y destinos de la paleta), sin ser autoridad de
+/// nada. Cuenta el Tenant beneficiario (el
 /// <see cref="EntidadConTenant.TenantId"/>), nunca el Pagador TALVEG. La línea Inbound es «a presupuesto» (D-1): sin
 /// precio de catálogo; lleva los mismos datos obligatorios que cualquier línea, porque qué tramo y modalidad declara un
 /// presupuesto Inbound no está decidido.
