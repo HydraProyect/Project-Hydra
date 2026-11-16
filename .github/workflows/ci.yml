@@ -823,6 +823,9 @@ jobs:
       # la cola, que es lo que cierra la carrera entre dos PR paralelas.
       # La guarda del modelo comparte paso y árboles con la de orden, y corre
       # también sin migraciones nuevas para ver un snapshot cambiado por libre.
+      # El job «Detectar migraciones EF olvidadas» ejecuta una copia temprana
+      # del mismo paso para que el choque salga a los pocos segundos; esta es la
+      # segunda barrera y la que lleva el arnés de las guardas.
       - name: Probar la guarda de orden de migraciones
         run: python3 scripts/verificar-orden-migraciones.tests.py
 
@@ -1222,6 +1225,31 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Copia temprana del paso «Comprobar el orden de las migraciones» de
+      # «Build, format y tests», con la misma base: `merge_group.base_sha` en la
+      # cola (la punta de lo que va delante, que es lo que destapa el choque entre
+      # dos PR de la misma tanda) y `pull_request.base.sha` en la PR. Las dos
+      # guardas solo leen árboles de git con Python, sin .NET, y van antes de
+      # instalar el SDK: una PR con migraciones mal ordenadas, o con un Designer
+      # o un snapshot incoherentes, cae a los pocos segundos en este check
+      # obligatorio en vez de al final de la ruta larga. El paso de «Build,
+      # format y tests» se queda como segunda barrera, con el arnés de las dos
+      # guardas; este job no tiene `needs` ni `if`, así que corre en los mismos
+      # eventos que aquel.
+      - name: Comprobar el orden de las migraciones (temprano)
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_COLA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENTO" = "merge_group" ]; then base="$BASE_COLA"; else base="$BASE_PR"; fi
+          test -n "$base"
+          git fetch --no-tags --depth=1 origin "$base"
+          python3 scripts/verificar-orden-migraciones.py "$base" HEAD
+          python3 scripts/verificar-modelo-migracion.py "$base" HEAD
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
