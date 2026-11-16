@@ -411,6 +411,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — mismo patrón que IngestaWebhookHostedService (gate del interruptor, bucle principal, recuperación de estancados y registro de ejecución), completado en salud de plataforma (A-06, 2026-09-02)"),
+        ["src/CaeManager.Infrastructure/Integraciones/RecuperacionHuecoCorreoHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre los Tenants activos desde el propio servicio, un CreateScope por Tenant propietario; dentro, solo las conexiones con marca de hueco de ese Tenant (issue #2124, 2026-11-15: recuperación del hueco de correo de Microsoft 365)"),
         ["src/CaeManager.Infrastructure/Integraciones/RedaccionPayloadWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =

@@ -1,0 +1,498 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Contratos de acceso</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Inbound</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Qué Empresas contratistas pueden entrar en cada Centro, bajo qué condiciones y hasta cuándo.</value>
+  </data>
+  <data name="BotonDarDeAlta" xml:space="preserve">
+    <value>Dar de alta</value>
+  </data>
+  <data name="BuscadorPlaceholder" xml:space="preserve">
+    <value>Buscar por Empresa contratista, CIF o Centro</value>
+  </data>
+  <data name="FiltroCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="FiltroTipo" xml:space="preserve">
+    <value>Tipo</value>
+  </data>
+  <data name="FiltroPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="PendienteVence" xml:space="preserve">
+    <value>Vence en 30 días</value>
+  </data>
+  <data name="FranjaEstadoEtiqueta" xml:space="preserve">
+    <value>Estado del contrato de acceso</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: {0}</value>
+  </data>
+  <data name="ChipCentro" xml:space="preserve">
+    <value>Centro: {0}</value>
+  </data>
+  <data name="ChipTipo" xml:space="preserve">
+    <value>Tipo: {0}</value>
+  </data>
+  <data name="ChipPendiente" xml:space="preserve">
+    <value>Pendiente: {0}</value>
+  </data>
+  <data name="QuitarBusqueda" xml:space="preserve">
+    <value>Quitar la búsqueda</value>
+  </data>
+  <data name="QuitarCentro" xml:space="preserve">
+    <value>Quitar el filtro de Centro</value>
+  </data>
+  <data name="QuitarTipo" xml:space="preserve">
+    <value>Quitar el filtro de tipo</value>
+  </data>
+  <data name="QuitarPendiente" xml:space="preserve">
+    <value>Quitar el filtro de pendiente</value>
+  </data>
+  <data name="EstadoPendienteDeConfirmar" xml:space="preserve">
+    <value>Pendiente de confirmar</value>
+  </data>
+  <data name="EstadoActivo" xml:space="preserve">
+    <value>Activo</value>
+  </data>
+  <data name="EstadoSuspendido" xml:space="preserve">
+    <value>Suspendido</value>
+  </data>
+  <data name="EstadoFinalizado" xml:space="preserve">
+    <value>Finalizado</value>
+  </data>
+  <data name="EstadoCancelado" xml:space="preserve">
+    <value>Cancelado</value>
+  </data>
+  <data name="EstadoRechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="TipoFijo" xml:space="preserve">
+    <value>Fijo</value>
+  </data>
+  <data name="TipoRecurrente" xml:space="preserve">
+    <value>Recurrente</value>
+  </data>
+  <data name="TipoTemporal" xml:space="preserve">
+    <value>Temporal</value>
+  </data>
+  <data name="TipoPuntual" xml:space="preserve">
+    <value>Puntual</value>
+  </data>
+  <data name="TipoObra" xml:space="preserve">
+    <value>Obra</value>
+  </data>
+  <data name="TipoEmergencia" xml:space="preserve">
+    <value>Emergencia</value>
+  </data>
+  <data name="PropiaActividadSi" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="PropiaActividadNo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="PropiaActividadNoLoSe" xml:space="preserve">
+    <value>No lo sé</value>
+  </data>
+  <data name="ColEmpresa" xml:space="preserve">
+    <value>Empresa contratista</value>
+  </data>
+  <data name="ColCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="ColVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="ColTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="ColPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="VigenciaEnVigor" xml:space="preserve">
+    <value>En vigor</value>
+  </data>
+  <data name="VigenciaVenceEn" xml:space="preserve">
+    <value>Vence en {0} días</value>
+  </data>
+  <data name="VigenciaTermino" xml:space="preserve">
+    <value>Terminó el {0}</value>
+  </data>
+  <data name="VigenciaEmpiezaEn" xml:space="preserve">
+    <value>Empieza en {0} días</value>
+  </data>
+  <data name="VigenciaTerminaHoy" xml:space="preserve">
+    <value>Termina hoy</value>
+  </data>
+  <data name="VigenciaNoEmpezo" xml:space="preserve">
+    <value>No empezó</value>
+  </data>
+  <data name="VigenciaRango" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="VigenciaDesde" xml:space="preserve">
+    <value>Desde {0}</value>
+  </data>
+  <data name="CupoLimitado" xml:space="preserve">
+    <value>Cupo de {0}</value>
+  </data>
+  <data name="CupoSinLimite" xml:space="preserve">
+    <value>Sin límite</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="SinDatoTitulo" xml:space="preserve">
+    <value>Aún no disponible: se mostrará cuando esté conectado.</value>
+  </data>
+  <data name="EmpresaNoDisponible" xml:space="preserve">
+    <value>Empresa no disponible</value>
+  </data>
+  <data name="CentroNoDisponible" xml:space="preserve">
+    <value>Centro no disponible</value>
+  </data>
+  <data name="TrabajadoresDeCupo" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="PendienteAlDia" xml:space="preserve">
+    <value>Al día</value>
+  </data>
+  <data name="PendienteSolicitudes" xml:space="preserve">
+    <value>{0} solicitudes</value>
+  </data>
+  <data name="PendienteRequerimientos" xml:space="preserve">
+    <value>{0} requerimientos</value>
+  </data>
+  <data name="AccionEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="AccionEditarAria" xml:space="preserve">
+    <value>Editar el contrato de acceso de {0}</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="PaginadorEtiqueta" xml:space="preserve">
+    <value>Paginación de contratos de acceso</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ningún contrato de acceso coincide con los filtros.</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Prueba a quitar algún filtro o a cambiar la búsqueda.</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Aún no hay contratos de acceso</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Da de alta el primero para que una Empresa contratista pueda entrar en un Centro.</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No se pudieron cargar los contratos de acceso</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Inténtalo de nuevo. Si sigue fallando, avisa a Soporte TALVEG.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ToastRenovado" xml:space="preserve">
+    <value>Contrato renovado hasta el {0}</value>
+  </data>
+  <data name="ToastAlta" xml:space="preserve">
+    <value>Contrato de acceso dado de alta</value>
+  </data>
+  <data name="ToastCondiciones" xml:space="preserve">
+    <value>Condiciones del contrato guardadas</value>
+  </data>
+  <data name="ToastFinalizado" xml:space="preserve">
+    <value>Contrato finalizado</value>
+  </data>
+  <data name="ToastCancelado" xml:space="preserve">
+    <value>Contrato cancelado</value>
+  </data>
+  <data name="ToastEliminado" xml:space="preserve">
+    <value>Contrato eliminado</value>
+  </data>
+  <data name="RenovarTitulo" xml:space="preserve">
+    <value>Renovar contrato</value>
+  </data>
+  <data name="RenovarMensaje" xml:space="preserve">
+    <value>Elige la nueva fecha de fin del contrato de {0}.</value>
+  </data>
+  <data name="RenovarNuevaFechaFin" xml:space="preserve">
+    <value>Nueva fecha de fin</value>
+  </data>
+  <data name="RenovarFinActual" xml:space="preserve">
+    <value>Fin actual: {0}</value>
+  </data>
+  <data name="RenovarFechaObligatoria" xml:space="preserve">
+    <value>Indica la nueva fecha de fin.</value>
+  </data>
+  <data name="RenovarFechaPosterior" xml:space="preserve">
+    <value>La nueva fecha tiene que ser posterior a la actual.</value>
+  </data>
+  <data name="BotonRenovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonContinuar" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="BotonAtras" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="BotonEliminar" xml:space="preserve">
+    <value>Eliminar</value>
+  </data>
+  <data name="BotonFinalizar" xml:space="preserve">
+    <value>Finalizar</value>
+  </data>
+  <data name="BotonCancelarContrato" xml:space="preserve">
+    <value>Cancelar contrato</value>
+  </data>
+  <data name="ErrorAccion" xml:space="preserve">
+    <value>No se pudo completar la acción. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No se pudo guardar. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ErrorCargaOpciones" xml:space="preserve">
+    <value>No se pudieron cargar las Empresas contratistas y los Centros.</value>
+  </data>
+  <data name="RutaNavegacion" xml:space="preserve">
+    <value>Ruta del contrato de acceso</value>
+  </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Más acciones del contrato</value>
+  </data>
+  <data name="EtiquetaPestanas" xml:space="preserve">
+    <value>Secciones del contrato de acceso</value>
+  </data>
+  <data name="PestanaSolicitudes" xml:space="preserve">
+    <value>Solicitudes</value>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="PestanaEmpresas" xml:space="preserve">
+    <value>Empresas</value>
+  </data>
+  <data name="PestanaRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="VacioSolicitudesTitulo" xml:space="preserve">
+    <value>Aún no se muestran las solicitudes</value>
+  </data>
+  <data name="VacioSolicitudesDescripcion" xml:space="preserve">
+    <value>Aquí verás las solicitudes de acceso de este contrato para confirmarlas o rechazarlas. Llegará con las solicitudes de Inbound.</value>
+  </data>
+  <data name="VacioTrabajadoresTitulo" xml:space="preserve">
+    <value>Aún no se muestran los Trabajadores</value>
+  </data>
+  <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
+    <value>Aquí verás los Trabajadores de la Empresa contratista asignados a este Centro y su aptitud. Llegará con la asignación de Trabajadores.</value>
+  </data>
+  <data name="VacioEmpresasTitulo" xml:space="preserve">
+    <value>Aún no se muestran las Empresas subcontratadas</value>
+  </data>
+  <data name="VacioEmpresasDescripcion" xml:space="preserve">
+    <value>Aquí verás las Empresas subcontratadas por la Empresa contratista, con su papel y sus Trabajadores. Llegará con el alta de subcontratas.</value>
+  </data>
+  <data name="VacioRequerimientosTitulo" xml:space="preserve">
+    <value>Aún no se muestran los Requerimientos</value>
+  </data>
+  <data name="VacioRequerimientosDescripcion" xml:space="preserve">
+    <value>Aquí verás los Requerimientos de Empresa que se aplican a este contrato. Llegarán con los Requerimientos de Empresa.</value>
+  </data>
+  <data name="KpisEtiqueta" xml:space="preserve">
+    <value>Indicadores del contrato de acceso</value>
+  </data>
+  <data name="KpiTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="KpiSubcontratas" xml:space="preserve">
+    <value>Subcontratas</value>
+  </data>
+  <data name="KpiHastaNiveles" xml:space="preserve">
+    <value>Hasta el nivel {0}</value>
+  </data>
+  <data name="KpiNivelSinFijar" xml:space="preserve">
+    <value>Nivel sin fijar</value>
+  </data>
+  <data name="KpiRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="KpiRequerimientosPendientes" xml:space="preserve">
+    <value>Pendientes</value>
+  </data>
+  <data name="KpiEntra" xml:space="preserve">
+    <value>Entra en el Centro</value>
+  </data>
+  <data name="KpiEntraAviso" xml:space="preserve">
+    <value>Se calculará con la resolución por capas</value>
+  </data>
+  <data name="FinalizarTitulo" xml:space="preserve">
+    <value>Finalizar contrato</value>
+  </data>
+  <data name="FinalizarMensaje" xml:space="preserve">
+    <value>El contrato de {0} terminará hoy ({1}) y dejará de dar acceso al Centro. No se puede deshacer.</value>
+  </data>
+  <data name="CancelarContratoTitulo" xml:space="preserve">
+    <value>Cancelar contrato</value>
+  </data>
+  <data name="CancelarContratoMensaje" xml:space="preserve">
+    <value>El contrato de {0} no llegará a empezar. Solo se cancela un contrato que aún no ha empezado y no tiene actividad.</value>
+  </data>
+  <data name="EliminarTitulo" xml:space="preserve">
+    <value>Eliminar contrato</value>
+  </data>
+  <data name="EliminarMensaje" xml:space="preserve">
+    <value>Se eliminará el contrato de acceso de {0}. Esta acción no se puede deshacer.</value>
+  </data>
+  <data name="CondicionesTitulo" xml:space="preserve">
+    <value>Editar contrato de acceso</value>
+  </data>
+  <data name="CondicionesSubtitulo" xml:space="preserve">
+    <value>Condiciones de acceso de la Empresa contratista</value>
+  </data>
+  <data name="AltaTitulo" xml:space="preserve">
+    <value>Dar de alta un contrato de acceso</value>
+  </data>
+  <data name="PasoEmpresa" xml:space="preserve">
+    <value>Empresa contratista</value>
+  </data>
+  <data name="PasoContrato" xml:space="preserve">
+    <value>Contrato</value>
+  </data>
+  <data name="PasoRequisitos" xml:space="preserve">
+    <value>Requisitos y control</value>
+  </data>
+  <data name="AltaEmpresaEtiqueta" xml:space="preserve">
+    <value>Empresa contratista</value>
+  </data>
+  <data name="AltaEmpresaElegir" xml:space="preserve">
+    <value>Elige una Empresa contratista</value>
+  </data>
+  <data name="AltaAvisoCotejo" xml:space="preserve">
+    <value>El cotejo por CIF y el alta de una Empresa contratista nueva llegarán más adelante. Por ahora se elige una que ya exista.</value>
+  </data>
+  <data name="AltaSinEmpresasTitulo" xml:space="preserve">
+    <value>No hay Empresas contratistas para elegir</value>
+  </data>
+  <data name="AltaSinEmpresasDescripcion" xml:space="preserve">
+    <value>Cuando haya una Empresa contratista dada de alta podrás elegirla aquí.</value>
+  </data>
+  <data name="AltaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="AltaCentroElegir" xml:space="preserve">
+    <value>Elige un Centro</value>
+  </data>
+  <data name="AltaCentroOpcion" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="AltaCentroInvalido" xml:space="preserve">
+    <value>El Centro elegido no tiene un Cliente asociado.</value>
+  </data>
+  <data name="AltaAvisoAgrupada" xml:space="preserve">
+    <value>El alta en varios Centros a la vez llegará más adelante. Hoy se da de alta un contrato por Centro.</value>
+  </data>
+  <data name="AltaTipoContrato" xml:space="preserve">
+    <value>Tipo de contrato</value>
+  </data>
+  <data name="AltaInicio" xml:space="preserve">
+    <value>Inicio</value>
+  </data>
+  <data name="AltaFin" xml:space="preserve">
+    <value>Fin</value>
+  </data>
+  <data name="AltaFinAyuda" xml:space="preserve">
+    <value>Sin fecha de fin, el contrato es indefinido.</value>
+  </data>
+  <data name="AltaQueEntra" xml:space="preserve">
+    <value>Qué entra en el Centro.</value>
+  </data>
+  <data name="AltaQueEntraAviso" xml:space="preserve">
+    <value>Elegir Trabajadores, Vehículos y Maquinaria llegará con la resolución por capas.</value>
+  </data>
+  <data name="AltaCupoTrabajadores" xml:space="preserve">
+    <value>Cupo de Trabajadores</value>
+  </data>
+  <data name="AltaCupoSubcontratas" xml:space="preserve">
+    <value>Cupo de subcontratas</value>
+  </data>
+  <data name="AltaSinLimite" xml:space="preserve">
+    <value>Sin límite</value>
+  </data>
+  <data name="AltaNivelSubcontrata" xml:space="preserve">
+    <value>Nivel máximo de subcontrata</value>
+  </data>
+  <data name="AltaSinFijar" xml:space="preserve">
+    <value>Sin fijar</value>
+  </data>
+  <data name="AltaMotivoCupo" xml:space="preserve">
+    <value>Motivo del cupo</value>
+  </data>
+  <data name="AltaSubcontratas" xml:space="preserve">
+    <value>Subcontratas.</value>
+  </data>
+  <data name="AltaSubcontratasAviso" xml:space="preserve">
+    <value>Dar de alta las subcontratas de este contrato llegará más adelante.</value>
+  </data>
+  <data name="AltaPropiaActividad" xml:space="preserve">
+    <value>¿Tiene actividad propia en el Centro?</value>
+  </data>
+  <data name="AltaNotas" xml:space="preserve">
+    <value>Notas</value>
+  </data>
+  <data name="AltaNumeroInvalido" xml:space="preserve">
+    <value>Escribe un número entero.</value>
+  </data>
+  <data name="AltaRequisitosTitulo" xml:space="preserve">
+    <value>Requisitos y control</value>
+  </data>
+  <data name="AltaRequisitosAviso" xml:space="preserve">
+    <value>Los requisitos de este contrato y su control llegarán con las plantillas de requisitos. Puedes dar de alta el contrato ahora.</value>
+  </data>
+  <data name="AltaMotivoEmpresa" xml:space="preserve">
+    <value>Elige una Empresa contratista para continuar.</value>
+  </data>
+  <data name="AltaMotivoContrato" xml:space="preserve">
+    <value>Elige un Centro y la fecha de inicio para continuar.</value>
+  </data>
+  <data name="AltaMotivoGuardar" xml:space="preserve">
+    <value>Para dar de alta hacen falta una Empresa contratista, un Centro y la fecha de inicio.</value>
+  </data>
+</root>
