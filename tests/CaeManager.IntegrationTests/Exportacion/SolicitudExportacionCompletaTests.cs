@@ -207,7 +207,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(_tenantA))
         {
             await using var runtimeA = CrearRuntime();
-            var solicitud = new SolicitudExportacionCompleta(_administradorId, protector.Proteger("x-x-x-x"), reloj.GetUtcNow().UtcDateTime);
+            var solicitud = new SolicitudExportacionCompleta(_administradorId, protector.Proteger("contrasena-de-prueba-del-barrido"), reloj.GetUtcNow().UtcDateTime);
             runtimeA.SolicitudesExportacionCompleta.Add(solicitud);
             await runtimeA.SaveChangesAsync();
             solicitudId = solicitud.Id;
