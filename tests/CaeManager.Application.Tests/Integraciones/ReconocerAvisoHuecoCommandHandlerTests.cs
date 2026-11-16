@@ -221,7 +221,8 @@ public class ReconocerAvisoHuecoCommandHandlerTests
                 case "ConError": c.MarcarConError("token caducado", DateTime.UtcNow); break;
                 // Habilitada con un valor por registrar: el dominio no deja llegar ahí por sus transiciones (Rehabilitar
                 // lo registra), pero el handler lo comprueba igual, por si la base lo trae.
-                default: typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc))!
+                default:
+                    typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.MarcaHuecoPorRegistrarDesdeUtc))!
                     .SetValue(c, marca.AddHours(-1)); break;
             }
             c.HuecoPendienteDesdeUtc.Should().NotBeNull("control: la base tiene marca");
