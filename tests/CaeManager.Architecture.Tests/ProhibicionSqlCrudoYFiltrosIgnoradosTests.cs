@@ -72,6 +72,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // La guarda de siembra de cada Tenant TEC de la siembra Inbound de Development cuenta también las bajas: con el
+        // Tenant propietario explícito en el predicado y dentro de su AmbitoTenantExplicito (la RLS sigue aplicando).
+        [("src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs", "var yaSembrado = await dbContext.Trabajadores.IgnoreQueryFilters().AnyAsync(t => t.TenantId == tec.Id, cancellationToken) || await dbContext.Documentos.IgnoreQueryFilters().AnyAsync(d => d.TenantId == tec.Id, cancellationToken);")] = 1,
         // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
         // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,

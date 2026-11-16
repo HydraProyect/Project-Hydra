@@ -31,7 +31,7 @@ namespace CaeManager.Web.Tests;
 /// <see cref="AccesoCuentaEscenaTests"/>: aquí hace falta, además, que sepa de
 /// clave de autenticador y de segundo factor.
 /// </summary>
-public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
+public partial class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 {
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
@@ -86,6 +86,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         var seleccion = new SeleccionPrivilegiadaDePrueba { SesionPrivilegiadaIdSeleccionada = null };
         Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(seleccion);
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
         seleccion.SesionPrivilegiadaIdSeleccionada = Guid.NewGuid();
         await EnviarCodigoAsync(cut);
         cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
@@ -217,7 +218,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     [Fact]
-    public void El_alta_forzada_justo_despues_del_login_no_vuelve_a_pedir_la_contrasena()
+    public async Task El_alta_forzada_justo_despues_del_login_no_vuelve_a_pedir_la_contrasena()
     {
         _gestor.EsAdministrador = true;
         _almacen.Usuario!.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(_almacen.Usuario, ContrasenaCorrecta);
@@ -225,10 +226,59 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         var cut = Render<ConfigurarAutenticadorDosFactores>();
 
         cut.FindAll("#contrasena-actual").Should().BeEmpty();
+        cut.FindAll(".dos-factores-obligatorio").Should().ContainSingle();
+        await MostrarClaveAsync(cut);
+        cut.FindAll("#contrasena-actual").Should().BeEmpty();
         cut.FindAll("img.qr-2fa").Should().ContainSingle();
         cut.FindAll(".dos-factores-obligatorio").Should().ContainSingle();
         cut.Find("#prueba-reautenticacion").GetAttribute("value")
             .Should().NotBeNullOrEmpty("la prueba de autenticación reciente viaja con el código");
+    }
+
+    /// <summary>
+    /// #2125 (ASVS 4.0.3 V14.4 y V9.1, BREACH): la clave es estable entre cargas y la respuesta a un GET refleja
+    /// la consulta, así que un GET no la lleva aunque la sesión tenga autenticación reciente, ni la genera. Vale
+    /// también con una clave ya generada y sin activar, que es la que un sitio ajeno podría ir adivinando.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_GET_con_autenticacion_reciente_no_lleva_la_clave_aunque_refleje_la_consulta(bool claveYaGenerada)
+    {
+        string? clave = null;
+        if (claveYaGenerada)
+        {
+            await MostrarClaveAsync(Render<ConfigurarAutenticadorDosFactores>());
+            clave = _almacen.ClaveGuardada;
+            clave.Should().NotBeNullOrEmpty("control: el POST de continuar generó la clave");
+        }
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString("/empresas/adivina"));
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        if (clave is not null)
+        {
+            cut.Markup.Should().NotContain(clave, "la clave estable no viaja en la respuesta a un GET");
+            cut.Markup.Should().NotContain(ClaveAutenticadorTotp.FormatearClave(clave), "ni agrupada como se enseña");
+        }
+        _almacen.ClaveGuardada.Should().Be(clave, "un GET no genera ni rota la clave");
+        cut.Markup.Should().NotContain("otpauth", "un GET no lleva la URI con el secreto");
+        cut.FindAll("img.qr-2fa, .clave-manual, .uri-otpauth, #codigo, #prueba-reautenticacion").Should().BeEmpty();
+        cut.FindAll(".tarjeta-mostrar-clave form").Should().ContainSingle("la clave se pide con un POST con antiforgery");
+    }
+
+    [Fact]
+    public async Task El_POST_de_continuar_ensena_la_clave_guardada_y_la_prueba_que_viaja_con_el_codigo()
+    {
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await MostrarClaveAsync(cut);
+
+        cut.FindAll(".tarjeta-mostrar-clave").Should().BeEmpty();
+        cut.Find(".clave-manual code").TextContent.Trim()
+            .Should().Be(ClaveAutenticadorTotp.FormatearClave(_almacen.ClaveGuardada!));
+        cut.Find("#prueba-reautenticacion").GetAttribute("value").Should().NotBeNullOrEmpty();
     }
 
     [Fact]
@@ -270,12 +320,13 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     [Fact]
-    public void Si_ResetAuthenticatorKeyAsync_falla_no_enseña_un_QR_que_el_servidor_no_guardo()
+    public async Task Si_ResetAuthenticatorKeyAsync_falla_no_enseña_un_QR_que_el_servidor_no_guardo()
     {
         _almacen.FallaAlActualizar = true;
         _almacen.MensajeError = "El almacén no está disponible.";
 
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
 
         cut.Find("[role=alert]").TextContent.Should().Contain("El almacén no está disponible.");
         cut.FindAll("img.qr-2fa").Should().BeEmpty("la clave nunca quedó guardada: no hay QR que enseñar");
@@ -286,9 +337,10 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
     /// <summary>Control: sin fallo, la pantalla de siempre.</summary>
     [Fact]
-    public void Si_ResetAuthenticatorKeyAsync_funciona_enseña_el_QR_de_verdad()
+    public async Task Si_ResetAuthenticatorKeyAsync_funciona_enseña_el_QR_de_verdad()
     {
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
 
         cut.FindAll("img.qr-2fa").Should().ContainSingle();
         cut.FindAll("[role=alert]").Should().BeEmpty();
@@ -302,6 +354,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     public async Task Una_sesion_con_sello_obsoleto_no_da_de_alta_el_factor()
     {
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
         _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
 
         await EnviarCodigoAsync(cut);
@@ -328,10 +381,10 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Una_sesion_con_sello_obsoleto_ni_genera_ni_ve_la_clave(bool claveYaGenerada)
+    public async Task Una_sesion_con_sello_obsoleto_ni_genera_ni_ve_la_clave(bool claveYaGenerada)
     {
         if (claveYaGenerada)
-            Render<ConfigurarAutenticadorDosFactores>();
+            await MostrarClaveAsync(Render<ConfigurarAutenticadorDosFactores>());
         var claveAntes = _almacen.ClaveGuardada;
         var selloAntes = _almacen.Usuario!.SecurityStamp;
         _gestor.RotaElSelloAlGenerarLaClave = true;
@@ -382,14 +435,16 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Un_cambio_de_credencial_entre_la_guarda_y_la_lectura_no_enseña_la_clave(bool claveYaGenerada)
+    public async Task Un_cambio_de_credencial_entre_la_guarda_y_la_lectura_no_enseña_la_clave(bool claveYaGenerada)
     {
         if (claveYaGenerada)
-            Render<ConfigurarAutenticadorDosFactores>();
+            await MostrarClaveAsync(Render<ConfigurarAutenticadorDosFactores>());
         _gestor.RotaElSelloAlGenerarLaClave = true;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        // La guarda del POST de «continuar» lee una vez y ve el sello vigente; el cambio llega justo después.
         _sellos.TrasLaSiguienteLectura = () => _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
 
-        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
 
         ComprobarQueNoSeEnsenaLaClave(cut);
         ComprobarSalidaDeSesionObsoleta(cut);
@@ -413,11 +468,12 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     [Fact]
-    public void Una_cuenta_que_se_queda_sin_sello_al_generar_la_clave_no_la_enseña()
+    public async Task Una_cuenta_que_se_queda_sin_sello_al_generar_la_clave_no_la_enseña()
     {
         _gestor.VaciaElSelloAlGenerarLaClave = true;
 
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
 
         ComprobarQueNoSeEnsenaLaClave(cut);
         ComprobarSalidaDeSesionObsoleta(cut);
@@ -440,6 +496,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         _almacen.ClaveGuardada.Should().BeNull();
         cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        cut.FindAll(".tarjeta-mostrar-clave").Should().BeEmpty("ni siquiera se ofrece pedir la clave");
     }
 
     [Fact]
@@ -453,6 +510,25 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         _almacen.ClaveGuardada.Should().BeNull();
         cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        cut.FindAll(".tarjeta-mostrar-clave").Should().BeEmpty("ni siquiera se ofrece pedir la clave");
+    }
+
+    /// <summary>
+    /// #2125: el cambio de credencial llega entre el GET y el POST de «continuar». Ese POST no enseña ni genera
+    /// la clave a la sesión que se quedó atrás.
+    /// </summary>
+    [Fact]
+    public async Task Una_sesion_con_sello_obsoleto_no_obtiene_la_clave_al_pulsar_continuar()
+    {
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
+        await MostrarClaveAsync(cut);
+
+        _almacen.ClaveGuardada.Should().BeNull();
+        ComprobarQueNoSeEnsenaLaClave(cut);
+        ComprobarSalidaDeSesionObsoleta(cut);
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada al pedir la clave"));
     }
 
     /// <summary>
@@ -475,31 +551,34 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     [Fact]
-    public void Si_generar_la_clave_rota_el_sello_reemite_la_sesion_en_esa_misma_peticion()
+    public async Task Si_generar_la_clave_rota_el_sello_reemite_la_sesion_en_esa_misma_peticion()
     {
         _gestor.RotaElSelloAlGenerarLaClave = true;
 
-        Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(Render<ConfigurarAutenticadorDosFactores>());
 
         _signIn.SesionReemitida.Should().BeTrue();
     }
 
     [Fact]
-    public void Si_el_sello_no_cambia_al_cargar_no_reemite_la_sesion()
+    public async Task Si_el_sello_no_cambia_al_cargar_no_reemite_la_sesion()
     {
-        Render<ConfigurarAutenticadorDosFactores>();
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
 
+        await MostrarClaveAsync(cut);
+
+        cut.FindAll("img.qr-2fa").Should().ContainSingle("control: el POST de continuar sí cargó la clave");
         _signIn.SesionReemitida.Should().BeFalse();
     }
 
     [Fact]
-    public void Si_generar_la_clave_falla_no_reemite_la_sesion()
+    public async Task Si_generar_la_clave_falla_no_reemite_la_sesion()
     {
         _gestor.RotaElSelloAlGenerarLaClave = true;
         _almacen.FallaAlActualizar = true;
         _almacen.MensajeError = "El almacén no está disponible.";
 
-        Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(Render<ConfigurarAutenticadorDosFactores>());
 
         _signIn.SesionReemitida.Should().BeFalse("el sello rotado no llegó a la base");
     }
@@ -508,6 +587,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     public async Task Si_SetTwoFactorEnabledAsync_falla_la_cuenta_sigue_sin_segundo_factor()
     {
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await MostrarClaveAsync(cut);
         var uriAntes = Services.GetRequiredService<NavigationManager>().Uri;
         _almacen.FallaAlActualizar = true;
         _almacen.MensajeError = "No se pudo actualizar la cuenta.";
@@ -773,11 +853,18 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
             volver.Should().ContainSingle().Which.GetAttribute("href").Should().Be(vueltaEsperada);
     }
 
+    // Quien llega con autenticación reciente ve primero «continuar» (#2125): el código se escribe en la
+    // respuesta a ese POST, que es la que enseña la clave.
     private static async Task EnviarCodigoAsync(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut)
     {
+        if (cut.FindAll(".tarjeta-mostrar-clave form").Count > 0)
+            await MostrarClaveAsync(cut);
         await cut.Find("#codigo").ChangeAsync(new ChangeEventArgs { Value = GestorUsuariosFallaAVoluntad.CodigoValido });
-        await cut.Find("form").SubmitAsync();
+        await cut.Find(".tarjeta-confirmacion form").SubmitAsync();
     }
+
+    private static Task MostrarClaveAsync(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut) =>
+        cut.Find(".tarjeta-mostrar-clave form").SubmitAsync();
 
     /// <summary>La base de la que lee la página: lo que tenga la cuenta salvo que el test diga otra cosa.</summary>
     private sealed class SellosFalsos : ISelloSeguridadCuenta
