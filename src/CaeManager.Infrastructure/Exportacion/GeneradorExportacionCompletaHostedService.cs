@@ -134,11 +134,16 @@ public class GeneradorExportacionCompletaHostedService(
         {
             await BarrerHuerfanosAsync(tenantId, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Solo el tipo: el mensaje de System.IO lleva la ruta absoluta del almacén.
             logger.LogError("Falló el barrido de ficheros huérfanos de exportación del Tenant {TenantId} ({TipoError}).",
                 tenantId, ex.GetType().Name);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // La consulta bajo RLS u otro fallo que no es de disco: la excepción entera, para el diagnóstico.
+            logger.LogError(ex, "Falló el barrido de ficheros huérfanos de exportación del Tenant {TenantId}.", tenantId);
         }
         try
         {
