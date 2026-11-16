@@ -563,8 +563,29 @@ public class ConexionesGen2Tests : BunitContext
         var avisoNoRecuperado = cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().ContainSingle().Subject;
         avisoNoRecuperado.Closest("tr")!.TextContent.Should().Contain("norecuperado@ejemplo.test");
         avisoNoRecuperado.TextContent.Should().Contain("02/11/2026 10:30", "la fecha se muestra en hora peninsular");
-        avisoNoRecuperado.TextContent.Should().Contain("no se recupera solo", "el hueco queda declarado, no recuperado");
+        avisoNoRecuperado.TextContent.Should().Contain("desaparece cuando se ha recuperado todo", "la recuperación del hueco lo limpia");
         avisoRetenido.TextContent.Should().Contain("Se ingerirá en cuanto se compruebe");
+        cut.FindAll("[data-testid=aviso-recuperacion-detenida]").Should().BeEmpty("ninguna recuperación está detenida");
+    }
+
+    /// <summary>
+    /// Issue #2124: una recuperación del hueco detenida en un segundo se avisa en su fila, con el segundo en hora
+    /// peninsular y el motivo.
+    /// </summary>
+    [Fact]
+    public void Una_recuperacion_detenida_se_avisa_en_su_fila_con_el_segundo_y_el_motivo()
+    {
+        var detenida = Buzon("detenida") with
+        {
+            CorreoNoRecuperadoDesdeUtc = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc),
+            RecuperacionDetenidaEnUtc = new DateTime(2026, 11, 2, 9, 45, 17, DateTimeKind.Utc),
+        };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [detenida, Buzon("sano")] });
+
+        var aviso = cut.FindAll("[data-testid=aviso-recuperacion-detenida]").Should().ContainSingle().Subject;
+        aviso.Closest("tr")!.TextContent.Should().Contain("detenida@ejemplo.test");
+        aviso.TextContent.Should().Contain("Recuperación detenida en 02/11/2026 10:45:17")
+            .And.Contain("demasiados correos en el mismo segundo o página parcial de Graph");
     }
 
     /// <summary>

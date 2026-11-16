@@ -46,9 +46,29 @@ public class EventoWebhook : EntidadConTenant
     /// <summary>No antes de esta hora vuelve a ser candidato a reclamo tras un fallo transitorio. Ver <see cref="TrabajoAnalisisDocumento"/> para el mismo razonamiento.</summary>
     public DateTime? SiguienteIntentoEnUtc { get; private set; }
 
+    /// <summary>
+    /// Solo en un evento de recuperación del hueco de correo (<see cref="CrearRecuperacion"/>): la recepción del correo
+    /// más antiguo que trae. Si el evento se descarta sin ingerirse, la marca del hueco de su conexión retrocede hasta
+    /// aquí (<see cref="ConexionIntegracion.RegistrarNotificacionDescartada"/>), no solo hasta la recepción del evento
+    /// menos el retraso de Graph. Null en una notificación del webhook.
+    /// </summary>
+    public DateTime? CubreDesdeUtc { get; private set; }
+
+    /// <summary>Es un evento de recuperación del hueco, no una notificación del webhook.</summary>
+    public bool EsRecuperacionHueco => CubreDesdeUtc is not null;
+
     private EventoWebhook()
     {
     }
+
+    /// <summary>
+    /// Evento que la recuperación del hueco encola con un lote de Ids de una página del listado del buzón (a lo sumo
+    /// <c>RecuperacionHuecoCorreoService.MaximoMensajesPorEvento</c>; una página da uno o varios): la ingesta lo procesa
+    /// como una notificación (misma puerta, misma deduplicación por mensaje), y <paramref name="cubreDesdeUtc"/>, la
+    /// recepción más antigua del lote, queda para el descarte.
+    /// </summary>
+    public static EventoWebhook CrearRecuperacion(Guid conexionIntegracionId, string payloadCrudo, DateTime cubreDesdeUtc) =>
+        new(conexionIntegracionId, payloadCrudo) { CubreDesdeUtc = cubreDesdeUtc };
 
     public EventoWebhook(Guid conexionIntegracionId, string payloadCrudo)
     {

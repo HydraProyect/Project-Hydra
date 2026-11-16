@@ -84,5 +84,23 @@ public class EventoWebhookRepository(CaeManagerDbContext dbContext) : IEventoWeb
             .Where(e => e.ConexionIntegracionId == conexionId && e.Estado == EstadoEventoWebhook.Retenido)
             .ToListAsync(cancellationToken);
 
+    public Task<bool> ExistenRecuperacionesSinIngerirAsync(Guid conexionId, CancellationToken cancellationToken = default) =>
+        dbContext.EventosWebhook.AsNoTracking()
+            .AnyAsync(e => e.ConexionIntegracionId == conexionId
+                && e.CubreDesdeUtc != null
+                && (e.Estado == EstadoEventoWebhook.Pendiente
+                    || e.Estado == EstadoEventoWebhook.Procesando
+                    || e.Estado == EstadoEventoWebhook.Retenido),
+                cancellationToken);
+
+    public async Task<IReadOnlyList<string>> ObtenerPayloadsDeRecuperacionesEnCursoAsync(
+        Guid conexionId, CancellationToken cancellationToken = default) =>
+        await dbContext.EventosWebhook.AsNoTracking()
+            .Where(e => e.ConexionIntegracionId == conexionId
+                && e.CubreDesdeUtc != null
+                && (e.Estado == EstadoEventoWebhook.Pendiente || e.Estado == EstadoEventoWebhook.Procesando))
+            .Select(e => e.PayloadCrudo)
+            .ToListAsync(cancellationToken);
+
     public void Agregar(EventoWebhook evento) => dbContext.EventosWebhook.Add(evento);
 }
