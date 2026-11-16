@@ -86,9 +86,12 @@ namespace CaeManager.Web.Services;
 /// Usar la extensión no cuenta como interacción. Por eso vencer por inactividad no revoca el
 /// identificador de sesión: sin una señal de la interfaz web, que la cookie ya caducada no
 /// admite, ninguna marca avanza, tampoco tras un reinicio, que solo vacía la memoria, y ampliar
-/// el plazo del Tenant no alarga el del token. Queda un caso que solo cerraría revocar al vencer:
-/// el plazo se acorta por debajo del que regía al emitir, el token vence y luego el plazo vuelve a
-/// ampliarse; el token vuelve a valer hasta el plazo con que se emitió.
+/// el plazo del Tenant no alarga el del token. Queda un caso, el mismo que tiene una copia de la
+/// cookie: el plazo se acorta por debajo del que regía al emitir, la sesión vence y luego el plazo
+/// vuelve a ampliarse; el token vuelve a valer hasta el plazo con que se emitió, y la copia de la
+/// cookie, que toma el plazo vigente en su revalidación, también. Ninguna de las dos credenciales
+/// guarda que su sesión venció. Cerrarlo exige que vencer sea irreversible para la sesión entera, no
+/// solo para el token, y eso queda fuera de este cambio, pendiente de decisión.
 /// </para>
 ///
 /// <para>
