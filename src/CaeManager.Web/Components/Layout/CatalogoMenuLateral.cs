@@ -308,8 +308,12 @@ public static class CatalogoMenuLateral
         // shortcut: sin backend, cablear cuando entre B-09/EP-4 (enlaces inbound/requerimientos e inbound/quien-lee, solo para el Tenant TEC).
         new("inbound-contratos", "inbound", "inbound/contratos", "solicitud", "MenuInboundContratos",
             ClaveRotulo: "MenuInboundContratos"),
+        new("inbound-centros", "inbound", "inbound/centros", "asignaciones", "MenuInboundCentros",
+            ClaveRotulo: "MenuInboundCentros"),
         new("inbound-validacion", "inbound", "inbound/validacion", "seleccion", "MenuInboundValidacion",
             ClaveRotulo: "MenuInboundValidacion"),
+        new("inbound-informacion-centro", "inbound", "inbound/informacion-centro", "tipos-documento", "MenuInboundInformacionCentro",
+            ClaveRotulo: "MenuInboundInformacionCentro"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

@@ -1,0 +1,140 @@
+@page "/inbound/informacion-centro"
+@* Tarjeta 15 · Información del Centro (Inbound). Sin backend fusionado (B-29): el servicio responde «no disponible» y la pantalla no
+   pinta ningún dato. «Añadir», «Editar» y «Publicar» (plazo del acuse, D-14) tampoco existen hasta B-29: los botones salen
+   deshabilitados y la cifra del plazo no se muestra. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>Información del Centro — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Información del Centro — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design icn">
+    <CabeceraListado Grupo="Inbound" Titulo="Información del Centro" Contador="@(HayDatos ? _todos.Count : null)">
+        <Primaria>
+            <SoloConEscritura>
+                @* shortcut: sin backend, cablear cuando entre B-29 (alta de documentos de Información del Centro). *@
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="true" title="Todavía no disponible">Añadir</Boton>
+            </SoloConEscritura>
+        </Primaria>
+    </CabeceraListado>
+    <p class="inbound-secundario" data-pieza="subtitulo-informacion">Lo que cada Centro entrega a las Empresas contratistas. Una versión nueva vuelve a pedir la firma o la lectura y, hasta tenerla, esa Empresa contratista no puede asignar a nadie más.</p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No se pudo cargar la información del Centro" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_todos is null)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="La información del Centro no está disponible"
+                     Descripcion="Todavía no se pueden consultar los documentos que cada Centro entrega a las Empresas contratistas. Cuando estén disponibles, aparecerán aquí." />
+    }
+    else if (_todos.Count == 0)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="Ningún Centro ha publicado información"
+                     Descripcion="Cuando se añada un documento, aparecerá aquí con el acuse de cada Empresa contratista." />
+    }
+    else
+    {
+        <section class="barra-filtros-pastillas" aria-label="Filtrar Información del Centro">
+            <div class="barra-filtros-pastillas-fila">
+                <div class="barra-filtros-buscador-pantalla">
+                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                    <CampoTexto Placeholder="Filtrar: documento o Centro" Valor="@_busqueda" ValorChanged="BuscarAsync"
+                                aria-label="Filtrar: documento o Centro" data-filtro-pantalla="" />
+                </div>
+                <PastillaFiltro Etiqueta="Centro" TextoTodos="Todos" Valor="@_centro" ValorChanged="v => Cambiar(() => _centro = v)" Opciones="OpcionesCentro" />
+                <PastillaFiltro Etiqueta="Modalidad" TextoTodos="Todos" Valor="@_modalidad" ValorChanged="v => Cambiar(() => _modalidad = v)" Opciones="_opcionesModalidad" />
+            </div>
+            <FranjaEstado Opciones="_opcionesAcuse" Valor="@_acuse" ValorChanged="v => Cambiar(() => _acuse = v)" Recuentos="Recuentos"
+                          EtiquetaAccesible="Filtrar por acuses" />
+        </section>
+
+        @if (_visibles.Count == 0)
+        {
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento coincide con los filtros" Descripcion="Prueba con otra búsqueda o quita algún filtro.">
+                <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarAsync">Quitar filtros</Boton></Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <div class="icn-cuerpo">
+                <div class="icn-tabla">
+                    <TarjetaListado>
+                        <Contenido>
+                            <table class="tabla-datos" aria-label="Información del Centro">
+                                <thead><tr>
+                                    <th scope="col">Documento</th>
+                                    <th scope="col">Centro</th>
+                                    <th scope="col">Versión</th>
+                                    <th scope="col">Empresas</th>
+                                </tr></thead>
+                                <tbody>
+                                @foreach (var d in _visibles)
+                                {
+                                    <tr @key="d.Id" data-documento="@d.Id" aria-selected="@(d.Id == Seleccionado?.Id ? "true" : "false")" class="@(d.Id == Seleccionado?.Id ? "icn-fila-sel" : null)">
+                                        <td>
+                                            <button type="button" class="icn-nombre" title="@d.Nombre" @onclick="() => Elegir(d)">@d.Nombre</button>
+                                            <div class="inbound-secundario">@d.Tipo · @(d.Modalidad == ModalidadInformacion.Firmado ? "Firmado" : "Leído")</div>
+                                        </td>
+                                        <td>@d.Centro</td>
+                                        <td>@d.Version<div class="inbound-secundario">@MascaraFecha.Formatear(d.Fecha)</div></td>
+                                        <td><Badge Tono="@(d.Pendiente ? TonoBadge.Advertencia : TonoBadge.Exito)" Tamano="TamanoBadge.Pequeno">@TextoAcuse(d)</Badge></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </Contenido>
+                    </TarjetaListado>
+                </div>
+
+                @if (Seleccionado is { } sel)
+                {
+                    <aside class="icn-panel" aria-label="Detalle del documento" data-pieza="detalle-documento">
+                        <div class="icn-panel-cab">
+                            <div class="icn-panel-titulo">
+                                <h2>@sel.Nombre</h2>
+                                <div class="icn-meta"><span>@sel.Centro</span>·<span>@sel.Tipo</span>·<Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@(sel.Modalidad == ModalidadInformacion.Firmado ? "Firmado" : "Leído")</Badge></div>
+                            </div>
+                            @* shortcut: sin backend, cablear cuando entre B-29 (Editar y Publicar una versión nueva, con el plazo del acuse de D-14). *@
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="true" title="Todavía no disponible">Editar</Boton></SoloConEscritura>
+                        </div>
+                        <div class="inbound-secundario">@sel.Explicacion</div>
+                        @if (sel.Pendiente)
+                        {
+                            var faltan = sel.EmpresasTotal - sel.EmpresasAlDia;
+                            <div class="icn-aviso" role="status">@faltan @(faltan == 1 ? "Empresa contratista no ha" : "Empresas contratistas no han") @(sel.Modalidad == ModalidadInformacion.Firmado ? "firmado" : "leído") la @sel.Version, publicada el @MascaraFecha.Formatear(sel.Fecha). Se les avisa con las Reglas de aviso.</div>
+                        }
+                        <h3>Empresas contratistas · versión @sel.Version</h3>
+                        <div class="icn-lista">
+                            @foreach (var e in sel.Empresas)
+                            {
+                                <div class="icn-it">
+                                    <div class="icn-it-t"><span class="icn-trunc">@e.Empresa</span><Badge Tono="@(e.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">@e.Estado</Badge></div>
+                                    <div class="icn-it-d">@e.Quien</div>
+                                    <div class="icn-it-d">@e.TrabajadoresInformados</div>
+                                </div>
+                            }
+                        </div>
+                        <h3>Versiones</h3>
+                        <div class="icn-ver">
+                            @for (var i = 0; i < sel.Versiones.Count; i++)
+                            {
+                                var v = sel.Versiones[i];
+                                <b>@v.Version</b><span>@MascaraFecha.Formatear(v.Fecha) · @v.Cambio@(i == 0 ? " (vigente)" : "")</span>
+                            }
+                        </div>
+                    </aside>
+                }
+            </div>
+        }
+    }
+</div>
+</LimiteDeErrores>

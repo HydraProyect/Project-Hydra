@@ -1,0 +1,99 @@
+@page "/inbound/centros"
+@* Entrada «Centros» del menú Inbound. La maqueta no trae un listado propio (la tarjeta 14 es la ficha de un Centro): este listado
+   solo reúne los Centros que tienen contratos de acceso, con lo que ya existe en main (B-05), y abre su ficha. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>Centros — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Centros — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="Inbound" Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _filas.Count)" />
+    <p class="inbound-secundario" data-pieza="subtitulo-centros">Los Centros que reciben Empresas contratistas con un contrato de acceso.</p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No se pudieron cargar los Centros" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_filas.Count == 0)
+    {
+        <EstadoVacio NombreIcono="proyectos" Titulo="Todavía no hay Centros con contratos de acceso"
+                     Descripcion="Cuando se dé de alta un contrato de acceso, su Centro aparecerá aquí." />
+    }
+    else
+    {
+        <TarjetaListado>
+            <Contenido>
+                <table class="tabla-datos" aria-label="Centros">
+                    <thead><tr>
+                        <th scope="col">Centro</th>
+                        <th scope="col">Cliente empresarial</th>
+                        <th scope="col">Empresas contratistas</th>
+                        <th scope="col">Contratos</th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach (var fila in _filas)
+                    {
+                        <tr @key="fila.CentroId" data-centro="@fila.CentroId">
+                            <td><a class="enlace-nombre-fila nombre-fila-entidad" href="@($"/inbound/centros/{fila.CentroId}")">@(fila.Nombre ?? "Centro no disponible")</a></td>
+                            <td>@(fila.Cliente ?? "—")</td>
+                            <td>@fila.EmpresasConContratoActivo con contrato activo</td>
+                            <td>@fila.Contratos</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </Contenido>
+        </TarjetaListado>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    private sealed record FilaCentro(Guid CentroId, string? Nombre, string? Cliente, int EmpresasConContratoActivo, int Contratos);
+
+    [Inject] private MediatR.IMediator Mediator { get; set; } = default!;
+    [Inject] private CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios.ResolutorContratosAcceso Resolutor { get; set; } = default!;
+
+    private IReadOnlyList<FilaCentro> _filas = [];
+    private bool _cargando = true;
+    private bool _errorCarga;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _errorCarga = false;
+        try
+        {
+            var contratos = await Mediator.Send(new CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso.ObtenerContratosAccesoQuery());
+            var resueltos = await Resolutor.ResolverAsync(contratos);
+            _filas = resueltos
+                .GroupBy(f => f.Contrato.CentroId)
+                .Select(g => new FilaCentro(
+                    g.Key, g.First().CentroNombre, g.First().ClienteNombre,
+                    g.Where(f => f.Contrato.Estado == CaeManager.Domain.Inbound.ContratosAcceso.EstadoContratoAcceso.Activo)
+                        .Select(f => f.Contrato.EmpresaContratistaId).Distinct().Count(),
+                    g.Count()))
+                .OrderBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        }
+        catch (Exception)
+        {
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}
