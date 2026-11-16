@@ -1,0 +1,9 @@
+.blv {
+    position: sticky; bottom: var(--space-2); z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap;
+    padding: 10px 14px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
+    background: var(--color-surface); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); font-size: 13px;
+}
+.blv-textos { display: flex; flex-direction: column; gap: 2px; }
+.blv-nota { color: var(--color-text-muted); }
+.blv-acciones { display: flex; gap: var(--space-2); }
