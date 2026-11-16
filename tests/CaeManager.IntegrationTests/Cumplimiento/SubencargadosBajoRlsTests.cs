@@ -390,8 +390,9 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
 
     [Theory]
     [InlineData("Propuesto", false, false, true)]
-    [InlineData("Activo", false, true, false)]
     [InlineData("Avisado", false, false, false)]
+    [InlineData("Activo", false, false, false)]
+    [InlineData("Retirado", false, false, false)]
     [InlineData("Propuesto", false, true, false)]
     [InlineData("Propuesto", true, false, false)]
     public async Task El_alta_del_catalogo_nace_propuesta_sin_activar_y_a_nombre_propio(
