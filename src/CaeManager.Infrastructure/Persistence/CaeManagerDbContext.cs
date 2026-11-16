@@ -233,6 +233,8 @@ public class CaeManagerDbContext(
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     public DbSet<ExtraccionIaCacheDocumento> ExtraccionesIaCacheDocumentos => Set<ExtraccionIaCacheDocumento>();
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
+    public DbSet<CaeManager.Domain.Exportacion.SolicitudExportacionCompleta> SolicitudesExportacionCompleta =>
+        Set<CaeManager.Domain.Exportacion.SolicitudExportacionCompleta>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
     public DbSet<FirmaEnCampoDocumento> FirmasEnCampoDocumento => Set<FirmaEnCampoDocumento>();

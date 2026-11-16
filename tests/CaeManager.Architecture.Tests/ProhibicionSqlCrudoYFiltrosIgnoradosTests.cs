@@ -607,6 +607,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // restauraciones concurrentes no dejen dos Empresas propias activas. Solo toma pg_advisory_xact_lock; no toca filas.
         [("src/CaeManager.Infrastructure/Persistence/CandadoEmpresaPropia.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // #2008 (D-8), una exportación completa cada 24 h por Tenant: mismo patrón de candado por Tenant propietario
+        // para que dos solicitudes concurrentes no pasen las dos la comprobación del límite. Solo toma
+        // pg_advisory_xact_lock con la clave interpolada como parámetro; no toca filas.
+        [("src/CaeManager.Infrastructure/Exportacion/CandadoExportacionCompleta.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2008: el servicio de fondo reclama la solicitud pendiente del Tenant en curso con FOR UPDATE SKIP LOCKED,
+        // como TrabajoAnalisisDocumentoRepository, para que dos réplicas no generen la misma exportación si la
+        // elección de líder se pierde a mitad. Corre bajo cae_app_runtime con el Tenant explícito: RLS acota la fila.
+        [("src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
+
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,
         // que el runtime no puede ejecutar). Mismo régimen que el de cartera: no lee ni

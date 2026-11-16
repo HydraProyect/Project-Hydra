@@ -30,8 +30,11 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// </para>
 ///
 /// <para>
-/// <b>Autorización.</b> Solo se alcanza desde el modo de CLI <see cref="Argumento"/> (acceso
-/// operativo al servidor), y exige además nombrar a un Actor de Plataforma TALVEG: una cuenta activa
+/// <b>Autorización.</b> Hay dos caminos, con el mismo núcleo y el mismo fichero. El autoservicio
+/// (<see cref="GenerarParaSolicitudAsync"/>, #2008) lo pide el Administrador del Tenant propietario con un TOTP
+/// reciente y lo genera un servicio de fondo; su regla vive en <c>AutoridadExportacionCompleta</c>. El modo de
+/// CLI <see cref="Argumento"/> (<see cref="ExportarAsync"/>, acceso operativo al servidor) exige además
+/// nombrar a un Actor de Plataforma TALVEG: una cuenta activa
 /// de un Tenant de plataforma con una concesión AdminPlataforma vigente que alcance el Tenant
 /// propietario (ASVS 4.0.3 V4.1.3). Lo comprueba la función <c>app_actor_plataforma_que_exporta</c>,
 /// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS, que solo responde en el contexto
@@ -44,8 +47,8 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// </para>
 ///
 /// <para>
-/// <b>Contraseña.</b> Aleatoria por exportación, la genera la CLI y se muestra una sola vez en la
-/// consola. Nunca entra en la auditoría, ni en el manifiesto, ni en <see cref="Resultado"/>, ni en
+/// <b>Contraseña.</b> Aleatoria por exportación; en la CLI la genera la propia CLI y se muestra una sola
+/// vez en la consola, y en el autoservicio se devuelve una sola vez a quien la pide. Nunca entra en la auditoría, ni en el manifiesto, ni en <see cref="Resultado"/>, ni en
 /// un registro (ASVS 4.0.3 V7.1.1), y nunca se acepta como argumento, que dejaría rastro en el
 /// historial. Se pasa al Tenant propietario por un canal distinto del enlace de descarga.
 /// </para>
@@ -83,6 +86,9 @@ public static class ExportacionCompletaTenant
         // SesionesUsuario sí se exporta (emisión y revocación de cada sesión de las cuentas del
         // Tenant), pero no su identificador: es lo que hace valer una cookie.
         "Sid",
+        // SolicitudExportacionCompleta: la contraseña del zip, protegida con Data Protection hasta que el fichero
+        // está cifrado. La fila sale; la contraseña, nunca.
+        "ContrasenaProtegida",
     };
 
     /// <summary>
@@ -202,6 +208,61 @@ public static class ExportacionCompletaTenant
             usuarioSimuladoId = (Guid?)null,
         }, cancellationToken);
 
+        var (recuentos, sinFichero) = await EscribirArchivoAsync(contexto, almacen, tenantId, tenant, contrasena, destino, cancellationToken);
+
+        await AuditarAsync(contexto, tenantId, new
+        {
+            fase = "Completada",
+            alcance = "ExportacionCompleta",
+            via = Argumento,
+            actorRealDeclaradoUsuarioId = actorId,
+            usuarioSimuladoId = (Guid?)null,
+            recuentos,
+            documentosSinFichero = sinFichero,
+        }, cancellationToken);
+
+        return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
+    }
+
+    /// <summary>
+    /// La exportación de una <see cref="CaeManager.Domain.Exportacion.SolicitudExportacionCompleta"/> en autoservicio
+    /// (#2008): el mismo fichero que la CLI, generado por el servicio de fondo con el contexto de runtime, bajo RLS
+    /// y bajo el <see cref="AmbitoTenantExplicito"/> del Tenant propietario, que ya debe estar fijado por quien
+    /// llama. No pide Actor de Plataforma TALVEG: quien autorizó fue el Administrador del Tenant al pedirla
+    /// (<c>AutoridadExportacionCompleta</c>), y la auditoría de cada fase la escribe el servicio de fondo. Debe
+    /// llamarse dentro de la estrategia de ejecución del contexto: abre la transacción de la foto.
+    /// </summary>
+    public static async Task<Resultado> GenerarParaSolicitudAsync(
+        CaeManagerDbContext contexto, IFileStorageService almacen, Guid tenantId, string contrasena, Stream destino,
+        CancellationToken cancellationToken = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new InvalidOperationException("El TenantId del Tenant propietario es obligatorio.");
+        if (AmbitoTenantExplicito.TenantIdActual != tenantId)
+            throw new InvalidOperationException("La exportación de una solicitud se genera bajo el ámbito de su propio Tenant.");
+
+        await VerificacionIdentidadDeRuntime.ExigirIdentidadSometidaARlsAsync(contexto, cancellationToken);
+
+        var tenant = await contexto.Tenants.AsNoTracking()
+            .Where(t => t.Id == tenantId)
+            .Select(t => new { t.Id, t.Nombre, t.EsPlataforma, t.CreadoEnUtc, t.Estado })
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException($"No existe ningún Tenant {tenantId}.");
+        if (tenant.EsPlataforma)
+            throw new InvalidOperationException("El Tenant de plataforma TALVEG no es un Tenant propietario exportable.");
+
+        var (recuentos, sinFichero) = await EscribirArchivoAsync(contexto, almacen, tenantId, tenant, contrasena, destino, cancellationToken);
+        return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
+    }
+
+    /// <summary>
+    /// El núcleo común de la CLI y del autoservicio: el zip entero desde una sola foto de la base. Quien llama ya
+    /// comprobó la identidad de runtime, fijó el ámbito del Tenant y decidió quién autoriza.
+    /// </summary>
+    private static async Task<(SortedDictionary<string, long> Recuentos, int SinFichero)> EscribirArchivoAsync(
+        CaeManagerDbContext contexto, IFileStorageService almacen, Guid tenantId, object tenant, string contrasena,
+        Stream destino, CancellationToken cancellationToken)
+    {
         var recuentos = new SortedDictionary<string, long>(StringComparer.Ordinal);
         var enPapelera = 0L;
         int sinFichero;
@@ -276,18 +337,7 @@ public static class ExportacionCompletaTenant
             await archivo.TerminarAsync(cancellationToken);
         }
 
-        await AuditarAsync(contexto, tenantId, new
-        {
-            fase = "Completada",
-            alcance = "ExportacionCompleta",
-            via = Argumento,
-            actorRealDeclaradoUsuarioId = actorId,
-            usuarioSimuladoId = (Guid?)null,
-            recuentos,
-            documentosSinFichero = sinFichero,
-        }, cancellationToken);
-
-        return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
+        return (recuentos, sinFichero);
     }
 
     /// <summary>

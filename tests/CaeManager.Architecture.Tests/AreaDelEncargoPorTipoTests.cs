@@ -117,6 +117,7 @@ namespace CaeManager.Architecture.Tests
             "CrearLineaWhatsAppCommand",
             "CrearTarifaClienteCommand",
             "DecidirIncidenteSeguridadCommand",
+            "DescargarExportacionCompletaCommand",
             "DesconectarBuzonCommand",
             "DiagnosticarDatosPurgablesCommand",
             "EjecutarImportacionCombinadaCommand",
@@ -161,6 +162,7 @@ namespace CaeManager.Architecture.Tests
             "RevocarAutorizacionLecturaCommand",
             "RevocarClaveApiCommand",
             "RevocarClaveApiDeMiOrganizacionCommand",
+            "SolicitarExportacionCompletaCommand",
             "ValidarContactoSeguridadCommand",
         ];
 

@@ -845,6 +845,19 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Documentos.Verificacion.ITransaccionDocumentoBloqueado, TransaccionDocumentoBloqueado>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Exportación completa en autoservicio del Tenant propietario (#2008, D-8): la solicitud, su candado por
+        // Tenant, la contraseña protegida con Data Protection, el almacén de zips y la cola durable que los genera
+        // bajo la RLS de cada Tenant, con el patrón de la cola de análisis de arriba.
+        services.Configure<CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas>(
+            configuration.GetSection(CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Domain.Exportacion.ISolicitudExportacionCompletaRepository, SolicitudExportacionCompletaRepository>();
+        services.AddScoped<CaeManager.Application.Exportacion.ICandadoExportacionCompleta, CaeManager.Infrastructure.Exportacion.CandadoExportacionCompleta>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IProtectorContrasenaExportacion, CaeManager.Infrastructure.Exportacion.ProtectorContrasenaExportacion>();
+        services.AddSingleton<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IAlmacenExportacionesCompletas>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>());
+        services.AddHostedService<CaeManager.Infrastructure.Exportacion.GeneradorExportacionCompletaHostedService>();
+
         // Fase F: comprobación horaria y aviso agregado por destinatario (solo campana, sin correo en v1) de
         // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen

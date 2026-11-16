@@ -68,6 +68,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // La seguridad de acceso no se edita en el Tenant de plataforma: lo comprueba
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
+        // Exportación completa en autoservicio (#2008): AutoridadExportacionCompleta lee del catálogo de Tenants
+        // solo si el Tenant en curso es el de plataforma, para rechazarlo. No escribe en Tenants.
+        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
