@@ -46,6 +46,13 @@
             <p>@Textos["ImpersonacionTexto"]</p>
         </div>
     }
+    else if (Acceso == AccesoPantalla.TenantNoResuelto)
+    {
+        <div class="alta-tce-tarjeta alta-tce-bloqueo" role="status" data-estado="tenant-no-resuelto">
+            <h2>@Textos["TenantNoResueltoTitulo"]</h2>
+            <p>@Textos["TenantNoResueltoTexto"]</p>
+        </div>
+    }
     else if (Acceso == AccesoPantalla.SinSesion)
     {
         <div class="alta-tce-tarjeta alta-tce-bloqueo" role="status" data-estado="sin-sesion">

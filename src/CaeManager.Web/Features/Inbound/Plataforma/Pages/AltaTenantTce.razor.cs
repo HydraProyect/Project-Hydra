@@ -31,7 +31,7 @@ namespace CaeManager.Web.Features.Inbound.Plataforma.Pages;
 /// </summary>
 public partial class AltaTenantTce
 {
-    internal enum AccesoPantalla { SinSesion, Impersonacion, Permitida }
+    internal enum AccesoPantalla { SinSesion, Impersonacion, TenantNoResuelto, Permitida }
 
     private sealed record FilaResumen(string Clave, string Valor);
 
@@ -73,7 +73,7 @@ public partial class AltaTenantTce
     internal AccesoPantalla Acceso => _identidad switch
     {
         { UsuarioSimuladoId: not null } => AccesoPantalla.Impersonacion,
-        { CapacidadActiva: CapacidadPrivilegio.Aprovisionamiento } when _tenant is not null => AccesoPantalla.Permitida,
+        { CapacidadActiva: CapacidadPrivilegio.Aprovisionamiento } => _tenant is null ? AccesoPantalla.TenantNoResuelto : AccesoPantalla.Permitida,
         _ => AccesoPantalla.SinSesion,
     };
 

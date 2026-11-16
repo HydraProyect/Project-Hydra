@@ -78,23 +78,50 @@ public class AltaTenantTceTests : BunitContext
 
         var cut = Render<AltaTenantTce>();
 
-        cut.Markup.Should().Contain("Hace falta una Sesión Privilegiada de Aprovisionamiento");
+        cut.Markup.Should().Contain("No encontramos el Tenant activo de la Sesión Privilegiada")
+            .And.NotContain("Hace falta una Sesión Privilegiada", "la sesión existe: no se le pide que abra otra");
         cut.FindAll("button").Select(b => b.TextContent.Trim())
             .Should().NotContain(["Dar de alta", "Dar de baja", "Editar", "Continuar"]);
     }
 
-    [Fact]
-    public void Un_valor_de_tramo_que_no_es_del_enum_cuenta_como_sin_elegir()
+    [Theory]
+    [InlineData("999")]
+    [InlineData("2")]
+    [InlineData("x")]
+    public void Un_valor_de_tramo_que_no_es_un_nombre_del_enum_cuenta_como_sin_elegir(string valorDelDom)
     {
         var cut = RenderConSesion();
         IrAlPasoProducto(cut);
         cut.Find("#alta-pagador").Input("cus_Delta123");
         cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
 
-        cut.Find("#alta-tramo").Change("999");
+        cut.Find("#alta-tramo").Change(valorDelDom);
         Pulsar(cut, "Continuar");
 
         cut.Find("[role='alert']").TextContent.Should().Contain("Elige el tramo y la modalidad");
+    }
+
+    [Fact]
+    public void Con_el_alta_en_vuelo_el_resumen_no_se_edita_y_la_confirmacion_cuenta_lo_enviado()
+    {
+        var respuesta = new TaskCompletionSource<Result<Guid>>();
+        _mediator.RespuestaContratarTarea = respuesta.Task;
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De11A40));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+
+        Pulsar(cut, "Dar de alta");
+
+        cut.FindAll(".alta-tce-seccion button").Should().HaveCount(4)
+            .And.OnlyContain(b => b.HasAttribute("disabled"), "mientras se contrata no se vuelve a editar lo enviado");
+
+        respuesta.SetResult(Result.Exito(ProductoId));
+        cut.WaitForAssertion(() => cut.Find(".alta-tce-ok").TextContent.Should()
+            .Contain("Pagador TALVEG: cus_Delta123").And.Contain("De 11 a 40 Trabajadores activos").And.Contain("Mensual"));
     }
 
     [Fact]
@@ -239,6 +266,7 @@ public class AltaTenantTceTests : BunitContext
         public IdentidadPlataformaDto? Identidad { get; set; }
         public ClienteAutorizadoDto? Tenant { get; set; } = new(TenantId, "Logística Delta Sur S.A.", EsOrigen: false, LogoVersion: null);
         public Result<Guid> RespuestaContratar { get; set; } = Result.Exito(Guid.Empty);
+        public Task<Result<Guid>>? RespuestaContratarTarea { get; set; }
         public Result<Guid> RespuestaCorregir { get; set; } = Result.Exito(Guid.Empty);
         public Result<Guid> RespuestaBaja { get; set; } = Result.Exito(Guid.Empty);
 
@@ -249,12 +277,15 @@ public class AltaTenantTceTests : BunitContext
             {
                 ObtenerIdentidadPlataformaQuery => Identidad,
                 ObtenerTenantObjetivoSesionQuery => Tenant,
+                ContratarLineaInboundCommand when RespuestaContratarTarea is { } tarea => tarea,
                 ContratarLineaInboundCommand => RespuestaContratar,
                 CorregirLineaInboundCommand => RespuestaCorregir,
                 DarDeBajaLineaInboundCommand => RespuestaBaja,
                 _ => throw new InvalidOperationException($"Petición inesperada: {request.GetType().Name}"),
             };
-            return Task.FromResult((TResponse)respuesta!);
+            return respuesta is Task<Result<Guid>> pendiente
+                ? (Task<TResponse>)(object)pendiente
+                : Task.FromResult((TResponse)respuesta!);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest

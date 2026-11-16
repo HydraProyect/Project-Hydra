@@ -70,7 +70,7 @@
     <value>Producte Contractat</value>
   </data>
   <data name="PasoAdministrador" xml:space="preserve">
-    <value>Administrador del Tenant</value>
+    <value>Administrador</value>
   </data>
   <data name="PasoResumen" xml:space="preserve">
     <value>Resum</value>
@@ -236,5 +236,11 @@
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>
+  </data>
+  <data name="TenantNoResueltoTitulo" xml:space="preserve">
+    <value>No trobem el Tenant actiu de la Sessió Privilegiada</value>
+  </data>
+  <data name="TenantNoResueltoTexto" xml:space="preserve">
+    <value>La Sessió Privilegiada d&apos;Aprovisionament és oberta, però TALVEG no resol el Tenant actiu: no coincideix amb el Tenant objectiu de la sessió o ja no existeix. No s&apos;ofereix cap acció; tanca la sessió i obre-la sobre el Tenant correcte.</value>
   </data>
 </root>

@@ -62,3 +62,5 @@ Confirmables
 Plataforma · Tenants
 # Tarjeta 31: «Administrador», «del», «Tenant» y «TCE» se escriben igual en catalán.
 Administrador del Tenant TCE
+# Tarjeta 31: «Administrador» se escribe igual en catalán (paso del alta del Tenant TCE, rótulo de la maqueta).
+Administrador

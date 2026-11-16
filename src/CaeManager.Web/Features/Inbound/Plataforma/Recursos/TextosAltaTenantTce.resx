@@ -237,4 +237,10 @@
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>
   </data>
+  <data name="TenantNoResueltoTitulo" xml:space="preserve">
+    <value>No encontramos el Tenant activo de la Sesión Privilegiada</value>
+  </data>
+  <data name="TenantNoResueltoTexto" xml:space="preserve">
+    <value>La Sesión Privilegiada de Aprovisionamiento está abierta, pero TALVEG no resuelve el Tenant activo: no coincide con el Tenant objetivo de la sesión o ya no existe. No se ofrece ninguna acción; cierra la sesión y ábrela sobre el Tenant correcto.</value>
+  </data>
 </root>
