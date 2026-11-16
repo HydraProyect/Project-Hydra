@@ -455,8 +455,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "TenantSeedData.IdPorDefecto en SembrarInstruccionTratamientoIaTenantPrincipalAsync (HO-035-02, REC-035)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/CarterasDeSiembra.cs"] =
             new(Categoria.BootstrapOSiembra, "tenantId que recibe de la siembra que la llama (el Tenant propietario que ese seeder acaba de crear o localizar), para conceder a sus Gestores CAE sembrados la cartera del Tenant entero por el escritor de asignaciones (D-7)"),
+        // PR #2237, ronda 4: la lectura de las operaciones del par se hacía en el ámbito del Operador CAE externo, desde
+        // el que posicion_en_la_asignacion no las deja ver sin Tenant de origen (la siembra no tiene usuario); sustituye a
+        // la llamada de DelegacionDemoSeeder.AltaTerminadaAsync, que se retira, así que el total de llamadas no crece.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/HistoriaDelParEnSiembra.cs"] =
+            new(Categoria.BootstrapOSiembra, "TenantClienteId de la DelegacionTenant del par que le pasa la siembra que la llama (DelegacionDemoSeeder, CoberturaPantallasSeeder), para leer en el Tenant propietario sus Asignaciones de Operación Outbound externas; solo lectura"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "12 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza (3 de ellas, desde P1-M1, para buscar por correo cuentas de esos Tenants bajo la RLS de AspNetUsers)"),
+            new(Categoria.BootstrapOSiembra, "13 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza (3 de ellas, desde P1-M1, para buscar por correo cuentas de esos Tenants bajo la RLS de AspNetUsers; 1, desde la PR #2237, para abrir en el Tenant propietario la Asignación de Operación que nace con el alta de la delegación, que el backfill ya no crea)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "6 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder; dos de ellas, sobre el tenant de plataforma, para leer bajo la RLS de DelegacionesTenant las delegaciones de soporte que el propio seeder reconcilia"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
@@ -632,7 +637,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] = 1,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 13,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 6,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,

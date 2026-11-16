@@ -46,6 +46,32 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     private AsignacionOperacion Operacion(Tenant propietario, ServicioCae servicio) =>
         AsignacionOperacion.Externa(propietario.Id, _operador.Id, servicio, AmbitoAsignacion.Universal, Desde, null, Desde);
 
+    /// <summary>
+    /// Una DelegacionTenant de Operador CAE externo por par, fijada como origen de cada operación: los lectores de
+    /// alcance exigen la delegación concreta de la que nació la operación (AmparoDeOrigen).
+    /// </summary>
+    private static DelegacionTenant[] Amparar(params AsignacionOperacion[] operaciones) =>
+        operaciones.GroupBy(o => (o.OperadorTenantId, o.PropietarioTenantId)).Select(par =>
+        {
+            var delegacion = new DelegacionTenant(par.Key.OperadorTenantId, par.Key.PropietarioTenantId);
+            foreach (var operacion in par) operacion.FijarOrigen(delegacion);
+            return delegacion;
+        }).ToArray();
+
+    /// <summary>
+    /// Como <see cref="Amparar"/>, pero las operaciones del par de <paramref name="vinculo"/> nacen de esa delegación
+    /// concreta (la que el test ya usa para sus filas heredadas); las de otros pares, de una delegación propia. Las
+    /// internas y las que ya tienen origen se dejan como están.
+    /// </summary>
+    private static DelegacionTenant[] AmpararCon(DelegacionTenant vinculo, params AsignacionOperacion[] operaciones)
+    {
+        var externas = operaciones.Where(o => !o.EsOperacionInterna && o.OrigenId is null).ToArray();
+        var delPar = externas.Where(o =>
+            o.OperadorTenantId == vinculo.TenantConsultoraId && o.PropietarioTenantId == vinculo.TenantClienteId).ToArray();
+        foreach (var operacion in delPar) operacion.FijarOrigen(vinculo);
+        return [vinculo, .. Amparar(externas.Except(delPar).ToArray())];
+    }
+
     private static AsignacionCartera Cartera(AsignacionOperacion operacion, Guid usuario, string rol = Roles.GestorCae) =>
         AsignacionCartera.Externa(operacion, usuario, rol, AmbitoAsignacion.Universal, Desde, null, Desde);
 
@@ -69,7 +95,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound, inboundSinPrincipal)
             .Con(principalInbound, principalOutbound, delCoordinador)
             .Con(_operador, _propietario, conOutbound, sinPrincipal)
-            .Con(new DelegacionTenant(_operador.Id, sinPrincipal.Id));
+            .Con(Amparar(inbound, outbound, inboundSinPrincipal));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         (await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(_operador.Id, _gestor))
@@ -103,7 +129,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound)
             .Con<AsignacionCartera>()
             .Con(_operador, _propietario)
-            .Con(new DelegacionTenant(_operador.Id, _propietario.Id))
+            .Con(Amparar(inbound))
             .Con<AsignacionOperadorDelegado>();
         // Con usuario actual: sin el filtro de servicio, el relevo llega a emitir y lo pide para el actor.
         var catalogo = new CatalogoIncorporacionCartera(db, new UsuarioDeVegaDePrueba());
@@ -140,7 +166,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraSolicitud, carteraApoyo, carteraControl)
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, inbound, outbound))
             .Con(filaSolicitud);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -170,7 +196,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria()
             .Con(inbound, outbound)
             .Con(Cartera(inbound, _gestor), Cartera(outbound, otroGestor))
-            .Con(_operador, _propietario, conOutbound);
+            .Con(_operador, _propietario, conOutbound)
+            .Con(Amparar(inbound, outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, null);
@@ -178,6 +205,51 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         vivas.Select(c => (c.UsuarioId, c.PropietarioTenantId)).Should().Equal((otroGestor, conOutbound.Id));
         (await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id)).Should().BeEmpty(
             "con una cartera solo Inbound el Gestor CAE no supera la guarda de revocación de Outbound");
+    }
+
+    /// <summary>
+    /// Media 4 de la ronda 1 de Codex en la PR #2237: el catálogo solo da por vigente, para incorporar, aceptar una
+    /// solicitud o una propuesta y emitir una fila heredada, la operación amparada por la DelegacionTenant concreta de la
+    /// que nació (<see cref="CaeManager.Application.Operaciones.AmparoDeOrigen"/>), y solo sus carteras autorizan. Sin
+    /// origen, con el origen revocado (aunque otra delegación del par siga activa) o revocado y reactivado, la operación
+    /// sigue figurando Vigente en estado y fechas, y sin el amparo se habría aceptado como base.
+    /// </summary>
+    [Theory]
+    [InlineData("amparada", true)]
+    [InlineData("sin origen", false)]
+    [InlineData("origen revocado", false)]
+    [InlineData("revocada y reactivada", false)]
+    public async Task Solo_la_operacion_amparada_por_su_origen_es_base_del_catalogo_y_sus_carteras_autorizan(
+        string caso, bool autoriza)
+    {
+        var outbound = Operacion(_propietario, ServicioCae.Outbound);
+        var origen = new DelegacionTenant(_operador.Id, _propietario.Id);
+        var otraDelPar = new DelegacionTenant(_operador.Id, _propietario.Id);
+        if (caso != "sin origen") outbound.FijarOrigen(origen);
+        if (caso is "origen revocado" or "revocada y reactivada") origen.Desactivar();
+        if (caso == "revocada y reactivada") origen.Reactivar();
+        outbound.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la operación sigue figurando vigente");
+
+        await using var db = new ContextoEnMemoria()
+            .Con(outbound)
+            .Con(Cartera(outbound, _gestor))
+            .Con(_operador, _propietario)
+            .Con(origen, otraDelPar);
+        var catalogo = new CatalogoIncorporacionCartera(db, null!);
+
+        var base_ = await catalogo.ObtenerOperacionVigenteAsync(outbound.Id);
+        var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id);
+
+        if (autoriza)
+        {
+            base_.Should().BeSameAs(outbound, "control: vigente y amparada por su delegación de origen");
+            vivas.Should().ContainSingle(c => c.UsuarioId == _gestor);
+        }
+        else
+        {
+            base_.Should().BeNull($"una operación {caso} no es base para incorporar, aceptar ni emitir una fila heredada");
+            vivas.Should().BeEmpty($"una cartera bajo una operación {caso} no autoriza");
+        }
     }
 
     /// <summary>
@@ -195,7 +267,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraInbound)
             .Con(_operador, _propietario)
-            .Con(new DelegacionTenant(_operador.Id, _propietario.Id));
+            .Con(Amparar(inbound, outbound));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         (await catalogo.ObtenerCarteraUniversalAsync(_operador.Id, _gestor)).Should().BeEmpty();
@@ -231,7 +303,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(inbound, outbound)
             .Con(carteraOutbound, Cartera(inbound, _gestor))
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, inbound, outbound))
             .Con(fila);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -278,7 +350,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
                 cerradaDeOtroOperador, Cartera(deOtroOperador, conOtraDeOtroOperador),
                 cerradaInbound, Cartera(inbound, conOtraInbound))
             .Con(_operador, otroOperador, _propietario)
-            .Con(vinculo)
+            .Con(AmpararCon(vinculo, outbound, acotadaDelMismo, deOtroOperador, inbound))
             .Con(filaDelMismo, filaDeOtroOperador, filaInbound);
 
         foreach (var (usuario, cerrada) in new[]
@@ -331,6 +403,7 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria(tenant)
             .Con(inbound, outboundDelMismo)
             .Con(Cartera(inbound, _gestor), Cartera(outboundDelMismo, otroGestor))
+            .Con(Amparar(inbound, outboundDelMismo))
             .ConUsuarios(
                 new ApplicationUser { Id = _gestor, TenantId = _operador.Id },
                 new ApplicationUser { Id = otroGestor, TenantId = _operador.Id });
@@ -359,6 +432,10 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     [InlineData("cartera suspendida", true)]
     [InlineData("cartera de un trabajador", true)]
     [InlineData("cartera de un proyecto", true)]
+    // Revisión puente de la ronda 5 de la PR #2237: la otra operación figura vigente pero su DelegacionTenant de origen
+    // ya no la ampara; sin el amparo en el join, su cartera sostendría la fila.
+    [InlineData("otra sin origen", true)]
+    [InlineData("otra con su origen revocado y reactivado", true)]
     public async Task La_otra_cartera_solo_sostiene_la_fila_si_ella_y_su_operacion_Outbound_estan_vigentes(
         string caso, bool seRetira)
     {
@@ -398,11 +475,32 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         if (caso == "cartera suspendida") laOtra.Suspender();
         else laOtra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la otra cartera sigue figurando vigente");
 
+        DelegacionTenant[] delegaciones;
+        if (caso == "otra sin origen")
+        {
+            delegaciones = AmpararCon(vinculo, outbound);
+        }
+        else if (caso == "otra con su origen revocado y reactivado")
+        {
+            var origenDeLaOtra = new DelegacionTenant(_operador.Id, _propietario.Id);
+            otra.FijarOrigen(origenDeLaOtra);
+            origenDeLaOtra.Desactivar();
+            origenDeLaOtra.Reactivar();
+            delegaciones = [.. AmpararCon(vinculo, outbound, otra), origenDeLaOtra];
+        }
+        else
+        {
+            delegaciones = AmpararCon(vinculo, outbound, otra);
+        }
+
+        if (caso.StartsWith("otra ", StringComparison.Ordinal))
+            otra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: solo el amparo la distingue");
+
         await using var db = new ContextoEnMemoria()
             .Con(outbound, otra)
             .Con(cerrada, laOtra)
             .Con(_operador, _propietario)
-            .Con(vinculo)
+            .Con(delegaciones)
             .Con(fila);
 
         await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
@@ -444,7 +542,9 @@ public class CarteraYFilaHeredadaSoloOutboundTests
             .Con(outbound, acotada)
             .Con(carteraSolicitud, laOtra)
             .Con(_operador, _propietario)
-            .Con(vinculo, vinculoAnterior)
+            // Una sola llamada por tipo: Con sustituye el conjunto, y una segunda con vinculoAnterior dejaba fuera
+            // a vinculo, la delegación de la fila de la solicitud y del origen de las dos operaciones.
+            .Con(AmpararCon(vinculo, outbound, acotada).Append(vinculoAnterior).ToArray())
             .Con(filaSolicitud, filaAnterior);
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
@@ -502,7 +602,8 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         await using var db = new ContextoEnMemoria()
             .Con(operacion)
             .Con(cartera)
-            .Con(_operador, _propietario);
+            .Con(_operador, _propietario)
+            .Con(Amparar(operacion));
         var catalogo = new CatalogoIncorporacionCartera(db, null!);
 
         var vivas = await catalogo.ObtenerCarterasVivasAsync(_operador.Id, _propietario.Id);

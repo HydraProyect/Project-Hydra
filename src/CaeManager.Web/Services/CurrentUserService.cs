@@ -379,6 +379,51 @@ public class CurrentUserService(
         return (new RolEfectivoPorOperacion(rol, null), rol);
     }
 
+    /// <summary>
+    /// El papel activo (DN-21, B-02b): el servicio de la Asignación de Operación del token, revalidada por su propio
+    /// predicado (<see cref="TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync"/>), nunca lo que diga el
+    /// cliente. Sin selección, el Tenant de origen. Una operación del token que ya no autoriza:
+    /// <see cref="PapelActivo.OperacionQueYaNoAutoriza"/>. Sesión Privilegiada, vía heredada (DelegacionTenant, solo
+    /// Outbound) o un usuario sin resolver: <see cref="PapelActivo.SinPapel"/> (fallo cerrado para los comandos Inbound). En
+    /// un ámbito explícito (el fan-out de lecturas de la lista del selector, solo Outbound), Outbound fuera del origen.
+    /// </summary>
+    public async Task<PapelActivo> ObtenerPapelActivoAsync()
+    {
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            return PapelActivo.SinPapel;
+
+        var usuario = await ObtenerUsuarioAsync();
+        var usuarioId = await ObtenerUsuarioActualIdAsync();
+        var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
+        if (usuarioId is null || tenantOrigenId is null)
+            return PapelActivo.SinPapel;
+
+        // Los catálogos se piden solo cuando hay que consultar: sin selección no se toca la base.
+        IOperacionesQueryContext Operaciones() => serviceProvider.GetRequiredService<IOperacionesQueryContext>();
+        ITenantsQueryContext Tenants() => serviceProvider.GetRequiredService<ITenantsQueryContext>();
+
+        // El ámbito explícito es el fan-out de lecturas sobre los Tenants de la lista del selector, que solo es de Outbound:
+        // nunca da papel Inbound, y no hace falta consultar la base para saberlo (la autorización de ese Tenant la decide
+        // el rol efectivo del mismo ámbito, no el papel).
+        if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
+            return tenantAmbito == tenantOrigenId ? PapelActivo.TenantDeOrigen : PapelActivo.Outbound;
+
+        if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado)
+            return PapelActivo.TenantDeOrigen;
+
+        if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is not { } asignacionOperacionId)
+            return PapelActivo.SinPapel;
+
+        return await TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync(
+                Operaciones(), Tenants(), usuarioId.Value, tenantOrigenId.Value, tenantSeleccionado, asignacionOperacionId,
+                PerfilQueDecideAlcance(usuario), DateTime.UtcNow, CancellationToken.None) switch
+        {
+            CaeManager.Domain.Operaciones.ServicioCae.Outbound => PapelActivo.Outbound,
+            CaeManager.Domain.Operaciones.ServicioCae.Inbound => PapelActivo.Inbound,
+            _ => PapelActivo.OperacionQueYaNoAutoriza,
+        };
+    }
+
     public async Task<Guid?> ObtenerTenantOrigenIdAsync()
     {
         var usuario = await ObtenerUsuarioAsync();

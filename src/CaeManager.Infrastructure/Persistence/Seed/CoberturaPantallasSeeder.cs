@@ -179,12 +179,18 @@ public static class CoberturaPantallasSeeder
         // delegable (ver EscenariosDireccionDemoSeeder).
         await Aprovisionamiento.CrearDelegacionAsync(
             dbContext, operadorId, alfaId, gestorConCartera, logger, NombreTenantAlfa, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, direccion, Roles.Consulta, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, coordinador, Roles.CoordinadorCae, cancellationToken);
-        await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, gestorSinCartera, Roles.GestorCae, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, direccion, Roles.Consulta, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, coordinador, Roles.CoordinadorCae, cancellationToken);
+        await AsignarAlEquipoAsync(dbContext, operadorId, alfaId, gestorSinCartera, Roles.GestorCae, cancellationToken);
 
         // Los Gestores CAE del Operador CAE cuelgan de su Coordinador CAE: sin ese vínculo el Coordinador no vería nada.
+        // En el mismo ámbito del Operador CAE se mira la DelegacionTenant del par y su historia, no una fila viva: con una
+        // operación cerrada o tras una revocación y una reactivación seguida de una fila nueva desde la interfaz, la fila
+        // viva no prueba nada (ronda 3 de Codex en la PR #2237, media 5). Revocada o con historia, la siembra no reabre la
+        // operación ni emite la cartera (el writer lanzaría sin delegación vigente y el arranque caería).
+        bool delegacionActiva;
         using (AmbitoTenantExplicito.Establecer(operadorId))
+        {
             foreach (var gestor in new[] { gestorConCartera, gestorSinCartera })
             {
                 if (gestor.CoordinadorUsuarioId == coordinador.Id) continue;
@@ -195,19 +201,34 @@ public static class CoberturaPantallasSeeder
                         $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
             }
 
+            var delegacion = await Aprovisionamiento.OrigenDelParAsync(dbContext, operadorId, alfaId, cancellationToken);
+            delegacionActiva = delegacion is { Activa: true, Proposito: PropositoDelegacion.OperadorExterno }
+                               && !await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken);
+        }
+        if (!delegacionActiva)
+            logger.LogWarning(
+                "Siembra de cobertura: la delegación de {Tenant} está revocada o tiene historia; no se reabre su operación externa.",
+                NombreTenantAlfa);
+
         using (AmbitoTenantExplicito.Establecer(alfaId))
         {
             var writer = new AsignacionesOperativasWriter(
                 dbContext, new TenantActualAmbiental { TenantId = alfaId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
-            await writer.AbrirOperacionDelegadaAsync(alfaId, operadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (delegacionActiva)
+            {
+                await writer.AbrirOperacionDelegadaAsync(alfaId, operadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             if (!await dbContext.Empresas.AnyAsync(e => e.RazonSocial == EmpresaPropiaAlfa, cancellationToken))
                 await new ConstructorAlfa(dbContext, hoy, administradorAlfa.Id).ConstruirAsync(cancellationToken);
 
             // Solo el Gestor CAE con cartera la recibe: el otro queda con operación abierta y sin cartera.
-            await writer.AsegurarCarteraTenantEnteroAsync(alfaId, gestorConCartera.Id, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
+            if (delegacionActiva)
+            {
+                await writer.AsegurarCarteraTenantEnteroAsync(alfaId, gestorConCartera.Id, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             // La cuenta de Usuario de Cliente queda ligada a su Cliente empresarial fuera de la rama de construcción, para que
             // un arranque interrumpido se repare en el siguiente; y solo se escribe si cambia.
@@ -243,21 +264,26 @@ public static class CoberturaPantallasSeeder
     }
 
     /// <summary>
-    /// El resto del equipo del Operador CAE entra en la misma operación que <paramref name="primero"/> (la persona con la
-    /// que se abrió), bajo el ámbito del Operador (le pertenece).
+    /// El resto del equipo del Operador CAE entra en la DelegacionTenant del par, bajo el ámbito del Operador (le
+    /// pertenece). Solo si la siembra puede crear su fila heredada (<see cref="HistoriaDelParEnSiembra"/>): la delegación
+    /// activa, el par sin historia y la persona sin ninguna fila, viva o revocada. Antes bastaba la fila viva de la
+    /// primera persona, y tras una revocación, una reactivación y una fila nueva desde la interfaz la siembra creaba filas
+    /// a quien no las tenía (ronda 3 de Codex en la PR #2237, media 5).
     /// </summary>
     private static async Task AsignarAlEquipoAsync(
-        CaeManagerDbContext dbContext, Guid operadorId, ApplicationUser primero, ApplicationUser usuario, string rol,
+        CaeManagerDbContext dbContext, Guid operadorId, Guid propietarioId, ApplicationUser usuario, string rol,
         CancellationToken cancellationToken)
     {
         using (AmbitoTenantExplicito.Establecer(operadorId))
         {
-            if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(a => a.UsuarioId == usuario.Id, cancellationToken))
+            var delegacion = await Aprovisionamiento.OrigenDelParAsync(dbContext, operadorId, propietarioId, cancellationToken);
+            if (delegacion is null
+                || delegacion.Proposito != PropositoDelegacion.OperadorExterno
+                || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                 return;
 
-            var operacionId = await dbContext.AsignacionesOperadorDelegado
-                .Where(a => a.UsuarioId == primero.Id).Select(a => a.DelegacionTenantId).SingleAsync(cancellationToken);
-            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(operacionId, usuario.Id, rol));
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol, delegacion.Revocaciones));
             await dbContext.SaveChangesAsync(cancellationToken);
         }
     }

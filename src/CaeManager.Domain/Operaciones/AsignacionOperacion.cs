@@ -43,16 +43,10 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     /// <summary>
     /// La <see cref="DelegacionTenant"/> de Operador CAE externo de la que nace esta operación
     /// externa. <c>null</c> en la raíz y en las internas, que no dependen de ninguna. En una
-    /// externa con origen, los lectores de alcance exigen esta delegación concreta, activa, sin
-    /// caducar y sin ninguna revocación posterior al nacimiento de la operación
-    /// (<see cref="RevocacionesDelOrigen"/>, <c>AmparoDeOrigen</c>); otra delegación vigente del
-    /// mismo par no la sostiene.
-    /// <para>
-    /// Fase de expansión (decisión de Chris del 2026-11-15 sobre la PR #2237, opción c): una externa
-    /// sin origen (las anteriores a la migración <c>AnadeOrigenDeOperacionExterna</c> y las que el
-    /// trigger no pudo deducir) sigue autorizando como antes; que una externa sin origen deje de
-    /// autorizar llega con la PR #2237.
-    /// </para>
+    /// externa, <c>null</c> no autoriza nada: los lectores de alcance exigen esta delegación
+    /// concreta, activa, sin caducar y sin ninguna revocación posterior al nacimiento de la
+    /// operación (<see cref="RevocacionesDelOrigen"/>). Otra delegación vigente del mismo
+    /// par no la sostiene.
     /// </summary>
     public Guid? OrigenId { get; private set; }
 
@@ -161,11 +155,12 @@ public class AsignacionOperacion : AsignacionResponsabilidad
     /// <summary>
     /// Fija la <see cref="DelegacionTenant"/> de la que nace esta operación externa y el número
     /// de revocaciones que llevaba en ese momento. Solo una vez: el origen no cambia, y una
-    /// operación cuyo origen se revocó no se rehabilita apuntándola a otra delegación. La delegación
-    /// tiene que ser de Operador CAE externo y del mismo par. Solo en una operación que todavía no se
-    /// ha guardado: en la base de datos el trigger <c>asignacion_operacion_sella_origen</c> rechaza la
-    /// inserción si la delegación ya no está activa y vigente o si su contador ya no es el que se
-    /// copia aquí (se revocó o se amplió después de decidir).
+    /// operación cuyo origen se revocó no se rehabilita apuntándola a otra delegación (se abre una
+    /// nueva). La delegación tiene que ser de Operador CAE externo y del mismo par. Solo en una operación
+    /// que todavía no se ha guardado: en la base de datos el trigger <c>asignacion_operacion_sella_origen</c>
+    /// rechaza la inserción si la delegación, ya guardada, no está activa y vigente o si su contador ya no es
+    /// el que se copia aquí (se revocó o se amplió después de decidir), y rechaza fijar o cambiar el origen
+    /// en un UPDATE (rondas 1 y 2 de Codex en la PR #2237).
     /// </summary>
     public void FijarOrigen(DelegacionTenant delegacion)
     {
@@ -183,4 +178,20 @@ public class AsignacionOperacion : AsignacionResponsabilidad
         OrigenId = delegacion.Id;
         RevocacionesDelOrigen = delegacion.Revocaciones;
     }
+
+    /// <summary>
+    /// Si esta operación externa sigue amparada por su delegación de origen en
+    /// <paramref name="ahora"/>: la misma fila, activa, sin caducar y sin revocaciones posteriores
+    /// al nacimiento de la operación. La raíz y las internas siempre lo están. Es el predicado que
+    /// los lectores de alcance escriben en SQL (<c>AmparoDeOrigen</c>).
+    /// </summary>
+    public bool EstaAmparadaPor(DelegacionTenant? delegacion, DateTime ahora) =>
+        EsOperacionInterna
+        || (delegacion is not null
+            && OrigenId == delegacion.Id
+            && delegacion.TenantClienteId == PropietarioTenantId
+            && delegacion.TenantConsultoraId == OperadorTenantId
+            && delegacion.Proposito == PropositoDelegacion.OperadorExterno
+            && delegacion.EstaVigente(ahora)
+            && RevocacionesDelOrigen == delegacion.Revocaciones);
 }

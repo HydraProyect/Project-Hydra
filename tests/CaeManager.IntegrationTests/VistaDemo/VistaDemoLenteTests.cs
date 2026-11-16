@@ -131,7 +131,27 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // B-02a: una operación Inbound del Tenant entero sobre el Tenant 3. Sus carteras no son de Outbound: ni
         // hacen elegible al Gestor CAE que solo tiene esa, ni añaden el Tenant 3 a la lente de G1.
         var op3Inbound = AsignacionOperacion.Externa(_p3, _operador, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
-        contexto.AsignacionesOperacion.AddRange(op1a, op1b, op1c, op1d, op2, op3, opAjena, opRealPropia, op3Inbound);
+        // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios. Las operaciones
+        // Outbound de esos pares nacen amparadas por su delegación (EF inserta la delegación antes), y también la Inbound
+        // del Tenant 3, para que solo la excluya el Servicio y no la falta de origen (revisión puente de la ronda 5 de la
+        // PR #2237). Producción no da origen a una Inbound (el writer solo abre Outbound): el fixture fija el filtro de
+        // Servicio como defensa en profundidad. La del Tenant real propio y la del otro Operador CAE (sin delegación de
+        // su par) se siembran sin origen.
+        var delegaciones = new Dictionary<Guid, DelegacionTenant>();
+        foreach (var propietario in new[] { _p1, _p2, _p3 })
+        {
+            var delegacion = new DelegacionTenant(_operador, propietario);
+            delegaciones[propietario] = delegacion;
+            _origenPorPropietario[propietario] = delegacion.Id;
+            contexto.DelegacionesTenant.Add(delegacion);
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
+        }
+        (_op1b, _op2, _op3) = (op1b.Id, op2.Id, op3.Id);
+
+        foreach (var (operacion, propietario) in new[] { (op1a, _p1), (op1b, _p1), (op1c, _p1), (op1d, _p1), (op2, _p2), (op3, _p3) })
+            OperacionExternaAmparada.Agregar(contexto, operacion, delegaciones[propietario]);
+        OperacionExternaAmparada.Agregar(contexto, op3Inbound, delegaciones[_p3]);
+        contexto.AsignacionesOperacion.AddRange(opAjena, opRealPropia);
         contexto.AsignacionesCartera.AddRange(
             Cartera(op3Inbound, _g1), Cartera(op3Inbound, _gSoloInbound),
             Cartera(op1a, _g1), Cartera(op2, _g1),
@@ -140,16 +160,6 @@ public class VistaDemoLenteTests : IAsyncLifetime
             Cartera(opAjena, _gDeOtroOperador),
             Cartera(opRealPropia, _gSoloTenantReal),
             Cartera(op1d, _gCarteraFutura, vigenciaDesde: ahora.AddDays(1)));
-
-        // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios.
-        (_op1b, _op2, _op3) = (op1b.Id, op2.Id, op3.Id);
-        foreach (var propietario in new[] { _p1, _p2, _p3 })
-        {
-            var delegacion = new DelegacionTenant(_operador, propietario);
-            _origenPorPropietario[propietario] = delegacion.Id;
-            contexto.DelegacionesTenant.Add(delegacion);
-            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
-        }
 
         await contexto.SaveChangesAsync();
     }
@@ -395,15 +405,14 @@ public class VistaDemoLenteTests : IAsyncLifetime
         lenteG2.Select(c => c.TenantId).Should().BeEquivalentTo([_operador, _p1, _p3]);
     }
 
-    // ---------------------------------------------------------------- 3. AMPARO DE ORIGEN (fase de expansión)
+    // ---------------------------------------------------------------- 3. AMPARO DE ORIGEN
     //
-    // Las dos consultas de la lente aplican AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen. El estado discriminante: la
-    // operación tiene origen y su DelegacionTenant se revoca y se reactiva con el SQL de la ranura anterior (solo Activa,
-    // sin cerrar operaciones). La delegación vuelve a estar activa y la operación sigue vigente, pero su contador de
-    // revocaciones ya no es el que guardó: el resto del predicado de cada consulta (servicio, Tenant de demo, operador,
-    // vigencia; ninguna mira la delegación) la deja pasar, y solo el filtro de origen la quita. El origen se fija con un
-    // UPDATE porque la siembra de arriba no garantiza en qué orden se insertan delegaciones y operaciones, y por tanto
-    // si el trigger lo dedujo; en esta fase ningún trigger impide fijarlo después.
+    // Las dos consultas de la lente aplican AmparoDeOrigen.AmparadasPorSuOrigen. El estado discriminante: la
+    // operación tiene origen (la siembra la abre con OperacionExternaAmparada) y su DelegacionTenant se revoca y se
+    // reactiva con el SQL de la ranura anterior (solo Activa, sin cerrar operaciones). La delegación vuelve a estar
+    // activa y la operación sigue vigente, pero su contador de revocaciones ya no es el que guardó: el resto del
+    // predicado de cada consulta (servicio, Tenant de demo, operador, vigencia; ninguna mira la delegación) la deja
+    // pasar, y solo el filtro de origen la quita.
 
     /// <summary>
     /// <c>ObtenerGestoresElegiblesAsync</c> (consulta de la línea del join de carteras): G2 solo tiene carteras bajo las
@@ -412,10 +421,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
     [Fact]
     public async Task Un_Gestor_CAE_cuyas_operaciones_perdieron_el_amparo_de_su_origen_deja_de_ser_elegible()
     {
-        await FijarOrigenAsync(_op1b, _p1);
-        await FijarOrigenAsync(_op3, _p3);
         (await GestoresElegiblesAsync()).Should().BeEquivalentTo([_g1, _g2],
-            "control: con su origen fijado y vigente, las operaciones de G2 siguen contando");
+            "control: con su origen vigente, las operaciones de G2 siguen contando");
 
         await RevocarYReactivarAsync(_p1);
         await RevocarYReactivarAsync(_p3);
@@ -431,7 +438,6 @@ public class VistaDemoLenteTests : IAsyncLifetime
     [Fact]
     public async Task La_lente_Gestor_no_anade_el_Tenant_de_una_operacion_cuyo_origen_se_revoco_y_reactivo()
     {
-        await FijarOrigenAsync(_op2, _p2);
         (await TenantsDeLaLenteAsync(_g1)).Should().BeEquivalentTo([_p1, _p2], "control: con su origen vigente cuenta");
 
         await RevocarYReactivarAsync(_p2);
@@ -452,10 +458,6 @@ public class VistaDemoLenteTests : IAsyncLifetime
         return await CrearVista(contexto, _operador, Administrador(), Solicitud(VistaDemo.GestorCae, gestor), Activo(true), null)
             .ObtenerTenantIdsAcotadosAsync();
     }
-
-    /// <summary>La operación pasa a tener por origen la DelegacionTenant de su Tenant propietario, sin revocaciones.</summary>
-    private Task FijarOrigenAsync(Guid operacion, Guid propietario) => EjecutarAsync(
-        $"""UPDATE "AsignacionesOperacion" SET "OrigenId" = '{_origenPorPropietario[propietario]}', "RevocacionesDelOrigen" = 0 WHERE "Id" = '{operacion}'""");
 
     /// <summary>
     /// Revoca y reactiva como la ranura anterior y comprueba el estado discriminante: la delegación activa con una

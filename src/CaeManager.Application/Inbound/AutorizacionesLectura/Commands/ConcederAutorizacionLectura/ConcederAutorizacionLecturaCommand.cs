@@ -24,7 +24,7 @@ public record ConcederAutorizacionLecturaCommand(
     DateOnly VigenciaDesde,
     DateOnly? VigenciaHasta,
     IReadOnlyList<Guid> TrabajadorIds)
-    : ICommand<Guid>;
+    : ICommand<Guid>, IComandoInbound;
 
 public class ConcederAutorizacionLecturaCommandValidator : AbstractValidator<ConcederAutorizacionLecturaCommand>
 {

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
@@ -28,7 +29,7 @@ public static class ClienteActivoEndpoints
         // formulario, UseAntiforgery valida el token automáticamente y una
         // navegación de nivel superior provocada desde fuera ya no basta.
         endpoints.MapPost("/cuenta/cliente-activo", (
-            [FromForm] Guid tenantId, [FromForm] string? returnUrl, HttpContext httpContext,
+            [FromForm] Guid tenantId, [FromForm] string? returnUrl, [FromForm] ServicioCae? servicio, HttpContext httpContext,
             ITenantsQueryContext dbContext, ICurrentUserService currentUserService,
             IOperacionesQueryContext operacionesContext,
             IDataProtectionProvider dataProtectionProvider,
@@ -37,7 +38,7 @@ public static class ClienteActivoEndpoints
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente));
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio));
 
         return endpoints;
     }
@@ -54,7 +55,8 @@ public static class ClienteActivoEndpoints
         IDataProtectionProvider dataProtectionProvider,
         CancellationToken cancellationToken,
         IContadorPendientesSelectorTenant? contadorPendientes = null,
-        CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null)
+        CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
+        ServicioCae? servicio = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
@@ -75,18 +77,35 @@ public static class ClienteActivoEndpoints
         // autorización suficiente por sí sola, y se embebe en el token para
         // revalidar esa misma operación en cada petición. Determinista
         // (REC-136): la vigente más reciente y, a igualdad, la de menor Id.
+        //
+        // El papel lo elige la persona (DN-21, punto 1; B-02b): con servicio=Inbound solo cuenta la vía de Operación
+        // Inbound, que se ampara en la línea Inbound vigente del Tenant TCE y no en una DelegacionTenant; sin servicio, o
+        // con Outbound, la de Outbound, como antes. Nunca se cae de una a otra: pedir Inbound sin operación Inbound no
+        // abre el Tenant por Outbound ni por la vía heredada (que solo es de Outbound). El servicio del form solo elige
+        // qué predicado se pide; el papel de cada petición sale después de la operación revalidada del token.
+        var pideInbound = servicio == ServicioCae.Inbound;
+        if (servicio is not null and not ServicioCae.Outbound and not ServicioCae.Inbound)
+            return Results.BadRequest();
+        if (pideInbound && tenantId == tenantOrigenId.Value)
+            return Results.BadRequest();
+
+        var perfilQueDecideAlcance = await currentUserService.ObtenerPerfilQueDecideAlcanceAsync();
         var asignacionOperacionId = tenantId == tenantOrigenId.Value
             ? null
-            : await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operacionesContext, dbContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
-                await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), ahora, cancellationToken);
+            : pideInbound
+                ? await TenantsBeneficiariosAutorizados.OperacionInboundQueAutorizaAsync(
+                    operacionesContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
+                    perfilQueDecideAlcance, ahora, cancellationToken)
+                : await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                    operacionesContext, dbContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
+                    perfilQueDecideAlcance, ahora, cancellationToken);
 
         // El Tenant de origen del usuario siempre está autorizado sobre sí
         // mismo. La vía heredada se conserva porque es la del acceso de
         // soporte, que todavía no tiene operación propia.
         var autorizado = tenantId == tenantOrigenId.Value || asignacionOperacionId is not null
-            || await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(
-                dbContext, usuarioId.Value, tenantId, ahora, cancellationToken);
+            || (!pideInbound && await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(
+                dbContext, usuarioId.Value, tenantId, ahora, cancellationToken));
 
         if (!autorizado)
         {

@@ -15,8 +15,16 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
 
     public Task<AsignacionOperacion?> ObtenerOperacionAsync(
         Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
+        // Solo si su origen la ampara: una Asignación de Operación externa cuya DelegacionTenant se revocó (o que
+        // nació sin origen) no admite un Encargo de Administración (Codex r2 en la PR #2237, media 8). El predicado
+        // se evalúa en PostgreSQL (FuncionAmparoDeOrigen) porque el comando por Aprovisionamiento lee como
+        // cae_app_aprovisionamiento, sin SELECT sobre esa tabla. Esta lectura no bloquea nada: lo que cierra la carrera
+        // con una revocación entre esta lectura y el guardado es el trigger TR_EncargosAdministracion_ExigeAmparoDeOrigen,
+        // que repite el predicado con la DelegacionTenant de origen bloqueada (ronda 3 de Codex, media 3). Ese rechazo
+        // no se traduce aquí: sale como excepción, porque ni es «ya registrado» ni cabe reintentarlo.
         dbContext.AsignacionesOperacion
             .AsNoTracking()
+            .AmparadasPorSuOrigenEnBase()
             .FirstOrDefaultAsync(
                 o => o.Id == asignacionOperacionId && o.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
@@ -26,8 +34,11 @@ public class EncargoAdministracionRepository(CaeManagerDbContext dbContext) : IE
         // Misma posición que ObtenerOperacionAsync: solo las del Tenant propietario pedido. El ámbito
         // y la vigencia se deciden en memoria con las reglas del dominio (las mismas que aplica
         // EncargoAdministracion.Registrar); un Tenant propietario tiene un puñado de operaciones.
+        // Y solo las que su origen ampara ahora, con la hora de la base (Codex r2 en la PR #2237, media 8; la función
+        // ya no recibe la hora, ronda 3 media 4).
         var candidatas = await dbContext.AsignacionesOperacion
             .AsNoTracking()
+            .AmparadasPorSuOrigenEnBase()
             .Where(o => o.PropietarioTenantId == propietarioTenantId
                         && !o.EsRaiz
                         && o.OperadorTenantId != propietarioTenantId)

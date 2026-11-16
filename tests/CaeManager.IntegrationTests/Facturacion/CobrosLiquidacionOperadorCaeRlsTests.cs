@@ -85,18 +85,19 @@ public class CobrosLiquidacionOperadorCaeRlsTests : IAsyncLifetime
         (_anyoAnterior, _mesAnterior) = (mesAntepasado.Year, mesAntepasado.Month);
         // Desde antes del mes antepasado: el Operador A tiene liquidación de X y de W en los dos meses terminados.
         var desde = new DateTime(_anyoAnterior, _mesAnterior, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-3);
+        // Cada operación nace de su DelegacionTenant de Operador CAE externo: sin origen no autoriza (AmparoDeOrigen).
         using (AmbitoTenantExplicito.Establecer(_operadorA))
         {
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaX, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaW, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
             // Solo Inbound: el Operador A opera a Z, pero no la factura en «Facturación» (vía Outbound), así que no se marca.
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaZ, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
         }
         using (AmbitoTenantExplicito.Establecer(_operadorB))
-            propietario.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            OperacionExternaAmparada.Agregar(propietario, AsignacionOperacion.Externa(
                 _empresaY, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
         await propietario.SaveChangesAsync();
 

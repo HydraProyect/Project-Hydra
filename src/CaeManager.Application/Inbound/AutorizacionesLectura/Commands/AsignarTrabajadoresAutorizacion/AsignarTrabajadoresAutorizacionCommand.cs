@@ -11,7 +11,7 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.AsignarT
 /// <summary>Añade Trabajadores a una autorización sin revocar. Los que ya estaban asignados se ignoran.</summary>
 [AreaDelEncargo("AutorizacionesLectura")]
 public record AsignarTrabajadoresAutorizacionCommand(Guid AutorizacionId, IReadOnlyList<Guid> TrabajadorIds, Guid Version = default)
-    : ICommand;
+    : ICommand, IComandoInbound;
 
 public class AsignarTrabajadoresAutorizacionCommandValidator : AbstractValidator<AsignarTrabajadoresAutorizacionCommand>
 {

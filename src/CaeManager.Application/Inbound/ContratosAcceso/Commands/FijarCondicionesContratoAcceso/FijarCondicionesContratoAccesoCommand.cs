@@ -15,7 +15,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.FijarCondicion
 /// algo: unas condiciones idénticas a las que ya tiene responden <c>ContratoAcceso.SinCambios</c> sin guardar.
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record FijarCondicionesContratoAccesoCommand(Guid Id, CondicionesContratoAccesoDatos Condiciones, Guid Version = default) : ICommand;
+public record FijarCondicionesContratoAccesoCommand(Guid Id, CondicionesContratoAccesoDatos Condiciones, Guid Version = default) : ICommand, IComandoInbound;
 
 public class FijarCondicionesContratoAccesoCommandValidator : AbstractValidator<FijarCondicionesContratoAccesoCommand>
 {
