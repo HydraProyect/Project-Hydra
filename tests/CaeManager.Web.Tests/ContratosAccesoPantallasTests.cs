@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContratoAcceso;
+using CaeManager.Application.Inbound.ContratosAcceso.Commands.EliminarContratoAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratoAccesoPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
@@ -292,6 +293,22 @@ public class ContratosAccesoPantallasTests : BunitContext
         cut.Find("button[aria-haspopup=menu]").Click();
 
         cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim()).Should().Contain("Cancelar contrato").And.Contain("Eliminar");
+    }
+
+    [Fact]
+    public void Eliminar_pide_confirmacion_y_envia_la_baja_con_la_version_leida()
+    {
+        var mediador = Preparar(Contrato(EstadoContratoAcceso.PendienteDeConfirmar, fin: new DateOnly(2099, 12, 31), inicio: new DateOnly(2098, 1, 1)));
+        var cut = Cargada(Render<ContratoAccesoDetalle>(p => p.Add(c => c.Id, ContratoId)));
+
+        cut.Find("button[aria-haspopup=menu]").Click();
+        cut.FindAll("[role=menuitem]").First(i => i.TextContent.Trim() == "Eliminar").Click();
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarContratoAccesoCommand>().Should().ContainSingle());
+        var baja = mediador.Enviadas.OfType<EliminarContratoAccesoCommand>().Single();
+        baja.Id.Should().Be(ContratoId);
+        baja.Version.Should().Be(VersionContrato);
     }
 
     [Fact]
