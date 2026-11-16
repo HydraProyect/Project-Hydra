@@ -61,7 +61,7 @@ public class CabeceraRedisenadaTests : BunitContext
         Services.AddSingleton<ILogger<MenuUsuario>>(NullLogger<MenuUsuario>.Instance);
         Services.AddScoped<ContextoMarcoDelAmbito>();
         // SelectorIdioma (dentro de MenuUsuario) consulta si hay una Sesión Privilegiada seleccionada.
-        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddSingleton<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(false));
     }
 
     // ---- Iniciales del avatar ----

@@ -1,4 +1,4 @@
-@using CaeManager.Application.Common
+@using CaeManager.Application.Plataforma
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Recursos
@@ -8,7 +8,7 @@
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<TextosComunes> Textos
 @inject IOptions<OpcionesLocalizacion> Localizacion
-@inject IClienteActivoSeleccionado Seleccion
+@inject ICoordenadaSesionPrivilegiada Coordenada
 
 @*
     Idioma de la interfaz de la cuenta (ApplicationUser.Idioma). Un <form>
@@ -32,7 +32,7 @@
     que no tiene UPDATE sobre la cuenta, así que el cambio no podría guardarse
     (IPreferenciasCuentaPropia devolvería NoPermitida).
 *@
-@if (Localizacion.Value.CatalanHabilitado && Seleccion.SesionPrivilegiadaIdSeleccionada is null)
+@if (Localizacion.Value.CatalanHabilitado && !Coordenada.HaySeleccionada)
 {
 <form method="post" action="@IdiomaEndpoints.Ruta" class="selector-idioma-formulario">
     <AntiforgeryToken />

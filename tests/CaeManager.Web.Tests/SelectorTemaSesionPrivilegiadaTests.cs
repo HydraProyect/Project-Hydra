@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Bunit;
-using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Layout;
 using FluentAssertions;
@@ -32,7 +32,7 @@ public sealed class SelectorTemaSesionPrivilegiadaTests : BunitContext
     [Fact]
     public void Sin_Sesion_Privilegiada_el_interruptor_de_tema_se_pinta()
     {
-        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(false));
 
         var cut = Render<SelectorTema>();
 
@@ -42,7 +42,7 @@ public sealed class SelectorTemaSesionPrivilegiadaTests : BunitContext
     [Fact]
     public void Con_una_Sesion_Privilegiada_seleccionada_el_interruptor_de_tema_no_se_pinta()
     {
-        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionPrivilegiadaDePrueba());
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(true));
 
         var cut = Render<SelectorTema>();
 

@@ -1,5 +1,5 @@
 using Bunit;
-using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Services;
 using FluentAssertions;
@@ -22,7 +22,7 @@ public class SelectorIdiomaInterruptorCatalanTests : BunitContext
     public SelectorIdiomaInterruptorCatalanTests()
     {
         Services.AddLocalization();
-        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(false));
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class SelectorIdiomaInterruptorCatalanTests : BunitContext
     {
         Services.AddSingleton<IOptions<OpcionesLocalizacion>>(
             Opciones.Create(new OpcionesLocalizacion { CatalanHabilitado = true }));
-        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionPrivilegiadaDePrueba());
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(true));
 
         var selector = Render<SelectorIdioma>();
 

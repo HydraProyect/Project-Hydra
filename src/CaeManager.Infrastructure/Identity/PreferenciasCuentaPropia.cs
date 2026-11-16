@@ -25,9 +25,10 @@ public enum ResultadoEscrituraCuenta
     Conflicto,
 
     /// <summary>
-    /// La base rechazó la escritura por permisos (42501): es lo que ocurre con <c>cae_app_soporte</c>, que no tiene
-    /// <c>UPDATE</c> sobre la tabla de cuentas. Es un resultado esperado, no un fallo: el llamador no reintenta ni
-    /// registra un error, y la interfaz no ofrece cambiar preferencias a quien no puede guardarlas.
+    /// La base rechazó la escritura por permisos (SQLSTATE 42501). Lo esperado es <c>cae_app_soporte</c>, que no tiene
+    /// <c>UPDATE</c> sobre la tabla de cuentas, y la interfaz no ofrece cambiar preferencias a quien no puede guardarlas;
+    /// pero el 42501 también lo da una violación de una política RLS (<c>WITH CHECK</c>), así que el llamador no reintenta
+    /// y deja constancia del resultado en el registro en lugar de darlo por normal.
     /// </summary>
     NoPermitida,
 }
