@@ -81,11 +81,14 @@ namespace CaeManager.Web.Services;
 /// de la sesión de la que salió (<see cref="MarcasParaExtension"/>), y vale mientras esa sesión
 /// valdría con estas mismas reglas (<see cref="SesionOrigenVigente"/>, que aplica
 /// <see cref="SesionOrigenExtension"/>): tope desde el inicio y plazo del Tenant propietario de la
-/// cuenta, con la interacción más reciente entre la del token y la anotada en
-/// <see cref="ActividadSesiones"/>. Usar la extensión no cuenta como interacción. Por eso vencer
-/// por inactividad no necesita revocar el identificador de sesión: sin una señal de la interfaz
-/// web, que la cookie ya caducada no admite, ninguna de las dos marcas avanza, tampoco tras un
-/// reinicio, que solo vacía la memoria.
+/// cuenta, el menor entre el que regía al emitir, que va en el token, y el vigente, con la
+/// interacción más reciente entre la del token y la anotada en <see cref="ActividadSesiones"/>.
+/// Usar la extensión no cuenta como interacción. Por eso vencer por inactividad no revoca el
+/// identificador de sesión: sin una señal de la interfaz web, que la cookie ya caducada no
+/// admite, ninguna marca avanza, tampoco tras un reinicio, que solo vacía la memoria, y ampliar
+/// el plazo del Tenant no alarga el del token. Queda un caso que solo cerraría revocar al vencer:
+/// el plazo se acorta por debajo del que regía al emitir, el token vence y luego el plazo vuelve a
+/// ampliarse; el token vuelve a valer hasta el plazo con que se emitió.
 /// </para>
 ///
 /// <para>
@@ -270,19 +273,26 @@ public static class CaducidadSesion
 
         var marca = Leer(principal.FindFirst(MarcaInteraccion)?.Value) ?? inicio;
         var ultima = marca < ultimaRegistrada ? ultimaRegistrada.Value : marca;
-        return SigueActiva(ultima, ahora, PlazoInactividad(principal)) ? new MarcasSesionOrigen(inicio, ultima) : null;
+        var plazo = PlazoInactividad(principal);
+        return SigueActiva(ultima, ahora, plazo) ? new MarcasSesionOrigen(inicio, ultima, plazo) : null;
     }
 
     /// <summary>
     /// ¿Sigue vigente la sesión de origen de un token de extensión? Las mismas reglas que la cookie:
     /// menos de <see cref="DuracionMaxima"/> desde el inicio y una interacción, la del token o
-    /// <paramref name="ultimaRegistrada"/> si es posterior, dentro del <see cref="PlazoInactividad"/> de
-    /// <paramref name="cuenta"/>. El uso del token no cuenta como interacción: nadie anota nada por él.
+    /// <paramref name="ultimaRegistrada"/> si es posterior, dentro del menor entre el plazo que regía al
+    /// emitir (<see cref="MarcasSesionOrigen.PlazoInactividad"/>) y el <see cref="PlazoInactividad"/> de
+    /// <paramref name="cuenta"/>: acortarlo rige ya y ampliarlo no revive un token vencido. El uso del
+    /// token no cuenta como interacción: nadie anota nada por él.
     /// </summary>
     public static bool SesionOrigenVigente(
-        ClaimsPrincipal cuenta, MarcasSesionOrigen marcas, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
-        EsVigente(marcas.Inicio, ahora)
-        && SigueActiva(marcas.UltimaInteraccion < ultimaRegistrada ? ultimaRegistrada : marcas.UltimaInteraccion, ahora, PlazoInactividad(cuenta));
+        ClaimsPrincipal cuenta, MarcasSesionOrigen marcas, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
+    {
+        var vigente = PlazoInactividad(cuenta);
+        var plazo = marcas.PlazoInactividad < vigente ? marcas.PlazoInactividad : vigente;
+        return EsVigente(marcas.Inicio, ahora)
+            && SigueActiva(marcas.UltimaInteraccion < ultimaRegistrada ? ultimaRegistrada : marcas.UltimaInteraccion, ahora, plazo);
+    }
 
     /// <summary>
     /// ¿Admite el ajuste vigente del Tenant, recién leído de la base en <paramref name="vigente"/>,

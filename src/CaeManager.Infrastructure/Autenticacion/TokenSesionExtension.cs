@@ -1,3 +1,4 @@
+using CaeManager.Domain.Configuracion;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace CaeManager.Infrastructure.Autenticacion;
@@ -28,8 +29,10 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// (<see cref="MarcasSesionOrigen"/>), las mismas marcas que la cookie. Con ellas
 /// <see cref="ISesionOrigenExtension"/> deja de admitir el token en cuanto la sesión de origen
 /// supera su tope desde el inicio o el plazo de inactividad del Tenant propietario de la
-/// cuenta. Usar la extensión no es una interacción: no mueve ninguna de las dos marcas.
-/// Un token sin ellas, emitido antes de este cambio, no se admite.
+/// cuenta. Lleva también el plazo de inactividad que regía al emitir: rige el menor entre ese
+/// y el vigente, para que ampliar el plazo no reviva un token ya vencido. Usar la extensión no
+/// es una interacción: no mueve ninguna de las marcas. Un token sin ellas, emitido antes de este
+/// cambio, no se admite.
 /// </para>
 ///
 /// <para>
@@ -73,9 +76,13 @@ public static class TokenSesionExtension
         ArgumentException.ThrowIfNullOrWhiteSpace(securityStamp);
         ArgumentNullException.ThrowIfNull(marcas);
         if (sid == Guid.Empty) throw new ArgumentException("Identificador de sesión vacío.", nameof(sid));
+        var minutos = marcas.PlazoInactividad.TotalMinutes;
+        if (minutos != Math.Floor(minutos) || minutos > int.MaxValue
+            || !ParametroSistema.MinutosInactividadSesionValidos((int)minutos))
+            throw new ArgumentException("Plazo de inactividad fuera de rango.", nameof(marcas));
 
         return CrearProtector(dataProtectionProvider).Protect(
-            $"{usuarioId:N}|{securityStamp}|{sid:N}|{Sello(marcas.Inicio)}|{Sello(marcas.UltimaInteraccion)}", Vigencia);
+            $"{usuarioId:N}|{securityStamp}|{sid:N}|{Sello(marcas.Inicio)}|{Sello(marcas.UltimaInteraccion)}|{(int)minutos}", Vigencia);
     }
 
     /// <summary>
@@ -110,11 +117,11 @@ public static class TokenSesionExtension
     /// </summary>
     public static CargaUtilTokenExtension? ParsearCargaUtil(string cargaUtil)
     {
-        // El security stamp de Identity es Base32 (sin '|'), así que cinco
+        // El security stamp de Identity es Base32 (sin '|'), así que seis
         // partes exactas es la única forma válida. La de tres, sin las marcas de
         // la sesión de origen, es la de antes del issue #1891 y no vale.
         var partes = cargaUtil.Split('|');
-        if (partes.Length != 5)
+        if (partes.Length != 6)
             return null;
 
         if (!Guid.TryParseExact(partes[0], "N", out var usuarioId) || usuarioId == Guid.Empty)
@@ -129,7 +136,12 @@ public static class TokenSesionExtension
         if (LeerSello(partes[3]) is not { } inicio || LeerSello(partes[4]) is not { } ultimaInteraccion)
             return null;
 
-        return new CargaUtilTokenExtension(usuarioId, partes[1], sid, new MarcasSesionOrigen(inicio, ultimaInteraccion));
+        if (!int.TryParse(partes[5], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var minutos)
+            || !ParametroSistema.MinutosInactividadSesionValidos(minutos))
+            return null;
+
+        return new CargaUtilTokenExtension(
+            usuarioId, partes[1], sid, new MarcasSesionOrigen(inicio, ultimaInteraccion, TimeSpan.FromMinutes(minutos)));
     }
 
     private static string Sello(DateTimeOffset momento) =>

@@ -280,7 +280,7 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
     {
         var interaccion = ultimaInteraccion ?? DateTimeOffset.UtcNow;
         return TokenSesionExtension.Proteger(
-            _protector, usuario.Id, usuario.SecurityStamp!, Guid.NewGuid(), new MarcasSesionOrigen(interaccion.AddMinutes(-1), interaccion));
+            _protector, usuario.Id, usuario.SecurityStamp!, Guid.NewGuid(), new MarcasSesionOrigen(interaccion.AddMinutes(-1), interaccion, TimeSpan.FromMinutes(480)));
     }
 
     private async Task<AuthenticateResult> AutenticarAsync(string? token)

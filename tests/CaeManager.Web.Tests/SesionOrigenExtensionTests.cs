@@ -19,6 +19,8 @@ public class SesionOrigenExtensionTests
     private readonly Reloj _reloj = new(Ahora);
     private readonly Guid _sid = Guid.NewGuid();
 
+    private static readonly TimeSpan Plazo = TimeSpan.FromMinutes(30);
+
     private SesionOrigenExtension Servicio() => new(_actividad, _reloj);
 
     [Fact]
@@ -26,15 +28,17 @@ public class SesionOrigenExtensionTests
     {
         var sesion = Sesion(inicio: Ahora.AddMinutes(-20), interaccion: Ahora.AddMinutes(-10));
 
-        Servicio().MarcasVigentes(sesion).Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-20), Ahora.AddMinutes(-10)));
+        Servicio().MarcasVigentes(sesion).Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-20), Ahora.AddMinutes(-10), Plazo));
 
         // El circuito conserva el principal de cuando se conectó: vale la señal anotada después.
         _actividad.Anotar(_sid, Ahora.AddMinutes(-1));
-        Servicio().MarcasVigentes(sesion).Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-20), Ahora.AddMinutes(-1)));
+        Servicio().MarcasVigentes(sesion).Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-20), Ahora.AddMinutes(-1), Plazo));
 
         // Sin marca de interacción cuenta el inicio, nunca el momento actual.
         Servicio().MarcasVigentes(Sesion(inicio: Ahora.AddMinutes(-3), interaccion: null, otraSid: Guid.NewGuid()))
-            .Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-3), Ahora.AddMinutes(-3)));
+            .Should().Be(new MarcasSesionOrigen(Ahora.AddMinutes(-3), Ahora.AddMinutes(-3), Plazo));
+        Servicio().MarcasVigentes(Sesion(inicio: Ahora.AddMinutes(-10), interaccion: Ahora.AddMinutes(-1), minutos: 5))!.PlazoInactividad
+            .Should().Be(TimeSpan.FromMinutes(5), "el token guarda el plazo del Tenant propietario que regía al emitir");
     }
 
     [Fact]
@@ -53,13 +57,15 @@ public class SesionOrigenExtensionTests
     [Fact]
     public void El_token_vale_mientras_la_sesion_de_origen_tiene_interaccion_dentro_del_plazo_de_la_cuenta()
     {
-        var marcas = new MarcasSesionOrigen(Ahora.AddMinutes(-60), Ahora.AddMinutes(-29));
+        var marcas = new MarcasSesionOrigen(Ahora.AddMinutes(-60), Ahora.AddMinutes(-29), Plazo);
 
         Servicio().SigueVigente(Cuenta(minutos: 30), _sid, marcas).Should().BeTrue();
         Servicio().SigueVigente(Cuenta(minutos: 15), _sid, marcas).Should().BeFalse("rige el plazo del principal de la cuenta");
         Servicio().SigueVigente(Cuenta(minutos: null), _sid, marcas).Should().BeTrue("sin claim, el plazo por defecto");
         Servicio().SigueVigente(Cuenta(minutos: 9999), _sid, marcas with { UltimaInteraccion = Ahora.AddMinutes(-31) })
             .Should().BeFalse("un plazo fuera de rango vale el de por defecto, nunca uno mayor");
+        Servicio().SigueVigente(Cuenta(minutos: 480), _sid, marcas with { UltimaInteraccion = Ahora.AddMinutes(-31) })
+            .Should().BeFalse("ampliar el plazo del Tenant después de emitir no alarga el del token: rige el menor");
 
         _reloj.Ahora = Ahora.AddMinutes(1);
         Servicio().SigueVigente(Cuenta(minutos: 30), _sid, marcas).Should().BeFalse("30 minutos sin interacción");
@@ -73,10 +79,10 @@ public class SesionOrigenExtensionTests
     [Fact]
     public void El_token_no_vale_pasado_el_tope_ni_con_marcas_del_futuro()
     {
-        Servicio().SigueVigente(Cuenta(minutos: 480), _sid, new MarcasSesionOrigen(Ahora.AddHours(-12), Ahora)).Should().BeFalse();
-        Servicio().SigueVigente(Cuenta(minutos: 480), _sid, new MarcasSesionOrigen(Ahora.AddHours(-12).AddSeconds(1), Ahora)).Should().BeTrue();
-        Servicio().SigueVigente(Cuenta(minutos: 30), _sid, new MarcasSesionOrigen(Ahora.AddMinutes(1), Ahora.AddMinutes(1))).Should().BeFalse();
-        Servicio().SigueVigente(Cuenta(minutos: 30), _sid, new MarcasSesionOrigen(Ahora.AddMinutes(-5), Ahora.AddMinutes(1))).Should().BeFalse();
+        Servicio().SigueVigente(Cuenta(minutos: 480), _sid, new MarcasSesionOrigen(Ahora.AddHours(-12), Ahora, Plazo)).Should().BeFalse();
+        Servicio().SigueVigente(Cuenta(minutos: 480), _sid, new MarcasSesionOrigen(Ahora.AddHours(-12).AddSeconds(1), Ahora, Plazo)).Should().BeTrue();
+        Servicio().SigueVigente(Cuenta(minutos: 30), _sid, new MarcasSesionOrigen(Ahora.AddMinutes(1), Ahora.AddMinutes(1), Plazo)).Should().BeFalse();
+        Servicio().SigueVigente(Cuenta(minutos: 30), _sid, new MarcasSesionOrigen(Ahora.AddMinutes(-5), Ahora.AddMinutes(1), Plazo)).Should().BeFalse();
     }
 
     private ClaimsPrincipal Sesion(DateTimeOffset? inicio, DateTimeOffset? interaccion, int? minutos = null, Guid? otraSid = null, bool conSid = true)

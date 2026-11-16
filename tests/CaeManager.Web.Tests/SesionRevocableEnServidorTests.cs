@@ -84,7 +84,7 @@ public class SesionRevocableEnServidorTests
         var reloj = new RelojFijo(DateTimeOffset.UtcNow);
         var sid = Guid.NewGuid();
         var emision = reloj.Ahora;
-        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(emision.AddMinutes(-1), emision));
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(emision.AddMinutes(-1), emision, TimeSpan.FromMinutes(5)));
         var fabrica = new FabricaConPlazo(gestor.UserManager, minutos: 5);
         async Task<AuthenticateResult> Autenticar()
         {
@@ -107,7 +107,7 @@ public class SesionRevocableEnServidorTests
         vencido.Failure!.Message.Should().Be("Token inválido o caducado.");
 
         fabrica.Minutos = 30;
-        (await Autenticar()).Succeeded.Should().BeTrue("el plazo es el del principal de la cuenta, leído en cada petición");
+        (await Autenticar()).Succeeded.Should().BeFalse("ampliar el plazo del Tenant no revive un token cuya sesión de origen ya venció");
         fabrica.Minutos = 5;
 
         actividad.Anotar(sid, emision.AddMinutes(3));
@@ -115,6 +115,12 @@ public class SesionRevocableEnServidorTests
         actividad.Anotar(Guid.NewGuid(), reloj.Ahora);
         reloj.Ahora = emision.AddMinutes(8);
         (await Autenticar()).Succeeded.Should().BeFalse("la interacción de otra sesión no cuenta");
+
+        var emitidoCon30 = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(reloj.Ahora.AddMinutes(-6), reloj.Ahora.AddMinutes(-6), TimeSpan.FromMinutes(30)));
+        token = emitidoCon30;
+        (await Autenticar()).Succeeded.Should().BeFalse("acortar el plazo del Tenant rige ya para el token emitido con uno más largo");
+        fabrica.Minutos = 30;
+        (await Autenticar()).Succeeded.Should().BeTrue("el plazo es el del principal de la cuenta, leído en cada petición, hasta el que regía al emitir");
     }
 
     /// <summary>Issue #1891: el tope desde el inicio de la sesión de origen corta el token aunque haya interacción reciente.</summary>
@@ -127,7 +133,7 @@ public class SesionRevocableEnServidorTests
         var sid = Guid.NewGuid();
         var actividad = new ActividadSesiones();
         var inicio = reloj.Ahora.AddHours(-12).AddMinutes(1);
-        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(inicio, reloj.Ahora));
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid, new MarcasSesionOrigen(inicio, reloj.Ahora, TimeSpan.FromMinutes(480)));
         async Task<AuthenticateResult> Autenticar()
         {
             var handler = new ExtensionAuthenticationHandler(
@@ -179,13 +185,14 @@ public class SesionRevocableEnServidorTests
         var sinMarcas = await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, null);
         sinMarcas.EsFallido.Should().BeTrue();
         sinMarcas.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
-        var marcas = new MarcasSesionOrigen(DateTimeOffset.UtcNow.AddMinutes(-7), DateTimeOffset.UtcNow.AddMinutes(-2));
+        var marcas = new MarcasSesionOrigen(DateTimeOffset.UtcNow.AddMinutes(-7), DateTimeOffset.UtcNow.AddMinutes(-2), TimeSpan.FromMinutes(30));
         var emitido = await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, marcas);
         emitido.EsExitoso.Should().BeTrue();
         TokenSesionExtension.Leer(protector, emitido.Valor.Token)!.Marcas.Should().Be(
             new MarcasSesionOrigen(
                 DateTimeOffset.FromUnixTimeSeconds(marcas.Inicio.ToUnixTimeSeconds()),
-                DateTimeOffset.FromUnixTimeSeconds(marcas.UltimaInteraccion.ToUnixTimeSeconds())),
+                DateTimeOffset.FromUnixTimeSeconds(marcas.UltimaInteraccion.ToUnixTimeSeconds()),
+                TimeSpan.FromMinutes(30)),
             "el token lleva las marcas de la sesión de origen que se le pasan, al segundo");
         await sesiones.RevocarAsync(cuenta.Id, sid);
         (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance, MarcasSesionDePrueba.Recientes())).EsFallido.Should().BeTrue();

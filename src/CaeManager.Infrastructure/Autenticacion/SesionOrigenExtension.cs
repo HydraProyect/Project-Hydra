@@ -5,9 +5,11 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// <summary>
 /// Las marcas de la sesión de origen que viajan en el token de la extensión
 /// (<see cref="TokenSesionExtension"/>): su hora de inicio y su última interacción conocida al
-/// emitir. Son las mismas que lleva la cookie de esa sesión.
+/// emitir, las mismas que lleva la cookie de esa sesión, y el plazo de inactividad que regía al
+/// emitir. Ese plazo se guarda para que ampliarlo después no reviva un token cuya sesión de origen
+/// ya había vencido: rige el menor entre él y el vigente.
 /// </summary>
-public sealed record MarcasSesionOrigen(DateTimeOffset Inicio, DateTimeOffset UltimaInteraccion);
+public sealed record MarcasSesionOrigen(DateTimeOffset Inicio, DateTimeOffset UltimaInteraccion, TimeSpan PlazoInactividad);
 
 /// <summary>
 /// La vigencia de la sesión de origen de un token de extensión (issue #1891, ASVS 4.0.3 V3.3.2):
@@ -37,9 +39,10 @@ public interface ISesionOrigenExtension
 
     /// <summary>
     /// ¿Sigue vigente ahora la sesión de origen <paramref name="sid"/> con las
-    /// <paramref name="marcas"/> del token? El plazo de inactividad es el de
-    /// <paramref name="cuenta"/>, el principal recién construido desde la base para la cuenta
-    /// del token, que lo lleva de su Tenant propietario; nunca uno que traiga la petición.
+    /// <paramref name="marcas"/> del token? El plazo de inactividad es el menor entre el de las
+    /// marcas, que regía al emitir, y el de <paramref name="cuenta"/>, el principal recién
+    /// construido desde la base para la cuenta del token, que lo lleva de su Tenant propietario;
+    /// nunca uno que traiga la petición. Así acortarlo rige ya y ampliarlo no revive el token.
     /// </summary>
     bool SigueVigente(ClaimsPrincipal cuenta, Guid sid, MarcasSesionOrigen marcas);
 }

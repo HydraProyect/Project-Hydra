@@ -8,6 +8,6 @@ internal static class MarcasSesionDePrueba
     public static MarcasSesionOrigen Recientes()
     {
         var ahora = DateTimeOffset.UtcNow;
-        return new MarcasSesionOrigen(ahora, ahora);
+        return new MarcasSesionOrigen(ahora, ahora, TimeSpan.FromMinutes(30));
     }
 }
