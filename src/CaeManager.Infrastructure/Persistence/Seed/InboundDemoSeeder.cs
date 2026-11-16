@@ -23,8 +23,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Siembra de <b>Development</b> de la línea Inbound, para que las pantallas Inbound ya en Blazor enseñen datos al arrancar
-/// la aplicación en local en vez de estados vacíos. Deja un Tenant TCE, el Cliente empresarial que exige documentación
-/// (<see cref="NombreTenantTce"/>), y tres Tenants TEC, las Empresas contratistas, cada uno con su Usuario único.
+/// la aplicación en local en vez de estados vacíos. Deja el Tenant del Cliente empresarial que exige documentación (Tenant
+/// TCE, <see cref="NombreTenantTce"/>) y los Tenants de tres Empresas contratistas (Tenants TEC), cada uno con su Usuario
+/// único.
 ///
 /// <list type="bullet">
 /// <item><b>Tenant TCE</b>: su Administrador y una Gestora CAE interna con la Asignación de Cartera del Tenant entero; el
@@ -39,9 +40,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <para>
 /// <b>Lo que no siembra, y por qué</b> (solo lo que el backend en main ya modela):
 /// <list type="bullet">
-/// <item>La línea Inbound del Producto Contratado: solo la escribe <c>cae_app_aprovisionamiento</c> bajo una Sesión
-/// Privilegiada de Aprovisionamiento (<c>ContratarLineaInboundCommand</c>, B-04a); cae_app_runtime, la identidad de esta
-/// siembra fuera de la base local, solo la lee. Sin ella el gate DN-7 niega la lectura entre Tenants.</item>
+/// <item>La línea Inbound del Producto Contratado: en esa tabla cae_app_runtime, la identidad de esta siembra fuera de la base
+/// local, solo lee. La siembra aparte <see cref="LineaInboundDemoSeeder"/>, con el contexto de bootstrap (DECISION_LOG
+/// 2026-11-16), justo después de esta y con las mismas claves.</item>
 /// <item>El papel Inbound de la Asignación de Operación (B-02b): la cartera de la Gestora CAE cuelga de la operación raíz que
 /// existe hoy, sin servicio Inbound.</item>
 /// <item>El catálogo base de B-13: es global, ningún rol de la aplicación lo escribe y hoy solo tiene requisitos inactivos
@@ -50,16 +51,20 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <item>Las evidencias Inbound (validado, rechazado): solo nacen de leer el documento original del Tenant TEC a través del
 /// contrato y la autorización (<c>RegistrarEvidenciaInboundCommand</c>), y su modelo no tiene «por validar», «incompleto» ni
 /// «vencido en tolerancia». Los documentos originales del Tenant TEC sí se siembran, en varios estados de vigencia.</item>
-/// <item>Confirmar o rechazar un contrato por el Tenant TEC no tiene Command todavía (B-09): el Rechazado usa el método de
-/// dominio <see cref="ContratoAcceso.RechazarPorTenantContratista"/>.</item>
+/// <item>Dos estados no tienen Command todavía: rechazar por el Tenant TEC (B-09) y suspender (B-18). El Rechazado y el
+/// Suspendido usan los métodos de dominio <see cref="ContratoAcceso.RechazarPorTenantContratista"/> y
+/// <see cref="ContratoAcceso.Suspender"/>; el resto, los mismos métodos de dominio que llaman los Commands de B-05.</item>
+/// <item>Las Empresas contraparte del Tenant TCE se dan de alta como Subcontratas, porque el alta de una Empresa contratista
+/// Inbound no existe todavía (B-06 y B-07): aparecen también en las pantallas de Subcontratas del Tenant TCE.</item>
 /// </list>
 /// </para>
 ///
 /// <para>
 /// <b>Inerte por defecto.</b> Corre solo con <c>DatosPrueba:Activo</c> y <see cref="ClaveConfiguracion"/>, y únicamente en
 /// Development: comparte la contraseña pública de <see cref="CredencialesDemo"/>, así que cualquier otro entorno lanza antes
-/// de escribir nada. No envía correo: las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente
-/// por Tenant.
+/// de escribir nada. No envía correo: las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente y
+/// reconciliadora por artefacto: cada pieza se busca antes de crearla, así que una pasada cortada se completa en la
+/// siguiente. Lo que se haya dado de baja a mano desde la interfaz no se vuelve a crear si choca con un índice único.
 /// </para>
 ///
 /// <para>
@@ -215,8 +220,7 @@ public static class InboundDemoSeeder
             await writer.AsegurarCarteraTenantEnteroAsync(tceId, gestoraTce.Id, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            if (!await dbContext.ContratosAcceso.AnyAsync(cancellationToken))
-                await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(cancellationToken);
+            await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(cancellationToken);
 
             contratos = await dbContext.ContratosAcceso
                 .Where(c => c.Notas != null && Contratos.Todas.Contains(c.Notas))
@@ -228,9 +232,7 @@ public static class InboundDemoSeeder
         foreach (var tec in tecs)
             using (AmbitoTenantExplicito.Establecer(tec.Id))
             {
-                if (!await dbContext.Trabajadores.AnyAsync(cancellationToken))
-                    await new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(cancellationToken);
-
+                await new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(cancellationToken);
                 dbContext.ChangeTracker.Clear();
             }
 
@@ -255,55 +257,64 @@ public static class InboundDemoSeeder
 
         public async Task ConstruirAsync(CancellationToken cancellationToken)
         {
-            var tipos = await TiposAsync(db, cancellationToken);
-
-            var cliente = Empresa.CrearComoCliente(
-                ClienteEmpresarial, DatosPruebaSeeder.GenerarCifValido(8_300_000), esCritico: true, notas: null, ejecutivoUsuarioId: null);
-            db.Empresas.Add(cliente);
+            // Reconciliador por artefacto, no por Tenant: cada pieza se busca antes de crearla, así que una pasada cortada a
+            // medias se completa en la siguiente en vez de volver a crear lo que ya está (y chocar con sus índices únicos).
+            var cliente = await EmpresaAsync(ClienteEmpresarial, () => Empresa.CrearComoCliente(
+                ClienteEmpresarial, DatosPruebaSeeder.GenerarCifValido(8_300_000), esCritico: true, notas: null, ejecutivoUsuarioId: null), cancellationToken);
 
             // Cada Empresa contratista tiene en el Tenant TCE su Empresa contraparte local, con el mismo CIF que su Empresa
-            // propia en el Tenant TEC: es la que nombra el contrato (EmpresaContratistaId), no el Tenant TEC.
-            var contrapartes = tecs.ToDictionary(
-                t => t.RazonSocial,
-                t => Empresa.CrearComoSubcontrata(t.RazonSocial, t.Cif, NivelServicioSubcontrata.Gestionada.ToString()));
-            db.Empresas.AddRange(contrapartes.Values);
+            // propia en el Tenant TEC: es la que nombra el contrato (EmpresaContratistaId), no el Tenant TEC. Se da de alta
+            // como Subcontrata porque el alta de una Empresa contratista Inbound aún no existe (B-06 y B-07).
+            var contrapartes = new Dictionary<string, Empresa>();
+            foreach (var tec in tecs)
+                contrapartes[tec.RazonSocial] = await EmpresaAsync(tec.RazonSocial, () =>
+                    Empresa.CrearComoSubcontrata(tec.RazonSocial, tec.Cif, NivelServicioSubcontrata.Gestionada.ToString()), cancellationToken);
 
-            Centro NuevoCentro(string nombre, string codigo, string direccion) =>
-                new(cliente.Id, cliente.Id, nombre: nombre, codigoCentro: codigo, direccion: direccion,
-                    contacto: null, contratoVigenteHasta: null);
-            var zaragoza = NuevoCentro(CentroZaragoza, "ZGZ-N", "Polígono Plaza, calle B, 50197 Zaragoza");
-            var huesca = NuevoCentro(CentroHuesca, "HU-R", "Polígono Sepes, nave 14, 22006 Huesca");
-            var teruel = NuevoCentro(CentroTeruel, "TE-X", "Plataforma Platea, parcela 7, 44195 Teruel");
-            db.Centros.AddRange(zaragoza, huesca, teruel);
-            await db.SaveChangesAsync(cancellationToken);
+            var zaragoza = await CentroAsync(cliente, CentroZaragoza, "ZGZ-N", "Polígono Plaza, calle B, 50197 Zaragoza", cancellationToken);
+            var huesca = await CentroAsync(cliente, CentroHuesca, "HU-R", "Polígono Sepes, nave 14, 22006 Huesca", cancellationToken);
+            var teruel = await CentroAsync(cliente, CentroTeruel, "TE-X", "Plataforma Platea, parcela 7, 44195 Teruel", cancellationToken);
+
+            // Los contratos y las plantillas que falten van en un único guardado: o entran todos o ninguno.
+            var existentes = (await db.ContratosAcceso
+                    .Where(c => c.Notas != null && Contratos.Todas.Contains(c.Notas))
+                    .Select(c => c.Notas!)
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
 
             Guid TecDe(string razonSocial) => tecs.Single(t => t.RazonSocial == razonSocial).Id;
 
-            ContratoAcceso Contrato(
+            void Contrato(
                 string razonSocial, Centro centro, string notas, DateOnly inicio, DateOnly? fin,
-                CondicionesContratoAcceso? condiciones = null, bool pendiente = false, bool vincular = true)
+                CondicionesContratoAcceso? condiciones = null, bool pendiente = false, bool vincular = true,
+                Action<ContratoAcceso>? despues = null)
             {
+                if (existentes.Contains(notas))
+                    return;
+
                 var contrato = ContratoAcceso.Crear(
                     cliente.Id, centro.Id, contrapartes[razonSocial].Id, inicio, fin, notas, condiciones, pendienteDeConfirmar: pendiente);
                 if (vincular)
                     contrato.VincularTenantContratista(TecDe(razonSocial));
+                despues?.Invoke(contrato);
                 db.ContratosAcceso.Add(contrato);
-                return contrato;
             }
 
             // Activo con todas sus condiciones y dos cambios de fin en el historial (una edición y una renovación).
-            var activo = Contrato(
+            Contrato(
                 Moncayo, zaragoza, Contratos.MoncayoActivo, hoy.AddDays(-120), hoy.AddDays(30),
                 new CondicionesContratoAcceso(
                     TipoContratoAcceso.Recurrente, PropiaActividadContrato.Si, nivelMaxSubcontrata: 1,
-                    cupoTrabajadores: 8, cupoSubcontratas: 1, motivoCupo: "Aforo de la nave 2 durante el montaje."));
-            activo.Actualizar(hoy.AddDays(60), activo.Notas, administradorId, _ahora.AddDays(-40));
-            activo.Renovar(hoy.AddDays(245), administradorId, _ahora.AddDays(-5));
+                    cupoTrabajadores: 8, cupoSubcontratas: 1, motivoCupo: "Aforo de la nave 2 durante el montaje."),
+                despues: c =>
+                {
+                    c.Actualizar(hoy.AddDays(60), c.Notas, administradorId, _ahora.AddDays(-40));
+                    c.Renovar(hoy.AddDays(245), administradorId, _ahora.AddDays(-5));
+                });
 
-            var finalizado = Contrato(
+            Contrato(
                 Moncayo, huesca, Contratos.MoncayoFinalizado, hoy.AddDays(-300), hoy.AddDays(-20),
-                new CondicionesContratoAcceso(TipoContratoAcceso.Obra, PropiaActividadContrato.No, 0, null, null, null));
-            finalizado.Finalizar(hoy.AddDays(-20));
+                new CondicionesContratoAcceso(TipoContratoAcceso.Obra, PropiaActividadContrato.No, 0, null, null, null),
+                despues: c => c.Finalizar(hoy.AddDays(-20)));
 
             // Activo, indefinido, sin condiciones fijadas y sin vincular con el Tenant TEC.
             Contrato(Moncayo, teruel, Contratos.MoncayoSinVincular, hoy.AddDays(-60), null, vincular: false);
@@ -313,23 +324,50 @@ public static class InboundDemoSeeder
                 new CondicionesContratoAcceso(TipoContratoAcceso.Temporal, PropiaActividadContrato.NoLoSe, 2, null, null, null),
                 pendiente: true);
 
-            var suspendido = Contrato(
+            Contrato(
                 Ribera, huesca, Contratos.RiberaSuspendido, hoy.AddDays(-45), hoy.AddDays(90),
-                new CondicionesContratoAcceso(TipoContratoAcceso.Puntual, PropiaActividadContrato.No, 0, 4, null, "Turno de noche con aforo reducido."));
-            suspendido.Suspender();
+                new CondicionesContratoAcceso(TipoContratoAcceso.Puntual, PropiaActividadContrato.No, 0, 4, null, "Turno de noche con aforo reducido."),
+                despues: c => c.Suspender());
 
-            var rechazado = Contrato(Somontano, teruel, Contratos.SomontanoRechazado, hoy.AddDays(-10), hoy.AddDays(355), pendiente: true);
-            rechazado.RechazarPorTenantContratista();
+            Contrato(Somontano, teruel, Contratos.SomontanoRechazado, hoy.AddDays(-10), hoy.AddDays(355), pendiente: true,
+                despues: c => c.RechazarPorTenantContratista());
 
-            var cancelado = Contrato(Somontano, zaragoza, Contratos.SomontanoCancelado, hoy.AddDays(30), hoy.AddDays(45));
-            cancelado.Cancelar(hoy, tieneActividad: false);
+            Contrato(Somontano, zaragoza, Contratos.SomontanoCancelado, hoy.AddDays(30), hoy.AddDays(45),
+                despues: c => c.Cancelar(hoy, tieneActividad: false));
 
-            Plantillas(tipos, cliente, zaragoza);
+            await PlantillasAsync(cliente, zaragoza, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        private void Plantillas(Dictionary<string, TipoDocumento> tipos, Empresa cliente, Centro centro)
+        private async Task<Empresa> EmpresaAsync(string razonSocial, Func<Empresa> crear, CancellationToken cancellationToken)
         {
+            if (await db.Empresas.FirstOrDefaultAsync(e => e.RazonSocial == razonSocial, cancellationToken) is { } existente)
+                return existente;
+
+            var empresa = crear();
+            db.Empresas.Add(empresa);
+            await db.SaveChangesAsync(cancellationToken);
+            return empresa;
+        }
+
+        private async Task<Centro> CentroAsync(Empresa cliente, string nombre, string codigo, string direccion, CancellationToken cancellationToken)
+        {
+            if (await db.Centros.FirstOrDefaultAsync(c => c.Nombre == nombre, cancellationToken) is { } existente)
+                return existente;
+
+            var centro = new Centro(
+                cliente.Id, cliente.Id, nombre: nombre, codigoCentro: codigo, direccion: direccion, contacto: null, contratoVigenteHasta: null);
+            db.Centros.Add(centro);
+            await db.SaveChangesAsync(cancellationToken);
+            return centro;
+        }
+
+        private async Task PlantillasAsync(Empresa cliente, Centro centro, CancellationToken cancellationToken)
+        {
+            var tipos = await TiposAsync(db, cancellationToken);
+            var hayDelCentro = await db.PlantillasRequisitos.AnyAsync(p => p.CentroId == centro.Id, cancellationToken);
+            var hayExigencias = await db.PlantillasRequisitos.AnyAsync(p => p.ClienteEmpresarialId == cliente.Id, cancellationToken);
+
             AtributosRequisito Atributos(
                 TipoDocumento tipo, OrigenRequisito origen, ModoVigenciaRequisito modo, int? meses, bool bloquea, string? criterio,
                 AmbitoDocumentoRequisito ambito) =>
@@ -345,6 +383,13 @@ public static class InboundDemoSeeder
                 plantilla.AnadirRequisito(tipo, requisitoBase: null, Atributos(tipo, origen, modo, meses, bloquea, criterio, ambito));
             }
 
+            if (!hayDelCentro)
+                PlantillaDelCentro();
+            if (!hayExigencias)
+                PlantillaDeExigencias();
+
+            void PlantillaDelCentro()
+            {
             var delCentro = PlantillaRequisitos.ParaCentro(centro.Id);
             Requisito(delCentro, AptitudMedica, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.Fija, 12, true,
                 "Apto para trabajos en altura.", AmbitoDocumentoRequisito.GeneralTec);
@@ -353,7 +398,10 @@ public static class InboundDemoSeeder
             Requisito(delCentro, EntregaEpi, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, false,
                 "Calzado de seguridad y chaleco de alta visibilidad.", AmbitoDocumentoRequisito.EspecificoCentro);
             db.PlantillasRequisitos.Add(delCentro);
+            }
 
+            void PlantillaDeExigencias()
+            {
             var exigencias = PlantillaRequisitos.ParaExigenciasDe(cliente.Id);
             Requisito(exigencias, SeguroResponsabilidadCivil, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.LaPoneElDocumento, null, true,
                 "Cobertura mínima de 600.000 € por siniestro.", AmbitoDocumentoRequisito.EspecificoTce);
@@ -364,6 +412,7 @@ public static class InboundDemoSeeder
             Requisito(exigencias, Rnt, OrigenRequisito.ExigenciaN3, ModoVigenciaRequisito.Fija, 1, false,
                 null, AmbitoDocumentoRequisito.GeneralTec);
             db.PlantillasRequisitos.Add(exigencias);
+            }
         }
     }
 
@@ -384,8 +433,23 @@ public static class InboundDemoSeeder
 
         public async Task ConstruirAsync(CancellationToken cancellationToken)
         {
-            var tipos = await TiposAsync(db, cancellationToken);
             var propia = await SiembraEmpresaPropia.AsegurarAsync(db, tec.Id, tec.RazonSocial, tec.Cif, cancellationToken);
+            var dnis = Enumerable.Range(0, Personas.GetLength(1))
+                .Select(i => DatosPruebaSeeder.GenerarDniValido(63_100_000 + tec.Indice * 10 + i)).ToList();
+
+            // Trabajadores y documentación van en un único guardado: o entran todos o ninguno.
+            if (!await db.Trabajadores.AnyAsync(t => t.Dni != null && dnis.Contains(t.Dni), cancellationToken))
+                await DocumentacionAsync(propia, dnis, cancellationToken);
+
+            var porDni = await db.Trabajadores
+                .Where(t => t.Dni != null && dnis.Contains(t.Dni))
+                .ToDictionaryAsync(t => t.Dni!, t => t.Id, cancellationToken);
+            await AutorizacionesAsync(dnis.Select(d => porDni[d]).ToList(), cancellationToken);
+        }
+
+        private async Task DocumentacionAsync(Empresa propia, IReadOnlyList<string> dnis, CancellationToken cancellationToken)
+        {
+            var tipos = await TiposAsync(db, cancellationToken);
 
             // Documentos de Empresa: al día, a punto de vencer y vencido hace pocos días (dentro de la tolerancia del
             // requisito del Tenant TCE que la admite).
@@ -399,9 +463,7 @@ public static class InboundDemoSeeder
             for (var i = 0; i < Personas.GetLength(1); i++)
             {
                 var (nombre, apellidos) = Personas[tec.Indice, i];
-                var trabajador = Trabajador.DeEmpresa(
-                    propia.Id, nombre, apellidos, DatosPruebaSeeder.GenerarDniValido(63_100_000 + tec.Indice * 10 + i),
-                    fechaNacimiento: hoy.AddYears(-30 - i));
+                var trabajador = Trabajador.DeEmpresa(propia.Id, nombre, apellidos, dnis[i], fechaNacimiento: hoy.AddYears(-30 - i));
                 db.Trabajadores.Add(trabajador);
                 trabajadores.Add(trabajador);
             }
@@ -420,43 +482,50 @@ public static class InboundDemoSeeder
             DeTrabajador(trabajadores[1], FormacionArt19, hoy.AddMonths(-20), VigenciaDocumento.NoCaduca);
             DeTrabajador(trabajadores[2], EntregaEpi, hoy.AddDays(-60), VigenciaDocumento.SinConfirmar);
             await db.SaveChangesAsync(cancellationToken);
-
-            await AutorizacionesAsync(trabajadores, cancellationToken);
         }
 
-        private async Task AutorizacionesAsync(IReadOnlyList<Trabajador> trabajadores, CancellationToken cancellationToken)
+        private async Task AutorizacionesAsync(IReadOnlyList<Guid> trabajadores, CancellationToken cancellationToken)
         {
             if (tec.RazonSocial != Moncayo)
                 return;
 
             // Vigente, con Documentos de Empresa y dos de los tres Trabajadores, ligada al contrato Activo.
-            if (contratos.TryGetValue(Contratos.MoncayoActivo, out var activoId))
+            await AutorizacionAsync(Contratos.MoncayoActivo, incluyeDocumentosEmpresa: true, hoy.AddDays(-120), vigenciaHasta: null,
+                [trabajadores[0], trabajadores[1]], revocar: false, cancellationToken);
+
+            // Revocada al terminar la obra del contrato Finalizado.
+            await AutorizacionAsync(Contratos.MoncayoFinalizado, incluyeDocumentosEmpresa: false, hoy.AddDays(-300), hoy.AddDays(-20),
+                [trabajadores[2]], revocar: true, cancellationToken);
+        }
+
+        /// <summary>
+        /// Una autorización por contrato: se concede con sus Trabajadores en un guardado y, si toca, se revoca en otro, porque
+        /// la base solo admite la revocación como UPDATE de sus columnas y no deja tocar los Trabajadores de una revocada. Si
+        /// una pasada se corta entre los dos, la siguiente encuentra la autorización y completa la revocación.
+        /// </summary>
+        private async Task AutorizacionAsync(
+            string notasContrato, bool incluyeDocumentosEmpresa, DateOnly vigenciaDesde, DateOnly? vigenciaHasta,
+            IReadOnlyList<Guid> trabajadores, bool revocar, CancellationToken cancellationToken)
+        {
+            if (!contratos.TryGetValue(notasContrato, out var contratoId))
+                return;
+
+            var autorizacion = await db.AutorizacionesLecturaDocumental
+                .FirstOrDefaultAsync(a => a.TenantDestinatarioId == tceId && a.ContratoAccesoId == contratoId, cancellationToken);
+            if (autorizacion is null)
             {
-                var vigente = AutorizacionLecturaDocumental.Conceder(
-                    tceId, activoId, incluyeDocumentosEmpresa: true, hoy.AddDays(-120), vigenciaHasta: null,
-                    tec.UsuarioUnicoId, DateTime.UtcNow.AddDays(-119));
-                db.AutorizacionesLecturaDocumental.Add(vigente);
-                db.AutorizacionesLecturaTrabajadores.Add(vigente.AsignarTrabajador(trabajadores[0].Id));
-                db.AutorizacionesLecturaTrabajadores.Add(vigente.AsignarTrabajador(trabajadores[1].Id));
+                autorizacion = AutorizacionLecturaDocumental.Conceder(
+                    tceId, contratoId, incluyeDocumentosEmpresa, vigenciaDesde, vigenciaHasta,
+                    tec.UsuarioUnicoId, vigenciaDesde.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
+                db.AutorizacionesLecturaDocumental.Add(autorizacion);
+                foreach (var trabajadorId in trabajadores)
+                    db.AutorizacionesLecturaTrabajadores.Add(autorizacion.AsignarTrabajador(trabajadorId));
+                await db.SaveChangesAsync(cancellationToken);
             }
 
-            // Revocada al terminar la obra del contrato Finalizado. Se revoca en un segundo guardado: la base solo deja
-            // escribir la revocación como UPDATE de sus columnas, y sus Trabajadores ya no se tocan después.
-            AutorizacionLecturaDocumental? revocada = null;
-            if (contratos.TryGetValue(Contratos.MoncayoFinalizado, out var finalizadoId))
+            if (revocar && !autorizacion.EstaRevocada)
             {
-                revocada = AutorizacionLecturaDocumental.Conceder(
-                    tceId, finalizadoId, incluyeDocumentosEmpresa: false, hoy.AddDays(-300), hoy.AddDays(-20),
-                    tec.UsuarioUnicoId, DateTime.UtcNow.AddDays(-299));
-                db.AutorizacionesLecturaDocumental.Add(revocada);
-                db.AutorizacionesLecturaTrabajadores.Add(revocada.AsignarTrabajador(trabajadores[2].Id));
-            }
-
-            await db.SaveChangesAsync(cancellationToken);
-
-            if (revocada is not null)
-            {
-                revocada.Revocar(tec.UsuarioUnicoId, DateTime.UtcNow.AddDays(-20));
+                autorizacion.Revocar(tec.UsuarioUnicoId, (vigenciaHasta ?? hoy).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));
                 await db.SaveChangesAsync(cancellationToken);
             }
         }

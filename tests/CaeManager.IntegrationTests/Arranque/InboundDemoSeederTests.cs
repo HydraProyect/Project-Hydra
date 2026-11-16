@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Infrastructure.Identity;
@@ -44,6 +45,10 @@ public sealed class InboundDemoSeederFixture : IAsyncLifetime
         await InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
             sp.GetRequiredService<IUserStore<ApplicationUser>>(), Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+
+        // Como en Program.cs: la línea Inbound, con el contexto de bootstrap y después de la siembra que crea su Tenant.
+        await using var bootstrap = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        await LineaInboundDemoSeeder.SeedAsync(bootstrap, Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
     }
 
     public Task DisposeAsync() => Arnes.DisposeAsync().AsTask();
@@ -88,6 +93,32 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
         });
     }
 
+    /// <summary>
+    /// Cada contrato apunta al Tenant TEC de su Empresa contratista, y la Empresa contraparte local que nombra el contrato
+    /// tiene el mismo CIF que la Empresa propia de ese Tenant TEC.
+    /// </summary>
+    [Theory]
+    [InlineData(InboundDemoSeeder.Contratos.MoncayoActivo, InboundDemoSeeder.NombreTenantMoncayo)]
+    [InlineData(InboundDemoSeeder.Contratos.MoncayoFinalizado, InboundDemoSeeder.NombreTenantMoncayo)]
+    [InlineData(InboundDemoSeeder.Contratos.RiberaPendiente, InboundDemoSeeder.NombreTenantRibera)]
+    [InlineData(InboundDemoSeeder.Contratos.RiberaSuspendido, InboundDemoSeeder.NombreTenantRibera)]
+    [InlineData(InboundDemoSeeder.Contratos.SomontanoRechazado, InboundDemoSeeder.NombreTenantSomontano)]
+    [InlineData(InboundDemoSeeder.Contratos.SomontanoCancelado, InboundDemoSeeder.NombreTenantSomontano)]
+    public async Task Cada_contrato_va_al_Tenant_TEC_de_su_Empresa_contratista(string notas, string nombreTenantTec)
+    {
+        var tecId = (await IdsAsync(nombreTenantTec)).Single();
+        var (vinculo, cifContraparte) = await EnTenantAsync(InboundDemoSeeder.NombreTenantTce, async db =>
+        {
+            var contrato = await db.ContratosAcceso.SingleAsync(c => c.Notas == notas);
+            var cif = await db.Empresas.Where(e => e.Id == contrato.EmpresaContratistaId).Select(e => e.Cif).SingleAsync();
+            return (contrato.TenantContratistaId, cif);
+        });
+        var cifPropia = await EnTenantAsync(nombreTenantTec, db => db.Empresas.Where(e => e.EsPropia).Select(e => e.Cif).SingleAsync());
+
+        vinculo.Should().Be(tecId);
+        cifContraparte.Should().NotBeNullOrEmpty().And.Be(cifPropia);
+    }
+
     [Fact]
     public async Task El_Tenant_TCE_tiene_sus_plantillas_de_requisitos_sin_requisito_base()
     {
@@ -100,6 +131,22 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
         plantillas.Should().Be(2);
         requisitos.Should().Be(7);
         conBase.Should().Be(0, "el catálogo base de B-13 no tiene hoy requisitos activos que adoptar");
+    }
+
+    /// <summary>
+    /// Solo el Tenant TCE tiene la línea Inbound, y la ve como cae_app_runtime dentro de su ámbito: el contexto de bootstrap
+    /// escribió una única fila y en el Tenant correcto.
+    /// </summary>
+    [Fact]
+    public async Task Solo_el_Tenant_TCE_tiene_la_linea_Inbound_vigente()
+    {
+        var lineas = await EnTenantAsync(InboundDemoSeeder.NombreTenantTce, db => db.ProductosContratados.ToListAsync());
+        lineas.Should().ContainSingle().Which.Should().Match<ProductoContratado>(p =>
+            p.Linea == LineaProductoContratado.Inbound && p.Estado == EstadoProductoContratado.Vigente
+            && p.PagadorStripeCustomerId == LineaInboundDemoSeeder.PagadorDemo);
+
+        foreach (var tec in new[] { InboundDemoSeeder.NombreTenantMoncayo, InboundDemoSeeder.NombreTenantRibera, InboundDemoSeeder.NombreTenantSomontano })
+            (await EnTenantAsync(tec, db => db.ProductosContratados.CountAsync())).Should().Be(0, $"{tec} no contrata la línea Inbound");
     }
 
     [Fact]
@@ -168,12 +215,30 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
             .Should().HaveCount(5).And.OnlyContain(e => e.EndsWith("@caemanager.local"));
     }
 
+    /// <summary>
+    /// Ni filas nuevas ni UPDATE: además de contar filas, compara los sellos de concurrencia de las cuentas y las versiones de
+    /// las autorizaciones, y cuenta el registro de auditoría de los cuatro Tenants, que recoge cualquier escritura auditada.
+    /// </summary>
     [Fact]
     public async Task Una_segunda_siembra_no_escribe_nada()
     {
         var antes = await ContarAsync();
+        var sellosAntes = await SellosAsync();
         await fixture.SembrarAsync();
         (await ContarAsync()).Should().BeEquivalentTo(antes);
+        (await SellosAsync()).Should().BeEquivalentTo(sellosAntes);
+    }
+
+    private async Task<Dictionary<Guid, string>> SellosAsync()
+    {
+        await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        var tenants = await IdsAsync([.. InboundDemoSeeder.NombresTenants]);
+        var cuentas = await bootstrap.Users.IgnoreQueryFilters().Where(u => tenants.Contains(u.TenantId))
+            .Select(u => new { u.Id, Sello = u.ConcurrencyStamp + "|" + u.SecurityStamp + "|" + u.TwoFactorEnabled }).ToListAsync();
+        var autorizaciones = await bootstrap.AutorizacionesLecturaDocumental.IgnoreQueryFilters().Where(a => tenants.Contains(a.TenantId))
+            .Select(a => new { a.Id, Sello = a.Version.ToString() + "|" + a.RevocadaEnUtc }).ToListAsync();
+        return cuentas.Select(c => (c.Id, c.Sello)).Concat(autorizaciones.Select(a => (a.Id, a.Sello)))
+            .ToDictionary(x => x.Id, x => x.Sello!);
     }
 
     private async Task<Dictionary<string, int>> ContarAsync()
@@ -182,6 +247,10 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
         var tenants = await IdsAsync([.. InboundDemoSeeder.NombresTenants]);
         return new Dictionary<string, int>
         {
+            ["ProductosContratados"] = await bootstrap.ProductosContratados.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
+            ["Auditoria"] =await bootstrap.RegistrosAuditoria.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
+            ["Requisitos"] = await bootstrap.PlantillasRequisitos.IgnoreQueryFilters().Where(e => tenants.Contains(e.TenantId)).SelectMany(p => p.Requisitos).CountAsync(),
+            ["Operaciones"] = await bootstrap.AsignacionesOperacion.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.PropietarioTenantId)),
             ["Tenants"] = tenants.Count,
             ["Usuarios"] = await bootstrap.Users.IgnoreQueryFilters().CountAsync(u => tenants.Contains(u.TenantId)),
             ["Empresas"] = await bootstrap.Empresas.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
@@ -259,5 +328,34 @@ public class InboundDemoSeederArranqueTests
             dbContext: null!, userManager: null!, userStore: null!, configuracion, new EntornoDePrueba("Staging"), NullLogger.Instance);
 
         await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*solo puede activarse en Development*");
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task La_linea_Inbound_con_el_rol_propietario_lanza_fuera_de_Development_antes_de_leer_nada(string entorno)
+    {
+        var configuracion = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DatosPrueba:Activo"] = "true",
+            [InboundDemoSeeder.ClaveConfiguracion] = "true"
+        }).Build();
+
+        var siembra = () => LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap: null!, configuracion, new EntornoDePrueba(entorno), NullLogger.Instance);
+
+        await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*solo puede activarse en Development*");
+    }
+
+    [Fact]
+    public async Task La_linea_Inbound_es_inerte_sin_las_claves()
+    {
+        var configuracion = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DatosPrueba:Activo"] = "true"
+        }).Build();
+
+        var siembra = () => LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap: null!, configuracion, new EntornoDePrueba("Production"), NullLogger.Instance);
+
+        await siembra.Should().NotThrowAsync();
     }
 }

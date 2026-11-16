@@ -1344,6 +1344,11 @@ using (var scope = app.Services.CreateScope())
         // DatosPrueba:Inbound:Activo (con DatosPrueba:Activo), y lanza fuera de Development (ver InboundDemoSeeder).
         await InboundDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
 
+        // Su línea Inbound del Producto Contratado, la única fila de esa siembra con el rol propietario: en
+        // ProductosContratados solo inserta cae_app_aprovisionamiento bajo Sesión Privilegiada (DECISION_LOG 2026-11-16;
+        // ver LineaInboundDemoSeeder y FronteraDeSeedersDeBootstrapTests). Mismas claves y misma guarda de Development.
+        await LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
+
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
         // que SegundoTenant:Activo esté configurado explícitamente.
