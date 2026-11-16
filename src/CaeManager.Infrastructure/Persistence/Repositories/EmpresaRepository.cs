@@ -36,6 +36,11 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
             .FirstOrDefaultAsync(e => e.Cif == normalizado && (excluirId == null || e.Id != excluirId), cancellationToken);
     }
 
+    public async Task<IReadOnlyList<IdentidadEmpresa>> ListarIdentidadesIncluyendoBajasAsync(CancellationToken cancellationToken = default) =>
+        await EmpresasDelTenantPropietarioIncluyendoBajas()
+            .Select(e => new IdentidadEmpresa(e.Id, e.Cif, e.RazonSocial, e.EstaEliminado))
+            .ToListAsync(cancellationToken);
+
     private IQueryable<Empresa> EmpresasDelTenantPropietarioIncluyendoBajas()
     {
         // Ambos índices incluyen bajas. Al retirar el filtro combinado, se repone explícitamente el

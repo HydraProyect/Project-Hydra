@@ -242,6 +242,9 @@ public class AlcanceDeCredencialesDeAccesoTests
         public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult<Empresa?>(null);
 
+        public Task<IReadOnlyList<IdentidadEmpresa>> ListarIdentidadesIncluyendoBajasAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<IdentidadEmpresa>>([]);
+
         public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult<Empresa?>(null);
 

@@ -20,6 +20,14 @@ public interface IEmpresaRepository
     /// <summary>Lo que compara IX_Empresas_TenantId_RazonSocial: incluye bajas del Tenant propietario actual y compara la razón social recortada, sin cambiar mayúsculas.</summary>
     Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// En una sola lectura, lo que miran <see cref="ObtenerDuplicadaPorCifAsync"/> y
+    /// <see cref="ObtenerDuplicadaPorRazonSocialAsync"/>: todas las Empresas del Tenant propietario actual, bajas
+    /// incluidas, con el CIF y la razón social tal como están guardados. Para una carga masiva que comprobaría fila a
+    /// fila (#1991); como esas dos, no ve lo pendiente de guardar.
+    /// </summary>
+    Task<IReadOnlyList<IdentidadEmpresa>> ListarIdentidadesIncluyendoBajasAsync(CancellationToken cancellationToken = default);
+
     Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
     /// <summary>Una Empresa con Trabajadores no puede eliminarse (ver EliminarEmpresaCommand).</summary>
