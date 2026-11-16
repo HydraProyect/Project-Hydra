@@ -7,7 +7,15 @@ namespace CaeManager.Domain.Exportacion;
 /// decisión D-8 de 2026-11-15): un zip cifrado con todos sus datos, que genera un servicio de fondo bajo la RLS
 /// del propio Tenant y que se puede descargar durante <see cref="Vigencia"/>, o hasta que otra más nueva del mismo
 /// Tenant queda lista (<see cref="CaducarPorSustitucion"/>). Como mucho una cada <see cref="IntervaloMinimo"/> por
-/// Tenant, sin contar las fallidas.
+/// Tenant, contando todas las registradas, también las fallidas (OWASP API4:2023): si una fallida no contara, un
+/// fallo repetible (p. ej. sin espacio) permitiría pedirla otra vez sin límite.
+///
+/// <para>
+/// <b>Transiciones.</b> Pendiente → EnCurso → Lista → Caducada, o Pendiente/EnCurso → Fallida. Ningún estado se
+/// repite, y cada guardado que cambia la fila cambia su <see cref="Estado"/>: por eso el estado es el token de
+/// concurrencia optimista de la fila (<c>SolicitudExportacionCompletaConfiguration</c>), y una transición hecha sobre
+/// un estado leído que otro proceso ya cambió no se aplica (ASVS 4.0.3 V1.11.2 y V11.1.6).
+/// </para>
 ///
 /// <para>
 /// <b>Contraseña.</b> Se genera al pedirla y se devuelve una sola vez a quien la pide. Hasta que el servicio
@@ -22,7 +30,10 @@ public class SolicitudExportacionCompleta : EntidadConTenant
     /// <summary>Lo que dura disponible el fichero desde que está listo (D-8).</summary>
     public static readonly TimeSpan Vigencia = TimeSpan.FromDays(7);
 
-    /// <summary>Separación mínima entre dos solicitudes del mismo Tenant que no fallaron (D-8).</summary>
+    /// <summary>
+    /// Separación mínima entre dos solicitudes registradas del mismo Tenant, sea cual sea su estado, también fallida
+    /// (D-8, OWASP API4:2023).
+    /// </summary>
     public static readonly TimeSpan IntervaloMinimo = TimeSpan.FromHours(24);
 
     public const int LongitudMaximaMotivoFallo = 200;
@@ -73,9 +84,6 @@ public class SolicitudExportacionCompleta : EntidadConTenant
         ContrasenaProtegida = contrasenaProtegida;
         SolicitadaEnUtc = ahoraUtc;
     }
-
-    /// <summary>Cuenta para el límite de una cada <see cref="IntervaloMinimo"/>: todas salvo las fallidas.</summary>
-    public bool CuentaParaElLimite => Estado != EstadoSolicitudExportacionCompleta.Fallida;
 
     public bool EstaDisponibleParaDescarga(DateTime ahoraUtc) =>
         Estado == EstadoSolicitudExportacionCompleta.Lista && UbicacionFichero is not null &&

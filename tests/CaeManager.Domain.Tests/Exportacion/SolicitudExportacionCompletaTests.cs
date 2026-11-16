@@ -24,13 +24,12 @@ public class SolicitudExportacionCompletaTests
     }
 
     [Fact]
-    public void Fallida_no_guarda_la_contrasena_ni_cuenta_para_el_limite()
+    public void Fallida_no_guarda_la_contrasena_ni_se_descarga()
     {
         var solicitud = Nueva();
         solicitud.MarcarFallida("GeneracionFallida", Ahora);
 
         solicitud.ContrasenaProtegida.Should().BeNull();
-        solicitud.CuentaParaElLimite.Should().BeFalse();
         solicitud.EstaDisponibleParaDescarga(Ahora).Should().BeFalse();
     }
 
@@ -47,7 +46,6 @@ public class SolicitudExportacionCompletaTests
         solicitud.MarcarCaducada(Ahora.AddDays(7));
         solicitud.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Caducada);
         solicitud.UbicacionFichero.Should().BeNull();
-        solicitud.CuentaParaElLimite.Should().BeTrue("una exportación entregada cuenta para el límite aunque caduque");
     }
 
     [Fact]
@@ -63,7 +61,24 @@ public class SolicitudExportacionCompletaTests
         solicitud.UbicacionFichero.Should().BeNull();
         solicitud.FinalizadaEnUtc.Should().Be(Ahora.AddDays(1));
         solicitud.EstaDisponibleParaDescarga(Ahora.AddDays(1)).Should().BeFalse();
-        solicitud.CuentaParaElLimite.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Una_terminal_no_admite_otra_transicion()
+    {
+        // Las transiciones no repiten estado: es lo que hace del estado un token de concurrencia sin ABA.
+        var fallida = Nueva();
+        fallida.MarcarFallida("Estancada", Ahora);
+        ((Action)(() => fallida.MarcarEnCurso(Ahora))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => fallida.MarcarFallida("x", Ahora))).Should().Throw<InvalidOperationException>();
+
+        var caducada = Nueva();
+        caducada.MarcarEnCurso(Ahora);
+        caducada.MarcarLista("t/s.zip", 42, Ahora);
+        caducada.CaducarPorSustitucion(Ahora);
+        ((Action)(() => caducada.MarcarLista("t/s.zip", 42, Ahora))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => caducada.CaducarPorSustitucion(Ahora))).Should().Throw<InvalidOperationException>();
+        ((Action)(() => caducada.MarcarFallida("x", Ahora))).Should().Throw<InvalidOperationException>();
     }
 
     [Fact]

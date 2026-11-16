@@ -13,8 +13,10 @@ namespace CaeManager.Application.Exportacion;
 /// Plataforma TALVEG (#2008, D-8). Devuelve la contraseña del zip, y es la única vez que sale: la fila la guarda
 /// protegida hasta que el servicio de fondo cifra el fichero, y entonces la borra. El fichero lo genera
 /// <c>GeneradorExportacionCompletaHostedService</c> bajo la RLS del propio Tenant.
-/// <para>Como mucho una solicitud cada 24 horas por Tenant sin contar las fallidas, serializada con un candado por
-/// Tenant (y un índice único parcial que impide dos solicitudes Pendiente o EnCurso del mismo Tenant).</para>
+/// <para>Como mucho una solicitud cada 24 horas por Tenant, contando todas las registradas, también las fallidas
+/// (OWASP API4:2023, ASVS 4.0.3 V11.1.4): un fallo repetible no permite volver a pedirla sin límite. Serializada con
+/// un candado por Tenant (y un índice único parcial que impide dos solicitudes Pendiente o EnCurso del mismo
+/// Tenant).</para>
 /// </summary>
 [AreaDelEncargo("Exportacion")]
 public sealed record SolicitarExportacionCompletaCommand : ICommand<SolicitudExportacionCompletaRegistrada>, IComandoDePortabilidadDelTenantPropietario;
@@ -23,7 +25,7 @@ public static class ErroresSolicitudExportacionCompleta
 {
     public static readonly Error UnaCadaVeinticuatroHoras = Error.Crear(
         "ExportacionCompleta.UnaCadaVeinticuatroHoras",
-        "Tu organización ya pidió una exportación completa en las últimas 24 horas. Podrás pedir otra cuando pase ese plazo.");
+        "Tu organización ya pidió una exportación completa en las últimas 24 horas, aunque no llegara a generarse. Podrás pedir otra cuando pase ese plazo.");
 }
 
 public sealed class SolicitarExportacionCompletaCommandHandler(
@@ -54,7 +56,7 @@ public sealed class SolicitarExportacionCompletaCommandHandler(
         var resultado = await candado.EjecutarAsync(async ct =>
         {
             var ahora = reloj.GetUtcNow().UtcDateTime;
-            if (await repositorio.ExisteQueCuentaParaElLimiteDesdeAsync(ahora - SolicitudExportacionCompleta.IntervaloMinimo, ct))
+            if (await repositorio.ExisteRegistradaDesdeAsync(ahora - SolicitudExportacionCompleta.IntervaloMinimo, ct))
                 return Result.Fallo(ErroresSolicitudExportacionCompleta.UnaCadaVeinticuatroHoras);
 
             var contrasena = ArchivoExportacion.GenerarContrasena();

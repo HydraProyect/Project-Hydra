@@ -7,10 +7,9 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 /// <inheritdoc cref="ISolicitudExportacionCompletaRepository"/>
 public class SolicitudExportacionCompletaRepository(CaeManagerDbContext dbContext) : ISolicitudExportacionCompletaRepository
 {
-    public Task<bool> ExisteQueCuentaParaElLimiteDesdeAsync(DateTime desdeUtc, CancellationToken cancellationToken = default) =>
-        dbContext.SolicitudesExportacionCompleta.AnyAsync(
-            s => s.SolicitadaEnUtc > desdeUtc && s.Estado != EstadoSolicitudExportacionCompleta.Fallida,
-            cancellationToken);
+    // Sin filtro de estado: también cuentan las fallidas (D-8, OWASP API4:2023).
+    public Task<bool> ExisteRegistradaDesdeAsync(DateTime desdeUtc, CancellationToken cancellationToken = default) =>
+        dbContext.SolicitudesExportacionCompleta.AnyAsync(s => s.SolicitadaEnUtc > desdeUtc, cancellationToken);
 
     public Task<SolicitudExportacionCompleta?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.SolicitudesExportacionCompleta.SingleOrDefaultAsync(s => s.Id == id, cancellationToken);

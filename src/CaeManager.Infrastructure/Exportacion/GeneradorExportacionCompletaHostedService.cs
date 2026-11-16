@@ -30,6 +30,13 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// espera a que le llegue el turno no cuenta como estancada.</item>
 /// </list>
 /// Consumo de disco acotado (OWASP API4:2023, ASVS 4.0.3 V12.1): como mucho un zip listo y un temporal por Tenant.
+/// <para>
+/// Dos procesos pueden creerse líderes a la vez (el anterior perdió la conexión que retenía el liderazgo y su
+/// generación sigue). Por eso cada transición de estado se guarda con el estado leído como token de concurrencia
+/// (ASVS 4.0.3 V1.11.2 y V11.1.6): gana el primer guardado, el segundo no se aplica ni se audita, y un fichero solo se
+/// borra después de confirmar la transición que lo deja sin fila que lo nombre (salvo el de una caducada, que no
+/// tiene otro destino posible).
+/// </para>
 /// </summary>
 public class GeneradorExportacionCompletaHostedService(
     IServiceScopeFactory ambitoFactory,
@@ -186,16 +193,50 @@ public class GeneradorExportacionCompletaHostedService(
         var ahora = Ahora();
 
         var estancadas = await contexto.SolicitudesExportacionCompleta.Where(criterio).ToListAsync(cancellationToken);
-        if (estancadas.Count == 0)
-            return;
 
+        // Una a una, cada transición con su auditoría en su propio guardado: si otro proceso la cambió desde que se
+        // leyó (p. ej. el líder anterior acaba de marcarla Lista), esa no se aplica ni se audita y las demás siguen.
         foreach (var solicitud in estancadas)
         {
+            SeguirSiSeDescarto(contexto, solicitud);
             solicitud.MarcarFallida(MotivoEstancada, ahora);
             contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
                 solicitud.Id, AuditoriaExportacionCompleta.FaseFallida, new { motivo = MotivoEstancada }));
+            await GuardarTransicionAsync(contexto, solicitud.Id, cancellationToken);
         }
-        await contexto.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Guarda una transición de estado junto con su fila de auditoría. El estado es el token de concurrencia de la
+    /// fila (<c>SolicitudExportacionCompletaConfiguration</c>; ASVS 4.0.3 V1.11.2 y V11.1.6): si otro proceso lo
+    /// cambió desde que se leyó, el UPDATE afecta a cero filas, el guardado entero (transición y auditoría) se revierte
+    /// y se descarta lo pendiente del contexto. Devuelve si la transición se aplicó.
+    /// </summary>
+    private async Task<bool> GuardarTransicionAsync(CaeManagerDbContext contexto, Guid solicitudId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await contexto.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            contexto.ChangeTracker.Clear();
+            logger.LogWarning(
+                "La exportación completa {SolicitudId} cambió de estado en otro proceso; esta transición no se aplica ni se audita.",
+                solicitudId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Tras un conflicto, <see cref="GuardarTransicionAsync"/> vacía el contexto: la siguiente fila leída en la misma
+    /// consulta se vuelve a seguir con los valores que se leyeron, que son los que irán en el WHERE de su UPDATE.
+    /// </summary>
+    private static void SeguirSiSeDescarto(CaeManagerDbContext contexto, SolicitudExportacionCompleta solicitud)
+    {
+        if (contexto.Entry(solicitud).State == EntityState.Detached)
+            contexto.Attach(solicitud);
     }
 
     /// <summary>
@@ -236,15 +277,17 @@ public class GeneradorExportacionCompletaHostedService(
 
         foreach (var solicitud in vencidas)
         {
+            SeguirSiSeDescarto(contexto, solicitud);
             // Primero el fichero: si el borrado falla, la fila sigue Lista y la próxima vuelta lo reintenta; la
-            // descarga ya la impide la fecha de caducidad.
+            // descarga ya la impide la fecha de caducidad. Si el guardado choca con otro proceso, este solo pudo
+            // caducarla también (de Lista no se sale a otro estado), así que el fichero borrado ya no lo nombra nadie.
             if (solicitud.UbicacionFichero is { } ubicacion)
                 almacen.Eliminar(tenantId, ubicacion);
 
             solicitud.MarcarCaducada(ahora);
             contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
                 solicitud.Id, AuditoriaExportacionCompleta.FaseCaducada));
-            await contexto.SaveChangesAsync(cancellationToken);
+            await GuardarTransicionAsync(contexto, solicitud.Id, cancellationToken);
         }
     }
 
@@ -307,27 +350,59 @@ public class GeneradorExportacionCompletaHostedService(
             });
             ubicacionConfirmada = ubicacion;
 
-            contexto.ChangeTracker.Clear();
-            var ahora = Ahora();
-            var lista = await contexto.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id, cancellationToken);
-            // Como mucho una lista viva por Tenant (OWASP API4:2023, ASVS 4.0.3 V12.1): la anterior caduca en el mismo
-            // guardado que marca esta, y su fichero se borra después; si ese borrado falla, lo recoge el barrido de
-            // huérfanos, porque ninguna fila lista lo nombra ya.
-            var anteriores = await contexto.SolicitudesExportacionCompleta
-                .Where(s => s.Estado == EstadoSolicitudExportacionCompleta.Lista && s.Id != id)
-                .ToListAsync(cancellationToken);
-            lista.MarcarLista(ubicacion, tamano, ahora);
-            contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
-                id, AuditoriaExportacionCompleta.FaseLista,
-                new { tamanoBytes = tamano, recuentos = resultado!.Recuentos, documentosSinFichero = resultado.DocumentosSinFichero }));
-            foreach (var anterior in anteriores)
+            // El estado es el token de concurrencia (ASVS 4.0.3 V1.11.2 y V11.1.6): si otro proceso dio esta por
+            // fallida (estancada) desde que se leyó, el guardado choca, nada de él se aplica ni se audita, y el catch
+            // la encuentra ya terminal y no la toca. Si con lo que chocó es con una anterior (que otro proceso caducó
+            // entretanto), se vuelve a leer y se reintenta una vez: la exportación generada no se pierde por eso.
+            for (var intento = 1; ; intento++)
             {
-                ficherosSustituidos.Add(anterior.UbicacionFichero);
-                anterior.CaducarPorSustitucion(ahora);
+                contexto.ChangeTracker.Clear();
+                ficherosSustituidos.Clear();
+                var ahora = Ahora();
+                var lista = await contexto.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id, cancellationToken);
+                // Como mucho una lista viva por Tenant (OWASP API4:2023, ASVS 4.0.3 V12.1): la anterior caduca en el
+                // mismo guardado que marca esta, y su fichero se borra después; si ese borrado falla, lo recoge el
+                // barrido de huérfanos, porque ninguna fila lista lo nombra ya.
+                var anteriores = await contexto.SolicitudesExportacionCompleta
+                    .Where(s => s.Estado == EstadoSolicitudExportacionCompleta.Lista && s.Id != id)
+                    .ToListAsync(cancellationToken);
+                lista.MarcarLista(ubicacion, tamano, ahora);
                 contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
-                    anterior.Id, AuditoriaExportacionCompleta.FaseCaducada, new { motivo = MotivoSustituida, sustituidaPor = id }));
+                    id, AuditoriaExportacionCompleta.FaseLista,
+                    new { tamanoBytes = tamano, recuentos = resultado!.Recuentos, documentosSinFichero = resultado.DocumentosSinFichero }));
+                foreach (var anterior in anteriores)
+                {
+                    ficherosSustituidos.Add(anterior.UbicacionFichero);
+                    anterior.CaducarPorSustitucion(ahora);
+                    contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
+                        anterior.Id, AuditoriaExportacionCompleta.FaseCaducada, new { motivo = MotivoSustituida, sustituidaPor = id }));
+                }
+
+                try
+                {
+                    await contexto.SaveChangesAsync(cancellationToken);
+                    break;
+                }
+                catch (DbUpdateConcurrencyException ex) when (intento == 1 && !ex.Entries.Any(e => ReferenceEquals(e.Entity, lista)))
+                {
+                    logger.LogWarning(
+                        "Una exportación anterior del Tenant {TenantId} cambió de estado en otro proceso mientras se marcaba lista la {SolicitudId}; se reintenta.",
+                        tenantId, id);
+                }
             }
-            await contexto.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Lo más probable: la solicitud ya no estaba en curso porque otro proceso la terminó (p. ej. el barrido de
+            // estancadas de un líder nuevo). Esa transición es la que vale; esta no se aplica ni se audita, y
+            // FallarAsync la encuentra terminal y no la toca. Si fue el segundo choque seguido con una anterior, la
+            // solicitud sigue en curso y FallarAsync la da por fallida como cualquier otro fallo de generación.
+            ficherosSustituidos.Clear();
+            logger.LogWarning(
+                "La exportación completa {SolicitudId} del Tenant {TenantId} chocó con otro proceso al marcarse lista; no se marca.",
+                id, tenantId);
+            await FallarAsync(tenantId, id, MotivoGeneracionFallida, ubicacionConfirmada);
+            return;
         }
         catch (Exception ex)
         {
@@ -339,10 +414,14 @@ public class GeneradorExportacionCompletaHostedService(
             return;
         }
 
-        BorrarSustituidas(tenantId, ficherosSustituidos);
+        BorrarSinBloquear(tenantId, ficherosSustituidos);
     }
 
-    private void BorrarSustituidas(Guid tenantId, List<string?> ubicaciones)
+    /// <summary>
+    /// Borra ficheros de exportaciones cuya fila ya no los nombra (sustituidas o fallidas). Un borrado que falla no
+    /// detiene nada: lo recoge el barrido de huérfanos.
+    /// </summary>
+    private void BorrarSinBloquear(Guid tenantId, IEnumerable<string?> ubicaciones)
     {
         using var ambito = ambitoFactory.CreateScope();
         var almacen = ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>();
@@ -355,7 +434,7 @@ public class GeneradorExportacionCompletaHostedService(
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Solo el tipo: el mensaje de System.IO lleva la ruta absoluta del fichero.
-                logger.LogWarning("No se pudo borrar el fichero de una exportación sustituida del Tenant {TenantId} ({TipoError}); lo recogerá el barrido de huérfanos.",
+                logger.LogWarning("No se pudo borrar el fichero de una exportación sustituida o fallida del Tenant {TenantId} ({TipoError}); lo recogerá el barrido de huérfanos.",
                     tenantId, ex.GetType().Name);
             }
         }
@@ -376,13 +455,16 @@ public class GeneradorExportacionCompletaHostedService(
         if (solicitud?.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso))
             return;
 
-        if (ubicacionConfirmada is not null)
-            ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>().Eliminar(tenantId, ubicacionConfirmada);
-
         solicitud.MarcarFallida(motivo, Ahora());
         contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
             id, AuditoriaExportacionCompleta.FaseFallida, new { motivo }));
-        await contexto.SaveChangesAsync(CancellationToken.None);
+        // El fichero, solo después de confirmar la transición (ASVS 4.0.3 V11.1.6): si otro proceso cambió la fila
+        // entre la lectura y el guardado, la transición no se aplica ni se audita y el fichero no se toca.
+        if (!await GuardarTransicionAsync(contexto, id, CancellationToken.None))
+            return;
+
+        if (ubicacionConfirmada is not null)
+            BorrarSinBloquear(tenantId, [ubicacionConfirmada]);
     }
 
     /// <summary>Pasa a EnCurso la pendiente más antigua del Tenant en curso, con una transacción corta.</summary>

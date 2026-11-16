@@ -228,12 +228,16 @@ public class ExportacionCompletaAutoservicioTests
     }
 
     [Fact]
-    public async Task Una_solicitud_fallida_no_cuenta_para_el_limite()
+    public async Task Una_solicitud_fallida_tambien_cuenta_para_el_limite()
     {
+        // OWASP API4:2023: si una fallida no contara, un fallo repetible (sin espacio) abriría reintentos sin límite.
         (await Solicitud(new Escenario()).Handle(new SolicitarExportacionCompletaCommand(), default)).EsExitoso.Should().BeTrue();
-        _repositorio.Solicitudes[0].MarcarFallida("GeneracionFallida", Ahora);
+        _repositorio.Solicitudes[0].MarcarFallida("SinEspacio", Ahora);
 
-        (await Solicitud(new Escenario()).Handle(new SolicitarExportacionCompletaCommand(), default)).EsExitoso.Should().BeTrue();
+        var segunda = await Solicitud(new Escenario()).Handle(new SolicitarExportacionCompletaCommand(), default);
+
+        segunda.Error.Should().Be(ErroresSolicitudExportacionCompleta.UnaCadaVeinticuatroHoras);
+        _repositorio.Solicitudes.Should().ContainSingle();
     }
 
     [Fact]
@@ -366,8 +370,8 @@ public class ExportacionCompletaAutoservicioTests
         public List<SolicitudExportacionCompleta> Solicitudes { get; } = [];
         public List<RegistroAuditoria> Auditoria { get; } = [];
 
-        public Task<bool> ExisteQueCuentaParaElLimiteDesdeAsync(DateTime desdeUtc, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Solicitudes.Any(s => s.SolicitadaEnUtc > desdeUtc && s.CuentaParaElLimite));
+        public Task<bool> ExisteRegistradaDesdeAsync(DateTime desdeUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Solicitudes.Any(s => s.SolicitadaEnUtc > desdeUtc));
 
         public Task<SolicitudExportacionCompleta?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(Solicitudes.SingleOrDefault(s => s.Id == id));

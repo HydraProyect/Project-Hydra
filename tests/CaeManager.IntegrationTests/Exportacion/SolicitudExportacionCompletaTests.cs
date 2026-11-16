@@ -238,18 +238,42 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     // ---- Límite de una cada 24 horas: el predicado del repositorio contra PostgreSQL ----
 
     [Fact]
-    public async Task El_limite_de_24_horas_no_cuenta_las_fallidas_ni_las_de_otro_Tenant()
+    public async Task El_limite_de_24_horas_cuenta_las_fallidas_y_no_las_de_otro_Tenant()
     {
+        // OWASP API4:2023: una fallida también cuenta; si no, un fallo repetible abriría reintentos sin límite.
         var t0 = InstanteRedondo();
-        await SembrarAsync(_tenantA, t0, s => s.MarcarFallida("GeneracionFallida", t0));
-        await SembrarAsync(_tenantB, t0, _ => { });
+        await SembrarAsync(_tenantA, t0, s => s.MarcarFallida(GeneradorExportacionCompletaHostedService.MotivoSinEspacio, t0));
 
         using (AmbitoTenantExplicito.Establecer(_tenantA))
         {
             await using var runtimeA = CrearRuntime();
-            (await new SolicitudExportacionCompletaRepository(runtimeA).ExisteQueCuentaParaElLimiteDesdeAsync(t0.AddHours(-1)))
-                .Should().BeFalse("una fallida no cuenta y la pendiente de otro Tenant no se ve");
+            (await new SolicitudExportacionCompletaRepository(runtimeA).ExisteRegistradaDesdeAsync(t0.AddHours(-1)))
+                .Should().BeTrue("una fallida en las últimas 24 horas cuenta para el límite");
         }
+        using (AmbitoTenantExplicito.Establecer(_tenantB))
+        {
+            await using var runtimeB = CrearRuntime();
+            (await new SolicitudExportacionCompletaRepository(runtimeB).ExisteRegistradaDesdeAsync(t0.AddHours(-1)))
+                .Should().BeFalse("la fallida de otro Tenant no se ve ni cuenta");
+        }
+    }
+
+    [Fact]
+    public async Task Tras_una_fallida_por_sin_espacio_el_Tenant_no_puede_pedir_otra_hasta_pasadas_24_horas()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var id = await SembrarAsync(_tenantA, DateTime.UtcNow, _ => { }, protector.Proteger("contrasena-de-prueba-del-reintento"));
+        var (servicio, _) = CrearServicio(protector, espacioLibreMinimo: long.MaxValue);
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+        (await LeerAsync(_tenantA, id)).Estado.Should().Be(EstadoSolicitudExportacionCompleta.Fallida);
+
+        await using var circuito = CrearPropietario(_tenantA);
+        var reintento = await Solicitud(circuito, _tenantA).Handle(new SolicitarExportacionCompletaCommand(), CancellationToken.None);
+
+        reintento.Error.Codigo.Should().Be(ErroresSolicitudExportacionCompleta.UnaCadaVeinticuatroHoras.Codigo,
+            "la fallida cuenta para el límite de una cada 24 horas");
+        await using var lectura = CrearPropietario(_tenantA);
+        (await lectura.SolicitudesExportacionCompleta.IgnoreQueryFilters().CountAsync(s => s.TenantId == _tenantA)).Should().Be(1);
     }
 
     [Fact]
@@ -267,11 +291,11 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         {
             await using var runtimeA = CrearRuntime();
             var repositorio = new SolicitudExportacionCompletaRepository(runtimeA);
-            (await repositorio.ExisteQueCuentaParaElLimiteDesdeAsync(t0.AddSeconds(-1)))
+            (await repositorio.ExisteRegistradaDesdeAsync(t0.AddSeconds(-1)))
                 .Should().BeTrue("una entregada cuenta para el límite aunque haya caducado");
-            (await repositorio.ExisteQueCuentaParaElLimiteDesdeAsync(t0))
+            (await repositorio.ExisteRegistradaDesdeAsync(t0))
                 .Should().BeFalse("la pedida justo en el instante desde el que se cuenta (hace exactamente 24 h) ya no bloquea");
-            (await repositorio.ExisteQueCuentaParaElLimiteDesdeAsync(t0.AddSeconds(1)))
+            (await repositorio.ExisteRegistradaDesdeAsync(t0.AddSeconds(1)))
                 .Should().BeFalse("la pedida antes de la ventana no cuenta");
         }
     }
@@ -346,6 +370,112 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         fallida.MotivoFallo.Should().Be(GeneradorExportacionCompletaHostedService.MotivoEstancada);
         fallida.ContrasenaProtegida.Should().BeNull();
         (await FasesAsync(_tenantA, id)).Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida));
+    }
+
+    // ---- Dos líderes a la vez: el estado es el token de concurrencia (ASVS 4.0.3 V1.11.2 y V11.1.6) ----
+
+    [Fact]
+    public async Task Si_el_lider_anterior_marca_Lista_antes_que_el_barrido_de_estancadas_gana_la_Lista_y_el_barrido_no_audita()
+    {
+        var t0 = InstanteRedondo();
+        var reloj = new RelojAjustable(new DateTimeOffset(t0 + GeneradorExportacionCompletaHostedService.UmbralEstancada + TimeSpan.FromSeconds(1)));
+        var id = await SembrarAsync(_tenantA, t0, s => s.MarcarEnCurso(t0));
+        var ubicacion = AlmacenExportacionesCompletasEnDisco.UbicacionPara(_tenantA, id);
+        var fichero = Path.Combine(_carpetaZips, ubicacion);
+        Directory.CreateDirectory(Path.GetDirectoryName(fichero)!);
+        await File.WriteAllTextAsync(fichero, "zip del lider anterior");
+        // Antiguo: si la fila no fuera Lista, el barrido de huérfanos de la misma vuelta lo borraría.
+        File.SetLastWriteTimeUtc(fichero, t0 - TimeSpan.FromHours(1));
+
+        // El barrido del líder nuevo ya leyó la fila EnCurso; justo antes de su guardado, el anterior confirma Lista.
+        var competidor = new CompiteAntesDelGuardado(
+            s => s.Id == id && s.Estado == EstadoSolicitudExportacionCompleta.Fallida,
+            async () =>
+            {
+                await using var anterior = CrearRuntime();
+                var solicitud = await anterior.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id);
+                solicitud.MarcarLista(ubicacion, 22, t0 + TimeSpan.FromHours(3));
+                anterior.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(id, AuditoriaExportacionCompleta.FaseLista));
+                await anterior.SaveChangesAsync();
+            });
+        var (servicio, _) = CrearServicio(new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider()), reloj, interceptor: competidor);
+
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        competidor.Compitio.Should().BeTrue("la prueba solo vale si el guardado del barrido llegó a intercalarse");
+        var lista = await LeerAsync(_tenantA, id);
+        lista.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Lista, "gana el primer guardado");
+        lista.UbicacionFichero.Should().Be(ubicacion);
+        lista.MotivoFallo.Should().BeNull();
+        var fases = await FasesAsync(_tenantA, id);
+        fases.Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseLista));
+        fases.Should().NotContain(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida), "la transición perdedora no se audita");
+        File.Exists(fichero).Should().BeTrue("el fichero de la Lista ganadora no se borra");
+    }
+
+    [Fact]
+    public async Task Si_el_barrido_de_estancadas_confirma_Fallida_antes_que_la_Lista_gana_la_Fallida_y_la_Lista_no_audita()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var id = await SembrarAsync(_tenantA, DateTime.UtcNow, _ => { }, protector.Proteger("contrasena-de-prueba-de-la-carrera"));
+
+        // Este proceso generó el zip y va a marcarla Lista; justo antes, el líder nuevo la da por estancada.
+        var competidor = new CompiteAntesDelGuardado(
+            s => s.Id == id && s.Estado == EstadoSolicitudExportacionCompleta.Lista,
+            async () =>
+            {
+                await using var nuevo = CrearRuntime();
+                var solicitud = await nuevo.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id);
+                solicitud.MarcarFallida(GeneradorExportacionCompletaHostedService.MotivoEstancada, DateTime.UtcNow);
+                nuevo.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
+                    id, AuditoriaExportacionCompleta.FaseFallida, new { motivo = GeneradorExportacionCompletaHostedService.MotivoEstancada }));
+                await nuevo.SaveChangesAsync();
+            });
+        var (servicio, _) = CrearServicio(protector, interceptor: competidor);
+
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        competidor.Compitio.Should().BeTrue();
+        var fallida = await LeerAsync(_tenantA, id);
+        fallida.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Fallida, "gana el primer guardado");
+        fallida.MotivoFallo.Should().Be(GeneradorExportacionCompletaHostedService.MotivoEstancada, "ni la Lista ni un segundo fallo la sobrescriben");
+        fallida.UbicacionFichero.Should().BeNull();
+        var fases = await FasesAsync(_tenantA, id);
+        fases.Should().NotContain(f => f.Contains(AuditoriaExportacionCompleta.FaseLista), "la transición perdedora no se audita");
+        fases.Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida), "solo la del ganador");
+    }
+
+    [Fact]
+    public async Task Si_otro_proceso_caduca_la_anterior_mientras_se_marca_la_nueva_se_reintenta_y_la_nueva_queda_lista()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var reloj = new RelojAjustable(DateTimeOffset.UtcNow);
+        var primera = await SembrarAsync(_tenantA, reloj.GetUtcNow().UtcDateTime, _ => { }, protector.Proteger("contrasena-de-prueba-primera"));
+        var (servicio, _) = CrearServicio(protector, reloj);
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        reloj.Avanzar(SolicitudExportacionCompleta.IntervaloMinimo + TimeSpan.FromHours(1));
+        var segunda = await SembrarAsync(_tenantA, reloj.GetUtcNow().UtcDateTime, _ => { }, protector.Proteger("contrasena-de-prueba-segunda"));
+        var competidor = new CompiteAntesDelGuardado(
+            s => s.Id == primera && s.Estado == EstadoSolicitudExportacionCompleta.Caducada,
+            async () =>
+            {
+                await using var otro = CrearRuntime();
+                var anterior = await otro.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == primera);
+                anterior.CaducarPorSustitucion(reloj.GetUtcNow().UtcDateTime);
+                otro.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(primera, AuditoriaExportacionCompleta.FaseCaducada));
+                await otro.SaveChangesAsync();
+            });
+        var (servicioQueCompite, _) = CrearServicio(protector, reloj, interceptor: competidor);
+
+        await servicioQueCompite.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        competidor.Compitio.Should().BeTrue();
+        (await LeerAsync(_tenantA, segunda)).Estado.Should().Be(EstadoSolicitudExportacionCompleta.Lista,
+            "el choque fue con la anterior, no con la nueva: se reintenta y la exportación generada no se pierde");
+        (await FasesAsync(_tenantA, segunda)).Should().ContainSingle(f => f.Contains(AuditoriaExportacionCompleta.FaseLista));
+        (await FasesAsync(_tenantA, primera)).Count(f => f.Contains(AuditoriaExportacionCompleta.FaseCaducada))
+            .Should().Be(1, "la caducidad de la anterior se audita una vez, la del proceso que ganó");
     }
 
     // ---- Interrupción, espacio, sustitución y huérfanos ----
@@ -744,6 +874,30 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
                     e.State == EntityState.Modified && e.Entity.Estado == EstadoSolicitudExportacionCompleta.Caducada))
                 throw new DbUpdateException("Fallo simulado del guardado de la sustitución.");
             return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Intercala el guardado de otro proceso: la primera vez que el servicio va a guardar una solicitud modificada que
+    /// cumple <paramref name="cuando"/>, ejecuta antes <paramref name="competidor"/> en su propio contexto y conexión.
+    /// </summary>
+    private sealed class CompiteAntesDelGuardado(Func<SolicitudExportacionCompleta, bool> cuando, Func<Task> competidor)
+        : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public bool Compitio { get; private set; }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Compitio && eventData.Context!.ChangeTracker.Entries<SolicitudExportacionCompleta>()
+                    .Any(e => e.State == EntityState.Modified && cuando(e.Entity)))
+            {
+                Compitio = true;
+                await competidor();
+            }
+            return await base.SavingChangesAsync(eventData, result, cancellationToken);
         }
     }
 
