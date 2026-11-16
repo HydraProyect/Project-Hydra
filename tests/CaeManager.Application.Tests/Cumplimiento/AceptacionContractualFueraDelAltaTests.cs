@@ -306,16 +306,18 @@ public class AceptacionContractualFueraDelAltaTests
     }
 
     [Fact]
-    public async Task El_texto_de_una_version_publicada_se_puede_leer()
+    public async Task El_texto_de_una_version_que_ya_rige_se_puede_leer_y_el_de_una_programada_no()
     {
-        var catalogo = new CatalogoFalso([CondicionesV1, CondicionesV2]);
-        var handler = new ObtenerTextoDocumentoContractualQueryHandler(catalogo);
+        var catalogo = new CatalogoFalso([CondicionesV1, CondicionesV2, FuturoV3]);
+        var handler = new ObtenerTextoDocumentoContractualQueryHandler(catalogo, new RelojFijo(Ahora));
 
         var texto = await handler.Handle(new ObtenerTextoDocumentoContractualQuery("Condiciones", "1.0"), CancellationToken.None);
         var ausente = await handler.Handle(new ObtenerTextoDocumentoContractualQuery("Condiciones", "9.9"), CancellationToken.None);
+        var programada = await handler.Handle(new ObtenerTextoDocumentoContractualQuery("Condiciones", "3.0"), CancellationToken.None);
 
         texto.Should().Be(new TextoDocumentoContractualDto("Condiciones", "Condiciones de prueba", "1.0", VigenciaV1, "Texto de condiciones 1.0"));
         ausente.Should().BeNull();
+        programada.Should().BeNull("una versión programada no se enseña antes de la fecha en que rige");
     }
 
     private sealed class RepositorioFalso : IAceptacionContractualTenantRepository

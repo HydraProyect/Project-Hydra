@@ -18,7 +18,8 @@
 # completo, para no confundirse con uno relativo (CaeManager.Application.Foo.Query -> Foo.Query; Foo.Query externo -> global::Foo.Query).
 # Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
-# de 113 entradas es el mismo.)
+# de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
+# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas.
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1

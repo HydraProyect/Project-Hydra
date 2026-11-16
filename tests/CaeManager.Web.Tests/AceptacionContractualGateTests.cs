@@ -1,6 +1,7 @@
 using System.Net;
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento.AceptacionContractual;
 using CaeManager.Domain.Common;
@@ -38,6 +39,8 @@ public class AceptacionContractualGateTests : BunitContext
         public List<AceptarDocumentosContractualesCommand> Aceptaciones { get; } = [];
         public int Consultas { get; private set; }
         public Result ResultadoAceptar { get; set; } = Result.Exito();
+        /// <summary>Lo que devuelve la consulta después de un intento fallido; por defecto, lo mismo que antes.</summary>
+        public IReadOnlyList<DocumentoContractualPendienteDto>? PendientesTrasFallo { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -45,7 +48,8 @@ public class AceptacionContractualGateTests : BunitContext
             {
                 case ObtenerAceptacionesContractualesPendientesQuery:
                     Consultas++;
-                    IReadOnlyList<DocumentoContractualPendienteDto> lista = Aceptaciones.Count > 0 && ResultadoAceptar.EsExitoso ? [] : pendientes;
+                    IReadOnlyList<DocumentoContractualPendienteDto> lista = Aceptaciones.Count == 0 ? pendientes
+                        : ResultadoAceptar.EsExitoso ? [] : PendientesTrasFallo ?? pendientes;
                     return Task.FromResult((TResponse)(object)lista);
                 case AceptarDocumentosContractualesCommand comando:
                     Aceptaciones.Add(comando);
@@ -81,12 +85,59 @@ public class AceptacionContractualGateTests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    private IRenderedComponent<AceptacionContractualGate> RenderGate(MediatorFalso mediador)
+    private IRenderedComponent<AceptacionContractualGate> RenderGate(MediatorFalso mediador, bool conContextoHttp = true)
     {
         Services.AddSingleton<IMediator>(mediador);
+        if (!conContextoHttp)
+            return Render<AceptacionContractualGate>();
+
         var contexto = new DefaultHttpContext();
         contexto.Connection.RemoteIpAddress = IPAddress.Parse("::ffff:203.0.113.20");
         return Render<AceptacionContractualGate>(p => p.AddCascadingValue(contexto));
+    }
+
+    private static void MarcarTodo(IRenderedComponent<AceptacionContractualGate> gate)
+    {
+        Casilla(gate, "Condiciones").Change(true);
+        Casilla(gate, "Encargo").Change(true);
+        gate.Find(".campo-facultades input").Change(true);
+    }
+
+    [Fact]
+    public void Sin_IP_del_prerenderizado_recarga_la_pagina_en_vez_de_quedar_bloqueado()
+    {
+        var mediador = new MediatorFalso(Condiciones, Encargo);
+        var gate = RenderGate(mediador, conContextoHttp: false);
+
+        MarcarTodo(gate);
+        Boton(gate).Click();
+
+        mediador.Aceptaciones.Should().BeEmpty("sin IP el Command siempre fallaría");
+        var navegacion = Services.GetRequiredService<BunitNavigationManager>();
+        navegacion.History.Should().ContainSingle().Which.Options.ForceLoad.Should().BeTrue(
+            "la recarga vuelve a pasar por el prerenderizado, que lee la IP");
+    }
+
+    [Fact]
+    public void Si_lo_pendiente_cambio_con_el_modal_abierto_lo_vuelve_a_leer()
+    {
+        var condicionesNuevas = Condiciones with { Version = "1.1", HashSha256 = new string('c', 64) };
+        var mediador = new MediatorFalso(Condiciones, Encargo)
+        {
+            ResultadoAceptar = Result.Fallo(Error.Crear("AceptacionContractual.VersionNoPublicada", "Versión no vigente.")),
+            PendientesTrasFallo = [condicionesNuevas, Encargo],
+        };
+        var gate = RenderGate(mediador);
+
+        MarcarTodo(gate);
+        Boton(gate).Click();
+
+        gate.Find(".alerta-formulario").TextContent.Should().Be("Versión no vigente.");
+        gate.FindAll(".documento-contractual-pendiente a").Select(a => a.GetAttribute("href")).Should().Equal(
+            "/legal/contrato/Condiciones/1.1", "/legal/contrato/Encargo/2.1");
+        gate.FindAll("input[type=checkbox]").Should().OnlyContain(c => !c.HasAttribute("checked"),
+            "la lista nueva se vuelve a aceptar entera");
+        Boton(gate).HasAttribute("disabled").Should().BeTrue();
     }
 
     private static IElement Boton(IRenderedComponent<AceptacionContractualGate> gate) =>

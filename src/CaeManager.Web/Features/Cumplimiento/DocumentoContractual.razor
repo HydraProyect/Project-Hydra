@@ -26,12 +26,9 @@
             <h1 id="titulo-documento-contractual">@documento.Titulo</h1>
             <p>@Textos["VigenteDesde", documento.Version, documento.VigenteDesdeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")]</p>
         </header>
-        <div class="documento-legal-contenido">
-            @foreach (var parrafo in Parrafos(documento.Texto))
-            {
-                <p>@parrafo</p>
-            }
-        </div>
+        @* El texto tal cual, con sus saltos de línea y espacios (white-space: pre-wrap): es el mismo cuyo hash se
+           acepta, así que no se reparte en párrafos ni se recorta. *@
+        <div class="documento-legal-contenido documento-contractual-literal">@documento.Texto</div>
     </main>
 }
 else if (_leido)
@@ -53,9 +50,4 @@ else if (_leido)
         _documento = await Mediator.Send(new ObtenerTextoDocumentoContractualQuery(Documento, Version));
         _leido = true;
     }
-
-    /// <summary>El texto tal como está en el catálogo, partido en párrafos por las líneas en blanco.</summary>
-    private static IEnumerable<string> Parrafos(string texto) =>
-        texto.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

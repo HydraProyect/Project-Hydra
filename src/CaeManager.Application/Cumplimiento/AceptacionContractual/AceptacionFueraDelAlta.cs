@@ -245,7 +245,8 @@ public class AceptarDocumentosContractualesCommandHandler(
 
         // El acuse sale después del guardado y con su propia bandeja de salida (Preparado y luego Enviado o
         // NoConfirmado), nunca dentro de la transacción de la aceptación. Su fallo no deshace lo aceptado, que ya
-        // está registrado: el Administrador puede pedir el reenvío (ReenviarAcuseAceptacionContractualCommand).
+        // está registrado y queda en el aviso del log. ReenviarAcuseAceptacionContractualCommand existe, pero hoy
+        // ninguna pantalla lo ofrece: el reenvío desde la interfaz es un incremento propio.
         try
         {
             var acuse = await envioAcuse.EnviarAsync(usuarioId, CancellationToken.None);
@@ -269,17 +270,18 @@ public sealed record TextoDocumentoContractualDto(string Documento, string Titul
 /// <summary>
 /// El texto de una versión publicada del catálogo (#2009), el que enlaza <c>AceptacionContractualGate</c>. Es el
 /// texto del contrato con TALVEG, igual para todos los Tenants: no lee ningún dato del Tenant. <c>null</c> si esa
-/// versión no está publicada.
+/// versión no está publicada o aún no rige: una versión programada no se enseña antes de su fecha.
 /// </summary>
 [AreaDelEncargo("Cumplimiento")]
 public record ObtenerTextoDocumentoContractualQuery(string Documento, string Version) : IRequest<TextoDocumentoContractualDto?>;
 
-public class ObtenerTextoDocumentoContractualQueryHandler(ICatalogoDocumentosContractuales catalogo)
+public class ObtenerTextoDocumentoContractualQueryHandler(ICatalogoDocumentosContractuales catalogo, TimeProvider reloj)
     : IRequestHandler<ObtenerTextoDocumentoContractualQuery, TextoDocumentoContractualDto?>
 {
     public Task<TextoDocumentoContractualDto?> Handle(ObtenerTextoDocumentoContractualQuery request, CancellationToken cancellationToken) =>
         Task.FromResult(catalogo.Publicados
-            .Where(d => d.Documento == request.Documento && d.Version == request.Version)
+            .Where(d => d.Documento == request.Documento && d.Version == request.Version
+                        && d.VigenteDesdeUtc <= reloj.GetUtcNow().UtcDateTime)
             .Select(d => new TextoDocumentoContractualDto(d.Documento, d.Titulo, d.Version, d.VigenteDesdeUtc, d.Texto))
             .FirstOrDefault());
 }

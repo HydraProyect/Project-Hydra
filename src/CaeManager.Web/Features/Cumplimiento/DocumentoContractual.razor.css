@@ -33,7 +33,7 @@
     line-height: 1.6;
 }
 
-.documento-legal-contenido p { margin-bottom: var(--space-5); }
+.documento-contractual-literal { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .documento-legal-pendiente {
     padding: var(--space-4);
