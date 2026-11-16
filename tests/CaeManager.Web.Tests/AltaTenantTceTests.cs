@@ -260,6 +260,46 @@ public class AltaTenantTceTests : BunitContext
         cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain(ErroresDarDeBajaLineaInbound.SinLineaVigente.Mensaje);
     }
 
+    [Fact]
+    public void Con_el_alta_en_vuelo_la_linea_no_se_edita_ni_se_da_de_baja()
+    {
+        var respuesta = new TaskCompletionSource<Result<Guid>>();
+        _mediator.RespuestaContratarTarea = respuesta.Task;
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De11A40));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+
+        Pulsar(cut, "Dar de alta");
+
+        cut.FindAll(".alta-tce-linea button").Should().HaveCount(2)
+            .And.OnlyContain(b => b.HasAttribute("disabled"), "un solo envío a la vez en toda la pantalla");
+        respuesta.SetResult(Result.Exito(ProductoId));
+        cut.WaitForAssertion(() => cut.FindAll(".alta-tce-linea button").Should().OnlyContain(b => !b.HasAttribute("disabled")));
+    }
+
+    [Fact]
+    public void Tras_dar_de_baja_la_confirmacion_del_alta_deja_de_pintarse()
+    {
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De11A40));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Dar de alta");
+        cut.FindAll(".alta-tce-ok").Should().ContainSingle();
+
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Dar de baja").Click();
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Dar de baja").Click();
+
+        cut.FindAll(".alta-tce-ok").Should().BeEmpty("la línea ya no está vigente");
+    }
+
     private sealed class MediatorFalso : IMediator
     {
         public List<object> Enviados { get; } = [];

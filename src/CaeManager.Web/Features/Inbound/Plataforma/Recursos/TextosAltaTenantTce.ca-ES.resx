@@ -82,7 +82,7 @@
     <value>És el Tenant actiu de la Sessió Privilegiada: el Client que rep el servei i el Tenant propietari de les seves dades.</value>
   </data>
   <data name="Paso1NoDisponible" xml:space="preserve">
-    <value>El nom, el CIF i l&apos;Empresa pròpia del Tenant encara no es donen d&apos;alta en aquesta pantalla: el Tenant es crea abans des d&apos;Administració global i aquí es contracta la seva línia Inbound.</value>
+    <value>El nom, el CIF i l&apos;Empresa pròpia del Tenant encara no es donen d&apos;alta en aquesta pantalla: el Tenant es crea abans des d&apos;Organitzacions externes i aquí es contracta la seva línia Inbound.</value>
   </data>
   <data name="OperacionLeyenda" xml:space="preserve">
     <value>Qui opera el Tenant TCE</value>

@@ -135,7 +135,7 @@
                         <section class="alta-tce-seccion" aria-label="@seccion.Titulo">
                             <h3 class="alta-tce-sec-cab">
                                 <span>@seccion.Titulo</span>
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_enviando"
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="Ocupado"
                                        OnClick="() => IrA(seccion.Paso)">@Textos["Editar"]</Boton>
                             </h3>
                             <dl class="alta-tce-res">
@@ -155,11 +155,11 @@
             </div>
 
             <footer class="alta-tce-pie">
-                <Boton Variante="VarianteBoton.Fantasma" OnClick="Cancelar" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="Cancelar" Deshabilitado="Ocupado">@Textos["Cancelar"]</Boton>
                 <span class="alta-tce-sep"></span>
                 @if (_paso > 1)
                 {
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="Atras" Deshabilitado="_enviando">@Textos["Atras"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="Atras" Deshabilitado="Ocupado">@Textos["Atras"]</Boton>
                 }
                 @* Un solo primario por vista: Continuar en los pasos 1 a 4 y Dar de alta en el Resumen. *@
                 <Boton Variante="VarianteBoton.Primario" OnClick="AvanzarAsync" Cargando="_enviando">@TextoPrimario</Boton>
@@ -182,8 +182,8 @@
                 @if (!_editandoLinea)
                 {
                     <span class="alta-tce-linea-acciones">
-                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="EmpezarEdicion" Deshabilitado="_enviandoLinea">@Textos["Editar"]</Boton>
-                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" OnClick="PedirBaja" Deshabilitado="_enviandoLinea">@Textos["DarDeBaja"]</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="EmpezarEdicion" Deshabilitado="Ocupado">@Textos["Editar"]</Boton>
+                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" OnClick="PedirBaja" Deshabilitado="Ocupado">@Textos["DarDeBaja"]</Boton>
                     </span>
                 }
             </div>
@@ -196,7 +196,7 @@
                              Modalidad="@_modalidadCorr" ModalidadChanged="CambiarModalidadCorr"
                              Prefijo="corr" />
                 <div class="alta-tce-linea-acciones">
-                    <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarEdicion" Deshabilitado="_enviandoLinea">@Textos["Cancelar"]</Boton>
+                    <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarEdicion" Deshabilitado="Ocupado">@Textos["Cancelar"]</Boton>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="GuardarCorreccionAsync" Cargando="_enviandoLinea">@Textos["Guardar"]</Boton>
                 </div>
             }

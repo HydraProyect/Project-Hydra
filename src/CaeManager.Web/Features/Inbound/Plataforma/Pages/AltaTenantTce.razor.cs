@@ -59,6 +59,9 @@ public partial class AltaTenantTce
 
     private bool _editandoLinea;
     private bool _enviandoLinea;
+
+    // Un solo envío a la vez en toda la pantalla: el alta y la línea comparten el Mediator y el DbContext del circuito.
+    private bool Ocupado => _enviando || _enviandoLinea;
     private bool _confirmarBaja;
     private string? _errorLinea;
     private string? _exitoLinea;
@@ -188,7 +191,7 @@ public partial class AltaTenantTce
 
     private void IrA(int paso)
     {
-        if (_enviando)
+        if (Ocupado)
             return;
         _error = null;
         _paso = paso;
@@ -206,7 +209,7 @@ public partial class AltaTenantTce
 
     private async Task DarDeAltaAsync()
     {
-        if (_enviando)
+        if (Ocupado)
             return;
         if (FaltaEnLinea(_pagador, _tramo, _modalidad) is { } falta || _tramo is not { } tramo || _modalidad is not { } modalidad)
         {
@@ -264,7 +267,7 @@ public partial class AltaTenantTce
 
     private async Task GuardarCorreccionAsync()
     {
-        if (_enviandoLinea)
+        if (Ocupado)
             return;
         if (FaltaEnLinea(_pagadorCorr, _tramoCorr, _modalidadCorr) is { } falta || _tramoCorr is not { } tramo || _modalidadCorr is not { } modalidad)
         {
@@ -281,6 +284,9 @@ public partial class AltaTenantTce
             {
                 _editandoLinea = false;
                 _exitoLinea = Textos["CorreccionHecha"];
+                // La confirmación del alta cuenta lo vigente, no lo que se envió al contratar.
+                if (_contratado is not null)
+                    _contratado = new LineaContratada(_pagadorCorr.Trim(), tramo, modalidad);
             }
             else
             {
@@ -299,7 +305,7 @@ public partial class AltaTenantTce
 
     private async Task DarDeBajaAsync()
     {
-        if (_enviandoLinea)
+        if (Ocupado)
             return;
 
         _enviandoLinea = true;
@@ -309,7 +315,12 @@ public partial class AltaTenantTce
         {
             var resultado = await Mediator.Send(new DarDeBajaLineaInboundCommand());
             if (resultado.EsExitoso)
+            {
                 _exitoLinea = Textos["BajaHecha"];
+                // Tras la baja ya no hay Producto Contratado Inbound activo: la confirmación del alta deja de valer.
+                _contratado = null;
+                _paso = 1;
+            }
             else
                 _errorLinea = resultado.Error.Mensaje;
         }
