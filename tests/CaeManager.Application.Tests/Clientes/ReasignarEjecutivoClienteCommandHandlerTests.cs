@@ -380,6 +380,12 @@ public class BloqueoCarteraUsuarioFalso : IBloqueoCarteraUsuario
     public List<Guid> Compartidos { get; } = [];
     public List<string>? Eventos { get; set; }
 
+    /// <summary>
+    /// Lo que confirmó quien tenía el candado en exclusiva (un cambio de Asignación de Cartera) mientras este esperaba el
+    /// compartido: se ejecuta al tomarlo.
+    /// </summary>
+    public Action? AlTomarElCompartido { get; set; }
+
     public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Exclusivos.Add(usuarioId);
@@ -391,6 +397,7 @@ public class BloqueoCarteraUsuarioFalso : IBloqueoCarteraUsuario
     {
         Compartidos.AddRange(usuarioIds);
         Eventos?.Add("compartido");
+        AlTomarElCompartido?.Invoke();
         return Task.CompletedTask;
     }
 }

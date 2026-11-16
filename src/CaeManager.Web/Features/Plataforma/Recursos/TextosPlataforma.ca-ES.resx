@@ -97,4 +97,7 @@
   <data name="AjusteSegundoFactorConfirmar" xml:space="preserve">
     <value>Confirma el canvi</value>
   </data>
+  <data name="EnlaceAltaLineaInbound" xml:space="preserve">
+    <value>Contractar la línia Inbound d&apos;aquesta organització →</value>
+  </data>
 </root>

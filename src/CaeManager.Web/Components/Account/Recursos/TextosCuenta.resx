@@ -202,6 +202,8 @@
   <data name="AltaDosFactoresSesionObsoleta" xml:space="preserve"><value>Los datos de seguridad de la cuenta han cambiado desde que iniciaste esta sesión. Cierra la sesión y vuelve a iniciarla para activar la autenticación en dos pasos.</value></data>
   <data name="VerificacionInicioRechazado" xml:space="preserve"><value>No se ha podido completar el inicio de sesión. Vuelve a iniciar sesión.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
+  <data name="MostrarClaveTitulo" xml:space="preserve"><value>Ten a mano tu aplicación autenticadora</value></data>
+  <data name="MostrarClaveAyuda" xml:space="preserve"><value>Al continuar verás el código QR y la clave que tienes que añadir a tu aplicación autenticadora.</value></data>
   <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Para vincular tu cuenta de Microsoft, configura antes la verificación en dos pasos de {0}.</value></data>
   <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Código QR para configurar la aplicación autenticadora</value></data>
   <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escanea el código con Google Authenticator, Microsoft Authenticator o 1Password. ¿No puedes escanearlo? Introduce esta clave:</value></data>

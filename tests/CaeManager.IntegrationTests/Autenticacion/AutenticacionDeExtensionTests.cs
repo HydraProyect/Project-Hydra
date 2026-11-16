@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
@@ -196,6 +197,52 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
         (await AutenticarAsync(ajeno)).Succeeded.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Issue #1891 (ASVS 4.0.3 V3.3.2): el token cae con la inactividad de su sesión de origen, y el plazo es el que
+    /// la fábrica real lee de la base para el Tenant propietario de la cuenta, no el de otro Tenant.
+    /// </summary>
+    [Fact]
+    public async Task El_token_cae_con_el_plazo_de_inactividad_del_Tenant_propietario()
+    {
+        Guid otroTenant;
+        using (var ambito = _servicios.CreateScope())
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var otro = new Tenant("Tenant con plazo largo");
+            contexto.Tenants.Add(otro);
+            await contexto.SaveChangesAsync();
+            otroTenant = otro.Id;
+        }
+        await FijarPlazoAsync(_tenant, minutos: 5);
+        await FijarPlazoAsync(otroTenant, minutos: 480);
+
+        var corto = await CrearUsuarioAsync("plazo-corto@x.test", Roles.GestorCae);
+        var largo = await CrearUsuarioAsync("plazo-largo@x.test", Roles.GestorCae, tenant: otroTenant);
+        var ahora = DateTimeOffset.UtcNow;
+
+        (await AutenticarAsync(Emitir(corto, ultimaInteraccion: ahora.AddMinutes(-4)))).Succeeded.Should().BeTrue(
+            "dentro de los 5 minutos de su Tenant propietario");
+        (await AutenticarAsync(Emitir(corto, ultimaInteraccion: ahora.AddMinutes(-6)))).Succeeded.Should().BeFalse(
+            "seis minutos sin interacción vencen la sesión de origen con el plazo de su Tenant propietario");
+        (await AutenticarAsync(Emitir(largo, ultimaInteraccion: ahora.AddMinutes(-6)))).Succeeded.Should().BeTrue(
+            "la cuenta del otro Tenant se rige por su propio plazo de 480 minutos");
+    }
+
+    private async Task FijarPlazoAsync(Guid tenant, int minutos)
+    {
+        using var ambito = _servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(tenant))
+        {
+            var parametros = new ParametroSistema(30, 15);
+            parametros.ActualizarSeguridadAcceso(minutos, exigeSegundoFactorTodosLosPerfiles: false);
+            contexto.ParametrosSistema.Add(parametros);
+            // Este contexto no lleva TenantSelladoInterceptor: como en ClaimDeActivacionDeCuentaTests, se sella a mano.
+            contexto.Entry(parametros).Property(p => p.TenantId).CurrentValue = tenant;
+            await contexto.SaveChangesAsync();
+        }
+    }
+
     [Fact]
     public async Task Sin_cabecera_el_handler_se_aparta()
     {
@@ -208,7 +255,7 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(
-        string email, string rol, bool debeCambiarContrasena = false)
+        string email, string rol, bool debeCambiarContrasena = false, Guid? tenant = null)
     {
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -218,7 +265,7 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
             UserName = email,
             Email = email,
             NombreCompleto = email,
-            TenantId = _tenant,
+            TenantId = tenant ?? _tenant,
             DebeCambiarContrasena = debeCambiarContrasena,
             TwoFactorEnabled = true,
         };
@@ -229,8 +276,12 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
         return (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
     }
 
-    private string Emitir(ApplicationUser usuario) =>
-        TokenSesionExtension.Proteger(_protector, usuario.Id, usuario.SecurityStamp!, Guid.NewGuid());
+    private string Emitir(ApplicationUser usuario, DateTimeOffset? ultimaInteraccion = null)
+    {
+        var interaccion = ultimaInteraccion ?? DateTimeOffset.UtcNow;
+        return TokenSesionExtension.Proteger(
+            _protector, usuario.Id, usuario.SecurityStamp!, Guid.NewGuid(), new MarcasSesionOrigen(interaccion.AddMinutes(-1), interaccion, TimeSpan.FromMinutes(480)));
+    }
 
     private async Task<AuthenticateResult> AutenticarAsync(string? token)
     {
@@ -245,7 +296,8 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
             proveedor.GetRequiredService<UserManager<ApplicationUser>>(),
             proveedor.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>(),
             new SesionesExtensionFalsas(),
-            new EstadoOperativoActivo());
+            new EstadoOperativoActivo(),
+            new CaeManager.Web.Services.SesionOrigenExtension(new CaeManager.Web.Services.ActividadSesiones(), TimeProvider.System));
 
         var contexto = new DefaultHttpContext { RequestServices = proveedor };
         if (token is not null)
