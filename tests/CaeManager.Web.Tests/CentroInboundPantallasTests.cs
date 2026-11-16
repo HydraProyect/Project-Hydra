@@ -33,6 +33,13 @@ public class CentroInboundPantallasTests : BunitContext
     {
         public bool CentroNoVisible { get; init; }
         public IReadOnlyList<ContratoAccesoDto> Contratos { get; init; } = [];
+        public List<ObtenerContratosAccesoQuery> PeticionesContratos { get; } = [];
+
+        private IReadOnlyList<ContratoAccesoDto> Registrar(ObtenerContratosAccesoQuery q)
+        {
+            PeticionesContratos.Add(q);
+            return Contratos.Where(c => q.CentroId is null || c.CentroId == q.CentroId).ToList();
+        }
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -43,8 +50,9 @@ public class CentroInboundPantallasTests : BunitContext
                 ObtenerCentroPorIdQuery q => CentroNoVisible || q.Id != CentroId ? null! : (object)new CentroDetalleDto(
                     q.Id, ClienteId, "Logística Delta Sur S.A.", Guid.NewGuid(), "Logística Delta Sur S.A.", "Planta Zaragoza Norte", null,
                     "Polígono Malpica, calle E, 12 · 50016 Zaragoza", null, null, Guid.NewGuid()),
-                // Solo devuelve contratos del Centro pedido: si la ficha dejara de acotar por CentroId, la ficha se quedaría sin datos.
-                ObtenerContratosAccesoQuery q => (object)Contratos.Where(c => q.CentroId is null || c.CentroId == q.CentroId).ToList(),
+                // Registra la petición: sin CentroId (listado) devuelve todos los contratos, así que que la ficha acota por su Centro
+                // se comprueba sobre PeticionesContratos, no sobre los datos devueltos.
+                ObtenerContratosAccesoQuery q => (object)Registrar(q),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza Norte", "Logística Delta Sur S.A.", "Logística Delta Sur S.A.", ClienteId) },
                 ObtenerEmpresaPorIdQuery q => new EmpresaDetalleDto(q.Id, "Montajes Moncayo S.L.", "B12345674", DateTime.UtcNow, [], Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -94,12 +102,14 @@ public class CentroInboundPantallasTests : BunitContext
             Guid.NewGuid(), estado, TipoContratoAcceso.Recurrente, PropiaActividadContrato.Si, 1, 10, null, null);
 
     private InformacionFalsa _informacion = new(null);
+    private MediadorDePrueba _mediador = new();
 
     private void Preparar(
         IReadOnlyList<TrabajadorAptoHoy>? aptos = null, IReadOnlyList<DocumentoInformacionCentro>? docs = null,
         bool centroNoVisible = false, params ContratoAccesoDto[] contratos)
     {
-        Services.AddScoped<IMediator>(_ => new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos });
+        _mediador = new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos };
+        Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ResolutorContratosAcceso>();
         Services.AddSingleton<Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider>(new AntiforgeryFalso());
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
@@ -251,6 +261,7 @@ public class CentroInboundPantallasTests : BunitContext
         var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Find("[data-kpi=empresas]").TextContent.Should().Contain("1 con contrato activo");
+        _mediador.PeticionesContratos.Should().ContainSingle().Which.CentroId.Should().Be(CentroId, "la ficha pide solo los contratos de su Centro");
         _informacion.Consultas.Should().Equal([(Guid?)CentroId], "la ficha pide la información de su Centro, no la de todos");
     }
 
