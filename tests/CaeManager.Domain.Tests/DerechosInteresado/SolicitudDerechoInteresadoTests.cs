@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Tests.DerechosInteresado;
 
 /// <summary>
 /// Invariantes de la solicitud de un derecho del interesado (#2002): transiciones válidas, plazo de un mes
-/// prorrogable una sola vez hasta dos meses más con motivo, motivo obligatorio para denegar y nada resuelto sin
+/// prorrogable una sola vez, dentro del primer mes, hasta dos meses más con motivo, motivo obligatorio para denegar y nada resuelto sin
 /// identidad verificada.
 /// </summary>
 public class SolicitudDerechoInteresadoTests
@@ -17,6 +17,9 @@ public class SolicitudDerechoInteresadoTests
     private static readonly Guid Tramitador = Guid.NewGuid();
     private static readonly DateOnly Hoy = new(2026, 11, 16);
     private static readonly DateTime Ahora = new(2026, 11, 16, 10, 0, 0, DateTimeKind.Utc);
+
+    // Un instante del primer mes de la solicitud de Nueva() (recibida el 31-ene, plazo ordinario el 28-feb).
+    private static readonly DateTime DentroDelPrimerMes = new(2026, 2, 10, 10, 0, 0, DateTimeKind.Utc);
 
     private static SolicitudDerechoInteresado Nueva(DateOnly? recepcion = null) =>
         SolicitudDerechoInteresado.Registrar(
@@ -164,7 +167,7 @@ public class SolicitudDerechoInteresadoTests
             s.Invoking(x => x.Denegar("otra vez", Tramitador, Ahora)).Should().Throw<InvalidOperationException>();
             s.Invoking(x => x.Resolver(null, Tramitador, Ahora)).Should().Throw<InvalidOperationException>();
             s.Invoking(x => x.VerificarIdentidad(Tramitador, Ahora)).Should().Throw<InvalidOperationException>();
-            s.Invoking(x => x.Prorrogar(s.PlazoMaximoProrrogable, "motivo", Tramitador, Ahora))
+            s.Invoking(x => x.Prorrogar(s.PlazoMaximoProrrogable, "motivo", Tramitador, DentroDelPrimerMes))
                 .Should().Throw<InvalidOperationException>();
         }
     }
@@ -174,7 +177,7 @@ public class SolicitudDerechoInteresadoTests
     {
         var s = Nueva();
 
-        s.Prorrogar(new DateOnly(2026, 4, 28), "  Complejidad y número de solicitudes.  ", Tramitador, Ahora);
+        s.Prorrogar(new DateOnly(2026, 4, 28), "  Complejidad y número de solicitudes.  ", Tramitador, DentroDelPrimerMes);
 
         s.PlazoVencimiento.Should().Be(new DateOnly(2026, 4, 28));
         s.PlazoOrdinario.Should().Be(new DateOnly(2026, 2, 28), "el plazo ordinario no cambia");
@@ -185,12 +188,54 @@ public class SolicitudDerechoInteresadoTests
     }
 
     [Fact]
+    public void Con_el_plazo_ordinario_vencido_no_se_prorroga()
+    {
+        // RGPD art. 12.3: la prórroga se informa dentro del primer mes. Nueva() venció el 28-feb y Ahora es noviembre.
+        var s = Nueva();
+
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 28), "Complejidad.", Tramitador, Ahora))
+            .Should().Throw<InvalidOperationException>();
+
+        s.EstaProrrogada.Should().BeFalse();
+        s.PlazoVencimiento.Should().Be(s.PlazoOrdinario);
+        s.MotivoProrroga.Should().BeNull();
+    }
+
+    // El borde se mide en día de negocio (hora peninsular), no en fecha UTC: el 28-feb a las 23:00 UTC ya es el 1-mar
+    // en Madrid (CET, UTC+1).
+    [Theory]
+    [InlineData("2026-02-28T00:00:00Z", true)]
+    [InlineData("2026-02-28T22:59:59Z", true)]
+    [InlineData("2026-02-28T23:00:00Z", false)]
+    [InlineData("2026-03-01T10:00:00Z", false)]
+    public void La_prorroga_se_acuerda_como_tarde_el_dia_del_plazo_ordinario(string instanteUtc, bool admitida)
+    {
+        var ahora = DateTime.Parse(instanteUtc, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal);
+        var s = Nueva();
+        s.PlazoOrdinario.Should().Be(new DateOnly(2026, 2, 28), "control del borde");
+
+        var prorrogar = () => s.Prorrogar(new DateOnly(2026, 3, 31), "Complejidad.", Tramitador, ahora);
+
+        if (admitida)
+        {
+            prorrogar.Should().NotThrow();
+            s.PlazoVencimiento.Should().Be(new DateOnly(2026, 3, 31));
+        }
+        else
+        {
+            prorrogar.Should().Throw<InvalidOperationException>();
+            s.EstaProrrogada.Should().BeFalse();
+        }
+    }
+
+    [Fact]
     public void La_prorroga_es_unica()
     {
         var s = Nueva();
-        s.Prorrogar(new DateOnly(2026, 3, 15), "Primera.", Tramitador, Ahora);
+        s.Prorrogar(new DateOnly(2026, 3, 15), "Primera.", Tramitador, DentroDelPrimerMes);
 
-        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 28), "Segunda.", Tramitador, Ahora))
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 28), "Segunda.", Tramitador, DentroDelPrimerMes))
             .Should().Throw<InvalidOperationException>();
         s.PlazoVencimiento.Should().Be(new DateOnly(2026, 3, 15));
     }
@@ -200,11 +245,11 @@ public class SolicitudDerechoInteresadoTests
     {
         var s = Nueva();
 
-        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 29), "Motivo.", Tramitador, Ahora))
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 4, 29), "Motivo.", Tramitador, DentroDelPrimerMes))
             .Should().Throw<ArgumentException>("el plazo ordinario más dos meses es el máximo");
-        s.Invoking(x => x.Prorrogar(s.PlazoOrdinario, "Motivo.", Tramitador, Ahora))
+        s.Invoking(x => x.Prorrogar(s.PlazoOrdinario, "Motivo.", Tramitador, DentroDelPrimerMes))
             .Should().Throw<ArgumentException>("una prórroga que no alarga no es prórroga");
-        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 3, 31), "  ", Tramitador, Ahora))
+        s.Invoking(x => x.Prorrogar(new DateOnly(2026, 3, 31), "  ", Tramitador, DentroDelPrimerMes))
             .Should().Throw<ArgumentException>("prorrogar exige motivo escrito");
 
         s.EstaProrrogada.Should().BeFalse();
@@ -222,7 +267,7 @@ public class SolicitudDerechoInteresadoTests
         propia.ConsumirAccionAuditoria().Should().Be(RegistroAuditoria.AccionIdentidadVerificada);
         propia.ConsumirAccionAuditoria().Should().BeNull("la acción se consume una vez");
 
-        s.Prorrogar(new DateOnly(2026, 3, 31), "Motivo.", Tramitador, Ahora);
+        s.Prorrogar(new DateOnly(2026, 3, 31), "Motivo.", Tramitador, DentroDelPrimerMes);
         propia.ConsumirAccionAuditoria().Should().Be(RegistroAuditoria.AccionPlazoProrrogado);
 
         s.IniciarTramitacion(Tramitador, Ahora);

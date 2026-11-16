@@ -20,6 +20,7 @@ internal static class PasoSolicitudDerechoInteresado
         IActorAuditoria actorAuditoria,
         ISolicitudDerechoInteresadoRepository solicitudes,
         IUnitOfWork unitOfWork,
+        TimeProvider reloj,
         Guid solicitudId,
         Action<SolicitudDerechoInteresado, Guid, DateTime> paso,
         CancellationToken cancellationToken)
@@ -34,7 +35,7 @@ internal static class PasoSolicitudDerechoInteresado
 
         try
         {
-            paso(solicitud, actorRealId, DateTime.UtcNow);
+            paso(solicitud, actorRealId, reloj.GetUtcNow().UtcDateTime);
         }
         catch (InvalidOperationException ex)
         {

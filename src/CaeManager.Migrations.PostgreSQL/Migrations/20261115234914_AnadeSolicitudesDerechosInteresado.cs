@@ -93,7 +93,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // cada paso (la solicitud: estado, quién y cuándo dio cada paso, la prórroga, el cierre y el token de
             // concurrencia; la concesión: su revocación y el token); nunca reescribe lo registrado ni borra (la retirada
             // de un Tenant de demostración usa su propia identidad). Soporte TALVEG y el aprovisionamiento no tienen
-            // acceso: la solicitud lleva datos personales del interesado y quién puede resolverla es cosa del Tenant.
+            // acceso a estas dos tablas: la solicitud lleva datos personales del interesado y quién puede resolverla
+            // es cosa del Tenant. Sí ven la auditoría de cada fila en RegistrosAuditoria (cae_app_soporte tiene SELECT
+            // sobre ella): ahí AuditoriaInterceptor enmascara el nombre del interesado, el TrabajadorId y los textos
+            // libres, y deja en claro el tipo de derecho, el canal, el estado, los plazos y quién dio cada paso.
+            //
+            // Defensa en profundidad pendiente (#2002): la capacidad «Derechos del interesado» no está en la política.
+            // Leer y tramitar una solicitud la exigen solo en Application (AutoridadCapacidadesTenant); bajo RLS, una
+            // cuenta del Tenant sin la capacidad que llegara a cae_app_runtime por otro camino leería todas las solicitudes de su Tenant.
             migrationBuilder.Sql("""
                 ALTER TABLE public."SolicitudesDerechoInteresado" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."SolicitudesDerechoInteresado" FORCE ROW LEVEL SECURITY;

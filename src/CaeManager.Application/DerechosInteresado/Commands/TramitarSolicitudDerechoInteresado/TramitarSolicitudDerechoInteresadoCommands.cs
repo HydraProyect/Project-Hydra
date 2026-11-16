@@ -71,7 +71,8 @@ public class TramitarSolicitudDerechoInteresadoCommandHandler(
     IAutoridadCapacidadesTenant autoridad,
     IActorAuditoria actorAuditoria,
     ISolicitudDerechoInteresadoRepository solicitudes,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    TimeProvider reloj)
     : IRequestHandler<VerificarIdentidadSolicitudDerechoCommand, Result>,
       IRequestHandler<IniciarTramitacionSolicitudDerechoCommand, Result>,
       IRequestHandler<ProrrogarSolicitudDerechoCommand, Result>,
@@ -97,5 +98,5 @@ public class TramitarSolicitudDerechoInteresadoCommandHandler(
     private Task<Result> Dar(
         Guid solicitudId, Action<SolicitudDerechoInteresado, Guid, DateTime> paso, CancellationToken cancellationToken) =>
         PasoSolicitudDerechoInteresado.DarAsync(
-            autoridad, actorAuditoria, solicitudes, unitOfWork, solicitudId, paso, cancellationToken);
+            autoridad, actorAuditoria, solicitudes, unitOfWork, reloj, solicitudId, paso, cancellationToken);
 }

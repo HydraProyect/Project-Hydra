@@ -30,7 +30,8 @@ public class ConcederCapacidadTenantCommandHandler(
     ITenantActual tenantActual,
     IActorAuditoria actorAuditoria,
     IDirectorioUsuariosService directorioUsuarios,
-    IConcesionCapacidadTenantRepository concesiones)
+    IConcesionCapacidadTenantRepository concesiones,
+    TimeProvider reloj)
     : IRequestHandler<ConcederCapacidadTenantCommand, Result>
 {
     public async Task<Result> Handle(ConcederCapacidadTenantCommand request, CancellationToken cancellationToken)
@@ -47,7 +48,7 @@ public class ConcederCapacidadTenantCommandHandler(
             return Result.Fallo(ErroresCapacidadesTenant.YaConcedida);
 
         concesiones.Agregar(ConcesionCapacidadTenant.Conceder(
-            request.UsuarioId, request.Capacidad, actorRealId, DateTime.UtcNow));
+            request.UsuarioId, request.Capacidad, actorRealId, reloj.GetUtcNow().UtcDateTime));
         return await concesiones.GuardarConcesionAsync(cancellationToken)
             ? Result.Exito()
             : Result.Fallo(ErroresCapacidadesTenant.YaConcedida);

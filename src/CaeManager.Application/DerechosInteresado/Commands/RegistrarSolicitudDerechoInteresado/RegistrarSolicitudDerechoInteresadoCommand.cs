@@ -26,12 +26,12 @@ public record RegistrarSolicitudDerechoInteresadoCommand(
 
 public class RegistrarSolicitudDerechoInteresadoCommandValidator : AbstractValidator<RegistrarSolicitudDerechoInteresadoCommand>
 {
-    public RegistrarSolicitudDerechoInteresadoCommandValidator()
+    public RegistrarSolicitudDerechoInteresadoCommandValidator(TimeProvider reloj)
     {
         RuleFor(c => c.Tipo).IsInEnum().WithMessage("Indica qué derecho ejerce el interesado.");
         RuleFor(c => c.Canal).IsInEnum().WithMessage("Indica por dónde llegó la solicitud.");
         RuleFor(c => c.FechaRecepcion)
-            .Must(f => f <= DiaDeNegocio.Hoy()).WithMessage("La fecha de recepción no puede ser posterior a hoy.");
+            .Must(f => f <= DiaDeNegocio.Hoy(reloj)).WithMessage("La fecha de recepción no puede ser posterior a hoy.");
         RuleFor(c => c.NombreInteresado)
             .Must(n => !string.IsNullOrWhiteSpace(n)).WithMessage("Indica el nombre del interesado.")
             .Must(n => n is null || n.Trim().Length <= SolicitudDerechoInteresado.LongitudMaximaNombreInteresado)
@@ -50,7 +50,8 @@ public class RegistrarSolicitudDerechoInteresadoCommandHandler(
     ITrabajadorRepository trabajadores,
     IAlcanceDatosService alcanceDatos,
     ISolicitudDerechoInteresadoRepository solicitudes,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    TimeProvider reloj)
     : IRequestHandler<RegistrarSolicitudDerechoInteresadoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(
@@ -71,7 +72,7 @@ public class RegistrarSolicitudDerechoInteresadoCommandHandler(
         {
             solicitud = SolicitudDerechoInteresado.Registrar(
                 request.Tipo, request.Canal, request.FechaRecepcion, request.NombreInteresado,
-                request.TrabajadorId, request.Descripcion, actorRealId, DiaDeNegocio.Hoy(), DateTime.UtcNow);
+                request.TrabajadorId, request.Descripcion, actorRealId, DiaDeNegocio.Hoy(reloj), reloj.GetUtcNow().UtcDateTime);
         }
         catch (ArgumentException ex)
         {

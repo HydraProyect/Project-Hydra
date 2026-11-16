@@ -26,7 +26,7 @@ namespace CaeManager.Domain.DerechosInteresado;
 ///
 /// <para>
 /// <b>Plazo</b> (RGPD art. 12.3): un mes desde la recepción, prorrogable una sola vez hasta dos meses más con
-/// motivo escrito.
+/// motivo escrito, y solo mientras no haya vencido el plazo ordinario.
 /// </para>
 /// </summary>
 public class SolicitudDerechoInteresado : EntidadConTenant, IVersionable, IAccionAuditoriaPropia
@@ -171,13 +171,19 @@ public class SolicitudDerechoInteresado : EntidadConTenant, IVersionable, IAccio
 
     /// <summary>
     /// La única prórroga: lleva el plazo a <paramref name="nuevoPlazo"/>, posterior al ordinario y como mucho dos
-    /// meses después de él, con motivo escrito. No cambia el estado.
+    /// meses después de él, con motivo escrito. Solo se acuerda dentro del primer mes (RGPD art. 12.3: la prórroga
+    /// se informa al interesado dentro del primer mes): el día de negocio de <paramref name="ahoraUtc"/> tiene que
+    /// ser, como tarde, el del plazo ordinario. Con el plazo ordinario vencido ya no hay prórroga. No cambia el
+    /// estado.
     /// </summary>
     public void Prorrogar(DateOnly nuevoPlazo, string motivo, Guid actorUsuarioId, DateTime ahoraUtc)
     {
         ExigirAbierta("prorrogar");
         if (EstaProrrogada)
             throw new InvalidOperationException("El plazo de esta solicitud ya se prorrogó una vez.");
+        if (DiaDeNegocio.De(ahoraUtc) > PlazoOrdinario)
+            throw new InvalidOperationException(
+                "El plazo ordinario ya venció: la prórroga solo se acuerda dentro del primer mes.");
         ExigirActor(actorUsuarioId, nameof(actorUsuarioId));
         var motivoLimpio = ExigirMotivo(motivo, nameof(motivo), "Prorrogar el plazo exige un motivo escrito.");
         if (nuevoPlazo <= PlazoOrdinario)

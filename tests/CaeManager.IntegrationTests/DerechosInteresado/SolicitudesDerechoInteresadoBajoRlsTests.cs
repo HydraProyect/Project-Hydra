@@ -154,11 +154,13 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
         const string Descripcion = "Pide copia de sus datos.";
         const string MotivoProrroga = "Motivo-de-prorroga-reconocible";
         const string Resultado = "Resultado-reconocible-entregado";
+        // Sin clave ajena: el Trabajador no necesita existir para que la solicitud lo señale.
+        var trabajadorId = Guid.NewGuid();
         var auditoria = new AuditoriaInterceptor(new ActorAuditoriaFijo(ActorAuditoria.Normal(_usuarioId)));
         Guid id;
         await using (var runtime = CrearRuntime(auditoria))
         {
-            var solicitud = Solicitud();
+            var solicitud = Solicitud(trabajadorId);
             runtime.SolicitudesDerechoInteresado.Add(solicitud);
             await runtime.SaveChangesAsync();
             id = solicitud.Id;
@@ -189,7 +191,11 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
         var textos = string.Join("\n", registros.Select(r => (r.DatosAntes ?? string.Empty) + (r.DatosDespues ?? string.Empty)));
         textos.Should().Contain("***", "control positivo: los campos sensibles están, enmascarados");
         textos.Should().NotContain("Paula Campos").And.NotContain(Descripcion)
-            .And.NotContain(MotivoProrroga).And.NotContain(Resultado);
+            .And.NotContain(MotivoProrroga).And.NotContain(Resultado)
+            .And.NotContain(trabajadorId.ToString(), "RegistrosAuditoria la lee Soporte TALVEG: no dice a quién se refiere");
+        var creado = registros.Single(r => r.Accion == "Creado");
+        creado.DatosDespues.Should().Contain("\"TrabajadorId\":\"***\"", "control positivo: el campo está, enmascarado")
+            .And.Contain($"\"Tipo\":{(int)TipoDerechoInteresado.Acceso}", "el tipo de derecho queda en claro");
     }
 
     [Fact]
@@ -226,6 +232,53 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
             "control positivo: el motivo está en lo que cambió, enmascarado");
         var textos = string.Join("\n", registros.Select(r => (r.DatosAntes ?? string.Empty) + (r.DatosDespues ?? string.Empty)));
         textos.Should().NotContain(MotivoDenegacion);
+    }
+
+    [Fact]
+    public async Task La_auditoria_de_la_concesion_y_su_revocacion_lleva_su_accion_el_actor_real_y_los_datos_en_claro()
+    {
+        var beneficiario = Guid.NewGuid();
+        var auditoria = new AuditoriaInterceptor(new ActorAuditoriaFijo(ActorAuditoria.Normal(_usuarioId)));
+        Guid id;
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var repositorio = new ConcesionCapacidadTenantRepository(runtime);
+            var concesion = ConcesionCapacidadTenant.Conceder(
+                beneficiario, CapacidadTenant.DerechosDelInteresado, _usuarioId, DateTime.UtcNow);
+            repositorio.Agregar(concesion);
+            (await repositorio.GuardarConcesionAsync(default)).Should().BeTrue();
+            id = concesion.Id;
+        }
+
+        await using (var runtime = CrearRuntime(auditoria))
+        {
+            var concesion = await new ConcesionCapacidadTenantRepository(runtime)
+                .ObtenerVigenteAsync(beneficiario, CapacidadTenant.DerechosDelInteresado, default);
+            concesion!.Revocar(_usuarioId, DateTime.UtcNow);
+            await runtime.SaveChangesAsync();
+        }
+
+        var registros = await _propietario.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadId == id)
+            .ToListAsync();
+
+        registros.Select(r => r.Accion).Should().BeEquivalentTo(
+            ["Creado", RegistroAuditoria.AccionCapacidadRevocada], "conceder y revocar dejan cada uno su acción");
+        registros.Should().AllSatisfy(r =>
+        {
+            r.EntidadTipo.Should().Be(nameof(ConcesionCapacidadTenant));
+            r.ActorRealUsuarioId.Should().Be(_usuarioId);
+            r.TenantId.Should().Be(_tenantSesion);
+        });
+        // La concesión no lleva datos del interesado: quién la recibe, qué capacidad y quién la concedió o revocó
+        // quedan en claro, que es lo que el rastro tiene que poder contar.
+        var textos = string.Join("\n", registros.Select(r => (r.DatosAntes ?? string.Empty) + (r.DatosDespues ?? string.Empty)));
+        textos.Should().NotContain("***");
+        registros.Single(r => r.Accion == "Creado").DatosDespues.Should()
+            .Contain(beneficiario.ToString())
+            .And.Contain($"\"{nameof(ConcesionCapacidadTenant.Capacidad)}\":{(int)CapacidadTenant.DerechosDelInteresado}");
+        registros.Single(r => r.Accion == RegistroAuditoria.AccionCapacidadRevocada).DatosDespues.Should()
+            .Contain(nameof(ConcesionCapacidadTenant.RevocadaPorUsuarioId)).And.Contain(_usuarioId.ToString());
     }
 
     [Fact]
@@ -306,9 +359,9 @@ public class SolicitudesDerechoInteresadoBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501");
     }
 
-    private SolicitudDerechoInteresado Solicitud() => SolicitudDerechoInteresado.Registrar(
+    private SolicitudDerechoInteresado Solicitud(Guid? trabajadorId = null) => SolicitudDerechoInteresado.Registrar(
         TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.CorreoElectronico, DiaDeNegocio.Hoy(),
-        "Paula Campos", null, "Pide copia de sus datos.", _usuarioId, DiaDeNegocio.Hoy(), DateTime.UtcNow);
+        "Paula Campos", trabajadorId, "Pide copia de sus datos.", _usuarioId, DiaDeNegocio.Hoy(), DateTime.UtcNow);
 
     private CurrentUserServiceFalso Usuario() => new(_usuarioId, Roles.Administrador, tenantOrigenId: _tenantSesion);
 

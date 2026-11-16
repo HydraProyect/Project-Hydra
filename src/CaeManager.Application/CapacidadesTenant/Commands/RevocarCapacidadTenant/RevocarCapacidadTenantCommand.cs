@@ -28,7 +28,8 @@ public class RevocarCapacidadTenantCommandHandler(
     IAutoridadCapacidadesTenant autoridad,
     IActorAuditoria actorAuditoria,
     IConcesionCapacidadTenantRepository concesiones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    TimeProvider reloj)
     : IRequestHandler<RevocarCapacidadTenantCommand, Result>
 {
     public async Task<Result> Handle(RevocarCapacidadTenantCommand request, CancellationToken cancellationToken)
@@ -41,7 +42,7 @@ public class RevocarCapacidadTenantCommandHandler(
         if (concesion is null)
             return Result.Fallo(ErroresCapacidadesTenant.NoVigente);
 
-        concesion.Revocar(actorRealId, DateTime.UtcNow);
+        concesion.Revocar(actorRealId, reloj.GetUtcNow().UtcDateTime);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return Result.Exito();
     }

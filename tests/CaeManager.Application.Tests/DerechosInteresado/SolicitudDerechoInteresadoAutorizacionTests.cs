@@ -105,7 +105,7 @@ public class SolicitudDerechoInteresadoAutorizacionTests
 
         var revocar = await new RevocarCapacidadTenantCommandHandler(
                 mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true),
-                new ActorFijo(Normal(Administrador)), mundo.Concesiones, mundo.UnitOfWork)
+                new ActorFijo(Normal(Administrador)), mundo.Concesiones, mundo.UnitOfWork, mundo.Reloj)
             .Handle(new RevocarCapacidadTenantCommand(Coordinadora, CapacidadTenant.DerechosDelInteresado), default);
         revocar.EsExitoso.Should().BeTrue();
         concesion.RevocadaPorUsuarioId.Should().Be(Administrador);
@@ -274,7 +274,7 @@ public class SolicitudDerechoInteresadoAutorizacionTests
             .Should().Be(ErroresCapacidadesTenant.SoloAdministradorDelTenant);
         (await mundo.Conceder(cruzado, Guid.NewGuid(), TenantPropietario)).Error
             .Should().Be(ErroresCapacidadesTenant.SoloAdministradorDelTenant);
-        (await new RevocarCapacidadTenantCommandHandler(direccion, new ActorFijo(Normal(Coordinadora)), mundo.Concesiones, mundo.UnitOfWork)
+        (await new RevocarCapacidadTenantCommandHandler(direccion, new ActorFijo(Normal(Coordinadora)), mundo.Concesiones, mundo.UnitOfWork, mundo.Reloj)
             .Handle(new RevocarCapacidadTenantCommand(Coordinadora, CapacidadTenant.DerechosDelInteresado), default))
             .Error.Should().Be(ErroresCapacidadesTenant.SoloAdministradorDelTenant);
         mundo.Concesiones.Filas.Should().ContainSingle().Which.EstaVigente.Should().BeTrue();
@@ -290,7 +290,7 @@ public class SolicitudDerechoInteresadoAutorizacionTests
         (await mundo.Conceder(admin, Coordinadora, TenantPropietario)).Error.Should().Be(ErroresCapacidadesTenant.YaConcedida);
         (await mundo.Conceder(admin, Guid.NewGuid(), TenantPropietario, cuentaConEscritura: false)).Error
             .Should().Be(ErroresCapacidadesTenant.BeneficiarioNoValido);
-        (await new RevocarCapacidadTenantCommandHandler(admin, new ActorFijo(Normal(Administrador)), mundo.Concesiones, mundo.UnitOfWork)
+        (await new RevocarCapacidadTenantCommandHandler(admin, new ActorFijo(Normal(Administrador)), mundo.Concesiones, mundo.UnitOfWork, mundo.Reloj)
             .Handle(new RevocarCapacidadTenantCommand(Guid.NewGuid(), CapacidadTenant.DerechosDelInteresado), default))
             .Error.Should().Be(ErroresCapacidadesTenant.NoVigente);
     }
@@ -319,12 +319,14 @@ public class SolicitudDerechoInteresadoAutorizacionTests
     [Fact]
     public void El_validador_del_registro_rechaza_fecha_futura_nombre_vacio_y_valores_desconocidos()
     {
-        var validador = new RegistrarSolicitudDerechoInteresadoCommandValidator();
+        // 16-nov a las 23:30 UTC ya es el 17-nov en Madrid: «hoy» es el día de negocio del reloj inyectado.
+        var reloj = new RelojFijo(new DateTimeOffset(2026, 11, 16, 23, 30, 0, TimeSpan.Zero));
+        var validador = new RegistrarSolicitudDerechoInteresadoCommandValidator(reloj);
         var valido = new RegistrarSolicitudDerechoInteresadoCommand(
-            TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.CorreoPostal, DiaDeNegocio.Hoy(), "Paula", null, null);
+            TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.CorreoPostal, new DateOnly(2026, 11, 17), "Paula", null, null);
 
         validador.Validate(valido).IsValid.Should().BeTrue();
-        validador.Validate(valido with { FechaRecepcion = DiaDeNegocio.Hoy().AddDays(1) }).IsValid.Should().BeFalse();
+        validador.Validate(valido with { FechaRecepcion = new DateOnly(2026, 11, 18) }).IsValid.Should().BeFalse();
         validador.Validate(valido with { NombreInteresado = "  " }).IsValid.Should().BeFalse();
         validador.Validate(valido with { Tipo = (TipoDerechoInteresado)99 }).IsValid.Should().BeFalse();
         validador.Validate(valido with { Canal = (CanalEntradaSolicitudDerecho)99 }).IsValid.Should().BeFalse();
@@ -338,10 +340,10 @@ public class SolicitudDerechoInteresadoAutorizacionTests
         var autoridad = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true);
 
         var resolverSinVerificar = await new TramitarSolicitudDerechoInteresadoCommandHandler(
-                autoridad, new ActorFijo(Normal(Administrador)), mundo.Solicitudes, mundo.UnitOfWork)
+                autoridad, new ActorFijo(Normal(Administrador)), mundo.Solicitudes, mundo.UnitOfWork, mundo.Reloj)
             .Handle(new ResolverSolicitudDerechoCommand(mundo.Solicitud.Id, null), default);
         var otraSolicitud = await new TramitarSolicitudDerechoInteresadoCommandHandler(
-                autoridad, new ActorFijo(Normal(Administrador)), mundo.Solicitudes, mundo.UnitOfWork)
+                autoridad, new ActorFijo(Normal(Administrador)), mundo.Solicitudes, mundo.UnitOfWork, mundo.Reloj)
             .Handle(new VerificarIdentidadSolicitudDerechoCommand(Guid.NewGuid()), default);
 
         resolverSinVerificar.Error!.Codigo.Should().Be("SolicitudDerecho.PasoNoPermitido");
@@ -349,9 +351,86 @@ public class SolicitudDerechoInteresadoAutorizacionTests
         mundo.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    // ── Plazo con el reloj inyectado ─────────────────────────────────────────
+
+    [Theory]
+    [InlineData(22, 59, true)]
+    [InlineData(23, 0, false)]
+    public async Task La_prorroga_se_admite_hasta_el_dia_del_plazo_ordinario_segun_el_reloj_inyectado(
+        int hora, int minuto, bool admitida)
+    {
+        // El plazo ordinario es el 16-dic-2026; el 16-dic a las 23:00 UTC ya es el 17-dic en Madrid (CET, UTC+1).
+        var mundo = new Mundo();
+        mundo.Solicitud.PlazoOrdinario.Should().Be(new DateOnly(2026, 12, 16), "control del borde");
+        mundo.Reloj.Ahora = new DateTimeOffset(2026, 12, 16, hora, minuto, 0, TimeSpan.Zero);
+        var autoridad = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true);
+
+        var resultado = await new TramitarSolicitudDerechoInteresadoCommandHandler(
+                autoridad, new ActorFijo(Normal(Administrador)), mundo.Solicitudes, mundo.UnitOfWork, mundo.Reloj)
+            .Handle(new ProrrogarSolicitudDerechoCommand(
+                mundo.Solicitud.Id, new DateOnly(2027, 1, 31), "Complejidad."), default);
+
+        if (admitida)
+        {
+            resultado.EsExitoso.Should().BeTrue();
+            mundo.Solicitud.PlazoVencimiento.Should().Be(new DateOnly(2027, 1, 31));
+            mundo.Solicitud.ProrrogadaEnUtc.Should().Be(mundo.Reloj.Ahora.UtcDateTime, "el instante del paso es el del reloj");
+            mundo.UnitOfWork.VecesGuardado.Should().Be(1);
+        }
+        else
+        {
+            resultado.Error!.Codigo.Should().Be("SolicitudDerecho.PasoNoPermitido");
+            mundo.Solicitud.EstaProrrogada.Should().BeFalse();
+            mundo.UnitOfWork.VecesGuardado.Should().Be(0);
+        }
+    }
+
+    [Fact]
+    public async Task Registrar_y_conceder_toman_el_instante_y_el_dia_del_reloj_inyectado()
+    {
+        var mundo = new Mundo();
+        // Un reloj años por delante del real: si el handler leyera el reloj del sistema, la recepción quedaría en el
+        // futuro y el dominio la rechazaría.
+        mundo.Reloj.Ahora = new DateTimeOffset(2030, 3, 5, 8, 15, 0, TimeSpan.Zero);
+
+        (await mundo.Registrar(GestoraExterna, trabajadorId: null)).EsExitoso.Should().BeTrue();
+        (await mundo.Conceder(
+                mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true),
+                Coordinadora, tenantDelBeneficiario: TenantPropietario))
+            .EsExitoso.Should().BeTrue();
+
+        var registrada = mundo.Solicitudes.Agregadas.Should().ContainSingle().Subject;
+        registrada.RegistradaEnUtc.Should().Be(mundo.Reloj.Ahora.UtcDateTime);
+        registrada.FechaRecepcion.Should().Be(new DateOnly(2030, 3, 5));
+        mundo.Concesiones.Filas.Should().ContainSingle().Which.ConcedidaEnUtc.Should().Be(mundo.Reloj.Ahora.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task Un_usuario_simulado_cierra_el_paso_aunque_todo_lo_demas_le_diera_acceso()
+    {
+        // Solo cambia el usuario simulado: el actor real es el usuario de la sesión, vía normal, sin Sesión
+        // Privilegiada y con origen igual al Tenant actual. Lo único que cierra es la comprobación de impersonación.
+        var mundo = new Mundo();
+        var comoSiMismo = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true);
+        var simulando = mundo.Autoridad(Administrador, "Administrador", TenantPropietario, administradorEnBase: true,
+            actor: new ActorAuditoria(Administrador, Guid.NewGuid(), TipoViaAcceso.Normal, null));
+
+        (await comoSiMismo.TieneCapacidadAsync(CapacidadTenant.DerechosDelInteresado, default)).Should().BeTrue("control");
+        (await comoSiMismo.EsAdministradorDelTenantPropietarioAsync(default)).Should().BeTrue("control");
+        (await simulando.TieneCapacidadAsync(CapacidadTenant.DerechosDelInteresado, default)).Should().BeFalse();
+        (await simulando.EsAdministradorDelTenantPropietarioAsync(default)).Should().BeFalse();
+    }
+
     // ── Arnés ────────────────────────────────────────────────────────────────
 
     private static ActorAuditoria Normal(Guid usuario) => new(usuario, null, TipoViaAcceso.Normal, null);
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public DateTimeOffset Ahora { get; set; } = ahora;
+
+        public override DateTimeOffset GetUtcNow() => Ahora;
+    }
 
     private sealed class Mundo
     {
@@ -359,13 +438,16 @@ public class SolicitudDerechoInteresadoAutorizacionTests
         public SolicitudesFalsas Solicitudes { get; } = new();
         public TrabajadorRepositorioFalso Trabajadores { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+
+        // Reloj fijo: la solicitud se recibe el 16-nov-2026 y su plazo ordinario es el 16-dic-2026.
+        public RelojFijo Reloj { get; } = new(new DateTimeOffset(2026, 11, 16, 10, 0, 0, TimeSpan.Zero));
         public SolicitudDerechoInteresado Solicitud { get; }
 
         public Mundo()
         {
             Solicitud = SolicitudDerechoInteresado.Registrar(
-                TipoDerechoInteresado.Supresion, CanalEntradaSolicitudDerecho.CorreoElectronico, DiaDeNegocio.Hoy(),
-                "Paula Campos", null, null, GestoraExterna, DiaDeNegocio.Hoy(), DateTime.UtcNow);
+                TipoDerechoInteresado.Supresion, CanalEntradaSolicitudDerecho.CorreoElectronico, DiaDeNegocio.Hoy(Reloj),
+                "Paula Campos", null, null, GestoraExterna, DiaDeNegocio.Hoy(Reloj), Reloj.GetUtcNow().UtcDateTime);
             Solicitudes.Existentes.Add(Solicitud);
         }
 
@@ -392,20 +474,20 @@ public class SolicitudDerechoInteresadoAutorizacionTests
             return await new ConcederCapacidadTenantCommandHandler(
                     autoridad, new TenantActualFijo(TenantPropietario), new ActorFijo(Normal(actor)),
                     new DirectorioUsuariosServiceFalso(tenantDelUsuario: tenantDelBeneficiario, cuentaActivaConRol: cuentaConEscritura),
-                    Concesiones)
+                    Concesiones, Reloj)
                 .Handle(new ConcederCapacidadTenantCommand(beneficiario, CapacidadTenant.DerechosDelInteresado), default);
         }
 
         public Task<Result<Guid>> Registrar(Guid registrador, Guid? trabajadorId, IAlcanceDatosService? alcance = null) =>
             new RegistrarSolicitudDerechoInteresadoCommandHandler(
                     new ActorFijo(Normal(registrador)), Trabajadores, alcance ?? new AlcanceDatosServiceFalso(),
-                    Solicitudes, UnitOfWork)
+                    Solicitudes, UnitOfWork, Reloj)
                 .Handle(new RegistrarSolicitudDerechoInteresadoCommand(
-                    TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.Presencial, DiaDeNegocio.Hoy(),
+                    TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.Presencial, DiaDeNegocio.Hoy(Reloj),
                     "Paula Campos", trabajadorId, null), default);
 
         private TramitarSolicitudDerechoInteresadoCommandHandler Tramitar(IAutoridadCapacidadesTenant autoridad, Guid actor) =>
-            new(autoridad, new ActorFijo(Normal(actor)), Solicitudes, UnitOfWork);
+            new(autoridad, new ActorFijo(Normal(actor)), Solicitudes, UnitOfWork, Reloj);
 
         public Task<Result> Verificar(IAutoridadCapacidadesTenant autoridad, Guid actor) =>
             Tramitar(autoridad, actor).Handle(new VerificarIdentidadSolicitudDerechoCommand(Solicitud.Id), default);
