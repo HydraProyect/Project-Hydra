@@ -63,7 +63,9 @@ public class GuardaPorServicioBehaviorTests
         llego.Should().Be(pasa);
         respuesta.EsExitoso.Should().Be(pasa);
         if (!pasa)
-            respuesta.Error!.Codigo.Should().Be("Autorizacion.ComandoInboundFueraDePapel");
+            respuesta.Error!.Codigo.Should().Be(papel == PapelActivo.OperacionQueYaNoAutoriza
+                ? "Autorizacion.OperacionQueYaNoAutoriza"
+                : "Autorizacion.ComandoInboundFueraDePapel");
     }
 
     [Fact]
@@ -80,19 +82,24 @@ public class GuardaPorServicioBehaviorTests
     [InlineData(PapelActivo.Outbound, true)]
     [InlineData(PapelActivo.SinPapel, true)]
     [InlineData(PapelActivo.Inbound, false)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, false)]
     public async Task Con_papel_Inbound_un_comando_que_no_es_de_Inbound_falla_cerrado(PapelActivo papel, bool pasa)
     {
         var (respuesta, llego) = await Ejecutar(new ComandoSinServicio(), papel, Result.Exito());
 
         llego.Should().Be(pasa);
         if (!pasa)
-            respuesta.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDelPapelInbound");
+            respuesta.Error!.Codigo.Should().Be(papel == PapelActivo.OperacionQueYaNoAutoriza
+                ? "Autorizacion.OperacionQueYaNoAutoriza"
+                : "Autorizacion.ComandoFueraDelPapelInbound");
     }
 
-    [Fact]
-    public async Task Con_papel_Inbound_un_comando_de_autoservicio_pasa()
+    [Theory]
+    [InlineData(PapelActivo.Inbound)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]
+    public async Task Un_comando_de_autoservicio_pasa_con_papel_Inbound_y_con_una_operacion_que_ya_no_autoriza(PapelActivo papel)
     {
-        var (_, llego) = await Ejecutar(new ComandoDeAutoservicio(), PapelActivo.Inbound, Result.Exito());
+        var (_, llego) = await Ejecutar(new ComandoDeAutoservicio(), papel, Result.Exito());
 
         llego.Should().BeTrue();
     }

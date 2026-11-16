@@ -12,6 +12,8 @@ namespace CaeManager.Application.Common;
 /// <list type="bullet">
 /// <item>Un <see cref="IComandoInbound"/> solo pasa en el Tenant de origen o con papel <see cref="PapelActivo.Inbound"/>.
 /// Con papel Outbound, por la vía heredada (DelegacionTenant solo es de Outbound) o sin papel, no.</item>
+/// <item>Con una operación seleccionada que ya no autoriza (<see cref="PapelActivo.OperacionQueYaNoAutoriza"/>), no pasa
+/// ningún comando salvo los de autoservicio, aunque el rol se resolviera un instante antes con la operación vigente.</item>
 /// <item>Con papel <see cref="PapelActivo.Inbound"/>, un comando de escritura solo pasa si es <see cref="IComandoInbound"/>
 /// o <see cref="IComandoDeAutoservicio"/> (lo que escribe es del propio usuario). Los comandos del Núcleo y de Outbound
 /// no llevan marcador de servicio, así que en un contexto Inbound se niegan todos: el incremento que necesite uno lo
@@ -36,6 +38,14 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(ICurrentUserS
             return await next(cancellationToken);
 
         var papel = await currentUserService.ObtenerPapelActivoAsync();
+
+        // La operación del token dejó de autorizar después de resolver el rol (caducó, se cerró o perdió la línea
+        // Inbound): ningún comando del Tenant pasa, de ningún servicio (Codex, ronda 3 de la PR #2293). Solo lo de
+        // autoservicio, que escribe datos del propio usuario y no del Tenant.
+        if (papel == PapelActivo.OperacionQueYaNoAutoriza && request is not IComandoDeAutoservicio)
+            return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
+                "Autorizacion.OperacionQueYaNoAutoriza",
+                "La operación con la que trabajas en esta organización ya no está vigente. Vuelve a elegirla en el selector."));
 
         if (request is IComandoInbound)
         {
