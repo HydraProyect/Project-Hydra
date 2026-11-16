@@ -113,10 +113,11 @@ public class CatalogoBaseBajoRuntimeTests : IAsyncLifetime
         await using var desdeA = await AbrirComoAsync(Runtime, conTenant ? _tenantA : null);
         await using var desdeB = await AbrirComoAsync(Runtime, conTenant ? _tenantB : null);
 
+        // CatalogoRequisitosBase: el sembrado por el test más los dos que la migración de B-14 deja inactivos (R-14).
         foreach (var (tabla, filas) in new[]
                  {
                      ("CatalogoActividades", 2L), ("CatalogoActividadesCodigosOficiales", 2L), ("CatalogoRiesgos", 2L),
-                     ("CatalogoRequisitosBase", 1L), ("CatalogoReglasRiesgoRequisito", 1L),
+                     ("CatalogoRequisitosBase", 3L), ("CatalogoReglasRiesgoRequisito", 1L),
                  })
         {
             (await ContarAsync(desdeA, tabla)).Should().Be(filas, tabla);
