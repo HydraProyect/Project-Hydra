@@ -266,7 +266,7 @@ public partial class ContratoAccesoDetalle
             {
                 AccionContrato.Finalizar => await Mediator.Send(new CerrarContratoAccesoCommand(contrato.Id, DiaDeNegocio.Hoy(), contrato.Version)),
                 AccionContrato.Cancelar => await Mediator.Send(new CancelarContratoAccesoCommand(contrato.Id, contrato.Version)),
-                _ => await Mediator.Send(new EliminarContratoAccesoCommand(contrato.Id)),
+                _ => await Mediator.Send(new EliminarContratoAccesoCommand(contrato.Id, contrato.Version)),
             };
 
             if (!resultado.EsExitoso)
