@@ -99,7 +99,7 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         await using var comando = new NpgsqlCommand($"""
             SELECT p.prosecdef, p.prorettype::regtype::text, p.proretset, p.proconfig, p.provolatile::text,
                    p.proowner = (SELECT c.relowner FROM pg_class c WHERE c.oid = 'public."DelegacionesTenant"'::regclass),
-                   COALESCE((SELECT bool_or(a.grantee = 0) FROM aclexplode(p.proacl) a), false),
+                   COALESCE((SELECT bool_or(a.grantee = 0) FROM aclexplode(p.proacl) a), true),
                    has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE'),
                    has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'),
                    has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE'),
@@ -113,7 +113,8 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         lector.GetBoolean(0).Should().BeTrue("sin SECURITY DEFINER no leería la tabla que el rol de Aprovisionamiento no tiene");
         lector.GetString(1).Should().Be("boolean");
         lector.GetBoolean(2).Should().BeFalse("no devuelve filas");
-        lector.GetFieldValue<string[]>(3).Should().ContainSingle(c => c.StartsWith("search_path=", StringComparison.Ordinal));
+        lector.GetFieldValue<string[]>(3).Should().Equal(["search_path=pg_catalog, pg_temp"],
+            "SECURITY DEFINER: con public en el search_path, un objeto del mismo nombre la secuestraría");
         // VOLATILE, no STABLE: compara la caducidad con clock_timestamp() (ronda 4 de Codex en la PR #2237, media 2), que
         // cambia dentro de una misma sentencia y rompe la promesa de STABLE. Con now(), una transacción que esperó al
         // FOR SHARE del trigger de Encargos seguía viendo vigente una delegación que caducó durante la espera. Al ser
@@ -122,13 +123,53 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         lector.GetString(4).Should().Be("v",
             "compara la caducidad con el reloj de pared de la base, leído después del bloqueo, no con el now() de la transacción");
         lector.GetBoolean(5).Should().BeTrue("la función lee con el propietario de las tablas");
-        lector.GetBoolean(6).Should().BeFalse("PUBLIC no la ejecuta");
+        lector.GetBoolean(6).Should().BeFalse(
+            "PUBLIC no la ejecuta (sin ACL, proacl es NULL y vale el permiso por defecto de PUBLIC, que el COALESCE cuenta)");
         lector.GetBoolean(7).Should().BeTrue();
         lector.GetBoolean(8).Should().BeTrue();
         lector.GetBoolean(9).Should().BeTrue();
         lector.GetBoolean(10).Should().BeFalse("la función no se acompaña de un SELECT sobre la tabla");
         lector.GetInt16(11).Should().Be(1,
             "solo recibe el Id de la operación: con el contador o la fecha como argumento serviría de oráculo");
+    }
+
+    /// <summary>
+    /// Ronda 4 de Codex en la PR #2237, media 2: la caducidad se compara con <c>clock_timestamp()</c>, no con el
+    /// <c>now()</c> de la transacción. Una transacción que empezó antes de que caducara su DelegacionTenant de origen (por
+    /// ejemplo, la que esperó al <c>FOR SHARE</c> del trigger de Encargos) no la ve vigente después de la caducidad. El
+    /// control comprueba, en la misma transacción, que con <c>now()</c> la delegación seguiría vigente.
+    /// </summary>
+    [Fact]
+    public async Task Compara_la_caducidad_con_el_reloj_de_pared_y_no_con_el_inicio_de_la_transaccion()
+    {
+        var operacion = _casos["amparada"].Operacion;
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        async Task<object?> EjecutarAsync(string sql)
+        {
+            await using var comando = new NpgsqlCommand(sql, conexion, transaccion);
+            return await comando.ExecuteScalarAsync();
+        }
+
+        var origen = $"""(SELECT o."OrigenId" FROM public."AsignacionesOperacion" o WHERE o."Id" = '{operacion}')""";
+        // now() quedó fijado al empezar la transacción; la delegación caduca un segundo después del reloj de pared.
+        await EjecutarAsync($"""
+            UPDATE public."DelegacionesTenant" SET "ExpiraEnUtc" = pg_catalog.clock_timestamp() + interval '1 second'
+             WHERE "Id" = {origen};
+            """);
+        (await EjecutarAsync($"SELECT {Funcion.Replace("(uuid)", "", StringComparison.Ordinal)}('{operacion}');"))
+            .Should().Be(true, "control: antes de la caducidad está amparada");
+
+        await EjecutarAsync("SELECT pg_catalog.pg_sleep(1.5);");
+
+        (await EjecutarAsync($"""SELECT pg_catalog.now() < d."ExpiraEnUtc" FROM public."DelegacionesTenant" d WHERE d."Id" = {origen};"""))
+            .Should().Be(true, "control: comparada con now(), la delegación seguiría vigente");
+        (await EjecutarAsync($"SELECT {Funcion.Replace("(uuid)", "", StringComparison.Ordinal)}('{operacion}');"))
+            .Should().Be(false, "la caducidad ya pasó en el reloj de pared de la base");
+
+        await transaccion.RollbackAsync();
     }
 
     [Fact]

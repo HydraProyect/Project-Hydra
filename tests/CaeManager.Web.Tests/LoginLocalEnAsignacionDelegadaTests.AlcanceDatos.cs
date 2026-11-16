@@ -168,6 +168,9 @@ public partial class LoginLocalEnAsignacionDelegadaTests
     [InlineData("de otro Operador CAE externo", false)]
     [InlineData("de Soporte TALVEG", false)]
     [InlineData("ninguna", false)]
+    // Revisión puente de la ronda 5 de la PR #2237: la operación nació sin origen (la ranura de la expansión) y el par
+    // tiene una delegación activa y vigente. Falla cerrado: la del par no sustituye a la de origen.
+    [InlineData("sin origen, con la del par vigente", false)]
     public async Task La_cartera_externa_Outbound_solo_concede_con_la_delegacion_del_par_vigente(string delegacion, bool concede)
     {
         using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae);
@@ -197,7 +200,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
             typeof(AsignacionOperacion).GetProperty(nameof(AsignacionOperacion.RevocacionesDelOrigen))!
                 .SetValue(operacion, fila.Revocaciones);
         }
-        else operacion.FijarOrigen(fila);
+        else if (delegacion != "sin origen, con la del par vigente") operacion.FijarOrigen(fila);
         if (delegacion is "desactivada" or "reactivada") fila.Desactivar();
         if (delegacion == "reactivada") fila.Reactivar();
         if (delegacion == "caducada")

@@ -510,6 +510,14 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         inicio.Should().BeGreaterThan(0, "la función recorre las operaciones del par");
         var bucle = definicion[inicio..definicion.IndexOf("LOOP", inicio, StringComparison.Ordinal)];
         bucle.Should().Contain("FOR NO KEY UPDATE");
+        bucle.Should().NotContain("FOR UPDATE", "un FOR UPDATE sobre las operaciones choca con el FOR KEY SHARE de la clave foránea");
+
+        // El orden común (revisión puente de la ronda 5): primero la DelegacionTenant con FOR UPDATE y después sus
+        // operaciones. Bloquear las operaciones antes que la delegación invertiría el orden del encargo en vuelo.
+        var delegacion = definicion.IndexOf("FROM public.\"DelegacionesTenant\" d", StringComparison.Ordinal);
+        delegacion.Should().BeInRange(0, inicio, "la delegación se lee y se bloquea antes de recorrer las operaciones");
+        definicion.IndexOf("FOR UPDATE", delegacion, StringComparison.Ordinal).Should().BeInRange(delegacion, inicio,
+            "el FOR UPDATE de la delegación precede al bucle de las operaciones");
     }
 
     // ── Los disparadores: lo que los privilegios por columna no cierran ───

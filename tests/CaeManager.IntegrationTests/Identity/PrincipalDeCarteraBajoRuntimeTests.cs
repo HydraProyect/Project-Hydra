@@ -375,30 +375,32 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             var ahora = DateTime.UtcNow;
             contexto.Tenants.AddRange(conInbound, conDelegacionDesactivada, control);
 
-            AsignacionOperacion Abrir(Tenant propietario, ServicioCae servicio, bool delegacionActiva)
+            DelegacionTenant Abrir(Tenant propietario, ServicioCae servicio, out Guid operacionId)
             {
                 var operacion = AsignacionOperacion.Externa(
                     propietario.Id, _otroOperador.Id, servicio, AmbitoAsignacion.Universal,
                     vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
                 var vinculo = new DelegacionTenant(_otroOperador.Id, propietario.Id);
-                if (!delegacionActiva) vinculo.Desactivar();
                 contexto.DelegacionesTenant.Add(vinculo);
-                // Solo la Outbound con la delegación activa nace amparada: la Inbound y la de delegación
-                // desactivada se siembran sin origen a propósito (la prueba es de que no se anuncian).
-                if (servicio == ServicioCae.Outbound && delegacionActiva)
-                    OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
-                else
-                    contexto.AsignacionesOperacion.Add(operacion);
+                // Las tres nacen amparadas por su delegación (revisión puente de la ronda 5 de la PR #2237): sin
+                // origen, el amparo las excluiría a todas por igual y ni el filtro de Servicio ni el de la delegación
+                // desactivada quedarían aislados.
+                OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
                 var cartera = AsignacionCartera.Externa(operacion, _coordinadorAjeno, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
                 cartera.DesignarPrincipal();
                 contexto.AsignacionesCartera.Add(cartera);
-                return operacion;
+                operacionId = operacion.Id;
+                return vinculo;
             }
 
-            Abrir(conInbound, ServicioCae.Inbound, delegacionActiva: true);
-            Abrir(conDelegacionDesactivada, ServicioCae.Outbound, delegacionActiva: false);
-            operacionDeControl = Abrir(control, ServicioCae.Outbound, delegacionActiva: true).Id;
+            Abrir(conInbound, ServicioCae.Inbound, out _);
+            var aDesactivar = Abrir(conDelegacionDesactivada, ServicioCae.Outbound, out _).Id;
+            Abrir(control, ServicioCae.Outbound, out operacionDeControl);
             await contexto.SaveChangesAsync();
+
+            // Como la ranura anterior: solo escribe Activa, después de que la operación naciera amparada.
+            (await contexto.DelegacionesTenant.IgnoreQueryFilters().Where(d => d.Id == aDesactivar)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false))).Should().Be(1);
         }
 
         Task<IReadOnlyList<OperacionExternaSobreTenant>> Leer(Tenant propietario) =>

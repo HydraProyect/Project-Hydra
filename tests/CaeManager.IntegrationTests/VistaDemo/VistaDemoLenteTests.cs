@@ -132,8 +132,9 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // hacen elegible al Gestor CAE que solo tiene esa, ni añaden el Tenant 3 a la lente de G1.
         var op3Inbound = AsignacionOperacion.Externa(_p3, _operador, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
         // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios. Las operaciones
-        // Outbound de esos pares nacen amparadas por su delegación (EF inserta la delegación antes); la Inbound, la del
-        // Tenant real propio y la del otro Operador CAE (sin delegación de su par) se siembran sin origen.
+        // Outbound de esos pares nacen amparadas por su delegación (EF inserta la delegación antes), y también la Inbound
+        // del Tenant 3, para que solo la excluya el Servicio y no la falta de origen (revisión puente de la ronda 5 de la
+        // PR #2237); la del Tenant real propio y la del otro Operador CAE (sin delegación de su par) se siembran sin origen.
         var delegaciones = new Dictionary<Guid, DelegacionTenant>();
         foreach (var propietario in new[] { _p1, _p2, _p3 })
         {
@@ -147,7 +148,8 @@ public class VistaDemoLenteTests : IAsyncLifetime
 
         foreach (var (operacion, propietario) in new[] { (op1a, _p1), (op1b, _p1), (op1c, _p1), (op1d, _p1), (op2, _p2), (op3, _p3) })
             OperacionExternaAmparada.Agregar(contexto, operacion, delegaciones[propietario]);
-        contexto.AsignacionesOperacion.AddRange(opAjena, opRealPropia, op3Inbound);
+        OperacionExternaAmparada.Agregar(contexto, op3Inbound, delegaciones[_p3]);
+        contexto.AsignacionesOperacion.AddRange(opAjena, opRealPropia);
         contexto.AsignacionesCartera.AddRange(
             Cartera(op3Inbound, _g1), Cartera(op3Inbound, _gSoloInbound),
             Cartera(op1a, _g1), Cartera(op2, _g1),

@@ -432,6 +432,10 @@ public class CarteraYFilaHeredadaSoloOutboundTests
     [InlineData("cartera suspendida", true)]
     [InlineData("cartera de un trabajador", true)]
     [InlineData("cartera de un proyecto", true)]
+    // Revisión puente de la ronda 5 de la PR #2237: la otra operación figura vigente pero su DelegacionTenant de origen
+    // ya no la ampara; sin el amparo en el join, su cartera sostendría la fila.
+    [InlineData("otra sin origen", true)]
+    [InlineData("otra con su origen revocado y reactivado", true)]
     public async Task La_otra_cartera_solo_sostiene_la_fila_si_ella_y_su_operacion_Outbound_estan_vigentes(
         string caso, bool seRetira)
     {
@@ -471,11 +475,32 @@ public class CarteraYFilaHeredadaSoloOutboundTests
         if (caso == "cartera suspendida") laOtra.Suspender();
         else laOtra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: la otra cartera sigue figurando vigente");
 
+        DelegacionTenant[] delegaciones;
+        if (caso == "otra sin origen")
+        {
+            delegaciones = AmpararCon(vinculo, outbound);
+        }
+        else if (caso == "otra con su origen revocado y reactivado")
+        {
+            var origenDeLaOtra = new DelegacionTenant(_operador.Id, _propietario.Id);
+            otra.FijarOrigen(origenDeLaOtra);
+            origenDeLaOtra.Desactivar();
+            origenDeLaOtra.Reactivar();
+            delegaciones = [.. AmpararCon(vinculo, outbound, otra), origenDeLaOtra];
+        }
+        else
+        {
+            delegaciones = AmpararCon(vinculo, outbound, otra);
+        }
+
+        if (caso.StartsWith("otra ", StringComparison.Ordinal))
+            otra.Estado.Should().Be(EstadoAsignacion.Vigente, "precondición: solo el amparo la distingue");
+
         await using var db = new ContextoEnMemoria()
             .Con(outbound, otra)
             .Con(cerrada, laOtra)
             .Con(_operador, _propietario)
-            .Con(AmpararCon(vinculo, outbound, otra))
+            .Con(delegaciones)
             .Con(fila);
 
         await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
