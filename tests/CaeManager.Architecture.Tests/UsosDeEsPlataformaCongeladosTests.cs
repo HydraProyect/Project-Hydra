@@ -278,6 +278,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Guarda,
                 ":44 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +
                 "evita rebajar el plazo o la exigencia de los Actores de Plataforma TALVEG"),
+        ["src/CaeManager.Application/Cumplimiento/AceptacionContractual/AceptacionFueraDelAlta.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "#2009, D-6: una cuenta del Tenant de plataforma (Actor de Plataforma TALVEG) no tiene documentos " +
+                "contractuales pendientes ni los acepta: no concede nada, solo deniega"),
         ["src/CaeManager.Application/Plataforma/Commands/CambiarSegundoFactorDelTenantPorPlataforma/CambiarSegundoFactorDelTenantPorPlataformaCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":99-100 (comentario y predicado) rechazan un Tenant de plataforma como objetivo del ajuste del segundo " +

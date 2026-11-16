@@ -75,6 +75,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
         ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
+        // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
+        ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
+        ("Cumplimiento.ObtenerAceptacionesContractualesPendientesQueryHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único
