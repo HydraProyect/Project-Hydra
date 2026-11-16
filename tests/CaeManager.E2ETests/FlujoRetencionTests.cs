@@ -54,11 +54,12 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         var botonBuscar = page.GetByRole(AriaRole.Button, new() { Name = "Buscar datos que hayan cumplido plazo", Exact = true });
         await botonBuscar.ClickAsync();
 
-        // Barrera (#2187): que haya una tabla visible no prueba que Buscar haya terminado. BuscarAsync recarga la lista
-        // después del Command, y la carga pasa por la misma PuertaAccesoDatos del circuito que el Command y que la
-        // carga inicial, así que puede pintarse una tabla mientras la recarga de Buscar sigue en vuelo. En el run
-        // 43122999105 «He avisado a la organización» se pulsó a ~15 ms del fin de BuscarDatosPurgablesCommand y
-        // MarcarTenantAvisadoCommand no llegó al mediador; por qué se perdió ese clic no está demostrado. El aviso de
+        // Barrera (#2187): que haya una tabla visible no prueba que Buscar haya terminado. En el run 43122999105, anterior
+        // a #2198, «He avisado a la organización» se pulsó a ~15 ms del fin de BuscarDatosPurgablesCommand y
+        // MarcarTenantAvisadoCommand no llegó al mediador. Por qué se perdió ese clic no está demostrado. El mecanismo
+        // probable era la carga inicial, que comparte la PuertaAccesoDatos del circuito con el Command: al correr
+        // detrás de él, pintaba sus propuestas con la recarga de Buscar aún en vuelo. #2198 lo cierra en producto, y
+        // esta espera no depende de esa causa: el test no toca la tabla mientras Buscar siga en curso. El aviso de
         // Buscar sale cuando el Command ha terminado, y el botón solo vuelve a habilitarse cuando BuscarAsync ha
         // terminado del todo, recarga incluida (Cargando="_buscando", Deshabilitado="… || _cargando"). Vale cualquiera
         // de los dos avisos de éxito: la barrera no depende de quién creó las propuestas, que se comprueban abajo.
