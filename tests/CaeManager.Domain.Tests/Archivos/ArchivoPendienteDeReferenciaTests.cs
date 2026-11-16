@@ -25,16 +25,34 @@ public class ArchivoPendienteDeReferenciaTests
         crear.Should().Throw<ArgumentException>().WithParameterName("clave");
     }
 
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public void Una_hora_que_no_va_en_UTC_no_se_apunta(DateTimeKind tipo)
+    {
+        var crear = () => new ArchivoPendienteDeReferencia("a/x.pdf", new DateTime(2026, 11, 16, 20, 0, 0, tipo));
+
+        crear.Should().Throw<ArgumentException>().WithParameterName("guardadoEnUtc");
+    }
+
     [Fact]
-    public void La_clave_en_el_limite_se_apunta_y_la_hora_queda_en_UTC()
+    public void La_clave_en_el_limite_se_apunta_con_su_hora_UTC()
     {
         var clave = new string('a', ArchivoPendienteDeReferencia.LongitudMaximaClave);
-        var hora = new DateTime(2026, 11, 16, 20, 0, 0, DateTimeKind.Unspecified);
+        var hora = new DateTime(2026, 11, 16, 20, 0, 0, DateTimeKind.Utc);
 
         var pendiente = new ArchivoPendienteDeReferencia(clave, hora);
 
         pendiente.Clave.Should().Be(clave);
         pendiente.GuardadoEnUtc.Should().Be(hora);
         pendiente.GuardadoEnUtc.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Fact]
+    public void La_clave_cabe_en_las_dos_columnas_que_la_referencian()
+    {
+        ArchivoPendienteDeReferencia.LongitudMaximaClave.Should()
+            .BeGreaterThanOrEqualTo(global::CaeManager.Domain.Documentos.Documento.LongitudMaximaArchivoUrl)
+            .And.BeGreaterThanOrEqualTo(global::CaeManager.Domain.Plantillas.PlantillaDocumentoVersion.LongitudMaximaArchivoOriginalUrl);
     }
 }

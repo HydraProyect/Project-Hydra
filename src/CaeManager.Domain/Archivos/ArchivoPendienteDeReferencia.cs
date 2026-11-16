@@ -19,8 +19,14 @@ namespace CaeManager.Domain.Archivos;
 /// </summary>
 public class ArchivoPendienteDeReferencia : EntidadConTenant
 {
-    /// <summary>La misma longitud que <c>Documento.ArchivoUrl</c>, la clave más larga que se apunta aquí.</summary>
-    public const int LongitudMaximaClave = Documentos.Documento.LongitudMaximaArchivoUrl;
+    /// <summary>
+    /// La mayor de las columnas que referenciarán la clave (<c>Documento.ArchivoUrl</c> y
+    /// <c>PlantillaDocumentoVersion.ArchivoOriginalUrl</c>): una clave válida para cualquiera de las dos cabe aquí.
+    /// </summary>
+    public const int LongitudMaximaClave =
+        Documentos.Documento.LongitudMaximaArchivoUrl > Plantillas.PlantillaDocumentoVersion.LongitudMaximaArchivoOriginalUrl
+            ? Documentos.Documento.LongitudMaximaArchivoUrl
+            : Plantillas.PlantillaDocumentoVersion.LongitudMaximaArchivoOriginalUrl;
 
     /// <summary>La clave opaca que devolvió el almacenamiento al guardar el archivo.</summary>
     public string Clave { get; private set; } = string.Empty;
@@ -37,7 +43,11 @@ public class ArchivoPendienteDeReferencia : EntidadConTenant
         if (clave.Length > LongitudMaximaClave)
             throw new ArgumentException("La clave del archivo pasa de la longitud admitida.", nameof(clave));
 
+        // Una hora local o sin zona reetiquetada como UTC desplazaría las 24 h del barrido: solo se admite UTC.
+        if (guardadoEnUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("La hora de guardado de un archivo pendiente de referencia va en UTC.", nameof(guardadoEnUtc));
+
         Clave = clave;
-        GuardadoEnUtc = DateTime.SpecifyKind(guardadoEnUtc, DateTimeKind.Utc);
+        GuardadoEnUtc = guardadoEnUtc;
     }
 }
