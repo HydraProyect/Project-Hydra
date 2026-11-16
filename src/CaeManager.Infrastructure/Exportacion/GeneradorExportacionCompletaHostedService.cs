@@ -136,7 +136,9 @@ public class GeneradorExportacionCompletaHostedService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "Falló el barrido de ficheros huérfanos de exportación del Tenant {TenantId}.", tenantId);
+            // Solo el tipo: el mensaje de System.IO lleva la ruta absoluta del almacén.
+            logger.LogError("Falló el barrido de ficheros huérfanos de exportación del Tenant {TenantId} ({TipoError}).",
+                tenantId, ex.GetType().Name);
         }
         try
         {
@@ -347,7 +349,9 @@ public class GeneradorExportacionCompletaHostedService(
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                logger.LogWarning(ex, "No se pudo borrar el fichero de una exportación sustituida del Tenant {TenantId}; lo recogerá el barrido de huérfanos.", tenantId);
+                // Solo el tipo: el mensaje de System.IO lleva la ruta absoluta del fichero.
+                logger.LogWarning("No se pudo borrar el fichero de una exportación sustituida del Tenant {TenantId} ({TipoError}); lo recogerá el barrido de huérfanos.",
+                    tenantId, ex.GetType().Name);
             }
         }
     }

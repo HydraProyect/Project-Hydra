@@ -283,12 +283,13 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     {
         var t0 = InstanteRedondo();
         var reloj = new RelojAjustable(new DateTimeOffset(t0 + GeneradorExportacionCompletaHostedService.UmbralEstancada));
-        var id = await SembrarAsync(_tenantA, t0, s => s.MarcarEnCurso(t0));
+        // Pedida mucho antes de reclamarla: el umbral cuenta desde que empezó a generarse, no desde que se pidió.
+        var id = await SembrarAsync(_tenantA, t0 - TimeSpan.FromHours(5), s => s.MarcarEnCurso(t0));
         var (servicio, _) = CrearServicio(new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider()), reloj);
 
         await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
         (await LeerAsync(_tenantA, id)).Estado.Should().Be(EstadoSolicitudExportacionCompleta.EnCurso,
-            "justo en el umbral todavía no se da por muerta");
+            "justo en el umbral desde que empezó todavía no se da por muerta, aunque se pidiera hace más");
 
         reloj.Avanzar(TimeSpan.FromSeconds(1));
         await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
@@ -425,6 +426,29 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Si_el_guardado_de_la_sustitucion_falla_la_anterior_sigue_lista_y_con_su_fichero()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var reloj = new RelojAjustable(DateTimeOffset.UtcNow);
+        var primera = await SembrarAsync(_tenantA, reloj.GetUtcNow().UtcDateTime, _ => { }, protector.Proteger("contrasena-de-prueba-primera"));
+        var (servicio, almacen) = CrearServicio(protector, reloj);
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+        var ubicacionPrimera = (await LeerAsync(_tenantA, primera)).UbicacionFichero!;
+
+        reloj.Avanzar(SolicitudExportacionCompleta.IntervaloMinimo + TimeSpan.FromHours(1));
+        var segunda = await SembrarAsync(_tenantA, reloj.GetUtcNow().UtcDateTime, _ => { }, protector.Proteger("contrasena-de-prueba-segunda"));
+        var (servicioQueFalla, _) = CrearServicio(protector, reloj, interceptor: new FallaAlGuardarUnaSustitucion());
+        await servicioQueFalla.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        (await LeerAsync(_tenantA, segunda)).Estado.Should().Be(EstadoSolicitudExportacionCompleta.Fallida);
+        var anterior = await LeerAsync(_tenantA, primera);
+        anterior.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Lista, "el guardado que la caducaba no se confirmó");
+        anterior.UbicacionFichero.Should().Be(ubicacionPrimera);
+        (await almacen.AbrirAsync(_tenantA, ubicacionPrimera)).Dispose();
+        FicherosDe(_tenantA).Should().ContainSingle("el zip de la fallida se borra y el de la anterior se conserva");
+    }
+
+    [Fact]
     public async Task El_barrido_borra_temporales_y_zips_huerfanos_antiguos_y_conserva_el_de_la_lista_y_lo_reciente()
     {
         var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
@@ -438,10 +462,13 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         var zipHuerfano = Path.Combine(carpeta, $"{Guid.NewGuid():N}.zip");
         var temporalReciente = Path.Combine(carpeta, $"{Guid.NewGuid():N}.zip.tmp-{Guid.NewGuid():N}");
         var ajeno = Path.Combine(carpeta, "otro-fichero.txt");
-        foreach (var ruta in new[] { temporalViejo, zipHuerfano, temporalReciente, ajeno })
+        // Una en curso cuyo zip ya se renombró pero todavía no se marcó Lista: su ubicación es la de su Id.
+        var enCurso = await SembrarAsync(_tenantA, DateTime.UtcNow, s => s.MarcarEnCurso(DateTime.UtcNow));
+        var deLaEnCurso = Path.Combine(_carpetaZips, AlmacenExportacionesCompletasEnDisco.UbicacionPara(_tenantA, enCurso));
+        foreach (var ruta in new[] { temporalViejo, zipHuerfano, temporalReciente, ajeno, deLaEnCurso })
             await File.WriteAllTextAsync(ruta, "x");
         var antiguo = DateTime.UtcNow - GeneradorExportacionCompletaHostedService.UmbralEstancada - TimeSpan.FromHours(1);
-        foreach (var ruta in new[] { temporalViejo, zipHuerfano, deLaLista, ajeno })
+        foreach (var ruta in new[] { temporalViejo, zipHuerfano, deLaLista, ajeno, deLaEnCurso })
             File.SetLastWriteTimeUtc(ruta, antiguo);
 
         await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
@@ -449,6 +476,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
         File.Exists(temporalViejo).Should().BeFalse();
         File.Exists(zipHuerfano).Should().BeFalse("ninguna solicitud lista o viva lo nombra");
         File.Exists(deLaLista).Should().BeTrue("es el de la exportación lista, aunque sea antiguo");
+        File.Exists(deLaEnCurso).Should().BeTrue("es el de una solicitud viva que aún no se marcó Lista");
         File.Exists(temporalReciente).Should().BeTrue("puede ser el de una generación en marcha");
         File.Exists(ajeno).Should().BeTrue("solo se borran ficheros de nombre conocido");
     }
@@ -460,7 +488,8 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     {
         var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
         const string contrasena = "contrasena-de-prueba-de-la-descarga";
-        var reloj = new RelojAjustable(DateTimeOffset.UtcNow);
+        // Sin fracción de segundo: CaducaEnUtc vuelve de PostgreSQL sin truncar y el borde exacto se compara bien.
+        var reloj = new RelojAjustable(new DateTimeOffset(InstanteRedondo()));
         var id = await SembrarAsync(_tenantA, reloj.GetUtcNow().UtcDateTime, _ => { }, protector.Proteger(contrasena));
         var (servicio, almacen) = CrearServicio(protector, reloj);
         await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
@@ -569,7 +598,8 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     }
 
     private (GeneradorExportacionCompletaHostedService, AlmacenExportacionesCompletasEnDisco) CrearServicio(
-        IProtectorContrasenaExportacion protector, TimeProvider? reloj = null, long espacioLibreMinimo = 1)
+        IProtectorContrasenaExportacion protector, TimeProvider? reloj = null, long espacioLibreMinimo = 1,
+        Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor? interceptor = null)
     {
         // Mínimo de 1 byte por defecto: la comprobación de espacio mide el volumen real sin depender de cuánto
         // disco tenga el ejecutor de CI.
@@ -578,7 +608,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
             Options.Create(new DiskFileStorageServiceOptions()),
             new EntornoDePrueba(_carpetaZips));
         var servicios = new ServiceCollection()
-            .AddScoped(_ => CrearRuntime())
+            .AddScoped(_ => interceptor is null ? CrearRuntime() : CrearRuntime(interceptor))
             .AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>())
             .AddSingleton(almacen)
             .AddSingleton<IFileStorageService, AlmacenSinDocumentos>()
@@ -641,7 +671,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     }
 
     /// <summary>Como el servicio de fondo: <c>cae_app_runtime</c>, sin usuario; el Tenant sale del ámbito explícito.</summary>
-    private CaeManagerDbContext CrearRuntime()
+    private CaeManagerDbContext CrearRuntime(params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] adicionales)
     {
         var tenant = new TenantActualPorAmbito();
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -649,6 +679,7 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenant),
                 new TenantRlsConnectionInterceptor(tenant, new SinClienteActivo(), new CurrentUserServiceFalso(), BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .AddInterceptors(adicionales)
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant);
     }
@@ -699,6 +730,21 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
             throw new FileNotFoundException(identificador);
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    /// <summary>Hace fallar el guardado que caduca una exportación lista por sustitución, antes de confirmarlo.</summary>
+    private sealed class FallaAlGuardarUnaSustitucion : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<SolicitudExportacionCompleta>().Any(e =>
+                    e.State == EntityState.Modified && e.Entity.Estado == EstadoSolicitudExportacionCompleta.Caducada))
+                throw new DbUpdateException("Fallo simulado del guardado de la sustitución.");
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     /// <summary>Simula el apagado justo después de reclamar: pide la parada al leer la contraseña.</summary>
