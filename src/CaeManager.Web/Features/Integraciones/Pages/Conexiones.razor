@@ -133,6 +133,13 @@
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">
+                            @if (PuedeConfirmarAvisoHueco(conexion))
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" data-testid="accion-confirmar-aviso-hueco"
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => AbrirConfirmacionAvisoHueco(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    @Textos["AccionConfirmarAvisoHueco"]
+                                </Boton>
+                            }
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
@@ -249,6 +256,24 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desconectando" OnClick="() => CerrarModalDesconexion()">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desconectando" OnClick="DesconectarAsync">Desconectar</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_avisoHuecoAConfirmar is not null" VisibleChanged="(bool visible) => CerrarConfirmacionAvisoHueco(visible)"
+       Titulo="@Textos["ModalConfirmarAvisoHuecoTitulo"]" CerrarAlHacerClicFuera="!_confirmandoAvisoHueco" Bloqueante="_confirmandoAvisoHueco">
+    <ChildContent>
+        @if (_avisoHuecoAConfirmar is { CorreoNoRecuperadoDesdeUtc: { } marcaAConfirmar } conexionAConfirmar)
+        {
+            <p data-testid="modal-confirmar-aviso-hueco">
+                @Textos["ModalConfirmarAvisoHuecoTexto", conexionAConfirmar.BuzonEmail, marcaAConfirmar.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]
+            </p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoAvisoHueco" OnClick="() => CerrarConfirmacionAvisoHueco()">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_confirmandoAvisoHueco" OnClick="ConfirmarAvisoHuecoAsync" data-testid="confirmar-aviso-hueco">
+            @Textos["AccionConfirmarAvisoHueco"]
+        </Boton>
     </Pie>
 </Modal>
 

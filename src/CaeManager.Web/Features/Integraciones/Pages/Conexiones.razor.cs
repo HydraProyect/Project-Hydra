@@ -2,6 +2,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
@@ -71,6 +72,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private ConexionIntegracionListaDto? _conexionADesconectar;
     private bool _desconectando;
+    private ConexionIntegracionListaDto? _avisoHuecoAConfirmar;
+    private bool _confirmandoAvisoHueco;
     private long _generacionDesconexion;
     private Guid? _procesandoId;
     private readonly CancellationTokenSource _cancelacionCarga = new();
@@ -382,6 +385,66 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         {
             Logger.LogError(ex, "Error al recargar las conexiones tras un fallo.");
             ToastService.Mostrar(Textos["AvisoRecargaFallida"], TonoToast.Error);
+        }
+    }
+
+    /// <summary>
+    /// Confirmar en la fila (issue #2124): solo con el aviso «posible correo no recuperado» y en el estado en que el servidor
+    /// lo acepta, Habilitada y sin marca del hueco por registrar (<see cref="ReconocerAvisoHuecoCommandHandler"/>). Quién
+    /// puede lo fija la página, que es solo de Administrador, y lo vuelve a comprobar el handler.
+    /// </summary>
+    private static bool PuedeConfirmarAvisoHueco(ConexionIntegracionListaDto conexion) =>
+        conexion.CorreoNoRecuperadoDesdeUtc is not null
+        && conexion.Estado == EstadoConexionIntegracion.Habilitada
+        && !conexion.HuecoSinRegistrar;
+
+    private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null || _desconectando || _confirmandoAvisoHueco) return;
+        _avisoHuecoAConfirmar = conexion;
+    }
+
+    private Task CerrarConfirmacionAvisoHueco() => CerrarConfirmacionAvisoHueco(false);
+
+    private Task CerrarConfirmacionAvisoHueco(bool visible)
+    {
+        if (visible || _confirmandoAvisoHueco) return Task.CompletedTask;
+        _avisoHuecoAConfirmar = null;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Envía la fecha del aviso que se ve en el diálogo: si la marca ya es otra, el servidor no la reconoce. Éxito o fallo, el
+    /// diálogo se cierra y el listado se recarga para mostrar el estado real.
+    /// </summary>
+    private async Task ConfirmarAvisoHuecoAsync()
+    {
+        if (_avisoHuecoAConfirmar is not { CorreoNoRecuperadoDesdeUtc: { } marca } conexion || _confirmandoAvisoHueco) return;
+
+        _confirmandoAvisoHueco = true;
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReconocerAvisoHuecoCommand(conexion.Id, marca));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["AvisoHuecoConfirmado"], TonoToast.Exito);
+
+            _avisoHuecoAConfirmar = null;
+            await RecargarSinPropagarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar el aviso del hueco de la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorConfirmarAvisoHueco"], TonoToast.Error);
+        }
+        finally
+        {
+            _confirmandoAvisoHueco = false;
+            _procesandoId = null;
         }
     }
 

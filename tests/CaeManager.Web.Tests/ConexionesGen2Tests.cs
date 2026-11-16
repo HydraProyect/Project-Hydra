@@ -5,6 +5,7 @@ using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
@@ -63,9 +64,19 @@ public class ConexionesGen2Tests : BunitContext
                 CrearLineaWhatsAppCommand => await CrearLineaAsync(),
                 DesconectarBuzonCommand => await DesconectarAsync(),
                 RepararMarcaHuecoCommand => Reparar(),
+                ReconocerAvisoHuecoCommand reconocer => Reconocer(reconocer),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (TResponse)respuesta;
+        }
+
+        public List<ReconocerAvisoHuecoCommand> ComandosReconocimiento { get; } = [];
+        public Result ResultadoReconocimiento { get; set; } = Result.Exito();
+
+        private Result Reconocer(ReconocerAvisoHuecoCommand comando)
+        {
+            ComandosReconocimiento.Add(comando);
+            return ResultadoReconocimiento;
         }
 
         public int ComandosReparacion { get; private set; }
@@ -566,6 +577,89 @@ public class ConexionesGen2Tests : BunitContext
         avisoNoRecuperado.TextContent.Should().Contain("desaparece cuando se ha recuperado todo", "la recuperación del hueco lo limpia");
         avisoRetenido.TextContent.Should().Contain("Se ingerirá en cuanto se compruebe");
         cut.FindAll("[data-testid=aviso-recuperacion-detenida]").Should().BeEmpty("ninguna recuperación está detenida");
+    }
+
+    /// <summary>
+    /// Issue #2124, acción Confirmar: solo en la fila con el aviso «posible correo no recuperado» y en el estado en que el
+    /// servidor lo acepta (Habilitada y sin hueco por registrar). Las demás acciones de la fila no cambian.
+    /// </summary>
+    [Fact]
+    public void Confirmar_solo_aparece_con_el_aviso_en_una_conexion_Habilitada_sin_hueco_por_registrar()
+    {
+        var marca = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc);
+        var confirmable = Buzon("confirmable") with { CorreoNoRecuperadoDesdeUtc = marca };
+        var deshabilitada = Buzon("deshabilitada") with { CorreoNoRecuperadoDesdeUtc = marca, Estado = EstadoConexionIntegracion.Deshabilitada };
+        var conError = Buzon("conerror") with { CorreoNoRecuperadoDesdeUtc = marca, Estado = EstadoConexionIntegracion.ConError };
+        var porRegistrar = Buzon("porregistrar") with { CorreoNoRecuperadoDesdeUtc = marca, HuecoSinRegistrar = true };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [confirmable, deshabilitada, conError, porRegistrar, Buzon("sano")] });
+
+        var accion = cut.FindAll("[data-testid='accion-confirmar-aviso-hueco']").Should().ContainSingle().Subject;
+        var fila = accion.Closest("tr")!;
+        fila.TextContent.Should().Contain("confirmable@ejemplo.test");
+        accion.TextContent.Trim().Should().Be("Confirmar");
+        fila.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Equal(["Confirmar", "Desconectar"],
+            "las acciones de Administrador de la fila siguen como antes");
+        cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().HaveCount(4, "el aviso se sigue viendo en todas las que lo tienen");
+    }
+
+    /// <summary>
+    /// El diálogo explica qué se reconoce (posible correo no recuperado desde la fecha del aviso) y qué pasa al confirmar (el
+    /// aviso desaparece y queda registrado quién lo dio por revisado). Confirmar envía la fecha que se ve, no otra.
+    /// </summary>
+    [Fact]
+    public async Task El_dialogo_explica_que_se_reconoce_y_Confirmar_envia_la_marca_que_se_ve()
+    {
+        var marca = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc);
+        var buzon = Buzon("cae") with { CorreoNoRecuperadoDesdeUtc = marca };
+        var mediador = new MediadorFalso { Conexiones = [buzon] };
+        var cut = Renderizar(mediador);
+        cut.FindAll("[data-testid='modal-confirmar-aviso-hueco']").Should().BeEmpty("control: el diálogo empieza cerrado");
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='accion-confirmar-aviso-hueco']").Click());
+
+        mediador.ComandosReconocimiento.Should().BeEmpty("la acción de la fila solo abre el diálogo");
+        var texto = cut.Find("[data-testid='modal-confirmar-aviso-hueco']").TextContent;
+        texto.Should().Contain("cae@ejemplo.test").And.Contain("no recuperado desde el 02/11/2026 10:30");
+        texto.Should().Contain("el aviso desaparece").And.Contain("queda registrado quién lo dio por revisado");
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='confirmar-aviso-hueco']").Click());
+
+        mediador.ComandosReconocimiento.Should().ContainSingle().Which.Should().Be(new ReconocerAvisoHuecoCommand(buzon.Id, marca));
+        cut.FindAll("[data-testid='modal-confirmar-aviso-hueco']").Should().BeEmpty("se cierra al terminar");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Un_rechazo_del_servidor_al_confirmar_se_muestra_y_recarga_el_listado()
+    {
+        var buzon = Buzon("cae") with { CorreoNoRecuperadoDesdeUtc = new DateTime(2026, 11, 2, 9, 30, 0, DateTimeKind.Utc) };
+        var mediador = new MediadorFalso
+        {
+            Conexiones = [buzon],
+            ResultadoReconocimiento = Result.Fallo(Error.Crear(ReconocerAvisoHuecoCommandHandler.CodigoAvisoCambiado, "El aviso de este buzón ha cambiado.")),
+        };
+        var cut = Renderizar(mediador);
+        await cut.InvokeAsync(() => cut.Find("[data-testid='accion-confirmar-aviso-hueco']").Click());
+        mediador.Conexiones = [buzon with { CorreoNoRecuperadoDesdeUtc = null }];
+
+        await cut.InvokeAsync(() => cut.Find("[data-testid='confirmar-aviso-hueco']").Click());
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error)
+            .Which.Mensaje.Should().Contain("ha cambiado");
+        cut.FindAll("[data-testid='accion-confirmar-aviso-hueco']").Should().BeEmpty("el listado recargado ya no tiene el aviso");
+    }
+
+    /// <summary>
+    /// Con permiso: la página solo la abre el rol efectivo Administrador (el del Tenant propietario o el del Operador CAE
+    /// externo por Asignación de Operación). Un Gestor CAE no llega a ella, tenga o no cartera; su autoridad sobre la acción
+    /// la fija el handler (ReconocerAvisoHuecoCommandHandlerTests).
+    /// </summary>
+    [Fact]
+    public void La_pagina_con_la_accion_Confirmar_es_solo_de_Administrador()
+    {
+        var autorizacion = typeof(Conexiones).GetCustomAttributes<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Should().ContainSingle().Subject;
+
+        autorizacion.Roles.Should().Be(Roles.Administrador);
     }
 
     /// <summary>
