@@ -312,7 +312,7 @@ public class SubencargadosD7Tests
     {
         _repositorio.TenantDeLaSesion = tenantActual;
         return new(usuario, new TenantActualFalso(tenantActual), new SesionFalsa(sesion),
-            autorizacion ?? AutorizacionAdminPlataformaFalsa.SinNada(), _tenants, _repositorio, _repositorio, _reloj);
+            autorizacion ?? AutorizacionAdminPlataformaFalsa.SinNada(), _tenants, _repositorio, _reloj);
     }
 
     private Guid TenantPropietario(bool esPlataforma = false)
@@ -493,6 +493,26 @@ public class SubencargadosD7Tests
             .Error.Codigo.Should().Be("Subencargado.NoAdmiteObjecion");
 
         _repositorio.Objeciones.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_otra_peticion_del_mismo_Tenant_objeta_entre_la_comprobacion_y_el_guardado_responde_YaObjetado()
+    {
+        var subencargado = Avisado();
+        var tenant = TenantPropietario();
+        var objetor = Objetor(new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", tenant), tenant);
+        // La otra petición pasó la misma comprobación y guarda antes: el índice único deja solo una.
+        _repositorio.AntesDeGuardarObjecion = () =>
+        {
+            _repositorio.AntesDeGuardarObjecion = null;
+            _repositorio.Objeciones.Add((tenant, new ObjecionSubencargado(subencargado, Guid.NewGuid(), "La otra", Inicio)));
+        };
+
+        var resultado = await objetor.Handle(new ObjetarSubencargadoCommand(subencargado.Id, "Motivo"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Subencargado.YaObjetado", "la carrera se responde igual que una segunda objeción");
+        _repositorio.Objeciones.Should().ContainSingle().Which.Objecion.Motivo.Should().Be("La otra");
+        _repositorio.HayCambiosPendientes.Should().BeFalse("el lote perdedor se descarta");
     }
 
     // ---------- Proponer y retirar ----------

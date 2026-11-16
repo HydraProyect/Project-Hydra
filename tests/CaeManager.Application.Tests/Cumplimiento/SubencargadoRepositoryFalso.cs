@@ -70,6 +70,26 @@ public sealed class SubencargadoRepositoryFalso : ISubencargadoRepository, IUnit
 
     public void AgregarObjecion(ObjecionSubencargado objecion) => _objecionesPendientes.Add((TenantActual, objecion));
 
+    /// <summary>Lo que hace otra petición justo antes del guardado de la objeción: para simular la carrera.</summary>
+    public Action? AntesDeGuardarObjecion { get; set; }
+
+    /// <summary>Como el índice único: si ya hay una objeción del mismo Tenant a ese subencargado, descarta el lote.</summary>
+    public async Task<bool> GuardarObjecionAsync(CancellationToken cancellationToken = default)
+    {
+        AntesDeGuardarObjecion?.Invoke();
+        if (_objecionesPendientes.Any(p => Objeciones.Any(o =>
+                o.TenantId == p.TenantId && o.Objecion.SubencargadoId == p.Objecion.SubencargadoId)))
+        {
+            _avisosPendientes.Clear();
+            _objecionesPendientes.Clear();
+            _subencargadosPendientes.Clear();
+            return false;
+        }
+
+        await SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public Task<bool> ExcluyeConmutadorAsync(Guid tenantId, ConmutadorExclusionSubencargado conmutador, CancellationToken cancellationToken = default) =>
         Task.FromResult(Objeciones.Any(o =>
             o.TenantId == tenantId

@@ -172,6 +172,44 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario sin instrucción").And.Contain("Beneficiario sin cartera");
     }
 
+    /// <summary>
+    /// #2010, D-7, en contexto cruzado: el Gestor CAE del Operador CAE externo comprueba su cartera y, en el
+    /// <see cref="AmbitoTenantExplicito"/> del Tenant beneficiario que objetó a un subencargado activo de IA, ve la IA
+    /// apagada por esa objeción; la de ese Tenant no apaga la de los demás. Es la prueba que distingue el Tenant
+    /// efectivo del Tenant de origen: si <c>aislamiento_tenant</c> de <c>ObjecionesSubencargado</c> se atara a
+    /// <c>app_ctx_tenant_origen_id()</c> en vez de a <c>app_ctx_tenant_id()</c>, aquí el Tenant de origen es el del
+    /// Operador CAE externo, la RLS escondería la objeción del Tenant beneficiario y este saldría con la IA
+    /// habilitada. Los tests de <c>SubencargadosBajoRlsTests</c> con <c>cae_app_runtime</c> no lo ven, porque allí
+    /// el Tenant de origen y el efectivo coinciden.
+    /// </summary>
+    [Fact]
+    public async Task En_contexto_cruzado_la_objecion_del_Tenant_beneficiario_apaga_su_IA_y_solo_la_suya()
+    {
+        var actor = Guid.NewGuid();
+        var subencargado = new CaeManager.Domain.Cumplimiento.Subencargados.Subencargado(
+            "Proveedor de IA", "Lectura asistida de documentos", "UE; sin transferencia internacional", true,
+            CaeManager.Domain.Cumplimiento.Subencargados.ConmutadorExclusionSubencargado.Ia, actor, DateTime.UtcNow.AddDays(-40));
+        subencargado.MarcarAvisado(DateTime.UtcNow.AddDays(-40));
+        subencargado.Activar(DateTime.UtcNow, 0, actor);
+        _propietario.Subencargados.Add(subencargado);
+        await _propietario.SaveChangesAsync();
+        using (AmbitoTenantExplicito.Establecer(_tenantConInstruccion))
+        {
+            _propietario.ObjecionesSubencargado.Add(new CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado(
+                subencargado, Guid.NewGuid(), "No queremos tratamiento con IA", DateTime.UtcNow));
+            await _propietario.SaveChangesAsync();
+        }
+
+        var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ComprobarInstruccionIaCarteraQuery());
+
+        resultado.ConInstruccion.Select(t => t.TenantId).Should().BeEquivalentTo([_tenantOrigen],
+            "la objeción del Tenant beneficiario no apaga la IA del Operador CAE externo");
+        resultado.SinInstruccion.Select(t => t.TenantId).Should().BeEquivalentTo(
+            [_tenantConInstruccion, _tenantSinInstruccion, _tenantAlcanceCero],
+            "con la instrucción vigente, la objeción del Tenant beneficiario a un subencargado activo apaga su IA");
+        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario con instrucción").And.Contain("objetar a un subencargado");
+    }
+
     private CurrentUserService CrearCurrentUserService(ITenantsQueryContext contexto)
     {
         var identidad = new ClaimsIdentity(

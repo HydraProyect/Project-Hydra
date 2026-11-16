@@ -1,7 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual;
 using CaeManager.Application.Cumplimiento.Subencargados;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Cumplimiento.Subencargados;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
@@ -38,6 +41,7 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     private Guid _tenantSesion;
     private Guid _tenantAjeno;
     private Guid _subencargadoId;
+    private Guid _administradorSesion;
 
     public async Task InitializeAsync()
     {
@@ -65,6 +69,9 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         _tenantSesion = tenantSesion.Id;
         _tenantAjeno = tenantAjeno.Id;
         _subencargadoId = subencargado.Id;
+        // El destinatario de los avisos que se registran en el Tenant de la sesión: la política solo los admite a
+        // nombre de un Administrador real de ese Tenant.
+        _administradorSesion = await AdministradorAsync(_tenantSesion);
 
         // Lo del Tenant ajeno, sembrado como propietario (superusuario: sin RLS).
         using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
@@ -90,7 +97,7 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             var repositorio = new SubencargadoRepository(runtime);
             repositorio.Agregar(Nuevo(_actorGlobal));
             repositorio.AgregarAviso(new AvisoCambioSubencargado(
-                _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, _actorGlobal));
+                _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, _actorGlobal));
             await runtime.SaveChangesAsync();
 
             (await repositorio.TieneAvisoProbadoAsync(_subencargadoId, enviadoComoTardeEnUtc: null)).Should().BeTrue();
@@ -143,15 +150,15 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         var repositorio = new SubencargadoRepository(runtime);
 
         repositorio.AgregarAviso(new AvisoCambioSubencargado(
-            _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.Preparado, limite.AddDays(-10), _actorGlobal));
+            _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.Preparado, limite.AddDays(-10), _actorGlobal));
         repositorio.AgregarAviso(new AvisoCambioSubencargado(
-            _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.NoConfirmado, limite.AddDays(-10), _actorGlobal));
+            _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.NoConfirmado, limite.AddDays(-10), _actorGlobal));
         await runtime.SaveChangesAsync();
         (await repositorio.TieneAvisoProbadoAsync(_subencargadoId, limite)).Should().BeFalse("Preparado y NoConfirmado no prueban el aviso");
         (await repositorio.TieneAvisoProbadoAsync(_subencargadoId, null)).Should().BeFalse();
 
         repositorio.AgregarAviso(new AvisoCambioSubencargado(
-            _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.Enviado, limite, _actorGlobal));
+            _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.Enviado, limite, _actorGlobal));
         await runtime.SaveChangesAsync();
 
         (await repositorio.TieneAvisoProbadoAsync(_subencargadoId, limite)).Should().BeTrue("registrado justo en el límite, cuenta");
@@ -240,17 +247,18 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     public async Task Sin_AdminPlataforma_global_no_se_cambia_el_catalogo(string quien)
     {
         var usuario = quien == "acotado" ? _actorAcotado : _usuarioDelTenant;
-        const string orden = """UPDATE "Subencargados" SET "Estado" = 'Activo' WHERE "Id" = {0}""";
+        // Cada uno a su propio nombre: lo que se mide aquí es la concesión, no la autoría de la activación.
+        const string orden = """UPDATE "Subencargados" SET "Estado" = 'Activo', "ActivadoPorUsuarioId" = {0} WHERE "Id" = {1}""";
 
         await using (var runtime = CrearRuntime(usuario, Roles.Administrador))
-            (await runtime.Database.ExecuteSqlRawAsync(orden, _subencargadoId)).Should().Be(0,
+            (await runtime.Database.ExecuteSqlRawAsync(orden, usuario, _subencargadoId)).Should().Be(0,
                 "la política UPDATE oculta la fila a quien no tiene AdminPlataforma global");
 
         await using (var limpio = CrearPropietarioLimpio())
             (await limpio.Subencargados.AsNoTracking().SingleAsync(s => s.Id == _subencargadoId)).Estado.Should().Be(EstadoSubencargado.Avisado);
 
         await using (var runtime = CrearRuntime(_actorGlobal, Roles.Administrador))
-            (await runtime.Database.ExecuteSqlRawAsync(orden, _subencargadoId)).Should().Be(1, "control del instrumento: el global sí lo cambia");
+            (await runtime.Database.ExecuteSqlRawAsync(orden, _actorGlobal, _subencargadoId)).Should().Be(1, "control del instrumento: el global sí lo cambia");
     }
 
     [Fact]
@@ -273,6 +281,53 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             .Should().Be(1, "la objeción queda sellada en su Tenant propietario y a su nombre");
     }
 
+    [Fact]
+    public async Task Dos_objeciones_simultaneas_del_mismo_Tenant_dejan_una_y_la_otra_se_traduce_sin_romper_la_unidad_de_trabajo()
+    {
+        var administrador = await AdministradorAsync(_tenantSesion);
+        var subencargado = await _propietario.Subencargados.AsNoTracking().SingleAsync(s => s.Id == _subencargadoId);
+        await using var primera = CrearRuntime(administrador, Roles.Administrador);
+        await using var segunda = CrearRuntime(administrador, Roles.Administrador);
+        var repositorioPrimera = new SubencargadoRepository(primera);
+        var repositorioSegunda = new SubencargadoRepository(segunda);
+
+        // Las dos pasan la comprobación previa del Command antes de que ninguna guarde.
+        (await repositorioPrimera.ExisteObjecionAsync(_subencargadoId)).Should().BeFalse();
+        (await repositorioSegunda.ExisteObjecionAsync(_subencargadoId)).Should().BeFalse();
+        repositorioPrimera.AgregarObjecion(new ObjecionSubencargado(subencargado, administrador, "Primera", DateTime.UtcNow));
+        repositorioSegunda.AgregarObjecion(new ObjecionSubencargado(subencargado, administrador, "Segunda", DateTime.UtcNow));
+
+        (await repositorioPrimera.GuardarObjecionAsync()).Should().BeTrue();
+        (await repositorioSegunda.GuardarObjecionAsync()).Should().BeFalse("el índice único deja una sola objeción por Tenant y subencargado");
+
+        repositorioSegunda.HayCambiosPendientes.Should().BeFalse("el lote perdedor se descarta");
+        (await repositorioSegunda.ExisteObjecionAsync(_subencargadoId)).Should().BeTrue("la unidad de trabajo sigue utilizable");
+        await using var limpio = CrearPropietarioLimpio();
+        (await limpio.ObjecionesSubencargado.IgnoreQueryFilters().Where(o => o.TenantId == _tenantSesion).Select(o => o.Motivo).ToListAsync())
+            .Should().Equal("Primera");
+    }
+
+    [Fact]
+    public async Task En_una_Sesion_Privilegiada_de_Soporte_TALVEG_el_estado_de_la_IA_refleja_la_objecion_sin_42501()
+    {
+        // cae_app_soporte en el Tenant visitado, con el Tenant de Plataforma como Tenant de origen del Actor de
+        // Plataforma TALVEG: Tenant efectivo y Tenant de origen distintos, como en una Sesión Privilegiada real.
+        var plataforma = new Tenant("TALVEG", esPlataforma: true);
+        _propietario.Tenants.Add(plataforma);
+        await _propietario.SaveChangesAsync();
+        await InstruccionVigenteAsync(_tenantAjeno);
+        await InstruccionVigenteAsync(_tenantSesion);
+        await CambiarEstadoComoPropietarioAsync(s => s.Activar(DateTime.UtcNow, 0, _actorGlobal));
+
+        var conObjecion = await EstadoIaComoSoporteAsync(_tenantAjeno, plataforma.Id);
+        var sinObjecion = await EstadoIaComoSoporteAsync(_tenantSesion, plataforma.Id);
+
+        conObjecion.Should().Be(new EstadoTratamientoIaActualDto(InstruccionVigente: true, IaExcluidaPorObjecion: true),
+            "Soporte TALVEG lee la objeción del Tenant visitado: el SELECT de cae_app_soporte y la RLS del Tenant efectivo");
+        sinObjecion.Should().Be(new EstadoTratamientoIaActualDto(InstruccionVigente: true, IaExcluidaPorObjecion: false),
+            "la objeción de otro Tenant no apaga la IA del visitado");
+    }
+
     [Theory]
     [InlineData("acotado")]
     [InlineData("sin concesión")]
@@ -289,7 +344,7 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         await using (var runtime = CrearRuntime(usuario, Roles.Administrador))
         {
             runtime.AvisosCambioSubencargado.Add(new AvisoCambioSubencargado(
-                _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, usuario));
+                _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, usuario));
             await DebeRechazarAsync(runtime, "solo_el_actor_de_plataforma_avisa");
         }
     }
@@ -299,9 +354,52 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
     {
         await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
         runtime.AvisosCambioSubencargado.Add(new AvisoCambioSubencargado(
-            _subencargadoId, Guid.NewGuid(), Guid.NewGuid(), FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, Guid.NewGuid()));
+            _subencargadoId, Guid.NewGuid(), _administradorSesion, FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, Guid.NewGuid()));
 
         await DebeRechazarAsync(runtime, "AvisadoPorUsuarioId tiene que ser la identidad del contexto firmado");
+    }
+
+    [Theory]
+    [InlineData("una cuenta que no existe")]
+    [InlineData("el Administrador de otro Tenant propietario")]
+    [InlineData("una cuenta del Tenant sin el rol Administrador")]
+    public async Task El_aviso_solo_se_registra_a_nombre_de_un_Administrador_de_su_Tenant_propietario(string destinatario)
+    {
+        var usuarioDestinatario = destinatario switch
+        {
+            "una cuenta que no existe" => Guid.NewGuid(),
+            "el Administrador de otro Tenant propietario" => await AdministradorAsync(_tenantAjeno),
+            _ => await CuentaSinRolAsync(_tenantSesion),
+        };
+        await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
+        runtime.AvisosCambioSubencargado.Add(new AvisoCambioSubencargado(
+            _subencargadoId, Guid.NewGuid(), usuarioDestinatario, FaseAvisoCambioSubencargado.Enviado, DateTime.UtcNow, _actorGlobal));
+
+        // El control positivo, con el Administrador real del Tenant de la sesión, es el primer test de la clase.
+        await DebeRechazarAsync(runtime, $"solo_el_actor_de_plataforma_avisa no admite como destinatario {destinatario}");
+    }
+
+    [Fact]
+    public async Task El_alta_del_catalogo_queda_a_nombre_de_quien_firma_el_contexto()
+    {
+        await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
+        runtime.Subencargados.Add(Nuevo(Guid.NewGuid()));
+
+        await DebeRechazarAsync(runtime, "PropuestoPorUsuarioId tiene que ser la identidad del contexto firmado");
+    }
+
+    [Fact]
+    public async Task La_activacion_queda_a_nombre_de_quien_firma_el_contexto()
+    {
+        const string activar = """UPDATE "Subencargados" SET "Estado" = 'Activo', "ActivadoPorUsuarioId" = {0} WHERE "Id" = {1}""";
+        await using var runtime = CrearRuntime(_actorGlobal, Roles.Administrador);
+
+        var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlRawAsync(activar, Guid.NewGuid(), _subencargadoId));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501",
+            "el WITH CHECK del cambio exige que una fila Activo la active quien firma el contexto");
+        (await runtime.Database.ExecuteSqlRawAsync(activar, _actorGlobal, _subencargadoId)).Should().Be(1,
+            "control del instrumento: a su propio nombre, sí");
     }
 
     [Fact]
@@ -328,8 +426,10 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             VALUES ({Guid.NewGuid()}, {_tenantAjeno}, {_subencargadoId}, {Guid.NewGuid()}, {Guid.NewGuid()}, 'Enviado', now(), {_actorGlobal})
             """));
 
+        // Lo rechazan el WITH CHECK de aislamiento_tenant y, por su cuenta, la comprobación del destinatario:
+        // app_es_administrador_del_tenant solo responde por el Tenant del contexto.
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501",
-            "el WITH CHECK de aislamiento_tenant rechaza una fila de otro Tenant");
+            "ni aislamiento_tenant ni solo_el_actor_de_plataforma_avisa admiten una fila de otro Tenant");
     }
 
     [Theory]
@@ -406,8 +506,46 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         await limpio.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// El estado de la IA que ve Soporte TALVEG en una Sesión Privilegiada (<c>cae_app_soporte</c>) en
+    /// <paramref name="tenantVisitado"/>, con el gate real y sus dos repositorios reales sobre esa conexión. Si
+    /// <c>aislamiento_tenant</c> de la objeción se atara al Tenant de origen y no al efectivo, aquí no se vería la
+    /// objeción del Tenant visitado: el Tenant de origen es el de Plataforma.
+    /// </summary>
+    private async Task<EstadoTratamientoIaActualDto> EstadoIaComoSoporteAsync(Guid tenantVisitado, Guid tenantOrigen)
+    {
+        var tenant = new TenantActualDeLaPeticion(tenantVisitado);
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion)
+            .AddInterceptors(new TenantRlsConnectionInterceptor(tenant, new EnSesionPrivilegiada(tenantVisitado, Guid.NewGuid()),
+                new CurrentUserServiceFalso(_actorGlobal, Roles.Administrador, tenantOrigenId: tenantOrigen), BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .Options;
+        await using var soporte = new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant);
+        (await soporte.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync()).Should().Be(
+            "cae_app_soporte", "control del instrumento: la lectura corre con el rol de la Sesión Privilegiada");
+
+        var gate = new InstruccionTratamientoIaService(
+            new InstruccionTratamientoIaTenantPropietarioRepository(soporte), new SubencargadoRepository(soporte));
+        return await new ObtenerEstadoTratamientoIaActualQueryHandler(gate, tenant)
+            .Handle(new ObtenerEstadoTratamientoIaActualQuery(), CancellationToken.None);
+    }
+
+    private async Task InstruccionVigenteAsync(Guid tenantId)
+    {
+        await using var limpio = CrearPropietarioLimpio();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        limpio.InstruccionesTratamientoIaTenantPropietario.Add(new InstruccionTratamientoIaTenantPropietario(
+            "1.0", "1.0", DateTime.UtcNow.AddDays(-1), OrigenInstruccionTratamientoIa.AltaManualPlataforma, _actorGlobal));
+        await limpio.SaveChangesAsync();
+    }
+
     /// <summary>Una cuenta con el rol Administrador y correo en ese Tenant, sembrada como propietario.</summary>
-    private async Task<Guid> AdministradorAsync(Guid tenantId)
+    private Task<Guid> AdministradorAsync(Guid tenantId) => CuentaAsync(tenantId, conRolAdministrador: true);
+
+    /// <summary>Una cuenta con correo en ese Tenant y sin ningún rol.</summary>
+    private Task<Guid> CuentaSinRolAsync(Guid tenantId) => CuentaAsync(tenantId, conRolAdministrador: false);
+
+    private async Task<Guid> CuentaAsync(Guid tenantId, bool conRolAdministrador)
     {
         await using var limpio = CrearPropietarioLimpio();
         var rolId = await limpio.Roles.Where(r => r.Name == Roles.Administrador).Select(r => r.Id).SingleAsync();
@@ -428,7 +566,8 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
             SecurityStamp = Guid.NewGuid().ToString(),
             ConcurrencyStamp = Guid.NewGuid().ToString(),
         });
-        limpio.UserRoles.Add(new IdentityUserRole<Guid> { UserId = id, RoleId = rolId });
+        if (conRolAdministrador)
+            limpio.UserRoles.Add(new IdentityUserRole<Guid> { UserId = id, RoleId = rolId });
         await limpio.SaveChangesAsync();
         return id;
     }
@@ -479,6 +618,13 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
+    private sealed class EnSesionPrivilegiada(Guid tenantVisitado, Guid sesionPrivilegiadaId) : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => tenantVisitado;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiadaId;
     }
 
     private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual

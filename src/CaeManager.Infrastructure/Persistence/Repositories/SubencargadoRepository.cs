@@ -2,6 +2,7 @@ using CaeManager.Domain.Cumplimiento.Subencargados;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Seguridad;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CaeManager.Infrastructure.Persistence.Repositories;
 
@@ -45,6 +46,30 @@ public class SubencargadoRepository(CaeManagerDbContext dbContext) : ISubencarga
         dbContext.ObjecionesSubencargado.AsNoTracking().AnyAsync(o => o.SubencargadoId == subencargadoId, cancellationToken);
 
     public void AgregarObjecion(ObjecionSubencargado objecion) => dbContext.ObjecionesSubencargado.Add(objecion);
+
+    /// <summary>Nombre exacto del índice único de una objeción por Tenant y subencargado en PostgreSQL.</summary>
+    internal const string IndiceUnicoObjecion = "IX_ObjecionesSubencargado_TenantId_SubencargadoId";
+
+    public async Task<bool> GuardarObjecionAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        // Solo el índice único de la objeción, no cualquier 23505: otra violación de unicidad sería un error real y
+        // tiene que propagarse (mismo criterio que ContactoSeguridadTenantRepository.GuardarPropuestaAsync).
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        {
+            SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: IndiceUnicoObjecion
+        })
+        {
+            // La base rechazó el lote entero: ni la objeción perdedora ni la auditoría que añadió el interceptor
+            // pueden reintentarse en un guardado posterior del circuito.
+            ConcurrenciaContexto.DescartarLoteFallido(dbContext);
+            return false;
+        }
+    }
 
     public Task<bool> ExcluyeConmutadorAsync(
         Guid tenantId, ConmutadorExclusionSubencargado conmutador, CancellationToken cancellationToken = default) =>

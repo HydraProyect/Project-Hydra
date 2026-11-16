@@ -36,7 +36,6 @@ public class ObjetarSubencargadoCommandHandler(
     IAutorizacionAdminPlataforma autorizacion,
     ITenantsQueryContext tenants,
     ISubencargadoRepository repositorio,
-    IUnitOfWork unitOfWork,
     TimeProvider reloj)
     : IRequestHandler<ObjetarSubencargadoCommand, Result<EfectoObjecionSubencargado>>
 {
@@ -56,9 +55,12 @@ public class ObjetarSubencargadoCommandHandler(
             return Result.Fallo<EfectoObjecionSubencargado>(ErroresSubencargado.YaObjetado);
 
         // La fila se sella en el Tenant actual, que es el Tenant propietario del Administrador (no hay contexto cruzado).
+        // Dos objeciones simultáneas del mismo Tenant pasan las dos la comprobación de arriba: el índice único deja
+        // una, y la otra recibe la misma respuesta que si hubiera llegado después.
         var objecion = new ObjecionSubencargado(subencargado, administrador.Valor.UsuarioId, request.Motivo, reloj.GetUtcNow().UtcDateTime);
         repositorio.AgregarObjecion(objecion);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (!await repositorio.GuardarObjecionAsync(cancellationToken))
+            return Result.Fallo<EfectoObjecionSubencargado>(ErroresSubencargado.YaObjetado);
         return Result.Exito(objecion.Efecto);
     }
 }
