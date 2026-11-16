@@ -35,24 +35,28 @@ public class ExportacionCompletaAutoservicioTests
         SesionPrivilegiadaActiva? Sesion = null,
         Guid? UsuarioSimulado = null,
         TipoViaAcceso Via = TipoViaAcceso.Normal,
-        Guid? EncargoId = null);
+        Guid? EncargoId = null,
+        Guid? ActorReal = null,
+        bool TenantDePlataforma = false);
 
     private SolicitarExportacionCompletaCommandHandler Solicitud(Escenario e) => new(
         Usuario(e), new TenantFijo(_tenant.Id), Actor(e), new SesionFija(e.Sesion), new AdministradorFijo(e.AdministradorEnBase),
-        Tenants(), new CandadoDirecto(), _repositorio, new ProtectorFalso(), _unidad, _reloj);
+        Tenants(e), new CandadoDirecto(), _repositorio, new ProtectorFalso(), _unidad, _reloj);
 
     private DescargarExportacionCompletaCommandHandler Descarga(Escenario e, AlmacenEnMemoria almacen) => new(
         Usuario(e), new TenantFijo(_tenant.Id), Actor(e), new SesionFija(e.Sesion), new AdministradorFijo(e.AdministradorEnBase),
-        Tenants(), _repositorio, almacen, _unidad, _reloj);
+        Tenants(e), _repositorio, almacen, _unidad, _reloj);
 
     private CurrentUserServiceFalso Usuario(Escenario e) =>
         new(_usuarioId, e.Rol, e.OrigenAjeno ? Guid.NewGuid() : _tenant.Id, superoTotp: e.SuperoTotp);
 
     private ActorFijo Actor(Escenario e) =>
-        new(new ActorAuditoria(_usuarioId, e.UsuarioSimulado, e.Via, e.Via == TipoViaAcceso.Normal ? null : Guid.NewGuid(), e.EncargoId));
+        new(new ActorAuditoria(e.ActorReal ?? _usuarioId, e.UsuarioSimulado, e.Via, e.Via == TipoViaAcceso.Normal ? null : Guid.NewGuid(), e.EncargoId));
 
-    private TenantsQueryContextFalso Tenants()
+    private TenantsQueryContextFalso Tenants(Escenario e)
     {
+        if (e.TenantDePlataforma)
+            _tenant.MarcarComoPlataforma();
         var tenants = new TenantsQueryContextFalso();
         tenants.ListaTenants.Add(_tenant);
         return tenants;
@@ -112,6 +116,37 @@ public class ExportacionCompletaAutoservicioTests
             .Handle(new SolicitarExportacionCompletaCommand(), default);
 
         resultado.EsExitoso.Should().BeFalse();
+        NadaRegistrado();
+    }
+
+    [Fact]
+    public async Task Por_Asignacion_de_Operacion_se_rechaza_aunque_el_origen_sea_el_propio_Tenant()
+    {
+        // Aísla la regla de la vía: sin contexto cruzado, solo Via != Normal la rechaza.
+        var resultado = await Solicitud(new Escenario(Via: TipoViaAcceso.OperacionDelegada))
+            .Handle(new SolicitarExportacionCompletaCommand(), default);
+
+        resultado.Error.Should().Be(AutoridadExportacionCompleta.SinSesionPrivilegiadaNiSuplantacion);
+        NadaRegistrado();
+    }
+
+    [Fact]
+    public async Task Un_Actor_real_distinto_del_usuario_autenticado_se_rechaza()
+    {
+        var resultado = await Solicitud(new Escenario(ActorReal: Guid.NewGuid()))
+            .Handle(new SolicitarExportacionCompletaCommand(), default);
+
+        resultado.Error.Should().Be(AutoridadExportacionCompleta.SoloAdministradorDelTenant);
+        NadaRegistrado();
+    }
+
+    [Fact]
+    public async Task En_el_Tenant_de_plataforma_TALVEG_se_rechaza()
+    {
+        var resultado = await Solicitud(new Escenario(TenantDePlataforma: true))
+            .Handle(new SolicitarExportacionCompletaCommand(), default);
+
+        resultado.Error.Should().Be(AutoridadExportacionCompleta.SoloAdministradorDelTenant);
         NadaRegistrado();
     }
 

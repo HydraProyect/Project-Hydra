@@ -97,7 +97,16 @@ public class GeneradorExportacionCompletaHostedService(
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
         await FallarEstancadasAsync(cancellationToken);
-        await CaducarVencidasAsync(tenantId, cancellationToken);
+        try
+        {
+            await CaducarVencidasAsync(tenantId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Un barrido que falla (p. ej. un fichero que no se deja borrar) no bloquea la generación de este Tenant:
+            // la fila sigue Lista, la fecha de caducidad ya impide descargarla y la próxima vuelta lo reintenta.
+            logger.LogError(ex, "Falló el barrido de exportaciones caducadas del Tenant {TenantId}.", tenantId);
+        }
         await GenerarPendienteAsync(tenantId, cancellationToken);
     }
 
@@ -109,7 +118,10 @@ public class GeneradorExportacionCompletaHostedService(
         var limite = ahora - UmbralEstancada;
 
         var estancadas = await contexto.SolicitudesExportacionCompleta
-            .Where(s => s.Estado == EstadoSolicitudExportacionCompleta.EnCurso && s.IniciadaEnUtc < limite)
+            // Una en curso sin terminar o una sin reclamar durante el umbral: las dos se dan por fallidas para que no
+            // guarden la contraseña indefinidamente ni ocupen el índice de solicitud viva del Tenant.
+            .Where(s => (s.Estado == EstadoSolicitudExportacionCompleta.EnCurso && s.IniciadaEnUtc < limite)
+                || (s.Estado == EstadoSolicitudExportacionCompleta.Pendiente && s.SolicitadaEnUtc < limite))
             .ToListAsync(cancellationToken);
         if (estancadas.Count == 0)
             return;
@@ -221,12 +233,15 @@ public class GeneradorExportacionCompletaHostedService(
     {
         using var ambito = ambitoFactory.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        if (ubicacionConfirmada is not null)
-            ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>().Eliminar(tenantId, ubicacionConfirmada);
 
+        // Primero el estado: si el guardado de Lista llegó a confirmarse antes de la excepción, la fila ya es Lista y
+        // su fichero es el que se descarga; borrarlo dejaría una exportación entregada sin fichero.
         var solicitud = await contexto.SolicitudesExportacionCompleta.SingleOrDefaultAsync(s => s.Id == id, CancellationToken.None);
         if (solicitud?.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso))
             return;
+
+        if (ubicacionConfirmada is not null)
+            ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>().Eliminar(tenantId, ubicacionConfirmada);
 
         solicitud.MarcarFallida(motivo, Ahora());
         contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
