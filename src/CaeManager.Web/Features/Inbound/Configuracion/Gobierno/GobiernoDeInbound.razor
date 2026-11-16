@@ -18,7 +18,7 @@
 
 <div class="contenedor-pagina gb">
     <CabeceraListado Grupo="Configuración" Titulo="Gobierno de Inbound" />
-    <p class="gb-subtitulo">Ajustes de @(_datos?.TenantTce ?? "esta organización"). Solo los ve su Administrador.</p>
+    <p class="gb-subtitulo">Ajustes de @NombreConPunto Solo los ve su Administrador.</p>
 
     @if (_reservada)
     {
@@ -178,6 +178,9 @@
         (_datos?.Tipos ?? [])
             .Where(t => _busqueda.Trim().Length == 0 || t.Nombre.Contains(_busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase))
             .GroupBy(t => t.Entidad);
+
+    // El nombre de la organización puede acabar en punto («S.A.»): no se duplica.
+    private string NombreConPunto => _datos?.TenantTce is { Length: > 0 } n ? (n.EndsWith('.') ? n : n + ".") : "esta organización.";
 
     private bool SinCambios =>
         _datos is null || (_activa == _datos.Convalidacion.Activa

@@ -8,6 +8,12 @@
 
 .ra-tarjeta { border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); overflow-x: auto; margin-top: var(--space-2); }
 .ra-tabla { width: 100%; table-layout: fixed; }
+.ra-tabla th:nth-child(2) { width: 150px; }
+.ra-tabla th:nth-child(3) { width: 210px; }
+.ra-tabla th:nth-child(4) { width: 120px; }
+.ra-tabla th:nth-child(5) { width: 110px; }
+.ra-tabla th:nth-child(6) { width: 104px; }
+.ra-tabla th:nth-child(7) { width: 136px; }
 .ra-pausada { opacity: .72; }
 .ra-nombre { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ra-serie { display: block; width: fit-content; margin-top: 4px; border-radius: 999px; padding: 1px 8px; background: var(--color-primary-50); color: var(--color-primary-700); font-size: 11px; line-height: 18px; font-weight: 600; }
