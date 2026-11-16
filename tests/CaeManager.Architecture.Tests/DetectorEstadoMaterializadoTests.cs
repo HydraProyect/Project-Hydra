@@ -30,6 +30,10 @@ public class DetectorEstadoMaterializadoTests
         // Registro de llamadas a plataformas CAE de terceros: el cálculo no lo lee.
         "CaeManager.Domain.Integraciones.UsoConexionPlataformaCae",
 
+        // Registro de solicitudes de derechos del interesado (#2002): apunta al Trabajador solo para identificar al
+        // interesado; el cálculo no la lee y ningún paso suyo cambia la acreditación del Trabajador.
+        "CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado",
+
         // Ninguna la leen los servicios del cálculo (RecalculoEstadoMaterializadoService, CalculoEstadoCentroService,
         // EvaluacionDeAccesoPorCentroService, CalculoEstadoDocumentalService): auditoría, autorizaciones de lectura,
         // comunicaciones, contactos, contratos de acceso, firma, revisión y caché de IA, credenciales y accesos a

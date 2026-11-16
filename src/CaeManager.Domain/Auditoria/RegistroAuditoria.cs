@@ -80,6 +80,32 @@ public class RegistroAuditoria : EntidadConTenant
     /// <inheritdoc cref="AccionRenovado"/>
     public const string AccionCondicionesFijadas = "CondicionesFijadas";
 
+    /// <summary>
+    /// Revocación de una capacidad del Tenant (<c>ConcesionCapacidadTenant</c>, decisión D-3 del 2026-11-15). La
+    /// concesión queda como «Creado»; la revocación, con esta acción. Las escribe el interceptor a petición de la
+    /// concesión, vía <see cref="IAccionAuditoriaPropia"/>.
+    /// </summary>
+    public const string AccionCapacidadRevocada = "CapacidadRevocada";
+
+    /// <summary>
+    /// Transiciones de una <c>SolicitudDerechoInteresado</c> (#2002): el registro queda como «Creado» y cada paso
+    /// posterior con su propia acción, escrita por el interceptor a petición de la solicitud, vía
+    /// <see cref="IAccionAuditoriaPropia"/>, con el actor real del guardado.
+    /// </summary>
+    public const string AccionIdentidadVerificada = "IdentidadVerificada";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionTramitacionIniciada = "TramitacionIniciada";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionPlazoProrrogado = "PlazoProrrogado";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionSolicitudResuelta = "SolicitudResuelta";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionSolicitudDenegada = "SolicitudDenegada";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

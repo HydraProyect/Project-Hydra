@@ -106,6 +106,10 @@ namespace CaeManager.Infrastructure.Auditing;
 /// 13. El contacto de seguridad del Tenant beneficiario
 ///    (<see cref="CaeManager.Domain.Tenants.ContactoSeguridadTenant"/>): su nombre, su teléfono y
 ///    su correo, con el criterio del punto 10. Ver el comentario de esa entrada.
+/// 14. La solicitud de un derecho del interesado
+///    (<see cref="CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado"/>, #2002): el nombre del
+///    interesado y los textos libres (descripción, motivo de prórroga, resultado, motivo de denegación).
+///    Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -299,6 +303,18 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Nombre),
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Telefono),
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Correo),
+        ],
+        // Punto 14 del comentario de clase (#2002): la solicitud de un derecho del interesado. El rastro conserva
+        // el tipo, el canal, el estado, los plazos y quién dio cada paso y cuándo; nunca el nombre del interesado
+        // ni lo que escribió quien registró, prorrogó, resolvió o denegó, que puede describir datos de salud,
+        // sindicales o de cualquier otra categoría.
+        [typeof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado)] =
+        [
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.NombreInteresado),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.Descripcion),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.MotivoProrroga),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.Resultado),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.MotivoDenegacion),
         ],
 
         // #2009: la IP de quien aceptó el contrato es evidencia, no historial. La tabla de aceptaciones no la deja leer

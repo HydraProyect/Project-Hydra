@@ -332,6 +332,9 @@ public class CaeManagerDbContext(
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
     public DbSet<EnvioReclamacion> EnviosReclamacion => Set<EnvioReclamacion>();
     public DbSet<ContactoSeguridadTenant> ContactosSeguridadTenant => Set<ContactoSeguridadTenant>();
+    public DbSet<ConcesionCapacidadTenant> ConcesionesCapacidadTenant => Set<ConcesionCapacidadTenant>();
+    public DbSet<CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado> SolicitudesDerechoInteresado =>
+        Set<CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado>();
     IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<CaeManager.Domain.Contactos.ContactoAgenda> ContactosAgenda => Set<CaeManager.Domain.Contactos.ContactoAgenda>();
     IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;

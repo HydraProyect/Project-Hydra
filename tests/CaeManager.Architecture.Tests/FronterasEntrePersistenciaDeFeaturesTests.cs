@@ -59,6 +59,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContactosSeguridad.ProponerContactoSeguridadCommandHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadDeMiOrganizacionQueryHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadVigenteQueryHandler", "IContactoSeguridadTenantRepository"),
+        // La concesión de una capacidad del Tenant (decisión D-3 del 2026-11-15) es del plano de Propiedad del Tenant:
+        // su entidad y su repositorio viven en Domain/Tenants; la Feature CapacidadesTenant es su superficie.
+        ("CapacidadesTenant.ConcederCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        ("CapacidadesTenant.RevocarCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        // Una solicitud de derechos del interesado puede señalar a un Trabajador de la cartera de quien la registra.
+        ("DerechosInteresado.RegistrarSolicitudDerechoInteresadoCommandHandler", "ITrabajadorRepository"),
         // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
         // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
