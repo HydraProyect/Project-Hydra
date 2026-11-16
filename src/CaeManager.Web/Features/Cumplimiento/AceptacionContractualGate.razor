@@ -40,7 +40,7 @@
 <LimiteDeErrores Islote="this">
 @if (_errorConsulta)
 {
-    <ModalFormulario Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true"
+    <ModalFormulario Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true" HayCambios="() => false"
                      Guardando="_consultando" TextoGuardar="@Textos["BotonReintentar"]" TextoCancelar="" OnGuardar="ReintentarAsync">
         <ChildContent>
             <p class="gate-contractual-error" role="alert">@Textos["ErrorConsulta"]</p>

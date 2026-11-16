@@ -295,8 +295,8 @@ public class AceptarDocumentosContractualesCommandHandler(
         {
             // Un guardado del acuse que falla deja sus filas en el contexto, que en Blazor Server vive lo que el
             // circuito; como este Command devuelve éxito, RestauracionCambiosDeComandoBehavior las conservaría y el
-            // siguiente Command las guardaría o fallaría por ellas. La aceptación ya está confirmada en la base:
-            // descartar el rastreo solo suelta lo del acuse.
+            // siguiente Command las guardaría o fallaría por ellas. Se descarta todo el rastreo, no solo lo del acuse:
+            // la aceptación ya está confirmada en la base y lo demás se relee en el siguiente Command.
             descarteCambios.DescartarCambiosPendientes();
             logger.LogWarning(ex, "Aceptación contractual registrada; el acuse no se pudo preparar en el Tenant {TenantId}.", tenantActual.TenantId);
         }
