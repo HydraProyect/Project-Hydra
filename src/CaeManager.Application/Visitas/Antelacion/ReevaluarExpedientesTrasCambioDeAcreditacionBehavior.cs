@@ -17,11 +17,10 @@ namespace CaeManager.Application.Visitas.Antelacion;
 ///
 /// MediatR construye todos los behaviors en cada envío, también para consultas y órdenes sin el marcador: las
 /// dependencias se resuelven solo cuando hacen falta, como en <c>RestauracionCambiosDeComandoBehavior</c>, para no exigir
-/// la persistencia de Visitas a quien no la usa.
+/// la persistencia de Visitas a quien no la usa. También el registro: las pruebas de integración que montan
+/// <c>AddApplication</c> a mano no registran el logging, y exigirlo en el constructor rompía todo envío por MediatR.
 /// </summary>
-public class ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, TResponse>(
-    IServiceProvider servicios,
-    ILogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, TResponse>> logger)
+public class ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, TResponse>(IServiceProvider servicios)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -45,7 +44,7 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, TRes
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "No se pudieron evaluar los expedientes de visita afectados por la acreditación {AcreditacionId}.", cambio.AcreditacionId);
+            servicios.GetService<ILogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, TResponse>>>()?.LogWarning(ex, "No se pudieron evaluar los expedientes de visita afectados por la acreditación {AcreditacionId}.", cambio.AcreditacionId);
         }
 
         return respuesta;

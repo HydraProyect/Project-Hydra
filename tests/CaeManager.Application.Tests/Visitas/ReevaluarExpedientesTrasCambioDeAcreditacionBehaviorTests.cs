@@ -5,7 +5,6 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Visitas;
@@ -51,7 +50,7 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
             .AddSingleton<IDocumentosQueryContext>(documentos)
             .AddSingleton(evaluador)
             .BuildServiceProvider();
-        return new(servicios, NullLogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<TRequest, Result>>.Instance);
+        return new(servicios);
     }
 
     [Fact]
@@ -60,8 +59,7 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
         // MediatR construye todos los behaviors en cada envío: una consulta en un contenedor que no registra ni
         // Documentos ni el evaluador (como las pruebas de integración que montan AddApplication a mano) tiene que pasar.
         var vacio = new ServiceCollection().BuildServiceProvider();
-        var behavior = new ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>(
-            vacio, NullLogger<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>>.Instance);
+        var behavior = new ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>(vacio);
 
         var respuesta = await behavior.Handle(new OrdenCualquiera(Guid.NewGuid()), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -71,10 +69,9 @@ public class ReevaluarExpedientesTrasCambioDeAcreditacionBehaviorTests
     [Fact]
     public void El_behavior_se_construye_sin_la_persistencia_de_visitas()
     {
-        // El contenedor de AddApplication sin IVisitaRepository: construir el behavior no puede exigirlo.
-        var servicios = new ServiceCollection();
-        servicios.AddLogging();
-        var proveedor = servicios.BuildServiceProvider();
+        // El contenedor de AddApplication sin IVisitaRepository ni logging, como lo montan a mano las pruebas de
+        // integración: construir el behavior no puede exigir ninguno de los dos (CI de la #2266).
+        var proveedor = new ServiceCollection().BuildServiceProvider();
 
         var accion = () => ActivatorUtilities.CreateInstance<ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<OrdenCualquiera, Result>>(proveedor);
 

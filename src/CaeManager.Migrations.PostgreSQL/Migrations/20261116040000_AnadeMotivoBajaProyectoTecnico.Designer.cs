@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261115195330_AnadeMotivoBajaProyectoTecnico")]
+    [Migration("20261116040000_AnadeMotivoBajaProyectoTecnico")]
     partial class AnadeMotivoBajaProyectoTecnico
     {
         /// <inheritdoc />
