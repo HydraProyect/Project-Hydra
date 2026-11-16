@@ -319,14 +319,15 @@ public class SolicitudDerechoInteresadoAutorizacionTests
     [Fact]
     public void El_validador_del_registro_rechaza_fecha_futura_nombre_vacio_y_valores_desconocidos()
     {
-        // 16-nov a las 23:30 UTC ya es el 17-nov en Madrid: «hoy» es el día de negocio del reloj inyectado.
-        var reloj = new RelojFijo(new DateTimeOffset(2026, 11, 16, 23, 30, 0, TimeSpan.Zero));
+        // 5-mar-2030 a las 23:30 UTC ya es el 6-mar en Madrid: «hoy» es el día de negocio del reloj inyectado. El
+        // reloj va años por delante del real para que un validador que leyera el del sistema rechazara el caso válido.
+        var reloj = new RelojFijo(new DateTimeOffset(2030, 3, 5, 23, 30, 0, TimeSpan.Zero));
         var validador = new RegistrarSolicitudDerechoInteresadoCommandValidator(reloj);
         var valido = new RegistrarSolicitudDerechoInteresadoCommand(
-            TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.CorreoPostal, new DateOnly(2026, 11, 17), "Paula", null, null);
+            TipoDerechoInteresado.Acceso, CanalEntradaSolicitudDerecho.CorreoPostal, new DateOnly(2030, 3, 6), "Paula", null, null);
 
         validador.Validate(valido).IsValid.Should().BeTrue();
-        validador.Validate(valido with { FechaRecepcion = new DateOnly(2026, 11, 18) }).IsValid.Should().BeFalse();
+        validador.Validate(valido with { FechaRecepcion = new DateOnly(2030, 3, 7) }).IsValid.Should().BeFalse();
         validador.Validate(valido with { NombreInteresado = "  " }).IsValid.Should().BeFalse();
         validador.Validate(valido with { Tipo = (TipoDerechoInteresado)99 }).IsValid.Should().BeFalse();
         validador.Validate(valido with { Canal = (CanalEntradaSolicitudDerecho)99 }).IsValid.Should().BeFalse();
