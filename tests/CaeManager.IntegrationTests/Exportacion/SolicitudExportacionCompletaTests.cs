@@ -447,6 +447,26 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Si_el_guardado_de_la_Lista_se_confirma_y_despues_falla_la_Lista_y_su_fichero_se_conservan()
+    {
+        var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
+        var id = await SembrarAsync(_tenantA, DateTime.UtcNow, _ => { }, protector.Proteger("contrasena-de-prueba-del-commit-ambiguo"));
+        // Commit ambiguo: el guardado de Lista se confirma y la llamada falla después (p. ej. la red tras el COMMIT).
+        var falla = new FallaTrasConfirmarLaLista(id);
+        var (servicio, almacen) = CrearServicio(protector, interceptor: falla);
+
+        await servicio.ProcesarTenantAsync(_tenantA, CancellationToken.None);
+
+        falla.Fallo.Should().BeTrue("la prueba solo vale si el fallo llegó después del commit de la Lista");
+        var lista = await LeerAsync(_tenantA, id);
+        lista.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Lista);
+        lista.UbicacionFichero.Should().Be(AlmacenExportacionesCompletasEnDisco.UbicacionPara(_tenantA, id));
+        (await almacen.AbrirAsync(_tenantA, lista.UbicacionFichero!)).Dispose();
+        (await FasesAsync(_tenantA, id)).Should().NotContain(f => f.Contains(AuditoriaExportacionCompleta.FaseFallida),
+            "FallarAsync encuentra la Lista confirmada y no la toca");
+    }
+
+    [Fact]
     public async Task Si_otro_proceso_caduca_la_anterior_mientras_se_marca_la_nueva_se_reintenta_y_la_nueva_queda_lista()
     {
         var protector = new ProtectorContrasenaExportacion(new EphemeralDataProtectionProvider());
@@ -899,6 +919,26 @@ public class SolicitudExportacionCompletaTests : IAsyncLifetime
                 await competidor();
             }
             return await base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    /// <summary>Lanza después del commit del primer guardado que deja Lista la solicitud <paramref name="id"/>.</summary>
+    private sealed class FallaTrasConfirmarLaLista(Guid id) : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public bool Fallo { get; private set; }
+
+        public override async ValueTask<int> SavedChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesCompletedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            var guardado = await base.SavedChangesAsync(eventData, result, cancellationToken);
+            if (!Fallo && eventData.Context!.ChangeTracker.Entries<SolicitudExportacionCompleta>()
+                    .Any(e => e.Entity.Id == id && e.Entity.Estado == EstadoSolicitudExportacionCompleta.Lista))
+            {
+                Fallo = true;
+                throw new InvalidOperationException("Fallo simulado después del commit de la Lista.");
+            }
+            return guardado;
         }
     }
 

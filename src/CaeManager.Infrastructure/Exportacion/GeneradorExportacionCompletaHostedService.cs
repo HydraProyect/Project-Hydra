@@ -454,13 +454,10 @@ public class GeneradorExportacionCompletaHostedService(
         var solicitud = await contexto.SolicitudesExportacionCompleta.SingleOrDefaultAsync(s => s.Id == id, CancellationToken.None);
         if (solicitud is null)
             return;
-        if (solicitud.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso))
+        if (EsTerminal(solicitud))
         {
-            // Ya terminal: la terminó otro proceso (p. ej. la dio por estancada) o el guardado de Lista se confirmó. Si
-            // su fila no nombra el zip que generó este intento, nadie lo va a descargar: se borra ya, sin esperar las
-            // horas del barrido de huérfanos (ASVS 4.0.3 V8.3.8). Si lo nombra, es el de la Lista y no se toca.
-            if (ubicacionConfirmada is not null && solicitud.UbicacionFichero != ubicacionConfirmada)
-                BorrarSinBloquear(tenantId, [ubicacionConfirmada]);
+            // Ya terminal: la terminó otro proceso (p. ej. la dio por estancada) o el guardado de Lista se confirmó.
+            BorrarSiLaFilaNoLoNombra(tenantId, solicitud, ubicacionConfirmada);
             return;
         }
 
@@ -468,11 +465,32 @@ public class GeneradorExportacionCompletaHostedService(
         contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
             id, AuditoriaExportacionCompleta.FaseFallida, new { motivo }));
         // El fichero, solo después de confirmar la transición (ASVS 4.0.3 V11.1.6): si otro proceso cambió la fila
-        // entre la lectura y el guardado, la transición no se aplica ni se audita y el fichero no se toca.
+        // entre la lectura y el guardado, esta transición no se aplica ni se audita, y se relee la fila ya confirmada
+        // (el UPDATE esperó a su bloqueo) para decidir sobre el fichero con la misma regla que una terminal.
         if (!await GuardarTransicionAsync(contexto, id, CancellationToken.None))
+        {
+            var actual = await contexto.SolicitudesExportacionCompleta.AsNoTracking()
+                .SingleOrDefaultAsync(s => s.Id == id, CancellationToken.None);
+            if (actual is not null && EsTerminal(actual))
+                BorrarSiLaFilaNoLoNombra(tenantId, actual, ubicacionConfirmada);
             return;
+        }
 
         if (ubicacionConfirmada is not null)
+            BorrarSinBloquear(tenantId, [ubicacionConfirmada]);
+    }
+
+    private static bool EsTerminal(SolicitudExportacionCompleta solicitud) =>
+        solicitud.Estado is not (EstadoSolicitudExportacionCompleta.Pendiente or EstadoSolicitudExportacionCompleta.EnCurso);
+
+    /// <summary>
+    /// Sobre una fila ya terminal: si no nombra el zip que generó este intento, nadie lo va a descargar y se borra ya,
+    /// sin esperar las horas del barrido de huérfanos (ASVS 4.0.3 V8.3.8). Si lo nombra, es el de la Lista que se
+    /// descarga y no se toca.
+    /// </summary>
+    private void BorrarSiLaFilaNoLoNombra(Guid tenantId, SolicitudExportacionCompleta terminal, string? ubicacionConfirmada)
+    {
+        if (ubicacionConfirmada is not null && terminal.UbicacionFichero != ubicacionConfirmada)
             BorrarSinBloquear(tenantId, [ubicacionConfirmada]);
     }
 
