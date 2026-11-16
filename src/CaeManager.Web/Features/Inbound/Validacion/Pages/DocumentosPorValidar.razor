@@ -1,0 +1,169 @@
+@page "/inbound/validacion"
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Web.Features.Inbound.Validacion.Components
+
+<LimiteDeErrores Pagina="this">
+@* Tarjeta 10 de la maqueta de Inbound, «Documentos por validar»: la cola del Gestor CAE del Tenant TCE. Sin backend
+   fusionado (B-21: cola paginada por cartera, índice de pendientes): el servicio responde «no disponible» y la pantalla no
+   pinta ningún dato. «Exportar a Excel» de la maqueta tampoco está: no hay endpoint hasta B-21. La línea Inbound activa
+   (gate B-01) la impone la base; la pantalla no tiene aún una consulta con la que ocultarse sola. *@
+<PageTitle>Documentos por validar — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Documentos por validar — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design dpv">
+    <CabeceraListado Grupo="Validación" Titulo="Documentos por validar" Contador="@(HayDatos ? Visibles.Count : null)">
+        <Primaria>
+            <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!HayDatos || Visibles.Count == 0)" OnClick="() => EmpezarAsync(Visibles)">@TextoEmpezar</Boton>
+        </Primaria>
+    </CabeceraListado>
+    @if (HayDatos)
+    {
+        <p class="dpv-subtitulo">@LogicaValidacionInbound.Subtitulo(_agrupar)</p>
+    }
+
+    @* El aviso de Deshacer vive fuera de las ramas de carga: recargar la cola tras el lote no lo destruye ni reinicia sus 10 s. *@
+    @if (_loteHecho is { } hecho)
+    {
+        <AvisoDeshacer @key="hecho.LoteId" Mensaje="@(hecho.Documentos == 1 ? "1 documento validado en lote" : $"{hecho.Documentos} documentos validados en lote")"
+                       Detalle="@($"Se abrirán {hecho.ParaRevision} para revisión. El aviso a las Empresas contratistas sale al terminar el plazo.")"
+                       OnDeshacer="DeshacerLoteAsync" OnVencido="CerrarAvisoLote" />
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio Titulo="No se pudo cargar la cola" Descripcion="Inténtalo de nuevo en unos segundos.">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_noDisponible)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="La cola de validación no está disponible"
+                     Descripcion="Todavía no se pueden consultar los documentos por validar. Cuando estén disponibles, aparecerán aquí." />
+    }
+    else
+    {
+        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Filtrar: requerimiento, titular, DNI/NIE, CIF o matrícula"
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltros">
+            <Pastillas>
+                <PastillaFiltroBuscable Etiqueta="Requerimiento" Opciones="OpcionesRequerimiento" Valor="@_req" ValorChanged="v => Cambiar(() => _req = v)" />
+                <PastillaFiltroBuscable Etiqueta="Entidad" Opciones="OpcionesEntidad" Valor="@_entidad" ValorChanged="v => Cambiar(() => _entidad = v)" />
+                <PastillaFiltroBuscable Etiqueta="Empresa contratista" Opciones="OpcionesEmpresa" Valor="@_empresa" ValorChanged="v => Cambiar(() => _empresa = v)" />
+                <PastillaFiltroBuscable Etiqueta="Centro" Opciones="OpcionesCentro" Valor="@_centro" ValorChanged="v => Cambiar(() => _centro = v)" />
+                <PastillaFiltroBuscable Etiqueta="Lectura con IA" Opciones="OpcionesLectura" Valor="@_lectura" ValorChanged="v => Cambiar(() => _lectura = v)" />
+            </Pastillas>
+            <Estados>
+                <FranjaEstado Opciones="OpcionesTramo" Valor="@(_tramo == "" ? null : _tramo)" ValorChanged="v => Cambiar(() => _tramo = v ?? string.Empty)"
+                              Recuentos="RecuentosTramo" TotalTodos="@Base.Count" TextoTodos="Todos" Etiqueta="Antigüedad" EtiquetaAccesible="Antigüedad en la cola" />
+            </Estados>
+            <Herramientas>
+                <div class="dpv-agrupar" role="group" aria-label="Agrupar por">
+                    <span class="dpv-agrupar-rotulo">Agrupar por</span>
+                    @foreach (var agrupacion in Agrupaciones)
+                    {
+                        var actual = agrupacion;
+                        <button type="button" class="@("dpv-agrupar-opcion" + (_agrupar == actual ? " dpv-agrupar-activa" : ""))"
+                                aria-pressed="@(_agrupar == actual ? "true" : "false")" @onclick="() => _agrupar = actual">@LogicaValidacionInbound.Texto(actual)</button>
+                    }
+                </div>
+            </Herramientas>
+        </BarraFiltros>
+
+        @if (!_hayBase)
+        {
+            <EstadoVacio NombreIcono="vacio" Titulo="No te queda nada por validar"
+                         Descripcion="Cuando las Empresas contratistas suban documentos de tu cartera, aparecerán aquí." />
+        }
+        else if (Visibles.Count == 0 && HayFiltrosActivos)
+        {
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún documento coincide con los filtros."
+                         Descripcion="Prueba con otros criterios o quita los filtros.">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltros">Limpiar filtros</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <div class="dpv-tarjeta">
+                <table class="dpv-tabla">
+                    <thead>
+                        <tr>
+                            <th class="dpv-col-casilla"><span class="dpv-solo-lector">Seleccionar</span></th>
+                            <th>Titular</th>
+                            <th>Entidad</th>
+                            <th>Empresa contratista</th>
+                            <th>Centro</th>
+                            <th>Subido</th>
+                            <th>Lectura con IA</th>
+                        </tr>
+                    </thead>
+                    @foreach (var grupo in Grupos)
+                    {
+                        <tbody>
+                            @if (_agrupar != AgrupacionCola.SinAgrupar)
+                            {
+                                <tr class="dpv-grupo">
+                                    <td colspan="7">
+                                        <div class="dpv-grupo-cabecera">
+                                            <span><strong>@grupo.Titulo</strong> <span class="dpv-mut">@(grupo.Documentos.Count == 1 ? "1 documento" : $"{grupo.Documentos.Count} documentos")</span></span>
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EmpezarAsync(grupo.Documentos)">Empezar a validar</Boton>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            @foreach (var documento in grupo.Documentos)
+                            {
+                                var id = documento.Id;
+                                var motivo = LogicaValidacionInbound.MotivoNoLote(documento);
+                                <tr class="@("dpv-fila" + (_marcados.Contains(id) ? " dpv-fila-marcada" : ""))" data-documento="@id">
+                                    <td class="dpv-col-casilla">
+                                        <input type="checkbox" checked="@_marcados.Contains(id)" disabled="@(motivo is not null)"
+                                               title="@(motivo ?? "Añadir al lote")" aria-label="@($"Seleccionar {documento.Titular}")"
+                                               @onchange="e => AlternarMarca(id, (bool)e.Value!)" />
+                                    </td>
+                                    <td>
+                                        @if (_agrupar != AgrupacionCola.Requerimiento)
+                                        {
+                                            <div class="dpv-mut dpv-pequeno">@documento.Requerimiento</div>
+                                        }
+                                        <a class="dpv-titular" href="/inbound/validacion/@id" @onclick="() => AbrirAsync(id)" @onclick:preventDefault>@documento.Titular</a>
+                                        <div class="dpv-mut dpv-pequeno">@documento.Identificador</div>
+                                    </td>
+                                    <td>@LogicaValidacionInbound.Texto(documento.Entidad)</td>
+                                    <td>
+                                        <div>@documento.EmpresaContratista</div>
+                                        <div class="dpv-mut dpv-pequeno">@documento.RolEmpresaContratista</div>
+                                    </td>
+                                    <td title="@string.Join(", ", documento.Centros)">@LogicaValidacionInbound.TextoCentros(documento.Centros)</td>
+                                    <td class="@(LogicaValidacionInbound.Tramo(documento, _ahora) == TramoAntiguedad.MasDeTresDias ? "dpv-antiguo" : "")">@LogicaValidacionInbound.TextoSubido(documento.SubidoUtc)</td>
+                                    <td><span class="@($"dpv-lectura dpv-lectura-{LogicaValidacionInbound.ClaseResultado(documento.Lectura)}")">@LogicaValidacionInbound.TextoLectura(documento)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    }
+                </table>
+            </div>
+        }
+
+        @if (_marcados.Count > 0)
+        {
+            <BarraLoteValidacion Seleccionados="_marcados.Count" ParaRevision="@LogicaValidacionInbound.MuestraParaRevision(_marcados.Count, _cola!.MuestraUnoDeCada)"
+                                 UnoDeCada="_cola.MuestraUnoDeCada" Tope="_cola.TopeLote"
+                                 OnValidar="@(() => _confirmarLote = true)" OnCancelar="@(() => _marcados.Clear())" />
+        }
+    }
+</div>
+
+<DialogoConfirmacion @bind-Visible="_confirmarLote" Titulo="@($"Validar {_marcados.Count} documentos")"
+                     Mensaje="@($"Se validarán {_marcados.Count} documentos cuya lectura es «Todo correcto». Se abrirá 1 de cada {_cola?.MuestraUnoDeCada ?? 5} para revisión, y el aviso a las Empresas contratistas sale al terminar el plazo de Deshacer.")"
+                     TextoBotonConfirmar="Validar" VarianteConfirmar="VarianteBoton.Primario" EnProgreso="_enviandoLote" OnConfirmar="ValidarLoteAsync" />
+</LimiteDeErrores>

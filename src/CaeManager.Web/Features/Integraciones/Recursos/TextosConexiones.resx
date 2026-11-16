@@ -25,7 +25,10 @@
     <value>Sin verificar: no hemos podido comprobar en el último día que esta dirección sigue siendo el mismo buzón. El correo entrante queda en espera, sin perderse, y no se envía nada desde este buzón hasta que se compruebe en la renovación diaria. Si el aviso sigue, desconecta el buzón y vuelve a conectarlo.</value>
   </data>
   <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
-    <value>Posible correo no recuperado desde el {0}: mientras la conexión no funcionaba pudo llegar correo que no ha entrado en la aplicación y que no se recupera solo. Revísalo en el propio buzón de Microsoft 365.</value>
+    <value>Posible correo no recuperado desde el {0}: mientras la conexión no funcionaba pudo llegar correo que aún no ha entrado en la aplicación. Mientras el buzón esté conectado y la ingesta de correo activada, se intenta recuperar cada pocos minutos, y este aviso desaparece cuando se ha recuperado todo; hasta entonces, revísalo en el propio buzón de Microsoft 365.</value>
+  </data>
+  <data name="AvisoRecuperacionDetenida" xml:space="preserve">
+    <value>Recuperación detenida en {0}: demasiados correos en el mismo segundo o página parcial de Graph. El correo recibido desde ese momento puede no haber entrado en la aplicación; revísalo en el propio buzón de Microsoft 365.</value>
   </data>
   <data name="AvisoCorreoRetenido" xml:space="preserve">
     <value>Hay correo retenido: llegó mientras no se podía comprobar este buzón y lleva más de tres días en espera. Se ingerirá en cuanto se compruebe; si el aviso sigue, desconecta el buzón y vuelve a conectarlo.</value>

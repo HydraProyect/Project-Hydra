@@ -1,0 +1,72 @@
+@namespace CaeManager.Web.Features.Inbound.Validacion.Components
+@* Pastilla de filtro con buscador dentro del desplegable, como en la maqueta «Documentos por validar» (tarjeta 10):
+   las listas de Requerimiento, Empresa contratista y Centro son largas y se buscan, no se recorren. La PastillaFiltro del
+   sistema de diseño no tiene buscador; esta pastilla lleva el mismo aspecto y solo añade el campo «Buscar». *@
+<div class="pfb">
+    <button type="button" class="@("pfb-disparador" + (Valor != "" ? " pfb-activa" : ""))" aria-haspopup="listbox"
+            aria-expanded="@(_abierta ? "true" : "false")" @onclick="Alternar">
+        <span class="pfb-etiqueta">@Etiqueta</span>
+        @if (Valor != "")
+        {
+            <span class="pfb-valor">@TextoValor</span>
+        }
+        <span class="pfb-flecha" aria-hidden="true">▾</span>
+    </button>
+    @if (_abierta)
+    {
+        <div class="pfb-fondo" @onclick="Cerrar"></div>
+        <div class="pfb-panel" role="dialog" aria-label="@Etiqueta">
+            <input class="pfb-buscar" type="search" placeholder="Buscar" aria-label="@($"Buscar en {Etiqueta}")"
+                   value="@_busca" @oninput="e => _busca = e.Value?.ToString() ?? string.Empty" />
+            <ul class="pfb-lista" role="listbox" aria-label="@Etiqueta">
+                @if (Coincide(TextoTodos))
+                {
+                    <li><button type="button" role="option" aria-selected="@(Valor == "" ? "true" : "false")"
+                                class="@("pfb-opcion" + (Valor == "" ? " pfb-opcion-activa" : ""))" @onclick="@(() => ElegirAsync(string.Empty))">@TextoTodos</button></li>
+                }
+                @foreach (var opcion in Visibles)
+                {
+                    var valor = opcion.Valor;
+                    <li><button type="button" role="option" aria-selected="@(Valor == valor ? "true" : "false")"
+                                class="@("pfb-opcion" + (Valor == valor ? " pfb-opcion-activa" : ""))" @onclick="@(() => ElegirAsync(valor))">@opcion.Texto</button></li>
+                }
+            </ul>
+            @if (!Coincide(TextoTodos) && Visibles.Count == 0)
+            {
+                <p class="pfb-vacio">Ninguna opción coincide.</p>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionEstado> Opciones { get; set; } = [];
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter] public string TextoTodos { get; set; } = "Todos";
+
+    private bool _abierta;
+    private string _busca = string.Empty;
+
+    private string TextoValor => Opciones.FirstOrDefault(o => o.Valor == Valor)?.Texto ?? Valor;
+
+    private IReadOnlyList<OpcionEstado> Visibles =>
+        string.IsNullOrWhiteSpace(_busca) ? Opciones : [.. Opciones.Where(o => LogicaValidacionInbound.Contiene(o.Texto, _busca.Trim()))];
+
+    private bool Coincide(string texto) => string.IsNullOrWhiteSpace(_busca) || LogicaValidacionInbound.Contiene(texto, _busca.Trim());
+
+    private void Alternar()
+    {
+        _abierta = !_abierta;
+        _busca = string.Empty;
+    }
+
+    private void Cerrar() => _abierta = false;
+
+    private async Task ElegirAsync(string valor)
+    {
+        _abierta = false;
+        await ValorChanged.InvokeAsync(valor);
+    }
+}

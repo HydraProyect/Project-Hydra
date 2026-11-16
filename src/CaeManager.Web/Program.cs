@@ -340,6 +340,8 @@ CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExt
 CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
+// Validación Inbound (Documentos por validar y Validación): puerto con implementación vacía hasta B-21/B-22/B-24/B-26/B-27.
+CaeManager.Web.Features.Inbound.Validacion.ValidacionInboundServiceCollectionExtensions.AddValidacionInbound(builder.Services);
 // Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
 CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();

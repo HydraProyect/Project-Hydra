@@ -97,7 +97,11 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             // verificación, hueco, hueco por registrar y reintento), y Soporte TALVEG las necesita para cargar la entidad
             // sin 42501.
             "ConsentidoPorUsuarioId", "DirectorioEntraId", "EsBuzonCompartido", "HuecoPendienteDesdeUtc", "IdentidadBuzon",
-            "IdentidadVerificadaUtc", "MarcaHuecoPorRegistrarDesdeUtc", "ReintentoVerificacionNoAntesDeUtc"] },
+            "IdentidadVerificadaUtc", "MarcaHuecoPorRegistrarDesdeUtc", "ReintentoVerificacionNoAntesDeUtc",
+            // Recuperación del hueco (migración 20261115210000): detención, generación, cobertura, cursor y fin del
+            // listado; ninguna es un secreto.
+            "RecuperacionHuecoAtascadaEnUtc", "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
+            "RecuperacionHuecoListadoCompleto"] },
     };
 
     private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";
