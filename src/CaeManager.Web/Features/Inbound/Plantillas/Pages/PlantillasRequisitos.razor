@@ -1,0 +1,219 @@
+@page "/inbound/plantillas"
+@* Tarjeta 17 · Plantillas de requisitos (Inbound). Sin prerender, como el resto de listados interactivos. Una lectura de las
+   plantillas visibles y, al elegir una, la de sus requisitos; los nombres salen de ResolutorPlantillasRequisitos. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Domain.Inbound.Requisitos
+@using CaeManager.Web.Features.Inbound.Plantillas.Components
+@using CaeManager.Web.Features.Inbound.Plantillas.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosPlantillasRequisitos> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
+        <Primaria>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => _altaVisible = true">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
+        </Primaria>
+    </CabeceraListado>
+    <p class="inbound-secundario" data-pieza="subtitulo-plantillas">@Textos["Subtitulo"]</p>
+
+    @if (!_errorCarga)
+    {
+        <section class="barra-filtros-pastillas" aria-label="@Comunes["FiltrarEstaPantalla"]">
+            <div class="barra-filtros-pastillas-fila">
+                <div class="barra-filtros-buscador-pantalla">
+                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                    <CampoTexto Placeholder="@Textos["BuscadorPlaceholder"]" Valor="@_busqueda" ValorChanged="Buscar"
+                                aria-label="@Textos["BuscadorPlaceholder"]" data-filtro-pantalla="" />
+                </div>
+            </div>
+            <FranjaEstado Opciones="_opcionesNivel" Valor="@_niveles" ValorChanged="CambiarNiveles" Recuentos="_recuentos"
+                          EtiquetaAccesible="@Textos["FiltroNivelEtiqueta"]" />
+        </section>
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_todas.Count == 0)
+    {
+        <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+            <Accion>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="() => _altaVisible = true">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <div class="pl-cuerpo">
+            <div class="pl-izq">
+                @if (_visibles.Count > 0)
+                {
+                    <TarjetaListado>
+                        <Contenido>
+                            <table class="tabla-datos pl-tabla" aria-label="@Textos["ColPlantilla"]">
+                                <thead><tr>
+                                    <th scope="col">@Textos["ColPlantilla"]</th>
+                                    <th scope="col" class="pl-col-cifra">@Textos["ColRequisitos"]</th>
+                                    <th scope="col" class="pl-col-cifra">@Textos["ColContratos"]</th>
+                                </tr></thead>
+                                <tbody>
+                                @foreach (var fila in _visibles)
+                                {
+                                    <tr @key="fila.Plantilla.Id" data-plantilla="@fila.Plantilla.Id" aria-selected="@(fila.Plantilla.Id == _seleccion)"
+                                        class="@(fila.Plantilla.Id == _seleccion ? "pl-seleccionada" : null)">
+                                        <td>
+                                            <button type="button" class="pl-fila" title="@NombreDe(fila)" @onclick="() => ElegirAsync(fila.Plantilla.Id)">
+                                                <span class="pl-fila-t">@NombreDe(fila)</span>
+                                                <span class="pl-sec">@Textos[PlantillaRequisitosUi.ClaveNivel(fila.Plantilla.Tipo)]</span>
+                                            </button>
+                                        </td>
+                                        <td class="pl-col-cifra"><span class="cifras">@fila.Plantilla.RequisitosActivos</span></td>
+                                        <td class="pl-col-cifra">
+                                            @if (_usos.TryGetValue(fila.Plantilla.Id, out var n))
+                                            {
+                                                <span class="cifras">@n</span>
+                                            }
+                                            else
+                                            {
+                                                @* shortcut: sin backend, cablear cuando entre B-15 (contratos de acceso que usan cada plantilla). *@
+                                                <span title="@Textos["SinDatoTitulo"]">@Textos["SinDato"]</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </Contenido>
+                    </TarjetaListado>
+                }
+                else if (HayFiltrosActivos)
+                {
+                    <p class="inbound-secundario pl-sin-coincidencias">@Textos["VacioFiltros"]</p>
+                }
+            </div>
+
+            @if (SeleccionVisible is { } elegida)
+            {
+                <section class="pl-der" aria-label="@Textos["PanelRequisitosEtiqueta"]">
+                    <div class="pl-cab">
+                        <div class="pl-cab-textos">
+                            <h2>@NombreDe(elegida)</h2>
+                            <div class="pl-meta">
+                                <span>@Textos[PlantillaRequisitosUi.ClaveNivel(elegida.Plantilla.Tipo)]</span>·
+                                @if (_usos.TryGetValue(elegida.Plantilla.Id, out var usada))
+                                {
+                                    <span>@Textos["UsadaEn", usada]</span>
+                                }
+                                else
+                                {
+                                    <span title="@Textos["SinDatoTitulo"]">@Textos["UsadaSinDato"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="pl-cab-acciones">
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@($"/inbound/plantillas/{elegida.Plantilla.Id}/requisitos?anadir=true")">@Textos["BotonAnadir"]</Boton>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _retirando = true">@Textos["BotonRetirar"]</Boton>
+                            </SoloConEscritura>
+                        </div>
+                    </div>
+                    <p class="pl-nota">@Textos[ClaveExplicacion(elegida.Plantilla.Tipo)]</p>
+
+                    @if (_cargandoDetalle)
+                    {
+                        <EstadoCargando Filas="3" />
+                    }
+                    else if (_errorDetalle || _detalle is null)
+                    {
+                        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorDetalleDetalle"]" SinIcono="true">
+                            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="() => ElegirAsync(elegida.Plantilla.Id)">@Textos["BotonReintentar"]</Boton></Accion>
+                        </EstadoVacio>
+                    }
+                    else if (RequisitosActivos.Count == 0)
+                    {
+                        <p class="inbound-secundario pl-sin-coincidencias">@Textos["PlantillaSinRequisitos"]</p>
+                    }
+                    else
+                    {
+                        @* shortcut: sin backend, cablear cuando entre B-15: «También lo pide» (el mismo requisito de otro nivel, cubierto por un único documento). *@
+                        <TarjetaListado>
+                            <Contenido>
+                                <table class="tabla-datos pl-tabla" aria-label="@Textos["PanelRequisitosEtiqueta"]">
+                                    <thead><tr>
+                                        <th scope="col">@Textos["ColRequisito"]</th>
+                                        <th scope="col" class="pl-col-origen">@Textos["ColOrigen"]</th>
+                                        <th scope="col" class="pl-col-tol">@Textos["ColTolerancia"]<span class="pl-sec">@Textos["ColToleranciaDecision"]</span></th>
+                                        <th scope="col" class="pl-col-acc"><span class="sr-only">@Textos["ColAccion"]</span></th>
+                                    </tr></thead>
+                                    <tbody>
+                                    @foreach (var r in RequisitosActivos)
+                                    {
+                                        var legal = r.Origen == OrigenRequisito.LegalN1;
+                                        <tr @key="r.Id" data-requisito="@r.Id">
+                                            <td>
+                                                <span class="pl-prin pl-trunc" title="@NombreRequisito(r)">@NombreRequisito(r)</span>
+                                                <span class="pl-sec">@Textos[PlantillaRequisitosUi.ClaveEntidad(r.Entidad)] · @PlantillaRequisitosUi.Vigencia(r, Textos)</span>
+                                            </td>
+                                            <td>
+                                                <Badge Tono="PlantillaRequisitosUi.TonoOrigen(r.Origen)" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveOrigen(r.Origen)]</Badge>
+                                                @if (legal)
+                                                {
+                                                    @* shortcut: sin backend, cablear cuando entre B-16 («No aplica» con respaldo y vencimiento; nunca sobre un requisito legal N1). *@
+                                                    <span class="pl-cand">@Textos["LegalNoAdmiteNoAplica"]</span>
+                                                }
+                                            </td>
+                                            <td><span class="pl-tol">@PlantillaRequisitosUi.Tolerancia(r, Textos)</span></td>
+                                            <td class="pl-col-acc">
+                                                @if (legal)
+                                                {
+                                                    <span class="pl-fijo" title="@Textos["LoPoneTalvegTitulo"]">@Textos["LoPoneTalveg"]</span>
+                                                }
+                                                else
+                                                {
+                                                    <SoloConEscritura>
+                                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                               Href="@($"/inbound/plantillas/{elegida.Plantilla.Id}/requisitos?editar={r.Id}")"
+                                                               aria-label="@Textos["AccionEditarAria", NombreRequisito(r)]">@Textos["BotonEditar"]</Boton>
+                                                    </SoloConEscritura>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </Contenido>
+                        </TarjetaListado>
+                    }
+                </section>
+            }
+        </div>
+    }
+</div>
+
+<AnadirPlantillaDrawer Visible="_altaVisible" VisibleChanged="CerrarAlta" Referencias="_refs" Existentes="_todas.Select(f => f.Plantilla).ToList()"
+                       OnCreada="AltaCreadaAsync" />
+
+<DialogoConfirmacion Visible="_retirando" VisibleChanged="CerrarRetirar" Titulo="@Textos["RetirarTitulo"]" Mensaje="@Textos["RetirarMensaje"]"
+                     TextoBotonConfirmar="@Textos["BotonRetirar"]" TextoBotonDescartar="@Textos["BotonCancelar"]"
+                     VarianteConfirmar="VarianteBoton.Destructivo" EnProgreso="_enProgreso" OnConfirmar="RetirarAsync">
+    @if (_errorRetirar is not null)
+    {
+        <p class="campo-mensaje-error" role="alert">@_errorRetirar</p>
+    }
+</DialogoConfirmacion>
+</LimiteDeErrores>

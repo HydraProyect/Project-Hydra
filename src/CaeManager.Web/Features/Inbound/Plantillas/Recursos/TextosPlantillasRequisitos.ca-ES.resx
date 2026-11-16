@@ -1,0 +1,468 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Kicker" xml:space="preserve">
+    <value>Configuració</value>
+  </data>
+  <data name="KickerPlantilla" xml:space="preserve">
+    <value>Plantilla «{0}»</value>
+  </data>
+  <data name="KickerFormulario" xml:space="preserve">
+    <value>Plantilla «{0}» · Requisit «{1}»</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Plantilles de requisits</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Què es demana segons l&apos;Activitat, els riscos validats del contracte d&apos;accés, el Centre i el que exigeix el Client a totes les Empreses contractistes. En donar d&apos;alta un contracte d&apos;accés, els seus requisits són la suma d&apos;aquests nivells i dels legals, que posa TALVEG.</value>
+  </data>
+  <data name="BuscadorPlaceholder" xml:space="preserve">
+    <value>Filtrar per plantilla</value>
+  </data>
+  <data name="FiltroNivelEtiqueta" xml:space="preserve">
+    <value>Filtrar per nivell</value>
+  </data>
+  <data name="NivelActividad" xml:space="preserve">
+    <value>Activitat</value>
+  </data>
+  <data name="NivelRiesgo" xml:space="preserve">
+    <value>Risc</value>
+  </data>
+  <data name="NivelCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="NivelExigencia" xml:space="preserve">
+    <value>Exigència del Client</value>
+  </data>
+  <data name="NombreExigencias" xml:space="preserve">
+    <value>Exigències de {0}</value>
+  </data>
+  <data name="ReferenciaNoDisponible" xml:space="preserve">
+    <value>Referència no disponible</value>
+  </data>
+  <data name="RequisitoNoDisponible" xml:space="preserve">
+    <value>Requisit no disponible</value>
+  </data>
+  <data name="ColPlantilla" xml:space="preserve">
+    <value>Plantilla</value>
+  </data>
+  <data name="ColRequisitos" xml:space="preserve">
+    <value>Requisits</value>
+  </data>
+  <data name="ColContratos" xml:space="preserve">
+    <value>Contractes</value>
+  </data>
+  <data name="ColRequisito" xml:space="preserve">
+    <value>Requisit</value>
+  </data>
+  <data name="ColOrigen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="ColTolerancia" xml:space="preserve">
+    <value>Tolerància després del venciment</value>
+  </data>
+  <data name="ColToleranciaDecision" xml:space="preserve">
+    <value>Decisió del Client</value>
+  </data>
+  <data name="ColAccion" xml:space="preserve">
+    <value>Acció</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="SinDatoTitulo" xml:space="preserve">
+    <value>Sense dada: encara no hi ha backend que ho calculi</value>
+  </data>
+  <data name="UsadaEn" xml:space="preserve">
+    <value>Usada en {0} contractes d&apos;accés</value>
+  </data>
+  <data name="UsadaSinDato" xml:space="preserve">
+    <value>Contractes d&apos;accés que la fan servir: sense dada</value>
+  </data>
+  <data name="PanelRequisitosEtiqueta" xml:space="preserve">
+    <value>Requisits de la plantilla</value>
+  </data>
+  <data name="ExplicaActividad" xml:space="preserve">
+    <value>Es demana a les Empreses contractistes que treballen en aquesta Activitat. Els requisits legals els posa TALVEG: es veuen aquí, però no s&apos;editen, no es lleven ni es marquen com a No aplica.</value>
+  </data>
+  <data name="ExplicaRiesgo" xml:space="preserve">
+    <value>Es demana en els contractes d&apos;accés amb aquest risc validat per un Gestor CAE. Mentre la IA només el proposi, no es demana.</value>
+  </data>
+  <data name="ExplicaCentro" xml:space="preserve">
+    <value>Es demana en tots els contractes d&apos;accés amb treballs en aquest Centre, sigui quina sigui l&apos;Activitat.</value>
+  </data>
+  <data name="ExplicaExigencia" xml:space="preserve">
+    <value>Es demana en tots els contractes d&apos;accés d&apos;aquest Client, sigui quina sigui l&apos;Activitat. Els requisits legals no es repeteixen aquí: ja els posa TALVEG.</value>
+  </data>
+  <data name="LegalNoAdmiteNoAplica" xml:space="preserve">
+    <value>No admet No aplica</value>
+  </data>
+  <data name="LoPoneTalveg" xml:space="preserve">
+    <value>El posa TALVEG</value>
+  </data>
+  <data name="LoPoneTalvegTitulo" xml:space="preserve">
+    <value>Requisit legal: no s&apos;edita, no es lleva ni es marca com a No aplica</value>
+  </data>
+  <data name="PlantillaSinRequisitos" xml:space="preserve">
+    <value>Aquesta plantilla encara no té requisits.</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Encara no hi ha plantilles de requisits</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Afegeix una plantilla per Activitat, risc, Centre o Client per fixar què es demana en els contractes d&apos;accés.</value>
+  </data>
+  <data name="VacioFiltros" xml:space="preserve">
+    <value>Cap plantilla coincideix amb el filtre.</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No s&apos;han pogut carregar les plantilles</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Torna-ho a provar d&apos;aquí a uns segons.</value>
+  </data>
+  <data name="ErrorDetalleDetalle" xml:space="preserve">
+    <value>No hem pogut llegir els requisits d&apos;aquesta plantilla. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No s&apos;ha pogut desar. Torna-ho a provar.</value>
+  </data>
+  <data name="BotonAnadir" xml:space="preserve">
+    <value>Afegeix</value>
+  </data>
+  <data name="BotonEditar" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="BotonRetirar" xml:space="preserve">
+    <value>Retira</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintenta</value>
+  </data>
+  <data name="AccionEditarAria" xml:space="preserve">
+    <value>Edita el requisit {0}</value>
+  </data>
+  <data name="AccionRetirarAria" xml:space="preserve">
+    <value>Retira el requisit {0}</value>
+  </data>
+  <data name="RetirarTitulo" xml:space="preserve">
+    <value>Retira plantilla</value>
+  </data>
+  <data name="RetirarMensaje" xml:space="preserve">
+    <value>La plantilla deixa d&apos;aplicar-se als contractes d&apos;accés. Els seus requisits no s&apos;esborren.</value>
+  </data>
+  <data name="RetirarRequisitoTitulo" xml:space="preserve">
+    <value>Retira requisit</value>
+  </data>
+  <data name="RetirarRequisitoMensaje" xml:space="preserve">
+    <value>«{0}» deixa de demanar-se en aquesta plantilla.</value>
+  </data>
+  <data name="ToastAlta" xml:space="preserve">
+    <value>Plantilla afegida</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Plantilla retirada de la llista</value>
+  </data>
+  <data name="ToastRequisitoAnadido" xml:space="preserve">
+    <value>Requisit afegit</value>
+  </data>
+  <data name="ToastRequisitoGuardado" xml:space="preserve">
+    <value>Requisit desat</value>
+  </data>
+  <data name="ToastRequisitoRetirado" xml:space="preserve">
+    <value>Requisit retirat</value>
+  </data>
+  <data name="AltaTitulo" xml:space="preserve">
+    <value>Afegeix plantilla</value>
+  </data>
+  <data name="AltaSubtitulo" xml:space="preserve">
+    <value>Nivell i referència. Els requisits s&apos;afegeixen després.</value>
+  </data>
+  <data name="AltaNivel" xml:space="preserve">
+    <value>Nivell</value>
+  </data>
+  <data name="AltaElige" xml:space="preserve">
+    <value>Tria…</value>
+  </data>
+  <data name="AltaReferenciaActividad" xml:space="preserve">
+    <value>Activitat</value>
+  </data>
+  <data name="AltaReferenciaRiesgo" xml:space="preserve">
+    <value>Risc</value>
+  </data>
+  <data name="AltaReferenciaCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="AltaReferenciaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="AltaFaltaReferencia" xml:space="preserve">
+    <value>Tria a què s&apos;aplica la plantilla.</value>
+  </data>
+  <data name="AltaSinReferencias" xml:space="preserve">
+    <value>No queda res per triar en aquest nivell: tot el que veus ja té la seua plantilla.</value>
+  </data>
+  <data name="RequisitosTitulo" xml:space="preserve">
+    <value>Requisits</value>
+  </data>
+  <data name="RequisitosVacioDescripcion" xml:space="preserve">
+    <value>Afegeix el primer requisit: tria&apos;l del catàleg de tipus de document o crea&apos;l propi.</value>
+  </data>
+  <data name="VolverPlantillas" xml:space="preserve">
+    <value>Torna a Plantilles de requisits</value>
+  </data>
+  <data name="VolverRequisitos" xml:space="preserve">
+    <value>Torna als requisits de la plantilla</value>
+  </data>
+  <data name="PlantillaNoEncontradaTitulo" xml:space="preserve">
+    <value>No trobem aquesta plantilla</value>
+  </data>
+  <data name="PlantillaNoEncontradaDetalle" xml:space="preserve">
+    <value>No existeix o no és a la teua cartera.</value>
+  </data>
+  <data name="OrigenLegal" xml:space="preserve">
+    <value>Legal</value>
+  </data>
+  <data name="OrigenConvenio" xml:space="preserve">
+    <value>Conveni</value>
+  </data>
+  <data name="OrigenActividad" xml:space="preserve">
+    <value>Activitat</value>
+  </data>
+  <data name="OrigenExigencia" xml:space="preserve">
+    <value>Exigència del Client</value>
+  </data>
+  <data name="OrigenPropio" xml:space="preserve">
+    <value>Propi de la teua organització</value>
+  </data>
+  <data name="EntidadEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="EntidadTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="EntidadVehiculo" xml:space="preserve">
+    <value>Vehicle o màquina</value>
+  </data>
+  <data name="EntidadSinElegir" xml:space="preserve">
+    <value>Tria un requisit</value>
+  </data>
+  <data name="EntidadAyuda" xml:space="preserve">
+    <value>La fixa el tipus de document i no canvia.</value>
+  </data>
+  <data name="DestinatarioTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="DestinatarioNacionales" xml:space="preserve">
+    <value>Nacionals</value>
+  </data>
+  <data name="DestinatarioExtranjeros" xml:space="preserve">
+    <value>Estrangers</value>
+  </data>
+  <data name="ContratacionCuentaAjena" xml:space="preserve">
+    <value>Compte d&apos;altri</value>
+  </data>
+  <data name="ContratacionAutonomo" xml:space="preserve">
+    <value>Autònom</value>
+  </data>
+  <data name="ContratacionVoluntario" xml:space="preserve">
+    <value>Voluntari</value>
+  </data>
+  <data name="BadgeContratacion" xml:space="preserve">
+    <value>Contractació · {0}</value>
+  </data>
+  <data name="BadgeEquivalencias" xml:space="preserve">
+    <value>Equivalències · {0}</value>
+  </data>
+  <data name="VigenciaAnios" xml:space="preserve">
+    <value>{0} anys</value>
+  </data>
+  <data name="VigenciaMeses" xml:space="preserve">
+    <value>{0} mesos</value>
+  </data>
+  <data name="VigenciaUnAnio" xml:space="preserve">
+    <value>1 any</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
+  <data name="VigenciaFija" xml:space="preserve">
+    <value>Fixa</value>
+  </data>
+  <data name="VigenciaDocumento" xml:space="preserve">
+    <value>La posa el document</value>
+  </data>
+  <data name="VigenciaSinVencimiento" xml:space="preserve">
+    <value>Sense venciment</value>
+  </data>
+  <data name="ToleranciaSin" xml:space="preserve">
+    <value>Sense tolerància</value>
+  </data>
+  <data name="ToleranciaDias" xml:space="preserve">
+    <value>{0} dies</value>
+  </data>
+  <data name="ToleranciaNoVence" xml:space="preserve">
+    <value>No venç</value>
+  </data>
+  <data name="EditarTitulo" xml:space="preserve">
+    <value>Edita requisit</value>
+  </data>
+  <data name="EditarTituloAlta" xml:space="preserve">
+    <value>Afegeix requisit</value>
+  </data>
+  <data name="EditarSubtitulo" xml:space="preserve">
+    <value>Plantilla «{0}»</value>
+  </data>
+  <data name="CampoRequisito" xml:space="preserve">
+    <value>Requisit</value>
+  </data>
+  <data name="CampoEntidad" xml:space="preserve">
+    <value>Entitat</value>
+  </data>
+  <data name="CampoDestinatario" xml:space="preserve">
+    <value>A qui es demana</value>
+  </data>
+  <data name="CampoContratacion" xml:space="preserve">
+    <value>Tipus de contractació</value>
+  </data>
+  <data name="CampoEquivalencias" xml:space="preserve">
+    <value>Equivalències per a estrangers</value>
+  </data>
+  <data name="CampoVigencia" xml:space="preserve">
+    <value>Vigència</value>
+  </data>
+  <data name="CampoTolerancia" xml:space="preserve">
+    <value>Tolerància després del venciment</value>
+  </data>
+  <data name="CampoCriterio" xml:space="preserve">
+    <value>Criteri d&apos;acceptació</value>
+  </data>
+  <data name="CampoDatosIa" xml:space="preserve">
+    <value>Dades que llegeix la IA</value>
+  </data>
+  <data name="CampoFormulario" xml:space="preserve">
+    <value>Formulari del Centre</value>
+  </data>
+  <data name="CampoAlcance" xml:space="preserve">
+    <value>Contractes als quals s&apos;aplica</value>
+  </data>
+  <data name="CatalogoAyuda" xml:space="preserve">
+    <value>Tria el requisit del catàleg de tipus de document: així el nom és el mateix en tots els Centres i per a totes les Empreses contractistes. Si no hi és, escriu-lo al cercador i crea&apos;l tu; abans t&apos;avisem si ja existeix amb un altre nom o en un altre idioma.</value>
+  </data>
+  <data name="CatalogoBuscar" xml:space="preserve">
+    <value>Cerca al catàleg</value>
+  </data>
+  <data name="CatalogoEtiqueta" xml:space="preserve">
+    <value>Catàleg de requisits</value>
+  </data>
+  <data name="CatalogoVacio" xml:space="preserve">
+    <value>El catàleg encara no té tipus de document.</value>
+  </data>
+  <data name="CatalogoSinCoincidencias" xml:space="preserve">
+    <value>Cap requisit del catàleg coincideix.</value>
+  </data>
+  <data name="CatalogoYaEnPlantilla" xml:space="preserve">
+    <value>Ja és a la plantilla</value>
+  </data>
+  <data name="CatalogoElegido" xml:space="preserve">
+    <value>S&apos;afegirà «{0}».</value>
+  </data>
+  <data name="ParecidosTitulo" xml:space="preserve">
+    <value>És algun d&apos;aquests?</value>
+  </data>
+  <data name="ParecidosAyuda" xml:space="preserve">
+    <value>Ja són al catàleg amb un altre nom o en un altre idioma. Si és el mateix, afegeix l&apos;existent i no es duplica.</value>
+  </data>
+  <data name="ParecidosVia" xml:space="preserve">
+    <value>Coincideix amb «{0}»</value>
+  </data>
+  <data name="ParecidosAnadirAria" xml:space="preserve">
+    <value>Afegeix l&apos;existent {0}</value>
+  </data>
+  <data name="ParecidosCatalogoBase" xml:space="preserve">
+    <value>Catàleg base de TALVEG</value>
+  </data>
+  <data name="CrearPropioTitulo" xml:space="preserve">
+    <value>Crea «{0}» com a requisit propi</value>
+  </data>
+  <data name="CrearPropioAyuda" xml:space="preserve">
+    <value>És propi de la teua organització: només existeix a les teues plantilles.</value>
+  </data>
+  <data name="CrearPropioAria" xml:space="preserve">
+    <value>Crea el requisit propi {0}</value>
+  </data>
+  <data name="MotivoFaltaRequisito" xml:space="preserve">
+    <value>Tria un requisit del catàleg o crea&apos;n un de propi.</value>
+  </data>
+  <data name="DestinatarioAyuda" xml:space="preserve">
+    <value>Qui és estranger ho decideix el país de l&apos;Empresa contractista o el document d&apos;identitat del Treballador.</value>
+  </data>
+  <data name="ContratacionAyuda" xml:space="preserve">
+    <value>A quins tipus de contractació del Treballador es demana.</value>
+  </data>
+  <data name="EquivalenciasAyuda" xml:space="preserve">
+    <value>Documents que valen en el seu lloc per a qui no és nacional, un per línia (fins a {0}).</value>
+  </data>
+  <data name="VigenciaMesesAria" xml:space="preserve">
+    <value>Mesos de vigència</value>
+  </data>
+  <data name="VigenciaMesesSufijo" xml:space="preserve">
+    <value>mesos des de l&apos;emissió</value>
+  </data>
+  <data name="VigenciaMesesInvalida" xml:space="preserve">
+    <value>Escriu els mesos de vigència com un número.</value>
+  </data>
+  <data name="VigenciaAyudaFija" xml:space="preserve">
+    <value>El document val aquest temps des de la seua emissió.</value>
+  </data>
+  <data name="VigenciaAyudaDocumento" xml:space="preserve">
+    <value>La data de venciment és la que figura en el mateix document.</value>
+  </data>
+  <data name="VigenciaAyudaSin" xml:space="preserve">
+    <value>El document no venç.</value>
+  </data>
+  <data name="ToleranciaAyuda" xml:space="preserve">
+    <value>Decisió del Client, per tipus de document. No s&apos;aplica mai a l&apos;aptitud mèdica, la formació obligatòria ni les assegurances: el document vençut deixa de valer aquell dia.</value>
+  </data>
+  <data name="ToleranciaAyudaNoVence" xml:space="preserve">
+    <value>El document no venç: no hi ha tolerància que configurar.</value>
+  </data>
+  <data name="CriterioAyuda" xml:space="preserve">
+    <value>El llegeix l&apos;Empresa contractista abans de pujar el document i el Gestor CAE en validar-lo.</value>
+  </data>
+  <data name="DatosIaAyuda" xml:space="preserve">
+    <value>Quines dades del document comprova la lectura amb IA. Encara no es poden fixar per requisit.</value>
+  </data>
+  <data name="FormularioAyuda" xml:space="preserve">
+    <value>Si el Centre demana el seu propi formulari, es pujarà en PDF i es col·locarà en cada buit la dada del perfil de l&apos;Empresa contractista. Encara no està disponible.</value>
+  </data>
+  <data name="AlcanceAyuda" xml:space="preserve">
+    <value>Triar si el canvi val només per als contractes d&apos;accés nous o també per als existents. Encara no està disponible.</value>
+  </data>
+  <data name="FormularioTitulo" xml:space="preserve">
+    <value>Camps del formulari</value>
+  </data>
+  <data name="FormularioNoDisponibleTitulo" xml:space="preserve">
+    <value>El formulari del Centre encara no està disponible</value>
+  </data>
+  <data name="FormularioNoDisponibleDetalle" xml:space="preserve">
+    <value>Aquí es col·locarà, sobre el PDF del Centre, cada dada del perfil de l&apos;Empresa contractista que s&apos;omple sola. Encara no es pot pujar el PDF ni col·locar camps.</value>
+  </data>
+</root>

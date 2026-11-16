@@ -213,6 +213,9 @@ public static class CatalogoMenuLateral
         // (ContextoMenuLateral.LineaInboundVigente) y con los roles del menú completo.
         new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto)),
 
+        // Configuración de Inbound (maqueta: grupo «Configuración» bajo «Inbound»): Plantillas de requisitos. Mismo gate que «Inbound».
+        new("inbound-config", "Configuración", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental)),
+
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
         // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
         new("administracion", "Administración", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
@@ -310,6 +313,8 @@ public static class CatalogoMenuLateral
             ClaveRotulo: "MenuInboundContratos"),
         new("inbound-validacion", "inbound", "inbound/validacion", "seleccion", "MenuInboundValidacion",
             ClaveRotulo: "MenuInboundValidacion"),
+        new("inbound-plantillas", "inbound-config", "inbound/plantillas", "tipos-documento", "MenuInboundPlantillas",
+            ClaveRotulo: "MenuInboundPlantillas"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

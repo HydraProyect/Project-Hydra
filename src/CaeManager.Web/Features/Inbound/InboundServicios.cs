@@ -1,5 +1,6 @@
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios;
+using CaeManager.Web.Features.Inbound.Plantillas.Servicios;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Features.Inbound;
@@ -17,6 +18,8 @@ public static class InboundServicios
         servicios.AddScoped<IActividadDeContratoAcceso, ActividadDeContratoAccesoNoDisponible>();
         servicios.AddScoped<ISelectorEmpresasContratistas, SelectorEmpresasContratistasNoDisponible>();
         servicios.AddScoped<ResolutorContratosAcceso>();
+        servicios.AddScoped<IUsoDePlantillasRequisitos, UsoDePlantillasRequisitosNoDisponible>();
+        servicios.AddScoped<ResolutorPlantillasRequisitos>();
         return servicios;
     }
 }

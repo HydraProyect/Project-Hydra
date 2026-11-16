@@ -884,4 +884,7 @@
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documents per validar</value>
   </data>
+  <data name="MenuInboundPlantillas" xml:space="preserve">
+    <value>Plantilles de requisits</value>
+  </data>
 </root>

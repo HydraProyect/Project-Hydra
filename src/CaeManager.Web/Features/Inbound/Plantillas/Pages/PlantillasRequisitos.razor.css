@@ -1,0 +1,26 @@
+/* Plantillas de requisitos (tarjeta 17). Las clases pl-* salen de la maqueta Plantillas.dc.html. */
+.pl-cuerpo { display: flex; gap: 16px; align-items: flex-start; min-height: 0; }
+.pl-izq { flex: none; width: 400px; }
+.pl-der { flex: 1 1 auto; min-width: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.pl-tabla { min-width: 0; width: 100%; table-layout: fixed; }
+.pl-col-cifra { width: 92px; }
+.pl-col-origen { width: 150px; }
+.pl-col-tol { width: 160px; }
+.pl-col-acc { width: 88px; }
+.pl-fila { display: flex; flex-direction: column; gap: 2px; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.pl-fila-t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-primary-500); font: 600 14px/20px var(--font-family); }
+.pl-fila:hover .pl-fila-t { text-decoration: underline; color: var(--color-primary-700); }
+.pl-seleccionada { background: var(--color-primary-50); }
+.pl-cab { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.pl-cab-textos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pl-cab-acciones { display: flex; gap: 8px; flex: none; }
+.pl-cab h2 { margin: 0; font: 600 18px/24px var(--font-family); }
+.pl-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--color-text-muted); }
+.pl-nota { margin: 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--color-surface-subtle); font-size: 13px; line-height: 18px; color: var(--color-text-muted); }
+.pl-trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-tol { display: block; font: 400 13px/18px var(--font-family); }
+.pl-cand { display: block; font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+.pl-fijo { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+.pl-sin-coincidencias { margin: 0; padding: 24px 16px; text-align: center; }
+.pl-prin { font-weight: 600; color: var(--color-text); }
+.pl-sec { display: block; font: 400 13px/18px var(--font-family); color: var(--color-text-muted); }
