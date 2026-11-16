@@ -633,6 +633,38 @@ public class IngestaWebhookServiceTests
         conversacionExistente.Mensajes.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Issue #2124: un Id ya ingerido no se pide a Graph. Si se pidiera, el 429 simulado haría fallar el evento; la
+    /// recuperación del hueco que vuelve a listar tras anularse no cuesta así una llamada por mensaje ya ingerido.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_ya_ingerido_no_se_pide_a_Graph()
+    {
+        var conexion = ConexionHabilitada();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var conversacionExistente = new Conversacion("Duda sobre CAE");
+        conversacionExistente.AsociarConexion(conexion.Id, "graph-thread-1");
+        conversacionExistente.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>ya estaba</p>", mensajeExternoId: "graph-msg-1");
+        var conversacionRepositorio = new ConversacionRepositorioFalso();
+        conversacionRepositorio.Agregar(conversacionExistente);
+        var graphClient = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["graph-msg-1"],
+            ErrorLecturaMensaje = Error.Crear("Integraciones.Microsoft365.ErrorApi", "429"),
+        };
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var servicio = CrearServicio(conexionRepositorio, conversacionRepositorio, graphClient, credencialRepositorio);
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado, "el Id ya ingerido se descarta antes de pedirlo");
+        evento.ErrorProcesado.Should().BeNull();
+        conversacionExistente.Mensajes.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task No_ingiere_nada_si_la_conexion_esta_deshabilitada()
     {

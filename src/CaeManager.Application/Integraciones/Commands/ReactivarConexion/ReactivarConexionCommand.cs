@@ -218,8 +218,9 @@ public class ReactivarConexionCommandHandler(
         {
             // Desde ConError, o sin verificar: sus eventos retenidos vuelven a la cola. Aquí no se lee Graph: lo que
             // la ingesta descartó mientras tanto queda declarado en HuecoPendienteDesdeUtc, que esta rehabilitación no
-            // limpia, y Conexiones lo sigue avisando. Desde Deshabilitada no: lo que llegó con la conexión desconectada
-            // a propósito no se ingiere.
+            // limpia (anula la recuperación en curso), y Conexiones lo sigue avisando hasta que la recuperación del hueco
+            // (RecuperacionHuecoCorreoService) lo lea entero desde la marca. Desde Deshabilitada no se liberan retenidos:
+            // lo que llegó con la conexión desconectada a propósito no se ingiere por esta vía.
             if (conexion.Proveedor == ProveedorIntegracion.Microsoft365 && veniaSinVerificar)
             {
                 foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))

@@ -92,6 +92,7 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
         { "Application.Clientes.DestinoCartera", Modulo.Nucleo },
         { "Application.Clientes.AccesoDelDestino", Modulo.Nucleo },
         { "Infrastructure.Persistence.Migraciones", Modulo.Composicion },
+        { "Infrastructure.Persistence.Repositories.ConversacionRepository", Modulo.Outbound },
         { "Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa", Modulo.Outbound },
         { "Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService", Modulo.Outbound },
         { "Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions", Modulo.Outbound },

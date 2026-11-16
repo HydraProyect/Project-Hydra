@@ -994,6 +994,115 @@ public class Microsoft365GraphClient(
         }
     }
 
+    /// <summary>
+    /// Tamaño de página del listado de la recuperación del hueco: el máximo que Graph admite en <c>messages</c>. Con
+    /// <c>$select=id,receivedDateTime</c> la página es ligera.
+    /// </summary>
+    internal const int TamanoPaginaRecuperacion = 1000;
+
+    private static readonly Error ErrorListadoIlegible =
+        Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft 365 devolvió un listado de la carpeta Inbox ilegible.");
+
+    public async Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosDesdeAsync(
+        string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken)
+    {
+        // Siempre la primera página de una consulta por fecha, nunca el @odata.nextLink: la continuación de Graph es
+        // posicional ($skip), y si entre dos páginas sale de la carpeta un mensaje ya leído, salta uno sin leer. Se redondea
+        // hacia abajo al segundo: leer de más se deduplica, leer de menos perdería correo.
+        var desde = DateTime.SpecifyKind(desdeUtc, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        var url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
+            "?$select=id,receivedDateTime" +
+            $"&$filter={Uri.EscapeDataString($"receivedDateTime ge {desde}")}" +
+            "&$orderby=receivedDateTime asc" +
+            $"&$top={TamanoPaginaRecuperacion}";
+
+        try
+        {
+            using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                var error = EsRespuestaTransitoria(respuesta.StatusCode)
+                    ? ConEsperaPedida(ErrorTransitorio, respuesta)
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer la carpeta Inbox del buzón.");
+                return Result.Fallo<PaginaMensajesRecibidosGraphDto>(error);
+            }
+
+            var cuerpo = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+            return LeerPaginaRecibidos(cuerpo) is { } pagina
+                ? Result.Exito(pagina)
+                : Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorListadoIlegible);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al listar la carpeta Inbox para recuperar el hueco de correo.");
+            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar la carpeta Inbox para recuperar el hueco.");
+            return Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorTiempoAgotado);
+        }
+    }
+
+    /// <summary>
+    /// Una página legible: un objeto con un array <c>value</c> cuyos elementos traen <c>id</c> y <c>receivedDateTime</c>, y
+    /// como mucho un <c>@odata.nextLink</c> de texto, que solo dice si hay más (no se sigue). Cualquier otra cosa (un
+    /// <c>{}</c>, un <c>null</c>, un elemento a medias) devuelve null: el llamador lo trata como fallo y la marca se queda.
+    /// </summary>
+    internal static PaginaMensajesRecibidosGraphDto? LeerPaginaRecibidos(string cuerpo)
+    {
+        try
+        {
+            using var documento = JsonDocument.Parse(cuerpo);
+            var raiz = documento.RootElement;
+            if (raiz.ValueKind != JsonValueKind.Object
+                || !raiz.TryGetProperty("value", out var valor) || valor.ValueKind != JsonValueKind.Array)
+                return null;
+
+            var mensajes = new List<MensajeRecibidoGraphDto>(valor.GetArrayLength());
+            foreach (var elemento in valor.EnumerateArray())
+            {
+                if (elemento.ValueKind != JsonValueKind.Object
+                    || !elemento.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(id.GetString())
+                    || !elemento.TryGetProperty("receivedDateTime", out var recibido) || recibido.ValueKind != JsonValueKind.String
+                    || !DateTimeOffset.TryParse(recibido.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AssumeUniversal, out var recibidoUtc))
+                    return null;
+
+                // El cursor pasa a la recepción máxima de la página, lo que solo es seguro si la página es un prefijo del
+                // listado ordenado: una página fuera de orden es ilegible.
+                if (mensajes.Count > 0 && recibidoUtc.UtcDateTime < mensajes[^1].RecibidoUtc)
+                    return null;
+
+                mensajes.Add(new MensajeRecibidoGraphDto(id.GetString()!, recibidoUtc.UtcDateTime));
+            }
+
+            var hayMas = false;
+            if (raiz.TryGetProperty("@odata.nextLink", out var enlace))
+            {
+                if (enlace.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(enlace.GetString()))
+                    return null;
+                hayMas = true;
+            }
+
+            return new PaginaMensajesRecibidosGraphDto(mensajes, hayMas);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds)
+    {
+        if (mensajeIds.Count == 0 || mensajeIds.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("El evento de recuperación necesita al menos un Id de mensaje válido.", nameof(mensajeIds));
+
+        return JsonSerializer.Serialize(new { value = mensajeIds.Select(id => new { resourceData = new { id } }) });
+    }
+
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson)
     {
         try
