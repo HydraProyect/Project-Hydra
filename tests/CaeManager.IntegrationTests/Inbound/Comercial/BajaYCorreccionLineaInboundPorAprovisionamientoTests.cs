@@ -137,9 +137,9 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
         var anterior = await ContratarAsync("cus_PagadorErroneo");
 
         // Hallazgo 2 de Codex (ronda 2): el reloj de la aplicación va 4 minutos por delante del de PostgreSQL. Desde la
-        // issue #2259 las políticas no admiten ningún instante futuro, así que con él la corrección se rechazaría; y aunque
-        // lo admitieran, si la corrección volviera a tomar el instante de la aplicación, la corregida empezaría
-        // después del now() del gate y la comprobación tras el COMMIT fallaría.
+        // issue #2259 las políticas no admiten ningún instante futuro, así que si la corrección tomara el instante de la
+        // aplicación se rechazaría; y aunque lo admitieran, la corregida empezaría después del now() del gate y la
+        // comprobación tras el COMMIT fallaría. La corrección toma el now() que devuelve la finalización.
         _relojDeLaAplicacion = new RelojDesfasado(TimeSpan.FromMinutes(4));
 
         // Determinista, sin depender de tiempos: el propietario bloquea las inserciones en RegistrosAuditoria. La

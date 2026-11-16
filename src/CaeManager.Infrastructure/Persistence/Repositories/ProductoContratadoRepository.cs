@@ -123,8 +123,8 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
                     .SetProperty(p => p.VigenteHastaUtc, vigenteHastaUtc), cancellationToken);
         }
         // Fin antes del inicio: la vigencia aún no había empezado para el now() de esta transacción (una fila del
-        // propietario de la base o anterior a VigenciaProductoContratadoNuncaFutura, o un alta confirmada después de que
-        // empezara esta transacción, que en READ COMMITTED sí se ve). ExecuteUpdate no
+        // propietario de la base o anterior a VigenciaProductoContratadoNuncaFutura, o un alta cuya transacción empezó
+        // después que esta y que confirmó antes de esta sentencia, que en READ COMMITTED sí se ve). ExecuteUpdate no
         // pasa por SaveChanges, así que la PostgresException suele llegar sin envolver; se acepta también envuelta para no
         // depender de la versión de EF.
         catch (Exception ex) when ((ex as PostgresException ?? ex.InnerException as PostgresException) is
