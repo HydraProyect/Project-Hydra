@@ -599,6 +599,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // #2010, D-7 (revisión Codex P2 de la PR #2274): la activación de un subencargado cierra las altas de Tenant
+        // propietario con LOCK TABLE en modo SHARE y lock_timeout local. Texto constante, sin parámetros; no lee ni escribe filas.
+        [("src/CaeManager.Infrastructure/Persistence/CerrojoAltasTenantPropietario.cs", "return dbContext.Database.ExecuteSqlRawAsync(\"SET LOCAL lock_timeout = '5s'; LOCK TABLE public.\\\"Tenants\\\" IN SHARE MODE\", cancellationToken);")] = 1,
+
         // Regla A-1 (revisión Codex de la PR #2074): mismo candado, por Tenant, para que el alta de un
         // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
         [("src/CaeManager.Infrastructure/Persistence/SerializacionAltasAcreditacionEmpresa.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
