@@ -31,7 +31,12 @@ public interface IOperacionImportacionRepository
     /// MISMA operación (REC-108, DEC-20): la transacción entera de la
     /// perdedora se descarta, así que <c>false</c> significa "no se escribió
     /// nada, ni de esta operación ni de ninguna otra entidad del plan".
-    /// Cualquier otro fallo de guardado se propaga sin tocar.
+    /// También es <c>false</c> la violación de otro índice único (un CIF, una
+    /// razón social, un DNI) si, releída tras el fallo, la operación ya está
+    /// guardada: es la misma carrera, y PostgreSQL ha detectado antes la fila
+    /// repetida que la ganadora creó que su marca (#1992). Cualquier otro fallo
+    /// de guardado, y esa misma violación sin la operación guardada, se propaga
+    /// sin tocar.
     /// </summary>
     Task<bool> GuardarSiOperacionNuevaAsync(CancellationToken cancellationToken = default);
 
