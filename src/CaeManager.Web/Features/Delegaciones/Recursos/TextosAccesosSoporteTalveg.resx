@@ -64,7 +64,7 @@
     <value>—</value>
   </data>
   <data name="ActividadLectura" xml:space="preserve">
-    <value>Consultó</value>
+    <value>Operación</value>
   </data>
   <data name="ColumnaActividad" xml:space="preserve">
     <value>Actividad</value>
@@ -73,6 +73,9 @@
     <value>Ver actividad registrada</value>
   </data>
   <data name="ActividadVacia" xml:space="preserve">
-    <value>Soporte TALVEG no registró actividad en esta Sesión Privilegiada.</value>
+    <value>No hay actividad registrada en esta Sesión Privilegiada. Hoy solo dejan registro las operaciones del Importador; el resto de lo que Soporte TALVEG consulte en la sesión no aparece aquí.</value>
+  </data>
+  <data name="ActividadAlcance" xml:space="preserve">
+    <value>Hoy solo dejan registro las operaciones del Importador; el resto de lo que Soporte TALVEG consulte en la sesión no aparece aquí.</value>
   </data>
 </root>

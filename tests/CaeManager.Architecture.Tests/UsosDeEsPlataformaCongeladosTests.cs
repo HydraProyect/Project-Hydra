@@ -261,7 +261,7 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Autoridad,
                 ":106 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
                 "reescribe el predicado por concesión propia. AVISO: D-6 obliga a conservar la rama del " +
-                "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del cliente la cubren " +
+                "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del Tenant propietario visitado la cubren " +
                 "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
                 "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
                 "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),

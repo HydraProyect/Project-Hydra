@@ -45,7 +45,10 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// origen) se suma a la RLS <c>aislamiento_tenant</c> y al filtro global. Sin
 /// identidad del técnico (ADR-011 § 8.7, minimización): el DTO no lleva
 /// <see cref="ActividadSoporteDto.UsuarioSoporteId"/> y la pantalla dice
-/// «Soporte TALVEG».
+/// «Soporte TALVEG». La RLS de <c>RegistrosActividadSoporte</c> aísla por Tenant,
+/// no por rol (a diferencia de <c>administrador_del_tenant_objetivo</c> en
+/// <c>SesionesPrivilegiadas</c>): la comprobación de rol de este handler es la
+/// única barrera de rol, no una redundancia.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Tenants")]

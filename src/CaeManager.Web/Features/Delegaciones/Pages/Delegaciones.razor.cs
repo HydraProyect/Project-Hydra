@@ -764,6 +764,10 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         TipoActividadSoporte.Navegacion => "Navegó a",
         TipoActividadSoporte.Interaccion => "Pulsó",
         TipoActividadSoporte.AccesoRevocado => "Acceso cerrado",
+        // shortcut: el Detalle de una Lectura es el nombre interno del request (lista cerrada de la
+        // migración RegistraActividadSoportePorSesionPrivilegiada) y se pinta tal cual; traducirlo a texto
+        // de producto cuando se decida la redacción de esas operaciones. «Operación» y no «Consultó»: la
+        // fila se escribe antes de servir también los EjecutarImportacion*Command, que escriben.
         TipoActividadSoporte.Lectura => TextosAccesos["ActividadLectura"],
         _ => tipo.ToString()
     };

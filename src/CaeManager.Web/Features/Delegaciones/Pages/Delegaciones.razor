@@ -400,6 +400,7 @@
         @if (_verActividadDeSesion is { } sesionVista)
         {
             <div class="delegaciones-actividad-cabecera">@TextosAccesos["ValorQuien"] · @TextoVentanaAcceso(sesionVista) · @sesionVista.Motivo</div>
+            <p class="delegaciones-nota">@TextosAccesos["ActividadAlcance"]</p>
         }
         else
         {

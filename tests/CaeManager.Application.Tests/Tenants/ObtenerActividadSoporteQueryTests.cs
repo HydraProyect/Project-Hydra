@@ -139,7 +139,7 @@ public class ObtenerActividadSoporteQueryTests
     // ── Por Delegación de Tenant de Soporte (vía heredada, sin cambios) ─────
 
     [Fact]
-    public async Task El_cliente_visitado_sigue_viendo_la_actividad_de_la_delegacion_y_no_la_de_las_sesiones()
+    public async Task El_Tenant_propietario_visitado_sigue_viendo_la_actividad_de_la_delegacion_y_no_la_de_las_sesiones()
     {
         var plataforma = new Tenant("Plataforma");
         plataforma.MarcarComoPlataforma();
@@ -153,7 +153,7 @@ public class ObtenerActividadSoporteQueryTests
         contexto.ListaRegistrosActividadSoporte.Add(Registro(RegistroActividadSoporte.PorSesionPrivilegiada(
             Tecnico, Sesion, TipoActividadSoporte.Lectura, "EjecutarImportacionCommand"), TenantPropietario));
 
-        // Cualquier usuario del cliente visitado, como antes: la vía heredada no pide rol.
+        // Cualquier usuario del Tenant propietario visitado, como antes: la vía heredada no pide rol.
         var handler = new ObtenerActividadSoporteQueryHandler(
             contexto,
             new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: TenantPropietario),

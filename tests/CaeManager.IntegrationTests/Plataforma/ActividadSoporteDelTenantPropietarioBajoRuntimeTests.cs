@@ -129,7 +129,7 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     }
 
     [Fact]
-    public async Task La_actividad_por_delegacion_de_Soporte_sigue_apareciendo_al_cliente_visitado()
+    public async Task La_actividad_por_delegacion_de_Soporte_sigue_apareciendo_al_Tenant_propietario_visitado()
     {
         var actividad = await ConsultarComoAsync(
             Guid.NewGuid(), tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
