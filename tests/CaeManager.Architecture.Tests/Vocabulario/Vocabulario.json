@@ -439,6 +439,21 @@
   ],
   "excepciones": [
     {
+      "id": "tenant-en-rotulo-de-linea-del-menu",
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Recursos/TextosComunes.resx",
+        "src/CaeManager.Web/Recursos/TextosComunes.ca-ES.resx"
+      ],
+      "claves": [
+        "MenuLineaInboundTce"
+      ],
+      "contexto": "rótulo de línea del menú lateral",
+      "motivo": "Decisión D-2 de Chris (2026-11-16, interfaz Inbound/Outbound § 1.1): el rótulo separador del menú dice literalmente «Inbound · Tenant TCE» (o «Tenant TEC») cuando se ven las dos líneas. TCE/TEC es el apellido que distingue a quien recibe contratistas de quien es recibido, y «Tenant beneficiario» no lo distingue. Solo esta clave; cualquier otro uso de «Tenant» a secas sigue prohibido."
+    },
+    {
       "id": "nombre-de-hoja-del-libro-de-importacion",
       "prohibidos": [
         "cliente-empresarial-en-pantalla"
