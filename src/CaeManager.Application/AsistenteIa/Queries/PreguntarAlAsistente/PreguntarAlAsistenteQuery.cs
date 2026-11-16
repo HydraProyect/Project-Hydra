@@ -52,9 +52,7 @@ public class PreguntarAlAsistenteQueryHandler(
         // antes de llegar aquí; este handler solo se invoca a través del pipeline de MediatR.
 
         if (!await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
-            return Result.Fallo<string>(Error.Crear(
-                "AsistenteIa.SinInstruccion",
-                "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
+            return Result.Fallo<string>(await ErrorIaNoHabilitada.CrearAsync(instruccionTratamientoIa, tenantId, cancellationToken));
 
         var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
         if (cartera.ErrorSiFalta() is { } sinInstruccion)

@@ -1,0 +1,46 @@
+/* Campos de la línea Inbound (tarjeta 31): las medidas de campo de AltaTenantTCE.dc.html. */
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.campo-label {
+    font: 600 13px/18px var(--font-family);
+    color: var(--color-text);
+}
+
+.campo-obligatorio {
+    margin-left: 2px;
+    color: var(--color-danger-700);
+}
+
+.campo-ayuda {
+    font: 400 12px/17px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+.campo-input,
+.campo-select {
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 400 14px/20px var(--font-family);
+    font-variant-numeric: tabular-nums;
+}
+
+.alta-tce-fila {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+@media (max-width: 640px) {
+    .alta-tce-fila {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
