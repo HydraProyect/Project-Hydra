@@ -413,8 +413,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         var gestionadasPorCif = todas.Where(e => e.EsPropia && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var clientesPorCif = todas.Where(e => e.EsCritico != null && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var razonesEscritas = new HashSet<string>(StringComparer.Ordinal);
-        // Leídas una vez bajo el candado, después de las Empresas: lo que la base guarda, bajas incluidas, en vez de una
-        // consulta por razón social de cada fila (#1991). Lo que esta pasada escribe lo lleva razonesEscritas.
+        // Leídas una vez por pasada (bajo el candado al confirmar; sin él en la vista previa), después de las Empresas: lo
+        // que la base guarda, bajas incluidas, en vez de una consulta por razón social de cada fila (#1991). Lo que esta
+        // pasada escribe lo lleva razonesEscritas.
         var identidades = await CatalogoIdentidadesEmpresa.CargarAsync(empresaRepositorio, cancellationToken);
 
         Task<Error?> RazonSocialOcupadaAsync(string razonSocial, Guid? excluirId) => Task.FromResult(

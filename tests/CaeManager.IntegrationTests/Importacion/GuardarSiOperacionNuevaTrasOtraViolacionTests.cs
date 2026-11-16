@@ -118,6 +118,26 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_violacion_de_otro_indice_con_la_marca_de_otra_operacion_del_mismo_Tenant_se_propaga()
+    {
+        // La relectura pregunta por ESTA operación: la marca de otra importación del mismo Tenant propietario no la
+        // convierte en «ya ejecutada». Sin este caso, una relectura que ignorase las OperacionId pendientes (cualquier
+        // marca del Tenant) disfrazaría de «ya ejecutada» un CIF repetido real.
+        await GuardarGanadoraAsync(operacionId: Guid.NewGuid());
+
+        await using var contexto = CrearContexto();
+        var repositorio = new OperacionImportacionRepository(contexto);
+        repositorio.Agregar(OperacionImportacion.Registrar(Guid.NewGuid()));
+        contexto.Empresas.Add(new Empresa("Perdedora S.L.", Cif));
+
+        var guardar = () => repositorio.GuardarSiOperacionNuevaAsync();
+
+        (await guardar.Should().ThrowAsync<DbUpdateException>("la marca existente es de otra operación: el CIF repetido es un error real"))
+            .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
+            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
+    }
+
+    [Fact]
     public async Task La_violacion_de_la_propia_marca_sigue_siendo_ya_ejecutada()
     {
         var operacionId = Guid.NewGuid();
