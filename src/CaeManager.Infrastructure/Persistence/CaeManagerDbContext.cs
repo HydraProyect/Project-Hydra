@@ -99,8 +99,12 @@ public class CaeManagerDbContext(
         CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext,
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
         CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext,
-        CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext
+        CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext,
+        CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext
 {
+    // Línea Inbound vigente del Tenant beneficiario: el runtime solo tiene SELECT y la política aislamiento_tenant.
+    IQueryable<CaeManager.Domain.Comercial.ProductoContratado> CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext.ProductosContratados => ProductosContratados.AsNoTracking();
+
     // Plantillas de requisitos del Tenant TCE (B-14), con RLS por Tenant.
     public DbSet<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos> PlantillasRequisitos => Set<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos>();
     public DbSet<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla> RequisitosPlantilla => Set<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla>();
@@ -323,6 +327,7 @@ public class CaeManagerDbContext(
     IQueryable<PlantillaRequisitosEventoTipo> IRequisitosEventoQueryContext.PlantillasRequisitosEventoTipos => PlantillasRequisitosEventoTipos;
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
     IQueryable<DelegacionTenant> ITenantsQueryContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<DelegacionTenant> CaeManager.Application.Operaciones.IOperacionesQueryContext.DelegacionesTenant => DelegacionesTenant;
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
@@ -694,6 +699,7 @@ public class CaeManagerDbContext(
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
         builder.MapearTextoDeBusqueda();
+        builder.MapearAmparoDeOrigen();
 
         // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(

@@ -559,6 +559,8 @@ public class LogoTenantTests
     {
         public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
             new TestAsyncQueryable<AsignacionOperacion>(new List<AsignacionOperacion>().AsQueryable());
+        public IQueryable<CaeManager.Domain.Tenants.DelegacionTenant> DelegacionesTenant =>
+            new TestAsyncQueryable<CaeManager.Domain.Tenants.DelegacionTenant>(new List<CaeManager.Domain.Tenants.DelegacionTenant>().AsQueryable());
 
         public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera =>

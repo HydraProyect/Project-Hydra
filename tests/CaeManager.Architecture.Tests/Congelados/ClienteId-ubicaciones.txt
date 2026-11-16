@@ -201,10 +201,10 @@ src/CaeManager.Application/Integraciones/Queries/ObtenerLineasWhatsApp/ObtenerLi
 src/CaeManager.Application/Integraciones/Queries/ObtenerMensajesCarpeta/ObtenerMensajesCarpetaQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Queries/ObtenerResponsablesElegiblesBuzones/ObtenerResponsablesElegiblesBuzonesQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/ResponsableBuzonElegible.cs :: ClienteId = 1
-# Procedencia de la Asignación de Operación externa (2026-11-15, fase de expansión, PR 1 del corte de la #2237):
-# AmparoDeOrigen compara DelegacionTenant.TenantClienteId —el Tenant propietario en el nombre legacy de la
-# delegación, no un Cliente empresarial— con el PropietarioTenantId de la operación. Defensa en profundidad sobre
-# el par: la FK de origen no garantiza que la delegación sea del mismo Tenant propietario. Sin nombre canónico.
+# Procedencia de la Asignación de Operación externa (2026-11-14, sigue a la PR #2223): AmparoDeOrigen compara
+# DelegacionTenant.TenantClienteId —el Tenant propietario en el nombre legacy de la delegación, no un Cliente
+# empresarial— con el PropietarioTenantId de la operación. Es defensa en profundidad sobre el par: la FK de
+# origen no garantiza que la delegación sea del mismo Tenant propietario. Sin nombre canónico en el tipo legacy.
 src/CaeManager.Application/Operaciones/AmparoDeOrigen.cs :: TenantClienteId = 1
 src/CaeManager.Application/Plantillas/AlcanceDePlantillas.cs :: ClienteId = 1
 src/CaeManager.Application/Plantillas/Commands/CrearPlantillaDocumento/CrearPlantillaDocumentoCommand.cs :: ClienteId = 1
@@ -327,7 +327,7 @@ src/CaeManager.Application/Tenants/Queries/ObtenerClientesAutorizados/ObtenerCli
 src/CaeManager.Application/Tenants/Queries/ObtenerDelegaciones/ObtenerDelegacionesQuery.cs :: TenantClienteId = 5
 src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs :: TenantClienteId = 1
 src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: AmbitoRelacionClienteId = 3
-src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 3
+src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 2
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: clienteIdsVisibles = 3
@@ -379,9 +379,10 @@ src/CaeManager.Domain/Integraciones/SolicitudConexionMicrosoft365.cs :: clienteI
 src/CaeManager.Domain/Operaciones/AmbitoAsignacion.cs :: RelacionClienteId = 4
 src/CaeManager.Domain/Operaciones/AmbitoAsignacion.cs :: relacionClienteId = 4
 src/CaeManager.Domain/Operaciones/AsignacionCartera.cs :: RelacionClienteId = 1
-# Procedencia (2026-11-15, fase de expansión): AsignacionOperacion.FijarOrigen comprueba que la DelegacionTenant de
-# origen es del mismo par por DelegacionTenant.TenantClienteId (Tenant propietario en el nombre legacy). Sin nombre canónico.
-src/CaeManager.Domain/Operaciones/AsignacionOperacion.cs :: TenantClienteId = 1
+# Procedencia (2026-11-14): AsignacionOperacion.FijarOrigen y EstaAmparadaPor comprueban que la DelegacionTenant
+# de origen es del mismo par por DelegacionTenant.TenantClienteId (Tenant propietario en el nombre legacy), la
+# versión en memoria del predicado de AmparoDeOrigen. Sin nombre canónico en el tipo legacy.
+src/CaeManager.Domain/Operaciones/AsignacionOperacion.cs :: TenantClienteId = 2
 src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs :: AmbitoRelacionClienteId = 3
 src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs :: RelacionClienteId = 1
 src/CaeManager.Domain/Plantillas/PlantillaDocumento.cs :: ClienteId = 2
@@ -411,7 +412,6 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId =
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsParaRolClienteAsync = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 6
-src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 24
@@ -425,12 +425,12 @@ src/CaeManager.Infrastructure/Identity/GestionCuentasUsuarioIdentity.cs :: Clien
 src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaMaestraService.cs :: ClienteId = 3
 src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AmbitoRelacionClienteId = 3
-# Procedencia (2026-11-15, fase de expansión): el writer resuelve la única DelegacionTenant de Operador CAE externo
-# vigente del par (en el ChangeTracker y en la base de datos) para fijarla como origen, filtrando por TenantClienteId,
-# el Tenant propietario en el nombre legacy (+2). Sin nombre canónico en el tipo legacy.
+# Procedencia (2026-11-14): el writer resuelve la única DelegacionTenant de Operador CAE externo vigente del par
+# (en el ChangeTracker y en la base de datos) para fijarla como origen, filtrando por TenantClienteId, el Tenant
+# propietario en el nombre legacy (+2). Sin nombre canónico en el tipo legacy.
 src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: TenantClienteId = 4
 src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: AmbitoRelacionClienteId = 2
-src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: TenantClienteId = 5
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: TenantClienteId = 4
 src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs :: AmbitoRelacionClienteId = 4
 src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionOperacionConfiguration.cs :: AmbitoRelacionClienteId = 6
 src/CaeManager.Infrastructure/Persistence/Configurations/CentroConfiguration.cs :: ClienteId = 3
@@ -470,7 +470,9 @@ src/CaeManager.Infrastructure/Persistence/Repositories/TarifaClienteRepository.c
 src/CaeManager.Infrastructure/Persistence/Repositories/TarifaClienteRepository.cs :: clienteId = 4
 src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacionPlataformaRepository.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacionPlataformaRepository.cs :: clienteId = 2
-src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: TenantClienteId = 5
+# Procedencia (2026-11-14): el paso 2a del backfill busca las DelegacionesTenant candidatas del par de cada
+# operación sin origen por TenantClienteId, el Tenant propietario en el nombre legacy (+1). Sin nombre canónico.
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: TenantClienteId = 4
 src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: ClienteId = 10
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: clienteId = 4
@@ -478,13 +480,14 @@ src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: ClienteId
 src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: clienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: TenantClienteId = 4
-src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: tenantClienteId = 11
+src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: tenantClienteId = 14
 src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs :: TenantClienteId = 3
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: clienteId = 3
 src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: clienteId = 1
+src/CaeManager.Infrastructure/Persistence/Seed/HistoriaDelParEnSiembra.cs :: TenantClienteId = 5
 src/CaeManager.Infrastructure/Persistence/Seed/IdentityRoleSeedData.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: clienteId = 2

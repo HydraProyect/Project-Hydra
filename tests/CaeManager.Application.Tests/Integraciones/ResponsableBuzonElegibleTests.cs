@@ -106,11 +106,63 @@ public static class DelegacionesEnMemoria
     }
 }
 
-public sealed class OperacionesEnMemoria(IEnumerable<AsignacionOperacion> operaciones, IEnumerable<AsignacionCartera> carteras)
+/// <summary>
+/// Catálogos de asignación en memoria. Sin <paramref name="delegaciones"/>, cada Asignación de Operación externa
+/// sin origen nace aquí de una DelegacionTenant de Operador CAE externo de su par, activa (la que en la base de
+/// datos le pondría el writer): las pruebas que no tratan de la procedencia no tienen que construirla. Las que sí
+/// la tratan pasan sus delegaciones y fijan el origen ellas mismas, y entonces no se añade ninguna.
+/// </summary>
+public sealed class OperacionesEnMemoria(
+    IEnumerable<AsignacionOperacion> operaciones, IEnumerable<AsignacionCartera> carteras,
+    IEnumerable<DelegacionTenant>? delegaciones = null)
     : IOperacionesQueryContext
 {
+    private readonly List<AsignacionOperacion> _operaciones = operaciones.ToList();
+    private readonly List<DelegacionTenant> _delegaciones = delegaciones?.ToList() ?? AmpararPorDefecto(operaciones);
+
+    /// <summary>
+    /// Para los contextos falsos que no tratan de la procedencia: ampara cada operación externa todavía sin origen
+    /// con una delegación nueva de su par, la acumula en <paramref name="acumuladas"/> y devuelve todas. Se llama en
+    /// cada lectura, así que también ampara las operaciones que la prueba añada después.
+    /// </summary>
+    public static IQueryable<DelegacionTenant> AmparoPorDefecto(
+        IEnumerable<AsignacionOperacion> operaciones, List<DelegacionTenant> acumuladas)
+    {
+        acumuladas.AddRange(AmpararPorDefecto(operaciones).Where(d => !acumuladas.Contains(d)));
+        return new TestAsyncQueryable<DelegacionTenant>(acumuladas.AsQueryable());
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<AsignacionOperacion, DelegacionTenant>
+        AmparoDeCadaOperacion = new();
+
+    private static List<DelegacionTenant> AmpararPorDefecto(IEnumerable<AsignacionOperacion> operaciones)
+    {
+        // La misma operación puede pasar por varios contextos de una prueba: la delegación que la amparó en el
+        // primero la sigue amparando en los siguientes.
+        var creadas = new List<DelegacionTenant>();
+        foreach (var operacion in operaciones.Where(o => !o.EsOperacionInterna))
+        {
+            if (operacion.OrigenId is null)
+            {
+                var delegacion = new DelegacionTenant(operacion.OperadorTenantId, operacion.PropietarioTenantId);
+                operacion.FijarOrigen(delegacion);
+                AmparoDeCadaOperacion.Add(operacion, delegacion);
+                creadas.Add(delegacion);
+            }
+            else if (AmparoDeCadaOperacion.TryGetValue(operacion, out var anterior))
+            {
+                creadas.Add(anterior);
+            }
+        }
+
+        return creadas.Distinct().ToList();
+    }
+
+    public IQueryable<DelegacionTenant> DelegacionesTenant =>
+        new TestAsyncQueryable<DelegacionTenant>(_delegaciones.AsQueryable());
+
     public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
-        new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
+        new TestAsyncQueryable<AsignacionOperacion>(_operaciones.AsQueryable());
 
     public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
     public IQueryable<AsignacionCartera> AsignacionesCartera =>

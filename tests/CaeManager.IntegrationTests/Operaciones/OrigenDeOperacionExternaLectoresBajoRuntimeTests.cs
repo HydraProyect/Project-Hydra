@@ -19,14 +19,14 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Operaciones;
 
 /// <summary>
-/// El filtro de expansión (<c>AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen</c>) en cada lector de alcance de
-/// Infrastructure, leído como <c>cae_app_runtime</c>. Todas las pruebas usan el mismo estado discriminante: la
+/// El filtro de procedencia (<c>AmparoDeOrigen.AmparadasPorSuOrigen</c>, que en la contracción de la PR #2237 falla
+/// cerrado sin origen) en cada lector de alcance de Infrastructure, leído como <c>cae_app_runtime</c>. Todas las pruebas usan el mismo estado discriminante: la
 /// DelegacionTenant de origen se revoca y se reactiva con el SQL de la ranura anterior (solo <c>Activa</c>, sin cerrar
 /// operaciones), así que la delegación vuelve a estar activa y sin caducar y la operación sigue vigente, pero su
 /// contador de revocaciones ya no es el que guardó al nacer. En ese estado el resto del predicado de cada lector (el
 /// que tenía en main, incluida la comprobación de una delegación activa del par donde la hay) deja pasar la operación:
 /// solo el filtro de origen la quita. Por eso cada prueba falla si se borra el filtro de su lector, y cada una lleva un
-/// control de que lo demás no cambió (la operación sigue vigente o una operación sin origen sigue contando).
+/// control de que lo demás no cambió (la operación sigue vigente); una operación sin origen no cuenta nunca.
 /// </summary>
 public partial class OrigenDeOperacionExternaBajoRuntimeTests
 {
@@ -45,8 +45,9 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
         var (sinOrigen, clienteSinOrigen) = await RevocarSembrarSinOrigenYReactivarAsync();
         await AfirmarVigentesAsync(conOrigen, sinOrigen);
 
-        (await ClientesVisiblesDeLaGestoraAsync()).Should().BeEquivalentTo([clienteSinOrigen],
-            "la operación con origen se revocó después de nacer; la sin origen, con la delegación del par activa, sigue como antes");
+        clienteSinOrigen.Should().NotBe(_cliente);
+        (await ClientesVisiblesDeLaGestoraAsync()).Should().BeEmpty(
+            "la operación con origen se revocó después de nacer; la sin origen falla cerrada aunque la delegación del par esté activa");
     }
 
     /// <summary>
@@ -60,11 +61,12 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
         (await CarterasVigentesEnElPropietarioAsync())[_gestoraOperador.Id].ClienteIds
             .Should().BeEquivalentTo([_cliente], "control: con su origen vigente se pinta");
 
-        var (sinOrigen, clienteSinOrigen) = await RevocarSembrarSinOrigenYReactivarAsync();
+        var (sinOrigen, _) = await RevocarSembrarSinOrigenYReactivarAsync();
         await AfirmarVigentesAsync(conOrigen, sinOrigen);
 
-        (await CarterasVigentesEnElPropietarioAsync())[_gestoraOperador.Id].ClienteIds
-            .Should().BeEquivalentTo([clienteSinOrigen]);
+        var carteras = await CarterasVigentesEnElPropietarioAsync();
+        (carteras.TryGetValue(_gestoraOperador.Id, out var cartera) ? cartera.ClienteIds : [])
+            .Should().BeEmpty("ni la operación con origen revocado ni la sin origen (falla cerrada) se pintan");
     }
 
     /// <summary>
@@ -225,7 +227,7 @@ public partial class OrigenDeOperacionExternaBajoRuntimeTests
     /// <summary>
     /// Como <see cref="RevocarYReactivarPorLaRanuraAnteriorAsync"/>, pero mientras la delegación está revocada siembra
     /// otra operación acotada, a otro Cliente empresarial y con la cartera de la misma Gestora CAE: sin delegación activa
-    /// el trigger no deduce su origen, y queda como una operación anterior a la migración.
+    /// el trigger no deduce su origen, y queda como una operación anterior a la migración, que falla cerrada.
     /// </summary>
     private async Task<(Guid Operacion, Guid Cliente)> RevocarSembrarSinOrigenYReactivarAsync()
     {

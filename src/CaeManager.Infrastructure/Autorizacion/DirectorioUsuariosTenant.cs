@@ -288,19 +288,14 @@ public class DirectorioUsuariosTenant(
                 from cartera in identidad.AsignacionesCartera
                 where cartera.UsuarioId == usuarioId
                       && cartera.Estado == EstadoAsignacion.Vigente
-                      && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                // Sin el filtro de amparo (AmparoDeOrigen), a propósito: esta es una guarda de integridad, no de
-                // autorización. Su consumidor, EliminarUsuarioPendienteCommand, impide borrar una cuenta pendiente
-                // cuya Asignación de Cartera vigente quedaría apuntando a un Id sin cuenta (AsignacionCartera.UsuarioId
-                // no lleva FK), y esa fila sigue existiendo aunque su operación haya perdido el amparo de su
-                // DelegacionTenant de origen (ronda 1 de Codex en la PR #2253, media 4). El filtro de autorización
-                // vive en ObtenerCarterasVigentesAsync.
-                join operacion in identidad.AsignacionesOperacion
-                    on cartera.AsignacionOperacionId equals operacion.Id
-                where operacion.Estado == EstadoAsignacion.Vigente
-                      && operacion.VigenciaDesde <= ahora
-                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                // Sin mirar la operación ni su amparo (AmparoDeOrigen), a propósito: esta es una guarda de
+                // integridad, no de autorización. Su consumidor, EliminarUsuarioPendienteCommand, impide borrar una
+                // cuenta pendiente cuya Asignación de Cartera no cerrada quedaría apuntando a un Id sin cuenta
+                // (AsignacionCartera.UsuarioId no lleva FK), y esa fila sigue existiendo aunque su operación haya
+                // perdido el amparo de su DelegacionTenant de origen o esté cerrada, o aunque la cartera empiece más
+                // tarde (ronda 1 de Codex en la PR #2253, media 4; ronda 4 de Codex en la PR #2237, media 5). El filtro
+                // de autorización vive en ObtenerCarterasVigentesAsync.
                 select cartera.Id)
                 .AnyAsync(cancellationToken);
 
@@ -759,7 +754,7 @@ public class DirectorioUsuariosTenant(
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                 // Con el mismo amparo de la DelegacionTenant de origen que AlcanceDatosService.ObtenerCarteraAsync.
-                join operacion in identidad.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
+                join operacion in identidad.AsignacionesOperacion.AmparadasPorSuOrigen(identidad.DelegacionesTenant, ahora)
                     on cartera.AsignacionOperacionId equals operacion.Id
                 where operacion.Estado == EstadoAsignacion.Vigente
                       // El mismo filtro de servicio que AlcanceDatosService.ObtenerCarteraAsync (B-02a).
