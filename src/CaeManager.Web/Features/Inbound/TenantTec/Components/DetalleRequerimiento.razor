@@ -1,0 +1,170 @@
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+
+@* Detalle de un requerimiento del Tenant TEC. Con documento, el visor ocupa la columna izquierda (drawer ancho) y el
+   lateral la derecha; sin documento, un drawer estrecho con el estado vacío y la acción. *@
+@if (Requerimiento is { } r)
+{
+    var accion = r.Accion == AccionRequerimientoTec.Subir;
+    <Drawer Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@r.Nombre"
+            Subtitulo="@($"{r.Empresa} · {r.Centro}")" Ancho="@(r.HayDocumento ? AnchoDrawer.Ancho : AnchoDrawer.Estandar)">
+        <ChildContent>
+            <div class="det-cuerpo @(r.HayDocumento ? "det-con-documento" : null)">
+                @if (r.HayDocumento)
+                {
+                    <section class="det-visor" aria-label="@(_verAnterior is null ? Textos["DetUltimo"] : Textos["DetAnterior"])">
+                        <div class="det-visor-cabecera">
+                            <strong>@(_verAnterior is null ? Textos["DetUltimo"] : Textos["DetAnterior"])</strong>
+                            @if (_verAnterior is not null)
+                            {
+                                <button type="button" class="det-enlace" @onclick="() => _verAnterior = null">@Textos["DetVolver"]</button>
+                            }
+                        </div>
+                        @* shortcut: sin backend, cablear cuando entre B-11 (la URL del visor llega con el documento). *@
+                        <p class="det-sub">@Textos["DetVisorNoDisponible"]</p>
+                    </section>
+                }
+                <div class="det-lateral">
+                    <div class="det-estado">
+                        <Badge Tono="PresentacionTenantTec.TonoEstado(r.Estado)">@PresentacionTenantTec.Estado(Textos, r.Estado)</Badge>
+                        <Badge Tono="PresentacionTenantTec.TonoVigencia(r.Vigencia)">@PresentacionTenantTec.Vigencia(Textos, r.Vigencia)</Badge>
+                        @if (r.Hasta is { } hasta)
+                        {
+                            <span class="det-sub">@Textos["ReqHasta", PresentacionTenantTec.Fecha(hasta)]</span>
+                        }
+                    </div>
+
+                    @if (!r.HayDocumento)
+                    {
+                        <p class="det-sub">@(accion ? Textos["DetSinDocumento"] : Textos["DetNoHayQueSubir"])</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(r.Motivo) && r.Estado is EstadoRequerimientoTec.Rechazado or EstadoRequerimientoTec.Incompleto)
+                    {
+                        <p class="det-motivo">@Textos["DetMotivoRechazo", r.Motivo]</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(r.Falta))
+                    {
+                        <p class="det-motivo">@Textos["ReqFalta", r.Falta]</p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(r.Criterio) || r.Lectura.Count > 0)
+                    {
+                        <section>
+                            <h3 class="det-titulo">@Textos["DetCriterio"]</h3>
+                            @if (!string.IsNullOrWhiteSpace(r.Criterio))
+                            {
+                                <p>@r.Criterio</p>
+                            }
+                            @if (r.Lectura.Count > 0)
+                            {
+                                <ul class="det-lectura">
+                                    @foreach (var campo in r.Lectura)
+                                    {
+                                        <li class="det-lectura-@campo.Resultado.ToString().ToLowerInvariant()">
+                                            <span aria-hidden="true">@Signo(campo.Resultado)</span>
+                                            <span>@campo.Campo</span>
+                                            <span class="visually-hidden">@TextoLectura(campo.Resultado)</span>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </section>
+                    }
+
+                    @if (r.Niveles.Count > 0)
+                    {
+                        <section>
+                            <h3 class="det-titulo">@Textos["DetPorQue"]</h3>
+                            <ul class="det-niveles">
+                                @foreach (var nivel in r.Niveles)
+                                {
+                                    <li>
+                                        <strong>@nivel.Nivel</strong>
+                                        <span class="det-sub">@Textos["DetNivelExige", nivel.Exige, nivel.Vence is { } vence ? PresentacionTenantTec.Fecha(vence) : "—"]</span>
+                                    </li>
+                                }
+                            </ul>
+                            @if (r.Niveles.Count > 1)
+                            {
+                                <p class="det-sub">@Textos["DetNotaUnaVez", r.Niveles.Count]</p>
+                            }
+                        </section>
+                    }
+
+                    <section>
+                        <h3 class="det-titulo">@Textos["DetHistorial"]</h3>
+                        @if (r.Historial.Count == 0)
+                        {
+                            <p class="det-sub">@Textos["DetSinHistorial"]</p>
+                        }
+                        else
+                        {
+                            <ul class="det-historial">
+                                @foreach (var version in r.Historial)
+                                {
+                                    <li>
+                                        <div>
+                                            <span class="det-sub">@PresentacionTenantTec.FechaHora(version.Fecha)</span>
+                                            <Badge Tono="PresentacionTenantTec.TonoEstado(version.Estado)" Tamano="TamanoBadge.Pequeno">@PresentacionTenantTec.Estado(Textos, version.Estado)</Badge>
+                                        </div>
+                                        <span>@(version.AportadoPorAutorizacionUnica ? Textos["DetAportado"] : Textos["DetSubidoPor", version.SubidoPor ?? string.Empty])</span>
+                                        @if (!string.IsNullOrWhiteSpace(version.Motivo))
+                                        {
+                                            <span class="det-sub">@version.Motivo</span>
+                                        }
+                                        @if (version.Emision is { } emision)
+                                        {
+                                            <span class="det-sub">@Textos["DetEmision", PresentacionTenantTec.Fecha(emision)]</span>
+                                        }
+                                        @if (_verAnterior == version.Id)
+                                        {
+                                            <span class="det-sub">@Textos["DetALaVista"]</span>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="det-enlace" @onclick="() => _verAnterior = version.Id">@Textos["DetVer"]</button>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                </div>
+            </div>
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => VisibleChanged.InvokeAsync(false)">@Textos["Cerrar"]</Boton>
+            @if (accion)
+            {
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => OnSubir.InvokeAsync(r.Id)">@Textos["Subir"]</Boton>
+            }
+        </Pie>
+    </Drawer>
+}
+
+@code {
+    private Guid? _verAnterior;
+
+    [Parameter] public RequerimientoTec? Requerimiento { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>La persona pide subir el documento que falta: lleva a «Subir documento» de ese requerimiento.</summary>
+    [Parameter] public EventCallback<Guid> OnSubir { get; set; }
+
+    private static string Signo(LecturaCampoTec resultado) => resultado switch
+    {
+        LecturaCampoTec.Correcto => "✓",
+        LecturaCampoTec.Aviso => "!",
+        _ => "✕",
+    };
+
+    private string TextoLectura(LecturaCampoTec resultado) => resultado switch
+    {
+        LecturaCampoTec.Correcto => Textos["DetLecturaCorrecta"],
+        LecturaCampoTec.Aviso => Textos["DetLecturaAviso"],
+        _ => Textos["DetLecturaError"],
+    };
+}

@@ -1,0 +1,137 @@
+.sub-datos {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    margin: 0 0 12px;
+}
+
+.sub-datos dt {
+    color: var(--color-text-muted);
+}
+
+.sub-datos dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.sub-aviso-salud {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--color-warning-50);
+}
+
+.sub-zona {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin: 12px 0;
+    padding: 24px 16px;
+    border: 1px dashed var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface-subtle);
+    text-align: center;
+    cursor: pointer;
+}
+
+.sub-camara {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: 8px;
+    padding: var(--space-2) var(--space-4);
+    border: var(--border-default);
+    border-color: var(--color-border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sub-camara:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.sub-camara:focus-within {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.sub-zona ::deep input[type="file"],
+.sub-camara ::deep input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.sub-campos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 12px 0;
+}
+
+.sub-campos label,
+.sub-comentarios {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sub-comprobaciones {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sub-check-ok {
+    color: var(--color-success-700);
+}
+
+.sub-check-error {
+    color: var(--color-danger-700);
+}
+
+.sub-check-espera {
+    color: var(--color-text-muted);
+}
+
+.sub-hecho {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.det-titulo {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.det-sub {
+    color: var(--color-text-muted);
+    font-size: 13px;
+}
+
+.det-motivo {
+    margin: 0 0 12px;
+    color: var(--color-danger-700);
+}
+
+.det-historial {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

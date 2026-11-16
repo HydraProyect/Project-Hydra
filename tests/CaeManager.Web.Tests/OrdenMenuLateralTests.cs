@@ -231,7 +231,7 @@ public class OrdenMenuLateralTests : BunitContext
 
         GruposEnPantalla(cut).Take(3).Should().Equal(["dashboards", "operacion", "negocio"]);
         cut.Find("[data-estado-titulo]").TextContent.Should().Be("2 cambios sin guardar");
-        cut.Find("[data-anuncio]").TextContent.Should().Be("Negocio, posición 3 de 6.");
+        cut.Find("[data-anuncio]").TextContent.Should().Be("Negocio, posición 3 de 7.");
 
         cut.Find("[data-accion='guardar']").Click();
 
