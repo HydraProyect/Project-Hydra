@@ -274,6 +274,7 @@ derivar Infrastructure.Persistence.Repositories     # B-1: el repositorio sigue 
 
 excepcion Infrastructure.Persistence.CaeManagerDbContext            = Composicion   # § 4.1, regla 4
 excepcion Infrastructure.Persistence.Migraciones                    = Composicion   # § 4.1, regla 4: transición de la línea base de migraciones
+excepcion Infrastructure.Persistence.Repositories.ConversacionRepository = Outbound provisional  # B-1: repositorio de Comunicaciones; además implementa IMensajesExternosIngeridos (Domain.Integraciones), puerto del Núcleo para la recuperación del hueco (#2124)
 excepcion Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa = Outbound provisional  # M-3: implementa ISerializacionAltasAcreditacionEmpresa (Application.Documentos.Acreditacion)
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService = Outbound provisional  # M-3
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions       = Outbound provisional  # M-3

@@ -82,6 +82,35 @@ public class ObtenerConexionesIntegracionHuecoSinRegistrarTests
         fila.CorreoNoRecuperadoDesdeUtc.Should().Be(desde, "control: la marca se registró al reactivar");
     }
 
+    /// <summary>
+    /// Issue #2124: <see cref="ConexionIntegracionListaDto.RecuperacionDetenidaEnUtc"/> proyecta el segundo en que la
+    /// recuperación del hueco está detenida, solo en esa fila y solo con la marca puesta.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Avisa_de_la_recuperacion_detenida_solo_en_la_conexion_detenida(bool enSesionPrivilegiada)
+    {
+        var marca = new DateTime(2026, 11, 15, 9, 0, 0, DateTimeKind.Utc);
+        var detenida = Buzon("detenida@operador.test");
+        detenida.RegistrarNotificacionDescartada(marca + ConexionIntegracion.RetrasoMaximoNotificacion);
+        detenida.IniciarRecuperacionHueco(marca.AddHours(1));
+        detenida.RegistrarAtascoRecuperacionHueco().Should().BeTrue("control: la recuperación queda detenida");
+        var conMarcaSinAtasco = Buzon("marcada@operador.test");
+        conMarcaSinAtasco.RegistrarNotificacionDescartada(marca + ConexionIntegracion.RetrasoMaximoNotificacion);
+        Buzon("sana@operador.test");
+
+        var listado = await ListarAsync(enSesionPrivilegiada ? Guid.NewGuid() : null);
+
+        listado.ToDictionary(c => c.BuzonEmail, c => c.RecuperacionDetenidaEnUtc).Should().BeEquivalentTo(
+            new Dictionary<string, DateTime?>
+            {
+                ["detenida@operador.test"] = marca,
+                ["marcada@operador.test"] = null,
+                ["sana@operador.test"] = null,
+            });
+    }
+
     private sealed class Seleccion(Guid? sesionPrivilegiadaId) : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => null;

@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Integraciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Persistence.Repositories;
 
-public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository
+public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversacionRepository, IMensajesExternosIngeridos
 {
     public Task<Conversacion?> ObtenerUltimaCerradaPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
@@ -35,6 +36,21 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
          join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
          where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
          select m).AnyAsync(cancellationToken);
+
+    public async Task<IReadOnlySet<string>> ObtenerMensajesExternosExistentesAsync(
+        Guid conexionIntegracionId, IReadOnlyCollection<string> mensajeExternoIds, CancellationToken cancellationToken = default)
+    {
+        if (mensajeExternoIds.Count == 0)
+            return new HashSet<string>(StringComparer.Ordinal);
+
+        var existentes = await (
+            from m in dbContext.Mensajes
+            join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
+            where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId != null
+                  && mensajeExternoIds.Contains(m.MensajeExternoId)
+            select m.MensajeExternoId!).Distinct().ToListAsync(cancellationToken);
+        return existentes.ToHashSet(StringComparer.Ordinal);
+    }
 
     public async Task<bool> ReservarAcuseAsync(
         Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
