@@ -67,9 +67,11 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, Serializacion, AltaAcreditaciones, UnitOfWork,
-            GestionAutomatica, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
+            GestionAutomatica, ArchivosPendientes, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
 
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+
+        public ArchivosPendientesDeReferenciaFalso ArchivosPendientes { get; } = new();
 
         public INacimientoGestionAutomaticaService GestionAutomatica { get; set; } = new NacimientoGestionAutomaticaQueRegistra();
     }
@@ -130,6 +132,66 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
         entorno.Documentos.Documentos.Should().BeEmpty();
         entorno.Almacenamiento.ArchivosGuardados.Should().Be(1);
+    }
+
+    private sealed class GestionAutomaticaQueFalla : INacimientoGestionAutomaticaService
+    {
+        public Task<CaeManager.Domain.Gestiones.GestionAutomatica?> AgregarAsync(Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("La Gestión automática falló después de guardar el PDF.");
+    }
+
+    private static async Task<(Entorno Entorno, Guid UsuarioId, Trabajador Trabajador)> EntornoGenerableAsync()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var usuarioId = Guid.NewGuid();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], usuarioId);
+        return (entorno, usuarioId, trabajador);
+    }
+
+    /// <summary>
+    /// Issue #2123: una excepción después de guardar el PDF (aquí, la Gestión automática) no lo borra —un commit ambiguo
+    /// podría haber confirmado el Documento—, pero tampoco lo deja huérfano sin rastro: su fila queda en el outbox del
+    /// Tenant propietario para que el barrido decida a las 24 h.
+    /// </summary>
+    [Fact]
+    public async Task Una_excepcion_tras_guardar_el_pdf_deja_su_fila_en_el_outbox_y_conserva_el_archivo()
+    {
+        var (entorno, usuarioId, trabajador) = await EntornoGenerableAsync();
+        entorno.GestionAutomatica = new GestionAutomaticaQueFalla();
+
+        var alta = () => entorno.CrearHandler(usuarioId).Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        await alta.Should().ThrowAsync<InvalidOperationException>();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(2, "la plantilla original y el PDF generado: el generado no se borra en un catch");
+        entorno.ArchivosPendientes.Filas.Should().ContainSingle("el PDF generado queda apuntado para el barrido")
+            .Which.Clave.Should().Contain("documento-generado.pdf");
+    }
+
+    [Fact]
+    public async Task El_alta_confirmada_quita_la_fila_de_su_pdf_del_outbox()
+    {
+        var (entorno, usuarioId, trabajador) = await EntornoGenerableAsync();
+
+        var resultado = await entorno.CrearHandler(usuarioId).Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        entorno.Documentos.Documentos.Should().ContainSingle();
+        entorno.ArchivosPendientes.Filas.Should().BeEmpty("el Documento confirmado ya referencia el PDF");
+    }
+
+    [Fact]
+    public async Task Sin_poder_apuntar_el_pdf_lo_borra_y_no_da_el_alta()
+    {
+        var (entorno, usuarioId, trabajador) = await EntornoGenerableAsync();
+        entorno.ArchivosPendientes.ExcepcionAlApuntar = new InvalidOperationException("La base no está disponible.");
+
+        var alta = () => entorno.CrearHandler(usuarioId).Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        await alta.Should().ThrowAsync<InvalidOperationException>();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(1, "solo queda la plantilla original: el PDF sin apuntar se borra antes de que nada lo referencie");
+        entorno.Documentos.Documentos.Should().BeEmpty();
     }
 
     [Fact]
@@ -697,7 +759,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            new ArchivosPendientesDeReferenciaFalso(), NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
@@ -891,7 +953,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            new ArchivosPendientesDeReferenciaFalso(), NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -922,7 +984,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            new ArchivosPendientesDeReferenciaFalso(), NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -948,7 +1010,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            new ArchivosPendientesDeReferenciaFalso(), NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 

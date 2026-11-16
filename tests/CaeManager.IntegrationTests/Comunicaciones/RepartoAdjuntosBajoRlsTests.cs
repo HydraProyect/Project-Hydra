@@ -481,7 +481,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         CaeManagerDbContext runtime, IFileStorageService almacen, AltaGuardadaDeVerdad mediador) => new(
         runtime, new AdjuntoMensajeRepository(runtime), Alcance(runtime), runtime, mediador, mediador, almacen,
         new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), _tenantDeLaPeticion,
-        NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        new CaeManager.Infrastructure.Persistence.Repositories.ArchivosPendientesDeReferenciaRepository(runtime), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     private async Task<Guid> SembrarTipoDeEmpresaAsync()
     {

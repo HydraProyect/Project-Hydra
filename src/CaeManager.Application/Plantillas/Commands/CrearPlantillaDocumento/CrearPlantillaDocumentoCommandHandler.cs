@@ -6,6 +6,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
 
@@ -15,7 +16,9 @@ public class CrearPlantillaDocumentoCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IFileStorageService almacenamientoArchivos,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IArchivosPendientesDeReferencia archivosPendientes,
+    ILogger<CrearPlantillaDocumentoCommandHandler> logger)
     : IRequestHandler<CrearPlantillaDocumentoCommand, Result<CrearPlantillaDocumentoResultadoDto>>
 {
     public async Task<Result<CrearPlantillaDocumentoResultadoDto>> Handle(
@@ -52,6 +55,9 @@ public class CrearPlantillaDocumentoCommandHandler(
 
         using var flujo = new MemoryStream(request.Contenido);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, "plantilla.pdf", cancellationToken);
+        // Hasta confirmar la plantilla y su primera versión, una excepción dejaría el PDF sin versión que lo referencie:
+        // queda apuntado en el outbox del Tenant propietario y el barrido lo recoge a las 24 h (issue #2123).
+        await archivosPendientes.ApuntarOEliminarAsync(almacenamientoArchivos, archivoUrl, logger, cancellationToken);
 
         var documento = new PlantillaDocumento(
             OrigenPlantilla.Externa, request.Nombre, request.AmbitoAplicacion, request.FormatoOrigen, request.TipoDocumentoId,
@@ -62,6 +68,7 @@ public class CrearPlantillaDocumentoCommandHandler(
         versionRepositorio.Agregar(version);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
 
         return Result.Exito(new CrearPlantillaDocumentoResultadoDto(documento.Id, version.Id));
     }

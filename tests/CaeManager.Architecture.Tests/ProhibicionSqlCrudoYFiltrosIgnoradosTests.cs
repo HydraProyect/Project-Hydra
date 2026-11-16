@@ -99,6 +99,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
+        // Outbox de archivos pendientes de referencia (issue #2123). El apunte es un INSERT crudo parametrizado porque
+        // tiene que confirmar solo su fila, sin los cambios pendientes del contexto del llamador; Tenant del contexto y
+        // RLS WITH CHECK debajo. La comprobación de referencias incluye Documentos en la papelera y repone el Tenant a
+        // mano al retirar el filtro combinado; RLS sigue aplicando.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ArchivosPendientesDeReferenciaRepository.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ArchivosPendientesDeReferenciaRepository.cs", "var deDocumentos = await dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ArchivosPendientesDeReferenciaRepository.cs", "var deVersiones = await dbContext.PlantillasDocumentoVersion.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Reactivar una delegación bloquea su fila con FOR UPDATE antes de decidir por su estado (issue #2232): EF no
         // expresa el bloqueo. Solo por Id, devuelve el Id; la tabla no lleva filtro global de EF y RLS sigue aplicando.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/DelegacionTenantRepository.cs", "var bloqueadas = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,

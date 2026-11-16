@@ -98,6 +98,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
     IComunicacionesQueryContext comunicacionesContext, IAdjuntoMensajeRepository repositorio, IAlcanceDatosService alcanceDatos,
     IDocumentosQueryContext documentosContext, IMediator mediator, IPublisher publisher,
     IFileStorageService almacenamiento, ICurrentUserService currentUserService, ITenantActual tenantActual,
+    IArchivosPendientesDeReferencia archivosPendientes,
     ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler> logger)
     : IRequestHandler<ActualizarDocumentoDesdeAdjuntoCommand, Result<Guid>>
 {
@@ -159,6 +160,10 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         memoria.Position = 0;
         var extension = Path.GetExtension(adjunto.NombreArchivo).ToLowerInvariant();
         archivoUrlDocumento = await almacenamiento.GuardarAsync(memoria, "documento" + extension, cancellationToken);
+        // Antes de tocar el adjunto: el apunte confirma solo su fila, y a partir de aquí una excepción desconocida o una
+        // cancelación dejan la copia sin Documento que la referencie (más abajo no se borra por si el commit sí llegó).
+        // El barrido del outbox la recoge a las 24 h si ningún Documento la referencia (issue #2123).
+        await archivosPendientes.ApuntarOEliminarAsync(almacenamiento, archivoUrlDocumento, logger, cancellationToken);
 
         // "Unicidad por tipo y entidad" (§ 12.7): a diferencia del alta manual
         // (donde "editar" ya significa ir a la fila correcta y renovarla),
@@ -249,6 +254,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             alta = Result.Exito(documentoReservadoId);
         }
 
+        await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrlDocumento, logger);
+
         // Publicado DESPUÉS del commit de Crear/RenovarDocumentoCommand
         // (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5) — mejor esfuerzo, mismo
         // criterio que VisitaCreadaEvent.
@@ -317,9 +324,11 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         try
         {
             await almacenamiento.EliminarAsync(archivoUrl, cancellationToken);
+            await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // La copia sigue apuntada en el outbox: el barrido la recoge a las 24 h (issue #2123).
             logger.LogWarning("No se pudo borrar la copia huérfana del adjunto {AdjuntoId} ({TipoExcepcion}).",
                 adjuntoId, ex.GetType().Name);
         }

@@ -29,7 +29,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var (contexto, tipoId) = ContextoConTipoDocumentoDeTrabajador();
         var almacenamiento = new FileStorageServiceFalso();
         var handler = new CrearPlantillaDocumentoCommandHandler(new PlantillaDocumentoRepositorioFalso(),
-            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
         var resultado = await handler.Handle(ComandoValido(tipoId) with { Contenido = "MZ"u8.ToArray() }, CancellationToken.None);
         resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
         almacenamiento.ArchivosGuardados.Should().Be(0);
@@ -43,7 +43,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var (contexto, tipoId) = ContextoConTipoDocumentoDeTrabajador();
         var almacenamiento = new FileStorageServiceFalso();
         var handler = new CrearPlantillaDocumentoCommandHandler(new PlantillaDocumentoRepositorioFalso(),
-            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
         byte[] contenido = nombre.EndsWith(".png", StringComparison.Ordinal)
             ? [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00]
             : [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
@@ -64,7 +64,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var almacenamiento = new FileStorageServiceFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new CrearPlantillaDocumentoCommandHandler(
-            documentos, versiones, tiposDocumentoContexto, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork);
+            documentos, versiones, tiposDocumentoContexto, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork, new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(tipoDocumentoId), CancellationToken.None);
 
@@ -86,7 +86,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var versiones = new PlantillaDocumentoVersionRepositorioFalso();
         var almacenamiento = new FileStorageServiceFalso();
         var handler = new CrearPlantillaDocumentoCommandHandler(
-            documentos, versiones, tiposDocumentoContexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            documentos, versiones, tiposDocumentoContexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(tipoDocumentoId), CancellationToken.None);
 
@@ -103,7 +103,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]);
         var handler = new CrearPlantillaDocumentoCommandHandler(
             new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
-            tiposDocumentoContexto, new FileStorageServiceFalso(), alcance, new UnitOfWorkFalso());
+            tiposDocumentoContexto, new FileStorageServiceFalso(), alcance, new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(tipoDocumentoId, centroId: centroAjeno), CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
         var handler = new CrearPlantillaDocumentoCommandHandler(
             new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
-            tiposDocumentoContexto, new FileStorageServiceFalso(), alcance, new UnitOfWorkFalso());
+            tiposDocumentoContexto, new FileStorageServiceFalso(), alcance, new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(tipoDocumentoId, clienteId: clienteAjeno), CancellationToken.None);
 
@@ -132,7 +132,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
     {
         var handler = new CrearPlantillaDocumentoCommandHandler(
             new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
-            new TiposDocumentoQueryContextFalso(), new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            new TiposDocumentoQueryContextFalso(), new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(Guid.NewGuid()), CancellationToken.None);
 
@@ -148,7 +148,7 @@ public class CrearPlantillaDocumentoCommandHandlerTests
         contexto.ListaTiposDocumento.Add(tipoDeEmpresa);
         var handler = new CrearPlantillaDocumentoCommandHandler(
             new PlantillaDocumentoRepositorioFalso(), new PlantillaDocumentoVersionRepositorioFalso(),
-            contexto, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            contexto, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearPlantillaDocumentoCommandHandler>.Instance);
 
         var resultado = await handler.Handle(ComandoValido(tipoDeEmpresa.Id), CancellationToken.None);
 

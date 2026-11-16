@@ -15,6 +15,7 @@ public class AgregarVersionPlantillaCommandHandler(
     IFileStorageService almacenamientoArchivos,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
+    IArchivosPendientesDeReferencia archivosPendientes,
     ILogger<AgregarVersionPlantillaCommandHandler> logger)
     : IRequestHandler<AgregarVersionPlantillaCommand, Result<AgregarVersionPlantillaResultadoDto>>
 {
@@ -43,6 +44,9 @@ public class AgregarVersionPlantillaCommandHandler(
 
         using var flujo = new MemoryStream(request.Contenido);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, "plantilla.pdf", cancellationToken);
+        // Hasta confirmar la versión, una excepción que no sea el conflicto de abajo dejaría el PDF sin versión que lo
+        // referencie: queda apuntado en el outbox del Tenant propietario y el barrido lo recoge a las 24 h (issue #2123).
+        await archivosPendientes.ApuntarOEliminarAsync(almacenamientoArchivos, archivoUrl, logger, cancellationToken);
 
         var nuevaVersion = new PlantillaDocumentoVersion(plantilla.Id, siguienteNumeroVersion, archivoUrl, hash);
 
@@ -78,6 +82,7 @@ public class AgregarVersionPlantillaCommandHandler(
                 "Otra persona guardó una versión de esta plantilla al mismo tiempo. Vuelve a intentarlo."));
         }
 
+        await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
         return Result.Exito(new AgregarVersionPlantillaResultadoDto(nuevaVersion.Id, archivoIdentico));
     }
 
@@ -86,6 +91,7 @@ public class AgregarVersionPlantillaCommandHandler(
         try
         {
             await almacenamientoArchivos.EliminarAsync(archivoUrl, cancellationToken);
+            await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -93,8 +99,8 @@ public class AgregarVersionPlantillaCommandHandler(
             // perder ese Result.Fallo por un problema al limpiar dejaría al
             // llamador sin explicación. Mismo patrón de compensación
             // best-effort que CompensacionBlobsHuerfanosIngesta (módulo 6):
-            // si esta limpieza también falla, el blob queda huérfano sin más
-            // reintento — no existe hoy un barrido periódico que lo recoja.
+            // si esta limpieza también falla, el blob sigue apuntado en el
+            // outbox y lo recoge el barrido a las 24 h (issue #2123).
             // Se registra la plantilla por Id y el tipo de la excepción: ni la clave del blob ni el mensaje
             // de la excepción (que suele repetirla) deben acabar en los registros.
             logger.LogWarning(

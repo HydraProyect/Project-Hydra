@@ -1044,7 +1044,7 @@ public class RepartoAdjuntosTests
         AltaDeDocumentoFalsa alta, Guid? usuarioId = null, Guid? tenantId = null, bool sinTenant = false,
         ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>? registro = null) => new(
         _contexto, _repositorio, Total(), _documentos, alta, alta, _almacen, new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()),
-        new TenantActualFijo(sinTenant ? null : tenantId ?? _tenant), registro ?? NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        new TenantActualFijo(sinTenant ? null : tenantId ?? _tenant), new ArchivosPendientesDeReferenciaFalso(), registro ?? NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     /// <summary>Permite que la lectura de Documentos falle a partir de un momento: el alta sigue su curso antes de eso.</summary>
     private sealed class DocumentosConLecturaRompible : DocumentosQueryContextFalso, IDocumentosQueryContext

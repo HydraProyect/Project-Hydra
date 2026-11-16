@@ -49,6 +49,7 @@ public class GenerarDocumentoIndividualCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork,
     INacimientoGestionAutomaticaService gestionAutomatica,
+    IArchivosPendientesDeReferencia archivosPendientes,
     ILogger<GenerarDocumentoIndividualCommandHandler> logger,
     // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
     // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
@@ -191,6 +192,11 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         using var flujoRelleno = new MemoryStream(contenidoRelleno);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);
+        // Desde aquí hasta confirmar el Documento, cualquier excepción (las acreditaciones, la Gestión automática, el
+        // guardado, el candado, una caída de la base o una cancelación) dejaría el PDF sin nadie que lo referencie, y no
+        // se borra en un catch porque un commit ambiguo pudo confirmarlo: queda apuntado en el outbox del Tenant
+        // propietario, y el barrido lo borra a las 24 h solo si ningún Documento lo referencia (issue #2123).
+        await archivosPendientes.ApuntarOEliminarAsync(almacenamientoArchivos, archivoUrl, logger, cancellationToken);
 
         var fechaEmision = DiaDeNegocio.De(ahoraUtc);
         // Un documento generado desde plantilla no trae vigencia anotada: si
@@ -274,11 +280,12 @@ public class GenerarDocumentoIndividualCommandHandler(
             // prueba: si un commit anterior se confirmó en la base pero devolvió un error transitorio, la estrategia de
             // reintentos repitió la operación y este rechazo llega sobre un Documento ya confirmado. Por eso se pregunta a
             // la base, ya fuera de la transacción, por el Id de este Documento (el mismo en todos los intentos).
-            // Las excepciones tras guardar el PDF no se compensan aquí (issue #2123).
+            // Las excepciones tras guardar el PDF no se compensan aquí: las recoge el barrido del outbox (issue #2123).
             await EliminarPdfSiNingunDocumentoLoReferenciaAsync(archivoUrl, documento.Id, version.Id);
             return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
         }
 
+        await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
         return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
             documentoGenerado.Id, documento.Id, camposObligatoriosVacios, valoresNoReconocidos));
     }
@@ -306,7 +313,8 @@ public class GenerarDocumentoIndividualCommandHandler(
     // Sin el token de la petición y sin dejar escapar ninguna excepción, tampoco una cancelación: el fallo real ya es el
     // rechazo de la cartera, y perderlo por un problema al limpiar dejaría al llamador sin explicación. Mismo patrón de
     // compensación best-effort que AgregarVersionPlantillaCommandHandler: si la comprobación o la limpieza fallan, el PDF
-    // queda huérfano sin más reintento, que es preferible a borrar el de un Documento confirmado. Se registra la versión
+    // se conserva y su fila del outbox se queda para que el barrido vuelva a decidir a las 24 h (issue #2123), que es
+    // preferible a borrar el de un Documento confirmado; si se borra, la fila ya no hace falta. Se registra la versión
     // de plantilla por Id y el tipo de la excepción: ni la clave del archivo ni el mensaje de la excepción deben acabar
     // en los registros.
     private async Task EliminarPdfSiNingunDocumentoLoReferenciaAsync(string archivoUrl, Guid documentoId, Guid versionId)
@@ -335,6 +343,7 @@ public class GenerarDocumentoIndividualCommandHandler(
         try
         {
             await almacenamientoArchivos.EliminarAsync(archivoUrl, CancellationToken.None);
+            await archivosPendientes.QuitarTrasConfirmarAsync(archivoUrl, logger);
         }
         catch (Exception ex)
         {

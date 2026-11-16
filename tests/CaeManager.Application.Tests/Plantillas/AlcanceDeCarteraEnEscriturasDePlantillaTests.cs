@@ -60,7 +60,7 @@ public class AlcanceDeCarteraEnEscriturasDePlantillaTests
             case Escritura.AgregarVersion:
                 var resultado = await new AgregarVersionPlantillaCommandHandler(
                         _plantillas, _versiones, new FileStorageServiceFalso(), alcance, _unitOfWork,
-                        NullLogger<AgregarVersionPlantillaCommandHandler>.Instance)
+                        new ArchivosPendientesDeReferenciaFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance)
                     .Handle(new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-1.4"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
                 return resultado.EsExitoso ? Result.Exito() : Result.Fallo(resultado.Error);
             case Escritura.GuardarElementos:

@@ -436,6 +436,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IConversorLogoTenantService, CaeManager.Infrastructure.Tenants.SkiaConversorLogoTenantService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
+        // Outbox de archivos guardados antes de su Documento o versión de plantilla, y su barrido a las 24 h (issue #2123).
+        services.AddScoped<CaeManager.Application.Common.Archivos.IArchivosPendientesDeReferencia, ArchivosPendientesDeReferenciaRepository>();
+        services.AddScoped<CaeManager.Application.Common.Archivos.BarridoArchivosPendientesDeReferencia>();
+        services.AddHostedService<CaeManager.Infrastructure.FileStorage.BarridoArchivosPendientesDeReferenciaHostedService>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
         services.AddScoped<IVisitaRepository, VisitaRepository>();
         services.AddScoped<IVisitaTrabajadorRepository, VisitaTrabajadorRepository>();

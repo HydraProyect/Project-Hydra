@@ -250,7 +250,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         CaeManagerDbContext contexto, MediatorDocumentoFalso mediador, IFileStorageService almacenamiento, AlcanceDatosServiceFalso? alcance = null) =>
         new(contexto, new AdjuntoMensajeRepository(contexto), alcance ?? new AlcanceDatosServiceFalso(), contexto, mediador, mediador, almacenamiento,
             new CurrentUserServiceFalso(Guid.NewGuid()), new TenantActualAmbiental { TenantId = _tenant },
-            NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+            new CaeManager.Infrastructure.Persistence.Repositories.ArchivosPendientesDeReferenciaRepository(contexto), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     private async Task<(CaeManagerDbContext Contexto, Guid AdjuntoId, Guid ConversacionId, Guid TrabajadorId, Guid TipoDocumentoId)> SembrarEscenarioAsync()
     {

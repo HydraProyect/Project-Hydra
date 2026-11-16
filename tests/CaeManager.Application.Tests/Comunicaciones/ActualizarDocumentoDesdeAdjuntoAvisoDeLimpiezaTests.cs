@@ -88,7 +88,7 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         ComunicacionesQueryContextFalso contexto, MediadorFalso mediador, FileStorageServiceFalso almacenamiento) =>
         new(contexto, new RepartoAdjuntosTests.AdjuntoRepositorioFalso(contexto), new AlcanceDatosServiceFalso(), new DocumentosQueryContextFalso(),
             mediador, mediador, almacenamiento, new CurrentUserServiceFalso(Guid.NewGuid()), new TenantActualFijo(Guid.NewGuid()),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+            new ArchivosPendientesDeReferenciaFalso(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     private sealed class MediadorFalso : IMediator
     {
@@ -111,7 +111,7 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
     // La limpieza de la copia huérfana no usa ninguna otra dependencia del handler: se prueba directamente.
     private static ActualizarDocumentoDesdeAdjuntoCommandHandler CrearHandler(
         FileStorageServiceFalso almacenamiento, RegistroDeAvisos<ActualizarDocumentoDesdeAdjuntoCommandHandler> registro) =>
-        new(null!, null!, null!, null!, null!, null!, almacenamiento, null!, null!, registro);
+        new(null!, null!, null!, null!, null!, null!, almacenamiento, null!, null!, new ArchivosPendientesDeReferenciaFalso(), registro);
 
     [Fact]
     public async Task El_aviso_de_la_copia_huerfana_que_no_se_pudo_borrar_identifica_el_adjunto_sin_revelar_la_clave()
