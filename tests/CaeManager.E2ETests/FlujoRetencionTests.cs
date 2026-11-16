@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -54,15 +55,16 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await botonBuscar.ClickAsync();
 
         // Barrera (#2187): que haya una tabla visible no prueba que Buscar haya terminado. BuscarAsync recarga la lista
-        // después del Command, y esa recarga cambia la tabla por el estado de carga y desecha los botones de cada fila:
-        // un clic que el navegador ya ha enviado sobre la tabla anterior puede perderse sin error y sin llegar al
-        // mediador (run 43122999105: «He avisado a la organización» se pulsó a ~15 ms de BuscarDatosPurgablesCommand y
-        // MarcarTenantAvisadoCommand no aparece en el log). El aviso de Buscar dice que el Command terminó y cuántas
-        // propuestas creó; el botón vuelve a habilitarse solo cuando Buscar ha terminado del todo, recarga incluida
-        // (Cargando="_buscando", Deshabilitado="… || _cargando"). Que sean dos propuestas nuevas fija además que las
-        // crea este Buscar y no un barrido anterior: si ya existieran, el aviso diría que no hay nada nuevo.
-        await Assertions.Expect(page.Locator(".anfitrion-toasts"))
-            .ToContainTextAsync("2 propuesta(s) nueva(s) pendientes de revisión.", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        // después del Command, y la carga pasa por la misma PuertaAccesoDatos del circuito que el Command y que la
+        // carga inicial, así que puede pintarse una tabla mientras la recarga de Buscar sigue en vuelo. En el run
+        // 43122999105 «He avisado a la organización» se pulsó a ~15 ms del fin de BuscarDatosPurgablesCommand y
+        // MarcarTenantAvisadoCommand no llegó al mediador; por qué se perdió ese clic no está demostrado. El aviso de
+        // Buscar sale cuando el Command ha terminado, y el botón solo vuelve a habilitarse cuando BuscarAsync ha
+        // terminado del todo, recarga incluida (Cargando="_buscando", Deshabilitado="… || _cargando"). Vale cualquiera
+        // de los dos avisos de éxito: la barrera no depende de quién creó las propuestas, que se comprueban abajo.
+        await Assertions.Expect(page.Locator(".anfitrion-toasts")).ToContainTextAsync(
+            new Regex(@"propuesta\(s\) nueva\(s\) pendientes de revisión\.|Ningún dato ha cumplido todavía su plazo\."),
+            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         await Assertions.Expect(botonBuscar).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
 
         var tabla = page.Locator(".tabla-datos");
@@ -189,19 +191,38 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         }
         catch (TimeoutException ex)
         {
-            var textoModal = string.Join(" | ", await modal.AllInnerTextsAsync());
+            string textoModal;
+            try
+            {
+                textoModal = string.Join(" | ", await modal.AllInnerTextsAsync());
+            }
+            catch (PlaywrightException errorLectura)
+            {
+                textoModal = $"no se pudo leer ({errorLectura.Message})";
+            }
+
             throw new TimeoutException(
                 $"El diálogo sigue abierto a los 10 s. Diálogo: [{textoModal}]. {await DescribirPantallaAsync(page)}", ex);
         }
     }
 
-    /// <summary>Lectura sin espera (AllInnerTexts no aguarda a que exista nada): solo instrumenta el mensaje del fallo.</summary>
+    /// <summary>
+    /// Lectura sin espera (AllInnerTexts no aguarda a que exista nada): solo instrumenta el mensaje del fallo. Si la
+    /// página ya no responde, lo dice en vez de lanzar, para no tapar el TimeoutException original.
+    /// </summary>
     private static async Task<string> DescribirPantallaAsync(IPage page)
     {
-        var filas = await page.Locator(".tabla-datos tbody tr").AllInnerTextsAsync();
-        var avisos = await page.Locator(".anfitrion-toasts").AllInnerTextsAsync();
-        return $"Filas de la tabla ({filas.Count}): [{string.Join(" | ", filas.Select(Compactar))}]. " +
-               $"Avisos: [{string.Join(" | ", avisos.Select(Compactar))}].";
+        try
+        {
+            var filas = await page.Locator(".tabla-datos tbody tr").AllInnerTextsAsync();
+            var avisos = await page.Locator(".anfitrion-toasts").AllInnerTextsAsync();
+            return $"Filas de la tabla ({filas.Count}): [{string.Join(" | ", filas.Select(Compactar))}]. " +
+                   $"Avisos: [{string.Join(" | ", avisos.Select(Compactar))}].";
+        }
+        catch (PlaywrightException ex)
+        {
+            return $"Pantalla no disponible para describirla ({ex.Message}).";
+        }
 
         static string Compactar(string texto) => string.Join(' ', texto.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
