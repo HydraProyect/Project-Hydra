@@ -85,9 +85,10 @@ public class ResolverDeteccionAusenteCommandHandler(
 
         // D-4 (#2005): la baja la decide una persona desde la pantalla de detecciones, y su autor es esa persona. Antes,
         // sin identidad se guardaba Guid.Empty como autor, una baja sin nadie detrás. Igual que EliminarTrabajador y el
-        // resto de bajas de persona: sin identidad no se da de baja a nadie, y se falla antes de tocar nada.
+        // resto de bajas de persona: sin identidad no se da de baja a nadie, y se falla antes de tocar nada. Un claim con
+        // el identificador nulo (todo ceros) tampoco es una identidad (Codex r3, #2266).
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null)
+        if (usuarioId is null || usuarioId.Value == Guid.Empty)
             return Result.Fallo<ResultadoResolucionAusente>(Error.Crear("Deteccion.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
 
         trabajador.MarcarComoEliminado(usuarioId.Value);

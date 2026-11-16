@@ -124,18 +124,16 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// D-4 (#2005, contrato del 2026-11-15; revisor-puente #2266): la reapertura del expediente por el Gestor CAE con
-    /// cartera queda en un único registro de auditoría con el Actor real separado del Usuario simulado; su «antes»
-    /// conserva el sello retirado (fecha, antelaciones, tramo y atribución) y su «después» lleva el nuevo sello, el
-    /// motivo y la fecha de la reapertura. El resello lo guarda el evaluador sobre la misma instancia rastreada.
+    /// D-4 (#2005, contrato del 2026-11-15; revisor-puente y Codex r3 #2266): la reapertura del expediente por el Gestor
+    /// CAE con cartera y el resello son dos registros de auditoría de una misma transacción, los dos con el Actor real
+    /// separado del Usuario simulado. El «antes» de la reapertura conserva el sello retirado completo aunque el resello
+    /// deje iguales la antelación nominal, la efectiva, el tramo y la atribución (aquí, «sin urgencia», que es también el
+    /// valor sin sello); el resello lleva el sello nuevo.
     /// </summary>
     [Fact]
-    public async Task Reabrir_el_expediente_deja_el_sello_anterior_el_nuevo_y_el_motivo_con_actor_real_y_usuario_simulado()
+    public async Task Reabrir_el_expediente_deja_el_sello_anterior_completo_y_el_nuevo_con_actor_real_y_usuario_simulado()
     {
-        var (visitaId, centroId) = await SembrarVisitaSelladaAsync();
-        Guid version;
-        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver)))
-            version = await contexto.Visitas.Where(v => v.Id == visitaId).Select(v => v.Version).SingleAsync();
+        var (visitaId, centroId, version) = await SembrarVisitaSelladaAsync();
 
         var actorReal = Guid.NewGuid();
         var simulado = Guid.NewGuid();
@@ -143,10 +141,7 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
                          new ActorAuditoria(actorReal, simulado, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()))))
         {
             var repositorio = new VisitaRepository(contexto);
-            var resultado = await new CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommandHandler(
-                    repositorio, contexto, new AlcanceDatosServiceFalso(centroIds: [centroId]), new GestorCaeFalso(),
-                    new EvaluadorQueResella(repositorio, contexto),
-                    Microsoft.Extensions.Logging.Abstractions.NullLogger<CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommandHandler>.Instance)
+            var resultado = await HandlerDeReapertura(contexto, repositorio, centroId, new EvaluadorQueResella(repositorio, contexto))
                 .Handle(new CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommand(
                     visitaId, version, "Certificado de la mutua de otra empresa"), CancellationToken.None);
             resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
@@ -155,27 +150,79 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
         await using var lectura = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
         var visita = await lectura.Visitas.SingleAsync(v => v.Id == visitaId);
         visita.FechaHoraExpedienteCompletoUtc.Should().NotBe(SelloAnterior).And.NotBeNull("si sigue completa, se vuelve a sellar");
-        visita.Tramo.Should().Be(TramoAntelacion.Estandar);
+        visita.AntelacionNominalHoras.Should().Be(SelloDeLaVisita.NominalHoras, "el resello deja la misma antelación nominal");
+        visita.AntelacionEfectivaHoras.Should().Be(SelloDeLaVisita.EfectivaHoras, "y la misma efectiva");
 
-        var reapertura = await lectura.RegistrosAuditoria
+        var registros = await lectura.RegistrosAuditoria
             .Where(r => r.EntidadTipo == nameof(Visita) && r.EntidadId == visitaId && r.Accion == "Modificado"
                 && r.ActorRealUsuarioId == actorReal)
             .ToListAsync();
 
-        reapertura.Should().ContainSingle("la reapertura y el resello van en un único guardado");
-        var registro = reapertura[0];
-        registro.UsuarioId.Should().Be(simulado, "el Usuario simulado queda aparte del Actor real");
-        registro.DatosAntes.Should().Contain(nameof(Visita.FechaHoraExpedienteCompletoUtc))
-            .And.Contain("2026-11-02", "el sello anterior se conserva en el historial")
-            .And.Contain(nameof(Visita.AntelacionEfectivaHoras))
-            .And.Contain(nameof(Visita.Atribucion));
-        registro.DatosDespues.Should().Contain("Certificado de la mutua de otra empresa")
-            .And.Contain(nameof(Visita.ExpedienteReabiertoEnUtc));
+        registros.Should().HaveCount(2, "la reapertura y el resello son dos guardados de la misma transacción");
+        registros.Should().OnlyContain(r => r.UsuarioId == simulado, "el Usuario simulado queda aparte del Actor real");
+        var reapertura = registros.Single(r => r.DatosDespues!.Contains("Certificado de la mutua de otra empresa"));
+        var resello = registros.Single(r => r != reapertura);
+
+        using (var antes = System.Text.Json.JsonDocument.Parse(reapertura.DatosAntes!))
+        {
+            var sello = antes.RootElement;
+            sello.GetProperty(nameof(Visita.FechaHoraExpedienteCompletoUtc)).GetString().Should().StartWith("2026-11-02",
+                "el sello anterior se conserva en el historial");
+            sello.GetProperty(nameof(Visita.AntelacionNominalHoras)).GetDecimal().Should().Be(SelloDeLaVisita.NominalHoras);
+            sello.GetProperty(nameof(Visita.AntelacionEfectivaHoras)).GetDecimal().Should().Be(SelloDeLaVisita.EfectivaHoras);
+            sello.GetProperty(nameof(Visita.Tramo)).GetInt32().Should().Be((int)SelloDeLaVisita.Tramo);
+            sello.GetProperty(nameof(Visita.Atribucion)).GetInt32().Should().Be((int)SelloDeLaVisita.Atribucion,
+                "la atribución «sin urgencia» no cambia al retirar el sello y aun así se conserva");
+        }
+        reapertura.DatosDespues.Should().Contain(nameof(Visita.ExpedienteReabiertoEnUtc));
+
+        using (var despues = System.Text.Json.JsonDocument.Parse(resello.DatosDespues!))
+        {
+            despues.RootElement.GetProperty(nameof(Visita.FechaHoraExpedienteCompletoUtc)).GetString().Should().NotBeNullOrEmpty();
+            despues.RootElement.GetProperty(nameof(Visita.AntelacionNominalHoras)).GetDecimal().Should().Be(SelloDeLaVisita.NominalHoras);
+        }
     }
+
+    /// <summary>
+    /// Codex r2 y r3 (#2266): si la reevaluación falla después de guardar la reapertura, la transacción la deshace. La
+    /// Visita sigue sellada como estaba y no queda ningún registro de auditoría de la reapertura.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_reevaluacion_falla_la_reapertura_se_deshace_y_no_deja_registro()
+    {
+        var (visitaId, centroId, version) = await SembrarVisitaSelladaAsync();
+        var actorReal = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(actorReal))))
+        {
+            var resultado = await HandlerDeReapertura(contexto, new VisitaRepository(contexto), centroId, new EvaluadorQueFalla())
+                .Handle(new CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommand(
+                    visitaId, version, "motivo"), CancellationToken.None);
+            resultado.Error.Codigo.Should().Be("Visita.ReaperturaNoEvaluada");
+        }
+
+        await using var lectura = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
+        var visita = await lectura.Visitas.SingleAsync(v => v.Id == visitaId);
+        visita.FechaHoraExpedienteCompletoUtc.Should().Be(SelloAnterior);
+        visita.ExpedienteReabiertoEnUtc.Should().BeNull();
+        (await lectura.RegistrosAuditoria.CountAsync(r => r.EntidadId == visitaId && r.ActorRealUsuarioId == actorReal))
+            .Should().Be(0);
+    }
+
+    private static CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommandHandler HandlerDeReapertura(
+        CaeManagerDbContext contexto, VisitaRepository repositorio, Guid centroId,
+        CaeManager.Application.Visitas.Antelacion.IEvaluadorExpedienteVisitaService evaluador) =>
+        new(repositorio, contexto, new TransaccionDeComando(contexto), new AlcanceDatosServiceFalso(centroIds: [centroId]),
+            new GestorCaeFalso(), evaluador,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommandHandler>.Instance);
 
     private static readonly DateTime SelloAnterior = new(2026, 11, 2, 8, 0, 0, DateTimeKind.Utc);
 
-    private async Task<(Guid VisitaId, Guid CentroId)> SembrarVisitaSelladaAsync()
+    /// <summary>El sello sembrado y el del resello: mismas antelaciones, tramo y atribución «sin urgencia».</summary>
+    private static readonly ResultadoAntelacion SelloDeLaVisita =
+        new(30m, 24m, 6m, TramoAntelacion.Estandar, AtribucionUrgencia.SinUrgencia);
+
+    private async Task<(Guid VisitaId, Guid CentroId, Guid Version)> SembrarVisitaSelladaAsync()
     {
         await using var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid())));
         var titular = Empresa.CrearComoCliente("Titular auditado", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
@@ -184,13 +231,12 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
         var hoy = DiaDeNegocio.Hoy();
         var visita = new Visita(centro.Id, hoy.AddDays(10), hoy.AddDays(11), null);
         visita.RegistrarOrigenSolicitud(Guid.NewGuid(), new DateTime(2026, 11, 1, 8, 0, 0, DateTimeKind.Utc));
-        visita.MarcarExpedienteCompleto(SelloAnterior,
-            new ResultadoAntelacion(30m, 24m, 6m, TramoAntelacion.Urgente, AtribucionUrgencia.SolicitudTardiaCliente));
+        visita.MarcarExpedienteCompleto(SelloAnterior, SelloDeLaVisita);
         contexto.Empresas.AddRange(titular, proveedora);
         contexto.Centros.Add(centro);
         contexto.Visitas.Add(visita);
         await contexto.SaveChangesAsync();
-        return (visita.Id, centro.Id);
+        return (visita.Id, centro.Id, visita.Version);
     }
 
     private sealed class GestorCaeFalso : ICurrentUserService
@@ -213,12 +259,19 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
         {
             var visita = await repositorio.ObtenerPorIdAsync(visitaId, cancellationToken);
             if (visita is null || visita.FechaHoraExpedienteCompletoUtc is not null) return false;
-            if (!visita.MarcarExpedienteCompleto(DateTime.UtcNow,
-                    new ResultadoAntelacion(30m, 10m, 20m, TramoAntelacion.Estandar, AtribucionUrgencia.SinUrgencia)))
+            if (!visita.MarcarExpedienteCompleto(DateTime.UtcNow, SelloDeLaVisita))
                 return false;
             await contexto.SaveChangesAsync(cancellationToken);
             return true;
         }
+
+        public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class EvaluadorQueFalla : CaeManager.Application.Visitas.Antelacion.IEvaluadorExpedienteVisitaService
+    {
+        public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("caída del evaluador");
 
         public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }

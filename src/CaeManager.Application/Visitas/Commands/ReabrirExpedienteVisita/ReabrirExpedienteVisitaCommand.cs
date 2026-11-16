@@ -22,11 +22,11 @@ namespace CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
 /// Privilegiada <c>AutorizacionEscrituraBehavior</c> deniega toda escritura que no sea de Aprovisionamiento. El camino
 /// de escritura de la impersonación (autorizar con los planos del Usuario simulado, ADR-011 § 4bis.2) no existe todavía;
 /// cuando exista, esta orden lo heredará con el rol efectivo del Usuario simulado.</item>
-/// <item>Auditoría: motivo obligatorio y fecha en la Visita; el registro de auditoría de la reapertura conserva en
-/// «antes» los campos del sello retirado que cambian (siempre la fecha del sello; antelaciones, tramo y atribución
-/// cuando el resello les da otro valor) y separa el Actor real del Usuario simulado
-/// (<c>AuditoriaInterceptor</c>). La reapertura y el resello, si lo hay, son un único guardado: el «después» lleva el
-/// sello nuevo, y el motivo y la fecha de la reapertura distinguen ese registro de un sello ordinario.</item>
+/// <item>Auditoría: motivo obligatorio y fecha en la Visita. La reapertura y el resello, si lo hay, son dos guardados
+/// dentro de una única transacción (<see cref="ITransaccionDeComando"/>, Codex r3 de la #2266): el registro de la
+/// reapertura lleva en «antes» el sello retirado completo (fecha, antelaciones nominal y efectiva, tramo y atribución,
+/// que <c>AuditoriaInterceptor</c> audita juntos) y el del resello lleva el sello nuevo. Los dos separan el Actor real
+/// del Usuario simulado. Si la reevaluación falla, se deshacen los dos.</item>
 /// <item>Concurrencia: la versión que el Gestor CAE vio es obligatoria, como en <c>ReactivarVisitaCommand</c>.</item>
 /// </list>
 /// </summary>
@@ -81,8 +81,9 @@ public static class AutorizacionReaperturaExpediente
 }
 
 public class ReabrirExpedienteVisitaCommandHandler(
-    IVisitaRepository repositorio, IUnitOfWork unitOfWork, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
-    IEvaluadorExpedienteVisitaService evaluadorExpediente, ILogger<ReabrirExpedienteVisitaCommandHandler> logger)
+    IVisitaRepository repositorio, IUnitOfWork unitOfWork, ITransaccionDeComando transaccion, IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUser, IEvaluadorExpedienteVisitaService evaluadorExpediente,
+    ILogger<ReabrirExpedienteVisitaCommandHandler> logger)
     : IRequestHandler<ReabrirExpedienteVisitaCommand, Result>
 {
     public async Task<Result> Handle(ReabrirExpedienteVisitaCommand request, CancellationToken cancellationToken)
@@ -92,6 +93,12 @@ public class ReabrirExpedienteVisitaCommandHandler(
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result.Fallo(Error.Crear("Visita.MotivoReaperturaRequerido", "Indica el motivo de la reapertura."));
 
+        // La transacción puede reintentar la operación entera: todo lo que se lee y autoriza va dentro.
+        return await transaccion.EjecutarAsync(ct => ReabrirAsync(request, ct), cancellationToken);
+    }
+
+    private async Task<Result> ReabrirAsync(ReabrirExpedienteVisitaCommand request, CancellationToken cancellationToken)
+    {
         var visita = await repositorio.ObtenerPorIdActualizadoAsync(request.Id, cancellationToken);
         if (visita is null)
             return Result.Fallo(AutorizacionReaperturaExpediente.NoEncontrada);
@@ -117,17 +124,18 @@ public class ReabrirExpedienteVisitaCommandHandler(
                 "Visita.ReaperturaFueraDePlazo",
                 "Esta visita ya ha empezado o ha pasado: su expediente solo se puede reabrir antes del día de la visita."));
 
+        // Primer guardado: la reapertura, con su propio registro de auditoría (el sello retirado entero en «antes»).
         visita.ReabrirExpediente(DateTime.UtcNow, request.Motivo);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Reevaluar al momento con la regla común (opción A), ANTES de guardar (Codex r2, #2266): la reapertura y el
-        // nuevo sello van en un único guardado y un único registro de auditoría, cuyo «antes» conserva el sello
-        // retirado y cuyo «después» lleva el nuevo. El evaluador recibe esta misma instancia rastreada (el repositorio
-        // resuelve la identidad sin recargarla) y, si sella, guarda él. Si la reevaluación falla o se cancela, no se
-        // guarda nada y la Visita sigue sellada como estaba: nunca queda sin sello por un fallo transitorio.
-        bool reselladaPorElEvaluador;
+        // Reevaluar al momento con la regla común (opción A), en la misma transacción. El evaluador recibe esta misma
+        // instancia rastreada (el repositorio resuelve la identidad sin recargarla) y, si sella, guarda él: segundo
+        // registro de auditoría, con el sello nuevo. Si la reevaluación falla, lanza o se cancela, la transacción
+        // deshace también la reapertura y la Visita sigue sellada como estaba: nunca queda sin sello por un fallo
+        // transitorio (Codex r2 y r3, #2266).
         try
         {
-            reselladaPorElEvaluador = await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
+            await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
         }
         // Un conflicto de concurrencia en el guardado del evaluador sigue su camino común (ConcurrenciaBehavior: «esta
         // visita cambió», con recarga), igual que si lo hubiera guardado este handler.
@@ -138,9 +146,6 @@ public class ReabrirExpedienteVisitaCommandHandler(
                 "Visita.ReaperturaNoEvaluada",
                 "No se pudo reevaluar el expediente ahora mismo, así que no se ha reabierto. Inténtalo de nuevo."));
         }
-
-        if (!reselladaPorElEvaluador)
-            await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
     }

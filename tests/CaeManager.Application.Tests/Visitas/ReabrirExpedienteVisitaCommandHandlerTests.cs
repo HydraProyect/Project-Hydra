@@ -96,8 +96,10 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         new(tieneAccesoTotal: false, centroIdsVisibles: [centroId]);
 
     private static ReabrirExpedienteVisitaCommandHandler Handler(
-        Visita visita, UnitOfWorkFalso unitOfWork, IAlcanceDatosService alcance, string? rol, IEvaluadorExpedienteVisitaService evaluador) =>
-        new(Repositorio(visita), unitOfWork, alcance, new Usuario(rol), evaluador, NullLogger<ReabrirExpedienteVisitaCommandHandler>.Instance);
+        Visita visita, UnitOfWorkFalso unitOfWork, IAlcanceDatosService alcance, string? rol, IEvaluadorExpedienteVisitaService evaluador,
+        TransaccionDeComandoFalsa? transaccion = null) =>
+        new(Repositorio(visita), unitOfWork, transaccion ?? new TransaccionDeComandoFalsa(), alcance, new Usuario(rol), evaluador,
+            NullLogger<ReabrirExpedienteVisitaCommandHandler>.Instance);
 
     [Fact]
     public void El_rol_que_reabre_es_el_de_Gestor_CAE()
@@ -111,12 +113,14 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         var visita = VisitaSellada();
         var unitOfWork = new UnitOfWorkFalso();
         var evaluador = new EvaluadorQueResella(visita, sigueCompleto: true);
+        var transaccion = new TransaccionDeComandoFalsa();
 
-        var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", evaluador)
+        var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", evaluador, transaccion)
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "Certificado aceptado por error"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        unitOfWork.VecesGuardado.Should().Be(0, "el doble del evaluador sella en memoria; en real guarda él, en el mismo guardado que la reapertura");
+        unitOfWork.VecesGuardado.Should().Be(1, "la reapertura se guarda antes de reevaluar; el resello lo guarda el evaluador (aquí, un doble en memoria)");
+        transaccion.Confirmadas.Should().Be(1, "Codex r3 (#2266): reapertura y resello, en una sola transacción");
         evaluador.Evaluaciones.Should().Be(1, "opción A: se reevalúa al momento");
         visita.FechaHoraExpedienteCompletoUtc.Should().NotBe(Sello).And.NotBeNull();
         visita.Tramo.Should().Be(TramoAntelacion.Estandar);
@@ -138,26 +142,28 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         evaluador.Evaluaciones.Should().Be(1);
-        unitOfWork.VecesGuardado.Should().Be(1, "sin resello, la reapertura la guarda el handler");
+        unitOfWork.VecesGuardado.Should().Be(1, "la reapertura la guarda el handler, y sin resello no hay más guardados");
         visita.FechaHoraExpedienteCompletoUtc.Should().BeNull();
         visita.Tramo.Should().BeNull();
     }
 
     /// <summary>
-    /// Codex r2 (#2266): si la reevaluación falla, la reapertura no se guarda y la orden falla; la Visita no puede
-    /// quedar sin sello por un fallo transitorio (los cambios en memoria los deshace la restauración de la orden fallida).
+    /// Codex r2 y r3 (#2266): si la reevaluación falla, la orden falla y la transacción deshace también la reapertura ya
+    /// guardada; la Visita no puede quedar sin sello por un fallo transitorio. Que el rollback deshaga de verdad lo
+    /// prueba la integración.
     /// </summary>
     [Fact]
-    public async Task Si_la_reevaluacion_falla_no_se_guarda_la_reapertura()
+    public async Task Si_la_reevaluacion_falla_se_deshace_la_reapertura()
     {
         var visita = VisitaSellada();
-        var unitOfWork = new UnitOfWorkFalso();
+        var transaccion = new TransaccionDeComandoFalsa();
 
-        var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueFalla())
+        var resultado = await Handler(visita, new UnitOfWorkFalso(), CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueFalla(), transaccion)
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Visita.ReaperturaNoEvaluada");
-        unitOfWork.VecesGuardado.Should().Be(0);
+        transaccion.Deshechas.Should().Be(1);
+        transaccion.Confirmadas.Should().Be(0);
     }
 
     /// <summary>revisor-puente (#2266): un conflicto en el guardado del evaluador llega a ConcurrenciaBehavior, no se traga.</summary>
@@ -165,28 +171,30 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
     public async Task Un_conflicto_de_concurrencia_al_resellar_se_propaga()
     {
         var visita = VisitaSellada();
-        var unitOfWork = new UnitOfWorkFalso();
+        var transaccion = new TransaccionDeComandoFalsa();
 
-        var reabrir = () => Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorConConflicto())
+        var reabrir = () => Handler(visita, new UnitOfWorkFalso(), CarteraCon(visita.CentroId), "GestorCae", new EvaluadorConConflicto(), transaccion)
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
 
         await reabrir.Should().ThrowAsync<Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException>();
-        unitOfWork.VecesGuardado.Should().Be(0);
+        transaccion.Deshechas.Should().Be(1);
+        transaccion.Confirmadas.Should().Be(0);
     }
 
     [Fact]
     public async Task Si_la_reevaluacion_se_cancela_no_se_guarda_y_la_cancelacion_se_propaga()
     {
         var visita = VisitaSellada();
-        var unitOfWork = new UnitOfWorkFalso();
+        var transaccion = new TransaccionDeComandoFalsa();
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var reabrir = () => Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueCancela())
+        var reabrir = () => Handler(visita, new UnitOfWorkFalso(), CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueCancela(), transaccion)
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), cts.Token);
 
         await reabrir.Should().ThrowAsync<OperationCanceledException>();
-        unitOfWork.VecesGuardado.Should().Be(0);
+        transaccion.Deshechas.Should().Be(1);
+        transaccion.Confirmadas.Should().Be(0);
     }
 
     /// <summary>

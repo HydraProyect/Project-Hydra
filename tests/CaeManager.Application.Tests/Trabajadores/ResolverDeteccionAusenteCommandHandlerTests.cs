@@ -20,15 +20,18 @@ public class ResolverDeteccionAusenteCommandHandlerTests
     /// <summary>
     /// D-4 (#2005): la baja tiene un autor de persona. Sin identidad se guardaba <c>Guid.Empty</c> como autor; ahora la
     /// orden falla antes de tocar nada, como EliminarTrabajador. El control es el mismo caso con identidad: baja, con
-    /// ese usuario como autor.
+    /// ese usuario como autor. Codex r3 (#2266): una identidad con el identificador todo ceros tampoco vale, porque se
+    /// guardaría <c>Guid.Empty</c> como autor igual.
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Sin_identidad_no_da_de_baja_ni_guarda_un_autor_vacio(bool sinIdentidad)
+    [InlineData("ninguna")]
+    [InlineData("ceros")]
+    [InlineData("valida")]
+    public async Task Sin_identidad_no_da_de_baja_ni_guarda_un_autor_vacio(string identidad)
     {
+        var sinIdentidad = identidad != "valida";
         var empresaId = Guid.NewGuid();
-        var usuarioId = Guid.NewGuid();
+        var usuarioId = identidad == "ceros" ? Guid.Empty : Guid.NewGuid();
         var trabajador = Trabajador.DeEmpresa(empresaId, "Pedro", "Gomez Ruiz", "77189989B");
         var deteccion = DeteccionTrabajador.Ausente(Guid.NewGuid(), empresaId, trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni!);
         var deteccionRepositorio = new DeteccionTrabajadorRepositorioFalso();
@@ -36,7 +39,7 @@ public class ResolverDeteccionAusenteCommandHandlerTests
         var trabajadorRepositorio = new TrabajadorRepositorioFalso();
         trabajadorRepositorio.Agregar(trabajador);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = CrearHandler(deteccionRepositorio, trabajadorRepositorio, unitOfWork, usuarioId, sinIdentidad: sinIdentidad);
+        var handler = CrearHandler(deteccionRepositorio, trabajadorRepositorio, unitOfWork, usuarioId, sinIdentidad: identidad == "ninguna");
 
         var resultado = await handler.Handle(new ResolverDeteccionAusenteCommand(deteccion.Id, Desactivar: true), CancellationToken.None);
 
