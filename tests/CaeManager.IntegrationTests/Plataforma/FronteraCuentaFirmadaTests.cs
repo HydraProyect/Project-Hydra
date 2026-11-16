@@ -647,11 +647,12 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
 
     /// <summary>
     /// Tema, idioma y actividad se siguen leyendo bajo Sesión Privilegiada sin las columnas de credenciales. La
-    /// escritura no cambia: <c>cae_app_soporte</c> no tiene <c>UPDATE</c>, la base la rechaza y el contexto queda
+    /// escritura sigue rechazada: <c>cae_app_soporte</c> no tiene <c>UPDATE</c> y la base responde 42501, que el
+    /// puerto devuelve como <see cref="ResultadoEscrituraCuenta.NoPermitida"/> en vez de relanzarlo; el contexto queda
     /// limpio para lo siguiente del circuito.
     /// </summary>
     [Fact]
-    public async Task Bajo_soporte_las_preferencias_se_leen_sin_credenciales_y_escribirlas_sigue_rechazado()
+    public async Task Bajo_soporte_las_preferencias_se_leen_sin_credenciales_y_escribirlas_devuelve_NoPermitida()
     {
         await QuitarLasCredencialesASoporteAsync();
 
@@ -660,10 +661,9 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
 
         (await preferencias.ObtenerAsync(_actorReal)).Should().NotBeNull();
 
-        var escribir = () => preferencias.RegistrarActividadAsync(_actorReal, DateTime.UtcNow);
-        (await escribir.Should().ThrowAsync<DbUpdateException>())
-            .WithInnerException<PostgresException>()
-            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        (await preferencias.RegistrarActividadAsync(_actorReal, DateTime.UtcNow)).Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+        (await preferencias.GuardarTemaAsync(_actorReal, TemaPreferido.Oscuro)).Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+        (await preferencias.GuardarIdiomaAsync(_actorReal, IdiomaPreferido.Catalan)).Should().Be(ResultadoEscrituraCuenta.NoPermitida);
         contexto.ChangeTracker.Entries().Should().BeEmpty();
     }
 

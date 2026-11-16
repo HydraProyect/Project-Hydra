@@ -106,6 +106,7 @@ public class ActividadUsuarioServiceTests
     [Theory]
     [InlineData(ResultadoEscrituraCuenta.Conflicto)]
     [InlineData(ResultadoEscrituraCuenta.CuentaNoVisible)]
+    [InlineData(ResultadoEscrituraCuenta.NoPermitida)]
     public async Task Una_actividad_que_no_llega_a_guardarse_deja_aviso_y_conserva_la_ausencia(ResultadoEscrituraCuenta fallo)
     {
         var ultimaActividad = DateTime.UtcNow.AddMinutes(-30);
