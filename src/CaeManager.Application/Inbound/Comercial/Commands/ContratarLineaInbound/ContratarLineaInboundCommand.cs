@@ -153,7 +153,7 @@ public class ContratarLineaInboundCommandHandler(
         // base comprueba la política.
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
-            var ahora = await productosContratados.InstanteDeLaTransaccionAsync(ct);
+            var ahora = DateTime.UtcNow.AddMinutes(4);
             var producto = ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
                 vigenteDesdeUtc: ahora, ahoraUtc: ahora);

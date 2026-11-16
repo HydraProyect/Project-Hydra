@@ -57,12 +57,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     WITH CHECK ("Linea" = 'Inbound' AND "Estado" = 'Vigente' AND "VigenteHastaUtc" IS NULL
                                 AND NOT "EstaEliminado"
                                 AND "VigenteDesdeUtc" >= now() - interval '5 minutes'
-                                AND "VigenteDesdeUtc" <= now()
+                                AND "VigenteDesdeUtc" <= now() + interval '5 minutes'
                                 AND "TenantId" = (SELECT public.app_ctx_tenant_id()));
                 ALTER POLICY aprovisionamiento_solo_finaliza_inbound_vigente ON public."ProductosContratados"
                     WITH CHECK ("Linea" = 'Inbound' AND "Estado" = 'Finalizado' AND NOT "EstaEliminado"
                                 AND "VigenteHastaUtc" >= now() - interval '5 minutes'
-                                AND "VigenteHastaUtc" <= now()
+                                AND "VigenteHastaUtc" <= now() + interval '5 minutes'
                                 AND "TenantId" = (SELECT public.app_ctx_tenant_id()));
                 """);
         }
