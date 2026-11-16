@@ -289,6 +289,62 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
     }
 }
 
+/// <summary>
+/// <b>Lo que acota las dos siembras cuando el Tenant no es suyo</b>, en una base aparte: la línea Inbound con el rol
+/// propietario no se escribe sin el Tenant TCE ni sobre uno sin el marcador de datos de demo, y la siembra Inbound se niega
+/// antes de escribir una sola cuenta si uno de sus nombres lo ocupa un Tenant sin marcador.
+/// </summary>
+public sealed class InboundDemoSeederMarcadorTests : IAsyncLifetime
+{
+    private ArnesDeArranqueRuntime _arnes = null!;
+    private IConfiguration _configuracion = null!;
+
+    public async Task InitializeAsync()
+    {
+        _arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        _configuracion = new ConfigurationBuilder()
+            .AddConfiguration(_arnes.Servicios.GetRequiredService<IConfiguration>())
+            .AddInMemoryCollection(new Dictionary<string, string?> { [InboundDemoSeeder.ClaveConfiguracion] = "true" })
+            .Build();
+    }
+
+    public Task DisposeAsync() => _arnes.DisposeAsync().AsTask();
+
+    [Fact]
+    public async Task Sin_el_Tenant_TCE_o_sin_su_marcador_de_demo_ninguna_de_las_dos_siembras_escribe()
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        await using var bootstrap = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var sinTenant = () => LineaInboundDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        await sinTenant.Should().ThrowAsync<InvalidOperationException>().WithMessage("*necesita el Tenant*");
+
+        // Un Tenant que se llama como el TCE de la siembra pero no lleva el marcador de datos de demo.
+        var ajeno = new CaeManager.Domain.Tenants.Tenant(InboundDemoSeeder.NombreTenantTce, CaeManager.Domain.Tenants.PerfilVocabularioTenant.ClienteDirecto);
+        using (AmbitoTenantExplicito.Establecer(ajeno.Id))
+        {
+            bootstrap.Tenants.Add(ajeno);
+            await bootstrap.SaveChangesAsync();
+        }
+
+        var sinMarcador = () => LineaInboundDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        await sinMarcador.Should().ThrowAsync<InvalidOperationException>().WithMessage("*marcador de datos de demo*");
+
+        var siembra = () => InboundDemoSeeder.SeedAsync(
+            sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*sin el marcador de datos de demo*");
+
+        await using var lectura = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        (await lectura.Users.IgnoreQueryFilters().CountAsync(u => u.Email!.EndsWith(".inbound@caemanager.local")))
+            .Should().Be(0, "la siembra se niega antes de crear ninguna cuenta");
+        (await lectura.ProductosContratados.IgnoreQueryFilters().CountAsync(p => p.TenantId == ajeno.Id)).Should().Be(0);
+        (await lectura.Tenants.CountAsync(t => InboundDemoSeeder.NombresTenants.Contains(t.Nombre))).Should().Be(1,
+            "ni siquiera aprovisiona los Tenants TEC");
+    }
+}
+
 /// <summary>La guarda de <see cref="InboundDemoSeeder"/>, sin base de datos: decide antes de leer o escribir nada.</summary>
 public class InboundDemoSeederArranqueTests
 {

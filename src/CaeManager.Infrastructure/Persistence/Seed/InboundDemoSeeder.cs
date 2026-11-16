@@ -62,9 +62,12 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <para>
 /// <b>Inerte por defecto.</b> Corre solo con <c>DatosPrueba:Activo</c> y <see cref="ClaveConfiguracion"/>, y únicamente en
 /// Development: comparte la contraseña pública de <see cref="CredencialesDemo"/>, así que cualquier otro entorno lanza antes
-/// de escribir nada. No envía correo: las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente y
-/// reconciliadora por artefacto: cada pieza se busca antes de crearla, así que una pasada cortada se completa en la
-/// siguiente. Lo que se haya dado de baja a mano desde la interfaz no se vuelve a crear si choca con un índice único.
+/// de escribir nada, y también si uno de sus nombres de Tenant ya existe sin el marcador de datos de demo. No envía correo:
+/// las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente por Tenant, con una guarda que la
+/// interfaz no puede alterar (el historial de vigencia en el Tenant TCE; Trabajadores o Documentos en cada Tenant TEC), y
+/// cada Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo siembra entero.
+/// Lo que el revisor edite después no se toca; si dio de baja todo un Tenant y su CIF o sus DNI siguen ocupados, el
+/// arranque avisa y sigue (para empezar de cero, se retiran los Tenants de la demo).
 /// </para>
 ///
 /// <para>
@@ -187,6 +190,16 @@ public static class InboundDemoSeeder
                 dbContext, nombre, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
                 esOperadorCaeExterno: false, marcarComoDemo: true);
 
+        // Antes de escribir nada: un Tenant que ya se llame como uno de esta siembra y no tenga el marcador de datos de demo
+        // no es de esta siembra (podría ser real), y AprovisionarTenantAsync lo adoptaría por su nombre.
+        var ajenos = await dbContext.Tenants
+            .Where(t => NombresTenants.Contains(t.Nombre) && t.DatosDemoCompletadosEnUtc == null)
+            .Select(t => t.Nombre)
+            .ToListAsync(cancellationToken);
+        if (ajenos.Count > 0)
+            throw new InvalidOperationException(
+                $"La siembra Inbound no escribe en {string.Join(", ", ajenos)}: ya existen sin el marcador de datos de demo.");
+
         // ── Tenants y cuentas ─────────────────────────────────────────────────────────────────────────────────────
         var tceId = await TenantAsync(NombreTenantTce);
         var administradorTce = await UsuarioAsync(
@@ -220,7 +233,12 @@ public static class InboundDemoSeeder
             await writer.AsegurarCarteraTenantEnteroAsync(tceId, gestoraTce.Id, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(cancellationToken);
+            // Sembrado ya si tiene historial de vigencia: ninguna pantalla lo edita ni lo borra (cae_app_runtime solo lo lee
+            // y lo añade), así que la guarda no depende de lo que el revisor cambie en la interfaz. Todo el Tenant va en una
+            // transacción: una pasada cortada no deja nada y la siguiente lo siembra entero.
+            if (!await dbContext.HistorialVigenciaContratos.AnyAsync(cancellationToken))
+                await EnUnaTransaccionAsync(dbContext, logger, NombreTenantTce,
+                    c => new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(c), cancellationToken);
 
             contratos = await dbContext.ContratosAcceso
                 .Where(c => c.Notas != null && Contratos.Todas.Contains(c.Notas))
@@ -232,7 +250,10 @@ public static class InboundDemoSeeder
         foreach (var tec in tecs)
             using (AmbitoTenantExplicito.Establecer(tec.Id))
             {
-                await new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(cancellationToken);
+                // Sembrado ya si tiene Trabajadores o Documentos (aunque se hayan editado); en una transacción, como el TCE.
+                if (!await dbContext.Trabajadores.AnyAsync(cancellationToken) && !await dbContext.Documentos.AnyAsync(cancellationToken))
+                    await EnUnaTransaccionAsync(dbContext, logger, tec.RazonSocial,
+                        c => new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(c), cancellationToken);
                 dbContext.ChangeTracker.Clear();
             }
 
@@ -241,6 +262,33 @@ public static class InboundDemoSeeder
     }
 
     private sealed record TenantTec(Guid Id, int Indice, string RazonSocial, string Cif, Guid UsuarioUnicoId);
+
+    /// <summary>
+    /// Siembra un Tenant entero en una transacción (la de <see cref="TransaccionDeComando"/>, dentro de la estrategia de
+    /// reintento). Si choca con un índice único —lo dado de baja a mano desde la interfaz sigue ocupando su CIF o su DNI—,
+    /// avisa y deja ese Tenant como está en vez de tumbar el arranque de Development.
+    /// </summary>
+    private static async Task EnUnaTransaccionAsync(
+        CaeManagerDbContext dbContext, ILogger logger, string nombre, Func<CancellationToken, Task> construir, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await new TransaccionDeComando(dbContext).EjecutarAsync(async c =>
+            {
+                // La estrategia de reintento puede repetir el delegado: que no arrastre lo añadido en el intento fallido.
+                dbContext.ChangeTracker.Clear();
+                await construir(c);
+                return Result.Exito();
+            }, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            dbContext.ChangeTracker.Clear();
+            logger.LogWarning(ex,
+                "La siembra Inbound no repone {Nombre}: choca con datos dados de baja a mano. Retira los Tenants de la demo para sembrarlos de nuevo.",
+                nombre);
+        }
+    }
 
     private static async Task<Dictionary<string, TipoDocumento>> TiposAsync(CaeManagerDbContext db, CancellationToken cancellationToken) =>
         await db.TiposDocumento.ToDictionaryAsync(t => t.Nombre, cancellationToken);

@@ -278,7 +278,7 @@ excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions    
 # Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
 excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
 
-# Siembra: sin fila en § 3. Ninguna siembra tablas Inbound (§ 2.2); la de demo, la del piloto y los rellenos que solo
+# Siembra: sin fila en § 3. Solo InboundDemoSeeder siembra tablas Inbound (Development; excepción Composición, abajo); la de demo, la del piloto y los rellenos que solo
 # tocan datos Outbound (AsignacionesOperativasBackfillSeeder, que corre en cada arranque) existen para Outbound («ante la
 # duda, a su módulo»). Los datos de arranque que no son de un flujo (Tenant, roles, parámetros, catálogo) son Núcleo.
 excepcion Infrastructure.Persistence.Seed                                 = Outbound provisional  # sin fila en § 3: siembra de demo y piloto Outbound

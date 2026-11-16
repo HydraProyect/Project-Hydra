@@ -26,7 +26,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// solo sobre el Tenant que esa siembra aprovisiona, localizado por su nombre y con el marcador de datos de demo (un Tenant
 /// real que se llamara igual no se toca); una sola fila, la línea Inbound vigente, dentro del
 /// <see cref="AmbitoTenantExplicito"/> de ese Tenant, que la sella; e idempotente: si el Tenant ya tiene una línea Inbound
-/// vigente no escribe nada. No lee ni escribe ninguna otra tabla ni ningún otro Tenant.
+/// vigente o dada de baja no escribe nada. Aparte de localizar el Tenant, no lee ni escribe ninguna otra tabla (salvo el
+/// registro de auditoría que el interceptor añade a toda escritura) ni ningún otro Tenant.
 /// </para>
 ///
 /// <para>
@@ -67,16 +68,19 @@ public static class LineaInboundDemoSeeder
 
         using (AmbitoTenantExplicito.Establecer(tenant.Id))
         {
-            var vigente = await dbContextBootstrap.ProductosContratados.AnyAsync(
-                p => p.TenantId == tenant.Id && p.Linea == LineaProductoContratado.Inbound && p.Estado == EstadoProductoContratado.Vigente,
-                cancellationToken);
-            if (vigente)
+            // Cualquier línea Inbound, también una dada de baja: si un Actor de Plataforma la finalizó para revisar esa
+            // pantalla, otro arranque no la vuelve a contratar por su cuenta.
+            var yaContratada = await dbContextBootstrap.ProductosContratados.AnyAsync(
+                p => p.TenantId == tenant.Id && p.Linea == LineaProductoContratado.Inbound, cancellationToken);
+            if (yaContratada)
                 return;
 
+            // Vigente desde ayer: el gate DN-7 compara con el reloj de PostgreSQL, que en Docker o WSL puede ir por detrás del
+            // de la aplicación; con un inicio de ahora mismo, la línea no valdría hasta que se pusieran de acuerdo.
             var ahora = DateTime.UtcNow;
             dbContextBootstrap.ProductosContratados.Add(ProductoContratado.Contratar(
                 LineaProductoContratado.Inbound, PagadorDemo, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
-                vigenteDesdeUtc: ahora, ahoraUtc: ahora));
+                vigenteDesdeUtc: ahora.AddDays(-1), ahoraUtc: ahora));
             await dbContextBootstrap.SaveChangesAsync(cancellationToken);
         }
 
