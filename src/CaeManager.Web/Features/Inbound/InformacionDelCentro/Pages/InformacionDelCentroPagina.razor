@@ -11,7 +11,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Información del Centro — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design icn">
-    <CabeceraListado Grupo="Inbound" Titulo="Información del Centro" Contador="@(HayDatos ? _todos.Count : null)">
+    <CabeceraListado Grupo="Inbound" Titulo="Información del Centro" Contador="@(HayDatos ? _todos!.Count : null)">
         <Primaria>
             <SoloConEscritura>
                 @* shortcut: sin backend, cablear cuando entre B-29 (alta de documentos de Información del Centro). *@
