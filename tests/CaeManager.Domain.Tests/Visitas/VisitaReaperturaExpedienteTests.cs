@@ -14,6 +14,7 @@ public class VisitaReaperturaExpedienteTests
     private static readonly DateTime Sello = new(2026, 11, 2, 8, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime Reapertura = new(2026, 11, 3, 8, 0, 0, DateTimeKind.Utc);
 
+    // El dominio no limita por fecha (eso lo hace la orden); las fechas son fijas a propósito.
     private static Visita VisitaSellada()
     {
         var visita = new Visita(Guid.NewGuid(), new DateOnly(2026, 11, 10), new DateOnly(2026, 11, 11), null);

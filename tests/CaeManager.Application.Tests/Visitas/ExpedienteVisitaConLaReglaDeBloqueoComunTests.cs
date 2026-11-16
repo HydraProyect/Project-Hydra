@@ -123,12 +123,17 @@ public class ExpedienteVisitaConLaReglaDeBloqueoComunTests
     }
 
     [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public async Task Un_participante_que_ya_no_se_resuelve_impide_el_sello(bool conParticipanteEliminado, bool selloEsperado)
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    public async Task Un_participante_que_ya_no_se_resuelve_impide_el_sello(bool conParticipanteEliminado, bool selloEsperado, bool centroSinGestionCae)
     {
         // Sin requisitos bloqueantes: Ana sola sella. Un participante eliminado (no lo resuelve el contexto de
-        // Trabajadores, como con el filtro de borrado lógico) no se puede evaluar y el sello es irreversible.
+        // Trabajadores, como con el filtro de borrado lógico) no se puede evaluar. Codex r2 (#2266): también en un
+        // Centro sin gestión CAE, donde antes la salida por modalidad iba antes de esta comprobación.
+        if (centroSinGestionCae)
+            _centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
         var visita = new Visita(_centro.Id, Hoy.AddDays(3), Hoy.AddDays(3), null);
         visita.RegistrarOrigenSolicitud(Guid.NewGuid(), DateTime.UtcNow.AddHours(-1));
         _visitas.ListaVisitas.Add(visita);

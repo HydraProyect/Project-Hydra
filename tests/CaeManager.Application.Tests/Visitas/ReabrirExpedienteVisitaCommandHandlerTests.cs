@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -44,6 +45,17 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
+    private sealed class EvaluadorQueCancela : IEvaluadorExpedienteVisitaService
+    {
+        public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(false);
+        }
+
+        public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     private sealed class EvaluadorQueFalla : IEvaluadorExpedienteVisitaService
     {
         public Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
@@ -52,9 +64,13 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         public Task EvaluarPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
-    private static Visita VisitaSellada()
+    private static DateOnly DentroDe(int dias) => DiaDeNegocio.Hoy().AddDays(dias);
+
+    private static Visita VisitaFutura() => new(Guid.NewGuid(), DentroDe(10), DentroDe(11), null);
+
+    private static Visita VisitaSellada(Visita? visita = null)
     {
-        var visita = new Visita(Guid.NewGuid(), new DateOnly(2026, 11, 10), new DateOnly(2026, 11, 11), null);
+        visita ??= VisitaFutura();
         visita.RegistrarOrigenSolicitud(Guid.NewGuid(), Solicitud);
         visita.MarcarExpedienteCompleto(Sello,
             new ResultadoAntelacion(30m, 24m, 6m, TramoAntelacion.Urgente, AtribucionUrgencia.SolicitudTardiaCliente));
@@ -92,7 +108,7 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "Certificado aceptado por error"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        unitOfWork.VecesGuardado.Should().Be(1, "la reapertura se guarda antes de reevaluar");
+        unitOfWork.VecesGuardado.Should().Be(0, "el doble del evaluador sella en memoria; en real guarda él, en el mismo guardado que la reapertura");
         evaluador.Evaluaciones.Should().Be(1, "opción A: se reevalúa al momento");
         visita.FechaHoraExpedienteCompletoUtc.Should().NotBe(Sello).And.NotBeNull();
         visita.Tramo.Should().Be(TramoAntelacion.Estandar);
@@ -107,17 +123,24 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         var visita = VisitaSellada();
         var evaluador = new EvaluadorQueResella(visita, sigueCompleto: false);
 
-        var resultado = await Handler(visita, new UnitOfWorkFalso(), CarteraCon(visita.CentroId), "GestorCae", evaluador)
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", evaluador)
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "Falta un certificado"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         evaluador.Evaluaciones.Should().Be(1);
+        unitOfWork.VecesGuardado.Should().Be(1, "sin resello, la reapertura la guarda el handler");
         visita.FechaHoraExpedienteCompletoUtc.Should().BeNull();
         visita.Tramo.Should().BeNull();
     }
 
+    /// <summary>
+    /// Codex r2 (#2266): si la reevaluación falla, la reapertura no se guarda y la orden falla; la Visita no puede
+    /// quedar sin sello por un fallo transitorio (los cambios en memoria los deshace la restauración de la orden fallida).
+    /// </summary>
     [Fact]
-    public async Task Un_fallo_de_la_reevaluacion_no_deshace_la_reapertura()
+    public async Task Si_la_reevaluacion_falla_no_se_guarda_la_reapertura()
     {
         var visita = VisitaSellada();
         var unitOfWork = new UnitOfWorkFalso();
@@ -125,9 +148,56 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
         var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueFalla())
             .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue();
-        unitOfWork.VecesGuardado.Should().Be(1);
-        visita.FechaHoraExpedienteCompletoUtc.Should().BeNull();
+        resultado.Error.Codigo.Should().Be("Visita.ReaperturaNoEvaluada");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_reevaluacion_se_cancela_no_se_guarda_y_la_cancelacion_se_propaga()
+    {
+        var visita = VisitaSellada();
+        var unitOfWork = new UnitOfWorkFalso();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var reabrir = () => Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueCancela())
+            .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), cts.Token);
+
+        await reabrir.Should().ThrowAsync<OperationCanceledException>();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// revisor-puente (#2266): una Visita que ya empezó o pasó no se reabre; resellarla con «ahora» daría tramo Exprés
+    /// y una atribución al Cliente empresarial que no describe lo que pasó.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public async Task Una_visita_que_ya_empezo_no_se_reabre(int inicioDentroDeDias)
+    {
+        var visita = VisitaSellada(new Visita(Guid.NewGuid(), DentroDe(inicioDentroDeDias), DentroDe(inicioDentroDeDias + 5), null));
+        var unitOfWork = new UnitOfWorkFalso();
+        var evaluador = new EvaluadorQueResella(visita, sigueCompleto: true);
+
+        var resultado = await Handler(visita, unitOfWork, CarteraCon(visita.CentroId), "GestorCae", evaluador)
+            .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.ReaperturaFueraDePlazo");
+        visita.FechaHoraExpedienteCompletoUtc.Should().Be(Sello);
+        unitOfWork.VecesGuardado.Should().Be(0);
+        evaluador.Evaluaciones.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_visita_que_empieza_manana_si_se_reabre()
+    {
+        var visita = VisitaSellada(new Visita(Guid.NewGuid(), DentroDe(1), DentroDe(2), null));
+
+        var resultado = await Handler(visita, new UnitOfWorkFalso(), CarteraCon(visita.CentroId), "GestorCae", new EvaluadorQueResella(visita, false))
+            .Handle(new ReabrirExpedienteVisitaCommand(visita.Id, visita.Version, "motivo"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("control del límite: antes del día de la visita se reabre");
     }
 
     /// <summary>Gestor CAE sin el Centro en su cartera: se responde igual que «no existe» y el sello no se toca.</summary>
@@ -170,11 +240,19 @@ public class ReabrirExpedienteVisitaCommandHandlerTests
     /// Cartera; el Coordinador CAE puede tener el Centro en su alcance, pero no es Gestor CAE. Ninguno reabre.
     /// Un usuario sin rol efectivo en el Tenant (Soporte TALVEG sin Sesión Privilegiada) tampoco.
     /// </summary>
+    /// <remarks>
+    /// Cada rol se prueba dos veces: con su alcance real («todo el Tenant» para Administrador, Dirección CAE y Consulta) y
+    /// con una cartera que sí incluye el Centro. La segunda aísla la comprobación de rol (revisor-puente, #2266): sin ella,
+    /// la de «cartera no nula» taparía su ausencia.
+    /// </remarks>
     [Theory]
     [InlineData("Administrador", true)]
+    [InlineData("Administrador", false)]
     [InlineData("DireccionCae", true)]
+    [InlineData("DireccionCae", false)]
     [InlineData("CoordinadorCae", false)]
     [InlineData("Consulta", true)]
+    [InlineData("Consulta", false)]
     [InlineData(null, false)]
     public async Task Quien_no_es_Gestor_CAE_no_reabre_aunque_alcance_el_Centro(string? rol, bool todoElTenant)
     {

@@ -23,7 +23,8 @@ namespace CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita;
 /// cuando exista, esta orden lo heredará con el rol efectivo del Usuario simulado.</item>
 /// <item>Auditoría: motivo obligatorio y fecha en la Visita; el registro de auditoría de la reapertura conserva en
 /// «antes» el sello retirado (fecha, antelaciones, tramo y atribución) y separa el Actor real del Usuario simulado
-/// (<c>AuditoriaInterceptor</c>). Un nuevo sello es otro registro.</item>
+/// (<c>AuditoriaInterceptor</c>). La reapertura y el resello, si lo hay, son un único guardado: el «después» lleva el
+/// sello nuevo, y el motivo y la fecha de la reapertura distinguen ese registro de un sello ordinario.</item>
 /// <item>Concurrencia: la versión que el Gestor CAE vio es obligatoria, como en <c>ReactivarVisitaCommand</c>.</item>
 /// </list>
 /// </summary>
@@ -106,20 +107,36 @@ public class ReabrirExpedienteVisitaCommandHandler(
         if (visita.EstaCancelada)
             return Result.Fallo(Error.Crear("Visita.Cancelada", "Esta visita está cancelada: reactívala antes de reabrir su expediente."));
 
-        visita.ReabrirExpediente(DateTime.UtcNow, request.Motivo);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // Solo antes de que la Visita empiece (revisor-puente, #2266): resellar con «ahora» una Visita en curso o ya
+        // ocurrida daría una antelación efectiva negativa, tramo Exprés y una atribución imputada al Cliente empresarial
+        // que no describe lo que pasó, y movería el sello de un mes ya cerrado a los KPI del mes en curso.
+        if (visita.FechaInicio <= DiaDeNegocio.Hoy())
+            return Result.Fallo(Error.Crear(
+                "Visita.ReaperturaFueraDePlazo",
+                "Esta visita ya ha empezado o ha pasado: su expediente solo se puede reabrir antes del día de la visita."));
 
-        // Reevaluar al momento con la regla común (opción A). Si sigue completo, vuelve a sellarse con una atribución
-        // nueva en su propio guardado y su propio registro de auditoría. Un fallo aquí no deshace la reapertura: el
-        // siguiente disparador lo evaluará.
+        visita.ReabrirExpediente(DateTime.UtcNow, request.Motivo);
+
+        // Reevaluar al momento con la regla común (opción A), ANTES de guardar (Codex r2, #2266): la reapertura y el
+        // nuevo sello van en un único guardado y un único registro de auditoría, cuyo «antes» conserva el sello
+        // retirado y cuyo «después» lleva el nuevo. El evaluador recibe esta misma instancia rastreada (el repositorio
+        // resuelve la identidad sin recargarla) y, si sella, guarda él. Si la reevaluación falla o se cancela, no se
+        // guarda nada y la Visita sigue sellada como estaba: nunca queda sin sello por un fallo transitorio.
+        bool reselladaPorElEvaluador;
         try
         {
-            await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
+            reselladaPorElEvaluador = await evaluadorExpediente.EvaluarAsync(visita.Id, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "No se pudo reevaluar el expediente reabierto de la visita {VisitaId}.", visita.Id);
+            logger.LogWarning(ex, "No se pudo reevaluar el expediente de la visita {VisitaId}; la reapertura no se guarda.", visita.Id);
+            return Result.Fallo(Error.Crear(
+                "Visita.ReaperturaNoEvaluada",
+                "No se pudo reevaluar el expediente ahora mismo, así que no se ha reabierto. Inténtalo de nuevo."));
         }
+
+        if (!reselladaPorElEvaluador)
+            await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
     }

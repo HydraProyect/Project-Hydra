@@ -104,7 +104,8 @@ public class EvaluadorExpedienteVisitaService(
         var hoy = DiaDeNegocio.Hoy();
 
         // Solo las que todavía tienen algo que sellar: con solicitud de origen, sin sello
-        // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse.
+        // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse
+        // (tampoco una reabierta: la reapertura solo se admite antes de que empiece).
         var pendientes = visitasContext.Visitas
             .Where(v => v.FechaHoraSolicitudUtc != null && v.FechaHoraExpedienteCompletoUtc == null && !v.EstaCancelada && v.FechaFin >= hoy);
 
@@ -152,13 +153,6 @@ public class EvaluadorExpedienteVisitaService(
 
         if (centro is null) return false;
 
-        // P1-X2: un Centro sin gestión CAE no exige documentos — el expediente
-        // no tiene nada que reunir y está completo en cuanto sabe quién va. Una
-        // visita sin participantes sigue incompleta, igual que con gestión CAE:
-        // el sello es irreversible y no se recalcula al añadir Trabajadores.
-        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
-            return await visitasContext.VisitasTrabajadores.AnyAsync(vt => vt.VisitaId == visita.Id, cancellationToken);
-
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visita.Id)
             .Select(vt => vt.TrabajadorId)
@@ -170,10 +164,16 @@ public class EvaluadorExpedienteVisitaService(
         if (trabajadorIds.Count == 0) return false;
 
         // Un participante que ya no se resuelve (Trabajador eliminado) no se puede evaluar: la regla común lo
-        // omitiría y el sello, que es irreversible, quedaría puesto sin mirarlo. Sin todos evaluados, no se sella.
+        // omitiría y el sello, que solo retira una reapertura expresa, quedaría puesto sin mirarlo. Sin todos evaluados, no se sella.
         var resueltos = await trabajadoresContext.Trabajadores
             .CountAsync(t => trabajadorIds.Contains(t.Id), cancellationToken);
         if (resueltos < trabajadorIds.Count) return false;
+
+        // P1-X2: un Centro sin gestión CAE no exige documentos — el expediente no tiene nada que reunir y está
+        // completo en cuanto sabe quién va. Va después de las dos comprobaciones anteriores (Codex r2, #2266): una
+        // visita sin participantes, o con uno eliminado, sigue incompleta también aquí.
+        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
+            return true;
 
         // D-4 (#2005, decisión del 2026-11-15): la misma regla de bloqueo que el resto de superficies, sin copia propia.
         // Completo = ningún requisito bloqueante del Centro (BloqueaAcceso, con su vigencia propia y su tolerancia)
