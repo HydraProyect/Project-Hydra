@@ -114,7 +114,13 @@ public class FuncionAmparoDeOrigenBajoRuntimeTests : IAsyncLifetime
         lector.GetString(1).Should().Be("boolean");
         lector.GetBoolean(2).Should().BeFalse("no devuelve filas");
         lector.GetFieldValue<string[]>(3).Should().ContainSingle(c => c.StartsWith("search_path=", StringComparison.Ordinal));
-        lector.GetString(4).Should().Be("s");
+        // VOLATILE, no STABLE: compara la caducidad con clock_timestamp() (ronda 4 de Codex en la PR #2237, media 2), que
+        // cambia dentro de una misma sentencia y rompe la promesa de STABLE. Con now(), una transacción que esperó al
+        // FOR SHARE del trigger de Encargos seguía viendo vigente una delegación que caducó durante la espera. Al ser
+        // VOLATILE, en READ COMMITTED cada consulta interna toma además una instantánea nueva y ve la revocación confirmada
+        // mientras se esperaba el bloqueo.
+        lector.GetString(4).Should().Be("v",
+            "compara la caducidad con el reloj de pared de la base, leído después del bloqueo, no con el now() de la transacción");
         lector.GetBoolean(5).Should().BeTrue("la función lee con el propietario de las tablas");
         lector.GetBoolean(6).Should().BeFalse("PUBLIC no la ejecuta");
         lector.GetBoolean(7).Should().BeTrue();
