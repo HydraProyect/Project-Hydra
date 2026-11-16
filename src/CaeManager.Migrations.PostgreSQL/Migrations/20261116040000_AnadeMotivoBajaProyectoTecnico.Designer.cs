@@ -7833,6 +7833,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool>("PendienteRevisionLegal")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Codigo")
@@ -8158,6 +8161,182 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ActividadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("RiesgoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActividadId");
+
+                    b.HasIndex("RiesgoId");
+
+                    b.HasIndex("TenantId", "ActividadId")
+                        .IsUnique()
+                        .HasFilter("\"ActividadId\" IS NOT NULL AND \"Activa\"");
+
+                    b.HasIndex("TenantId", "CentroId")
+                        .IsUnique()
+                        .HasFilter("\"CentroId\" IS NOT NULL AND \"Activa\"");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId")
+                        .IsUnique()
+                        .HasFilter("\"ClienteEmpresarialId\" IS NOT NULL AND \"Activa\"");
+
+                    b.HasIndex("TenantId", "RiesgoId")
+                        .IsUnique()
+                        .HasFilter("\"RiesgoId\" IS NOT NULL AND \"Activa\"");
+
+                    b.ToTable("PlantillasRequisitos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PlantillasRequisitos_Tipo", "\"Tipo\" IN ('PorActividad', 'PorRiesgo', 'DeCentro', 'ExigenciasClienteEmpresarial')");
+
+                            t.HasCheckConstraint("CK_PlantillasRequisitos_UnaReferenciaSegunTipo", "(\"Tipo\" = 'PorActividad') = (\"ActividadId\" IS NOT NULL) AND (\"Tipo\" = 'PorRiesgo') = (\"RiesgoId\" IS NOT NULL) AND (\"Tipo\" = 'DeCentro') = (\"CentroId\" IS NOT NULL) AND (\"Tipo\" = 'ExigenciasClienteEmpresarial') = (\"ClienteEmpresarialId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AmbitoDocumento")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("BloqueaAcceso")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Criterio")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("Entidad")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ModoVigencia")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("PlantillaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RequisitoBaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SePideA")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TiposContratacion")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ToleranciaDias")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("VigenciaMeses")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<List<string>>("_equivalencias")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("Equivalencias");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequisitoBaseId");
+
+                    b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "PlantillaId", "TipoDocumentoId")
+                        .IsUnique()
+                        .HasFilter("\"Activo\"");
+
+                    b.ToTable("RequisitosPlantilla", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_AmbitoDocumento", "\"AmbitoDocumento\" IN ('GeneralTec', 'EspecificoTce', 'EspecificoCentro')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_Entidad", "\"Entidad\" IN ('Empresa', 'Trabajador', 'VehiculoOMaquina')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_Equivalencias", "cardinality(\"Equivalencias\") <= 10");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_ModoVigencia", "\"ModoVigencia\" IN ('Fija', 'LaPoneElDocumento', 'SinVencimiento')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_Origen", "\"Origen\" IN ('LegalN1', 'Convenio', 'Actividad', 'ExigenciaN3', 'PropioTenant')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_PropioSinBase", "\"Origen\" <> 'PropioTenant' OR \"RequisitoBaseId\" IS NULL");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_SePideA", "\"SePideA\" IN ('Todos', 'Nacionales', 'Extranjeros')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_TiposContratacion", "\"TiposContratacion\" > 0 AND (\"TiposContratacion\" & ~7) = 0");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_Tolerancia", "\"ToleranciaDias\" IS NULL OR (\"ToleranciaDias\" BETWEEN 1 AND 365 AND \"ModoVigencia\" <> 'SinVencimiento')");
+
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_VigenciaSiFija", "(\"ModoVigencia\" = 'Fija') = (\"VigenciaMeses\" IS NOT NULL) AND (\"VigenciaMeses\" IS NULL OR \"VigenciaMeses\" BETWEEN 1 AND 120)");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8292,6 +8471,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RecuperacionHuecoAtascadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RecuperacionHuecoCubreDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RecuperacionHuecoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("RecuperacionHuecoListadoCompleto")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
                         .HasColumnType("timestamp with time zone");
@@ -8631,6 +8825,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CubreDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ErrorProcesado")
                         .HasMaxLength(1000)
@@ -9342,8 +9539,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("OperadorTenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("OrigenId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PropietarioTenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("RevocacionesDelOrigen")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Servicio")
                         .IsRequired()
@@ -9361,6 +9564,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OrigenId")
+                        .HasFilter("\"OrigenId\" IS NOT NULL");
 
                     b.HasIndex("OperadorTenantId", "Estado");
 
@@ -11452,6 +11658,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int>("Revocaciones")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("TenantClienteId")
                         .HasColumnType("uuid");
 
@@ -12079,6 +12289,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("ExpedienteReabiertoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateOnly>("FechaFin")
                         .HasColumnType("date");
 
@@ -12099,6 +12312,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<string>("MotivoReactivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MotivoReaperturaExpediente")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
@@ -13106,6 +13323,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Inbound.CatalogoBase.ActividadCatalogo", null)
+                        .WithMany()
+                        .HasForeignKey("ActividadId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Inbound.CatalogoBase.RiesgoCatalogo", null)
+                        .WithMany()
+                        .HasForeignKey("RiesgoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Inbound.CatalogoBase.RequisitoBase", null)
+                        .WithMany()
+                        .HasForeignKey("RequisitoBaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos", null)
+                        .WithMany("Requisitos")
+                        .HasForeignKey("TenantId", "PlantillaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
                 {
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
@@ -13207,6 +13471,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Operaciones.AsignacionOperacion", b =>
                 {
+                    b.HasOne("CaeManager.Domain.Tenants.DelegacionTenant", null)
+                        .WithMany()
+                        .HasForeignKey("OrigenId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
                         .WithMany()
                         .HasForeignKey("PropietarioTenantId", "AmbitoCentroId")
@@ -13752,6 +14021,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", b =>
                 {
                     b.Navigation("HistorialVigencia");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos", b =>
+                {
+                    b.Navigation("Requisitos");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
