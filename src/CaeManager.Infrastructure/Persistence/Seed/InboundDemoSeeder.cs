@@ -64,10 +64,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Development: comparte la contraseña pública de <see cref="CredencialesDemo"/>, así que cualquier otro entorno lanza antes
 /// de escribir nada, y también si uno de sus nombres de Tenant ya existe sin el marcador de datos de demo. No envía correo:
 /// las cuentas son de un dominio no entregable (<c>@caemanager.local</c>). Idempotente por Tenant, con una guarda que la
-/// interfaz no puede alterar (el historial de vigencia en el Tenant TCE; Trabajadores o Documentos en cada Tenant TEC), y
-/// cada Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo siembra entero.
-/// Lo que el revisor edite después no se toca; si dio de baja todo un Tenant y su CIF o sus DNI siguen ocupados, el
-/// arranque avisa y sigue (para empezar de cero, se retiran los Tenants de la demo).
+/// interfaz no puede alterar en el Tenant TCE (su historial de vigencia), y Trabajadores o Documentos en cada Tenant TEC; cada
+/// Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo siembra entero. Lo que el
+/// revisor edite después (el rol o la cartera de la Gestora CAE, las notas de un contrato) no se vuelve a tocar; si dio de
+/// baja todos los Trabajadores y Documentos de un Tenant TEC, sus DNI siguen ocupados y el arranque avisa y sigue (para
+/// empezar de cero, se retiran los Tenants de la demo).
 /// </para>
 ///
 /// <para>
@@ -223,37 +224,60 @@ public static class InboundDemoSeeder
         }
 
         // ── Tenant TCE ───────────────────────────────────────────────────────────────────────────────────────────
-        Dictionary<string, Guid> contratos;
+        // Los contratos de la siembra de cada Tenant TEC, por sus Notas. Solo los vinculados con ese Tenant TEC y, si el
+        // revisor ha repetido unas Notas en otro contrato, el más antiguo: las Notas son un campo libre y editable.
+        var contratosPorTec = new Dictionary<Guid, Dictionary<string, Guid>>();
+        bool tceSembrado;
         using (AmbitoTenantExplicito.Establecer(tceId))
         {
-            var writer = new AsignacionesOperativasWriter(
-                dbContext, new TenantActualAmbiental { TenantId = tceId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
-            await writer.AsegurarOperacionRaizAsync(tceId, DateTime.UtcNow.AddDays(-180), cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await writer.AsegurarCarteraTenantEnteroAsync(tceId, gestoraTce.Id, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-
             // Sembrado ya si tiene historial de vigencia: ninguna pantalla lo edita ni lo borra (cae_app_runtime solo lo lee
             // y lo añade), así que la guarda no depende de lo que el revisor cambie en la interfaz. Todo el Tenant va en una
-            // transacción: una pasada cortada no deja nada y la siguiente lo siembra entero.
+            // transacción, la cartera de la Gestora CAE incluida: una pasada cortada no deja nada y la siguiente lo siembra
+            // entero; y lo que el revisor cambie después (el rol de la Gestora CAE, su cartera) no se vuelve a tocar.
             if (!await dbContext.HistorialVigenciaContratos.AnyAsync(cancellationToken))
-                await EnUnaTransaccionAsync(dbContext, logger, NombreTenantTce,
-                    c => new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(c), cancellationToken);
+                await EnUnaTransaccionAsync(dbContext, logger, NombreTenantTce, async c =>
+                {
+                    var writer = new AsignacionesOperativasWriter(
+                        dbContext, new TenantActualAmbiental { TenantId = tceId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
+                    await writer.AsegurarOperacionRaizAsync(tceId, DateTime.UtcNow.AddDays(-180), c);
+                    await dbContext.SaveChangesAsync(c);
+                    await writer.AsegurarCarteraTenantEnteroAsync(tceId, gestoraTce.Id, c);
+                    await dbContext.SaveChangesAsync(c);
 
-            contratos = await dbContext.ContratosAcceso
-                .Where(c => c.Notas != null && Contratos.Todas.Contains(c.Notas))
-                .ToDictionaryAsync(c => c.Notas!, c => c.Id, cancellationToken);
+                    await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(c);
+                }, cancellationToken);
+
+            tceSembrado = await dbContext.HistorialVigenciaContratos.AnyAsync(cancellationToken);
+            var deLaSiembra = await dbContext.ContratosAcceso
+                .Where(c => c.Notas != null && Contratos.Todas.Contains(c.Notas) && c.TenantContratistaId != null)
+                .Select(c => new { c.Id, Notas = c.Notas!, Tec = c.TenantContratistaId!.Value, c.FechaInicio })
+                .ToListAsync(cancellationToken);
+            foreach (var grupo in deLaSiembra.GroupBy(c => c.Tec))
+                contratosPorTec[grupo.Key] = grupo.GroupBy(c => c.Notas)
+                    .ToDictionary(g => g.Key, g => g.OrderBy(c => c.FechaInicio).ThenBy(c => c.Id).First().Id);
             dbContext.ChangeTracker.Clear();
         }
 
         // ── Tenants TEC ──────────────────────────────────────────────────────────────────────────────────────────
+        // Después del Tenant TCE y solo si quedó sembrado: un Tenant TEC sembrado sin sus contratos se quedaría para siempre
+        // sin sus autorizaciones de lectura, porque a partir de ahí ya cuenta como sembrado.
+        if (!tceSembrado)
+        {
+            logger.LogWarning("La siembra Inbound deja sin sembrar los Tenants TEC: {Tce} no quedó sembrado.", NombreTenantTce);
+            return;
+        }
+
         foreach (var tec in tecs)
             using (AmbitoTenantExplicito.Establecer(tec.Id))
             {
-                // Sembrado ya si tiene Trabajadores o Documentos (aunque se hayan editado); en una transacción, como el TCE.
+                // Sembrado ya si tiene Trabajadores o Documentos; en una transacción, como el Tenant TCE. Si el revisor los dio
+                // todos de baja, siguen ocupando sus DNI y el choque se avisa sin tumbar el arranque.
                 if (!await dbContext.Trabajadores.AnyAsync(cancellationToken) && !await dbContext.Documentos.AnyAsync(cancellationToken))
+                {
+                    var contratos = contratosPorTec.GetValueOrDefault(tec.Id) ?? new Dictionary<string, Guid>();
                     await EnUnaTransaccionAsync(dbContext, logger, tec.RazonSocial,
                         c => new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(c), cancellationToken);
+                }
                 dbContext.ChangeTracker.Clear();
             }
 

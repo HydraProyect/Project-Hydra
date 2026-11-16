@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Comercial;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Infrastructure.Identity;
@@ -342,6 +343,88 @@ public sealed class InboundDemoSeederMarcadorTests : IAsyncLifetime
         (await lectura.ProductosContratados.IgnoreQueryFilters().CountAsync(p => p.TenantId == ajeno.Id)).Should().Be(0);
         (await lectura.Tenants.CountAsync(t => InboundDemoSeeder.NombresTenants.Contains(t.Nombre))).Should().Be(1,
             "ni siquiera aprovisiona los Tenants TEC");
+    }
+}
+
+/// <summary>
+/// <b>Lo que el revisor cambia desde la interfaz no tumba el arranque ni se vuelve a sembrar encima</b>, en una base aparte:
+/// pasar a la Gestora CAE a otro rol, repetir las notas de un contrato de la siembra en otro y dar de baja un Trabajador.
+/// </summary>
+public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
+{
+    private ArnesDeArranqueRuntime _arnes = null!;
+    private IConfiguration _configuracion = null!;
+
+    public async Task InitializeAsync()
+    {
+        _arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        _configuracion = new ConfigurationBuilder()
+            .AddConfiguration(_arnes.Servicios.GetRequiredService<IConfiguration>())
+            .AddInMemoryCollection(new Dictionary<string, string?> { [InboundDemoSeeder.ClaveConfiguracion] = "true" })
+            .Build();
+    }
+
+    public Task DisposeAsync() => _arnes.DisposeAsync().AsTask();
+
+    private async Task SembrarAsync()
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        await InboundDemoSeeder.SeedAsync(
+            sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+    }
+
+    [Fact]
+    public async Task Tras_editar_desde_la_interfaz_otra_siembra_no_lanza_ni_repone_nada()
+    {
+        await SembrarAsync();
+
+        Guid tceId, moncayoId;
+        await using (var bootstrap = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+        {
+            tceId = await bootstrap.Tenants.Where(t => t.Nombre == InboundDemoSeeder.NombreTenantTce).Select(t => t.Id).SingleAsync();
+            moncayoId = await bootstrap.Tenants.Where(t => t.Nombre == InboundDemoSeeder.NombreTenantMoncayo).Select(t => t.Id).SingleAsync();
+        }
+
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var sp = ambito.ServiceProvider;
+            var db = sp.GetRequiredService<CaeManagerDbContext>();
+            var usuarios = sp.GetRequiredService<UserManager<ApplicationUser>>();
+
+            using (AmbitoTenantExplicito.Establecer(tceId))
+            {
+                // La Gestora CAE pasa a Coordinadora CAE.
+                var gestora = (await usuarios.FindByEmailAsync(InboundDemoSeeder.EmailGestoraTce))!;
+                (await usuarios.RemoveFromRoleAsync(gestora, Roles.GestorCae)).Succeeded.Should().BeTrue();
+                (await usuarios.AddToRoleAsync(gestora, Roles.CoordinadorCae)).Succeeded.Should().BeTrue();
+
+                // Un contrato nuevo con las mismas notas que uno de la siembra.
+                var original = await db.ContratosAcceso.SingleAsync(c => c.Notas == InboundDemoSeeder.Contratos.MoncayoActivo);
+                db.ContratosAcceso.Add(ContratoAcceso.Crear(
+                    original.ClienteEmpresarialId, original.CentroId, original.EmpresaContratistaId,
+                    DiaDeNegocio.Hoy(), null, InboundDemoSeeder.Contratos.MoncayoActivo));
+                await db.SaveChangesAsync();
+            }
+
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                var trabajador = await db.Trabajadores.OrderBy(t => t.Dni).FirstAsync();
+                trabajador.MarcarComoEliminado(Guid.NewGuid());
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var resembrar = SembrarAsync;
+        await resembrar.Should().NotThrowAsync();
+
+        await using var lectura = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        (await lectura.ContratosAcceso.IgnoreQueryFilters().CountAsync(c => c.TenantId == tceId)).Should().Be(8, "los siete de la siembra y el del revisor");
+        (await lectura.AsignacionesCartera.IgnoreQueryFilters().CountAsync(a => a.PropietarioTenantId == tceId)).Should().Be(1,
+            "la cartera de la Gestora CAE no se vuelve a emitir");
+        (await lectura.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == moncayoId)).Should().Be(3, "el dado de baja no se repone");
+        (await lectura.AutorizacionesLecturaDocumental.IgnoreQueryFilters().CountAsync(a => a.TenantId == moncayoId)).Should().Be(2);
     }
 }
 
