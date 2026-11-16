@@ -3,7 +3,7 @@
    plantillas visibles y, al elegir una, la de sus requisitos; los nombres salen de ResolutorPlantillasRequisitos. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Domain.Inbound.Requisitos
 @using CaeManager.Web.Features.Inbound.Plantillas.Components
 @using CaeManager.Web.Features.Inbound.Plantillas.Recursos
@@ -126,13 +126,20 @@
                             </div>
                         </div>
                         <div class="pl-cab-acciones">
+                            @if (_detalle is { Activa: true })
+                            {
                             <SoloConEscritura>
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Href="@($"/inbound/plantillas/{elegida.Plantilla.Id}/requisitos?anadir=true")">@Textos["BotonAnadir"]</Boton>
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _retirando = true">@Textos["BotonRetirar"]</Boton>
                             </SoloConEscritura>
+                            }
                         </div>
                     </div>
                     <p class="pl-nota">@Textos[ClaveExplicacion(elegida.Plantilla.Tipo)]</p>
+                    @if (_detalle is { Activa: false })
+                    {
+                        <p class="pl-nota" data-pieza="plantilla-retirada">@Textos["PlantillaRetiradaAviso"]</p>
+                    }
 
                     @if (_cargandoDetalle)
                     {
@@ -157,8 +164,7 @@
                                     <thead><tr>
                                         <th scope="col">@Textos["ColRequisito"]</th>
                                         <th scope="col" class="pl-col-origen">@Textos["ColOrigen"]</th>
-                                        <th scope="col" class="pl-col-tol">@Textos["ColTolerancia"]</th>
-                                        <th scope="col" class="pl-col-tol">@Textos["ColToleranciaDecision"]</th>
+                                        <th scope="col" class="pl-col-tol">@Textos["ColTolerancia"]<span class="pl-sec pl-th-sec">@Textos["ColToleranciaDecision"]</span></th>
                                         <th scope="col" class="pl-col-acc"><span class="sr-only">@Textos["ColAccion"]</span></th>
                                     </tr></thead>
                                     <tbody>
@@ -179,8 +185,6 @@
                                                 }
                                             </td>
                                             <td><span class="pl-tol">@PlantillaRequisitosUi.Tolerancia(r, Textos)</span></td>
-                                            @* shortcut: sin backend, cablear cuando entre B-15 (decisión del Cliente sobre la tolerancia). *@
-                                            <td><span class="pl-sec">—</span></td>
                                             <td class="pl-col-acc">
                                                 @if (legal)
                                                 {
@@ -189,9 +193,12 @@
                                                 else
                                                 {
                                                     <SoloConEscritura>
+                                                        @if (_detalle is { Activa: true })
+                                                        {
                                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                                Href="@($"/inbound/plantillas/{elegida.Plantilla.Id}/requisitos?editar={r.Id}")"
                                                                aria-label="@Textos["AccionEditarAria", NombreRequisito(r)]">@Textos["BotonEditar"]</Boton>
+                                                        }
                                                     </SoloConEscritura>
                                                 }
                                             </td>

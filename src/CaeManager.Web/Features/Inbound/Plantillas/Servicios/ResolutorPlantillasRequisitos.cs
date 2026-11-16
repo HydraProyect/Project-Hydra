@@ -16,8 +16,17 @@ public sealed record ReferenciasPlantillas(
     IReadOnlyDictionary<Guid, string> Riesgos,
     IReadOnlyDictionary<Guid, string> Centros,
     IReadOnlyDictionary<Guid, string> Clientes,
-    IReadOnlyDictionary<Guid, TipoDocumentoListaDto> Tipos)
+    IReadOnlyDictionary<Guid, TipoDocumentoListaDto> Tipos,
+    IReadOnlySet<Guid>? TiposParaAlta = null)
 {
+    /// <summary>
+    /// Los tipos que el dominio admite en un requisito nuevo: no archivados (<c>ParaAltaNueva</c>) y de ámbito Empresa,
+    /// Trabajador o Vehículo (los de Cliente y Proyecto no se piden en un contrato de acceso). Nulo = sin dato: se ofrecen todos.
+    /// </summary>
+    public bool AdmiteAlta(TipoDocumentoListaDto tipo) =>
+        (TiposParaAlta is null || TiposParaAlta.Contains(tipo.Id))
+        && tipo.AmbitoAplicacion is Domain.Documentos.AmbitoAplicacion.Empresa or Domain.Documentos.AmbitoAplicacion.Trabajador or Domain.Documentos.AmbitoAplicacion.Vehiculo;
+
     public string? NombreDe(TipoPlantillaRequisitos tipo, Guid referenciaId)
     {
         var origen = tipo switch
@@ -53,6 +62,7 @@ public sealed class ResolutorPlantillasRequisitos(IMediator mediator)
         var catalogo = await mediator.Send(new ObtenerCatalogoBaseQuery(), cancellationToken);
         var centros = await mediator.Send(new ObtenerCentrosParaSelectorQuery(), cancellationToken);
         var tipos = await mediator.Send(new ObtenerTiposDocumentoQuery(), cancellationToken);
+        var tiposParaAlta = await mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), cancellationToken);
 
         var clientes = new Dictionary<Guid, string>();
         foreach (var centro in centros.Where(c => c.ClienteEmpresarialId != Guid.Empty))
@@ -63,7 +73,8 @@ public sealed class ResolutorPlantillasRequisitos(IMediator mediator)
             catalogo.Riesgos.ToDictionary(r => r.Id, r => r.Nombre),
             centros.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Nombre),
             clientes,
-            tipos.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First()));
+            tipos.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First()),
+            tiposParaAlta.Select(t => t.Id).ToHashSet());
     }
 }
 

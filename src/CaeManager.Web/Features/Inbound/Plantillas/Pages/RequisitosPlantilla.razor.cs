@@ -1,8 +1,10 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.Requisitos.Commands.RetirarRequisitoPlantilla;
 using CaeManager.Application.Inbound.Requisitos.Queries;
 using CaeManager.Domain.Inbound.Requisitos;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Services;
 using CaeManager.Web.Features.Inbound.Plantillas.Servicios;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -27,6 +29,7 @@ public partial class RequisitosPlantilla
     [Inject] private ResolutorPlantillasRequisitos Resolutor { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
+    private readonly SerieDeLecturas _serie = new();
     private PlantillaRequisitosDto? _plantilla;
     private ReferenciasPlantillas _refs = new(
         new Dictionary<Guid, string>(), new Dictionary<Guid, string>(), new Dictionary<Guid, string>(),
@@ -34,6 +37,7 @@ public partial class RequisitosPlantilla
 
     private bool _cargando = true;
     private bool _errorCarga;
+    private Guid _idConError;
     private bool _drawerVisible;
     private bool _aperturaPorEnlaceHecha;
     private RequisitoPlantillaDto? _editando;
@@ -52,7 +56,8 @@ public partial class RequisitosPlantilla
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_plantilla?.Id == Id || _errorCarga)
+        // Con un error de carga previo, un Id nuevo sí se vuelve a leer; el mismo Id espera al botón «Reintentar».
+        if (_plantilla?.Id == Id || (_errorCarga && Id == _idConError))
             return;
         await CargarAsync();
     }
@@ -63,13 +68,18 @@ public partial class RequisitosPlantilla
         _errorCarga = false;
         try
         {
-            _refs = await Resolutor.CargarAsync();
-            _plantilla = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(Id));
+            using (await _serie.TomarAsync(CancellationToken.None))
+            {
+                _refs = await Resolutor.CargarAsync();
+                _plantilla = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(Id));
+            }
+
             AbrirPorEnlace();
         }
         catch (Exception)
         {
             _errorCarga = true;
+            _idConError = Id;
         }
         finally
         {
@@ -80,7 +90,7 @@ public partial class RequisitosPlantilla
     // Los enlaces del listado traen ?anadir o ?editar: se atienden una sola vez, después de la primera carga.
     private void AbrirPorEnlace()
     {
-        if (_aperturaPorEnlaceHecha || _plantilla is null)
+        if (_aperturaPorEnlaceHecha || _plantilla is not { Activa: true })
             return;
         _aperturaPorEnlaceHecha = true;
         if (Editar is { } requisitoId && _plantilla.Requisitos.FirstOrDefault(r => r.Id == requisitoId && r.Activo && r.Origen != OrigenRequisito.LegalN1) is { } r)
@@ -120,7 +130,8 @@ public partial class RequisitosPlantilla
         await CargarAsync();
     }
 
-    // Tras un error del comando (típicamente un conflicto de versión) se vuelve a leer la plantilla y el panel sigue con la Version vigente.
+    // Solo ante un conflicto de versión (el panel avisa con OnFallo): la plantilla cambió desde que se leyó.
+    // Los demás errores se quedan dentro del panel, con lo escrito.
     private async Task RefrescarTrasFalloAsync(string mensaje)
     {
         // El panel parte de lo que el usuario leyó: se cierra para que lo reabra con lo vigente y no reenvíe a ciegas.
@@ -147,6 +158,13 @@ public partial class RequisitosPlantilla
         try
         {
             var resultado = await Mediator.Send(new RetirarRequisitoPlantillaCommand(_plantilla.Id, requisito.Id, _plantilla.Version));
+            if (!resultado.EsExitoso && resultado.Error.Codigo != ConcurrenciaOptimista.CodigoConflicto)
+            {
+                // Cualquier otro error se queda dentro del diálogo.
+                _errorRetirar = resultado.Error.Mensaje;
+                return;
+            }
+
             if (!resultado.EsExitoso)
             {
                 _retirando = null;

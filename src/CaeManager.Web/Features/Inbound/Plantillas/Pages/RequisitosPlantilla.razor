@@ -2,7 +2,7 @@
 @* Tarjeta 9 · Editar requisito (Inbound): los requisitos de una plantilla y el panel para añadir o editar uno. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Domain.Inbound.Requisitos
 @using CaeManager.Web.Features.Inbound.Plantillas.Components
 @using CaeManager.Web.Features.Inbound.Plantillas.Recursos
@@ -19,7 +19,10 @@
         <Primaria>
             @if (_plantilla is not null)
             {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
+                @if (_plantilla.Activa)
+                {
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
+                }
             }
         </Primaria>
     </CabeceraListado>
@@ -44,7 +47,7 @@
     else if (Activos.Count == 0)
     {
         <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["PlantillaSinRequisitos"]" Descripcion="@Textos["RequisitosVacioDescripcion"]">
-            <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura></Accion>
+            <Accion>@if (_plantilla?.Activa == true) { <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura> }</Accion>
         </EstadoVacio>
     }
     else
@@ -98,10 +101,13 @@
                                 else
                                 {
                                     <SoloConEscritura>
+                                        @if (_plantilla.Activa)
+                                        {
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditar(r)"
                                                aria-label="@Textos["AccionEditarAria", NombreRequisito(r)]">@Textos["BotonEditar"]</Boton>
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _retirando = r"
                                                aria-label="@Textos["AccionRetirarAria", NombreRequisito(r)]">@Textos["BotonRetirar"]</Boton>
+                                        }
                                     </SoloConEscritura>
                                 }
                             </td>
@@ -117,7 +123,7 @@
 @if (_plantilla is not null)
 {
     <EditarRequisitoDrawer Visible="_drawerVisible" VisibleChanged="CerrarDrawer" Plantilla="_plantilla" NombrePlantilla="@NombrePlantilla"
-                           Referencias="_refs" Requisito="_editando" OnGuardado="GuardadoAsync" OnFallo="RefrescarTrasFalloAsync" />
+                           Referencias="_refs" Requisito="_editando" OnGuardado="GuardadoAsync" OnFallo="RefrescarTrasFalloAsync" Serie="_serie" />
 }
 
 <DialogoConfirmacion Visible="_retirando is not null" VisibleChanged="CerrarRetirar" Titulo="@Textos["RetirarRequisitoTitulo"]"

@@ -465,4 +465,13 @@
   <data name="FormularioNoDisponibleDetalle" xml:space="preserve">
     <value>Aquí se colocará, sobre el PDF del Centro, cada dato del perfil de la Empresa contratista que se rellena solo. Aún no se puede subir el PDF ni colocar campos.</value>
   </data>
+  <data name="PlantillaRetiradaAviso" xml:space="preserve">
+    <value>Esta plantilla está retirada: se puede consultar, pero ya no admite cambios.</value>
+  </data>
+  <data name="MotivoFaltaContratacion" xml:space="preserve">
+    <value>Marca al menos un tipo de contratación.</value>
+  </data>
+  <data name="ToleranciaAyudaPropio" xml:space="preserve">
+    <value>Un requisito propio todavía no tiene grupo de documento y no admite tolerancia.</value>
+  </data>
 </root>

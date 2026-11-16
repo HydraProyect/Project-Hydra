@@ -6,6 +6,8 @@
 @using CaeManager.Application.Inbound.Requisitos.Commands.CrearRequisitoPropio
 @using CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla
 @using CaeManager.Application.Inbound.Requisitos.Queries
+@using CaeManager.Application.Common
+@using CaeManager.Web.Services
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Inbound.Requisitos
 @using CaeManager.Domain.Trabajadores
@@ -13,6 +15,7 @@
 @using CaeManager.Web.Features.Inbound.Plantillas.Servicios
 @using FluentValidation
 @using Microsoft.Extensions.Localization
+@implements IDisposable
 @inject MediatR.IMediator Mediator
 @inject IStringLocalizer<TextosPlantillasRequisitos> Textos
 
@@ -113,7 +116,7 @@
         <div class="cfg-seg" role="radiogroup" aria-labelledby="e-ori">
             @foreach (var d in PlantillaRequisitosUi.Destinatarios)
             {
-                <button type="button" role="radio" aria-checked="@(_destinatario == d)" aria-pressed="@(_destinatario == d)" @onclick="() => _destinatario = d">@Textos[PlantillaRequisitosUi.ClaveDestinatario(d)]</button>
+                <button type="button" role="radio" aria-checked="@(DestinatarioEnviado == d)" aria-pressed="@(DestinatarioEnviado == d)" disabled="@(SoloTodos && d != DestinatarioRequisito.Todos)" @onclick="() => _destinatario = d">@Textos[PlantillaRequisitosUi.ClaveDestinatario(d)]</button>
             }
         </div>
         <p class="cfg-ayuda">@Textos["DestinatarioAyuda"]</p>
@@ -133,7 +136,7 @@
         </div>
     }
 
-    @if (_destinatario != DestinatarioRequisito.Nacionales)
+    @if (DestinatarioEnviado != DestinatarioRequisito.Nacionales)
     {
         <div class="campo">
             <span class="cfg-etq">@Textos["CampoEquivalencias"]</span>
@@ -171,11 +174,11 @@
         <div class="cfg-seg" role="group" aria-labelledby="e-tol">
             @foreach (var dias in PlantillaRequisitosUi.ToleranciasOfrecidas)
             {
-                <button type="button" aria-pressed="@(ToleranciaElegida == dias)" disabled="@(_modo == ModoVigenciaRequisito.SinVencimiento)"
+                <button type="button" aria-pressed="@(ToleranciaElegida == dias)" disabled="@(_modo == ModoVigenciaRequisito.SinVencimiento || _propio)"
                         @onclick="() => _tolerancia = dias">@(dias == 0 ? Textos["ToleranciaSin"].Value : Textos["ToleranciaDias", dias].Value)</button>
             }
         </div>
-        <p class="cfg-ayuda">@Textos[_modo == ModoVigenciaRequisito.SinVencimiento ? "ToleranciaAyudaNoVence" : "ToleranciaAyuda"]</p>
+        <p class="cfg-ayuda">@Textos[_propio ? "ToleranciaAyudaPropio" : _modo == ModoVigenciaRequisito.SinVencimiento ? "ToleranciaAyudaNoVence" : "ToleranciaAyuda"]</p>
     </div>
 
     <div class="campo">
@@ -230,6 +233,9 @@
     /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer la plantilla para tener su Version vigente.</summary>
     [Parameter] public EventCallback<string> OnFallo { get; set; }
 
+    /// <summary>Turno de lecturas de la página: la búsqueda al teclear no usa el DbContext del circuito a la vez que ella.</summary>
+    [Parameter] public SerieDeLecturas? Serie { get; set; }
+
     private static readonly AmbitoAplicacion[] AmbitosPropios = [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador, AmbitoAplicacion.Vehiculo];
 
     private readonly Dictionary<string, string> _errores = [];
@@ -249,15 +255,25 @@
     private bool _guardando;
     private bool _eraVisible;
     private int _versionBusqueda;
+    private CancellationTokenSource? _busquedaCts;
 
     private bool EsAlta => Requisito is null;
 
-    private int ToleranciaElegida => _modo == ModoVigenciaRequisito.SinVencimiento ? 0 : _tolerancia;
+    // Sin vencimiento no hay tolerancia, y un requisito propio nace sin grupo de documento, que R-6 trata como «sin tolerancia».
+    private int ToleranciaElegida => _modo == ModoVigenciaRequisito.SinVencimiento || _propio ? 0 : _tolerancia;
+
+    // Un vehículo o máquina no es nacional ni extranjero: el dominio exige «Todos».
+    private bool SoloTodos => EntidadActual == EntidadRequisito.VehiculoOMaquina;
+
+    private DestinatarioRequisito DestinatarioEnviado => SoloTodos ? DestinatarioRequisito.Todos : _destinatario;
+
+    private bool SinContratacion => EntidadActual == EntidadRequisito.Trabajador && (_contrataciones & TiposContratacion.Todos) == TiposContratacion.Ninguno;
 
     private HashSet<Guid> _usados = [];
 
     private IReadOnlyList<Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto> TiposVisibles =>
         Referencias.Tipos.Values
+            .Where(Referencias.AdmiteAlta)
             .Where(t => string.IsNullOrWhiteSpace(_busca) || t.Nombre.Contains(_busca.Trim(), StringComparison.CurrentCultureIgnoreCase))
             .OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
             .Take(50)
@@ -272,7 +288,10 @@
         : _tipoId is { } id && Referencias.Tipos.TryGetValue(id, out var t) ? PlantillaRequisitosUi.EntidadDe(t.AmbitoAplicacion)
         : null;
 
-    private string? MotivoNoGuardable => EsAlta && !_propio && _tipoId is null ? Textos["MotivoFaltaRequisito"].Value : null;
+    private string? MotivoNoGuardable =>
+        EsAlta && !_propio && _tipoId is null ? Textos["MotivoFaltaRequisito"].Value
+        : SinContratacion ? Textos["MotivoFaltaContratacion"].Value
+        : null;
 
     private bool HayCambiosSinGuardar => EsAlta
         ? _tipoId is not null || _propio || !string.IsNullOrWhiteSpace(_criterio)
@@ -319,6 +338,12 @@
         _eraVisible = Visible;
     }
 
+    public void Dispose()
+    {
+        _busquedaCts?.Cancel();
+        _busquedaCts?.Dispose();
+    }
+
     private string? ErrorDe(string campo) => _errores.GetValueOrDefault(campo);
 
     private async Task CambiarBuscaAsync(string texto)
@@ -327,6 +352,9 @@
         if (_propio)
             _propio = false;
         var version = ++_versionBusqueda;
+        // Cada pulsación cancela la búsqueda anterior y espera su turno: nunca hay dos consultas a la vez en el DbContext del circuito.
+        _busquedaCts?.Cancel();
+        var cts = _busquedaCts = new CancellationTokenSource();
         if (string.IsNullOrWhiteSpace(texto))
         {
             _parecidos = [];
@@ -335,10 +363,20 @@
 
         try
         {
-            var encontrados = await Mediator.Send(new BuscarRequisitosParecidosQuery(texto.Trim()));
+            IReadOnlyList<RequisitoParecidoDto> encontrados;
+            using (await SerieDeLecturas.TomarSiHayAsync(Serie, cts.Token))
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                encontrados = await Mediator.Send(new BuscarRequisitosParecidosQuery(texto.Trim()), cts.Token);
+            }
+
             // Solo vale la respuesta de la última pulsación.
             if (version == _versionBusqueda)
                 _parecidos = encontrados;
+        }
+        catch (OperationCanceledException)
+        {
+            // Una pulsación más reciente la sustituyó.
         }
         catch (Exception)
         {
@@ -403,7 +441,7 @@
             ToleranciaDias: ToleranciaElegida > 0 ? ToleranciaElegida : null,
             BloqueaAcceso: Requisito?.BloqueaAcceso ?? true,
             Criterio: string.IsNullOrWhiteSpace(_criterio) ? null : _criterio.Trim(),
-            SePideA: _destinatario,
+            SePideA: DestinatarioEnviado,
             TiposContratacion: EntidadActual == EntidadRequisito.Trabajador ? _contrataciones : TiposContratacion.Todos,
             Equivalencias: equivalencias,
             AmbitoDocumento: Requisito?.AmbitoDocumento ?? (_propio ? AmbitoDocumentoRequisito.EspecificoTce : AmbitoDocumentoRequisito.GeneralTec));
@@ -434,7 +472,10 @@
             if (!resultado.EsExitoso)
             {
                 _mensajeError = resultado.Error.Mensaje;
-                await OnFallo.InvokeAsync(resultado.Error.Mensaje);
+                // Solo un conflicto de versión cierra el panel (la plantilla cambió: se relee). Cualquier otro error se queda
+                // dentro del panel, con lo escrito.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                    await OnFallo.InvokeAsync(resultado.Error.Mensaje);
                 return;
             }
 

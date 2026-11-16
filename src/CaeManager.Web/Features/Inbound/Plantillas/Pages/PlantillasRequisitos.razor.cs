@@ -2,6 +2,8 @@ using CaeManager.Application.Inbound.Requisitos.Commands.RetirarPlantillaRequisi
 using CaeManager.Application.Inbound.Requisitos.Queries;
 using CaeManager.Domain.Inbound.Requisitos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Application.Common;
+using CaeManager.Web.Services;
 using CaeManager.Web.Features.Inbound.Plantillas.Recursos;
 using CaeManager.Web.Features.Inbound.Plantillas.Servicios;
 using MediatR;
@@ -25,6 +27,8 @@ public partial class PlantillasRequisitos
     [Inject] private IUsoDePlantillasRequisitos Uso { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
+    // Las lecturas comparten el DbContext del circuito: se hacen de una en una (también las del panel de alta).
+    private readonly SerieDeLecturas _serie = new();
     private IReadOnlyList<FilaPlantilla> _todas = [];
     private IReadOnlyList<FilaPlantilla> _visibles = [];
     private IReadOnlyDictionary<Guid, int> _usos = new Dictionary<Guid, int>();
@@ -71,21 +75,25 @@ public partial class PlantillasRequisitos
         _errorCarga = false;
         try
         {
-            var resumenes = new List<PlantillaRequisitosResumenDto>();
-            for (var pagina = 1; ; pagina++)
+            using (await _serie.TomarAsync(CancellationToken.None))
             {
-                var resultado = await Mediator.Send(new ObtenerPlantillasRequisitosQuery(Pagina: pagina, TamanoPagina: 100));
-                resumenes.AddRange(resultado.Elementos);
-                if (resultado.Elementos.Count == 0 || resumenes.Count >= resultado.TotalElementos)
-                    break;
+                var resumenes = new List<PlantillaRequisitosResumenDto>();
+                for (var pagina = 1; ; pagina++)
+                {
+                    var resultado = await Mediator.Send(new ObtenerPlantillasRequisitosQuery(Pagina: pagina, TamanoPagina: 100));
+                    resumenes.AddRange(resultado.Elementos);
+                    if (resultado.Elementos.Count == 0 || resumenes.Count >= resultado.TotalElementos)
+                        break;
+                }
+
+                _refs = await Resolutor.CargarAsync();
+                _todas = resumenes.Select(p => new FilaPlantilla(p, _refs.NombreDe(p.Tipo, p.ReferenciaId)))
+                    .OrderBy(f => f.Plantilla.Tipo)
+                    .ThenBy(f => NombreDe(f), StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+                _usos = await Uso.ContratosPorPlantillaAsync(_todas.Select(f => f.Plantilla.Id).ToList());
             }
 
-            _refs = await Resolutor.CargarAsync();
-            _todas = resumenes.Select(p => new FilaPlantilla(p, _refs.NombreDe(p.Tipo, p.ReferenciaId)))
-                .OrderBy(f => f.Plantilla.Tipo)
-                .ThenBy(f => NombreDe(f), StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
-            _usos = await Uso.ContratosPorPlantillaAsync(_todas.Select(f => f.Plantilla.Id).ToList());
             Recalcular();
             await CargarDetalleAsync();
         }
@@ -164,7 +172,9 @@ public partial class PlantillasRequisitos
         _detalle = null;
         try
         {
-            var leido = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(elegida.Plantilla.Id));
+            PlantillaRequisitosDto? leido;
+            using (await _serie.TomarAsync(CancellationToken.None))
+                leido = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(elegida.Plantilla.Id));
             // Una respuesta tardía de otra plantilla ya no vale: se descarta.
             if (SeleccionVisible?.Plantilla.Id != elegida.Plantilla.Id)
                 return;
@@ -217,6 +227,13 @@ public partial class PlantillasRequisitos
         try
         {
             var resultado = await Mediator.Send(new RetirarPlantillaRequisitosCommand(_detalle.Id, _detalle.Version));
+            if (!resultado.EsExitoso && resultado.Error.Codigo != ConcurrenciaOptimista.CodigoConflicto)
+            {
+                // Cualquier otro error se queda dentro del diálogo: nada cambió y el usuario puede reintentar o cancelar.
+                _errorRetirar = resultado.Error.Mensaje;
+                return;
+            }
+
             if (!resultado.EsExitoso)
             {
                 // Un conflicto de versión: se relee y se cierra el diálogo para no reconfirmar a ciegas.

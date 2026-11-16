@@ -5,7 +5,7 @@
 .pl-tabla { min-width: 0; width: 100%; table-layout: fixed; }
 .pl-col-cifra { width: 92px; }
 .pl-col-origen { width: 150px; }
-.pl-col-tol { width: 160px; }
+.pl-col-tol { width: 210px; }
 .pl-col-acc { width: 88px; }
 .pl-fila { display: flex; flex-direction: column; gap: 2px; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .pl-fila-t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-primary-500); font: 600 14px/20px var(--font-family); }
@@ -24,3 +24,6 @@
 .pl-sin-coincidencias { margin: 0; padding: 24px 16px; text-align: center; }
 .pl-prin { font-weight: 600; color: var(--color-text); }
 .pl-sec { display: block; font: 400 13px/18px var(--font-family); color: var(--color-text-muted); }
+
+/* «Decisión del Cliente» va como texto secundario bajo «Tolerancia tras el vencimiento» (Plantillas.dc.html), en su propia línea. */
+.pl-th-sec { display: block; font-weight: 400; }
