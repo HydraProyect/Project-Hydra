@@ -66,6 +66,14 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         return Render<ConfigurarAutenticadorDosFactores>();
     }
 
+    // La clave solo se enseña en la respuesta al POST de «continuar», nunca en la del GET (#2125).
+    private async Task<IRenderedComponent<ConfigurarAutenticadorDosFactores>> RenderizarAltaAsync()
+    {
+        var cut = Renderizar();
+        await cut.Find(".tarjeta-mostrar-clave form").SubmitAsync();
+        return cut;
+    }
+
     /// <summary>
     /// Un Administrador sin 2FA llega aquí redirigido y no puede usar nada más
     /// hasta activarla: la página tiene que decírselo, o parece una opción del
@@ -131,9 +139,9 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_alta_ordena_el_qr_la_clave_y_la_confirmacion_sin_inventar_codigos_de_recuperacion()
+    public async Task El_alta_ordena_el_qr_la_clave_y_la_confirmacion_sin_inventar_codigos_de_recuperacion()
     {
-        var cut = Renderizar();
+        var cut = await RenderizarAltaAsync();
 
         cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Autenticación en dos pasos");
         cut.Find(".cabecera-pagina-descripcion").TextContent.Trim().Should().Be("Configura el segundo factor de tu propia cuenta.");
@@ -218,9 +226,9 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     /// <c>Marca.Nombre</c> y no contra un texto fijo, porque el nombre sale de la configuracion.
     /// </summary>
     [Fact]
-    public void La_uri_del_totp_anuncia_el_nombre_de_la_marca_y_no_el_literal_de_razor()
+    public async Task La_uri_del_totp_anuncia_el_nombre_de_la_marca_y_no_el_literal_de_razor()
     {
-        var cut = Renderizar();
+        var cut = await RenderizarAltaAsync();
 
         var uri = cut.Find(".uri-otpauth code").TextContent;
 
