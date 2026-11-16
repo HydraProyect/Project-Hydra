@@ -87,13 +87,16 @@ internal static class LimpiadorDeComentarios
             }
         }
 
+        /// <summary>Terminadores de línea de C# (LF, CR, NEL, LS, PS): un comentario <c>//</c> o una cadena normal sin cerrar acaban en cualquiera de ellos, no solo en LF.</summary>
+        private static bool EsFinDeLinea(char c) => c == '\n' || c == '\r' || "\u0085\u2028\u2029".Contains(c);
+
         private bool SaltarComentarioDeCSharp()
         {
             if (t[_i] != '/') return false;
 
             if (Sig() == '/')
             {
-                while (_i < t.Length && t[_i] != '\n') _i++;
+                while (_i < t.Length && !EsFinDeLinea(t[_i])) _i++;
                 return true;
             }
 
@@ -211,7 +214,7 @@ internal static class LimpiadorDeComentarios
                     }
 
                     if (c == '"') { _sb.Append(c); _i++; return; }
-                    if (c == '\n') return; // una cadena normal sin cerrar acaba con la línea
+                    if (EsFinDeLinea(c)) return; // una cadena normal sin cerrar acaba con la línea
                 }
 
                 if (interpolada && c == '{')

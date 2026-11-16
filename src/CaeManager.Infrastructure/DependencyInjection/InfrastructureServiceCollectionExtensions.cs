@@ -506,6 +506,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionContractualTenantRepository, AceptacionContractualTenantRepository>();
         services.AddSingleton<CaeManager.Application.Cumplimiento.AceptacionContractual.ICatalogoDocumentosContractuales, CaeManager.Infrastructure.Cumplimiento.CatalogoDocumentosContractuales>();
         services.AddScoped<CaeManager.Domain.Cumplimiento.IInstruccionTratamientoIaTenantPropietarioRepository, InstruccionTratamientoIaTenantPropietarioRepository>();
+        services.AddScoped<CaeManager.Domain.Cumplimiento.Subencargados.ISubencargadoRepository, SubencargadoRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IContactoSeguridadTenantRepository, ContactoSeguridadTenantRepository>();
@@ -567,6 +568,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.Subencargados.ICerrojoAltasTenantPropietario, CerrojoAltasTenantPropietario>();
         services.AddSerializacionAltasAcreditacionEmpresa();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();

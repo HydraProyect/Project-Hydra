@@ -3043,6 +3043,158 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AvisadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EnvioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fase")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("RegistradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubencargadoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubencargadoId");
+
+                    b.HasIndex("TenantId", "EnvioId", "UsuarioDestinatarioId", "Fase")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SubencargadoId", "Fase", "RegistradoEnUtc");
+
+                    b.ToTable("AvisosCambioSubencargado", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Conmutador")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Efecto")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("ObjetadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SubencargadoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubencargadoId");
+
+                    b.HasIndex("TenantId", "SubencargadoId")
+                        .IsUnique();
+
+                    b.ToTable("ObjecionesSubencargado", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.Subencargados.Subencargado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ActivadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ActivadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AdmiteExclusionPorTenant")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("AvisadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Conmutador")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime?>("FechaMinimaActivacionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Finalidad")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MotivoRetirada")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("PropuestoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PropuestoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RetiradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UbicacionYTransferencia")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Estado");
+
+                    b.ToTable("Subencargados", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario", b =>
                 {
                     b.Property<Guid>("Id")
@@ -12946,6 +13098,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "TipoDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Cumplimiento.Subencargados.Subencargado", null)
+                        .WithMany()
+                        .HasForeignKey("SubencargadoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Cumplimiento.Subencargados.Subencargado", null)
+                        .WithMany()
+                        .HasForeignKey("SubencargadoId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

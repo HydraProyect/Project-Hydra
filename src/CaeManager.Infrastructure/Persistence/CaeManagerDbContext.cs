@@ -337,6 +337,12 @@ public class CaeManagerDbContext(
         => Set<CaeManager.Domain.Cumplimiento.AcuseAceptacionContractualTenant>();
     public DbSet<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario> InstruccionesTratamientoIaTenantPropietario
         => Set<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado> Subencargados
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado> AvisosCambioSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado> ObjecionesSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
     IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
@@ -392,6 +398,8 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     IQueryable<Guid> IOperacionesQueryContext.TenantsSuspendidosIds =>
         Tenants.Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
+    IQueryable<AsignacionOperacion> IOperacionesQueryContext.OperacionesInboundAmparadas =>
+        AsignacionesOperacion.Where(o => o.Servicio == ServicioCae.Inbound && FuncionAmparoInbound.Ampara(o.Id));
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
@@ -700,6 +708,7 @@ public class CaeManagerDbContext(
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
         builder.MapearTextoDeBusqueda();
         builder.MapearAmparoDeOrigen();
+        builder.MapearAmparoInbound();
 
         // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(

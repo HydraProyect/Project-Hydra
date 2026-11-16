@@ -42,6 +42,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     [
         new Claim(ClaimTypes.NameIdentifier, Usuario.ToString()),
         new Claim(SignInManagerCuentaDesactivada.ClaimSid, Sid.ToString("N")),
+        new Claim(CaeManager.Web.Services.CaducidadSesion.MarcaInicio, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)),
         .. sello is null ? Array.Empty<Claim>() : [new Claim(TipoClaimSello, sello)],
     ];
 
@@ -57,6 +58,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
         Services.AddSingleton<ISelloSeguridadCuenta>(_sellos);
         Services.AddSingleton<IDataProtectionProvider>(_protector);
+        Services.AddSingleton<ISesionOrigenExtension>(new CaeManager.Web.Services.SesionOrigenExtension(new CaeManager.Web.Services.ActividadSesiones(), TimeProvider.System));
         Services.AddSingleton(Gestor());
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
@@ -150,6 +152,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         builder.Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
         builder.Services.AddSingleton<ISelloSeguridadCuenta>(_sellos);
         builder.Services.AddSingleton<IDataProtectionProvider>(_protector);
+        builder.Services.AddSingleton<ISesionOrigenExtension>(new CaeManager.Web.Services.SesionOrigenExtension(new CaeManager.Web.Services.ActividadSesiones(), TimeProvider.System));
         builder.Services.AddSingleton(Gestor());
         builder.Services.AddAntiforgery();
         await using var app = builder.Build();
@@ -174,7 +177,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     [Fact]
     public async Task Sin_sesion_privilegiada_emite_token_legible()
     {
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
         DebeNombrarSoloALaCuentaAutenticada(resultado);
         TokenSesionExtension.Leer(_protector, resultado.Valor.Token)!.SecurityStamp.Should().Be("sello");
         _registro.Avisos.Should().BeEmpty();
@@ -189,7 +192,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     [InlineData(null)]
     public async Task Sesion_sin_el_sello_vigente_no_obtiene_token(string? selloDeLaSesion)
     {
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, selloDeLaSesion, Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, selloDeLaSesion, Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
 
         resultado.EsExitoso.Should().BeFalse();
         resultado.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
@@ -201,7 +204,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     {
         _sellos.Vigente = "sello-del-restablecimiento";
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
 
         resultado.EsExitoso.Should().BeFalse();
         resultado.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
@@ -212,7 +215,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     {
         _sellos.Vigente = "sello-del-restablecimiento";
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello-del-restablecimiento", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello-del-restablecimiento", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
 
         resultado.EsExitoso.Should().BeTrue();
         TokenSesionExtension.Leer(_protector, resultado.Valor.Token)!.SecurityStamp.Should().Be("sello-del-restablecimiento");
@@ -279,7 +282,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         seleccion.SesionPrivilegiadaIdSeleccionada.Should().Be(SesionPrivilegiada);
         seleccion.Invalidar();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, seleccion, new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, seleccion, new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
 
         DebeNombrarSoloALaCuentaAutenticada(resultado);
     }
@@ -296,7 +299,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     }
 
     private Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirConCookieAsync(string cookie) =>
-        EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, SeleccionReal(cookie), new LoggerFactory([_registro]));
+        EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, SeleccionReal(cookie), new LoggerFactory([_registro]), MarcasSesionDePrueba.Recientes());
 
     private ClienteActivoSeleccionado SeleccionReal(string cookie)
     {

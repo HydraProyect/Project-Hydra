@@ -51,6 +51,9 @@ public class PaginasDePlataformaSinGateDeRolTests
         // Orden global del menú lateral (2026-09-23): lo escribe el Actor de Plataforma TALVEG con
         // concesión AdminPlataforma global (GuardarOrdenMenuLateralCommand), no el rol Administrador.
         "src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor",
+        // Tarjeta 31 (2026-11-16): alta del Tenant TCE. Su autoridad es la Sesión Privilegiada de Aprovisionamiento que
+        // exigen ContratarLineaInbound, CorregirLineaInbound y DarDeBajaLineaInbound (AutoridadSobreLaLineaInbound), no un rol.
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Pages/AltaTenantTce.razor",
     ];
 
     /// <summary>

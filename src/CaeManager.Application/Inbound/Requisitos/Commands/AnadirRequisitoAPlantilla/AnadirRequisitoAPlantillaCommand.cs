@@ -15,7 +15,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPla
 /// </summary>
 [AreaDelEncargo("TiposDocumento")]
 public record AnadirRequisitoAPlantillaCommand(
-    Guid PlantillaId, Guid TipoDocumentoId, Guid? RequisitoBaseId, AtributosRequisito Atributos, Guid Version = default) : ICommand<Guid>;
+    Guid PlantillaId, Guid TipoDocumentoId, Guid? RequisitoBaseId, AtributosRequisito Atributos, Guid Version = default) : ICommand<Guid>, IComandoInbound;
 
 public class AnadirRequisitoAPlantillaCommandValidator : AbstractValidator<AnadirRequisitoAPlantillaCommand>
 {

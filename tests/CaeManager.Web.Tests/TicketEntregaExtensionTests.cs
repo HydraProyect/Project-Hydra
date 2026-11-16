@@ -51,7 +51,7 @@ public class TicketEntregaExtensionTests
     [Fact]
     public void Un_token_de_sesion_no_vale_como_ticket_ni_al_reves()
     {
-        var token = TokenSesionExtension.Proteger(_proveedor, Guid.NewGuid(), "SELLO", Guid.NewGuid());
+        var token = TokenSesionExtension.Proteger(_proveedor, Guid.NewGuid(), "SELLO", Guid.NewGuid(), MarcasSesionDePrueba.Recientes());
         var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
 
         TicketEntregaExtension.Leer(_proveedor, token).Should().BeNull();

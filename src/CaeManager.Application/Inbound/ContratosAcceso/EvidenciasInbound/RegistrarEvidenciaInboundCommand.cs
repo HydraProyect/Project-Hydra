@@ -19,7 +19,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 /// </param>
 [AreaDelEncargo("ContratosAcceso")]
 public record RegistrarEvidenciaInboundCommand(
-    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>;
+    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>, IComandoInbound;
 
 /// <summary>
 /// Registra la copia de evidencia validada de un Documento original del Tenant de la Empresa contratista (Inbound M1,
