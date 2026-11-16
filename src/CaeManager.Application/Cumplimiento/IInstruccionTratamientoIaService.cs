@@ -20,6 +20,11 @@ namespace CaeManager.Application.Cumplimiento;
 /// toda clase de Application que reciba un puerto de IA tiene que recibir
 /// también esta interfaz.
 ///
+/// Desde la #2010 (D-7), también es el punto donde una objeción a un subencargado
+/// que se excluye por la IA apaga la IA para ese Tenant propietario: habilitada
+/// es «instrucción vigente y sin esa exclusión». Hoy hay un solo canal de IA, así
+/// que excluir el subencargado de IA apaga toda la IA del Tenant.
+///
 /// Nunca sabe nada de proveedor, modelo, región ni retención — eso es
 /// política técnica común de plataforma (§ 2 del documento de arriba), un
 /// plano distinto que esta interfaz no toca.

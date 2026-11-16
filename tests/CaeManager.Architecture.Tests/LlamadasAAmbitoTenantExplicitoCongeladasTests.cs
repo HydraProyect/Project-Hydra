@@ -506,6 +506,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Cumplimiento/Queries/ObtenerHistoricoInstruccionTratamientoIaTenantPropietario/ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion,
                 "request.TenantPropietarioId, mismo criterio que Registrar — lectura cruzada, no solo escritura"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/AvisarCambioSubencargadoCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "cada Tenant propietario activo que devuelve ISubencargadoRepository.TenantsPropietariosActivosAsync, tras " +
+                "AutorizacionSubencargados.ActorDePlataformaAsync confirmar AdminPlataforma global, 2FA y TOTP (#2010, D-7)"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/ActivarSubencargadoCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "cada Tenant propietario activo, mismo criterio que Avisar; solo lee si tiene aviso Enviado con plazo (#2010, D-7)"),
 
         // ── TENANT DE ORIGEN DEL USUARIO (Application) ──────────────────────────────
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] =

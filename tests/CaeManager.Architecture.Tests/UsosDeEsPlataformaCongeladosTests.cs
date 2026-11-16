@@ -303,6 +303,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "plataforma — mismo criterio que RegistrarSuscripcionTenantCommand:69: TALVEG no se " +
                 "instruye tratamiento a sí misma. La autorización real es PuedeSobreTenantAsync, dos " +
                 "líneas antes"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/AutorizacionSubencargados.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "rechaza la objeción a un subencargado (#2010, D-7) desde el Tenant de Plataforma: solo objeta el " +
+                "Administrador de un Tenant propietario. Impide, no concede: la autoridad la da " +
+                "AutoridadSobreAceptacionContractual.EsAdministradorDelTenantPropietarioAsync"),
+        ["src/CaeManager.Infrastructure/Persistence/Repositories/SubencargadoRepository.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "excluye el Tenant de Plataforma de los Tenants propietarios activos a los que se avisa y cuyo aviso " +
+                "exige la activación de un subencargado (#2010, D-7); no concede nada"),
         ["src/CaeManager.Application/Comercial/Common/TenantComercialExtensions.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":15 define EsSuscribible = !EsPlataforma. Nuevo en la corrección de hallazgo Codex del " +

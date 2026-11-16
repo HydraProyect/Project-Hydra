@@ -325,6 +325,12 @@ public class CaeManagerDbContext(
         => Set<CaeManager.Domain.Cumplimiento.AcuseAceptacionContractualTenant>();
     public DbSet<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario> InstruccionesTratamientoIaTenantPropietario
         => Set<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado> Subencargados
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado> AvisosCambioSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado> ObjecionesSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
     IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
