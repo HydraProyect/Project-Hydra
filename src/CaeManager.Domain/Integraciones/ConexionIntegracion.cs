@@ -152,9 +152,43 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Fecha de recepción desde la que se pide cada página del listado de la recuperación en curso
     /// (<c>receivedDateTime ge</c>, orden ascendente): la del último mensaje ya encolado, o
-    /// <see cref="RecuperacionHuecoCubreDesdeUtc"/> al empezar. Solo avanza. Null sin recuperación en curso.
+    /// <see cref="RecuperacionHuecoCubreDesdeUtc"/> al empezar. Solo avanza, salvo al entrar en un segundo por Id
+    /// (<see cref="AvanzarRecuperacionHuecoEnSegundo"/>), que lo deja al principio de su segundo: releer de más se
+    /// deduplica. Null sin recuperación en curso.
     /// </summary>
     public DateTime? RecuperacionHuecoCursorUtc { get; private set; }
+
+    /// <summary>
+    /// Desempate del cursor compuesto (recepción, Id), issue #2263: con él la recuperación recorre por Id un segundo con
+    /// más mensajes de los que caben en una página. Guarda, separados por <c>|</c>, la recuperación (<see cref="RecuperacionHuecoId"/>),
+    /// el segundo (ticks de <see cref="RecuperacionHuecoCursorUtc"/>) y el último Id ya encolado de ese segundo. Solo vale
+    /// mientras los dos primeros coincidan con la fila (<see cref="RecuperacionHuecoCursorId"/>): la ranura anterior del
+    /// despliegue azul/verde no conoce esta columna y puede anular la recuperación o mover el cursor sin borrarla, y un
+    /// desempate de otra recuperación o de otro segundo saltaría correo. Null: el cursor es solo la fecha.
+    /// </summary>
+    public string? RecuperacionHuecoCursorDesempate { get; private set; }
+
+    /// <summary>
+    /// Último Id ya encolado del segundo del cursor (<see cref="RecuperacionHuecoCursorUtc"/>) cuando la recuperación lo
+    /// recorre por Id (<c>receivedDateTime eq</c> el segundo <c>and id gt</c> este Id, en orden de Id). Null si el cursor es
+    /// solo la fecha, o si el desempate guardado es de otra recuperación o de otro segundo.
+    /// </summary>
+    public string? RecuperacionHuecoCursorId
+    {
+        get
+        {
+            if (RecuperacionHuecoCursorDesempate is not { } desempate || RecuperacionHuecoId is not { } id
+                || RecuperacionHuecoCursorUtc is not { } cursor)
+                return null;
+
+            var partes = desempate.Split('|', 3);
+            return partes.Length == 3 && partes[0] == id.ToString("N")
+                && partes[1] == cursor.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                && partes[2].Length > 0
+                ? partes[2]
+                : null;
+        }
+    }
 
     /// <summary>
     /// El listado de la recuperación en curso llegó al final: una página pedida desde el cursor volvió sin
@@ -164,11 +198,12 @@ public class ConexionIntegracion : EntidadBase
     public bool RecuperacionHuecoListadoCompleto { get; private set; }
 
     /// <summary>
-    /// La recuperación en curso está detenida en este segundo: una página pedida desde el cursor, con más detrás, no
-    /// trajo ningún mensaje de un segundo posterior (≥ 1000 correos recibidos en ese mismo segundo, o una página parcial
-    /// de Graph cuyo máximo es el cursor). La página no se encola, el cursor no avanza y la marca se queda; Conexiones
-    /// avisa de la recuperación detenida. Se vuelve a pedir en cada pasada y se borra en cuanto una página avanza el
-    /// cursor, o al anular la recuperación. Null: no está detenida.
+    /// La recuperación en curso está detenida en este segundo: una página con más detrás no sale del segundo del cursor y
+    /// el segundo tampoco se puede recorrer por Id (issue #2263): la página vino vacía, alguna recepción trae fracción de
+    /// segundo (<c>eq</c> el segundo no la encontraría), o la página por Id no es coherente (vacía con más detrás, fuera
+    /// del segundo o fuera de orden, que el adaptador rechaza). La página no se encola, el cursor no avanza y la marca se
+    /// queda; Conexiones avisa de la recuperación detenida. Se vuelve a pedir en cada pasada y se borra en cuanto una
+    /// página avanza el cursor, o al anular la recuperación. Null: no está detenida.
     /// </summary>
     public DateTime? RecuperacionHuecoAtascadaEnUtc { get; private set; }
 
@@ -426,6 +461,7 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoId = IdentificadorEntidad.Nuevo();
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
+        RecuperacionHuecoCursorDesempate = null;
         RecuperacionHuecoListadoCompleto = false;
         return desde;
     }
@@ -444,19 +480,57 @@ public class ConexionIntegracion : EntidadBase
             throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
         if (RecuperacionHuecoListadoCompleto)
             throw new InvalidOperationException("El listado de la recuperación del hueco ya terminó.");
+        if (RecuperacionHuecoCursorId is not null)
+            throw new InvalidOperationException("La recuperación del hueco recorre un segundo por Id: se avanza con AvanzarRecuperacionHuecoEnSegundo.");
 
         if (ultimoRecibidoUtc is { } ultimo && ultimo > cursor)
             RecuperacionHuecoCursorUtc = ultimo;
 
+        // Un desempate que ya no vale (de la ranura anterior) no se arrastra.
+        RecuperacionHuecoCursorDesempate = null;
         RecuperacionHuecoAtascadaEnUtc = null;
         if (!hayMas)
             RecuperacionHuecoListadoCompleto = true;
     }
 
     /// <summary>
-    /// Una página con más detrás no sale del segundo del cursor: pedirla otra vez desde él devolvería la misma. No se
-    /// encola nada, el cursor no avanza y el listado no termina; queda registrado en qué segundo está detenida
-    /// (<see cref="RecuperacionHuecoAtascadaEnUtc"/>).
+    /// Issue #2263: una página del segundo del cursor, pedida por Id (<c>receivedDateTime eq</c> el segundo <c>and id gt</c>
+    /// <see cref="RecuperacionHuecoCursorId"/>, en orden de Id), ya está encolada. Si traía más detrás
+    /// (<paramref name="hayMas"/>), el cursor se queda en el principio del segundo y el desempate pasa a
+    /// <paramref name="ultimoId"/>, que tiene que ser posterior (orden ordinal) al anterior. Si no, el segundo está leído
+    /// entero: el cursor pasa al segundo siguiente, sin desempate, y el listado sigue por fecha; no termina aquí, porque
+    /// lo posterior a ese segundo aún no se ha pedido.
+    /// </summary>
+    public void AvanzarRecuperacionHuecoEnSegundo(string? ultimoId, bool hayMas)
+    {
+        if (RecuperacionHuecoCursorUtc is not { } cursor || RecuperacionHuecoId is not { } id)
+            throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
+        if (RecuperacionHuecoListadoCompleto)
+            throw new InvalidOperationException("El listado de la recuperación del hueco ya terminó.");
+
+        var segundo = SegundoDe(cursor);
+        RecuperacionHuecoAtascadaEnUtc = null;
+        if (!hayMas)
+        {
+            RecuperacionHuecoCursorUtc = segundo.AddSeconds(1);
+            RecuperacionHuecoCursorDesempate = null;
+            return;
+        }
+
+        if (string.IsNullOrEmpty(ultimoId) || ultimoId.Contains('|'))
+            throw new ArgumentException("El desempate necesita el Id del último mensaje de la página.", nameof(ultimoId));
+        if (RecuperacionHuecoCursorId is { } anterior && string.CompareOrdinal(ultimoId, anterior) <= 0)
+            throw new InvalidOperationException("El desempate del cursor solo avanza.");
+
+        RecuperacionHuecoCursorUtc = segundo;
+        RecuperacionHuecoCursorDesempate = string.Join('|',
+            id.ToString("N"), segundo.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture), ultimoId);
+    }
+
+    /// <summary>
+    /// Una página con más detrás no sale del segundo del cursor y ese segundo no se puede recorrer por Id: pedirla otra
+    /// vez desde él devolvería la misma. No se encola nada, el cursor no avanza y el listado no termina; queda registrado
+    /// en qué segundo está detenida (<see cref="RecuperacionHuecoAtascadaEnUtc"/>).
     /// </summary>
     /// <returns>true si hay algo que guardar (no estaba ya detenida en ese segundo).</returns>
     public bool RegistrarAtascoRecuperacionHueco()
@@ -508,6 +582,7 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoId = null;
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
+        RecuperacionHuecoCursorDesempate = null;
         RecuperacionHuecoListadoCompleto = false;
         RecuperacionHuecoAtascadaEnUtc = null;
         return true;

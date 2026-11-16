@@ -329,9 +329,59 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         var indice = ListadosRecibidosPedidos.Count;
         ListadosRecibidosPedidos.Add((buzon, desdeUtc));
         AlListarRecibidos?.Invoke(indice);
+        if (BuzonSimulado is { } simulado)
+        {
+            // ge redondeado hacia abajo al segundo, en orden de recepción; dentro del segundo, al revés del Id, para que
+            // nada dependa por casualidad de que el listado por fecha ya venga en orden de Id.
+            var desde = new DateTime(desdeUtc.Ticks - desdeUtc.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+            return Task.FromResult(PaginaSimulada(simulado
+                .Where(m => m.RecibidoUtc >= desde)
+                .OrderBy(m => m.RecibidoUtc)
+                .ThenByDescending(m => m.MensajeExternoId, StringComparer.Ordinal)));
+        }
+
         return Task.FromResult(indice < PaginasRecibidos.Count
             ? PaginasRecibidos[indice]
             : Result.Exito(new PaginaMensajesRecibidosGraphDto([], false)));
+    }
+
+    /// <summary>
+    /// Buzón simulado (issue #2263): si no es null, los dos listados de la recuperación se calculan sobre él con la
+    /// semántica que se pide a Graph (ge el segundo; eq el segundo y id gt, en orden ordinal de Id), en páginas de
+    /// <see cref="TamanoPaginaSimulada"/>, en vez de servir <see cref="PaginasRecibidos"/> y <see cref="PaginasEnSegundo"/>.
+    /// </summary>
+    public List<MensajeRecibidoGraphDto>? BuzonSimulado { get; set; }
+
+    /// <summary>Tamaño de página del buzón simulado: el $top del adaptador, a escala.</summary>
+    public int TamanoPaginaSimulada { get; set; } = 3;
+
+    /// <summary>Respuestas del recorrido por Id de un segundo, en el orden en que se piden (sin buzón simulado).</summary>
+    public List<Result<PaginaMensajesRecibidosGraphDto>> PaginasEnSegundo { get; } = [];
+
+    /// <summary>Cada petición del recorrido por Id de un segundo: buzón, segundo y desempate.</summary>
+    public List<(BuzonGraph Buzon, DateTime SegundoUtc, string? DespuesDeId)> ListadosEnSegundoPedidos { get; } = [];
+
+    public Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosEnSegundoAsync(
+        string accessToken, BuzonGraph buzon, DateTime segundoUtc, string? despuesDeId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var indice = ListadosEnSegundoPedidos.Count;
+        ListadosEnSegundoPedidos.Add((buzon, segundoUtc, despuesDeId));
+        if (BuzonSimulado is { } simulado)
+            return Task.FromResult(PaginaSimulada(simulado
+                .Where(m => m.RecibidoUtc == segundoUtc
+                    && (despuesDeId is null || string.CompareOrdinal(m.MensajeExternoId, despuesDeId) > 0))
+                .OrderBy(m => m.MensajeExternoId, StringComparer.Ordinal)));
+
+        return Task.FromResult(indice < PaginasEnSegundo.Count
+            ? PaginasEnSegundo[indice]
+            : Result.Exito(new PaginaMensajesRecibidosGraphDto([], false)));
+    }
+
+    private Result<PaginaMensajesRecibidosGraphDto> PaginaSimulada(IEnumerable<MensajeRecibidoGraphDto> ordenados)
+    {
+        var lista = ordenados.ToList();
+        return Result.Exito(new PaginaMensajesRecibidosGraphDto([.. lista.Take(TamanoPaginaSimulada)], lista.Count > TamanoPaginaSimulada));
     }
 
     public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds) => "recuperacion:" + string.Join(",", mensajeIds);

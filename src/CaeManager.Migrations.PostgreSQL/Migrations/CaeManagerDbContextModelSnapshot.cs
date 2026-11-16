@@ -8487,6 +8487,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("RecuperacionHuecoCubreDesdeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RecuperacionHuecoCursorDesempate")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
                         .HasColumnType("timestamp with time zone");
 

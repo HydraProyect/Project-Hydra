@@ -194,10 +194,15 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Eventos.Eventos.Select(e => e.PayloadCrudo).Should().Equal("recuperacion:a,b");
     }
 
+    /// <summary>
+    /// Issue #2263: un segundo con recepciones con fracción no se puede recorrer por Id (<c>eq</c> el segundo no las
+    /// encontraría). La marca del escenario lleva fracción, y con ella todos sus mensajes: sigue atascando.
+    /// </summary>
     [Fact]
-    public async Task Mas_de_mil_mensajes_del_mismo_segundo_atascan_la_recuperacion_falla_cerrado_y_la_marca_se_queda()
+    public async Task Mas_de_mil_mensajes_del_mismo_segundo_con_fraccion_atascan_la_recuperacion_falla_cerrado_y_la_marca_se_queda()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Marca.Ticks.Should().NotBe(ConexionIntegracion.SegundoDe(escenario.Marca).Ticks, "control: recepciones con fracción");
         var mismoSegundo = Enumerable.Range(0, 1000).Select(i => escenario.Mensaje($"s{i}", 10)).ToArray();
         escenario.Pagina(hayMas: true, escenario.Mensaje("antes", 5));
         // Una página entera (el $top del adaptador) del segundo del cursor, con más detrás.
@@ -215,6 +220,7 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
         escenario.Eventos.Eventos.Should().HaveCount(1 + 1000 / RecuperacionHuecoCorreoService.MaximoMensajesPorEvento,
             "la página que avanzó se encoló; la atascada no se encola");
+        escenario.Graph.ListadosEnSegundoPedidos.Should().BeEmpty("con fracción no se intenta el recorrido por Id");
 
         // Pasadas siguientes: igual, aunque todo lo encolado se haya ingerido. La marca no se limpia nunca así.
         escenario.IngerirTodo();
@@ -227,7 +233,7 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
-    public async Task Mil_del_mismo_segundo_con_mas_detras_atascan_sin_encolar_nada_en_dos_pasadas_seguidas()
+    public async Task Mil_del_mismo_segundo_con_fraccion_y_mas_detras_atascan_sin_encolar_nada_en_dos_pasadas_seguidas()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
         var mismoSegundo = Enumerable.Range(0, 1000).Select(i => escenario.Mensaje($"s{i}", 10)).ToArray();
@@ -254,7 +260,7 @@ public class RecuperacionHuecoCorreoServiceTests
     }
 
     [Fact]
-    public async Task Una_pagina_parcial_de_Graph_cuyo_maximo_es_el_cursor_atasca_sin_encolar()
+    public async Task Una_pagina_parcial_de_Graph_cuyo_maximo_es_el_cursor_con_fraccion_atasca_sin_encolar()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
         escenario.Pagina(hayMas: true, escenario.Mensaje("a", 10));
@@ -299,6 +305,95 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(ConexionIntegracion.SegundoDe(escenario.Marca));
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
         escenario.Eventos.Eventos.Should().BeEmpty();
+    }
+
+    /// <summary>Ids del segundo exacto, con relleno para que el orden ordinal sea el numérico.</summary>
+    private static MensajeRecibidoGraphDto[] DelSegundo(DateTime segundo, int cuantos) =>
+        [.. Enumerable.Range(0, cuantos).Select(i => new MensajeRecibidoGraphDto($"s{i:D2}", segundo))];
+
+    private static IEnumerable<string> IdsEncolados(Escenario escenario) =>
+        escenario.Eventos.Eventos.SelectMany(e => escenario.Graph.ExtraerMensajeIdsDeNotificacion(e.PayloadCrudo));
+
+    /// <summary>
+    /// Issue #2263: un segundo con más mensajes de los que caben en una página se recorre por Id (cursor compuesto) y la
+    /// recuperación sigue por fecha desde el segundo siguiente hasta completar el listado y limpiar la marca.
+    /// </summary>
+    [Fact]
+    public async Task Mas_de_una_pagina_del_mismo_segundo_se_recorre_por_id_y_la_marca_se_limpia()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        var delSegundo = DelSegundo(segundo, 8);
+        escenario.Graph.BuzonSimulado = [escenario.Mensaje("antes", 5), .. delSegundo, new("despues", segundo.AddSeconds(2))];
+        escenario.Graph.TamanoPaginaSimulada = 3;
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+
+        escenario.Graph.ListadosEnSegundoPedidos.Select(l => (l.SegundoUtc, l.DespuesDeId)).Should().Equal(
+            [(segundo, null), (segundo, "s02"), (segundo, "s05")], "cada página del segundo se pide tras el último Id de la anterior");
+        escenario.DesdePedidos.Should().Equal(
+            [escenario.Marca, segundo, segundo.AddSeconds(1)], "leído el segundo entero, el listado sigue por fecha desde el siguiente");
+        IdsEncolados(escenario).Should().BeEquivalentTo(
+            ["antes", .. delSegundo.Select(m => m.MensajeExternoId), "despues"], o => o.WithoutStrictOrdering(),
+            "cada mensaje del buzón se encola, y una sola vez");
+        IdsEncolados(escenario).Should().OnlyHaveUniqueItems();
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull();
+        escenario.Conexion.RecuperacionHuecoCursorId.Should().BeNull();
+
+        escenario.IngerirTodo();
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Limpiada);
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Issue #2263: el desempate se guarda con cada página. Si el tope de páginas corta la pasada a mitad del segundo, la
+    /// siguiente retoma el recorrido por Id desde el último Id guardado, sin volver a empezar el segundo ni saltar nada.
+    /// </summary>
+    [Fact]
+    public async Task Un_segundo_cortado_por_el_tope_de_la_pasada_se_retoma_por_id_en_la_siguiente()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        var delSegundo = DelSegundo(segundo, 12);
+        escenario.Graph.BuzonSimulado = [.. delSegundo];
+        escenario.Graph.TamanoPaginaSimulada = 1;
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Parcial);
+
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+        // Página 1 por fecha (s11, avanza al segundo), página 2 sin salir de él y páginas 3 a 10 por Id: s00 a s07.
+        escenario.Conexion.RecuperacionHuecoCursorId.Should().Be("s07", "el último Id encolado del recorrido por Id");
+        var pedidosPrimera = escenario.Graph.ListadosEnSegundoPedidos.Count;
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+
+        escenario.Graph.ListadosEnSegundoPedidos[pedidosPrimera].DespuesDeId.Should().Be("s07", "retoma desde el desempate guardado");
+        IdsEncolados(escenario).Should().BeEquivalentTo(delSegundo.Select(m => m.MensajeExternoId), o => o.WithoutStrictOrdering());
+        IdsEncolados(escenario).Should().OnlyHaveUniqueItems();
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Issue #2263: si al entrar en el segundo el recorrido por Id no devuelve nada (Graph guardaría la recepción con más
+    /// precisión de la que devuelve), avanzar saltaría lo que el listado por fecha sí vio: falla cerrado.
+    /// </summary>
+    [Fact]
+    public async Task Un_recorrido_por_id_vacio_al_entrar_en_el_segundo_atasca_sin_encolar()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        var delSegundo = DelSegundo(segundo, 2);
+        escenario.Pagina(hayMas: true, delSegundo);
+        escenario.Pagina(hayMas: true, delSegundo);
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+
+        escenario.Graph.ListadosEnSegundoPedidos.Should().ContainSingle();
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(segundo);
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
     }
 
     [Fact]

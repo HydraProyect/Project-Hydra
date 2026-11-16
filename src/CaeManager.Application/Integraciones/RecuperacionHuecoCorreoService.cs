@@ -20,7 +20,8 @@ public enum ResultadoRecuperacionHueco
     Parcial,
 
     /// <summary>
-    /// Una página con más detrás no sale del segundo del cursor: pedirla otra vez desde él devolvería la misma. No se
+    /// Una página con más detrás no sale del segundo del cursor y el segundo no se puede recorrer por Id (página vacía,
+    /// recepciones con fracción o un recorrido incoherente): pedirla otra vez desde él devolvería la misma. No se
     /// encola, el cursor no avanza, el listado no termina y la marca se queda (falla cerrado); la fila guarda el segundo
     /// (<see cref="ConexionIntegracion.RecuperacionHuecoAtascadaEnUtc"/>), Conexiones lo avisa y se registra.
     /// </summary>
@@ -60,7 +61,11 @@ public enum ResultadoRecuperacionHueco
 /// <item><b>Empates.</b> Cada página repite los mensajes del segundo del cursor: dentro de la pasada se descartan por Id
 /// antes de encolar. Entre pasadas no se encola lo ya ingerido ni lo que ya está en un evento de recuperación Pendiente
 /// o Procesando, y la ingesta deduplica el resto por <c>MensajeExternoId</c>. Si una página con más detrás
-/// no sale de ese mismo segundo, el cursor no puede avanzar: la página no se encola, la recuperación se queda
+/// no sale de ese mismo segundo, el cursor pasa a ser compuesto (recepción, Id), issue #2263: el segundo se recorre por
+/// Id (<see cref="IMicrosoft365GraphClient.ListarRecibidosEnSegundoAsync"/>), guardando el último Id encolado
+/// (<see cref="ConexionIntegracion.RecuperacionHuecoCursorId"/>) con cada página, y al leerlo entero el listado sigue por
+/// fecha desde el segundo siguiente. Si el segundo no se puede recorrer así (página vacía, recepciones con fracción o un
+/// recorrido incoherente), la página no se encola, la recuperación se queda
 /// <see cref="ResultadoRecuperacionHueco.Atascada"/> en ese segundo y la marca no se limpia.</item>
 /// <item><b>Una página, un guardado.</b> Lo nuevo de cada página se encola en eventos de recuperación
 /// (<see cref="EventoWebhook.CrearRecuperacion"/>, a lo sumo <see cref="MaximoMensajesPorEvento"/> Ids cada uno) en el
@@ -146,16 +151,18 @@ public class RecuperacionHuecoCorreoService(
     }
 
     /// <summary>Lo que la pasada espera encontrar en la fila: si cambia, alguien anuló o rehízo la recuperación.</summary>
-    private readonly record struct EstadoRecuperacion(Guid Id, DateTime CubreDesdeUtc, DateTime CursorUtc, bool ListadoCompleto)
+    private readonly record struct EstadoRecuperacion(
+        Guid Id, DateTime CubreDesdeUtc, DateTime CursorUtc, string? CursorId, bool ListadoCompleto)
     {
         public static EstadoRecuperacion De(ConexionIntegracion conexion) =>
             new(conexion.RecuperacionHuecoId!.Value, conexion.RecuperacionHuecoCubreDesdeUtc!.Value, conexion.RecuperacionHuecoCursorUtc!.Value,
-                conexion.RecuperacionHuecoListadoCompleto);
+                conexion.RecuperacionHuecoCursorId, conexion.RecuperacionHuecoListadoCompleto);
 
         public bool Coincide(ConexionIntegracion conexion) =>
             conexion.RecuperacionHuecoId == Id
             && conexion.RecuperacionHuecoCubreDesdeUtc == CubreDesdeUtc
             && conexion.RecuperacionHuecoCursorUtc == CursorUtc
+            && string.Equals(conexion.RecuperacionHuecoCursorId, CursorId, StringComparison.Ordinal)
             && conexion.RecuperacionHuecoListadoCompleto == ListadoCompleto;
     }
 
@@ -227,6 +234,8 @@ public class RecuperacionHuecoCorreoService(
         // Ids ya encolados en esta pasada: cada página repite los mensajes del segundo del cursor (ge).
         var encolados = new HashSet<string>(StringComparer.Ordinal);
         var mensajes = 0;
+        // Recorriendo por Id el segundo del cursor (issue #2263): retomado de la fila o porque una página no salió de él.
+        var enSegundo = recuperacion.CursorId is not null;
 
         for (var pagina = 1; ; pagina++)
         {
@@ -238,7 +247,10 @@ public class RecuperacionHuecoCorreoService(
             }
 
             var desdeUtc = recuperacion.CursorUtc;
-            var respuesta = await graphClient.ListarRecibidosDesdeAsync(accessToken, buzon, desdeUtc, cancellationToken);
+            var segundoDelCursor = ConexionIntegracion.SegundoDe(desdeUtc);
+            var respuesta = enSegundo
+                ? await graphClient.ListarRecibidosEnSegundoAsync(accessToken, buzon, segundoDelCursor, recuperacion.CursorId, cancellationToken)
+                : await graphClient.ListarRecibidosDesdeAsync(accessToken, buzon, desdeUtc, cancellationToken);
             if (respuesta.EsFallido)
             {
                 logger.LogWarning(
@@ -250,24 +262,68 @@ public class RecuperacionHuecoCorreoService(
             var leida = respuesta.Valor;
             var ultimoRecibidoUtc = leida.Mensajes.Count > 0 ? leida.Mensajes.Max(m => m.RecibidoUtc) : (DateTime?)null;
 
-            // shortcut: límite declarado del listado sin continuación posicional (issue #2124, opción (a) del cursor
-            // compuesto pendiente en una issue propia). Si una página con más detrás no trae ningún mensaje de un segundo
-            // posterior al del cursor (≥ 1000 correos recibidos en ese mismo segundo, o una página parcial de Graph cuyo
-            // máximo es el cursor), pedirla otra vez desde él devolvería la misma. Se detecta ANTES de encolar: la página no
-            // se guarda (ni se reencola en las pasadas siguientes), el cursor no avanza, el listado no termina y la marca
-            // se queda; la fila guarda el segundo de la detención, que Conexiones avisa, y se registra en cada pasada.
-            // Falla cerrado: avisa de más, nunca de menos.
-            if (leida.HayMas && (ultimoRecibidoUtc is not { } ultimo
-                || ConexionIntegracion.SegundoDe(ultimo) <= ConexionIntegracion.SegundoDe(desdeUtc)))
+            if (enSegundo)
             {
+                // Una página vacía con más detrás no deja desempate al que avanzar; y si al entrar en el segundo no vuelve
+                // nada, el eq no ve lo que el ge sí vio (Graph guardaría la recepción con más precisión de la que
+                // devuelve). En los dos casos, avanzar saltaría correo: falla cerrado.
+                if (leida.Mensajes.Count == 0 && (leida.HayMas || recuperacion.CursorId is null))
+                {
+                    logger.LogWarning(
+                        "La recuperación del hueco de {ConexionId} está detenida en {Segundo}: el recorrido por Id de ese segundo no es coherente. No se encola, el cursor no avanza y la marca se queda.",
+                        conexionId, segundoDelCursor);
+                    return await RegistrarAtascoAsync(conexionId, recuperacion, cancellationToken);
+                }
+
+                var ultimoId = leida.Mensajes.Count > 0 ? leida.Mensajes[^1].MensajeExternoId : null;
+                var enElSegundo = await GuardarPaginaAsync(
+                    conexionId, recuperacion, leida.Mensajes.Where(m => !encolados.Contains(m.MensajeExternoId)).ToList(),
+                    conexion => conexion.AvanzarRecuperacionHuecoEnSegundo(ultimoId, leida.HayMas), cancellationToken);
+                if (enElSegundo.Resultado is { } cortada)
+                    return new Listado(cortada);
+
+                encolados.UnionWith(leida.Mensajes.Select(m => m.MensajeExternoId));
+                recuperacion = enElSegundo.Recuperacion!.Value;
+                mensajes += leida.Mensajes.Count;
+                // Segundo leído entero: el cursor ya está en el siguiente y el listado sigue por fecha. No termina aquí.
+                if (!leida.HayMas)
+                    enSegundo = false;
+
+                if (mensajes >= MaximoMensajesPorPasada || pagina >= MaximoPaginasPorPasada)
+                    return TopeDeLaPasada(conexionId, mensajes, pagina, recuperacion);
+
+                continue;
+            }
+
+            // Una página con más detrás que no trae ningún mensaje de un segundo posterior al del cursor (≥ 1000 correos
+            // recibidos en ese mismo segundo, o una página parcial de Graph cuyo máximo es el cursor): pedirla otra vez
+            // desde él devolvería la misma. Se detecta ANTES de encolar y la página no se guarda. Si todos sus mensajes son
+            // de ese segundo exacto, sin fracción, el segundo se recorre por Id (cursor compuesto, issue #2263) desde la
+            // página siguiente. Si no (página vacía o recepciones con fracción, que eq el segundo no encontraría), el cursor
+            // no avanza, el listado no termina y la marca se queda; la fila guarda el segundo de la detención, que
+            // Conexiones avisa, y se registra en cada pasada. Falla cerrado: avisa de más, nunca de menos.
+            if (leida.HayMas && (ultimoRecibidoUtc is not { } ultimo
+                || ConexionIntegracion.SegundoDe(ultimo) <= segundoDelCursor))
+            {
+                if (leida.Mensajes.Count > 0 && leida.Mensajes.All(m => m.RecibidoUtc == segundoDelCursor))
+                {
+                    logger.LogInformation(
+                        "La recuperación del hueco de {ConexionId} recorre por Id el segundo {Segundo}: no cabe en una página.",
+                        conexionId, segundoDelCursor);
+                    enSegundo = true;
+                    continue;
+                }
+
                 logger.LogWarning(
-                    "La recuperación del hueco de {ConexionId} está detenida en {Segundo}: una página con más detrás no sale de ese segundo. No se encola, el cursor no avanza y la marca se queda.",
-                    conexionId, ConexionIntegracion.SegundoDe(desdeUtc));
+                    "La recuperación del hueco de {ConexionId} está detenida en {Segundo}: una página con más detrás no sale de ese segundo y no se puede recorrer por Id. No se encola, el cursor no avanza y la marca se queda.",
+                    conexionId, segundoDelCursor);
                 return await RegistrarAtascoAsync(conexionId, recuperacion, cancellationToken);
             }
 
             var nuevos = leida.Mensajes.Where(m => !encolados.Contains(m.MensajeExternoId)).ToList();
-            var guardada = await GuardarPaginaAsync(conexionId, recuperacion, nuevos, ultimoRecibidoUtc, leida.HayMas, cancellationToken);
+            var guardada = await GuardarPaginaAsync(
+                conexionId, recuperacion, nuevos, conexion => conexion.AvanzarRecuperacionHueco(ultimoRecibidoUtc, leida.HayMas),
+                cancellationToken);
             if (guardada.Resultado is { } corte)
                 return new Listado(corte);
 
@@ -279,13 +335,16 @@ public class RecuperacionHuecoCorreoService(
                 return new Listado(null, recuperacion);
 
             if (mensajes >= MaximoMensajesPorPasada || pagina >= MaximoPaginasPorPasada)
-            {
-                logger.LogWarning(
-                    "La recuperación del hueco de {ConexionId} alcanzó el tope de la pasada ({Mensajes} mensajes, {Paginas} páginas): el ciclo siguiente sigue desde el cursor {Cursor}.",
-                    conexionId, mensajes, pagina, recuperacion.CursorUtc);
-                return new Listado(ResultadoRecuperacionHueco.Parcial);
-            }
+                return TopeDeLaPasada(conexionId, mensajes, pagina, recuperacion);
         }
+    }
+
+    private Listado TopeDeLaPasada(Guid conexionId, int mensajes, int pagina, EstadoRecuperacion recuperacion)
+    {
+        logger.LogWarning(
+            "La recuperación del hueco de {ConexionId} alcanzó el tope de la pasada ({Mensajes} mensajes, {Paginas} páginas): el ciclo siguiente sigue desde el cursor {Cursor}.",
+            conexionId, mensajes, pagina, recuperacion.CursorUtc);
+        return new Listado(ResultadoRecuperacionHueco.Parcial);
     }
 
     /// <summary>
@@ -293,8 +352,8 @@ public class RecuperacionHuecoCorreoService(
     /// cursor. Si la fila ya no tiene la recuperación que se estaba siguiendo, no se guarda nada.
     /// </summary>
     private async Task<Listado> GuardarPaginaAsync(
-        Guid conexionId, EstadoRecuperacion esperada, IReadOnlyList<MensajeRecibidoGraphDto> nuevos, DateTime? ultimoRecibidoUtc,
-        bool hayMas, CancellationToken cancellationToken)
+        Guid conexionId, EstadoRecuperacion esperada, IReadOnlyList<MensajeRecibidoGraphDto> nuevos,
+        Action<ConexionIntegracion> avanzarCursor, CancellationToken cancellationToken)
     {
         Listado? listado = null;
         var ejecutado = await cerrojo.IntentarEjecutarAsync(conexionId, async ct =>
@@ -313,7 +372,7 @@ public class RecuperacionHuecoCorreoService(
                     conexionId, graphClient.ConstruirPayloadRecuperacion([.. lote.Select(m => m.MensajeExternoId)]),
                     lote.Min(m => m.RecibidoUtc)));
 
-            conexion.AvanzarRecuperacionHueco(ultimoRecibidoUtc, hayMas);
+            avanzarCursor(conexion);
             await unitOfWork.SaveChangesAsync(CancellationToken.None);
             listado = new Listado(null, EstadoRecuperacion.De(conexion));
         }, cancellationToken);

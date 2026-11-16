@@ -101,7 +101,10 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             // Recuperación del hueco (migración 20261115210000): detención, generación, cobertura, cursor y fin del
             // listado; ninguna es un secreto.
             "RecuperacionHuecoAtascadaEnUtc", "RecuperacionHuecoCubreDesdeUtc", "RecuperacionHuecoCursorUtc", "RecuperacionHuecoId",
-            "RecuperacionHuecoListadoCompleto"] },
+            "RecuperacionHuecoListadoCompleto",
+            // Desempate del cursor compuesto (migración 20261116104750, issue #2263): recuperación, segundo e Id de un
+            // mensaje de Graph; no es un secreto.
+            "RecuperacionHuecoCursorDesempate"] },
     };
 
     private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";

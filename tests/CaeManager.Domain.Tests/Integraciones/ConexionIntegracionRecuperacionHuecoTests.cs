@@ -107,6 +107,86 @@ public class ConexionIntegracionRecuperacionHuecoTests
         sinRecuperacion.Should().Throw<InvalidOperationException>();
     }
 
+    /// <summary>Issue #2263: el cursor compuesto (recepción, Id) recorre un segundo por Id y sale al siguiente.</summary>
+    [Fact]
+    public void El_recorrido_por_id_de_un_segundo_guarda_el_desempate_y_al_terminar_pasa_al_segundo_siguiente()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1).AddTicks(1234567), hayMas: true);
+        conexion.RegistrarAtascoRecuperacionHueco();
+
+        conexion.AvanzarRecuperacionHuecoEnSegundo("id-03", hayMas: true);
+
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-1), "al principio de su segundo: releer de más se deduplica");
+        conexion.RecuperacionHuecoCursorId.Should().Be("id-03");
+        conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull("avanzar por Id levanta la detención");
+        var retroceder = () => conexion.AvanzarRecuperacionHuecoEnSegundo("id-02", hayMas: true);
+        retroceder.Should().Throw<InvalidOperationException>("el desempate solo avanza");
+        var porFecha = () => conexion.AvanzarRecuperacionHueco(Ahora, hayMas: true);
+        porFecha.Should().Throw<InvalidOperationException>("recorriendo un segundo por Id no se avanza por fecha");
+
+        conexion.AvanzarRecuperacionHuecoEnSegundo("id-07", hayMas: true);
+        conexion.RecuperacionHuecoCursorId.Should().Be("id-07");
+        conexion.IniciarRecuperacionHueco(Ahora.AddMinutes(15)).Should().Be(Ahora.AddHours(-1), "retomar conserva el cursor compuesto");
+        conexion.RecuperacionHuecoCursorId.Should().Be("id-07");
+
+        conexion.AvanzarRecuperacionHuecoEnSegundo(null, hayMas: false);
+
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-1).AddSeconds(1));
+        conexion.RecuperacionHuecoCursorId.Should().BeNull();
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse("lo posterior a ese segundo aún no se ha pedido");
+    }
+
+    [Fact]
+    public void Anular_la_recuperacion_borra_el_desempate()
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHuecoEnSegundo("id-03", hayMas: true);
+
+        conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2));
+
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.RecuperacionHuecoCursorId.Should().BeNull("la recuperación nueva empieza con el cursor solo por fecha");
+    }
+
+    /// <summary>
+    /// La ranura anterior del despliegue azul/verde no conoce el desempate: puede mover el cursor o rehacer la
+    /// recuperación sin borrarlo. Un desempate de otro segundo o de otra recuperación no vale: saltaría correo.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Un_desempate_de_otro_segundo_o_de_otra_recuperacion_no_vale(bool otroSegundo)
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHuecoEnSegundo("id-03", hayMas: true);
+        conexion.RecuperacionHuecoCursorId.Should().Be("id-03", "control");
+        var desempate = conexion.RecuperacionHuecoCursorDesempate;
+
+        if (otroSegundo)
+        {
+            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoCursorUtc))!
+                .SetValue(conexion, Ahora.AddHours(-2));
+        }
+        else
+        {
+            conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2));
+            conexion.IniciarRecuperacionHueco(Ahora);
+            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoCursorDesempate))!
+                .SetValue(conexion, desempate);
+            conexion.RecuperacionHuecoCursorUtc.Should().Be(Ahora.AddHours(-3), "control: el mismo segundo que el desempate");
+        }
+
+        conexion.RecuperacionHuecoCursorId.Should().BeNull();
+        conexion.AvanzarRecuperacionHueco(Ahora.AddHours(-1), hayMas: true);
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull("avanzar por fecha no arrastra un desempate que ya no vale");
+    }
+
     [Fact]
     public void El_tope_de_antiguedad_se_trunca_al_segundo()
     {
