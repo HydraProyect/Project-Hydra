@@ -210,12 +210,22 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void El_modelo_de_Aptos_hoy_no_puede_llevar_un_motivo_medico()
+    public void El_modelo_de_Aptos_hoy_no_tiene_ninguna_propiedad_de_motivo_medico()
     {
         var propiedades = typeof(TrabajadorAptoHoy).GetProperties().Select(p => p.Name).ToList();
 
         propiedades.Should().NotContain(n => n.Contains("Motivo", StringComparison.OrdinalIgnoreCase) || n.Contains("Medic", StringComparison.OrdinalIgnoreCase)
             || n.Contains("Salud", StringComparison.OrdinalIgnoreCase) || n.Contains("Clinic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Un_CentroId_vacio_no_deja_la_ficha_cargando()
+    {
+        Preparar(centroNoVisible: true);
+
+        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, Guid.Empty)));
+
+        cut.FindAll("[role=tab]").Should().BeEmpty();
     }
 
     [Fact]
