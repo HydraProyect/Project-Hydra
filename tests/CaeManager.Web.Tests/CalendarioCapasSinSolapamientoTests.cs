@@ -38,6 +38,15 @@ public class CalendarioCapasSinSolapamientoTests : BunitContext
         public TaskCompletionSource Principal { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<string> Entradas { get; } = [];
         public int MaximoEnVuelo { get; private set; }
+        private int _atendidas;
+
+        /// <summary>
+        /// Se completa cuando el mediador ha contestado a las tres consultas de la carga (la principal, las visitas y las
+        /// capas). Lo que se mide —el orden de entrada y que nunca hubo dos en vuelo— queda fijado en ese momento, así que
+        /// se espera a este hecho y no a un sondeo con plazo: tras liberar la principal, la cadena de continuaciones pasa
+        /// por el pool de hilos varias veces y con la máquina cargada no cabía en el segundo por defecto de bUnit (#2240).
+        /// </summary>
+        public TaskCompletionSource TresAtendidas { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             puerta is null
@@ -72,6 +81,8 @@ public class CalendarioCapasSinSolapamientoTests : BunitContext
             finally
             {
                 Interlocked.Decrement(ref _enVuelo);
+                if (Interlocked.Increment(ref _atendidas) == 3)
+                    TresAtendidas.TrySetResult();
             }
         }
 
@@ -94,7 +105,7 @@ public class CalendarioCapasSinSolapamientoTests : BunitContext
     }
 
     [Fact]
-    public void Con_la_puerta_las_capas_esperan_a_que_termine_la_carga_principal()
+    public async Task Con_la_puerta_las_capas_esperan_a_que_termine_la_carga_principal()
     {
         var (pagina, mediador) = Montar(conPuerta: true);
 
@@ -103,12 +114,17 @@ public class CalendarioCapasSinSolapamientoTests : BunitContext
 
         mediador.Principal.SetResult();
 
-        pagina.WaitForAssertion(() => mediador.Entradas.Should().HaveCount(3)
+        // El plazo solo evita colgarse si alguna consulta no llegara nunca; el orden no depende de él.
+        await mediador.TresAtendidas.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        mediador.Entradas.Should().HaveCount(3)
             .And.StartWith("ObtenerVencimientosMesQuery")
             .And.Contain("ObtenerCapasCalendarioQuery")
-            .And.Contain("ObtenerVisitasParaCalendarioQuery"));
-        pagina.WaitForAssertion(() => pagina.FindAll(".capas-calendario").Should().ContainSingle());
+            .And.Contain("ObtenerVisitasParaCalendarioQuery");
         mediador.MaximoEnVuelo.Should().Be(1, "nunca hay dos consultas a la vez sobre el DbContext del circuito");
+
+        // Contestadas las capas, queda una sola vuelta al dispatcher para pintarlas. La espera asíncrona no retiene un hilo
+        // del pool mientras tanto, y se comprueba en cada repintado.
+        await pagina.WaitForAssertionAsync(() => pagina.FindAll(".capas-calendario").Should().ContainSingle(), TimeSpan.FromSeconds(10));
     }
 
     [Fact]

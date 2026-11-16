@@ -162,6 +162,11 @@ public class RevocacionCierraOperacionesOutboundAcotadasBajoRuntimeTests : IAsyn
         (await CarterasNoCerradasAsync(_inbound)).Should().Be(1);
 
         await using var verificacion = ContextoPropietarioDeLaBase();
+        // Las filas heredadas tampoco sobreviven a la revocación (ronda 1 de Codex en la PR #2237, alta 1): las revoca el
+        // comando y, para cualquier escritor, el trigger.
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas
+                .Where(a => a.DelegacionTenantId == _delegacion).ToListAsync())
+            .Should().HaveCount(2).And.OnlyContain(a => a.RevocadaEnUtc != null && a.MotivoRevocacion != null);
         var programada = await verificacion.AsignacionesCartera.IgnoreQueryFilters()
             .SingleAsync(c => c.Id == _carteraProgramadaPrincipal);
         programada.EraPrincipalAlCerrarsePorCascada.Should().BeTrue(

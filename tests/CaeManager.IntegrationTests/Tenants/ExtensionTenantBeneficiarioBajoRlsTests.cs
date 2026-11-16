@@ -357,12 +357,21 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
             propietario, operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
         var cartera = AsignacionCartera.Externa(
             operacion, usuario, Roles.GestorCae, AmbitoAsignacion.Universal, desde, null, ahora);
-        _propietario.AsignacionesOperacion.Add(operacion);
         _propietario.AsignacionesCartera.Add(cartera);
         // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
-        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
+        // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223). La primera
+        // operación del par la sella como su origen para que EF inserte la delegación antes; las siguientes
+        // encuentran la delegación ya guardada y el trigger la deduce.
         if (operador != propietario && _paresConDelegacion.Add((propietario, operador)))
-            _propietario.DelegacionesTenant.Add(new DelegacionTenant(operador, propietario));
+        {
+            var delegacion = new DelegacionTenant(operador, propietario);
+            _propietario.DelegacionesTenant.Add(delegacion);
+            OperacionExternaAmparada.Agregar(_propietario, operacion, delegacion);
+        }
+        else
+        {
+            _propietario.AsignacionesOperacion.Add(operacion);
+        }
         await _propietario.SaveChangesAsync();
         return (operacion, cartera);
     }

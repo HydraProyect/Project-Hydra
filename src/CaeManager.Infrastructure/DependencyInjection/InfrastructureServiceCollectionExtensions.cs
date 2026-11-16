@@ -461,6 +461,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Calendario.ICalendarioLaboralQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Inbound.Requisitos.IPlantillaRequisitosRepository, PlantillaRequisitosRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();

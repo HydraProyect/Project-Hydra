@@ -163,7 +163,8 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
             var operacion = AsignacionOperacion.Externa(
                 beneficiario.Id, _tenantOperadorCae, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 ahora.AddDays(-1), null, ahora);
-            contexto.AsignacionesOperacion.Add(operacion);
+            // Amparada por su DelegacionTenant de origen: sin ella la vía de Operación no autoriza (AmparoDeOrigen).
+            OperacionExternaAmparada.Agregar(contexto, operacion);
             await contexto.SaveChangesAsync();
             _operacionDelBeneficiario = operacion.Id;
         }

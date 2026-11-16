@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
-using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Dashboard;
@@ -49,17 +48,15 @@ public static class AutorizacionTarifasOperadorCae
 
     /// <summary>
     /// Si <paramref name="operadorTenantId"/> opera hoy a <paramref name="propietarioTenantId"/> como Operador CAE
-    /// externo: una Asignación de Operación vigente, no raíz, con propietario distinto del operador y amparada por su
-    /// DelegacionTenant de origen (<see cref="AmparoDeOrigen.SinOrigenOAmparadasPorSuOrigen(IQueryable{AsignacionOperacion}, ITenantsQueryContext, DateTime)"/>,
-    /// ronda 2 de Codex en la PR #2253): una operación que sobrevivió a la revocación de su delegación no deja fijar
-    /// una tarifa a un Tenant beneficiario que ya no se gestiona. Una operación sin origen sigue como antes de la fase
-    /// de expansión. Se llama con el ámbito en el Tenant de origen del Operador CAE, que es extremo de la delegación y
-    /// la ve bajo RLS.
+    /// externo: una Asignación de Operación vigente, no raíz, con propietario distinto del operador y amparada por la
+    /// DelegacionTenant concreta de la que nació (<see cref="AmparoDeOrigen"/>). Una operación que sobrevivió a la
+    /// revocación o a la caducidad de su delegación no deja fijar tarifas (ronda 1 de Codex en la PR #2237).
     /// </summary>
     public static Task<bool> GestionaAsync(
-        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid operadorTenantId, Guid propietarioTenantId,
-        DateTime ahoraUtc, CancellationToken cancellationToken) =>
-        operaciones.AsignacionesOperacion.SinOrigenOAmparadasPorSuOrigen(tenants, ahoraUtc).AnyAsync(o =>
+        IOperacionesQueryContext operaciones, Guid operadorTenantId, Guid propietarioTenantId, DateTime ahoraUtc, CancellationToken cancellationToken) =>
+        operaciones.AsignacionesOperacion
+            .AmparadasPorSuOrigen(operaciones.DelegacionesTenant, ahoraUtc)
+            .AnyAsync(o =>
             !o.EsRaiz
             && o.OperadorTenantId == operadorTenantId
             && o.PropietarioTenantId == propietarioTenantId
@@ -139,7 +136,7 @@ public class FijarTarifaOperadorCaeCommandValidator : AbstractValidator<FijarTar
 
 public class FijarTarifaOperadorCaeCommandHandler(
     ICurrentUserService usuario, ITarifasOperadorCaeContext contexto, IOperacionesQueryContext operaciones,
-    ITenantsQueryContext tenants, IUnitOfWork unidad, TimeProvider reloj) : IRequestHandler<FijarTarifaOperadorCaeCommand, Result>
+    IUnitOfWork unidad, TimeProvider reloj) : IRequestHandler<FijarTarifaOperadorCaeCommand, Result>
 {
     public async Task<Result> Handle(FijarTarifaOperadorCaeCommand request, CancellationToken cancellationToken)
     {
@@ -150,7 +147,7 @@ public class FijarTarifaOperadorCaeCommandHandler(
 
         var ahora = reloj.GetUtcNow().UtcDateTime;
         using var ambito = AmbitoTenantExplicito.Establecer(operador);
-        if (!await AutorizacionTarifasOperadorCae.GestionaAsync(operaciones, tenants, operador, request.PropietarioTenantId, ahora, cancellationToken))
+        if (!await AutorizacionTarifasOperadorCae.GestionaAsync(operaciones, operador, request.PropietarioTenantId, ahora, cancellationToken))
             return Result.Fallo(AutorizacionTarifasOperadorCae.EmpresaNoGestionada);
 
         contexto.Agregar(TarifaOperadorCae.Registrar(

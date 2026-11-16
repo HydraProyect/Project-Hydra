@@ -45,7 +45,8 @@ public class AvisosCriticosBajoRlsTests
         {
             siembra.Tenants.AddRange(propietario, operador);
             await siembra.SaveChangesAsync();
-            siembra.AsignacionesOperacion.Add(AsignacionOperacion.Externa(propietario.Id, operador.Id,
+            // Amparada por su DelegacionTenant de origen: sin ella no opera el hilo (AmparoDeOrigen).
+            OperacionExternaAmparada.Agregar(siembra, AsignacionOperacion.Externa(propietario.Id, operador.Id,
                 ServicioCae.Outbound, new AmbitoAsignacion(), ahora.AddDays(-1), null, ahora));
             using (AmbitoTenantExplicito.Establecer(propietario.Id))
             {

@@ -65,15 +65,21 @@ public class ClienteActivoEndpointsAutorizacionTests
         await using var db = await CrearContexto();
         var ahora = DateTime.UtcNow;
         var desde = ahora.AddDays(-2);
-        var operacion = AsignacionOperacion.Externa(Destino, caso == "otro-operador" ? Guid.NewGuid() : Origen,
+        var otroOperador = Guid.NewGuid();
+        var operacion = AsignacionOperacion.Externa(Destino, caso == "otro-operador" ? otroOperador : Origen,
             ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
         var cartera = AsignacionCartera.Externa(operacion, caso == "otro-usuario" ? Guid.NewGuid() : Usuario,
             "GestorCae", AmbitoAsignacion.Universal, caso == "futura" ? ahora.AddDays(1) : desde,
             caso == "caducada" ? ahora.AddDays(-1) : null, ahora);
         if (caso == "suspendida") cartera.Suspender();
         if (caso == "operacion-suspendida") operacion.Suspender();
-        // La vía de Operación exige además la DelegacionTenant de Operador CAE externo del par vigente (PR #2223).
-        db.AddRange(operacion, cartera, new DelegacionTenant(Origen, Destino));
+        // La vía de Operación exige además la DelegacionTenant de la que nació la operación, vigente (PR #2223).
+        // En «otro-operador» la operación también tiene un origen válido, el de la delegación de ese otro Operador CAE
+        // externo, y el propio sigue teniendo la suya: solo la niega que la operación no sea de su Operador CAE.
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        var delegacionDelOtro = new DelegacionTenant(otroOperador, Destino);
+        operacion.FijarOrigen(caso == "otro-operador" ? delegacionDelOtro : delegacion);
+        db.AddRange(operacion, cartera, delegacion, delegacionDelOtro);
         await db.SaveChangesAsync();
         var http = Contexto();
         Comprobar(await Cambiar(Destino, http, db), http, permitido, permitido ? operacion.Id : null);
