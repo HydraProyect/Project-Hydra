@@ -315,6 +315,8 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         revisada.Estado.Should().Be(EstadoRespuestaSugerida.Revisada);
         revisada.RevisadaPorUsuarioId.Should().Be(_usuarioId);
         revisada.TenantId.Should().Be(_tenantSesion);
+        // Insertar escribe Insertada con el rol runtime (issue #2007): sin su GRANT UPDATE por columna, falla con 42501.
+        revisada.Insertada.Should().BeTrue();
 
         await using var despues = CrearRuntime();
         (await despues.ComprobarEnvioAsync(_conversacionPropia, TextoEscritoAMano, CancellationToken.None)).EsExitoso.Should().BeTrue();

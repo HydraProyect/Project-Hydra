@@ -7,6 +7,8 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 
@@ -72,7 +74,8 @@ public class EnviarMensajeNuevoCommandHandler(
     IFileStorageService almacenamiento,
     IResolucionParticipanteConversacionService resolucionParticipante,
     IUnitOfWork unitOfWork,
-    IRegistroExportacionService registroSalida)
+    IRegistroExportacionService registroSalida,
+    ILogger<EnviarMensajeNuevoCommandHandler>? logger = null)
     : IRequestHandler<EnviarMensajeNuevoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(EnviarMensajeNuevoCommand request, CancellationToken cancellationToken)
@@ -118,6 +121,14 @@ public class EnviarMensajeNuevoCommandHandler(
             alcanceDatos, invalidadorAlcance, conexion.Id, request.Destinatarios.Concat(request.Copia ?? []), request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
+
+        // Antes de enviar: un texto copiado de una propuesta de Vega revisada de cualquier hilo visible del buzón lleva su
+        // marca (issue #2007). Un mensaje nuevo no sale del redactor de una conversación: no hay id que validar.
+        var origen = await comunicaciones.OrigenDelEnvioAsync(
+            alcanceDatos, respuestaSugeridaId: null, conversacionId: null, conexion.Id, request.CuerpoHtml, cancellationToken);
+        if (origen.EsFallido)
+            return Result.Fallo<Guid>(origen.Error);
+        var sugerencia = origen.Valor;
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
@@ -133,9 +144,13 @@ public class EnviarMensajeNuevoCommandHandler(
         // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos,
-            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia);
+            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia,
+            contenidoIaRevisada: sugerencia?.Origen == OrigenRespuestaSugerida.Vega);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
+        // El correo ya salió: lo que falle desde aquí (hilo de otro titular, adjuntos, guardado) no lo deshace.
+        OrigenContenidoEnvio.TrazarEnvioAceptado(
+            (ILogger?)logger ?? NullLogger.Instance, "Microsoft 365", conversacionId: null, envioResultado.Valor.MensajeExternoId, sugerencia);
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken);
         var anterior = conversacion is null
@@ -170,6 +185,7 @@ public class EnviarMensajeNuevoCommandHandler(
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
             mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+        OrigenContenidoEnvio.RegistrarEn(mensaje, sugerencia);
         // Los destinatarios (Para) y las copias (Cc) son participantes del hilo igual: cambia solo el rol.
         foreach (var (destinatario, rol) in request.Destinatarios.Select(d => (d, RolParticipante.Para))
                      .Concat((request.Copia ?? []).Select(c => (c, RolParticipante.Cc))))

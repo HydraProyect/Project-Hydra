@@ -71,6 +71,13 @@ public class RespuestaSugerida : EntidadBase
     public Guid? RevisadaPorUsuarioId { get; private set; }
     public DateTime? RevisadaEnUtc { get; private set; }
 
+    /// <summary>
+    /// Pasó por el redactor (<see cref="Insertar"/>; issue #2007). Distingue una <see cref="EstadoRespuestaSugerida.Descartada"/>
+    /// que estuvo en el redactor, que conserva el origen de IA del texto que sigue allí, de una propuesta descartada sin
+    /// insertarla, que nunca puede ser el origen de un envío. False en las filas anteriores a la columna.
+    /// </summary>
+    public bool Insertada { get; private set; }
+
     public bool EstaActiva => Estado is EstadoRespuestaSugerida.Propuesta or EstadoRespuestaSugerida.SinRevisar;
 
     private RespuestaSugerida()
@@ -123,6 +130,7 @@ public class RespuestaSugerida : EntidadBase
             return Result.Fallo(ErrorTransicionNoPermitida);
 
         Estado = EstadoRespuestaSugerida.SinRevisar;
+        Insertada = true;
         return Result.Exito();
     }
 
