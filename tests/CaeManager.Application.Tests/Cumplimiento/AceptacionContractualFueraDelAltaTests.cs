@@ -276,7 +276,7 @@ public class AceptacionContractualFueraDelAltaTests
         var otraVez = await e.AceptarAsync(documentos: [CondicionesV1, EncargoV1]);
 
         otraVez.EsExitoso.Should().BeTrue();
-        e.Repositorio.Aceptaciones.Should().HaveCount(2, "idempotente por (Tenant, cuenta, documento, versión)");
+        e.Repositorio.Aceptaciones.Should().HaveCount(2, "idempotente por (Tenant, cuenta, documento, versión, hash)");
         e.Envio.Destinatarios.Should().HaveCount(1);
     }
 
