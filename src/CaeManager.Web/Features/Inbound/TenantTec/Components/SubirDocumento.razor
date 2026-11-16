@@ -1,0 +1,303 @@
+@using CaeManager.Web.Features.Inbound.TenantTec.Recursos
+@using CaeManager.Web.Features.Inbound.TenantTec.Servicios
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@inject ISubidaDocumentoTenantTec Subida
+@inject IStringLocalizer<TextosInboundTenantTec> Textos
+@inject ILogger<SubirDocumento> Registro
+
+@* «Subir documento» del Tenant TEC, en un drawer sobre la lista de requerimientos. La subida real (formatos, conversión a PDF,
+   comprobaciones C0/C1, filtro de datos de salud) es de B-20: hasta entonces «Subir» queda deshabilitado y lo dice. *@
+@{
+    var r = Requerimiento;
+}
+<DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["SbTitulo"]" Subtitulo="@r?.Nombre"
+                  HayCambios="HayCambios" Guardando="_subiendo" MensajeError="@_error"
+                  TextoGuardar="@Textos["Subir"]" TextoCancelar="@(_respuesta is null ? Textos["Cancelar"] : Textos["MasTarde"])"
+                  OnGuardar="SubirAsync" MostrarGuardar="@(_respuesta is null && r is not null)"
+                  MotivoGuardarDeshabilitado="@MotivoSinSubir">
+    <ChildContent>
+        @if (r is null)
+        {
+            <p class="det-sub">@Textos["SbNoEncontrado"]</p>
+        }
+        else if (_respuesta is { Resultado: ResultadoSubidaTec.Subido } hecho)
+        {
+            <section class="sub-hecho" aria-live="polite">
+                <h3 class="det-titulo">@Textos["SbHechoTitulo"]</h3>
+                <Badge Tono="TonoBadge.Info">@Textos["EstadoPendienteValidar"]</Badge>
+                @if (_seConvierte)
+                {
+                    <p class="det-sub">@Textos["SbConversion"]</p>
+                }
+                <p class="det-sub">@Textos["SbLoValidara", r.ClienteEmpresarial]</p>
+                @if (!string.IsNullOrWhiteSpace(hecho.SiguientePendiente))
+                {
+                    <p><strong>@Textos["SbSiguiente", hecho.SiguientePendiente]</strong></p>
+                }
+                else
+                {
+                    <p class="det-sub">@Textos["SbNoQuedan"]</p>
+                }
+            </section>
+        }
+        else if (_respuesta is { Resultado: ResultadoSubidaTec.NoAceptadoPorDatosDeSalud })
+        {
+            <section class="sub-hecho">
+                <Badge Tono="TonoBadge.Peligro">@Textos["SbNoAceptado"]</Badge>
+                <p class="det-sub">@Textos["SbDescartado"]</p>
+            </section>
+        }
+        else
+        {
+            <dl class="sub-datos">
+                <dt>@Textos["SbPara"]</dt>
+                <dd>@r.ReferenciaEntidad</dd>
+                <dt>@Textos["SbCentro"]</dt>
+                <dd>@r.Centro</dd>
+                <dt>@Textos["SbCliente"]</dt>
+                <dd>@r.ClienteEmpresarial</dd>
+            </dl>
+
+            @if (r.Estado == EstadoRequerimientoTec.Rechazado && r.Historial.Count > 0)
+            {
+                var ultimo = r.Historial[0];
+                <p class="det-motivo">@Textos["SbRechazado", PresentacionTenantTec.Fecha(DateOnly.FromDateTime(ultimo.Fecha.DateTime)), r.Motivo ?? ultimo.Motivo ?? string.Empty]</p>
+            }
+
+            @if (r.EsAptitudMedica)
+            {
+                <div role="note" class="sub-aviso-salud">
+                    <span><strong>@Textos["SbAvisoSaludA"]</strong>@Textos["SbAvisoSaludB"]</span>
+                </div>
+            }
+
+            @if (r.Historial.Count > 0)
+            {
+                <section>
+                    <h3 class="det-titulo">@Textos["SbAnteriores"]</h3>
+                    <ul class="det-historial">
+                        @foreach (var version in r.Historial)
+                        {
+                            <li>
+                                <span class="det-sub">@PresentacionTenantTec.FechaHora(version.Fecha)</span>
+                                <Badge Tono="PresentacionTenantTec.TonoEstado(version.Estado)" Tamano="TamanoBadge.Pequeno">@PresentacionTenantTec.Estado(Textos, version.Estado)</Badge>
+                                @if (!string.IsNullOrWhiteSpace(version.Motivo))
+                                {
+                                    <span class="det-sub">@version.Motivo</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(r.Criterio))
+            {
+                <section>
+                    <h3 class="det-titulo">@Textos["DetCriterio"]</h3>
+                    <p>@r.Criterio</p>
+                </section>
+            }
+
+            <label class="sub-zona">
+                <span><strong>@(_archivo?.Name ?? Textos["SbZona"].Value)</strong></span>
+                <span class="det-sub">@Textos["SbFormatos"]</span>
+                <InputFile class="sub-oculto" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic" OnChange="ElegirArchivo" />
+            </label>
+            <label class="sub-camara">
+                @Textos["SbCamara"]
+                <InputFile class="sub-oculto" accept="image/*" capture="environment" OnChange="ElegirArchivo" />
+            </label>
+            @if (_seConvierte)
+            {
+                <p class="det-sub">@Textos["SbConversion"]</p>
+            }
+
+            <div class="sub-campos">
+                <label>
+                    <span>@Textos["SbEmision"]</span>
+                    <input type="date" class="campo-input" @bind="_emision" />
+                </label>
+                <label>
+                    <span>@Textos["SbVencimiento"]</span>
+                    <input type="date" class="campo-input" @bind="_vencimiento" />
+                </label>
+            </div>
+
+            <section>
+                <h3 class="det-titulo">@Textos["SbComprobacion"]</h3>
+                <ul class="sub-comprobaciones">
+                    @foreach (var c in Comprobaciones())
+                    {
+                        <li class="sub-check sub-check-@c.Clase"><span aria-hidden="true">@c.Signo</span> @c.Texto</li>
+                    }
+                </ul>
+            </section>
+
+            <label class="sub-comentarios">
+                <span>@Textos["SbComentarios"]</span>
+                <textarea class="campo-input" rows="3" @bind="_comentarios" @bind:event="oninput"></textarea>
+            </label>
+        }
+    </ChildContent>
+    <PieExtra>
+        @if (_respuesta is not null)
+        {
+            <Boton Variante="VarianteBoton.Secundario" OnClick="ContinuarAsync">@Textos["Continuar"]</Boton>
+        }
+    </PieExtra>
+</DrawerFormulario>
+
+@code {
+    private const long TamanoMaximo = CaeManager.Application.Common.LimitesArchivoSubido.TamanoMaximoBytes;
+    private static readonly string[] Extensiones = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic"];
+
+    private IBrowserFile? _archivo;
+    private DateOnly? _emision;
+    private DateOnly? _vencimiento;
+    private string _comentarios = string.Empty;
+    private bool _subiendo;
+    private string? _error;
+    private RespuestaSubidaTec? _respuesta;
+    private Guid? _requerimientoVisto;
+    private bool _huboSubida;
+
+    [Parameter] public RequerimientoTec? Requerimiento { get; set; }
+    [Parameter] public bool Visible { get; set; }
+
+    /// <summary>Se cierra el drawer; el valor dice si se llegó a subir un documento (la lista se recarga).</summary>
+    [Parameter] public EventCallback<bool> OnCerrado { get; set; }
+
+    /// <summary>«Continuar» con otro requerimiento pendiente a la vista: abre su «Subir documento».</summary>
+    [Parameter] public EventCallback<Guid> OnSiguiente { get; set; }
+
+    private bool _seConvierte => _archivo is not null && !Path.GetExtension(_archivo.Name).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (_requerimientoVisto != Requerimiento?.Id)
+        {
+            _requerimientoVisto = Requerimiento?.Id;
+            _huboSubida |= _respuesta is { Resultado: ResultadoSubidaTec.Subido };
+            _archivo = null;
+            _emision = null;
+            _vencimiento = null;
+            _comentarios = string.Empty;
+            _error = null;
+            _respuesta = null;
+        }
+    }
+
+    private bool HayCambios() => _respuesta is null && (_archivo is not null || _emision is not null || _vencimiento is not null || _comentarios.Length > 0);
+
+    private void ElegirArchivo(InputFileChangeEventArgs e)
+    {
+        _archivo = e.File;
+        _error = null;
+    }
+
+    private IReadOnlyList<(string Clase, string Signo, string Texto)> Comprobaciones()
+    {
+        var lista = new List<(string, string, string)>();
+        if (_archivo is null)
+        {
+            lista.Add(("espera", "·", Textos["SbCheckEspera"]));
+        }
+        else
+        {
+            var extension = Path.GetExtension(_archivo.Name).ToLowerInvariant();
+            if (!Extensiones.Contains(extension))
+            {
+                lista.Add(("error", "✕", Textos["SbCheckFormatoMal", extension.TrimStart('.').ToUpperInvariant()]));
+            }
+            else if (_archivo.Size > TamanoMaximo)
+            {
+                lista.Add(("error", "✕", Textos["SbCheckTamano"]));
+            }
+            else
+            {
+                lista.Add(("ok", "✓", Textos["SbCheckFormatoOk", extension.TrimStart('.').ToUpperInvariant()]));
+            }
+        }
+
+        if (_vencimiento is { } vencimiento)
+        {
+            lista.Add(vencimiento < CaeManager.Domain.Common.DiaDeNegocio.Hoy()
+                ? ("error", "✕", Textos["SbCheckFechaMal"])
+                : ("ok", "✓", Textos["SbCheckFechaOk", PresentacionTenantTec.Fecha(vencimiento)]));
+        }
+
+        return lista;
+    }
+
+    // Por qué «Subir» no se puede pulsar, siempre con motivo: sin backend, sin archivo o con una comprobación en error.
+    private string? MotivoSinSubir =>
+        !Subida.Disponible ? Textos["SbNoDisponible"]
+        : Comprobaciones().FirstOrDefault(c => c.Clase is "error" or "espera") is { Texto: { } motivo } ? motivo
+        : null;
+
+    private async Task SubirAsync()
+    {
+        if (_subiendo || _archivo is null || Requerimiento is null || MotivoSinSubir is not null)
+        {
+            return;
+        }
+
+        _subiendo = true;
+        _error = null;
+        try
+        {
+            await using var contenido = _archivo.OpenReadStream(TamanoMaximo);
+            var respuesta = await Subida.SubirAsync(new SolicitudSubidaTec(
+                Requerimiento.Id, _archivo.Name, _archivo.ContentType, _archivo.Size, contenido, _emision, _vencimiento,
+                string.IsNullOrWhiteSpace(_comentarios) ? null : _comentarios.Trim()));
+            if (respuesta.Resultado is ResultadoSubidaTec.Subido or ResultadoSubidaTec.NoAceptadoPorDatosDeSalud)
+            {
+                _respuesta = respuesta;
+                if (respuesta.Resultado is ResultadoSubidaTec.NoAceptadoPorDatosDeSalud)
+                {
+                    // El rechazo es un error del formulario: lo pinta el kit (MensajeError), no un role="alert" escrito a mano.
+                    _error = Textos["SbNoGuardado", _archivo?.Name ?? string.Empty];
+                }
+            }
+            else
+            {
+                _error = Textos["SbError"];
+            }
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            Registro.LogError(excepcion, "No se ha podido subir el documento del requerimiento {RequerimientoId}.", Requerimiento.Id);
+            _error = Textos["SbError"];
+        }
+        finally
+        {
+            _subiendo = false;
+        }
+    }
+
+    private async Task ContinuarAsync()
+    {
+        if (_respuesta?.SiguientePendienteId is { } siguiente)
+        {
+            await OnSiguiente.InvokeAsync(siguiente);
+            return;
+        }
+
+        await CerrarAsync(false);
+    }
+
+    private Task CerrarAsync(bool visible) =>
+        visible ? Task.CompletedTask : CerrarConSubidasAsync();
+
+    // Con «Continuar» se encadenan requerimientos: la lista se recarga si se subió alguno desde que se abrió el drawer, no solo el último.
+    private async Task CerrarConSubidasAsync()
+    {
+        var huboSubida = _huboSubida || _respuesta is { Resultado: ResultadoSubidaTec.Subido };
+        _huboSubida = false;
+        _respuesta = null;
+        await OnCerrado.InvokeAsync(huboSubida);
+    }
+}

@@ -315,6 +315,9 @@ builder.Services.Configure<CaeManager.Infrastructure.Autorizacion.VistaDemoOptio
     builder.Configuration.GetSection(CaeManager.Infrastructure.Autorizacion.VistaDemoOptions.SeccionConfiguracion));
 // Mi trabajo oculto para la demo del 2026-11-10 (MiTrabajo:Oculto=false lo devuelve): ver MiTrabajoVisibilidad.
 CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.RegistrarOpcion(builder.Services, builder.Configuration);
+// Pantallas de Inbound (contratos de acceso): sus lecturas sin backend fusionado van detrás de interfaces de Web con
+// implementación vacía (marca «shortcut: sin backend»). La línea Inbound falla cerrado hasta que haya Query que la lea.
+CaeManager.Web.Features.Inbound.InboundServicios.Registrar(builder.Services);
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.ISolicitudVistaDemo, CaeManager.Web.Services.VistaDemoCookie>();
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.IVistaDemoActual, CaeManager.Infrastructure.Autorizacion.VistaDemoActual>();
 builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();
@@ -337,6 +340,8 @@ CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExt
 CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
+// Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
+CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
 builder.Services.AddScoped<DisponibilidadAsistente>();
