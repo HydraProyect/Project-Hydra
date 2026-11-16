@@ -1,0 +1,294 @@
+@page "/inbound/gobierno"
+@* Pantalla 20 de la maqueta de Inbound, «Gobierno de Inbound»: los ajustes del Tenant TCE, solo para su Administrador (el rol Administrador tal
+   como lo comprueban las demás pantallas de configuración; no se crea ninguna capacidad nueva). Hoy contiene la convalidación entre
+   Tenants TCE (CA-21), que activa solo el Administrador; la validación automática por tipo de documento llega en la ola siguiente y se enseña
+   como «Próximamente». Sin backend fusionado (B-36): el servicio responde «no disponible» y la pantalla no pinta ningún ajuste. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Inbound.Configuracion
+@inject IServicioGobiernoInbound Servicio
+@inject ToastService ToastService
+@inject AuthenticationStateProvider EstadoAutenticacion
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>Gobierno de Inbound — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Gobierno de Inbound — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina gb">
+    <CabeceraListado Grupo="Configuración" Titulo="Gobierno de Inbound" />
+    <p class="gb-subtitulo">Ajustes de @NombreConPunto Solo los ve su Administrador.</p>
+
+    @if (_reservada)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="Gobierno de Inbound no está disponible con el encargo de administración"
+                     Descripcion="Estos ajustes los gobierna el Administrador de la organización." />
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_error)
+    {
+        <EstadoVacio Titulo="No se pudo cargar el gobierno de Inbound" Descripcion="@(_errorCarga ?? "Inténtalo de nuevo en unos segundos.")">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_datos is null)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="El gobierno de Inbound no está disponible"
+                     Descripcion="Todavía no se pueden consultar estos ajustes. Cuando estén disponibles, aparecerán aquí." />
+    }
+    else
+    {
+        <section class="@("gb-sec" + (_activa ? "" : " gb-sec-off"))" aria-labelledby="gb-t-conv" data-pieza="convalidacion">
+            <div class="gb-top">
+                <div>
+                    <h2 id="gb-t-conv">Convalidación entre organizaciones</h2>
+                    <p>Un documento que un Gestor CAE ya validó en otra organización gestionada por el mismo Operador CAE externo puede darse por bueno aquí, sin volver a validarlo.</p>
+                </div>
+                <button type="button" role="switch" class="gb-sw" aria-checked="@(_activa ? "true" : "false")"
+                        aria-label="Activar la convalidación entre organizaciones" @onclick="Alternar"></button>
+            </div>
+            <div class="@("gb-sub" + (_activa ? "" : " gb-sub-apagado"))">
+                <h3>Con qué organizaciones</h3>
+                <div class="gb-mut">Solo los gestionados por @_datos.OperadorCae, el Operador CAE externo de esta organización.</div>
+                <div class="gb-lista">
+                    @foreach (var t in _datos.TenantsConvalidables)
+                    {
+                        var tenant = t;
+                        <label class="gb-chk">
+                            <input type="checkbox" checked="@_tenants.Contains(tenant.Id)" disabled="@(!_activa)" @onchange="() => Cambiar(() => Marcar(_tenants, tenant.Id))" />
+                            <span>@tenant.Nombre<small>@tenant.Nota</small></span>
+                        </label>
+                    }
+                    @if (_datos.TenantsConvalidables.Count == 0)
+                    {
+                        <span class="gb-mut" data-pieza="sin-tenants">No hay otras organizaciones gestionadas por este Operador CAE externo.</span>
+                    }
+                </div>
+
+                <h3>Qué tipos de requisito</h3>
+                <label class="gb-buscador">
+                    <input type="search" value="@_busqueda" @oninput="e => _busqueda = e.Value?.ToString() ?? string.Empty"
+                           placeholder="Buscar un tipo de requisito" aria-label="Buscar un tipo de requisito" disabled="@(!_activa)" />
+                </label>
+                @if (!Grupos.Any())
+                {
+                    <span class="gb-mut" data-pieza="sin-tipos">Ningún tipo coincide con la búsqueda.</span>
+                }
+                <div class="gb-ents">
+                    @foreach (var grupo in Grupos)
+                    {
+                        var entidad = grupo.Key;
+                        var todos = _datos.Tipos.Where(x => x.Entidad == entidad).Select(x => x.Clave).ToList();
+                        var marcados = todos.Count(_tipos.Contains);
+                        <div class="gb-ent">
+                            <label class="gb-chk gb-ent-t">
+                                <input type="checkbox" checked="@(marcados == todos.Count)" disabled="@(!_activa)"
+                                       @onchange="() => Cambiar(() => MarcarTodos(todos, marcados != todos.Count))" />
+                                <span>@entidad <span class="gb-mut">@marcados de @todos.Count</span></span>
+                            </label>
+                            @foreach (var tipo in grupo)
+                            {
+                                var clave = tipo.Clave;
+                                <label class="gb-chk">
+                                    <input type="checkbox" checked="@_tipos.Contains(clave)" disabled="@(!_activa)" @onchange="() => Cambiar(() => Marcar(_tipos, clave))" />
+                                    <span>@tipo.Nombre</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="gb-cond"><span class="gb-b gb-b-info">Condición fija</span><span>Solo si el criterio de validación de la otra organización es igual o menos exigente que el de esta.</span></div>
+                <p class="gb-nota">El documento entra como «Validado por convalidación» y queda auditable: se ve de qué organización y de qué Gestor CAE viene, y cuándo se dio por bueno.</p>
+                <p class="gb-nota gb-nota-aviso">No aplica a los requisitos con formulario del Centro ni a la Información del Centro: esos siempre se validan en esta organización.</p>
+            </div>
+        </section>
+
+        <section class="gb-sec gb-sec-off" aria-labelledby="gb-t-auto" data-pieza="validacion-automatica">
+            <div class="gb-top">
+                <div>
+                    <h2 id="gb-t-auto">Validación automática por tipo de documento <span class="gb-b gb-b-sin">Próximamente</span></h2>
+                    <p>La IA validará sola los tipos de documento cuya fiabilidad medida supere un umbral. Cada tipo requerirá que el Administrador lo active; hasta entonces todo sigue pasando por un Gestor CAE.</p>
+                </div>
+                <button type="button" role="switch" class="gb-sw" aria-checked="false" aria-label="Activar la validación automática (próximamente)" disabled></button>
+            </div>
+            <p class="gb-mut">Disponible en una próxima versión. No se puede activar todavía.</p>
+        </section>
+
+        <section class="gb-sec" aria-labelledby="gb-t-quien" data-pieza="quien-gestiona">
+            <h2 id="gb-t-quien">Quién gestiona</h2>
+            <dl class="gb-dl">
+                <dt>Operador CAE externo</dt><dd><strong>@_datos.OperadorCae</strong></dd>
+                <dt>Asignación de Operación</dt>
+                <dd><span class="gb-b gb-b-ok">@_datos.AsignacionDeOperacion</span> @if (_datos.AsignacionDesde is { } desde)
+                    {
+                        <span class="gb-cifras">desde @Fecha(desde)@(_datos.AsignacionHasta is { } hasta ? $" hasta {Fecha(hasta)}" : "")</span>
+                    }</dd>
+                <dt>Otras organizaciones que gestiona</dt><dd>@(_datos.OtrosTenantsGestionados.Count == 0 ? "Ninguno" : string.Join(", ", _datos.OtrosTenantsGestionados))</dd>
+            </dl>
+            <div class="gb-mut">La Asignación de Operación la da esta organización; la gestión diaria la hacen los Gestores CAE de ese Operador CAE.</div>
+        </section>
+
+        <section class="gb-sec gb-sec-tabla" aria-labelledby="gb-t-reg" data-pieza="registro">
+            <h2 id="gb-t-reg">Registro de cambios</h2>
+            <table class="tabla-datos gb-tabla" aria-label="Registro de cambios de estos ajustes">
+                <thead><tr><th scope="col">Cuándo</th><th scope="col">Quién</th><th scope="col">Cambio</th></tr></thead>
+                <tbody>
+                @foreach (var c in _datos.Registro.OrderByDescending(x => x.CuandoUtc))
+                {
+                    <tr><td class="gb-cifras">@Cuando(c.CuandoUtc)</td><td>@c.Quien</td><td>@c.Cambio</td></tr>
+                }
+                </tbody>
+            </table>
+            @if (_datos.Registro.Count == 0)
+            {
+                <p class="gb-vacio" data-pieza="registro-vacio">Todavía no se ha cambiado ningún ajuste.</p>
+            }
+        </section>
+
+        <div class="gb-barra">
+            <span class="gb-estado">@(SinCambios ? "Sin cambios por guardar." : "Hay cambios sin guardar.")</span>
+            @if (_mensajeError is not null)
+            {
+                <span class="gb-error" role="alert">@_mensajeError</span>
+            }
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="SinCambios" OnClick="Cancelar">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(SinCambios || _guardando || MotivoNoGuardar is not null)" Cargando="_guardando"
+                   title="@MotivoNoGuardar" OnClick="GuardarAsync">Guardar</Boton>
+        </div>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    private GobiernoInbound? _datos;
+    private bool _cargando = true;
+    private bool _error;
+    private bool _reservada;
+    private string? _errorCarga;
+    private bool _guardando;
+    private string? _mensajeError;
+    private bool _activa;
+    private HashSet<Guid> _tenants = [];
+    private HashSet<string> _tipos = [];
+    private string _busqueda = string.Empty;
+
+    private IEnumerable<IGrouping<string, TipoRequisitoConvalidable>> Grupos =>
+        (_datos?.Tipos ?? [])
+            .Where(t => _busqueda.Trim().Length == 0 || t.Nombre.Contains(_busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase))
+            .GroupBy(t => t.Entidad);
+
+    // El nombre de la organización puede acabar en punto («S.A.»): no se duplica.
+    private string NombreConPunto => _datos?.TenantTce is { Length: > 0 } n ? (n.EndsWith('.') ? n : n + ".") : "esta organización.";
+
+    // Activar la convalidación sin ninguna organización ni tipo no convalidaría nada: se pide al menos una y un tipo.
+    private string? MotivoNoGuardar => _activa && (_tenants.Count == 0 || _tipos.Count == 0)
+        ? "Para activar la convalidación elige al menos una organización y un tipo de requisito."
+        : null;
+
+    private bool SinCambios =>
+        _datos is null || (_activa == _datos.Convalidacion.Activa
+            && _tenants.SetEquals(_datos.Convalidacion.Tenants) && _tipos.SetEquals(_datos.Convalidacion.Tipos));
+
+    protected override async Task OnInitializedAsync()
+    {
+        // La página se reserva ella misma: PaginasExcluidasDelEncargo (Núcleo) no puede nombrar una página de Inbound (ADR-013 § 4.1, regla 3).
+        var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
+        _reservada = CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(usuario);
+        if (!_reservada) await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = false;
+        _errorCarga = null;
+        try
+        {
+            var respuesta = await Servicio.ObtenerAsync();
+            Aplicar(respuesta.Aceptada ? respuesta.Valor : null);
+            // «No disponible» es la pantalla sin backend; un rechazo del servidor es otro estado y dice su motivo.
+            if (respuesta.Disponible && respuesta.Mensaje is not null) { _error = true; _errorCarga = respuesta.Mensaje; }
+        }
+        catch (Exception)
+        {
+            _error = true;
+        }
+        _cargando = false;
+    }
+
+    private void Aplicar(GobiernoInbound? datos)
+    {
+        _datos = datos;
+        _activa = datos?.Convalidacion.Activa ?? false;
+        _tenants = [.. datos?.Convalidacion.Tenants ?? []];
+        _tipos = [.. datos?.Convalidacion.Tipos ?? []];
+        _busqueda = string.Empty;
+        _mensajeError = null;
+    }
+
+    private static string Fecha(DateOnly f) => MascaraFecha.Formatear(f);
+
+    private static string Cuando(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm", new System.Globalization.CultureInfo("es-ES"));
+
+    private void Alternar() => Cambiar(() => _activa = !_activa);
+
+    private void Cambiar(Action cambio)
+    {
+        cambio();
+        _mensajeError = null;
+    }
+
+    private static void Marcar<T>(HashSet<T> conjunto, T valor)
+    {
+        if (!conjunto.Remove(valor)) conjunto.Add(valor);
+    }
+
+    private void MarcarTodos(IReadOnlyList<string> nombres, bool marcar)
+    {
+        foreach (var n in nombres)
+        {
+            if (marcar) _tipos.Add(n); else _tipos.Remove(n);
+        }
+    }
+
+    private void Cancelar()
+    {
+        Aplicar(_datos);
+        ToastService.Mostrar("Cambios descartados.", TonoToast.Info);
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (SinCambios || MotivoNoGuardar is not null) return;
+        _guardando = true;
+        _mensajeError = null;
+        try
+        {
+            var respuesta = await Servicio.GuardarConvalidacionAsync(new ConvalidacionConfigurada(_activa, _tenants.ToArray(), _tipos.ToArray()));
+            if (!respuesta.Disponible)
+            {
+                _mensajeError = "No se puede guardar todavía: el gobierno de Inbound aún no está disponible.";
+                return;
+            }
+            if (!respuesta.Aceptada)
+            {
+                _mensajeError = respuesta.Mensaje ?? "No se pudo guardar. Inténtalo de nuevo.";
+                return;
+            }
+            Aplicar(respuesta.Valor);
+            ToastService.Mostrar("Guardado. Queda en el registro de cambios.", TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            _mensajeError = "No se pudo guardar. Inténtalo de nuevo.";
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

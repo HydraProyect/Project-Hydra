@@ -899,4 +899,10 @@
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documentos por validar</value>
   </data>
+  <data name="MenuInboundReglasAviso" xml:space="preserve">
+    <value>Reglas de aviso</value>
+  </data>
+  <data name="MenuInboundGobierno" xml:space="preserve">
+    <value>Gobierno de Inbound</value>
+  </data>
 </root>
