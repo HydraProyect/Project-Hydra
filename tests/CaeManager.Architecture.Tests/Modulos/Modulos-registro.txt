@@ -35,6 +35,7 @@ area Domain.Asignaciones             = Nucleo      provisional  # § 3, N-1
 area Domain.Operaciones              = Nucleo      provisional  # § 3, M-4: entidad común acotada por ServicioCae
 area Domain.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación frente a plataforma va en excepciones
 area Domain.DocumentosIa             = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.Archivos                 = Nucleo      provisional  # sin fila en § 3: outbox técnico de archivos del Tenant propietario que referencian Documentos y versiones de plantilla, ambos Núcleo (#2123)
 area Domain.Plantillas               = Nucleo      provisional  # § 3, M-5: motor de generación que reutiliza Inbound (B-30)
 area Domain.Integraciones            = Nucleo      provisional  # § 3, A-2: canales técnicos; los conectores de plataformas CAE en excepciones
 area Domain.Notificaciones           = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
