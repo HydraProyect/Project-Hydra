@@ -126,6 +126,8 @@ public static class RetiradaTenantDemoService
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
         // La siembra de cobertura de pantallas (Development): dos Tenants propietarios y su Operador CAE externo.
         ..CoberturaPantallasSeeder.NombresTenants,
+        // La siembra Inbound (Development): el Tenant TCE y sus tres Tenants TEC.
+        ..InboundDemoSeeder.NombresTenants,
         // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
         // con nombres limpios. Ver ExigenMarcador.
         ..CatalogoPilotoOutbound.NombresTenants,

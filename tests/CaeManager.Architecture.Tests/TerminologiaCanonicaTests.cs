@@ -506,7 +506,9 @@ public class TerminologiaCanonicaTests
         // y ContextoOperativoConversacionService (+2 cada uno) y AlcanceDatosService (+1); en esta fase conservan su
         // comprobación de main. El writer resuelve la única delegación vigente del par para fijarla como origen
         // (+5). Baja con la migración de DelegacionTenant, que es un incremento propio.
-        ["Delegacion"] = 380,
+        // 380 → 381 (2026-11-16, siembra Inbound de Development): el alias de DelegacionDemoSeeder en InboundDemoSeeder.cs,
+        // para reutilizar el aprovisionamiento de Tenants y cuentas de la demo; el mismo uso que CoberturaPantallasSeeder.
+        ["Delegacion"] = 381,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

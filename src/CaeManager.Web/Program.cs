@@ -1277,6 +1277,7 @@ using (var scope = app.Services.CreateScope())
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         CoberturaPantallasSeeder.RechazarFueraDeDevelopment(app.Configuration, app.Environment);
+        InboundDemoSeeder.RechazarFueraDeDevelopment(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -1337,6 +1338,11 @@ using (var scope = app.Services.CreateScope())
         // Tenants propietarios nuevos — inerte salvo DatosPrueba:Cobertura:Activo (con DatosPrueba:Activo),
         // y lanza fuera de Development (ver CoberturaPantallasSeeder).
         await CoberturaPantallasSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
+
+        // Siembra de la línea Inbound para la revisión de sus pantallas: un Tenant TCE con contratos de acceso en cada
+        // estado y plantillas de requisitos, y tres Tenants TEC con su Usuario único — inerte salvo
+        // DatosPrueba:Inbound:Activo (con DatosPrueba:Activo), y lanza fuera de Development (ver InboundDemoSeeder).
+        await InboundDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
