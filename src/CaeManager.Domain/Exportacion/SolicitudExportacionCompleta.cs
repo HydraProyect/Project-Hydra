@@ -5,8 +5,9 @@ namespace CaeManager.Domain.Exportacion;
 /// <summary>
 /// Exportación completa de un Tenant propietario pedida en autoservicio por su Administrador (issue #2008,
 /// decisión D-8 de 2026-11-15): un zip cifrado con todos sus datos, que genera un servicio de fondo bajo la RLS
-/// del propio Tenant y que se puede descargar durante <see cref="Vigencia"/>. Como mucho una cada
-/// <see cref="IntervaloMinimo"/> por Tenant, sin contar las fallidas.
+/// del propio Tenant y que se puede descargar durante <see cref="Vigencia"/>, o hasta que otra más nueva del mismo
+/// Tenant queda lista (<see cref="CaducarPorSustitucion"/>). Como mucho una cada <see cref="IntervaloMinimo"/> por
+/// Tenant, sin contar las fallidas.
 ///
 /// <para>
 /// <b>Contraseña.</b> Se genera al pedirla y se devuelve una sola vez a quien la pide. Hasta que el servicio
@@ -123,6 +124,18 @@ public class SolicitudExportacionCompleta : EntidadConTenant
         if (CaducaEnUtc is not { } caduca || ahoraUtc < caduca)
             throw new InvalidOperationException("La exportación todavía está vigente.");
 
+        Estado = EstadoSolicitudExportacionCompleta.Caducada;
+        UbicacionFichero = null;
+        FinalizadaEnUtc = ahoraUtc;
+    }
+
+    /// <summary>
+    /// Caduca antes de su fecha porque el Tenant ya tiene otra lista más nueva: como mucho una exportación lista
+    /// viva por Tenant (OWASP API4:2023, ASVS 4.0.3 V12.1), para acotar lo que ocupa en el volumen.
+    /// </summary>
+    public void CaducarPorSustitucion(DateTime ahoraUtc)
+    {
+        Exigir(EstadoSolicitudExportacionCompleta.Lista);
         Estado = EstadoSolicitudExportacionCompleta.Caducada;
         UbicacionFichero = null;
         FinalizadaEnUtc = ahoraUtc;

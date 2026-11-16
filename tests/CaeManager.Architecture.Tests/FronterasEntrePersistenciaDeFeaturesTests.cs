@@ -68,12 +68,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // La seguridad de acceso no se edita en el Tenant de plataforma: lo comprueba
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
-        // Exportación completa en autoservicio (#2008): AutoridadExportacionCompleta lee del catálogo de Tenants
-        // solo si el Tenant en curso es el de plataforma, para rechazarlo. No escribe en Tenants.
-        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
-        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
+        // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
+        // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
+        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único

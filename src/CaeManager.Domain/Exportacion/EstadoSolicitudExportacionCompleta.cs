@@ -11,12 +11,15 @@ public enum EstadoSolicitudExportacionCompleta
     /// <summary>El servicio de fondo la reclamó y está generando el fichero.</summary>
     EnCurso = 1,
 
-    /// <summary>El fichero cifrado existe y se puede descargar hasta <see cref="SolicitudExportacionCompleta.CaducaEnUtc"/>.</summary>
+    /// <summary>El fichero cifrado existe y se puede descargar hasta <see cref="SolicitudExportacionCompleta.CaducaEnUtc"/> o hasta que otra del mismo Tenant queda lista; como mucho una por Tenant.</summary>
     Lista = 2,
 
     /// <summary>La generación no terminó. No cuenta para el límite de una exportación cada 24 horas.</summary>
     Fallida = 3,
 
-    /// <summary>Pasó su vigencia: el fichero se borró y ya no se puede descargar.</summary>
+    /// <summary>
+    /// Pasó su vigencia, o la sustituyó otra más nueva del mismo Tenant al quedar lista: el fichero se borró y ya
+    /// no se puede descargar.
+    /// </summary>
     Caducada = 4,
 }

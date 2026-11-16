@@ -51,6 +51,34 @@ public class SolicitudExportacionCompletaTests
     }
 
     [Fact]
+    public void Sustituida_caduca_antes_de_su_vigencia_y_suelta_el_fichero()
+    {
+        var solicitud = Nueva();
+        solicitud.MarcarEnCurso(Ahora);
+        solicitud.MarcarLista("t/s.zip", 42, Ahora);
+
+        solicitud.CaducarPorSustitucion(Ahora.AddDays(1));
+
+        solicitud.Estado.Should().Be(EstadoSolicitudExportacionCompleta.Caducada);
+        solicitud.UbicacionFichero.Should().BeNull();
+        solicitud.FinalizadaEnUtc.Should().Be(Ahora.AddDays(1));
+        solicitud.EstaDisponibleParaDescarga(Ahora.AddDays(1)).Should().BeFalse();
+        solicitud.CuentaParaElLimite.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Solo_se_sustituye_una_lista()
+    {
+        var pendiente = Nueva();
+        var sustituirPendiente = () => pendiente.CaducarPorSustitucion(Ahora);
+        sustituirPendiente.Should().Throw<InvalidOperationException>();
+
+        pendiente.MarcarEnCurso(Ahora);
+        var sustituirEnCurso = () => pendiente.CaducarPorSustitucion(Ahora);
+        sustituirEnCurso.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
     public void No_se_salta_estados()
     {
         var solicitud = Nueva();

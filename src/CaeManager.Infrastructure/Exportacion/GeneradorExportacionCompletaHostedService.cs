@@ -20,10 +20,16 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// <item>Da por fallida la solicitud que lleva más de <see cref="UmbralEstancada"/> en curso (un proceso que murió a
 /// mitad), y borra su contraseña.</item>
 /// <item>Barre las caducadas: borra el fichero y la marca <see cref="EstadoSolicitudExportacionCompleta.Caducada"/>.</item>
-/// <item>Reclama la pendiente (FOR UPDATE SKIP LOCKED), genera el zip con el núcleo de
-/// <see cref="ExportacionCompletaTenant"/> y, en un solo guardado, la marca lista o fallida, borra la contraseña y
-/// escribe su fila de auditoría.</item>
+/// <item>Barre los temporales y zips huérfanos de la carpeta del Tenant (<see cref="AlmacenExportacionesCompletasEnDisco.BarrerHuerfanos"/>).</item>
+/// <item>Reclama la pendiente (FOR UPDATE SKIP LOCKED), comprueba que el volumen tiene el espacio libre mínimo
+/// (si no, la da por fallida con <see cref="MotivoSinEspacio"/>), genera el zip con el núcleo de
+/// <see cref="ExportacionCompletaTenant"/> y, en un solo guardado, la marca lista, caduca la lista anterior del
+/// Tenant, borra la contraseña y escribe sus filas de auditoría; después borra el fichero de la anterior.</item>
+/// <item>Solo después de intentar reclamarla, da por fallida la pendiente que sigue sin reclamar y se pidió hace
+/// más de <see cref="UmbralPendienteSinReclamar"/>: el líder recorre los Tenants en serie, y lo que una pendiente
+/// espera a que le llegue el turno no cuenta como estancada.</item>
 /// </list>
+/// Consumo de disco acotado (OWASP API4:2023, ASVS 4.0.3 V12.1): como mucho un zip listo y un temporal por Tenant.
 /// </summary>
 public class GeneradorExportacionCompletaHostedService(
     IServiceScopeFactory ambitoFactory,
@@ -37,6 +43,20 @@ public class GeneradorExportacionCompletaHostedService(
 
     /// <summary>Más de lo que tarda la exportación del Tenant más grande previsto; pasado esto, el proceso murió.</summary>
     public static readonly TimeSpan UmbralEstancada = TimeSpan.FromHours(3);
+
+    /// <summary>
+    /// Lo que una pendiente puede seguir sin reclamarse, contado desde que se pidió, antes de darla por fallida para
+    /// que no guarde la contraseña indefinidamente. Solo se mira después del intento de reclamarla de la vuelta, así
+    /// que la espera en la cola en serie no la hace fallar; las 24 h son el mismo intervalo que el límite de una
+    /// solicitud cada 24 h.
+    /// </summary>
+    public static readonly TimeSpan UmbralPendienteSinReclamar = SolicitudExportacionCompleta.IntervaloMinimo;
+
+    public const string MotivoEstancada = "Estancada";
+    public const string MotivoSinEspacio = "SinEspacio";
+    public const string MotivoInterrumpida = "Interrumpida";
+    public const string MotivoGeneracionFallida = "GeneracionFallida";
+    public const string MotivoSustituida = "Sustituida";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -91,12 +111,15 @@ public class GeneradorExportacionCompletaHostedService(
         }
     }
 
-    /// <summary>Una vuelta sobre un Tenant: estancadas, caducadas y la pendiente. Público para las pruebas de integración.</summary>
+    /// <summary>
+    /// Una vuelta sobre un Tenant: en curso estancadas, caducadas, huérfanos, la pendiente y, tras intentar
+    /// reclamarla, la pendiente que no se pudo reclamar. Público para las pruebas de integración.
+    /// </summary>
     public async Task ProcesarTenantAsync(Guid tenantId, CancellationToken cancellationToken)
     {
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 
-        await FallarEstancadasAsync(cancellationToken);
+        await FallarEnCursoEstancadasAsync(cancellationToken);
         try
         {
             await CaducarVencidasAsync(tenantId, cancellationToken);
@@ -107,32 +130,90 @@ public class GeneradorExportacionCompletaHostedService(
             // la fila sigue Lista, la fecha de caducidad ya impide descargarla y la próxima vuelta lo reintenta.
             logger.LogError(ex, "Falló el barrido de exportaciones caducadas del Tenant {TenantId}.", tenantId);
         }
-        await GenerarPendienteAsync(tenantId, cancellationToken);
+        try
+        {
+            await BarrerHuerfanosAsync(tenantId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Falló el barrido de ficheros huérfanos de exportación del Tenant {TenantId}.", tenantId);
+        }
+        try
+        {
+            await GenerarPendienteAsync(tenantId, cancellationToken);
+        }
+        catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        {
+            // Falló reclamar la pendiente, o marcarla fallida: la próxima vuelta lo reintenta, y si sigue sin
+            // reclamarse pasado el umbral, la da por fallida el paso siguiente.
+            logger.LogError(ex, "Falló la generación de la exportación pendiente del Tenant {TenantId}.", tenantId);
+        }
+        await FallarPendientesSinReclamarAsync(cancellationToken);
     }
 
-    private async Task FallarEstancadasAsync(CancellationToken cancellationToken)
+    /// <summary>Una en curso sin terminar durante el umbral: el proceso que la generaba murió a mitad.</summary>
+    private async Task FallarEnCursoEstancadasAsync(CancellationToken cancellationToken)
+    {
+        var limite = Ahora() - UmbralEstancada;
+        await FallarComoEstancadasAsync(
+            s => s.Estado == EstadoSolicitudExportacionCompleta.EnCurso && s.IniciadaEnUtc < limite, cancellationToken);
+    }
+
+    /// <summary>
+    /// Una pendiente que sigue sin reclamar después del intento de esta vuelta y se pidió hace más de
+    /// <see cref="UmbralPendienteSinReclamar"/>: se da por fallida para que no guarde la contraseña indefinidamente
+    /// ni ocupe el índice de solicitud viva del Tenant.
+    /// </summary>
+    private async Task FallarPendientesSinReclamarAsync(CancellationToken cancellationToken)
+    {
+        var limite = Ahora() - UmbralPendienteSinReclamar;
+        await FallarComoEstancadasAsync(
+            s => s.Estado == EstadoSolicitudExportacionCompleta.Pendiente && s.SolicitadaEnUtc < limite, cancellationToken);
+    }
+
+    private async Task FallarComoEstancadasAsync(
+        System.Linq.Expressions.Expression<Func<SolicitudExportacionCompleta, bool>> criterio, CancellationToken cancellationToken)
     {
         using var ambito = ambitoFactory.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var ahora = Ahora();
-        var limite = ahora - UmbralEstancada;
 
-        var estancadas = await contexto.SolicitudesExportacionCompleta
-            // Una en curso sin terminar o una sin reclamar durante el umbral: las dos se dan por fallidas para que no
-            // guarden la contraseña indefinidamente ni ocupen el índice de solicitud viva del Tenant.
-            .Where(s => (s.Estado == EstadoSolicitudExportacionCompleta.EnCurso && s.IniciadaEnUtc < limite)
-                || (s.Estado == EstadoSolicitudExportacionCompleta.Pendiente && s.SolicitadaEnUtc < limite))
-            .ToListAsync(cancellationToken);
+        var estancadas = await contexto.SolicitudesExportacionCompleta.Where(criterio).ToListAsync(cancellationToken);
         if (estancadas.Count == 0)
             return;
 
         foreach (var solicitud in estancadas)
         {
-            solicitud.MarcarFallida("Estancada", ahora);
+            solicitud.MarcarFallida(MotivoEstancada, ahora);
             contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
-                solicitud.Id, AuditoriaExportacionCompleta.FaseFallida, new { motivo = "Estancada" }));
+                solicitud.Id, AuditoriaExportacionCompleta.FaseFallida, new { motivo = MotivoEstancada }));
         }
         await contexto.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Los zips de las listas y las ubicaciones de las vivas se conservan; el resto de la carpeta del Tenant que nadie
+    /// toca desde hace <see cref="UmbralEstancada"/> es de un intento roto y se borra.
+    /// </summary>
+    private async Task BarrerHuerfanosAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var almacen = ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>();
+
+        var conservar = await contexto.SolicitudesExportacionCompleta
+            .Where(s => s.Estado == EstadoSolicitudExportacionCompleta.Lista
+                || s.Estado == EstadoSolicitudExportacionCompleta.Pendiente
+                || s.Estado == EstadoSolicitudExportacionCompleta.EnCurso)
+            .Select(s => new { s.Id, s.UbicacionFichero })
+            .ToListAsync(cancellationToken);
+        var vigentes = conservar
+            .Select(s => s.UbicacionFichero ?? AlmacenExportacionesCompletasEnDisco.UbicacionPara(tenantId, s.Id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var borrados = almacen.BarrerHuerfanos(tenantId, vigentes, Ahora() - UmbralEstancada);
+        if (borrados > 0)
+            logger.LogWarning("Se borraron {Borrados} ficheros huérfanos de exportación del Tenant {TenantId}.", borrados, tenantId);
     }
 
     private async Task CaducarVencidasAsync(Guid tenantId, CancellationToken cancellationToken)
@@ -170,6 +251,7 @@ public class GeneradorExportacionCompletaHostedService(
             return;
 
         string? ubicacionConfirmada = null;
+        var ficherosSustituidos = new List<string?>();
         try
         {
             using var ambito = ambitoFactory.CreateScope();
@@ -178,6 +260,17 @@ public class GeneradorExportacionCompletaHostedService(
             var almacen = proveedor.GetRequiredService<AlmacenExportacionesCompletasEnDisco>();
             var documentos = proveedor.GetRequiredService<IFileStorageService>();
             var protector = proveedor.GetRequiredService<IProtectorContrasenaExportacion>();
+
+            // OWASP API4:2023 y ASVS 4.0.3 V12.1: no se empieza un zip que pueda llenar el volumen que comparte con
+            // los Documentos. El registro da solo las cifras de espacio, sin datos del Tenant.
+            if (!almacen.HayEspacioParaGenerar(out var libreBytes))
+            {
+                logger.LogWarning(
+                    "Exportación completa {SolicitudId} no generada por falta de espacio: {LibreMiB} MiB libres en el volumen del almacén y el mínimo es {MinimoMiB} MiB.",
+                    id, libreBytes / (1024 * 1024), almacen.EspacioLibreMinimoBytes / (1024 * 1024));
+                await FallarAsync(tenantId, id, MotivoSinEspacio, ubicacionConfirmada: null);
+                return;
+            }
 
             var solicitud = await contexto.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id, cancellationToken);
             var contrasena = protector.Desproteger(solicitud.ContrasenaProtegida
@@ -208,20 +301,54 @@ public class GeneradorExportacionCompletaHostedService(
             ubicacionConfirmada = ubicacion;
 
             contexto.ChangeTracker.Clear();
+            var ahora = Ahora();
             var lista = await contexto.SolicitudesExportacionCompleta.SingleAsync(s => s.Id == id, cancellationToken);
-            lista.MarcarLista(ubicacion, tamano, Ahora());
+            // Como mucho una lista viva por Tenant (OWASP API4:2023, ASVS 4.0.3 V12.1): la anterior caduca en el mismo
+            // guardado que marca esta, y su fichero se borra después; si ese borrado falla, lo recoge el barrido de
+            // huérfanos, porque ninguna fila lista lo nombra ya.
+            var anteriores = await contexto.SolicitudesExportacionCompleta
+                .Where(s => s.Estado == EstadoSolicitudExportacionCompleta.Lista && s.Id != id)
+                .ToListAsync(cancellationToken);
+            lista.MarcarLista(ubicacion, tamano, ahora);
             contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
                 id, AuditoriaExportacionCompleta.FaseLista,
                 new { tamanoBytes = tamano, recuentos = resultado!.Recuentos, documentosSinFichero = resultado.DocumentosSinFichero }));
+            foreach (var anterior in anteriores)
+            {
+                ficherosSustituidos.Add(anterior.UbicacionFichero);
+                anterior.CaducarPorSustitucion(ahora);
+                contexto.RegistrosAuditoria.Add(AuditoriaExportacionCompleta.DelSistema(
+                    anterior.Id, AuditoriaExportacionCompleta.FaseCaducada, new { motivo = MotivoSustituida, sustituidaPor = id }));
+            }
             await contexto.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            var motivo = ex is OperationCanceledException && cancellationToken.IsCancellationRequested ? "Interrumpida" : "GeneracionFallida";
+            var motivo = ex is OperationCanceledException && cancellationToken.IsCancellationRequested ? MotivoInterrumpida : MotivoGeneracionFallida;
             logger.LogError(ex, "Falló la exportación completa {SolicitudId} del Tenant {TenantId}.", id, tenantId);
             await FallarAsync(tenantId, id, motivo, ubicacionConfirmada);
-            if (motivo == "Interrumpida")
+            if (motivo == MotivoInterrumpida)
                 throw;
+            return;
+        }
+
+        BorrarSustituidas(tenantId, ficherosSustituidos);
+    }
+
+    private void BorrarSustituidas(Guid tenantId, List<string?> ubicaciones)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        var almacen = ambito.ServiceProvider.GetRequiredService<AlmacenExportacionesCompletasEnDisco>();
+        foreach (var ubicacion in ubicaciones.OfType<string>())
+        {
+            try
+            {
+                almacen.Eliminar(tenantId, ubicacion);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(ex, "No se pudo borrar el fichero de una exportación sustituida del Tenant {TenantId}; lo recogerá el barrido de huérfanos.", tenantId);
+            }
         }
     }
 
