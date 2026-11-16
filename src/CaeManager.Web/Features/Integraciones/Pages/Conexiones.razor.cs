@@ -391,12 +391,15 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     /// <summary>
     /// Confirmar en la fila (issue #2124): solo con el aviso «posible correo no recuperado» y en el estado en que el servidor
     /// lo acepta, Habilitada y sin marca del hueco por registrar (<see cref="ReconocerAvisoHuecoCommandHandler"/>). Quién
-    /// puede lo fija la página, que es solo de Administrador, y lo vuelve a comprobar el handler.
+    /// puede lo fija la página, que es solo de Administrador, y lo vuelve a comprobar el handler. Un buzón personal de un
+    /// Gestor CAE no lo ofrece: el handler solo deja verlo a su dueño (la misma visibilidad que Desconectar), así que el
+    /// Administrador siempre recibiría «no encontrada».
     /// </summary>
     private static bool PuedeConfirmarAvisoHueco(ConexionIntegracionListaDto conexion) =>
         conexion.CorreoNoRecuperadoDesdeUtc is not null
         && conexion.Estado == EstadoConexionIntegracion.Habilitada
-        && !conexion.HuecoSinRegistrar;
+        && !conexion.HuecoSinRegistrar
+        && conexion.GestorPropietarioId is null;
 
     private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
     {

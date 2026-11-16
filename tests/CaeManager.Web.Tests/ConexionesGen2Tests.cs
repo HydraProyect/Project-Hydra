@@ -591,7 +591,9 @@ public class ConexionesGen2Tests : BunitContext
         var deshabilitada = Buzon("deshabilitada") with { CorreoNoRecuperadoDesdeUtc = marca, Estado = EstadoConexionIntegracion.Deshabilitada };
         var conError = Buzon("conerror") with { CorreoNoRecuperadoDesdeUtc = marca, Estado = EstadoConexionIntegracion.ConError };
         var porRegistrar = Buzon("porregistrar") with { CorreoNoRecuperadoDesdeUtc = marca, HuecoSinRegistrar = true };
-        var cut = Renderizar(new MediadorFalso { Conexiones = [confirmable, deshabilitada, conError, porRegistrar, Buzon("sano")] });
+        // Buzón personal de un Gestor CAE: el handler solo deja verlo a su dueño, así que el Administrador no lo confirma.
+        var personal = Buzon("personal") with { CorreoNoRecuperadoDesdeUtc = marca, GestorPropietarioId = Guid.NewGuid() };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [confirmable, deshabilitada, conError, porRegistrar, personal, Buzon("sano")] });
 
         var accion = cut.FindAll("[data-testid='accion-confirmar-aviso-hueco']").Should().ContainSingle().Subject;
         var fila = accion.Closest("tr")!;
@@ -599,7 +601,10 @@ public class ConexionesGen2Tests : BunitContext
         accion.TextContent.Trim().Should().Be("Confirmar");
         fila.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Equal(["Confirmar", "Desconectar"],
             "las acciones de Administrador de la fila siguen como antes");
-        cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().HaveCount(4, "el aviso se sigue viendo en todas las que lo tienen");
+        var avisos = cut.FindAll("[data-testid=aviso-correo-no-recuperado]");
+        avisos.Should().HaveCount(5, "el aviso se sigue viendo en todas las que lo tienen");
+        avisos.Where(a => a.TextContent.Contains("con Confirmar")).Should().ContainSingle(
+            "solo la fila que ofrece Confirmar lo menciona").Which.Closest("tr")!.TextContent.Should().Contain("confirmable@ejemplo.test");
     }
 
     /// <summary>

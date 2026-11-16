@@ -56,6 +56,14 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// sale también <see cref="CodigoAvisoCambiado"/>, sin reintentar, porque reintentar reconocería una pérdida que nadie ha
 /// visto.
 /// </para>
+/// <para>
+/// <b>Límites declarados.</b> (1) Un Gestor CAE cuya Asignación de Cartera cuelga de una Asignación de Operación acotada a
+/// un Cliente empresarial no alcanza el Tenant entero y recibe <see cref="CodigoSinPermiso"/>: se rechaza de más, nunca de
+/// menos. (2) Confirmar no exige que la suscripción de Graph siga viva: si ya expiró, la renovación diaria vuelve a fijar
+/// la marca (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>) y el aviso reaparece, porque la
+/// pérdida es real. (3) El buzón personal de un Gestor CAE solo lo ve su dueño, así que hoy nadie lo confirma desde
+/// Conexiones, que es solo de Administrador.
+/// </para>
 /// </summary>
 public class ReconocerAvisoHuecoCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,

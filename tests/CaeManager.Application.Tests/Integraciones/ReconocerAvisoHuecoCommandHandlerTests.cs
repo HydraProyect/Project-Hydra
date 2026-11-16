@@ -197,6 +197,9 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     public async Task Sin_la_conexion_Habilitada_o_con_marca_por_registrar_recibe_el_rechazo(string estado)
     {
         var (conexion, conexiones, marca) = ConMarca();
+        // Con rastreo, ObtenerPorIdAsync devuelve la instancia cargada antes del cerrojo (Habilitada y reconocible): solo la
+        // relectura con ObtenerActualPorIdAsync ve el estado de la base.
+        conexiones.SimularRastreo = true;
         var unitOfWork = new UnitOfWorkFalso();
         var cerrojo = new CerrojoVerificacionBuzonFalso();
         ConexionIntegracion? enBase = null;
@@ -222,6 +225,8 @@ public class ReconocerAvisoHuecoCommandHandlerTests
 
         resultado.Error.Codigo.Should().Be(ReconocerAvisoHuecoCommandHandler.CodigoNoReconocible, estado);
         enBase!.HuecoPendienteDesdeUtc.Should().NotBeNull("la marca se queda");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marca, "la instancia cargada antes del cerrojo tampoco se toca");
+        conexiones.VecesLeidaActual.Should().Be(1, "la decisión sale de la relectura bajo el cerrojo");
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
@@ -229,6 +234,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     public async Task Sin_marca_devuelve_exito_sin_guardar()
     {
         var (conexion, conexiones, marca) = ConMarca();
+        conexiones.SimularRastreo = true;
         // Otra persona confirmó antes, o la recuperación terminó: la base ya no tiene marca.
         var cerrojo = new CerrojoVerificacionBuzonFalso();
         cerrojo.AlTomar = id => conexiones.SustituirEnBase(id, c => c.MarcarIdentidadVerificada(DateTime.UtcNow));
@@ -239,6 +245,8 @@ public class ReconocerAvisoHuecoCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(0);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marca, "la instancia cargada antes del cerrojo no se reconoce");
+        conexiones.VecesLeidaActual.Should().Be(1);
     }
 
     [Fact]
