@@ -43,10 +43,10 @@
     @* No es un formulario: un Modal bloqueante con un único primario, sin nada que guardar ni descartar. *@
     <Modal Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true">
         <ChildContent>
-            <p class="gate-contractual-error">@Textos["ErrorConsulta"]</p>
+            <p class="gate-contractual-error" role="alert">@Textos["ErrorConsulta"]</p>
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Primario" Deshabilitado="_consultando" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" Cargando="_consultando" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
         </Pie>
     </Modal>
 }
@@ -135,6 +135,9 @@ else if (_pendientes.Count > 0)
 
     private async Task ReintentarAsync()
     {
+        // Un segundo clic antes del render no lanza otra consulta.
+        if (_consultando) return;
+
         _consultando = true;
         try
         {
@@ -143,7 +146,7 @@ else if (_pendientes.Count > 0)
         }
         catch (Exception)
         {
-            _errorConsulta = true;
+            // El error sigue activo: el botón solo existe con él, y solo un éxito lo apaga.
         }
         finally
         {
