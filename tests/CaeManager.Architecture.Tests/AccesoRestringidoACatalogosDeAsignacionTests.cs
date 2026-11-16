@@ -139,6 +139,11 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // principal; es la que el Encargo de administración de la siembra eleva (decisión de Chris, 2026-10-16).
         "src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs",
 
+        // Siembras de demostración (PR #2237, ronda 3 tras Codex r2): decide si un par (Tenant propietario, Operador
+        // CAE externo) tiene historia. Solo lee las Asignaciones de Operación Outbound externas del par, acotadas por
+        // PropietarioTenantId y OperadorTenantId de la DelegacionTenant que recibe; nunca escribe.
+        "src/CaeManager.Infrastructure/Persistence/Seed/HistoriaDelParEnSiembra.cs",
+
         // Registro de los DbSet y de las interfaces de consulta.
         "src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs",
 

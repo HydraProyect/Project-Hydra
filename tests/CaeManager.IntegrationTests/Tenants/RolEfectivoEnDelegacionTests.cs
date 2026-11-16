@@ -153,7 +153,8 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
             var operacion = CaeManager.Domain.Operaciones.AsignacionOperacion.Externa(
                 tenantPropietario.Id, tenantOperador.Id, CaeManager.Domain.Operaciones.ServicioCae.Outbound,
                 CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
-            preparacion.AsignacionesOperacion.Add(operacion);
+            // Amparada por su DelegacionTenant de origen: sin ella la vía de Operación no autoriza (AmparoDeOrigen).
+            OperacionExternaAmparada.Agregar(preparacion, operacion);
             preparacion.AsignacionesCartera.Add(CaeManager.Domain.Operaciones.AsignacionCartera.Externa(
                 operacion, usuario, rol, CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal,
                 ahora.AddDays(-1), null, ahora));

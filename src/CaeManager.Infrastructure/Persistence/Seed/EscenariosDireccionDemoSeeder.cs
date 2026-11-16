@@ -127,7 +127,8 @@ public static class EscenariosDireccionDemoSeeder
             await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(
-                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken);
+                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken,
+                inicioDeLaOperacion: InicioDeLaOperacionDeRama());
 
             await SembrarRamaAsync(
                 dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy: DiaDeNegocio.Hoy(),
@@ -190,6 +191,12 @@ public static class EscenariosDireccionDemoSeeder
     }
 
     /// <summary>
+    /// Desde cuándo rige la Asignación de Operación del Tenant entero de una rama: treinta días antes del arranque.
+    /// La usan el alta de la delegación y la apertura de la rama, que devuelve la que abrió el alta.
+    /// </summary>
+    internal static DateTime InicioDeLaOperacionDeRama() => DateTime.UtcNow.AddDays(-30);
+
+    /// <summary>
     /// La rama de un Tenant propietario: su delegación al Operador CAE (abierta
     /// y con el equipo asignado), sus Clientes empresariales con todos los
     /// datos, y las carteras. Idempotente; sin la guarda de entorno de
@@ -201,6 +208,13 @@ public static class EscenariosDireccionDemoSeeder
     {
         var delegacion = await AbrirOperacionExternaDeLaRamaAsync(
             dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, cancellationToken);
+        if (delegacion is null)
+        {
+            logger.LogWarning(
+                "Rama de escenarios de dirección {Tenant}: su delegación tiene historia (revocada o reactivada); la siembra no la reabre.",
+                rama.NombreTenant);
+            return;
+        }
 
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
@@ -208,7 +222,7 @@ public static class EscenariosDireccionDemoSeeder
                 dbContext, new TenantActualAmbiental { TenantId = tenantPropietarioId }, new ActorDeSiembra());
 
             await writer.AbrirOperacionDelegadaAsync(
-                tenantPropietarioId, tenantOperadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                tenantPropietarioId, tenantOperadorId, InicioDeLaOperacionDeRama(), vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             // La única Empresa propia del Tenant (D-P11): de ella cuelgan los Centros y la plantilla de todos los
@@ -261,7 +275,7 @@ public static class EscenariosDireccionDemoSeeder
     /// reactiva, porque una rama sin delegación vigente no tendría cartera que
     /// enseñar.
     /// </summary>
-    private static async Task<DelegacionTenant> AbrirOperacionExternaDeLaRamaAsync(
+    private static async Task<DelegacionTenant?> AbrirOperacionExternaDeLaRamaAsync(
         CaeManagerDbContext dbContext, RamaEscenariosDemo rama, Guid tenantPropietarioId, Guid tenantOperadorId,
         EquipoOperador equipo, CancellationToken cancellationToken)
     {
@@ -270,8 +284,21 @@ public static class EscenariosDireccionDemoSeeder
             var delegacion = await dbContext.DelegacionesTenant.FirstAsync(
                 d => d.TenantConsultoraId == tenantOperadorId && d.TenantClienteId == tenantPropietarioId, cancellationToken);
 
+            // La siembra solo reactiva una delegación que nunca terminó una activación ni dejó historia (la de Krusty
+            // Krab nace inactiva con el contador a cero): si ya hubo una revocación contada, filas heredadas revocadas u
+            // operaciones del par sin ninguna amparada, no la reactiva ni repone nada; la reactivación es un acto
+            // explícito (ronda 2 de Codex en la PR #2237, media 6).
+            if (await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
+                return null;
+
             if (!delegacion.Activa)
+            {
                 delegacion.Reactivar();
+                // La reactivación se guarda antes que las filas heredadas: EF no ordena un UPDATE de la delegación por
+                // delante del INSERT de sus filas, y el trigger asignacion_operador_delegado_exige_delegacion_activa
+                // rechaza una fila que nace sobre una delegación de Operador CAE externo todavía inactiva (PR #2237).
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
 
             var asignaciones = new List<(ApplicationUser Usuario, string Rol)> { (equipo.Coordinador, Roles.CoordinadorCae) };
             if (rama.Clientes.Any(c => c.Gestor == GestorDemo.Primero)) asignaciones.Add((equipo.GestorPrimero, Roles.GestorCae));
@@ -285,11 +312,10 @@ public static class EscenariosDireccionDemoSeeder
 
             foreach (var (usuario, rol) in asignaciones)
             {
-                if (await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                        a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == usuario.Id, cancellationToken))
+                if (!await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, usuario.Id, cancellationToken))
                     continue;
 
-                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol));
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol, delegacion.Revocaciones));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);

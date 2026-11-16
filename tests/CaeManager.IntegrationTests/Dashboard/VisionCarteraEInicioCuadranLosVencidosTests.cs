@@ -136,17 +136,19 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
 
             var operacion = AsignacionOperacion.Externa(
                 _beneficiario, _origen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ayer, null, ahora);
-            _propietario.AsignacionesOperacion.Add(operacion);
             // Una Asignación de Operación Outbound externa solo autoriza con la DelegacionTenant de Operador
-            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223).
-            _propietario.DelegacionesTenant.Add(new DelegacionTenant(_origen, _beneficiario));
+            // CAE externo del par vigente (decisión de Chris del 2026-11-14, opción A en la PR #2223), sellada
+            // como origen de las operaciones para que EF inserte la delegación antes.
+            var delegacion = new DelegacionTenant(_origen, _beneficiario);
+            _propietario.DelegacionesTenant.Add(delegacion);
+            OperacionExternaAmparada.Agregar(_propietario, operacion, delegacion);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestorUniversal, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             // El Gestor CAE «de Cliente»: su cartera es el Tenant entero (D-7) bajo una Asignación de Operación
             // ACOTADA a ese Cliente empresarial, así que su ámbito efectivo es solo ese Cliente.
             var operacionDeCliente = AsignacionOperacion.Externa(
                 _beneficiario, _origen, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ayer, null, ahora);
-            _propietario.AsignacionesOperacion.Add(operacionDeCliente);
+            OperacionExternaAmparada.Agregar(_propietario, operacionDeCliente, delegacion);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacionDeCliente, _gestorDeCliente, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             // Coordinador CAE con su propia cartera y un Gestor CAE a su cargo, los dos bajo la operación

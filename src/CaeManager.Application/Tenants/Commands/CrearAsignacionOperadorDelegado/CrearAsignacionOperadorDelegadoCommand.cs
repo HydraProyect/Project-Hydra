@@ -156,7 +156,10 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.YaAsignado", "Este usuario ya está autorizado en esta delegación."));
 
-        var asignacion = new AsignacionOperadorDelegado(request.DelegacionTenantId, request.UsuarioId, request.Rol);
+        // Con el contador de la DelegacionTenant que se leyó y se comprobó activa arriba: si se revoca o se amplía antes
+        // del guardado, el trigger de inserción rechaza la fila (ronda 3 de Codex en la PR #2237, alta 1).
+        var asignacion = new AsignacionOperadorDelegado(
+            request.DelegacionTenantId, request.UsuarioId, request.Rol, delegacion.Revocaciones);
         repositorio.Agregar(asignacion);
 
         if (deOperadorExterno)

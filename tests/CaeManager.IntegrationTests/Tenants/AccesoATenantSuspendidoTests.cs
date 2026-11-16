@@ -30,10 +30,11 @@ public class AccesoATenantSuspendidoTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
         contexto.Tenants.AddRange(_beneficiario, _operador);
-        contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
-            _beneficiario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddMinutes(-5), null, ahora));
         var delegacion = new DelegacionTenant(_operador.Id, _beneficiario.Id);
         contexto.DelegacionesTenant.Add(delegacion);
+        OperacionExternaAmparada.Agregar(contexto, AsignacionOperacion.Externa(
+            _beneficiario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddMinutes(-5), null, ahora),
+            delegacion);
         contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _administradorDelOperador, Roles.Administrador));
         await contexto.SaveChangesAsync();

@@ -171,6 +171,9 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
 
         var tenantCliente = new Tenant("Cliente delegante cartera", PerfilVocabularioTenant.ClienteDirecto);
         contexto.Tenants.Add(tenantCliente);
+        // Como el comando real: la DelegacionTenant de Operador CAE externo, también sin guardar, de la que nace la
+        // operación (el writer la resuelve en el ChangeTracker; sin ella no abre nada, PR #2237).
+        contexto.DelegacionesTenant.Add(new DelegacionTenant(tenantPlataforma.Id, tenantCliente.Id));
 
         var operacion = await writer.AbrirOperacionDelegadaAsync(
             tenantCliente.Id, tenantPlataforma.Id, DateTime.UtcNow, vigenciaHasta: null);

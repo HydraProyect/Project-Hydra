@@ -59,10 +59,11 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         var operacion = AsignacionOperacion.Externa(
             _empresa.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
             vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora);
-        contexto.AsignacionesOperacion.Add(operacion);
 
         var vinculo = new DelegacionTenant(_operador.Id, _empresa.Id);
         contexto.DelegacionesTenant.Add(vinculo);
+        // Con su origen sellado, como la abre el alta: la FK ordena el INSERT de la delegación por delante.
+        OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
 
         await contexto.SaveChangesAsync();
         _operacionId = operacion.Id;
@@ -150,6 +151,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
             var fila = await propietario.AsignacionesOperadorDelegado.AsNoTracking().SingleAsync(a => a.UsuarioId == _gestor);
             fila.DelegacionTenantId.Should().Be(_vinculoId);
             fila.Id.Should().Be(solicitud.AsignacionOperadorDelegadoId!.Value);
+            fila.RevocacionesDelOrigen.Should().Be(0, "nace con el contador sellado de la operación, que el trigger confirma");
 
             // El aviso es best-effort: si RLS lo rechazara, el handler lo
             // registraría y seguiría. Por eso se comprueba aquí que existe.
@@ -282,9 +284,10 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     /// La bandeja no la ofrece como vigente ni, por tanto, como revocable.
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Una_cartera_cuya_operacion_ya_no_esta_vigente_no_cuenta_como_vigente(bool caducada)
+    [InlineData("caducada")]
+    [InlineData("suspendida")]
+    [InlineData("sin amparo")]
+    public async Task Una_cartera_cuya_operacion_ya_no_esta_vigente_no_cuenta_como_vigente(string causa)
     {
         var solicitudId = await SolicitarAsync();
         await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
@@ -309,10 +312,20 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         await using (var propietario = ContextoPropietario())
         {
             var operacion = propietario.AsignacionesOperacion.Where(o => o.Id == _operacionId);
-            if (caducada)
+            if (causa == "caducada")
                 await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.VigenciaHasta, DateTime.UtcNow.AddMinutes(-1)));
-            else
+            else if (causa == "suspendida")
                 await operacion.ExecuteUpdateAsync(s => s.SetProperty(o => o.Estado, EstadoAsignacion.Suspendida));
+            else
+            {
+                // Codex r2 en la PR #2237, baja 9: la DelegacionTenant de origen se revoca y se reactiva (como la ranura
+                // anterior, solo Activa). La operación y la cartera siguen vigentes, pero el origen ya no las ampara.
+                var vinculo = propietario.DelegacionesTenant.Where(d => d.Id == _vinculoId);
+                await vinculo.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+                await vinculo.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+                (await propietario.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionId)).Estado
+                    .Should().Be(EstadoAsignacion.Vigente, "control: la operación sigue vigente; solo falta su amparo");
+            }
 
             (await propietario.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraId))
                 .Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera sigue abierta: nadie la ha cerrado aún");
@@ -370,6 +383,60 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         segundo.ChangeTracker.Entries().Should().BeEmpty("lo que perdió la carrera no puede colarse en el siguiente guardado");
 
         await AfirmarUnaSolaIncorporacionAsync(solicitudId);
+    }
+
+    /// <summary>
+    /// Ronda 3 de Codex en la PR #2237, alta 1: la aceptación se decide con la operación amparada, pero entre esa lectura
+    /// y el guardado la DelegacionTenant de origen se revoca y se reactiva, o se amplía su caducidad. La fila heredada lleva
+    /// el contador sellado de la operación y el trigger de inserción la rechaza; con ella cae la transacción entera, y no
+    /// queda ni la cartera ni la fila. El control positivo es <c>Aceptar_crea_cartera_fila_heredada_y_aviso_y_revocar_los_retira</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_aceptacion_preparada_antes_de_una_revocacion_o_ampliacion_no_deja_cartera_ni_fila_heredada(bool ampliando)
+    {
+        if (ampliando)
+        {
+            // Restringir no cuenta como revocación: la operación sigue amparada al preparar.
+            await using var propietario = ContextoPropietario();
+            await propietario.DelegacionesTenant.Where(d => d.Id == _vinculoId)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.ExpiraEnUtc, DateTime.UtcNow.AddDays(1)));
+        }
+
+        var solicitudId = await SolicitarAsync();
+        await using var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae");
+        var catalogo = await PrepararAceptacionAsync(contexto, _coordinador, solicitudId);
+
+        await using (var propietario = ContextoPropietario())
+        {
+            var delegacion = propietario.DelegacionesTenant.Where(d => d.Id == _vinculoId);
+            if (ampliando)
+                await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.ExpiraEnUtc, DateTime.UtcNow.AddDays(30)));
+            else
+            {
+                await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false));
+                await delegacion.ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, true));
+            }
+
+            (await delegacion.AsNoTracking().SingleAsync()).Revocaciones.Should().Be(1, "control: la activación leída terminó");
+        }
+
+        var guardar = async () =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_empresa.Id))
+                await catalogo.GuardarDetectandoCarreraAsync();
+        };
+        (await guardar.Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.Should().Match<PostgresException>(p => p.SqlState == PostgresErrorCodes.CheckViolation
+                                                         && p.MessageText.Contains("fila heredada"),
+                "lo rechaza el contador de la fila heredada, no otra restricción");
+
+        await using var verificacion = ContextoPropietario();
+        (await verificacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestor)).Should().BeFalse("sin cartera");
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.UsuarioId == _gestor))
+            .Should().BeFalse("sin fila heredada");
     }
 
     [Fact]

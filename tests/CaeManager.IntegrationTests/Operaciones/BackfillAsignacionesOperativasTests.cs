@@ -84,9 +84,34 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
+    /// <summary>
+    /// Ronda 2 de Codex en la PR #2237, alta 5: el backfill no crea la Asignación de Operación externa de una
+    /// delegación activa que no tiene ninguna. La ausencia de operaciones del par no prueba que la activación vigente
+    /// autorice abrir una en el arranque (pudo revocarse y reactivarse sin rastro), y la del Tenant entero abre el
+    /// Tenant propietario a los perfiles que no necesitan cartera. Las raíces sí las crea.
+    /// </summary>
+    [Fact]
+    public async Task Crea_las_raices_pero_ninguna_operacion_externa_aunque_la_delegacion_activa_no_tenga_ninguna()
+    {
+        await EjecutarBackfillAsync();
+        await EjecutarBackfillAsync();
+
+        await using var contexto = CrearContexto(_clienteDelegante);
+        var operaciones = await contexto.AsignacionesOperacion.ToListAsync();
+
+        operaciones.Where(o => o.EsRaiz).Select(o => o.PropietarioTenantId)
+            .Should().Contain([_consultora, _clienteDelegante])
+            .And.OnlyHaveUniqueItems();
+        operaciones.Should().NotContain(o => !o.EsRaiz,
+            "el backfill nunca crea una operación externa: solo la abre el alta o la reactivación de la delegación");
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _operadorDelegado))
+            .Should().BeFalse("sin operación externa no hay bajo qué emitir cartera");
+    }
+
     [Fact]
     public async Task Migra_raices_delegaciones_comerciales_y_carteras_pero_no_el_soporte()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
 
         await using var contexto = CrearContexto(_clienteDelegante);
@@ -101,8 +126,8 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             .Should().Contain([_consultora, _clienteDelegante])
             .And.OnlyHaveUniqueItems();
 
-        // Una sola operación externa: la comercial. La de soporte no migra,
-        // aunque exista y esté sobre el mismo par de tenants.
+        // Una sola operación externa: la comercial que abrió el alta. La de soporte
+        // no migra, aunque exista y esté sobre el mismo par de tenants.
         var externas = operaciones.Where(o => !o.EsRaiz).ToList();
         externas.Should().HaveCount(1);
         externas[0].PropietarioTenantId.Should().Be(_clienteDelegante);
@@ -128,6 +153,8 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
     [Fact]
     public async Task Es_idempotente_y_no_duplica_al_repetirse()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
+        await SembrarOperadorDelegadoAsync(Roles.Consulta);
         await EjecutarBackfillAsync();
 
         await using var contextoPrimero = CrearContexto(_clienteDelegante);
@@ -207,6 +234,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             await contextoPreparacion.SaveChangesAsync();
         }
 
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
 
         await using var contexto = CrearContexto(_clienteDelegante);
@@ -222,7 +250,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Dos_delegaciones_comerciales_activas_del_mismo_cliente_no_crashean_la_mas_nueva_queda_como_incidencia()
+    public async Task Dos_delegaciones_comerciales_activas_del_mismo_cliente_no_crashean_y_no_abren_ninguna_operacion()
     {
         // Reproduce el incidente de producción del 2026-08-24 (ver
         // Project-Hydra-Negocio/tecnico/d8-vps-evidence.md): el modelo antiguo
@@ -239,9 +267,9 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             await contextoPreparacion.SaveChangesAsync();
             segundaConsultora = consultora2.Id;
 
-            // Más nueva que la delegación creada en InitializeAsync — el orden
-            // determinista del backfill exige que sea la que quede como
-            // incidencia, nunca la que se migre.
+            // Más nueva que la delegación creada en InitializeAsync. Desde la PR
+            // #2237 (Codex r2, alta 5) el backfill no abre la operación de
+            // ninguna de las dos: las dos quedan como incidencia.
             contextoPreparacion.DelegacionesTenant.Add(new DelegacionTenant(segundaConsultora, _clienteDelegante));
             await contextoPreparacion.SaveChangesAsync();
         }
@@ -256,11 +284,9 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             .Where(o => !o.EsRaiz && o.PropietarioTenantId == _clienteDelegante)
             .ToListAsync();
 
-        // Solo la más antigua (la de InitializeAsync, hacia _consultora) se
-        // migra; la de segundaConsultora no debe existir como operación.
-        externas.Should().ContainSingle();
-        externas[0].OperadorTenantId.Should().Be(_consultora);
-        externas.Should().NotContain(o => o.OperadorTenantId == segundaConsultora);
+        // Ninguna de las dos se convierte en operación en el arranque: solo un
+        // acto explícito abre la operación del Tenant entero.
+        externas.Should().BeEmpty();
     }
 
     /// <summary>
@@ -276,6 +302,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
     {
         var usuario = await SembrarOperadorDelegadoAsync(rol);
 
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
 
         Guid heredadaId;
@@ -309,6 +336,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
     {
         var usuario = await SembrarOperadorDelegadoAsync(Roles.Consulta);
 
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
 
         await using var contexto = CrearContexto(_clienteDelegante);
@@ -334,6 +362,21 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario, rol));
         await contexto.SaveChangesAsync();
         return usuario;
+    }
+
+    /// <summary>
+    /// La Asignación de Operación externa del Tenant entero, con su origen sellado, como la abre el alta de la
+    /// delegación (<c>AsignacionesOperativasWriter.AbrirOperacionDelegadaAsync</c>): el backfill ya no la crea.
+    /// </summary>
+    private async Task AbrirOperacionExternaComoElAltaAsync()
+    {
+        await using var contexto = CrearContexto(_clienteDelegante);
+        var delegacion = await contexto.DelegacionesTenant
+            .FirstAsync(d => d.Proposito == PropositoDelegacion.OperadorExterno && d.TenantConsultoraId == _consultora);
+        var desde = DateTime.UtcNow.AddMinutes(-1);
+        OperacionExternaAmparada.Agregar(contexto, AsignacionOperacion.Externa(
+            _clienteDelegante, _consultora, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, desde), delegacion);
+        await contexto.SaveChangesAsync();
     }
 
     private async Task EjecutarBackfillAsync()
