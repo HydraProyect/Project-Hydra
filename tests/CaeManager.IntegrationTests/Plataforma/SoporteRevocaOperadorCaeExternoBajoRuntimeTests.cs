@@ -80,7 +80,7 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
                 operacion, _gestora, "GestorCae", AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, _gestora);
             cartera.DesignarPrincipal();
             contexto.DelegacionesTenant.Add(delegacion);
-            contexto.AsignacionesOperacion.Add(operacion);
+            OperacionExternaAmparada.Agregar(contexto, operacion, delegacion);
             contexto.AsignacionesCartera.Add(cartera);
             await contexto.SaveChangesAsync();
             (_delegacion, _operacion, _cartera) = (delegacion.Id, operacion.Id, cartera.Id);
