@@ -11,9 +11,10 @@ public class CerrojoAltasTenantPropietario(CaeManagerDbContext dbContext) : ICer
         if (dbContext.Database.CurrentTransaction is null)
             throw new InvalidOperationException("El cerrojo de las altas de Tenant propietario exige una transacción en curso.");
 
-        // Espera acotada: mientras el LOCK espera, PostgreSQL pone detrás de él cualquier escritura nueva en Tenants. Pasado
-        // el plazo falla con 55P03 y no se guarda nada; el plazo sigue para el resto de la transacción, que es corta.
-        return dbContext.Database.ExecuteSqlRawAsync(
-            "SET LOCAL lock_timeout = '5s'; LOCK TABLE public.\"Tenants\" IN SHARE MODE", cancellationToken);
+        // Espera acotada por intento: mientras el LOCK espera, PostgreSQL pone detrás de él cualquier escritura nueva en
+        // Tenants. Pasados 5 s responde 55P03, que la estrategia de reintentos trata como transitorio: deshace el intento,
+        // suelta la cola y repite la transacción entera, sin guardar nada. El plazo sigue el resto de la transacción.
+        // La sentencia va en la misma línea que la llamada para que el ratchet de SQL crudo la congele entera.
+        return dbContext.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; LOCK TABLE public.\"Tenants\" IN SHARE MODE", cancellationToken);
     }
 }

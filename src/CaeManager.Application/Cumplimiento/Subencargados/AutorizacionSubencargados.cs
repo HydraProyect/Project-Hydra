@@ -44,7 +44,7 @@ public static class ErroresSubencargado
 
     public static readonly Error AltaDeTenantDuranteLaActivacion = Error.Crear(
         "Subencargado.AltaDeTenantDuranteLaActivacion",
-        "Se dio de alta una organización mientras se comprobaban los avisos. No se ha activado; vuelve a intentarlo.");
+        "Se dio de alta un Tenant propietario mientras se comprobaban los avisos. No se ha activado; vuelve a intentarlo.");
 
     public static Error NoActivable(string motivo) => Error.Crear("Subencargado.NoActivable", motivo);
 }

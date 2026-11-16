@@ -527,6 +527,8 @@ public class SubencargadosBajoRlsTests : IAsyncLifetime
         {
             await using var transaccion = await runtime.Database.BeginTransactionAsync();
             await new CerrojoAltasTenantPropietario(runtime).CerrarAsync();
+            (await runtime.Database.SqlQueryRaw<string>("SELECT current_setting('lock_timeout') AS \"Value\"").SingleAsync())
+                .Should().Be("5s", "la espera del cerrojo está acotada dentro de la transacción de Activar");
 
             var excepcion = await Record.ExceptionAsync(IntentarAltaAsync);
             excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("55P03",
