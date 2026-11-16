@@ -1,4 +1,3 @@
-using System.Data.Common;
 using CaeManager.Domain.Importacion;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -69,7 +68,10 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
         {
             return await dbContext.OperacionesImportacion.AnyAsync(o => operacionIds.Contains(o.OperacionId), cancellationToken);
         }
-        catch (Exception ex) when (ex is DbException or InvalidOperationException)
+        // Cualquier fallo de la relectura, también el RetryLimitExceededException de la estrategia de reintentos cuando no
+        // hay transacción explícita: el llamador recibe la violación original, no el fallo de la comprobación. Solo la
+        // cancelación pedida se propaga como tal.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return false;
         }

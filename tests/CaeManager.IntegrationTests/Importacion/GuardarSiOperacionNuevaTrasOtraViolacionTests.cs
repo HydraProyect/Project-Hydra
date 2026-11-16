@@ -54,6 +54,53 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Control_con_la_misma_carga_PostgreSQL_detecta_antes_el_CIF_que_la_marca()
+    {
+        // Sin este control, si EF dejara de insertar las Empresas antes que las marcas, saltaría antes el índice de la
+        // marca y el primer test pasaría por el camino anterior a #1992, también con el código antiguo.
+        var operacionId = Guid.NewGuid();
+        await GuardarGanadoraAsync(operacionId);
+
+        await using var contexto = CrearContexto();
+        contexto.OperacionesImportacion.Add(OperacionImportacion.Registrar(operacionId));
+        contexto.Empresas.Add(new Empresa("Perdedora S.L.", Cif));
+
+        var guardar = () => contexto.SaveChangesAsync();
+
+        (await guardar.Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
+            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
+    }
+
+    [Fact]
+    public async Task Dentro_de_una_transaccion_explicita_es_ya_ejecutada_y_la_transaccion_sigue_viva()
+    {
+        // Las confirmaciones reales guardan dentro de la transacción del candado: la relectura depende de que EF vuelva
+        // al punto de guardado del lote fallido. Si no volviera, la relectura recibiría 25P02 y la perdedora volvería a
+        // lanzar la violación del CIF.
+        var operacionId = Guid.NewGuid();
+        await GuardarGanadoraAsync(operacionId);
+
+        await using var contexto = CrearContexto();
+        var estrategia = contexto.Database.CreateExecutionStrategy();
+        var (guardada, empresasVistas) = await estrategia.ExecuteAsync(async () =>
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            var repositorio = new OperacionImportacionRepository(contexto);
+            repositorio.Agregar(OperacionImportacion.Registrar(operacionId));
+            contexto.Empresas.Add(new Empresa("Perdedora S.L.", Cif));
+
+            var resultado = await repositorio.GuardarSiOperacionNuevaAsync();
+            var vistas = await contexto.Empresas.CountAsync();
+            await transaccion.RollbackAsync();
+            return (resultado, vistas);
+        });
+
+        guardada.Should().BeFalse();
+        empresasVistas.Should().Be(1, "la transacción sigue utilizable tras el fallo y solo ve la Empresa de la ganadora");
+    }
+
+    [Fact]
     public async Task La_violacion_de_otro_indice_sin_la_operacion_guardada_se_propaga()
     {
         await GuardarGanadoraAsync(operacionId: null);
@@ -67,7 +114,7 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
 
         (await guardar.Should().ThrowAsync<DbUpdateException>("un CIF repetido sin carrera es un error real del plan"))
             .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
-            .Which.SqlState.Should().Be("23505");
+            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
     }
 
     [Fact]
