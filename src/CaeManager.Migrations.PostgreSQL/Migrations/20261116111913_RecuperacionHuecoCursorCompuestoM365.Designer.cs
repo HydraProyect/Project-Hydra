@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261116105921_RecuperacionHuecoCursorCompuestoM365")]
+    [Migration("20261116111913_RecuperacionHuecoCursorCompuestoM365")]
     partial class RecuperacionHuecoCursorCompuestoM365
     {
         /// <inheritdoc />
@@ -8500,6 +8500,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RecuperacionHuecoRecorridaPorId")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")

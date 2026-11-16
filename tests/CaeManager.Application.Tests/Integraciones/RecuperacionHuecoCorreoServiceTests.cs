@@ -341,9 +341,28 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull();
         escenario.Conexion.RecuperacionHuecoCursorId.Should().BeNull();
 
+        // Revisión de Codex: el recorrido por Id no está verificado contra Graph real (comparación de Ids, recepciones con
+        // fracción), así que lo leído se encola pero la marca y su aviso se quedan.
         escenario.IngerirTodo();
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.RecorridaPorIdSinVerificar);
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+        escenario.Conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+    }
+
+    /// <summary>Control del anterior: el mismo buzón sin un segundo que no quepa en una página sí limpia la marca.</summary>
+    [Fact]
+    public async Task Sin_recorrer_ningun_segundo_por_id_la_misma_lectura_limpia_la_marca()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        escenario.Graph.BuzonSimulado = [escenario.Mensaje("antes", 5), .. DelSegundo(segundo, 2), new("despues", segundo.AddSeconds(2))];
+        escenario.Graph.TamanoPaginaSimulada = 3;
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+        escenario.IngerirTodo();
+
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Limpiada);
-        escenario.Conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        escenario.Graph.ListadosEnSegundoPedidos.Should().BeEmpty();
     }
 
     /// <summary>

@@ -1183,11 +1183,12 @@ public class Microsoft365GraphClient(
         if (segundo.Ticks % TimeSpan.TicksPerSecond != 0)
             throw new ArgumentException("El segundo del cursor compuesto no lleva fracción.", nameof(segundoUtc));
 
-        // receivedDateTime en $orderby antes que id y también en $filter, en el mismo orden: Graph rechaza un $orderby
-        // cuyas propiedades no encabezan el $filter. Con eq, ordenar por recepción y luego por Id es ordenar por Id.
-        var filtro = $"receivedDateTime eq {FormatoSegundoGraph(segundo)}";
-        if (despuesDeId is not null)
-            filtro += $" and id gt '{despuesDeId.Replace("'", "''", StringComparison.Ordinal)}'";
+        // Las dos propiedades del $orderby, receivedDateTime e id, también en el $filter y en el mismo orden: Graph rechaza
+        // (InefficientFilter) un $orderby con una propiedad que el $filter no nombra. Por eso la primera página del segundo
+        // pide id gt '' (todo Id es posterior a la cadena vacía). Con eq, ordenar por recepción y luego por Id es ordenar
+        // por Id.
+        var filtro = $"receivedDateTime eq {FormatoSegundoGraph(segundo)}" +
+            $" and id gt '{(despuesDeId ?? string.Empty).Replace("'", "''", StringComparison.Ordinal)}'";
         var url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
             "?$select=id,receivedDateTime" +
             $"&$filter={Uri.EscapeDataString(filtro)}" +

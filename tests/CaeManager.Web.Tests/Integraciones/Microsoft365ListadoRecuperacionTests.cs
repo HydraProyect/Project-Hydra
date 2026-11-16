@@ -105,7 +105,8 @@ public class Microsoft365ListadoRecuperacionTests
 
         var primera = Uri.UnescapeDataString(manejador.Pedidas[0].ToString());
         primera.Should().StartWith("https://graph.microsoft.com/v1.0/users/cae@operador.test/mailFolders('Inbox')/messages?")
-            .And.Contain("$filter=receivedDateTime eq 2026-11-15T10:00:00Z&")
+            .And.Contain("$filter=receivedDateTime eq 2026-11-15T10:00:00Z and id gt ''&",
+                "las dos propiedades del $orderby también en el $filter, o Graph responde InefficientFilter")
             .And.Contain("$orderby=receivedDateTime asc,id asc")
             .And.Contain($"$top={Microsoft365GraphClient.TamanoPaginaRecuperacion}")
             .And.NotContain("$skip");

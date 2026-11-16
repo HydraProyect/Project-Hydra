@@ -137,6 +137,11 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoCursorId.Should().BeNull();
         conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
         conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse("lo posterior a ese segundo aún no se ha pedido");
+
+        conexion.AvanzarRecuperacionHueco(null, hayMas: false);
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+        conexion.CompletarRecuperacionHueco().Should().BeFalse("el recorrido por Id está sin verificar contra Graph real");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(Ahora.AddHours(-3));
     }
 
     [Fact]
@@ -149,6 +154,7 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RegistrarNotificacionDescartada(Ahora.AddHours(2));
 
         conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse();
         conexion.IniciarRecuperacionHueco(Ahora);
         conexion.RecuperacionHuecoCursorId.Should().BeNull("la recuperación nueva empieza con el cursor solo por fecha");
     }

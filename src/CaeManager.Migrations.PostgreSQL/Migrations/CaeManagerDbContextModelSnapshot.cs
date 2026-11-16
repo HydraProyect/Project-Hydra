@@ -8499,6 +8499,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("RecuperacionHuecoRecorridaPorId")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
                         .HasColumnType("timestamp with time zone");
 

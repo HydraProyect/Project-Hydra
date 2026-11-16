@@ -206,6 +206,7 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
         var leida = await new ConexionIntegracionRepository(relectura).ObtenerActualPorIdAsync(_buzonPropio);
         leida!.RecuperacionHuecoCursorUtc.Should().Be(segundo);
         leida.RecuperacionHuecoCursorId.Should().Be("AAMkAG-id-03");
+        leida.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
     }
 
     private async Task<Guid> SembrarBuzonConMarcaAsync(Guid tenantId, string email)

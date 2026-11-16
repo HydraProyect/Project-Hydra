@@ -191,6 +191,15 @@ public class ConexionIntegracion : EntidadBase
     }
 
     /// <summary>
+    /// La recuperación en curso recorrió algún segundo por Id (<see cref="AvanzarRecuperacionHuecoEnSegundo"/>). Lo leído
+    /// se encola igual, pero la marca no se limpia al terminar (<see cref="CompletarRecuperacionHueco"/>): no está
+    /// verificado contra un buzón real que Graph filtre <c>id gt</c> y ordene por Id con la comparación ordinal que se
+    /// comprueba, ni que no guarde recepciones con fracción que <c>eq</c> el segundo no encuentra (issue #2263). Mientras
+    /// tanto, el aviso de posible correo no recuperado se queda: avisa de más, nunca de menos.
+    /// </summary>
+    public bool RecuperacionHuecoRecorridaPorId { get; private set; }
+
+    /// <summary>
     /// El listado de la recuperación en curso llegó al final: una página pedida desde el cursor volvió sin
     /// <c>@odata.nextLink</c>. No basta para limpiar la marca: además, ningún evento de recuperación de la conexión puede
     /// seguir sin ingerir.
@@ -462,6 +471,7 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoCubreDesdeUtc = desde;
         RecuperacionHuecoCursorUtc = desde;
         RecuperacionHuecoCursorDesempate = null;
+        RecuperacionHuecoRecorridaPorId = false;
         RecuperacionHuecoListadoCompleto = false;
         return desde;
     }
@@ -510,6 +520,7 @@ public class ConexionIntegracion : EntidadBase
 
         var segundo = SegundoDe(cursor);
         RecuperacionHuecoAtascadaEnUtc = null;
+        RecuperacionHuecoRecorridaPorId = true;
         if (!hayMas)
         {
             RecuperacionHuecoCursorUtc = segundo.AddSeconds(1);
@@ -565,7 +576,7 @@ public class ConexionIntegracion : EntidadBase
         if (!RecuperacionHuecoEnCurso || !RecuperacionHuecoListadoCompleto)
             throw new InvalidOperationException("La recuperación del hueco no ha terminado de listar.");
 
-        if (HuecoPendienteDesdeUtc is null || RecuperacionHuecoTruncada)
+        if (HuecoPendienteDesdeUtc is null || RecuperacionHuecoTruncada || RecuperacionHuecoRecorridaPorId)
             return false;
 
         HuecoPendienteDesdeUtc = null;
@@ -583,6 +594,7 @@ public class ConexionIntegracion : EntidadBase
         RecuperacionHuecoCubreDesdeUtc = null;
         RecuperacionHuecoCursorUtc = null;
         RecuperacionHuecoCursorDesempate = null;
+        RecuperacionHuecoRecorridaPorId = false;
         RecuperacionHuecoListadoCompleto = false;
         RecuperacionHuecoAtascadaEnUtc = null;
         return true;

@@ -42,6 +42,13 @@ public enum ResultadoRecuperacionHueco
     /// </summary>
     Truncada,
 
+    /// <summary>
+    /// El listado está completo y todo ingerido, pero recorrió algún segundo por Id (cursor compuesto, issue #2263), un
+    /// recorrido aún sin verificar contra Graph real: la marca se queda
+    /// (<see cref="ConexionIntegracion.RecuperacionHuecoRecorridaPorId"/>).
+    /// </summary>
+    RecorridaPorIdSinVerificar,
+
     /// <summary>Lectura completa, todo ingerido, conexión operativa con suscripción viva: la marca se limpió.</summary>
     Limpiada,
 }
@@ -64,7 +71,9 @@ public enum ResultadoRecuperacionHueco
 /// no sale de ese mismo segundo, el cursor pasa a ser compuesto (recepción, Id), issue #2263: el segundo se recorre por
 /// Id (<see cref="IMicrosoft365GraphClient.ListarRecibidosEnSegundoAsync"/>), guardando el último Id encolado
 /// (<see cref="ConexionIntegracion.RecuperacionHuecoCursorId"/>) con cada página, y al leerlo entero el listado sigue por
-/// fecha desde el segundo siguiente. Si el segundo no se puede recorrer así (página vacía, recepciones con fracción o un
+/// fecha desde el segundo siguiente. Lo leído así se encola, pero la marca no se limpia
+/// (<see cref="ResultadoRecuperacionHueco.RecorridaPorIdSinVerificar"/>) hasta verificar el recorrido contra Graph real. Si
+/// el segundo no se puede recorrer así (página vacía, recepciones con fracción o un
 /// recorrido incoherente), la página no se encola, la recuperación se queda
 /// <see cref="ResultadoRecuperacionHueco.Atascada"/> en ese segundo y la marca no se limpia.</item>
 /// <item><b>Una página, un guardado.</b> Lo nuevo de cada página se encola en eventos de recuperación
@@ -462,6 +471,15 @@ public class RecuperacionHuecoCorreoService(
             if (!conexion.OperativaVerificada(ahoraUtc) || suscripcion is null || suscripcion.FechaExpiracionUtc <= ahoraUtc)
             {
                 resultado = ResultadoRecuperacionHueco.SinRecuperar;
+                return;
+            }
+
+            if (conexion.RecuperacionHuecoRecorridaPorId)
+            {
+                logger.LogWarning(
+                    "La recuperación del hueco de {ConexionId} terminó recorriendo algún segundo por Id, sin verificar contra Graph real que ese recorrido no salte nada (issue #2263): lo leído quedó encolado y la marca ({Marca}) se queda.",
+                    conexionId, conexion.HuecoPendienteDesdeUtc);
+                resultado = ResultadoRecuperacionHueco.RecorridaPorIdSinVerificar;
                 return;
             }
 
