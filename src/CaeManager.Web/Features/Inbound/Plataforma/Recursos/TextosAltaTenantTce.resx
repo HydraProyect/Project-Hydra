@@ -25,7 +25,7 @@
     <value>Alta hecha por el Actor de Plataforma TALVEG.</value>
   </data>
   <data name="AvisoActorTexto" xml:space="preserve">
-    <value>Soporte TALVEG da de alta el Tenant y su Producto Contratado, pero no es Gestor CAE ni Operador CAE: no gestiona la operación de ese Tenant.</value>
+    <value>El Actor de Plataforma TALVEG contrata el Producto Contratado del Tenant, pero no es Gestor CAE ni Operador CAE: no gestiona la operación de ese Tenant.</value>
   </data>
   <data name="ErrorCarga" xml:space="preserve">
     <value>No pudimos comprobar la Sesión Privilegiada. No se ha ejecutado ninguna acción.</value>
@@ -79,7 +79,7 @@
     <value>Tenant TCE</value>
   </data>
   <data name="CampoTenantTceAyuda" xml:space="preserve">
-    <value>Es el Tenant activo de la Sesión Privilegiada: el Cliente empresarial que recibe el servicio y el Tenant propietario de sus datos.</value>
+    <value>Es el Tenant activo de la Sesión Privilegiada: el Cliente que recibe el servicio y el Tenant propietario de sus datos.</value>
   </data>
   <data name="Paso1NoDisponible" xml:space="preserve">
     <value>El nombre, el CIF y la Empresa propia del Tenant todavía no se dan de alta en esta pantalla: el Tenant se crea antes desde Administración global y aquí se contrata su línea Inbound.</value>
@@ -163,7 +163,7 @@
     <value>Operador CAE externo Inbound</value>
   </data>
   <data name="ResumenAdministrador" xml:space="preserve">
-    <value>Administrador</value>
+    <value>Administrador del Tenant TCE</value>
   </data>
   <data name="ResumenNoDisponible" xml:space="preserve">
     <value>No disponible todavía</value>
@@ -195,9 +195,6 @@
   <data name="Cancelado" xml:space="preserve">
     <value>Alta cancelada: no se ha creado ningún Producto Contratado.</value>
   </data>
-  <data name="TenantSinNombre" xml:space="preserve">
-    <value>El Tenant activo de la Sesión Privilegiada</value>
-  </data>
   <data name="ErrorPagador" xml:space="preserve">
     <value>Indica el Customer de Stripe del Pagador TALVEG: solo letras sin acentos, dígitos y guion bajo.</value>
   </data>
@@ -205,7 +202,7 @@
     <value>Si hay que cambiar el Pagador, el tramo o la modalidad, edita la línea Inbound vigente más abajo.</value>
   </data>
   <data name="ErrorInesperado" xml:space="preserve">
-    <value>No se pudo completar la acción. No se ha cambiado nada; vuelve a intentarlo.</value>
+    <value>No sabemos si la acción se completó. Recarga la pantalla y comprueba la línea Inbound antes de volver a intentarlo.</value>
   </data>
   <data name="LineaTitulo" xml:space="preserve">
     <value>Línea Inbound vigente</value>
@@ -227,5 +224,17 @@
   </data>
   <data name="BajaHecha" xml:space="preserve">
     <value>Línea Inbound dada de baja: ya no está vigente.</value>
+  </data>
+  <data name="CampoPagadorEjemplo" xml:space="preserve">
+    <value>cus_…</value>
+  </data>
+  <data name="ElegirOpcion" xml:space="preserve">
+    <value>Elige una opción</value>
+  </data>
+  <data name="ErrorTramoModalidad" xml:space="preserve">
+    <value>Elige el tramo y la modalidad del Producto Contratado.</value>
+  </data>
+  <data name="ResumenProductoInbound" xml:space="preserve">
+    <value>Inbound</value>
   </data>
 </root>

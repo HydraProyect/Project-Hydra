@@ -71,6 +71,33 @@ public class AltaTenantTceTests : BunitContext
     }
 
     [Fact]
+    public void Sin_Tenant_activo_resuelto_no_ofrece_ninguna_accion_aunque_la_capacidad_sea_Aprovisionamiento()
+    {
+        _mediator.Identidad = Identidad(CapacidadPrivilegio.Aprovisionamiento);
+        _mediator.Tenant = null;
+
+        var cut = Render<AltaTenantTce>();
+
+        cut.Markup.Should().Contain("Hace falta una Sesión Privilegiada de Aprovisionamiento");
+        cut.FindAll("button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Dar de alta", "Dar de baja", "Editar", "Continuar"]);
+    }
+
+    [Fact]
+    public void Un_valor_de_tramo_que_no_es_del_enum_cuenta_como_sin_elegir()
+    {
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+
+        cut.Find("#alta-tramo").Change("999");
+        Pulsar(cut, "Continuar");
+
+        cut.Find("[role='alert']").TextContent.Should().Contain("Elige el tramo y la modalidad");
+    }
+
+    [Fact]
     public void Con_impersonacion_no_ofrece_ninguna_accion_aunque_la_capacidad_sea_Aprovisionamiento()
     {
         _mediator.Identidad = Identidad(CapacidadPrivilegio.Aprovisionamiento, simulado: Guid.NewGuid());
@@ -100,8 +127,8 @@ public class AltaTenantTceTests : BunitContext
 
         Pulsar(cut, "Continuar");
         cut.Markup.Should().Contain("Pagador TALVEG ≠ Tenant propietario").And.Contain("Desde que se da de alta");
-        cut.FindAll("#alta-tramo option").Should().HaveCount(5);
-        cut.FindAll("#alta-modalidad option").Select(o => o.TextContent).Should().Equal("Mensual", "Anual");
+        cut.FindAll("#alta-tramo option").Should().HaveCount(6, "cinco tramos y «Elige una opción», sin tramo por defecto");
+        cut.FindAll("#alta-modalidad option").Select(o => o.TextContent).Should().Equal("Elige una opción", "Mensual", "Anual");
     }
 
     [Fact]
@@ -145,6 +172,8 @@ public class AltaTenantTceTests : BunitContext
         var cut = RenderConSesion();
         IrAlPasoProducto(cut);
         cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De1A10));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Dar de alta");
@@ -178,8 +207,14 @@ public class AltaTenantTceTests : BunitContext
         cut.Find("#corr-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
 
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().BeEmpty("sin tramo elegido no se manda ninguno por defecto");
+        cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Elige el tramo y la modalidad");
+
+        cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
+
         _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
-            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual));
+            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
         cut.Find(".alta-tce-linea [role='status']").TextContent.Should().Contain("Línea Inbound corregida");
     }
 
@@ -202,6 +237,7 @@ public class AltaTenantTceTests : BunitContext
     {
         public List<object> Enviados { get; } = [];
         public IdentidadPlataformaDto? Identidad { get; set; }
+        public ClienteAutorizadoDto? Tenant { get; set; } = new(TenantId, "Logística Delta Sur S.A.", EsOrigen: false, LogoVersion: null);
         public Result<Guid> RespuestaContratar { get; set; } = Result.Exito(Guid.Empty);
         public Result<Guid> RespuestaCorregir { get; set; } = Result.Exito(Guid.Empty);
         public Result<Guid> RespuestaBaja { get; set; } = Result.Exito(Guid.Empty);
@@ -212,7 +248,7 @@ public class AltaTenantTceTests : BunitContext
             object? respuesta = request switch
             {
                 ObtenerIdentidadPlataformaQuery => Identidad,
-                ObtenerTenantObjetivoSesionQuery => new ClienteAutorizadoDto(TenantId, "Logística Delta Sur S.A.", EsOrigen: false, LogoVersion: null),
+                ObtenerTenantObjetivoSesionQuery => Tenant,
                 ContratarLineaInboundCommand => RespuestaContratar,
                 CorregirLineaInboundCommand => RespuestaCorregir,
                 DarDeBajaLineaInboundCommand => RespuestaBaja,

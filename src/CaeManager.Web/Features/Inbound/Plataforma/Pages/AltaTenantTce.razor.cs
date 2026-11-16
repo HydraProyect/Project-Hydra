@@ -6,7 +6,6 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerTenantObjetivoSesion;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Comercial;
-using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Inbound.Plataforma.Recursos;
@@ -23,15 +22,22 @@ namespace CaeManager.Web.Features.Inbound.Plataforma.Pages;
 /// Administrador y la Asignación de Operación Inbound van a B-04b (D-D) y aquí son shortcut.
 ///
 /// <para>
-/// <b>Autorización</b>: la pantalla lee la identidad de plataforma (<see cref="ObtenerIdentidadPlataformaQuery"/>) para no
-/// ofrecer acciones que el comando va a denegar, igual que <c>Plataforma.razor</c> con el Encargo de administración. Eso no
-/// autoriza nada: la autoridad es <c>AutoridadSobreLaLineaInbound</c> en cada comando. Con impersonación no se ofrece nada:
-/// el Actor real no actúa como el Usuario simulado.
+/// <b>Autorización</b>: la pantalla lee la identidad de plataforma (<see cref="ObtenerIdentidadPlataformaQuery"/>) y el
+/// Tenant activo (<see cref="ObtenerTenantObjetivoSesionQuery"/>) para no ofrecer acciones que el comando va a denegar, igual
+/// que <c>Plataforma.razor</c> con el Encargo de administración. Eso no autoriza nada: la autoridad es
+/// <c>AutoridadSobreLaLineaInbound</c> en cada comando, y ningún comando recibe un Tenant: actúan sobre el Tenant activo.
+/// Con impersonación no se ofrece nada: el Actor real no actúa como el Usuario simulado.
 /// </para>
 /// </summary>
 public partial class AltaTenantTce
 {
     internal enum AccesoPantalla { SinSesion, Impersonacion, Permitida }
+
+    private sealed record FilaResumen(string Clave, string Valor);
+
+    private sealed record SeccionResumen(int Paso, string Titulo, IReadOnlyList<FilaResumen> Filas);
+
+    private sealed record LineaContratada(string Pagador, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad);
 
     private static readonly string[] ClavesPasos = ["tenant", "operacion", "producto", "administrador", "resumen"];
 
@@ -46,10 +52,10 @@ public partial class AltaTenantTce
     private bool _cancelado;
     private bool _enviando;
     private string? _error;
-    private Guid? _productoContratadoId;
+    private LineaContratada? _contratado;
     private string _pagador = string.Empty;
-    private TramoTrabajadoresActivos _tramo = TramoTrabajadoresActivos.De1A10;
-    private ModalidadSuscripcionAlta _modalidad = ModalidadSuscripcionAlta.Mensual;
+    private TramoTrabajadoresActivos? _tramo;
+    private ModalidadSuscripcionAlta? _modalidad;
 
     private bool _editandoLinea;
     private bool _enviandoLinea;
@@ -57,17 +63,33 @@ public partial class AltaTenantTce
     private string? _errorLinea;
     private string? _exitoLinea;
     private string _pagadorCorr = string.Empty;
-    private TramoTrabajadoresActivos _tramoCorr = TramoTrabajadoresActivos.De1A10;
-    private ModalidadSuscripcionAlta _modalidadCorr = ModalidadSuscripcionAlta.Mensual;
+    private TramoTrabajadoresActivos? _tramoCorr;
+    private ModalidadSuscripcionAlta? _modalidadCorr;
 
+    /// <summary>
+    /// Con Usuario simulado, nada. Sin la capacidad, o si el Tenant activo no se resuelve (no hay Tenant activo o la
+    /// política no da acceso a él), tampoco: los tres comandos lo denegarían.
+    /// </summary>
     internal AccesoPantalla Acceso => _identidad switch
     {
         { UsuarioSimuladoId: not null } => AccesoPantalla.Impersonacion,
-        { CapacidadActiva: CapacidadPrivilegio.Aprovisionamiento } => AccesoPantalla.Permitida,
+        { CapacidadActiva: CapacidadPrivilegio.Aprovisionamiento } when _tenant is not null => AccesoPantalla.Permitida,
         _ => AccesoPantalla.SinSesion,
     };
 
-    private string NombreTenant => _tenant?.Nombre ?? Textos["TenantSinNombre"];
+    private string NombreTenant => _tenant?.Nombre ?? string.Empty;
+
+    private string PasoActualClave => ClavesPasos[_paso - 1];
+
+    private string TextoPrimario => _paso < 5 ? Textos["Continuar"] : Textos["DarDeAlta"];
+
+    private string TituloHecho => string.Format(Textos["HechoTitulo"].Value, NombreTenant);
+
+    private string TextoHecho => _contratado is { } c
+        ? string.Format(Textos["HechoTexto"].Value, NombreTenant, c.Pagador, TextoTramo(c.Tramo), TextoModalidad(c.Modalidad))
+        : string.Empty;
+
+    private string MensajeBaja => string.Format(Textos["BajaMensaje"].Value, NombreTenant);
 
     private IReadOnlyList<PasoDefinicion> Pasos =>
     [
@@ -80,7 +102,21 @@ public partial class AltaTenantTce
 
     private IReadOnlySet<string> PasosHechos => ClavesPasos.Take(_paso - 1).ToHashSet();
 
-    private static string PasoClave(int paso) => ClavesPasos[paso - 1];
+    private IReadOnlyList<SeccionResumen> SeccionesResumen =>
+    [
+        new(1, Textos["SeccionTenant"], [new(Textos["CampoTenantTce"], NombreTenant)]),
+        new(2, Textos["SeccionOperacion"], [new(Textos["ResumenOperador"], Textos["ResumenNoDisponible"])]),
+        new(3, Textos["SeccionProducto"],
+        [
+            new(Textos["ResumenProducto"], Textos["ResumenProductoInbound"]),
+            new(Textos["CampoPagador"], _pagador.Trim()),
+            new(Textos["CampoTramo"], _tramo is { } t ? TextoTramo(t) : string.Empty),
+            new(Textos["CampoModalidad"], _modalidad is { } m ? TextoModalidad(m) : string.Empty),
+            new(Textos["CampoBeneficiario"], NombreTenant),
+            new(Textos["CampoVigencia"], Textos["CampoVigenciaValor"]),
+        ]),
+        new(4, Textos["SeccionAdministrador"], [new(Textos["ResumenAdministrador"], Textos["ResumenNoDisponible"])]),
+    ];
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -91,7 +127,7 @@ public partial class AltaTenantTce
         try
         {
             _identidad = await Mediator.Send(new ObtenerIdentidadPlataformaQuery());
-            _tenant = Acceso == AccesoPantalla.Permitida
+            _tenant = _identidad is { UsuarioSimuladoId: null, CapacidadActiva: CapacidadPrivilegio.Aprovisionamiento }
                 ? await Mediator.Send(new ObtenerTenantObjetivoSesionQuery())
                 : null;
         }
@@ -105,22 +141,43 @@ public partial class AltaTenantTce
         }
     }
 
-    private string? FaltaEnPaso(int paso) =>
-        paso == 3 && !ProductoContratado.EsPagadorStripeCustomerIdValido(_pagador.Trim())
-            ? Textos["ErrorPagador"].Value
-            : null;
+    private void CambiarPagador(string valor) { _pagador = valor; _error = null; }
 
-    private void Continuar()
+    private void CambiarTramo(TramoTrabajadoresActivos? valor) { _tramo = valor; _error = null; }
+
+    private void CambiarModalidad(ModalidadSuscripcionAlta? valor) { _modalidad = valor; _error = null; }
+
+    private void CambiarPagadorCorr(string valor) { _pagadorCorr = valor; _errorLinea = null; }
+
+    private void CambiarTramoCorr(TramoTrabajadoresActivos? valor) { _tramoCorr = valor; _errorLinea = null; }
+
+    private void CambiarModalidadCorr(ModalidadSuscripcionAlta? valor) { _modalidadCorr = valor; _errorLinea = null; }
+
+    /// <summary>Lo que falta para poder mandar la línea, o null. Lo repite el validador de cada comando.</summary>
+    private string? FaltaEnLinea(string pagador, TramoTrabajadoresActivos? tramo, ModalidadSuscripcionAlta? modalidad)
     {
-        if (FaltaEnPaso(_paso) is { } falta)
+        if (!ProductoContratado.EsPagadorStripeCustomerIdValido(pagador.Trim()))
+            return Textos["ErrorPagador"].Value;
+        if (tramo is null || modalidad is null)
+            return Textos["ErrorTramoModalidad"].Value;
+        return null;
+    }
+
+    private Task AvanzarAsync()
+    {
+        if (_paso == 5)
+            return DarDeAltaAsync();
+
+        if (_paso == 3 && FaltaEnLinea(_pagador, _tramo, _modalidad) is { } falta)
         {
             _error = falta;
-            return;
+            return Task.CompletedTask;
         }
 
         _error = null;
         _cancelado = false;
-        _paso = Math.Min(5, _paso + 1);
+        _paso++;
+        return Task.CompletedTask;
     }
 
     private void Atras()
@@ -131,6 +188,8 @@ public partial class AltaTenantTce
 
     private void IrA(int paso)
     {
+        if (_enviando)
+            return;
         _error = null;
         _paso = paso;
     }
@@ -139,8 +198,8 @@ public partial class AltaTenantTce
     {
         _paso = 1;
         _pagador = string.Empty;
-        _tramo = TramoTrabajadoresActivos.De1A10;
-        _modalidad = ModalidadSuscripcionAlta.Mensual;
+        _tramo = null;
+        _modalidad = null;
         _error = null;
         _cancelado = true;
     }
@@ -149,20 +208,22 @@ public partial class AltaTenantTce
     {
         if (_enviando)
             return;
-        if (FaltaEnPaso(3) is { } falta)
+        if (FaltaEnLinea(_pagador, _tramo, _modalidad) is { } falta || _tramo is not { } tramo || _modalidad is not { } modalidad)
         {
             _paso = 3;
-            _error = falta;
+            _error = FaltaEnLinea(_pagador, _tramo, _modalidad);
             return;
         }
 
+        // Lo enviado se fija antes de mandar: la confirmación cuenta esto, no lo que haya en los campos después.
+        var enviado = new LineaContratada(_pagador.Trim(), tramo, modalidad);
         _enviando = true;
         _error = null;
         try
         {
-            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(_pagador.Trim(), _tramo, _modalidad));
+            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(enviado.Pagador, enviado.Tramo, enviado.Modalidad));
             if (resultado.EsExitoso)
-                _productoContratadoId = resultado.Valor;
+                _contratado = enviado;
             else
                 _error = resultado.Error.Codigo == ErroresContratarLineaInbound.YaContratada.Codigo
                     ? $"{resultado.Error.Mensaje} {Textos["YaContratadaPista"]}"
@@ -183,8 +244,8 @@ public partial class AltaTenantTce
         _errorLinea = null;
         _exitoLinea = null;
         _pagadorCorr = string.Empty;
-        _tramoCorr = TramoTrabajadoresActivos.De1A10;
-        _modalidadCorr = ModalidadSuscripcionAlta.Mensual;
+        _tramoCorr = null;
+        _modalidadCorr = null;
         _editandoLinea = true;
     }
 
@@ -194,13 +255,20 @@ public partial class AltaTenantTce
         _editandoLinea = false;
     }
 
+    private void PedirBaja()
+    {
+        _errorLinea = null;
+        _exitoLinea = null;
+        _confirmarBaja = true;
+    }
+
     private async Task GuardarCorreccionAsync()
     {
         if (_enviandoLinea)
             return;
-        if (!ProductoContratado.EsPagadorStripeCustomerIdValido(_pagadorCorr.Trim()))
+        if (FaltaEnLinea(_pagadorCorr, _tramoCorr, _modalidadCorr) is { } falta || _tramoCorr is not { } tramo || _modalidadCorr is not { } modalidad)
         {
-            _errorLinea = Textos["ErrorPagador"];
+            _errorLinea = FaltaEnLinea(_pagadorCorr, _tramoCorr, _modalidadCorr);
             return;
         }
 
@@ -208,7 +276,7 @@ public partial class AltaTenantTce
         _errorLinea = null;
         try
         {
-            var resultado = await Mediator.Send(new CorregirLineaInboundCommand(_pagadorCorr.Trim(), _tramoCorr, _modalidadCorr));
+            var resultado = await Mediator.Send(new CorregirLineaInboundCommand(_pagadorCorr.Trim(), tramo, modalidad));
             if (resultado.EsExitoso)
             {
                 _editandoLinea = false;

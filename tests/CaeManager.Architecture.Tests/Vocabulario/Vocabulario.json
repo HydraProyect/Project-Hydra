@@ -512,6 +512,19 @@
       "motivo": "La misma decisión del 2026-11-11 (E24) para el marcado de la página de la bandeja: el filtro, «Sin Cliente empresarial asignado», «Asignar Cliente empresarial…» y el panel «Contexto del Cliente empresarial». Un .razor no tiene claves, así que la excepción cubre el fichero entero."
     },
     {
+      "id": "tenant-en-alta-tenant-tce",
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.resx",
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.ca-ES.resx"
+      ],
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Pantalla de Plataforma (tarjeta 31, /plataforma/inbound/alta-tenant-tce, kicker «Plataforma · Tenants») que solo opera dentro de una Sesión Privilegiada de Aprovisionamiento: la abre un Actor de Plataforma TALVEG (plano 3), cuyo objeto de trabajo es el Tenant como tal (Tenant TCE, Tenant beneficiario del Producto Contratado). Mismo criterio que tenant-en-pagina-de-plataforma; el rótulo «Alta del Tenant TCE» es el de la maqueta AltaTenantTCE.dc.html."
+    },
+    {
       "id": "tenant-en-pagina-de-plataforma",
       "prohibidos": [
         "tenant-a-secas",

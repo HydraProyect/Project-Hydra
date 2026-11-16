@@ -4,43 +4,71 @@
 @inject IStringLocalizer<TextosAltaTenantTce> Textos
 
 @* Lo que contratan y corrigen ContratarLineaInboundCommand y CorregirLineaInboundCommand (D-B, 2026-11-15): el Customer de
-   Stripe del Pagador TALVEG, que ya existe en Stripe, el tramo y la modalidad. La vigencia no se elige: empieza al contratar. *@
+   Stripe del Pagador TALVEG, que ya existe en Stripe, el tramo y la modalidad. Tramo y modalidad empiezan sin elegir: una
+   corrección cierra el Producto Contratado vigente y abre otro con los tres campos, así que ninguno se manda por defecto. *@
 <div class="campo">
-    <label class="campo-label" for="@($"{Prefijo}-pagador")">@Textos["CampoPagador"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
-    <input class="campo-input cifras" id="@($"{Prefijo}-pagador")" value="@Pagador" placeholder="cus_…"
-           maxlength="@CaeManager.Domain.Comercial.ProductoContratado.LongitudMaximaPagadorStripeCustomerId"
-           @oninput="e => PagadorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+    <label class="campo-label" for="@IdPagador">@Textos["CampoPagador"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+    <input class="campo-input" id="@IdPagador" value="@Pagador" placeholder="@Textos["CampoPagadorEjemplo"]"
+           maxlength="@LongitudMaxima" @oninput="CambiarPagadorAsync" />
     <span class="campo-ayuda">@Textos["CampoPagadorAyuda"]</span>
 </div>
 <div class="alta-tce-fila">
     <div class="campo">
-        <label class="campo-label" for="@($"{Prefijo}-tramo")">@Textos["CampoTramo"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
-        <select class="campo-select" id="@($"{Prefijo}-tramo")" value="@Tramo.ToString()"
-                @onchange="e => TramoChanged.InvokeAsync(Enum.Parse<TramoTrabajadoresActivos>(e.Value?.ToString() ?? nameof(TramoTrabajadoresActivos.De1A10)))">
-            @foreach (var tramo in Enum.GetValues<TramoTrabajadoresActivos>())
+        <label class="campo-label" for="@IdTramo">@Textos["CampoTramo"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+        <select class="campo-select" id="@IdTramo" @onchange="CambiarTramoAsync">
+            <option value="" selected="@(Tramo is null)">@Textos["ElegirOpcion"]</option>
+            @foreach (var opcion in OpcionesTramo)
             {
-                <option value="@tramo.ToString()" selected="@(tramo == Tramo)">@AltaTenantTce.TextoTramo(Textos, tramo)</option>
+                <option value="@opcion.Valor" selected="@opcion.Elegida">@opcion.Texto</option>
             }
         </select>
     </div>
     <div class="campo">
-        <label class="campo-label" for="@($"{Prefijo}-modalidad")">@Textos["CampoModalidad"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
-        <select class="campo-select" id="@($"{Prefijo}-modalidad")" value="@Modalidad.ToString()"
-                @onchange="e => ModalidadChanged.InvokeAsync(Enum.Parse<ModalidadSuscripcionAlta>(e.Value?.ToString() ?? nameof(ModalidadSuscripcionAlta.Mensual)))">
-            @foreach (var modalidad in Enum.GetValues<ModalidadSuscripcionAlta>())
+        <label class="campo-label" for="@IdModalidad">@Textos["CampoModalidad"]<span class="campo-obligatorio" aria-hidden="true">*</span></label>
+        <select class="campo-select" id="@IdModalidad" @onchange="CambiarModalidadAsync">
+            <option value="" selected="@(Modalidad is null)">@Textos["ElegirOpcion"]</option>
+            @foreach (var opcion in OpcionesModalidad)
             {
-                <option value="@modalidad.ToString()" selected="@(modalidad == Modalidad)">@AltaTenantTce.TextoModalidad(Textos, modalidad)</option>
+                <option value="@opcion.Valor" selected="@opcion.Elegida">@opcion.Texto</option>
             }
         </select>
     </div>
 </div>
 
 @code {
+    private sealed record Opcion(string Valor, string Texto, bool Elegida);
+
+    private static readonly int LongitudMaxima = CaeManager.Domain.Comercial.ProductoContratado.LongitudMaximaPagadorStripeCustomerId;
+
     [Parameter] public string Pagador { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PagadorChanged { get; set; }
-    [Parameter] public TramoTrabajadoresActivos Tramo { get; set; }
-    [Parameter] public EventCallback<TramoTrabajadoresActivos> TramoChanged { get; set; }
-    [Parameter] public ModalidadSuscripcionAlta Modalidad { get; set; }
-    [Parameter] public EventCallback<ModalidadSuscripcionAlta> ModalidadChanged { get; set; }
+    [Parameter] public TramoTrabajadoresActivos? Tramo { get; set; }
+    [Parameter] public EventCallback<TramoTrabajadoresActivos?> TramoChanged { get; set; }
+    [Parameter] public ModalidadSuscripcionAlta? Modalidad { get; set; }
+    [Parameter] public EventCallback<ModalidadSuscripcionAlta?> ModalidadChanged { get; set; }
     [Parameter, EditorRequired] public string Prefijo { get; set; } = string.Empty;
+
+    private string IdPagador => Prefijo + "-pagador";
+    private string IdTramo => Prefijo + "-tramo";
+    private string IdModalidad => Prefijo + "-modalidad";
+
+    private IEnumerable<Opcion> OpcionesTramo => Enum.GetValues<TramoTrabajadoresActivos>()
+        .Select(t => new Opcion(t.ToString(), AltaTenantTce.TextoTramo(Textos, t), t == Tramo));
+
+    private IEnumerable<Opcion> OpcionesModalidad => Enum.GetValues<ModalidadSuscripcionAlta>()
+        .Select(m => new Opcion(m.ToString(), AltaTenantTce.TextoModalidad(Textos, m), m == Modalidad));
+
+    private Task CambiarPagadorAsync(ChangeEventArgs e) => PagadorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+
+    // El valor llega del DOM: lo que no sea un valor definido del enum cuenta como «sin elegir» (ASVS 5.1.3).
+    private Task CambiarTramoAsync(ChangeEventArgs e) => TramoChanged.InvokeAsync(Leer<TramoTrabajadoresActivos>(e));
+
+    private Task CambiarModalidadAsync(ChangeEventArgs e) => ModalidadChanged.InvokeAsync(Leer<ModalidadSuscripcionAlta>(e));
+
+    private static T? Leer<T>(ChangeEventArgs e) where T : struct, Enum =>
+        Enum.TryParse<T>(e.Value?.ToString(), ignoreCase: false, out var valor)
+        && Enum.IsDefined(valor)
+        && !int.TryParse(e.Value?.ToString(), out _)
+            ? valor
+            : null;
 }

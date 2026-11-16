@@ -16,7 +16,7 @@
     <value>Donar d&apos;alta el Tenant TCE</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Plataforma · Organitzacions</value>
+    <value>Plataforma · Tenants</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
     <value>Tenant del Client amb Inbound, amb el seu Producte Contractat i el seu Administrador</value>
@@ -25,7 +25,7 @@
     <value>Alta feta per l&apos;Actor de Plataforma TALVEG.</value>
   </data>
   <data name="AvisoActorTexto" xml:space="preserve">
-    <value>Suport TALVEG dona d&apos;alta el Tenant i el seu Producte Contractat, però no és Gestor CAE ni Operador CAE: no gestiona l&apos;operació d&apos;aquest Tenant.</value>
+    <value>L&apos;Actor de Plataforma TALVEG contracta el Producte Contractat del Tenant, però no és Gestor CAE ni Operador CAE: no gestiona l&apos;operació d&apos;aquest Tenant.</value>
   </data>
   <data name="ErrorCarga" xml:space="preserve">
     <value>No hem pogut comprovar la Sessió Privilegiada. No s&apos;ha executat cap acció.</value>
@@ -76,10 +76,10 @@
     <value>Resum</value>
   </data>
   <data name="CampoTenantTce" xml:space="preserve">
-    <value>Tenant TCE (beneficiari)</value>
+    <value>Tenant TCE</value>
   </data>
   <data name="CampoTenantTceAyuda" xml:space="preserve">
-    <value>És el Tenant actiu de la Sessió Privilegiada: el Client empresarial que rep el servei i el Tenant propietari de les seves dades.</value>
+    <value>És el Tenant actiu de la Sessió Privilegiada: el Client que rep el servei i el Tenant propietari de les seves dades.</value>
   </data>
   <data name="Paso1NoDisponible" xml:space="preserve">
     <value>El nom, el CIF i l&apos;Empresa pròpia del Tenant encara no es donen d&apos;alta en aquesta pantalla: el Tenant es crea abans des d&apos;Administració global i aquí es contracta la seva línia Inbound.</value>
@@ -109,10 +109,10 @@
     <value>El Pagador TALVEG és qui paga el Producte Contractat; no és per això el Tenant propietari de les dades. Pagador TALVEG ≠ Tenant propietari.</value>
   </data>
   <data name="CampoPagador" xml:space="preserve">
-    <value>Pagador TALVEG: client de Stripe</value>
+    <value>Pagador TALVEG: Customer d&apos;Stripe</value>
   </data>
   <data name="CampoPagadorAyuda" xml:space="preserve">
-    <value>L&apos;identificador del client que ja existeix a Stripe. L&apos;alta no crea clients ni crida Stripe.</value>
+    <value>L&apos;identificador del Customer que ja existeix a Stripe. L&apos;alta no crea Customers ni crida Stripe.</value>
   </data>
   <data name="CampoTramo" xml:space="preserve">
     <value>Tram</value>
@@ -124,10 +124,10 @@
     <value>De {0} a {1} Treballadors actius</value>
   </data>
   <data name="ModalidadMensual" xml:space="preserve">
-    <value>Mensual (cada mes)</value>
+    <value>Mensual</value>
   </data>
   <data name="ModalidadAnual" xml:space="preserve">
-    <value>Anual (cada any)</value>
+    <value>Anual</value>
   </data>
   <data name="CampoBeneficiario" xml:space="preserve">
     <value>Tenant beneficiari</value>
@@ -148,22 +148,22 @@
     <value>Encara no disponible: l&apos;Administrador del Tenant TCE, primer Usuari del Tenant, es convidarà des d&apos;aquesta pantalla més endavant. Avui l&apos;alta no envia cap correu.</value>
   </data>
   <data name="SeccionTenant" xml:space="preserve">
-    <value>Tenant del Client (resum)</value>
+    <value>Tenant del Client</value>
   </data>
   <data name="SeccionOperacion" xml:space="preserve">
-    <value>Operació (resum)</value>
+    <value>Operació</value>
   </data>
   <data name="SeccionProducto" xml:space="preserve">
-    <value>Producte Contractat (resum)</value>
+    <value>Producte Contractat</value>
   </data>
   <data name="SeccionAdministrador" xml:space="preserve">
-    <value>Administrador del Tenant TCE (resum)</value>
+    <value>Administrador del Tenant TCE</value>
   </data>
   <data name="ResumenOperador" xml:space="preserve">
     <value>Operador CAE extern Inbound</value>
   </data>
   <data name="ResumenAdministrador" xml:space="preserve">
-    <value>Administrador (primer Usuari)</value>
+    <value>Administrador del Tenant TCE</value>
   </data>
   <data name="ResumenNoDisponible" xml:space="preserve">
     <value>Encara no disponible</value>
@@ -195,17 +195,14 @@
   <data name="Cancelado" xml:space="preserve">
     <value>Alta cancel·lada: no s&apos;ha creat cap Producte Contractat.</value>
   </data>
-  <data name="TenantSinNombre" xml:space="preserve">
-    <value>El Tenant actiu de la Sessió Privilegiada</value>
-  </data>
   <data name="ErrorPagador" xml:space="preserve">
-    <value>Indica el client de Stripe del Pagador TALVEG: només lletres sense accents, dígits i guió baix.</value>
+    <value>Indica el Customer d&apos;Stripe del Pagador TALVEG: només lletres sense accents, dígits i guió baix.</value>
   </data>
   <data name="YaContratadaPista" xml:space="preserve">
     <value>Si cal canviar el Pagador, el tram o la modalitat, edita la línia Inbound vigent més avall.</value>
   </data>
   <data name="ErrorInesperado" xml:space="preserve">
-    <value>No s&apos;ha pogut completar l&apos;acció. No s&apos;ha canviat res; torna-ho a provar.</value>
+    <value>No sabem si l&apos;acció s&apos;ha completat. Recarrega la pantalla i comprova la línia Inbound abans de tornar-ho a provar.</value>
   </data>
   <data name="LineaTitulo" xml:space="preserve">
     <value>Línia Inbound vigent</value>
@@ -227,5 +224,17 @@
   </data>
   <data name="BajaHecha" xml:space="preserve">
     <value>Línia Inbound donada de baixa: ja no és vigent.</value>
+  </data>
+  <data name="CampoPagadorEjemplo" xml:space="preserve">
+    <value>cus_…</value>
+  </data>
+  <data name="ElegirOpcion" xml:space="preserve">
+    <value>Tria una opció</value>
+  </data>
+  <data name="ErrorTramoModalidad" xml:space="preserve">
+    <value>Tria el tram i la modalitat del Producte Contractat.</value>
+  </data>
+  <data name="ResumenProductoInbound" xml:space="preserve">
+    <value>Inbound</value>
   </data>
 </root>
