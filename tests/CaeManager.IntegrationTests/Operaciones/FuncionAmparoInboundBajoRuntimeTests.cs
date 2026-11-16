@@ -63,15 +63,15 @@ public class FuncionAmparoInboundBajoRuntimeTests : IAsyncLifetime
             await using var contexto = ContextoPropietarioDeLaBase(_casos[caso].Propietario);
             var linea = ProductoContratado.Contratar(LineaProductoContratado.Inbound, "cus_PagadorAmparoInbound",
                 TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, ahora.AddDays(-30), ahora);
+            // Finalizada por el dominio, que pone a la vez el estado y la fecha de fin (CK_ProductosContratados_EstadoYVigencia).
+            if (caso == "línea finalizada")
+                linea.Finalizar(ahora.AddDays(-1), ahora);
             contexto.ProductosContratados.Add(linea);
             await contexto.SaveChangesAsync();
             // El alta no admite un inicio lejano en el futuro: se mueve después, como lo vería una línea programada.
             if (desde > ahora)
                 await contexto.ProductosContratados.Where(p => p.Id == linea.Id)
                     .ExecuteUpdateAsync(s => s.SetProperty(p => p.VigenteDesdeUtc, desde));
-            if (caso == "línea finalizada")
-                await contexto.ProductosContratados.Where(p => p.Id == linea.Id)
-                    .ExecuteUpdateAsync(s => s.SetProperty(p => p.Estado, EstadoProductoContratado.Finalizado));
         }
     }
 
