@@ -155,10 +155,19 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
                 propietario, operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, operacionDesde, operacionHasta, ahora);
             var cartera = AsignacionCartera.Externa(
                 operacion, usuario, Roles.GestorCae, AmbitoAsignacion.Universal, carteraDesde, carteraHasta, ahora);
-            _propietario.AsignacionesOperacion.Add(operacion);
             _propietario.AsignacionesCartera.Add(cartera);
-            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
-            if (propietario != operador) _propietario.DelegacionesTenant.Add(new DelegacionTenant(operador, propietario));
+            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223),
+            // sellada como origen de la operación para que EF inserte la delegación antes.
+            if (propietario != operador)
+            {
+                var delegacionDelPar = new DelegacionTenant(operador, propietario);
+                _propietario.DelegacionesTenant.Add(delegacionDelPar);
+                OperacionExternaAmparada.Agregar(_propietario, operacion, delegacionDelPar);
+            }
+            else
+            {
+                _propietario.AsignacionesOperacion.Add(operacion);
+            }
             await _propietario.SaveChangesAsync();
             return (operacion, cartera);
         }

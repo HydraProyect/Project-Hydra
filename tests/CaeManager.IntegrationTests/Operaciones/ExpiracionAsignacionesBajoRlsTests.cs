@@ -155,8 +155,8 @@ public class ExpiracionAsignacionesBajoRlsTests
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
             propietarioBd.Tenants.AddRange(propietario, operadorExterno);
-            propietarioBd.AsignacionesOperacion.Add(operacion);
             propietarioBd.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(propietarioBd, operacion, vinculo);
             propietarioBd.AsignacionesCartera.AddRange(carteraQueCaduca, carteraSinFecha);
             propietarioBd.AsignacionesOperadorDelegadoConRevocadas.AddRange(
                 new AsignacionOperadorDelegado(vinculo.Id, apoyoQueCaduca, Roles.GestorCae),
@@ -282,9 +282,15 @@ public class ExpiracionAsignacionesBajoRlsTests
 
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
-            propietarioBd.AsignacionesOperacion.AddRange(
-                outboundConOtra, acotadaConOtra, outboundSinOtra, acotadaQueExpira, outboundSoloInbound, inboundSoloInbound,
-                inboundQueCaduca, outboundOtroOperador, deOtroOperador);
+            // Las Outbound del par con su delegación de Operador CAE externo nacen amparadas por ella; la Inbound y
+            // la del otro Operador CAE (sin delegación de su par) se siembran sin origen.
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundConOtra, vinculoConOtra);
+            OperacionExternaAmparada.Agregar(propietarioBd, acotadaConOtra, vinculoConOtra);
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundSinOtra, vinculoSinOtra);
+            OperacionExternaAmparada.Agregar(propietarioBd, acotadaQueExpira, vinculoSinOtra);
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundSoloInbound, vinculoSoloInbound);
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundOtroOperador, vinculoOtroOperador);
+            propietarioBd.AsignacionesOperacion.AddRange(inboundSoloInbound, inboundQueCaduca, deOtroOperador);
             // Vence en este pase para que su cartera caiga con ella; se emite sin fecha de fin para que la cartera nazca bajo una vigente.
             propietarioBd.Entry(acotadaQueExpira).Property(o => o.VigenciaHasta).CurrentValue = haceUnaHora;
             propietarioBd.DelegacionesTenant.AddRange(
@@ -417,8 +423,13 @@ public class ExpiracionAsignacionesBajoRlsTests
 
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
-            propietarioBd.AsignacionesOperacion.AddRange(
-                outboundSuspendida, suspendida, outboundQueExpira, outboundQueExpiraConOtra, acotadaVigente, inboundQueExpira);
+            // Las Outbound nacen amparadas por la delegación de Operador CAE externo de su par; la Inbound, sin origen.
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundSuspendida, vinculoSuspendida);
+            OperacionExternaAmparada.Agregar(propietarioBd, suspendida, vinculoSuspendida);
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundQueExpira, vinculoCascada);
+            OperacionExternaAmparada.Agregar(propietarioBd, outboundQueExpiraConOtra, vinculoCascadaConOtra);
+            OperacionExternaAmparada.Agregar(propietarioBd, acotadaVigente, vinculoCascadaConOtra);
+            propietarioBd.AsignacionesOperacion.Add(inboundQueExpira);
             // Vencen en este pase para que sus carteras caigan con ellas; se emiten sin fecha de fin para que las
             // carteras nazcan bajo operaciones vigentes.
             foreach (var queExpira in new[] { outboundQueExpira, outboundQueExpiraConOtra, inboundQueExpira })
@@ -496,8 +507,8 @@ public class ExpiracionAsignacionesBajoRlsTests
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
             propietarioBd.Tenants.AddRange(operadorExterno, propietario);
-            propietarioBd.AsignacionesOperacion.Add(operacion);
             propietarioBd.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(propietarioBd, operacion, vinculo);
             propietarioBd.AsignacionesCartera.Add(caduca);
             propietarioBd.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(vinculo.Id, titular, Roles.GestorCae));
@@ -557,8 +568,9 @@ public class ExpiracionAsignacionesBajoRlsTests
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
             propietarioBd.Tenants.AddRange(operadorExterno, propietario);
-            propietarioBd.AsignacionesOperacion.AddRange(outbound, inboundVencida);
             propietarioBd.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(propietarioBd, outbound, vinculo);
+            propietarioBd.AsignacionesOperacion.Add(inboundVencida);
             propietarioBd.AsignacionesCartera.Add(carteraQueCaduca);
             propietarioBd.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(vinculo.Id, titular, Roles.GestorCae));

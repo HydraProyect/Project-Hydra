@@ -122,9 +122,11 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
             var operacionDeOtroOperador = AsignacionOperacion.Externa(
                 _tenantMirado, _tenantOtroOperador, ServicioCae.Outbound,
                 AmbitoAsignacion.DeRelacionCliente(clienteDePosicionAjena), desde, null, ahora);
-            contexto.AsignacionesOperacion.AddRange(
-                operacionSobreElMirado, operacionSobreElAjeno, operacionInterna, operacionInternaCerrada,
-                operacionDeOtroOperador);
+            // Las externas, amparadas por la DelegacionTenant de la que nacen: sin origen no autorizan (AmparoDeOrigen).
+            OperacionExternaAmparada.Agregar(contexto, operacionSobreElMirado);
+            OperacionExternaAmparada.Agregar(contexto, operacionSobreElAjeno);
+            OperacionExternaAmparada.Agregar(contexto, operacionDeOtroOperador);
+            contexto.AsignacionesOperacion.AddRange(operacionInterna, operacionInternaCerrada);
             await contexto.SaveChangesAsync();
 
             var carteraCerrada = AsignacionCartera.Interna(
@@ -190,7 +192,7 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
 
             var operacion = AsignacionOperacion.Externa(
                 _tenantMirado, _tenantOperador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
-            contexto.AsignacionesOperacion.Add(operacion);
+            OperacionExternaAmparada.Agregar(contexto, operacion);
             await contexto.SaveChangesAsync();
 
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(

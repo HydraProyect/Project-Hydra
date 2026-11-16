@@ -15,15 +15,16 @@ public interface IEncargoAdministracionRepository
 
     /// <summary>
     /// La operación a la que se quiere ligar un encargo, si es de ese Tenant
-    /// propietario. Que sea externa, universal y vigente lo exige
-    /// <see cref="EncargoAdministracion.Registrar"/>.
+    /// propietario y su origen la ampara (una externa cuya DelegacionTenant se
+    /// revocó, o que nació sin origen, no se devuelve). Que sea externa,
+    /// universal y vigente lo exige <see cref="EncargoAdministracion.Registrar"/>.
     /// </summary>
     Task<AsignacionOperacion?> ObtenerOperacionAsync(
         Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Las operaciones de ese Tenant propietario sobre las que hoy se puede
-    /// registrar un encargo: externas, del Tenant entero, vigentes en
+    /// registrar un encargo: externas, amparadas por su origen, del Tenant entero, vigentes en
     /// <paramref name="ahora"/> y sin un encargo sin retirar. Sin seguimiento.
     /// </summary>
     Task<IReadOnlyList<AsignacionOperacion>> ListarOperacionesEncargablesAsync(
