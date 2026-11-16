@@ -320,6 +320,12 @@ public class RecuperacionHuecoCorreoService(
                         "La recuperación del hueco de {ConexionId} recorre por Id el segundo {Segundo}: no cabe en una página.",
                         conexionId, segundoDelCursor);
                     enSegundo = true;
+                    // La página leída cuenta para el tope aunque no se guarde: sin esta comprobación, el cambio al recorrido
+                    // por Id pediría una página más de las MaximoPaginasPorPasada. El cursor no se ha movido, así que la
+                    // pasada siguiente vuelve a detectar el segundo y entra en el recorrido por Id desde su primera página.
+                    if (pagina >= MaximoPaginasPorPasada)
+                        return TopeDeLaPasada(conexionId, mensajes, pagina, recuperacion);
+
                     continue;
                 }
 

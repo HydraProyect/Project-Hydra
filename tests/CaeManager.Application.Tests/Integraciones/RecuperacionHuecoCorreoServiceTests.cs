@@ -316,10 +316,11 @@ public class RecuperacionHuecoCorreoServiceTests
 
     /// <summary>
     /// Issue #2263: un segundo con más mensajes de los que caben en una página se recorre por Id (cursor compuesto) y la
-    /// recuperación sigue por fecha desde el segundo siguiente hasta completar el listado y limpiar la marca.
+    /// recuperación sigue por fecha desde el segundo siguiente hasta completar el listado; la marca se queda, porque el
+    /// recorrido por Id no está verificado contra Graph real.
     /// </summary>
     [Fact]
-    public async Task Mas_de_una_pagina_del_mismo_segundo_se_recorre_por_id_y_la_marca_se_limpia()
+    public async Task Mas_de_una_pagina_del_mismo_segundo_se_recorre_por_id_y_se_encola_entero_sin_limpiar_la_marca()
     {
         var escenario = new Escenario(TimeSpan.FromHours(3));
         var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
@@ -639,6 +640,37 @@ public class RecuperacionHuecoCorreoServiceTests
         // Pasada siguiente: las cinco páginas que quedan y, tras ellas, una vacía sin más detrás.
         (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
         escenario.Graph.ListadosRecibidosPedidos[RecuperacionHuecoCorreoService.MaximoPaginasPorPasada].DesdeUtc.Should().Be(cursor);
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Issue #2263: si la página por fecha que descubre un segundo lleno es la última que permite el tope, la pasada corta
+    /// ahí en vez de pedir la primera página del recorrido por Id, y la siguiente entra en el recorrido desde el cursor.
+    /// </summary>
+    [Fact]
+    public async Task El_tope_de_paginas_corta_antes_de_empezar_el_recorrido_por_id()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(19));
+        var delSegundo = DelSegundo(segundo, 5);
+        // Un mensaje por minuto: cada página por fecha (de 3, ge el segundo del cursor) avanza dos minutos, así que la
+        // novena deja el cursor en el segundo lleno y la décima, la última del tope, solo trae mensajes de ese segundo.
+        escenario.Graph.BuzonSimulado =
+            [.. Enumerable.Range(1, 18).Select(i => escenario.Mensaje($"m{i:D2}", i)), .. delSegundo];
+        escenario.Graph.TamanoPaginaSimulada = 3;
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Parcial);
+
+        escenario.Graph.ListadosRecibidosPedidos.Should().HaveCount(RecuperacionHuecoCorreoService.MaximoPaginasPorPasada);
+        escenario.Graph.ListadosEnSegundoPedidos.Should().BeEmpty("el tope se comprueba antes de pedir la página siguiente");
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+        escenario.Graph.ListadosEnSegundoPedidos.Should().NotBeEmpty();
+        IdsEncolados(escenario).Should().BeEquivalentTo(
+            [.. Enumerable.Range(1, 18).Select(i => $"m{i:D2}"), .. delSegundo.Select(m => m.MensajeExternoId)],
+            o => o.WithoutStrictOrdering(), "cada mensaje del buzón se encola, y una sola vez");
+        IdsEncolados(escenario).Should().OnlyHaveUniqueItems();
         escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
     }
 
