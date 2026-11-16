@@ -1,0 +1,148 @@
+@page "/inbound/contratos/{Id:guid}"
+@* Tarjeta 11 · Detalle del contrato de acceso (Inbound). Conectado a ObtenerContratoAccesoPorIdQuery y a las acciones de B-05
+   (condiciones, renovar, finalizar, cancelar, eliminar). Las pestañas dependen de B-17, B-19 y B-11 y van como «Próximamente». *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Domain.Inbound.ContratosAcceso
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Components
+@using CaeManager.Web.Features.Inbound.ContratosAcceso.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosContratosAcceso> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_fila?.EmpresaNombre ?? Textos["TituloPagina"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_fila?.EmpresaNombre ?? Textos["TituloPagina"])} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaNavegacion"]" />
+
+    @if (_noEncontrado)
+    {
+        <FichaNoEncontrada RutaLista="/inbound/contratos" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando || _fila is null)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else
+    {
+        var contrato = _fila.Contrato;
+        <CabeceraIdentidad Titulo="@(_fila.EmpresaNombre ?? Textos["EmpresaNoDisponible"].Value)" Kicker="@Textos["Kicker"]">
+            <Datos>
+                <div class="inbound-datos-contrato" data-pieza="datos-contrato">
+                    @if (!string.IsNullOrWhiteSpace(_fila.EmpresaCif))
+                    {
+                        <span>@_fila.EmpresaCif</span>
+                        <span aria-hidden="true">·</span>
+                    }
+                    <span>@(_fila.CentroNombre ?? Textos["CentroNoDisponible"].Value)</span>
+                    @if (contrato.Tipo is { } tipo)
+                    {
+                        <span aria-hidden="true">·</span>
+                        <span>@Textos[ContratoAccesoUi.ClaveTipo(tipo)]</span>
+                    }
+                    <span aria-hidden="true">·</span>
+                    <span>@ContratoAccesoUi.Rango(contrato.FechaInicio, contrato.FechaFin, Textos)</span>
+                    <span aria-hidden="true">·</span>
+                    <Badge Tono="ContratoAccesoUi.Tono(contrato.Estado)" Tamano="TamanoBadge.Pequeno">@Textos[ContratoAccesoUi.ClaveEstado(contrato.Estado)]</Badge>
+                </div>
+            </Datos>
+            <Acciones>
+                <SoloConEscritura>
+                    @if (PuedeRenovar)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" OnClick="() => _renovando = true">@Textos["AccionRenovar"]</Boton>
+                    }
+                    @if (PuedeEditarCondiciones)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _editandoCondiciones = true">@Textos["AccionEditar"]</Boton>
+                    }
+                    @if (PuedeFinalizar)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => PedirAccion(AccionContrato.Finalizar)">@Textos["BotonFinalizar"]</Boton>
+                    }
+                    @if (PuedeCancelar || PuedeEliminar)
+                    {
+                        <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
+                            @if (PuedeCancelar)
+                            {
+                                <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Cancelar)">@Textos["BotonCancelarContrato"]</ItemMenuAccion>
+                            }
+                            @if (PuedeEliminar)
+                            {
+                                <ItemMenuAccion Destructivo="true" OnClick="() => PedirAccion(AccionContrato.Eliminar)">@Textos["BotonEliminar"]</ItemMenuAccion>
+                            }
+                        </MenuAcciones>
+                    }
+                </SoloConEscritura>
+            </Acciones>
+        </CabeceraIdentidad>
+
+        @* Cuatro indicadores de la maqueta. Los que no tienen backend (B-17 Trabajadores, B-19 subcontratas, B-11 Requerimientos,
+           B-15 lo que entra en el Centro) enseñan «—» y no una cifra inventada. *@
+        <section class="inbound-kpis" aria-label="@Textos["KpisEtiqueta"]" data-pieza="kpis-contrato">
+            <div class="inbound-kpi">
+                <span class="inbound-kpi-etiqueta">@Textos["KpiTrabajadores"]</span>
+                @* shortcut: sin backend, cablear cuando entre B-17 (Trabajadores asignados con cupo). *@
+                <span class="inbound-kpi-valor">@(_actividad is { } a1 ? a1.TrabajadoresAsignados.ToString() : Textos["SinDato"].Value)</span>
+                <span class="inbound-secundario">@ContratoAccesoUi.TextoCupo(contrato.CupoTrabajadores, Textos)</span>
+            </div>
+            <div class="inbound-kpi">
+                <span class="inbound-kpi-etiqueta">@Textos["KpiSubcontratas"]</span>
+                @* shortcut: sin backend, cablear cuando entre B-19 (Empresas subcontratadas). El nivel sí viene del contrato. *@
+                <span class="inbound-kpi-valor">@(_actividad is { } a2 ? a2.Subcontratas.ToString() : Textos["SinDato"].Value)</span>
+                <span class="inbound-secundario">@(contrato.NivelMaxSubcontrata is { } nivel ? Textos["KpiHastaNiveles", nivel] : Textos["KpiNivelSinFijar"])</span>
+            </div>
+            <div class="inbound-kpi">
+                <span class="inbound-kpi-etiqueta">@Textos["KpiRequerimientos"]</span>
+                @* shortcut: sin backend, cablear cuando entre B-11 (Requerimientos de Empresa). *@
+                <span class="inbound-kpi-valor">@(_actividad is { } a3 ? a3.RequerimientosPendientes.ToString() : Textos["SinDato"].Value)</span>
+                <span class="inbound-secundario">@Textos["KpiRequerimientosPendientes"]</span>
+            </div>
+            <div class="inbound-kpi">
+                <span class="inbound-kpi-etiqueta">@Textos["KpiEntra"]</span>
+                @* shortcut: sin backend, cablear cuando entre B-15 (resolución por capas de lo que entra en el Centro). *@
+                <span class="inbound-kpi-valor">@Textos["SinDato"]</span>
+                <span class="inbound-secundario">@Textos["KpiEntraAviso"]</span>
+            </div>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(contrato.Notas))
+        {
+            <p class="inbound-notas" data-pieza="notas-contrato">@contrato.Notas</p>
+        }
+
+        <Pestanas Definiciones="_pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaPestanas"]">
+            @* shortcut: sin backend, cablear cuando entren B-17 (Solicitudes y Trabajadores), B-19 (Empresas subcontratadas) y
+               B-11 (Requerimientos). Cada panel dice qué hará, sin filas de ejemplo. *@
+            <EstadoVacio NombreIcono="@IconoPestana" Titulo="@TituloVacioPestana" Descripcion="@DescripcionVacioPestana" />
+        </Pestanas>
+    }
+</div>
+
+@if (_fila is { } f)
+{
+    <DialogoRenovarContrato Visible="_renovando" VisibleChanged="v => _renovando = v" ContratoId="@f.Contrato.Id" Version="@f.Contrato.Version"
+                            FinActual="@f.Contrato.FechaFin" Empresa="@f.EmpresaNombre" OnRenovado="RenovadoAsync" OnFallo="RefrescarTrasFalloAsync" />
+
+    <EditarCondicionesContratoDrawer Visible="_editandoCondiciones" VisibleChanged="v => _editandoCondiciones = v" Contrato="@f.Contrato"
+                                     OnGuardado="CondicionesGuardadasAsync" OnFallo="RefrescarTrasFalloAsync" />
+
+    <DialogoConfirmacion Visible="_accion != AccionContrato.Ninguna" VisibleChanged="CerrarAccion" Titulo="@TituloAccion" Mensaje="@MensajeAccion"
+                         TextoBotonConfirmar="@TextoConfirmarAccion" TextoBotonDescartar="@Textos["BotonCancelar"]"
+                         VarianteConfirmar="VarianteBoton.Destructivo"
+                         EnProgreso="_enProgreso" OnConfirmar="ConfirmarAccionAsync">
+        @if (_errorAccion is not null)
+        {
+            <p class="campo-mensaje-error" role="alert" data-pieza="error-accion">@_errorAccion</p>
+        }
+    </DialogoConfirmacion>
+}
+</LimiteDeErrores>

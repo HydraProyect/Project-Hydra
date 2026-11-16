@@ -33,6 +33,7 @@ public class RutaTrasCambioDeTenantTests
     [InlineData("/documentos/tipos/" + Id, "/documentos")]
     [InlineData("/plantillas/" + Id + "/editar", "/plantillas")]
     [InlineData("/inbound/validacion/" + Id, "/inbound/validacion")]
+    [InlineData("/inbound/contratos/" + Id, "/inbound/contratos")]
     [InlineData("/inbound/requerimientos/" + Id + "/subir", "/inbound/requerimientos")]
     [InlineData("/trabajadores/" + Id + "?ctx=Trabajador:" + Id + ":resumen&q=x", "/trabajadores")]
     [InlineData("/TRABAJADORES/" + "11111111-2222-3333-4444-55555555AAAA", "/TRABAJADORES")]
