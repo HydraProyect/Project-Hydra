@@ -1,0 +1,324 @@
+@*
+    Aceptación de los documentos contractuales obligatorios fuera del alta (#2009, decisión D-6 del
+    2026-11-15): mientras el Tenant propietario tenga una versión vigente sin aceptar, su Administrador
+    queda bloqueado por este modal hasta que la acepte. Mismo patrón que AceptacionTerminosGate: montado
+    una sola vez en MainLayout, dentro de AuthorizeView/Authorized, con su propio @@rendermode.
+
+    Solo bloquea al Administrador del Tenant propietario: para cualquier otra cuenta (otro rol, Gestor CAE
+    o Administrador de un Operador CAE externo, Actor de Plataforma TALVEG, impersonación) la consulta
+    devuelve una lista vacía y este gate no pinta nada.
+
+    Con el catálogo vacío no se bloquea a nadie: hoy CatalogoDocumentosContractuales (Infrastructure) no
+    publica ningún documento, porque los textos son borradores del abogado, así que la consulta devuelve
+    siempre una lista vacía y este modal no aparece. Lo fija AceptacionContractualGateTests.
+
+    Tampoco bloquea mientras las escrituras del Tenant propietario estén bloqueadas por su estado (solo
+    lectura o suspensión): la consulta devuelve vacío, porque el Command se rechazaría siempre y el modal
+    no tendría salida. Si la consulta falla, en cambio, no deja pasar: pinta un modal de error con un
+    botón para reintentar.
+
+    Lo pendiente es del Tenant actual, así que se vuelve a consultar cuando ese Tenant cambia dentro del
+    circuito. El único cambio en caliente es la retirada de la selección de Tenant beneficiario (Asignación
+    de Operación caducada o cerrada, ventana de soporte terminada), que devuelve el contexto al Tenant de
+    origen sin recargar y se avisa con IAvisoSeleccionRetirada; elegir otro Tenant pasa por el endpoint de
+    selección y una recarga completa, que monta un gate nuevo.
+
+    La IP de quien acepta es la del contexto HTTP del prerenderizado, como en el alta: en el circuito no
+    hay HttpContext, así que se lee al prerenderizar y pasa al circuito por el estado persistido. Se lee
+    del HttpContext en cascada y, si no llega, de IHttpContextAccessor (como MainLayout).
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Cumplimiento.AceptacionContractual
+@using CaeManager.Web.Features.Cumplimiento.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosAceptacionContractual> Textos
+@inject PersistentComponentState EstadoPersistente
+@inject IServiceProvider Servicios
+@inject NavigationManager Navegacion
+@inject IHttpContextAccessor HttpContextAccessor
+@inherits CaeManager.Web.Components.IsloteInteractivo
+
+<LimiteDeErrores Islote="this">
+@if (_errorConsulta)
+{
+    @* No es un formulario: un Modal bloqueante con un único primario, sin nada que guardar ni descartar. *@
+    <Modal Visible="true" Titulo="@Textos["TituloErrorConsulta"]" Bloqueante="true">
+        <ChildContent>
+            <p class="gate-contractual-error" role="alert">@Textos["ErrorConsulta"]</p>
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Primario" Cargando="_consultando" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
+        </Pie>
+    </Modal>
+}
+else if (_pendientes.Count > 0)
+{
+    <ModalFormulario Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande"
+                     HayCambios="() => _marcados.Count > 0 || _facultades" Guardando="_aceptando" MensajeError="@_error"
+                     MotivoGuardarDeshabilitado="@(!TodoMarcado ? Textos["MotivoAceptar"].Value : null)"
+                     TextoGuardar="@Textos["BotonAceptar"]" TextoCancelar="" OnGuardar="AceptarAsync">
+        <ChildContent>
+            <p class="texto-consentimiento">@Textos["Introduccion", Marca.Nombre]</p>
+            @foreach (var documento in _pendientes)
+            {
+                <p class="documento-contractual-pendiente" data-documento="@documento.Documento">
+                    <label class="campo-checkbox">
+                        <input type="checkbox" checked="@_marcados.Contains(documento.Documento)"
+                               @onchange="e => Marcar(documento.Documento, (bool)e.Value!)" />
+                        @Textos["CasillaDocumento", documento.Titulo, documento.Version]
+                    </label>
+                    <a href="@EnlaceTexto(documento)" target="_blank" rel="noopener noreferrer">@Textos["EnlaceTexto"]</a>
+                </p>
+            }
+            <label class="campo-checkbox campo-facultades">
+                <input type="checkbox" checked="@_facultades" @onchange="e => _facultades = (bool)e.Value!" />
+                @Textos["CasillaFacultades"]
+            </label>
+        </ChildContent>
+    </ModalFormulario>
+}
+</LimiteDeErrores>
+
+@code {
+    /// <summary>Solo en el prerenderizado: de ahí sale la IP de quien acepta (o del accesor si no llega).</summary>
+    [CascadingParameter] public HttpContext? ContextoHttp { get; set; }
+
+    private IReadOnlyList<DocumentoContractualPendienteDto> _pendientes = [];
+    private readonly HashSet<string> _marcados = new(StringComparer.Ordinal);
+    private bool _facultades;
+    private bool _aceptando;
+    private bool _errorConsulta;
+    private bool _consultando;
+    private string? _error;
+    private string? _ip;
+    private PersistingComponentStateSubscription _persistencia;
+    private IAvisoSeleccionRetirada? _avisoRetirada;
+    // Sube con cada cambio de Tenant: una consulta lanzada antes no pisa lo que ya se leyó del Tenant nuevo.
+    private int _generacion;
+    private EstadoGate? _estado;
+    private const string ClavePersistencia = "gate-contractual-estado-v1";
+
+    /// <summary>
+    /// Lo que el prerenderizado deja al circuito: de qué usuario es, cuándo se leyó, qué tenía pendiente y la IP
+    /// de la petición. Lo pendiente solo se reutiliza dentro de la caducidad de las lecturas del layout; la IP, para
+    /// el mismo usuario, siempre, porque el circuito no tiene otra forma de conocerla. Lo pendiente es del Tenant
+    /// con el que se leyó: si el circuito ve otro (una selección retirada antes de montarse, sin aviso que
+    /// escuchar todavía), se vuelve a consultar.
+    /// </summary>
+    public sealed record EstadoGate(Guid Usuario, DateTimeOffset Creado, IReadOnlyList<DocumentoContractualPendienteDto> Pendientes, string? Ip, Guid? Tenant);
+
+    private bool TodoMarcado => _facultades && _pendientes.All(d => _marcados.Contains(d.Documento));
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Primero el oyente y después la consulta, como SuscripcionMensajesDelTenantActual: al revés, una retirada
+        // entre las dos dejaría lo leído del Tenant retirado sin nadie que lo corrigiera (revisión Codex, PR #2270).
+        var generacion = _generacion;
+        var tenantActual = Servicios.GetService<ITenantActual>();
+        _avisoRetirada = tenantActual as IAvisoSeleccionRetirada;
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado += AlRetirarseLaSeleccion;
+
+        try
+        {
+            var usuario = Servicios.GetService<ICurrentUserService>() is { } actual
+                ? await actual.ObtenerUsuarioActualIdAsync() : null;
+            var tenant = tenantActual?.TenantId;
+            var anterior = Restaurar(usuario);
+            _ip = IpDeLaPeticion() ?? anterior?.Ip;
+            var pendientes = anterior is not null && Vigente(anterior) && anterior.Tenant == tenant
+                ? anterior.Pendientes
+                : await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+
+            // Si el Tenant cambió mientras tanto, lo que vale es lo que ya leyó la reconsulta.
+            if (generacion == _generacion)
+            {
+                _pendientes = pendientes;
+                if (usuario is { } leido)
+                    _estado = new(leido, DateTimeOffset.UtcNow, _pendientes, _ip, tenant);
+            }
+        }
+        catch (Exception) when (generacion != _generacion)
+        {
+            // El fallo era del Tenant anterior: lo que vale es lo que ya leyó la reconsulta.
+        }
+        catch (Exception)
+        {
+            // Falla cerrado (revisión Codex de la PR #2270): una consulta que falla no es «sin pendientes». Nada más
+            // bloquea al Administrador del Tenant propietario mientras le falte aceptar, así que tomar el error por
+            // una lista vacía le dejaría seguir sin aceptar. El modal de error bloquea también a cualquier otra
+            // cuenta, porque sin la consulta no se sabe si es quien acepta; la consulta no lanza para quien no
+            // acepta (le devuelve una lista vacía), así que a esas cuentas solo las retiene un fallo real, con el
+            // reintento a mano.
+            _pendientes = [];
+            _errorConsulta = true;
+        }
+        _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirAsync);
+    }
+
+    private async Task ReintentarAsync()
+    {
+        // Un segundo clic antes del render no lanza otra consulta.
+        if (_consultando) return;
+
+        _consultando = true;
+        var generacion = _generacion;
+        try
+        {
+            var pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion == _generacion)
+            {
+                _pendientes = pendientes;
+                _errorConsulta = false;
+            }
+        }
+        catch (Exception)
+        {
+            // El error sigue activo: el botón solo existe con él, y solo un éxito lo apaga.
+        }
+        finally
+        {
+            _consultando = false;
+        }
+    }
+
+    private string? IpDeLaPeticion()
+    {
+        // El HttpContext en cascada no está garantizado en un componente InteractiveServer montado en el layout;
+        // sin IP cada clic recargaría la página y el Administrador no saldría del modal. El accesor cubre ese hueco
+        // en el prerenderizado; si ninguno de los dos trae contexto, queda la IP persistida.
+        var ip = (ContextoHttp ?? HttpContextAccessor.HttpContext)?.Connection.RemoteIpAddress;
+        return ip is null ? null : (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).ToString();
+    }
+
+    /// <summary>Lo que dejó el prerenderizado, si es del mismo usuario. Un estado ilegible se ignora y se consulta.</summary>
+    private EstadoGate? Restaurar(Guid? usuario)
+    {
+        try
+        {
+            return EstadoPersistente.TryTakeFromJson<EstadoGate>(ClavePersistencia, out var anterior)
+                && anterior is { Pendientes: not null } && usuario is { } id && anterior.Usuario == id
+                ? anterior
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static bool Vigente(EstadoGate estado) =>
+        DateTimeOffset.UtcNow - estado.Creado is var edad && edad >= TimeSpan.Zero && edad < MemoPorContexto.Caducidad;
+
+    private Task PersistirAsync()
+    {
+        if (_estado is { } estado)
+            EstadoPersistente.PersistAsJson(ClavePersistencia, estado);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado -= AlRetirarseLaSeleccion;
+        _persistencia.Dispose();
+    }
+
+    /// <summary>
+    /// El aviso llega en el hilo de quien retira la selección, y cuando ya se ve el Tenant de origen: se vuelve al
+    /// despachador y se lee lo pendiente de ese Tenant, con el modal limpio (las casillas eran de otros documentos).
+    /// </summary>
+    private void AlRetirarseLaSeleccion(Guid retirado) => _ = InvokeAsync(ReconsultarAsync);
+
+    private async Task ReconsultarAsync()
+    {
+        var generacion = ++_generacion;
+        _marcados.Clear();
+        _facultades = false;
+        _error = null;
+        try
+        {
+            var pendientes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion != _generacion) return;
+            _pendientes = pendientes;
+            _errorConsulta = false;
+        }
+        catch (Exception)
+        {
+            if (generacion != _generacion) return;
+            // Falla cerrado, como al inicializar.
+            _pendientes = [];
+            _errorConsulta = true;
+        }
+        StateHasChanged();
+    }
+
+    private void Marcar(string documento, bool marcado)
+    {
+        if (marcado) _marcados.Add(documento);
+        else _marcados.Remove(documento);
+    }
+
+    private static string EnlaceTexto(DocumentoContractualPendienteDto documento) =>
+        $"/legal/contrato/{Uri.EscapeDataString(documento.Documento)}/{Uri.EscapeDataString(documento.Version)}";
+
+    private async Task AceptarAsync()
+    {
+        if (!TodoMarcado) return;
+
+        if (_ip is null)
+        {
+            // Un circuito sin prerenderizado (reconexión, navegación sin recarga) no trae la IP, y el Command la
+            // exige. Sin esto el modal no se podría cerrar nunca: se recarga la página, el prerenderizado la lee y
+            // el Administrador vuelve a marcar las casillas.
+            Navegacion.NavigateTo(Navegacion.Uri, forceLoad: true);
+            return;
+        }
+
+        _aceptando = true;
+        _error = null;
+        var generacion = _generacion;
+        try
+        {
+            var resultado = await Mediator.Send(new AceptarDocumentosContractualesCommand(
+                _pendientes.Select(d => new DocumentoContractualAceptado(d.Documento, d.Version, d.HashSha256)).ToList(),
+                DeclaraFacultades: _facultades, _ip));
+            // Con el Tenant cambiado a mitad, el estado del modal ya es el de la reconsulta.
+            if (generacion != _generacion) return;
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                // Si lo pendiente cambió con el modal abierto (otra versión publicada, otra cuenta que ya aceptó),
+                // se vuelve a leer: con la lista vieja el Command fallaría siempre igual.
+                var actuales = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+                if (generacion == _generacion && !actuales.SequenceEqual(_pendientes))
+                {
+                    _pendientes = actuales;
+                    _marcados.Clear();
+                    _facultades = false;
+                }
+                return;
+            }
+
+            var restantes = await Mediator.Send(new ObtenerAceptacionesContractualesPendientesQuery());
+            if (generacion != _generacion) return;
+            _pendientes = restantes;
+            _marcados.Clear();
+            _facultades = false;
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _error = Textos["ErrorRegistro"];
+        }
+        finally
+        {
+            _aceptando = false;
+        }
+    }
+}

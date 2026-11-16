@@ -387,6 +387,53 @@ public class ContratoAccesoTests
         contrato.Estado.Should().Be(EstadoContratoAcceso.Activo);
     }
 
+    // DN1 (DECISION_LOG 2026-11-15): solo se elimina un contrato Cancelado o que no ha empezado.
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar)]
+    [InlineData(EstadoContratoAcceso.Activo)]
+    [InlineData(EstadoContratoAcceso.Suspendido)]
+    [InlineData(EstadoContratoAcceso.Rechazado)]
+    public void Eliminar_antes_del_inicio_marca_el_contrato_como_eliminado_sin_cambiar_su_estado(EstadoContratoAcceso estado)
+    {
+        var contrato = EnEstado(estado);
+
+        contrato.Eliminar(Inicio.AddDays(-1), Usuario);
+
+        contrato.EstaEliminado.Should().BeTrue();
+        contrato.EliminadoPorUsuarioId.Should().Be(Usuario);
+        contrato.Estado.Should().Be(estado, "eliminar no es una transición de estado");
+    }
+
+    [Theory]
+    [InlineData(EstadoContratoAcceso.PendienteDeConfirmar)]
+    [InlineData(EstadoContratoAcceso.Activo)]
+    [InlineData(EstadoContratoAcceso.Suspendido)]
+    [InlineData(EstadoContratoAcceso.Rechazado)]
+    [InlineData(EstadoContratoAcceso.Finalizado)]
+    public void Eliminar_el_dia_de_inicio_o_despues_lanza_salvo_que_este_cancelado(EstadoContratoAcceso estado)
+    {
+        var contrato = EnEstado(estado);
+
+        FluentActions.Invoking(() => contrato.Eliminar(Inicio, Usuario)).Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => contrato.Eliminar(Inicio.AddDays(30), Usuario)).Should().Throw<InvalidOperationException>();
+        contrato.EstaEliminado.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(30)]
+    public void Eliminar_un_contrato_cancelado_cabe_antes_el_dia_de_inicio_y_despues(int diasDesdeElInicio)
+    {
+        var contrato = EnEstado(EstadoContratoAcceso.Cancelado);
+
+        contrato.Eliminar(Inicio.AddDays(diasDesdeElInicio), Usuario);
+
+        contrato.EstaEliminado.Should().BeTrue();
+        contrato.EliminadoPorUsuarioId.Should().Be(Usuario);
+    }
+
     [Fact]
     public void Un_contrato_cancelado_no_da_acceso_tampoco_desde_su_inicio()
     {

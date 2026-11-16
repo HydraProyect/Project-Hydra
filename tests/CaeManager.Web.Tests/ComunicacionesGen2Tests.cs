@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.CambiarPrioridadConversacion;
@@ -483,7 +484,9 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.FindAll(".rs-sinrevisar").Should().BeEmpty();
         EnviarDeshabilitado(cut).Should().BeFalse();
         await Enviar(cut);
-        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+        // Issue #2007: el envío dice qué sugerencia de Vega estaba en el redactor, para que el servidor marque el correo.
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle()
+            .Which.RespuestaSugeridaId.Should().Be(escenario.Sugerencia!.Id);
     }
 
     [Fact]
@@ -553,7 +556,93 @@ public class ComunicacionesGen2Tests : BunitContext
         await Escribir(cut, "Recibido, gracias.");
         EnviarDeshabilitado(cut).Should().BeFalse("la IA es opcional: escribir a mano sigue funcionando");
         await Enviar(cut);
-        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle()
+            .Which.RespuestaSugeridaId.Should().BeNull("nada se insertó en el redactor");
+    }
+
+    private async Task<(Escenario Escenario, IRenderedComponent<Bandeja> Cut, MediadorControlado Mediador)> SugerenciaRevisadaEnElRedactorAsync()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".rs-sinrevisar button", "Lo he revisado").ClickAsync(new MouseEventArgs());
+        return (escenario, cut, mediador);
+    }
+
+    /// <summary>Issue #2007: tras enviar la sugerencia, lo que se escribe a mano después ya no viaja como de Vega.</summary>
+    [Fact]
+    public async Task Tras_enviar_la_sugerencia_lo_escrito_a_mano_despues_no_lleva_su_id()
+    {
+        var (escenario, cut, mediador) = await SugerenciaRevisadaEnElRedactorAsync();
+        await Enviar(cut);
+
+        await Escribir(cut, "Se me olvidó: el certificado de la mutua también nos vale.");
+        await Enviar(cut);
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Select(c => c.RespuestaSugeridaId)
+            .Should().Equal(escenario.Sugerencia!.Id, null);
+    }
+
+    /// <summary>
+    /// Issue #2007, decisión de Chris del 2026-11-16, rama de rechazo: si el servidor rechaza la sugerencia que viajó, el
+    /// redactor no la olvida mientras conserve su texto; el reintento sigue llevando el id y, con él, el origen de IA.
+    /// </summary>
+    [Fact]
+    public async Task Una_sugerencia_que_el_servidor_rechaza_no_se_olvida_mientras_siga_su_texto()
+    {
+        var (escenario, cut, mediador) = await SugerenciaRevisadaEnElRedactorAsync();
+        var intentos = 0;
+        escenario.AlResponder = _ => ++intentos == 1 ? Result.Fallo(OrigenContenidoEnvio.SugerenciaNoUtilizable) : Result.Exito();
+
+        await Enviar(cut);
+        await Enviar(cut);
+
+        var envios = mediador.Enviados.OfType<ResponderConversacionCommand>().ToList();
+        envios.Select(c => c.RespuestaSugeridaId).Should().Equal(escenario.Sugerencia!.Id, escenario.Sugerencia!.Id);
+        envios[1].CuerpoHtml.Should().Be(envios[0].CuerpoHtml, "un rechazo no borra lo escrito");
+    }
+
+    /// <summary>Otro fallo de negocio no suelta la sugerencia: reenviar tras corregir sigue siendo el texto de Vega.</summary>
+    [Fact]
+    public async Task Otro_fallo_del_envio_no_olvida_la_sugerencia()
+    {
+        var (escenario, cut, mediador) = await SugerenciaRevisadaEnElRedactorAsync();
+        var intentos = 0;
+        escenario.AlResponder = _ => ++intentos == 1
+            ? Result.Fallo(Error.Crear("Conversacion.SinBuzon", "La conversación no tiene buzón."))
+            : Result.Exito();
+
+        await Enviar(cut);
+        await Enviar(cut);
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Select(c => c.RespuestaSugeridaId)
+            .Should().Equal(escenario.Sugerencia!.Id, escenario.Sugerencia!.Id);
+    }
+
+    /// <summary>
+    /// Issue #2007, decisión de Chris del 2026-11-16, rama de descarte: descartar una sugerencia ya editada más del umbral deja
+    /// el texto y también su id, porque el texto sigue saliendo de la sugerencia de Vega.
+    /// </summary>
+    [Fact]
+    public async Task Descartar_la_sugerencia_editada_deja_el_texto_y_su_id()
+    {
+        var (escenario, _) = EscenarioConSugerencia();
+        var insertada = escenario.Sugerencia!.Id;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".rs-bloque").Should().ContainSingle());
+        await Boton(cut, ".rs-bloque button", "Insertar para revisar").ClickAsync(new MouseEventArgs());
+        const string Propio = "Hola Carmen, recibido todo. Lo miramos esta tarde y mañana le decimos algo sin falta.";
+        await Escribir(cut, Propio);
+
+        await Boton(cut, ".rs-sinrevisar button", "Descartar").ClickAsync(new MouseEventArgs());
+        await Enviar(cut);
+
+        var enviado = mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle().Subject;
+        enviado.CuerpoHtml.Should().Contain("Lo miramos esta tarde", "lo editado más del umbral es de la persona y se respeta");
+        enviado.RespuestaSugeridaId.Should().Be(insertada, "el texto que sale sigue partiendo de la sugerencia de Vega");
     }
 
     [Fact]

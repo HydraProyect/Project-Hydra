@@ -144,12 +144,14 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
             var externa = AsignacionOperacion.Externa(
                 _propietario.Id, _operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora);
-            contexto.AsignacionesOperacion.AddRange(raiz, externa);
+            // La operación externa nace amparada por su delegación de Operador CAE externo (EF inserta la delegación antes).
+            var delegacion = new DelegacionTenant(_operadorExterno.Id, _propietario.Id);
+            contexto.DelegacionesTenant.Add(delegacion);
+            contexto.AsignacionesOperacion.Add(raiz);
+            OperacionExternaAmparada.Agregar(contexto, externa, delegacion);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 externa, _gestorExterno, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddDays(-1), vigenciaHasta: null, ahora));
 
-            var delegacion = new DelegacionTenant(_operadorExterno.Id, _propietario.Id);
-            contexto.DelegacionesTenant.Add(delegacion);
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(delegacion.Id, _gestorExterno, Roles.GestorCae));
 

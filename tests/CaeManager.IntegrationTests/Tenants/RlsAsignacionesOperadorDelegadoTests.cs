@@ -340,6 +340,12 @@ public class RlsAsignacionesOperadorDelegadoTests : IAsyncLifetime
         await InsertarRechazado(contexto, Guid.NewGuid());
     }
 
+    /// <summary>
+    /// Desde la PR #2237 (Codex r2, H2) el trigger BEFORE UPDATE <c>asignacion_operador_delegado_revocacion_definitiva</c>
+    /// hace inmutable <c>DelegacionTenantId</c> y rechaza el reapuntado antes de que PostgreSQL evalúe el WITH CHECK de
+    /// la política: el rechazo llega como <c>check_violation</c> del trigger y no como <c>insufficient_privilege</c>. La
+    /// política sigue en su sitio; por esta ruta ya no es la capa que se alcanza primero.
+    /// </summary>
     [Fact]
     public async Task No_se_puede_reapuntar_una_asignacion_a_una_delegacion_de_la_que_el_Tenant_activo_no_es_extremo()
     {
@@ -349,7 +355,50 @@ public class RlsAsignacionesOperadorDelegadoTests : IAsyncLifetime
             .Where(a => a.Id == _asignacionEnA)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.DelegacionTenantId, _ajena));
         (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState
-            .Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+            .Should().Be(PostgresErrorCodes.CheckViolation);
+
+        await using var verificacion = CrearContexto(conexion);
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.SingleAsync(a => a.Id == _asignacionEnA))
+            .DelegacionTenantId.Should().NotBe(_ajena, "el reapuntado no se escribió");
+    }
+
+    /// <summary>
+    /// La capa de la política, aislada del trigger (revisor-puente del cierre de la ronda 3 en la PR #2237, media 1): con
+    /// <c>asignacion_operador_delegado_revocacion_definitiva</c> deshabilitado dentro de una transacción que siempre se
+    /// revierte, el mismo reapuntado bajo <c>cae_app_runtime</c> lo rechaza el WITH CHECK de la política con
+    /// <c>insufficient_privilege</c>. Ni una clave foránea (23503) ni el trigger (23514) dan ese código: el 42501 solo
+    /// puede venir de la RLS.
+    /// </summary>
+    [Fact]
+    public async Task Sin_el_trigger_el_WITH_CHECK_de_la_politica_rechaza_el_reapuntado()
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var deshabilitar = new NpgsqlCommand(
+            """ALTER TABLE public."AsignacionesOperadorDelegado" DISABLE TRIGGER asignacion_operador_delegado_revocacion_definitiva;""",
+            conexion, transaccion))
+            await deshabilitar.ExecuteNonQueryAsync();
+        await using (var estado = new NpgsqlCommand(
+            """
+            SELECT tgenabled::text FROM pg_trigger
+             WHERE tgrelid = 'public."AsignacionesOperadorDelegado"'::regclass
+               AND tgname = 'asignacion_operador_delegado_revocacion_definitiva';
+            """, conexion, transaccion))
+            ((string)(await estado.ExecuteScalarAsync())!).Should().Be("D", "control: el trigger no interviene en esta transacción");
+
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _a, tenantOrigenId: _a, local: true, transaccion: transaccion);
+        await using (var rol = new NpgsqlCommand("SET LOCAL ROLE cae_app_runtime;", conexion, transaccion))
+            await rol.ExecuteNonQueryAsync();
+
+        await using var reapuntar = new NpgsqlCommand(
+            $"""UPDATE public."AsignacionesOperadorDelegado" SET "DelegacionTenantId" = '{_ajena}' WHERE "Id" = '{_asignacionEnA}';""",
+            conexion, transaccion);
+        var accion = async () => await reapuntar.ExecuteNonQueryAsync();
+        (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState
+            .Should().Be(PostgresErrorCodes.InsufficientPrivilege, "el WITH CHECK de la política rechaza una delegación ajena");
+
+        await transaccion.RollbackAsync();
     }
 
     [Fact]

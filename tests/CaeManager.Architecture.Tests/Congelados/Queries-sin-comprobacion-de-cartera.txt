@@ -18,7 +18,8 @@
 # completo, para no confundirse con uno relativo (CaeManager.Application.Foo.Query -> Foo.Query; Foo.Query externo -> global::Foo.Query).
 # Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
-# de 113 entradas es el mismo.)
+# de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
+# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas.
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1
@@ -40,6 +41,9 @@ Inbound.CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[Inbound.Catalogo
 # Plataforma; ninguno tiene cartera. Solo el lado de gestion (OperaDesdeElLadoDeGestionAsync) recibe sugerencias.
 Inbound.Requisitos.Queries :: BuscarRequisitosParecidosQueryHandler[Inbound.Requisitos.Queries.BuscarRequisitosParecidosQuery] = 1
 Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
+# Linea Inbound vigente del Tenant activo (plano comercial): lee solo el Producto Contratado del Tenant beneficiario, que no
+# tiene cartera, y devuelve un booleano para la interfaz (menu y paleta), nunca una fila.
+Inbound.Comercial.Queries.LineaInboundVigente :: LineaInboundVigenteQueryHandler[Inbound.Comercial.Queries.LineaInboundVigente.LineaInboundVigenteQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
 Configuracion.Queries :: ObtenerFiltrosGuardadosQueryHandler[Configuracion.Queries.ObtenerFiltrosGuardadosQuery] = 1
@@ -52,7 +56,12 @@ ContactosSeguridad.Queries.ObtenerContactoSeguridadDeMiOrganizacion :: ObtenerCo
 ContactosSeguridad.Queries.ObtenerContactoSeguridadVigente :: ObtenerContactoSeguridadVigenteQueryHandler[ContactosSeguridad.Queries.ObtenerContactoSeguridadVigente.ObtenerContactoSeguridadVigenteQuery] = 1
 ContactosSeguridad.Queries.ObtenerContactosSeguridadPropuestos :: ObtenerContactosSeguridadPropuestosQueryHandler[ContactosSeguridad.Queries.ObtenerContactosSeguridadPropuestos.ObtenerContactosSeguridadPropuestosQuery] = 1
 ContactosSeguridad.Queries.ResolverDestinatariosAvisoSeguridad :: ResolverDestinatariosAvisoSeguridadQueryHandler[ContactosSeguridad.Queries.ResolverDestinatariosAvisoSeguridad.ResolverDestinatariosAvisoSeguridadQuery] = 1
+# #2009, D-6: las versiones contractuales pendientes del Tenant propietario actual. Lee el catálogo y las
+# aceptaciones del propio Tenant (RLS), no filas con cartera; decide la cuenta propia y activa del Administrador.
+Cumplimiento.AceptacionContractual :: ObtenerAceptacionesContractualesPendientesQueryHandler[Cumplimiento.AceptacionContractual.ObtenerAceptacionesContractualesPendientesQuery] = 1
 Cumplimiento.AceptacionContractual :: ObtenerAceptacionesContractualesTenantQueryHandler[Cumplimiento.AceptacionContractual.ObtenerAceptacionesContractualesTenantQuery] = 1
+# #2009: el texto publicado de una versión del catálogo de documentos contractuales; no lee ninguna fila de datos.
+Cumplimiento.AceptacionContractual :: ObtenerTextoDocumentoContractualQueryHandler[Cumplimiento.AceptacionContractual.ObtenerTextoDocumentoContractualQuery] = 1
 Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos :: ObtenerEstadoAceptacionTerminosQueryHandler[Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos.ObtenerEstadoAceptacionTerminosQuery] = 1
 Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual :: ObtenerEstadoTratamientoIaActualQueryHandler[Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQuery] = 1
 Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario :: ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandler[Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario.ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery] = 1

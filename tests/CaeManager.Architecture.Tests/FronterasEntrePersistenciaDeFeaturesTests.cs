@@ -70,6 +70,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
+        // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
+        ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
+        ("Cumplimiento.ObtenerAceptacionesContractualesPendientesQueryHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único
@@ -120,6 +124,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Cliente 360 (varias Empresas empleadoras): el mismo cálculo, con los mismos contextos que el lote de arriba,
+        // que ahora lo delega en este.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),
@@ -890,6 +901,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IClientesQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de varias Subcontratas: la misma derivación que la de una (que lo delega en él), con sus mismos contextos.
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IAsignacionesQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ICentrosQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IAsignacionesQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IClientesQueryContext"),
