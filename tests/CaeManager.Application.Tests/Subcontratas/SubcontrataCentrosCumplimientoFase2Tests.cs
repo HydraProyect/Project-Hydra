@@ -26,6 +26,7 @@ namespace CaeManager.Application.Tests.Subcontratas;
 public class SubcontrataCentrosCumplimientoFase2Tests
 {
     private readonly Guid _empresa = Guid.NewGuid();
+    private readonly Guid _otraEmpresa = Guid.NewGuid();
     private readonly Centro _centro = new(Guid.NewGuid(), Guid.NewGuid(), "Centro Uno");
     private readonly AsignacionesFalso _asignaciones = new();
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
@@ -40,7 +41,7 @@ public class SubcontrataCentrosCumplimientoFase2Tests
     {
         _ana = Trabajador.DeSubcontrata(_empresa, "Ana", "Alba", "60005301A");
         var bea = Trabajador.DeSubcontrata(_empresa, "Bea", "Bueno", "60005302G");
-        var otra = Trabajador.DeSubcontrata(Guid.NewGuid(), "Otra", "Empresa", "60005303M");
+        var otra = Trabajador.DeSubcontrata(_otraEmpresa, "Otra", "Empresa", "60005303M");
         _trabajadores.ListaTrabajadores.AddRange([_ana, bea, otra]);
         foreach (var t in _trabajadores.ListaTrabajadores)
             _asignaciones.Lista.Add(new(t.Id, _centro.Id, DiaDeNegocio.Hoy().AddDays(-5)));
@@ -52,6 +53,8 @@ public class SubcontrataCentrosCumplimientoFase2Tests
     private ObtenerAsignacionesDocumentacionPorCentroQueryHandler Lector(IAlcanceDatosService? alcance = null) =>
         new(_asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, alcance ?? new AlcanceDatosServiceFalso(), new SituacionVacia());
     private ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler Lote(IAlcanceDatosService? alcance = null) =>
+        new(_asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, alcance ?? new AlcanceDatosServiceFalso(), new SituacionVacia());
+    private ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler LoteDeEmpresas(IAlcanceDatosService? alcance = null) =>
         new(_asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, alcance ?? new AlcanceDatosServiceFalso(), new SituacionVacia());
     private Task<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>> Leer(IAlcanceDatosService? alcance = null) =>
         Lector(alcance).Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centro.Id, EmpresaEmpleadoraSubcontratistaId: _empresa), CancellationToken.None);
@@ -203,6 +206,58 @@ public class SubcontrataCentrosCumplimientoFase2Tests
 
         conCentroOculto.Keys.Should().Equal(_centro.Id);
         conEmpresaOculta.Should().BeEmpty();
+    }
+    /// <summary>
+    /// Equivalencia del lote de varias Empresas empleadoras (#2130) con el de cada Empresa sola, en el caso que podía
+    /// diferir: en el primer Centro solo se exige un tipo a los Autónomos, que solo tiene la otra Empresa, así que pedida sola
+    /// la primera Empresa cae en «Centro sin requisitos» y pedida con la otra se evalúa Trabajador a Trabajador.
+    /// </summary>
+    [Fact]
+    public async Task El_lote_de_varias_Empresas_da_a_cada_una_lo_mismo_que_su_lote_sola()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var otra = _trabajadores.ListaTrabajadores.Single(t => t.SubcontrataId == _otraEmpresa);
+        otra.CambiarTipoContratacion(TipoContratacion.Autonomo);
+        _tipos.ListaTiposDocumentoCentros.Add(new(_tipo.Id, _centro.Id, incluido: false));
+        var reta = new TipoDocumento("RETA", null, false, 0, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+        reta.EstablecerTiposContratacionDeSerie(TiposContratacion.Autonomo);
+        _tipos.ListaTiposDocumento.Add(reta);
+        var segundo = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Centro Dos");
+        _centros.ListaCentros.Add(segundo);
+        _asignaciones.Lista.Add(new(_ana.Id, segundo.Id, hoy.AddDays(-3)));
+        _asignaciones.Lista.Add(new(otra.Id, segundo.Id, hoy.AddDays(-3)));
+        _documentos.ListaDocumentos.Add(Documento.DeTrabajador(otra.Id, reta.Id, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-2))));
+        var centros = new[] { _centro.Id, segundo.Id };
+
+        var juntas = await LoteDeEmpresas().Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery(centros, [_empresa, _otraEmpresa]), CancellationToken.None);
+
+        juntas.Keys.Should().BeEquivalentTo([_empresa, _otraEmpresa]);
+        foreach (var empresa in new[] { _empresa, _otraEmpresa })
+        {
+            var sola = await Lote().Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(centros, empresa), CancellationToken.None);
+            juntas[empresa].Keys.Should().BeEquivalentTo(sola.Keys);
+            foreach (var centroId in sola.Keys)
+                juntas[empresa][centroId].Should().Equal(sola[centroId], $"la Empresa {empresa} en el Centro {centroId}");
+        }
+        // Control positivo de que el caso se ejercita: la otra Empresa sí tiene requisitos en el primer Centro y la primera no.
+        juntas[_otraEmpresa][_centro.Id].Single().Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1));
+        juntas[_empresa][_centro.Id].Should().OnlyContain(t => t.Cumplimiento == FraccionCumplimiento.SinRequisitos);
+        juntas[_empresa][_centro.Id].Select(t => t.TrabajadorId).Should().NotContain(otra.Id);
+    }
+    [Fact]
+    public async Task El_lote_de_varias_Empresas_omite_la_que_no_se_ve_y_el_Centro_que_no_se_ve()
+    {
+        var oculto = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Centro Oculto");
+        _centros.ListaCentros.Add(oculto);
+        _asignaciones.Lista.Add(new(_ana.Id, oculto.Id, DiaDeNegocio.Hoy()));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [_centro.Id], subcontrataIdsVisibles: [_empresa]);
+
+        var resultado = await LoteDeEmpresas(alcance).Handle(
+            new ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery([_centro.Id, oculto.Id], [_empresa, _otraEmpresa]), CancellationToken.None);
+
+        resultado.Keys.Should().Equal(_empresa);
+        resultado[_empresa].Keys.Should().Equal(_centro.Id);
+        resultado[_empresa][_centro.Id].Select(t => t.TrabajadorId).Should().HaveCount(2).And.Contain(_ana.Id);
     }
     [Fact]
     public async Task Un_Centro_sin_requisitos_da_fraccion_vacia_y_sin_peor_estado()
