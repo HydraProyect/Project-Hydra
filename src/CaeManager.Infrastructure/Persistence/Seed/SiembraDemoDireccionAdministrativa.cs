@@ -368,7 +368,8 @@ public static partial class SiembraDemoDireccionAdministrativa
             await MarcarComoDemoAsync(dbContext, tenantPropietarioId, cancellationToken);
 
             await DelegacionDemoSeeder.CrearDelegacionAsync(
-                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken);
+                dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken,
+                inicioDeLaOperacion: EscenariosDireccionDemoSeeder.InicioDeLaOperacionDeRama());
 
             await EscenariosDireccionDemoSeeder.SembrarRamaAsync(
                 dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy, indice, logger, cancellationToken);

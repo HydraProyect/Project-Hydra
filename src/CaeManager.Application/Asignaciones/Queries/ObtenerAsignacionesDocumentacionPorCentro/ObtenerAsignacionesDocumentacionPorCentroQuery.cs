@@ -93,6 +93,17 @@ public record TrabajadorAsignacionDocumentacionDto(
 public record ObtenerCumplimientoDeAsignacionesPorCentrosQuery(IReadOnlyCollection<Guid> CentroIds, Guid EmpresaEmpleadoraSubcontratistaId)
     : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>;
 
+/// <summary>
+/// <see cref="ObtenerCumplimientoDeAsignacionesPorCentrosQuery"/> para varias Empresas empleadoras a la vez (Cliente 360,
+/// pestaña Subcontratas): una carga para todos los pares Empresa y Centro. El resultado va por Empresa empleadora y, dentro,
+/// por Centro; cada lista es la que devolvería el lote de esa Empresa sola. Una Empresa no visible, o sin Trabajadores con
+/// Asignación activa en los Centros visibles pedidos, no trae clave.
+/// </summary>
+[AreaDelEncargo("Asignaciones")]
+public record ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery(
+    IReadOnlyCollection<Guid> CentroIds, IReadOnlyCollection<Guid> EmpresaEmpleadoraSubcontratistaIds)
+    : IRequest<IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>>;
+
 /// <summary>De <see cref="TrabajadorAsignacionDocumentacionDto"/>, lo que pesa en el cumplimiento del Centro.</summary>
 public record CumplimientoDeAsignacionDto(Guid TrabajadorId, EstadoDocumento PeorEstado, FraccionCumplimiento Cumplimiento);
 
@@ -117,9 +128,10 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         if (request.EmpresaEmpleadoraSubcontratistaId is { } empresaId && !await alcanceDatos.SubcontrataVisibleAsync(empresaId, cancellationToken))
             return [];
 
-        var porCentro = await CalcularAsync(
-            [request.CentroId], request.VentanaVisitaFechaFin, request.EmpresaEmpleadoraSubcontratistaId, conSegundaLinea: true, cancellationToken);
-        return porCentro.GetValueOrDefault(request.CentroId) ?? [];
+        var calculo = await CalcularAsync(
+            [request.CentroId], request.VentanaVisitaFechaFin,
+            request.EmpresaEmpleadoraSubcontratistaId is { } empresa ? [empresa] : null, conSegundaLinea: true, cancellationToken);
+        return calculo.PorCentro.GetValueOrDefault(request.CentroId) ?? [];
     }
 
     /// <summary>
@@ -127,19 +139,30 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
     /// propios tipos exigidos, filas de TipoDocumentoCentro, Cliente empresarial y tolerancias, y sus Trabajadores en el orden
     /// de siempre. Un Centro sin ninguna Asignación activa no aparece. <paramref name="conSegundaLinea"/> en falso no carga
     /// plataformas ni reclamaciones: esas columnas quedan vacías y solo puede usarse para el cumplimiento y el peor estado.
+    /// <para>
+    /// <paramref name="empresasEmpleadorasSubcontratistas"/> acota a los Trabajadores de esas Empresas empleadoras (nulo: todos).
+    /// La fila de cada Trabajador solo depende de su Centro, su tipo de contratación y sus documentos, nunca de qué otros
+    /// Trabajadores entran en la carga, así que pedir varias Empresas a la vez da, para cada una, las mismas filas que pedirla
+    /// sola; <c>EmpresaPorTrabajador</c> dice a qué Empresa empleadora pertenece cada Trabajador del resultado.
+    /// </para>
     /// </summary>
-    internal async Task<Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>>> CalcularAsync(
-        IReadOnlyCollection<Guid> centroIdsPedidos, DateOnly? ventanaVisitaFechaFin, Guid? empresaEmpleadoraSubcontratistaId,
+    internal async Task<(Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> PorCentro, Dictionary<Guid, Guid?> EmpresaPorTrabajador)> CalcularAsync(
+        IReadOnlyCollection<Guid> centroIdsPedidos, DateOnly? ventanaVisitaFechaFin, IReadOnlyCollection<Guid>? empresasEmpleadorasSubcontratistas,
         bool conSegundaLinea, CancellationToken cancellationToken)
     {
         var resultado = new Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>>();
         var centroIdsDeLaConsulta = centroIdsPedidos.Distinct().ToList();
+        var trabajadoresDeLaConsulta = trabajadoresContext.Trabajadores;
+        if (empresasEmpleadorasSubcontratistas is not null)
+        {
+            var empresaIds = empresasEmpleadorasSubcontratistas.Distinct().ToList();
+            trabajadoresDeLaConsulta = trabajadoresDeLaConsulta.Where(t => t.SubcontrataId != null && empresaIds.Contains(t.SubcontrataId.Value));
+        }
 
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
-            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            join trabajador in trabajadoresDeLaConsulta on asignacion.TrabajadorId equals trabajador.Id
             where centroIdsDeLaConsulta.Contains(asignacion.CentroId) && asignacion.FechaBaja == null
-                && (empresaEmpleadoraSubcontratistaId == null || trabajador.SubcontrataId == empresaEmpleadoraSubcontratistaId)
             orderby trabajador.Apellidos, trabajador.Nombre
             select new
             {
@@ -148,12 +171,16 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                 TrabajadorId = trabajador.Id,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 trabajador.TipoContratacion,
+                trabajador.SubcontrataId,
                 asignacion.FechaAlta
             })
             .ToListAsync(cancellationToken);
 
+        var empresaPorTrabajador = asignaciones
+            .GroupBy(a => a.TrabajadorId)
+            .ToDictionary(g => g.Key, g => g.First().SubcontrataId);
         if (asignaciones.Count == 0)
-            return resultado;
+            return (resultado, empresaPorTrabajador);
 
         // Por Centro, en el orden de la consulta (apellidos y nombre del Trabajador).
         var asignacionesPorCentro = asignaciones
@@ -214,7 +241,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         }
 
         if (centrosConRequisitos.Count == 0)
-            return resultado;
+            return (resultado, empresaPorTrabajador);
 
         // La unión de lo que exige cada Centro: cada par se vuelve a acotar más abajo a los tipos de su Centro y Trabajador.
         var tipoIdsRequeridos = centrosConRequisitos.SelectMany(c => tiposRequeridosPorCentro[c]).Select(t => t.Id).ToHashSet();
@@ -352,13 +379,14 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             resultado[centroId] = delCentro;
         }
 
-        return resultado;
+        return (resultado, empresaPorTrabajador);
     }
 }
 
 /// <summary>
-/// El lote de <see cref="ObtenerCumplimientoDeAsignacionesPorCentrosQuery"/>: el cálculo es el de
-/// <see cref="ObtenerAsignacionesDocumentacionPorCentroQueryHandler"/> (el mismo método), y aquí solo el alcance y la proyección.
+/// El lote de <see cref="ObtenerCumplimientoDeAsignacionesPorCentrosQuery"/>: es el lote de varias Empresas empleadoras
+/// (<see cref="ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler"/>) con una sola, para que los dos sigan el
+/// mismo alcance y el mismo cálculo.
 /// </summary>
 public class ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
@@ -371,31 +399,76 @@ public class ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler(
     ISituacionDocumentosEnCentrosService situacionDocumentos)
     : IRequestHandler<ObtenerCumplimientoDeAsignacionesPorCentrosQuery, IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>
 {
-    private readonly ObtenerAsignacionesDocumentacionPorCentroQueryHandler calculo = new(
+    private readonly ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler lote = new(
         asignacionesContext, trabajadoresContext, tiposDocumentoContext, documentosContext, configuracionContext, centrosContext,
         alcanceDatos, situacionDocumentos);
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>> Handle(
         ObtenerCumplimientoDeAsignacionesPorCentrosQuery request, CancellationToken cancellationToken)
     {
-        // El mismo alcance que la consulta de un Centro, Centro a Centro: la Empresa empleadora visible y solo los Centros
-        // visibles (CentroVisibleAsync es esta misma comprobación sobre ObtenerCentroIdsVisiblesAsync).
-        if (!await alcanceDatos.SubcontrataVisibleAsync(request.EmpresaEmpleadoraSubcontratistaId, cancellationToken))
-            return new Dictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>();
+        var porEmpresa = await lote.Handle(new(request.CentroIds, [request.EmpresaEmpleadoraSubcontratistaId]), cancellationToken);
+        return porEmpresa.GetValueOrDefault(request.EmpresaEmpleadoraSubcontratistaId)
+            ?? new Dictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>();
+    }
+}
+
+/// <summary>
+/// El lote de <see cref="ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery"/>: el cálculo es el de
+/// <see cref="ObtenerAsignacionesDocumentacionPorCentroQueryHandler"/> (el mismo método), y aquí solo el alcance, el reparto
+/// por Empresa empleadora y la proyección.
+/// </summary>
+public class ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler(
+    IAsignacionesQueryContext asignacionesContext,
+    ITrabajadoresQueryContext trabajadoresContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext,
+    IDocumentosQueryContext documentosContext,
+    IConfiguracionQueryContext configuracionContext,
+    ICentrosQueryContext centrosContext,
+    IAlcanceDatosService alcanceDatos,
+    ISituacionDocumentosEnCentrosService situacionDocumentos)
+    : IRequestHandler<ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery, IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>>
+{
+    private readonly ObtenerAsignacionesDocumentacionPorCentroQueryHandler calculo = new(
+        asignacionesContext, trabajadoresContext, tiposDocumentoContext, documentosContext, configuracionContext, centrosContext,
+        alcanceDatos, situacionDocumentos);
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>> Handle(
+        ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQuery request, CancellationToken cancellationToken)
+    {
+        var vacio = new Dictionary<Guid, IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>>();
+        // El mismo alcance que la consulta de un Centro, Centro a Centro y Empresa a Empresa: solo las Empresas empleadoras
+        // visibles (SubcontrataVisibleAsync es esta misma comprobación sobre ObtenerSubcontrataIdsVisiblesAsync) y solo los
+        // Centros visibles (CentroVisibleAsync, sobre ObtenerCentroIdsVisiblesAsync).
+        var empresaIdsVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+        var empresaIds = request.EmpresaEmpleadoraSubcontratistaIds
+            .Where(id => empresaIdsVisibles is null || empresaIdsVisibles.Contains(id))
+            .Distinct()
+            .ToList();
+        if (empresaIds.Count == 0)
+            return vacio;
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         var centroIds = request.CentroIds
             .Where(id => centroIdsVisibles is null || centroIdsVisibles.Contains(id))
             .Distinct()
             .ToList();
         if (centroIds.Count == 0)
-            return new Dictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>();
+            return vacio;
 
-        var porCentro = await calculo.CalcularAsync(
-            centroIds, ventanaVisitaFechaFin: null, request.EmpresaEmpleadoraSubcontratistaId, conSegundaLinea: false, cancellationToken);
-        return porCentro.ToDictionary(
-            par => par.Key,
-            par => (IReadOnlyList<CumplimientoDeAsignacionDto>)par.Value
-                .Select(t => new CumplimientoDeAsignacionDto(t.TrabajadorId, t.PeorEstado, t.Cumplimiento))
-                .ToList());
+        var (porCentro, empresaPorTrabajador) = await calculo.CalcularAsync(
+            centroIds, ventanaVisitaFechaFin: null, empresaIds, conSegundaLinea: false, cancellationToken);
+        // Cada Trabajador de la carga es de una de las Empresas pedidas (el filtro de CalcularAsync); se reparte conservando
+        // el orden de cada Centro.
+        return porCentro
+            .SelectMany(par => par.Value.Select(t => (CentroId: par.Key, EmpresaId: empresaPorTrabajador[t.TrabajadorId]!.Value, Trabajador: t)))
+            .GroupBy(f => f.EmpresaId)
+            .ToDictionary(
+                porEmpresa => porEmpresa.Key,
+                porEmpresa => (IReadOnlyDictionary<Guid, IReadOnlyList<CumplimientoDeAsignacionDto>>)porEmpresa
+                    .GroupBy(f => f.CentroId)
+                    .ToDictionary(
+                        delCentro => delCentro.Key,
+                        delCentro => (IReadOnlyList<CumplimientoDeAsignacionDto>)delCentro
+                            .Select(f => new CumplimientoDeAsignacionDto(f.Trabajador.TrabajadorId, f.Trabajador.PeorEstado, f.Trabajador.Cumplimiento))
+                            .ToList()));
     }
 }

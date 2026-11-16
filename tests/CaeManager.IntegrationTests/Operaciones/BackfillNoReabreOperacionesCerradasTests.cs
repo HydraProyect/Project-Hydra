@@ -72,8 +72,9 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [InlineData(MotivoCierreAsignacion.Revocada)]
     public async Task Con_la_delegacion_activa_no_recrea_la_operacion_del_Tenant_entero_ya_cerrada(MotivoCierreAsignacion motivo)
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
-        (await ExternasOutboundAsync()).Should().ContainSingle("control: la primera pasada migra la delegación")
+        (await ExternasOutboundAsync()).Should().ContainSingle("control: la que abrió el alta sigue abierta tras la primera pasada")
             .Which.Estado.Should().Be(EstadoAsignacion.Vigente);
 
         await using (var contexto = CrearContexto(_propietario))
@@ -140,6 +141,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
         // Se revocó la primera y se autorizó otra al mismo Operador CAE externo: lo abierto es de la
         // activa. Cerrarlo dejaría la activa sin autorización y, como el backfill ya no recrea, sin
         // vía de vuelta.
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         Guid nueva;
         await using (var contexto = CrearContexto(_propietario))
@@ -154,7 +156,8 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
             contexto.DelegacionesTenant.Add(activa);
             var operacion = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
                 AmbitoAsignacion.Universal, ahora, null, ahora);
-            contexto.AsignacionesOperacion.Add(operacion);
+            // Nace de la activa, con su origen sellado, como la abre el alta (sin origen el backfill la cerraría).
+            OperacionExternaAmparada.Agregar(contexto, operacion, activa);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestorOperador, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             // Como la deja toda vía que emite una cartera externa: con su fila heredada en la activa.
@@ -186,6 +189,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [Fact]
     public async Task Con_la_delegacion_activa_cierra_la_cartera_de_una_persona_sin_fila_heredada_tambien_bajo_una_acotada()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         var conFila = await SembrarUsuarioAsync("con-fila@operador");
         Guid huerfanaAcotada, huerfanaTenantEntero, conservada, deInbound;
@@ -227,6 +231,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [Fact]
     public async Task Una_asignacion_historica_de_la_delegacion_inactiva_no_recibe_cartera_bajo_la_operacion_de_la_activa()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         var historica = await SembrarUsuarioAsync("historica@operador");
         var actual = await SembrarUsuarioAsync("actual@operador");
@@ -244,7 +249,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
             contexto.DelegacionesTenant.Add(activa);
             var operacionDeLaActiva = AsignacionOperacion.Externa(_propietario, _operador, ServicioCae.Outbound,
                 AmbitoAsignacion.Universal, ahora, null, ahora);
-            contexto.AsignacionesOperacion.Add(operacionDeLaActiva);
+            OperacionExternaAmparada.Agregar(contexto, operacionDeLaActiva, activa);
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(activa.Id, actual, Roles.Consulta));
             // Y una cartera de la persona histórica bajo la operación de la activa: su única fila es la
@@ -272,6 +277,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [Fact]
     public async Task Una_delegacion_activa_pero_caducada_no_mantiene_abierta_la_operacion_de_una_inactiva_del_mismo_par()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         await using (var contexto = CrearContexto(_propietario))
         {
@@ -343,6 +349,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [InlineData(true)]
     public async Task No_emite_la_cartera_de_Consulta_si_la_ultima_de_la_persona_quedo_suspendida(bool cerrarla)
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         var suspendida = await SembrarUsuarioAsync("consulta-suspendida@operador");
         var sinCartera = await SembrarUsuarioAsync("consulta-nueva@operador");
@@ -384,6 +391,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [Fact]
     public async Task No_emite_la_cartera_de_una_fila_heredada_revocada()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         var revocado = await SembrarUsuarioAsync("consulta-revocada@operador");
         var valida = await SembrarUsuarioAsync("consulta-valida@operador");
@@ -414,6 +422,7 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
     [Fact]
     public async Task La_reconciliacion_de_roles_de_Propiedad_cierra_tambien_la_programada_Outbound_y_no_toca_Inbound()
     {
+        await AbrirOperacionExternaComoElAltaAsync();
         await EjecutarBackfillAsync();
         Guid deInbound, programadaOutbound;
         await using (var contexto = CrearContexto(_propietario))
@@ -479,6 +488,20 @@ public class BackfillNoReabreOperacionesCerradasTests : IAsyncLifetime
             .Where(o => !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador
                         && o.Servicio == ServicioCae.Outbound)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// La Asignación de Operación externa del Tenant entero, con su origen sellado, como la abre el alta de la
+    /// delegación: desde la PR #2237 (Codex r2, alta 5) el backfill ya no la crea.
+    /// </summary>
+    private async Task AbrirOperacionExternaComoElAltaAsync()
+    {
+        await using var contexto = CrearContexto(_propietario);
+        var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacion);
+        var desde = DateTime.UtcNow.AddMinutes(-1);
+        OperacionExternaAmparada.Agregar(contexto, AsignacionOperacion.Externa(
+            _propietario, _operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, desde), delegacion);
+        await contexto.SaveChangesAsync();
     }
 
     private async Task EjecutarBackfillAsync()

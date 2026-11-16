@@ -69,10 +69,11 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
                      (_beneficiarioAjeno, _otroOperador, null),
                  })
         {
-            contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            var delegacion = new DelegacionTenant(operador.Id, beneficiario.Id);
+            contexto.DelegacionesTenant.Add(delegacion);
+            OperacionExternaAmparada.Agregar(contexto, AsignacionOperacion.Externa(
                 beneficiario.Id, operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
-                vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: hasta, ahora));
-            contexto.DelegacionesTenant.Add(new DelegacionTenant(operador.Id, beneficiario.Id));
+                vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: hasta, ahora), delegacion);
         }
 
         // Los roles de Identity ya los siembra la migración.

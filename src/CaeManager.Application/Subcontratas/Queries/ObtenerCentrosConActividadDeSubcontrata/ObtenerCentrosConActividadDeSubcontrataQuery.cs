@@ -25,14 +25,43 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividad
 public record ObtenerCentrosConActividadDeSubcontrataQuery(Guid SubcontrataId)
     : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
+/// <summary>
+/// La misma derivación y el mismo alcance que <see cref="ObtenerCentrosConActividadDeSubcontrataQuery"/> para varias
+/// Subcontratas en una sola consulta: cada Subcontrata no visible se omite (no trae clave) y una visible sin actividad en
+/// ningún Centro visible tampoco. Cada lista es la que devolvería la consulta de esa Subcontrata sola.
+/// </summary>
+[AreaDelEncargo("Subcontratas")]
+public record ObtenerCentrosConActividadDeSubcontratasQuery(IReadOnlyCollection<Guid> SubcontrataIds)
+    : IRequest<IReadOnlyDictionary<Guid, IReadOnlyList<CentroConActividadDto>>>;
+
 public class ObtenerCentrosConActividadDeSubcontrataQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentrosConActividadDeSubcontrataQuery, IReadOnlyList<CentroConActividadDto>>
 {
+    private readonly ObtenerCentrosConActividadDeSubcontratasQueryHandler lote = new(
+        asignacionesContext, centrosContext, empresasContext, trabajadoresContext, alcanceDatos);
+
     public async Task<IReadOnlyList<CentroConActividadDto>> Handle(
         ObtenerCentrosConActividadDeSubcontrataQuery request, CancellationToken cancellationToken)
     {
-        if (!await alcanceDatos.SubcontrataVisibleAsync(request.SubcontrataId, cancellationToken))
-            return [];
+        var porSubcontrata = await lote.Handle(new([request.SubcontrataId]), cancellationToken);
+        return porSubcontrata.GetValueOrDefault(request.SubcontrataId) ?? [];
+    }
+}
+
+public class ObtenerCentrosConActividadDeSubcontratasQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
+    : IRequestHandler<ObtenerCentrosConActividadDeSubcontratasQuery, IReadOnlyDictionary<Guid, IReadOnlyList<CentroConActividadDto>>>
+{
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<CentroConActividadDto>>> Handle(
+        ObtenerCentrosConActividadDeSubcontratasQuery request, CancellationToken cancellationToken)
+    {
+        // SubcontrataVisibleAsync es esta misma comprobación sobre ObtenerSubcontrataIdsVisiblesAsync.
+        var subcontrataIdsVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+        var subcontrataIds = request.SubcontrataIds
+            .Where(id => subcontrataIdsVisibles is null || subcontrataIdsVisibles.Contains(id))
+            .Distinct()
+            .ToList();
+        if (subcontrataIds.Count == 0)
+            return new Dictionary<Guid, IReadOnlyList<CentroConActividadDto>>();
 
         var centrosVisibles = centrosContext.Centros;
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
@@ -43,12 +72,18 @@ public class ObtenerCentrosConActividadDeSubcontrataQueryHandler(IAsignacionesQu
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            where trabajador.SubcontrataId == request.SubcontrataId
+            where trabajador.SubcontrataId != null && subcontrataIds.Contains(trabajador.SubcontrataId.Value)
             join centro in centrosVisibles on asignacion.CentroId equals centro.Id
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-            select new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id))
+            select new
+            {
+                SubcontrataId = trabajador.SubcontrataId!.Value,
+                Fila = new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id)
+            })
             .ToListAsync(cancellationToken);
 
-        return CentroConActividadAgrupador.Agrupar(filas);
+        return filas
+            .GroupBy(f => f.SubcontrataId)
+            .ToDictionary(g => g.Key, g => CentroConActividadAgrupador.Agrupar(g.Select(f => f.Fila)));
     }
 }

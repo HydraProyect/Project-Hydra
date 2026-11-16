@@ -56,12 +56,22 @@ public class AsignacionOperadorDelegado : Entity
 
     public bool EstaRevocada => RevocadaEnUtc is not null;
 
+    /// <summary>
+    /// El contador <see cref="DelegacionTenant.Revocaciones"/> con el que se decidió la fila. Quien la decide sobre una
+    /// lectura previa (la DelegacionTenant que cargó, o el contador sellado de la Asignación de Operación externa que la
+    /// ampara) lo pasa al crearla; el trigger de inserción lo compara con el contador real, con la DelegacionTenant
+    /// bloqueada, y rechaza la fila si entre la lectura y el guardado hubo una revocación o una ampliación de caducidad
+    /// (ronda 3 de Codex en la PR #2237, alta 1). Sin él, el trigger solo exige que la DelegacionTenant siga activa.
+    /// En ambos casos el trigger lo sella con el contador real, y después ya no cambia.
+    /// </summary>
+    public int? RevocacionesDelOrigen { get; private set; }
+
     private AsignacionOperadorDelegado()
     {
         // Requerido por EF Core.
     }
 
-    public AsignacionOperadorDelegado(Guid delegacionTenantId, Guid usuarioId, string rol)
+    public AsignacionOperadorDelegado(Guid delegacionTenantId, Guid usuarioId, string rol, int? revocacionesDelOrigen = null)
     {
         if (delegacionTenantId == Guid.Empty)
             throw new ArgumentException("La asignación debe pertenecer a una delegación.", nameof(delegacionTenantId));
@@ -69,10 +79,13 @@ public class AsignacionOperadorDelegado : Entity
             throw new ArgumentException("La asignación debe tener un Operador Delegado.", nameof(usuarioId));
         if (string.IsNullOrWhiteSpace(rol))
             throw new ArgumentException("La asignación debe tener un rol.", nameof(rol));
+        if (revocacionesDelOrigen is < 0)
+            throw new ArgumentOutOfRangeException(nameof(revocacionesDelOrigen), "El contador de revocaciones no es negativo.");
 
         DelegacionTenantId = delegacionTenantId;
         UsuarioId = usuarioId;
         Rol = rol.Trim();
+        RevocacionesDelOrigen = revocacionesDelOrigen;
     }
 
     /// <summary>
