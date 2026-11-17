@@ -462,6 +462,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Inbound.Requisitos.IPlantillaRequisitosRepository, PlantillaRequisitosRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
@@ -510,6 +511,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IContactoSeguridadTenantRepository, ContactoSeguridadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.Tenants.IConcesionCapacidadTenantRepository, ConcesionCapacidadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.DerechosInteresado.ISolicitudDerechoInteresadoRepository, SolicitudDerechoInteresadoRepository>();
+        // Capacidades del Tenant (decisión D-3 del 2026-11-15): quién resuelve derechos del interesado.
+        services.AddScoped<CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant,
+            CaeManager.Application.CapacidadesTenant.AutoridadCapacidadesTenant>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
         services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
