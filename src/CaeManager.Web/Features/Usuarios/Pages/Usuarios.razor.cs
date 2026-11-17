@@ -2034,7 +2034,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         catch (Exception excepcion)
         {
             Logger.LogError(excepcion, "Fallo al leer la cartera de {UsuarioId} para desactivarlo.", usuarioLista.Id);
-            ToastService.Mostrar("No pudimos preparar la baja de esta cuenta. Vuelve a intentarlo.", TonoToast.Error);
+            ToastService.Mostrar(TextosUsuarios["DesactivarErrorAlPreparar"].Value, TonoToast.Error);
             return;
         }
 

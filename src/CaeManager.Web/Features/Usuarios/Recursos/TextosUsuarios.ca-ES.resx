@@ -66,6 +66,9 @@
   <data name="DesactivarCarteraNoLegible" xml:space="preserve">
     <value>No hem pogut mostrar la seva cartera. Tanca aquest diàleg, recarrega la llista i torna-ho a provar.</value>
   </data>
+  <data name="DesactivarErrorAlPreparar" xml:space="preserve">
+    <value>No hem pogut preparar la baixa d'aquest compte. Torna-ho a provar.</value>
+  </data>
   <data name="ReenvioCorreoFallido" xml:space="preserve">
     <value>No hem pogut enviar el correu</value>
   </data>
