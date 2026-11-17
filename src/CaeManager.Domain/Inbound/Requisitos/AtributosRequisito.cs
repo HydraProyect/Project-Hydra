@@ -15,6 +15,7 @@ public sealed record AtributosRequisito(
     int? ToleranciaDias,
     bool BloqueaAcceso,
     string? Criterio,
+    // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
     DestinatarioRequisito SePideA,
     TiposContratacion TiposContratacion,
     IReadOnlyList<string> Equivalencias,

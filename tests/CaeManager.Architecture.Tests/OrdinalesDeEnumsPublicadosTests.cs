@@ -72,6 +72,8 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(TipoContratacion.CuentaAjena)] = 0,
                 [nameof(TipoContratacion.Autonomo)] = 1,
                 [nameof(TipoContratacion.Voluntario)] = 2,
+                // Decisión de 2026-11-17: el Extranjero es un modelo de contratación exclusivo; su bit en TiposContratacion es 1 << 3.
+                [nameof(TipoContratacion.Extranjero)] = 3,
             }
         },
         {

@@ -30,6 +30,7 @@ public class ObtenerPlantillaRequisitosPorIdQueryHandler(IPlantillasRequisitosQu
 
         var requisitos = plantilla.Requisitos
             .OrderByDescending(r => r.Activo).ThenBy(r => r.Id)
+            // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
             .Select(r => new RequisitoPlantillaDto(
                 r.Id, r.TipoDocumentoId, r.RequisitoBaseId, r.Entidad, r.Origen, r.ModoVigencia, r.VigenciaMeses, r.ToleranciaDias,
                 r.BloqueaAcceso, r.Criterio, r.SePideA, r.TiposContratacion, r.Equivalencias, r.AmbitoDocumento, r.Activo))

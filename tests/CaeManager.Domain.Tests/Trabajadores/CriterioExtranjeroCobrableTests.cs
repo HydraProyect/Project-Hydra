@@ -55,6 +55,34 @@ public class CriterioExtranjeroCobrableTests
     }
 
     [Fact]
+    public void El_modelo_de_contratacion_Extranjero_no_hace_cobrable_a_un_Trabajador_con_DNI()
+    {
+        // Decisión de 2026-11-17: el Extranjero como modelo de contratación decide a quién se piden requisitos, no la
+        // Facturación, que sigue con el documento de identidad o la marca a mano.
+        var trabajador = Trabajador.DeEmpresa(
+            Guid.NewGuid(), "Amina", "El Idrissi", "12345678Z", new DateOnly(1990, 5, 6),
+            "amina@ejemplo.test", null, null, null, null);
+        trabajador.CambiarTipoContratacion(TipoContratacion.Extranjero);
+
+        trabajador.TipoContratacion.Should().Be(TipoContratacion.Extranjero);
+        CriterioExtranjeroCobrable.Efectivo(trabajador.MarcaExtranjeroCobrable, trabajador.Dni).Should().BeFalse();
+        new VisitaTrabajador(Guid.NewGuid(), trabajador).EsExtranjeroCobrable.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_Trabajador_con_Pasaporte_sigue_siendo_cobrable_sea_cual_sea_su_modelo_de_contratacion()
+    {
+        var trabajador = Trabajador.DeEmpresa(
+            Guid.NewGuid(), "Amina", "El Idrissi", "AB1234567", new DateOnly(1990, 5, 6),
+            "amina@ejemplo.test", null, null, null, null);
+        var cobrableAntes = new VisitaTrabajador(Guid.NewGuid(), trabajador).EsExtranjeroCobrable;
+
+        trabajador.CambiarTipoContratacion(TipoContratacion.Extranjero);
+
+        new VisitaTrabajador(Guid.NewGuid(), trabajador).EsExtranjeroCobrable.Should().Be(cobrableAntes);
+    }
+
+    [Fact]
     public void La_marca_del_Trabajador_se_fija_se_quita_y_la_anonimizacion_la_vacia()
     {
         var trabajador = Trabajador.DeEmpresa(

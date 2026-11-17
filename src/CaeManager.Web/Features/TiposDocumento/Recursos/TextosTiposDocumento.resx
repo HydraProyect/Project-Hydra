@@ -447,4 +447,7 @@
   <data name="TipoContratacionVoluntario" xml:space="preserve">
     <value>Voluntario</value>
   </data>
+  <data name="TipoContratacionExtranjero" xml:space="preserve">
+    <value>Extranjero</value>
+  </data>
 </root>

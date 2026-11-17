@@ -4118,7 +4118,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "CategoriaEspecialSalud",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -4141,7 +4141,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -4164,7 +4164,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 48
                         },
@@ -4187,7 +4187,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 36
                         },
@@ -4210,7 +4210,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4232,7 +4232,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4254,7 +4254,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4276,7 +4276,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4298,7 +4298,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4320,7 +4320,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4342,7 +4342,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4364,7 +4364,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4386,7 +4386,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4408,7 +4408,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4430,7 +4430,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4452,7 +4452,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4474,7 +4474,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4496,7 +4496,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4519,7 +4519,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             SoloConclusionAptitud = false,
                             SustitutoId = new Guid("10000000-0000-0000-0000-000000000002"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4541,7 +4541,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4563,7 +4563,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 36
                         },
@@ -4586,7 +4586,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4608,7 +4608,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4630,7 +4630,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 60
                         },
@@ -4653,7 +4653,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4675,7 +4675,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4697,7 +4697,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4719,7 +4719,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4741,7 +4741,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4763,7 +4763,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4785,7 +4785,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4807,7 +4807,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4829,7 +4829,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4851,7 +4851,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4873,7 +4873,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4895,7 +4895,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4917,7 +4917,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4939,7 +4939,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 1
                         },
@@ -4962,7 +4962,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -4984,7 +4984,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 1
                         },
@@ -5007,7 +5007,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
@@ -5031,7 +5031,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             SoloConclusionAptitud = false,
                             SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
@@ -5055,7 +5055,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             SoloConclusionAptitud = false,
                             SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
@@ -5078,7 +5078,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 3
                         },
@@ -5101,7 +5101,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5123,7 +5123,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5145,7 +5145,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5167,7 +5167,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5189,7 +5189,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5211,7 +5211,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5233,7 +5233,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5255,7 +5255,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5277,7 +5277,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5299,7 +5299,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5321,7 +5321,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5343,7 +5343,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5365,7 +5365,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5387,7 +5387,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5409,7 +5409,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5431,7 +5431,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5453,7 +5453,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5475,7 +5475,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5497,7 +5497,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5519,7 +5519,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5541,7 +5541,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5563,7 +5563,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5585,7 +5585,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5606,7 +5606,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -5628,7 +5628,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -5650,7 +5650,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -5672,7 +5672,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 12
                         },
@@ -5695,7 +5695,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5717,7 +5717,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5739,7 +5739,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5761,7 +5761,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "CategoriaEspecialSalud",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5783,7 +5783,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5805,7 +5805,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5827,7 +5827,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5849,7 +5849,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5871,7 +5871,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5893,7 +5893,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5915,7 +5915,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "SinDatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 36
                         },
@@ -5937,7 +5937,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -5959,7 +5959,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 1
                         },
@@ -5982,7 +5982,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -6004,7 +6004,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "DatosPersonales",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         },
                         new
@@ -6026,7 +6026,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Sensibilidad = "CategoriaEspecialSalud",
                             SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
-                            TiposContratacionDeSerie = 7,
+                            TiposContratacionDeSerie = 15,
                             VerificacionIaActiva = false
                         });
                 });
@@ -8700,7 +8700,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_RequisitosPlantilla_SePideA", "\"SePideA\" IN ('Todos', 'Nacionales', 'Extranjeros')");
 
-                            t.HasCheckConstraint("CK_RequisitosPlantilla_TiposContratacion", "\"TiposContratacion\" > 0 AND (\"TiposContratacion\" & ~7) = 0");
+                            t.HasCheckConstraint("CK_RequisitosPlantilla_TiposContratacion", "\"TiposContratacion\" > 0 AND (\"TiposContratacion\" & ~15) = 0");
 
                             t.HasCheckConstraint("CK_RequisitosPlantilla_Tolerancia", "\"ToleranciaDias\" IS NULL OR (\"ToleranciaDias\" BETWEEN 1 AND 365 AND \"ModoVigencia\" <> 'SinVencimiento')");
 

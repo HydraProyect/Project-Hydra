@@ -5,6 +5,12 @@ namespace CaeManager.Domain.Trabajadores;
 /// Ámbito Trabajador (<see cref="Documentos.TipoDocumento.TiposContratacionDeSerie"/>). Cada bit es
 /// <c>1 &lt;&lt; (int)TipoContratacion</c>, así que el ordinal persistido de <see cref="TipoContratacion"/> fija el
 /// bit: ninguno de los dos se reordena. El valor persistido es el entero de la máscara.
+/// <para>
+/// <see cref="Extranjero"/> (8) llegó el 2026-11-17 y <see cref="Todos"/> pasó de 7 a 15. La migración
+/// <c>TraduceExtranjeroAModeloDeContratacion</c> subió a 15 las máscaras guardadas que eran exactamente el 7 anterior y
+/// tradujo el «Se pide a» de los requisitos de plantilla de Trabajador a este bit: la máscara es el único criterio para pedir
+/// algo a un Trabajador extranjero. En un requisito de Empresa contratista no hay máscara y sigue decidiendo «Se pide a».
+/// </para>
 /// </summary>
 [Flags]
 public enum TiposContratacion
@@ -13,7 +19,8 @@ public enum TiposContratacion
     CuentaAjena = 1 << (int)TipoContratacion.CuentaAjena,
     Autonomo = 1 << (int)TipoContratacion.Autonomo,
     Voluntario = 1 << (int)TipoContratacion.Voluntario,
-    Todos = CuentaAjena | Autonomo | Voluntario,
+    Extranjero = 1 << (int)TipoContratacion.Extranjero,
+    Todos = CuentaAjena | Autonomo | Voluntario | Extranjero,
 }
 
 public static class TiposContratacionExtensions
