@@ -1,6 +1,7 @@
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comercial;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Inbound.ContratosAcceso;
@@ -41,7 +42,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
     private readonly Tenant _otroTec = new("Otro Tenant TEC de prueba");
     private readonly Guid _usuarioTec = Guid.NewGuid();
     private readonly Guid _usuarioOtroTec = Guid.NewGuid();
-    private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
 
     private Guid _activo;
     private Guid _centro;
@@ -91,8 +92,12 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             var deN3 = PlantillaRequisitos.ParaExigenciasDe(cliente.Id);
             var requisitoN3 = deN3.AnadirRequisito(tipoN3, null, Basicos with
             {
-                Origen = OrigenRequisito.ExigenciaN3, ModoVigencia = ModoVigenciaRequisito.Fija, VigenciaMeses = 12,
-                BloqueaAcceso = false, Criterio = "Póliza en vigor", AmbitoDocumento = AmbitoDocumentoRequisito.EspecificoTce,
+                Origen = OrigenRequisito.ExigenciaN3,
+                ModoVigencia = ModoVigenciaRequisito.Fija,
+                VigenciaMeses = 12,
+                BloqueaAcceso = false,
+                Criterio = "Póliza en vigor",
+                AmbitoDocumento = AmbitoDocumentoRequisito.EspecificoTce,
             });
             var deOtroCentro = PlantillaRequisitos.ParaCentro(otroCentro.Id);
             deOtroCentro.AnadirRequisito(tipoOtroCentro, null, Basicos);
@@ -173,16 +178,29 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
         var centro = filas.Single(f => f.CapaPlantilla == "DeCentro");
         centro.Should().BeEquivalentTo(new
         {
-            RequisitoId = _requisitoCentro, TipoDocumentoId = _tipoCentro, TipoDocumentoNombre = "Formación específica del puesto",
-            Entidad = "Trabajador", Criterio = "Vigente y firmado", ModoVigencia = "LaPoneElDocumento", VigenciaMeses = (int?)null,
-            ToleranciaDias = (int?)null, BloqueaAcceso = true, AmbitoDocumento = "GeneralTec",
+            RequisitoId = _requisitoCentro,
+            TipoDocumentoId = _tipoCentro,
+            TipoDocumentoNombre = "Formación específica del puesto",
+            Entidad = "Trabajador",
+            Criterio = "Vigente y firmado",
+            ModoVigencia = "LaPoneElDocumento",
+            VigenciaMeses = (int?)null,
+            ToleranciaDias = (int?)null,
+            BloqueaAcceso = true,
+            AmbitoDocumento = "GeneralTec",
         });
         var n3 = filas.Single(f => f.CapaPlantilla == "ExigenciasClienteEmpresarial");
         n3.Should().BeEquivalentTo(new
         {
-            RequisitoId = _requisitoN3, TipoDocumentoId = _tipoN3, TipoDocumentoNombre = "Seguro de responsabilidad civil",
-            Entidad = "Empresa", Criterio = "Póliza en vigor", ModoVigencia = "Fija", VigenciaMeses = (int?)12,
-            BloqueaAcceso = false, AmbitoDocumento = "EspecificoTce",
+            RequisitoId = _requisitoN3,
+            TipoDocumentoId = _tipoN3,
+            TipoDocumentoNombre = "Seguro de responsabilidad civil",
+            Entidad = "Empresa",
+            Criterio = "Póliza en vigor",
+            ModoVigencia = "Fija",
+            VigenciaMeses = (int?)12,
+            BloqueaAcceso = false,
+            AmbitoDocumento = "EspecificoTce",
         });
     }
 
