@@ -497,7 +497,7 @@ public class EvidenciasInboundTests
 
     private ObtenerColaValidacionInboundQueryHandler Cola(string? rol = "GestorCae", Guid? clienteVisible = null) =>
         new(_contratos, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector,
-            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _tipos, _empresas, _centros);
+            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _tipos, _empresas, _centros, new AutorizacionInboundQuePermite());
 
     [Fact]
     public async Task La_cola_lista_los_Documentos_autorizados_sin_evidencia_y_el_tipo_del_catalogo_propio_por_su_nombre()

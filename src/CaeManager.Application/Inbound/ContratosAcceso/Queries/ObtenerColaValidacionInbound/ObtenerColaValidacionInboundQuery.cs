@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using CaeManager.Application.Tenants.Encargo;
@@ -53,12 +54,18 @@ public class ObtenerColaValidacionInboundQueryHandler(
     IEvidenciasInboundQueryContext evidenciasContext,
     ITiposDocumentoQueryContext tiposContext,
     IEmpresasQueryContext empresasContext,
-    ICentrosQueryContext centrosContext)
+    ICentrosQueryContext centrosContext,
+    IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerColaValidacionInboundQuery, IReadOnlyList<DocumentoPendienteInboundDto>>
 {
     public async Task<IReadOnlyList<DocumentoPendienteInboundDto>> Handle(
         ObtenerColaValidacionInboundQuery request, CancellationToken cancellationToken)
     {
+        // La cola es de quien valida: sin ValidarInbound (B-03) no se lista nada ni se toca el lector, como en el Command
+        // que registra el veredicto. El rol Consulta lee Inbound, pero no tiene cola de validación.
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken))
+            return [];
+
         var contratos = await contratosContext.ContratosAcceso
             .Where(c => c.TenantContratistaId != null)
             .Select(c => new { c.Id, c.CentroId, c.EmpresaContratistaId })
