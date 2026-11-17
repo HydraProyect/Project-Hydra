@@ -428,7 +428,10 @@ function Get-ResultadoDell($Remoto) {
     if ($cod -eq 0) { return 'pasa' }
     # Solo un error de codigo (compilador o analizador) es un fallo de la rama. Los de NuGet, MSBuild o disco
     # (NU1301, MSB3027...) son de la Dell: no valen y se compila en local, que dara el veredicto real.
-    if ($texto -cmatch 'error (CS|CA|IDE|RZ|BL|SYSLIB|ASP|xUnit|NU1605|NU1608)\d*') { return 'falla' }
+    # CS2012 y CS0016 (no se puede escribir la salida: bloqueo o disco de la Dell) tampoco son de la rama.
+    $deCodigo = [regex]::Matches($texto, '(?<![\w])error (CS|CA|IDE|RZ|BL|SYSLIB|ASP|xUnit|NU)(\d+)') |
+        Where-Object { $c = $_.Groups[1].Value + $_.Groups[2].Value; ($c -cnotin @('CS2012', 'CS0016')) -and ($_.Groups[1].Value -cne 'NU' -or $c -cin @('NU1605', 'NU1608')) }
+    if (@($deCodigo).Count -gt 0) { return 'falla' }
     return "invalido (codigo $cod sin error de compilacion de la rama)"
 }
 
