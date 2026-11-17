@@ -452,7 +452,8 @@ builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationH
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotalHandler>();
 // Páginas de Outbound por papel (cierre del hueco de B-02b): niega toda página marcada con [PaginaDeOutbound] a quien
-// trabaja con papel Inbound, aunque su rol cumpla el [Authorize]. Con ámbito: consulta el papel de la sesión del circuito.
+// trabaja con papel Inbound, aunque su rol cumpla el [Authorize]. Con ámbito: consulta el papel de la sesión, que se
+// resuelve en cada petición HTTP.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     CaeManager.Web.Services.Autorizacion.PaginaDeOutboundPorPapelAuthorizationHandler>();
 

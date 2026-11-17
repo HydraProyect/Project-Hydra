@@ -91,7 +91,7 @@ public class PaginasDeOutboundPorPapelTests
     public void Toda_pagina_marcada_dispara_la_evaluacion_de_autorizacion()
     {
         // El handler solo actúa cuando hay una evaluación: AuthorizeRouteView la hace si la página declara [Authorize], y
-        // [AllowAnonymous] la salta. Sin esto, la marca no cerraría nada en la navegación dentro del circuito.
+        // [AllowAnonymous] la salta. Sin esto, la marca no cerraría nada en el Router, que evalúa la página en cada petición HTTP.
         Paginas.Value
             .Where(p => LlevaLaMarca(p)
                         && (!p.IsDefined(typeof(AuthorizeAttribute), inherit: false)
@@ -107,6 +107,6 @@ public class PaginasDeOutboundPorPapelTests
 
         programa.Should().MatchRegex(
             @"AddScoped<Microsoft\.AspNetCore\.Authorization\.IAuthorizationHandler,\s*CaeManager\.Web\.Services\.Autorizacion\.PaginaDeOutboundPorPapelAuthorizationHandler>\(\)",
-            "sin el handler registrado la marca no niega nada; con ámbito porque el papel depende de la sesión del circuito");
+            "sin el handler registrado la marca no niega nada; con ámbito porque el papel depende de la sesión de cada petición");
     }
 }

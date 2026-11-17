@@ -18,7 +18,9 @@ public enum PapelActivo
     /// <summary>
     /// Sin papel de negocio que permita un comando de servicio: Sesión Privilegiada de plataforma, vía heredada
     /// (DelegacionTenant, que solo es de Outbound y no se extiende a Inbound) o una selección cuya operación ya no se
-    /// puede resolver. Es el valor por defecto: quien no sabe el papel falla cerrado.
+    /// puede resolver. Es el valor por defecto, y falla cerrado solo para los comandos Inbound: un
+    /// <see cref="IComandoInbound"/> no se ejecuta con él. Para lo que no es Inbound (comandos, alcance de datos y páginas
+    /// de Outbound) <see cref="CriterioDePapel"/> lo admite, y deciden el rol y la capacidad de la sesión.
     /// </summary>
     SinPapel = 0,
 

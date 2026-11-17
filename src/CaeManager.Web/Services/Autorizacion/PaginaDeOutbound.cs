@@ -38,7 +38,8 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// <para>
 /// El papel sale de la operación revalidada en la base (<see cref="ICurrentUserService.ObtenerPapelActivoAsync"/>),
 /// nunca del request; solo se consulta para una página marcada. Con ámbito, no singleton, porque el papel depende del
-/// usuario y de la selección del circuito.
+/// usuario y de su selección, que se resuelven en cada petición HTTP: el Router (<c>Routes</c> sin modo interactivo)
+/// evalúa la página en cada petición, también en la navegación mejorada, no dentro de un circuito.
 /// </para>
 /// </summary>
 public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(ICurrentUserService currentUserService) : IAuthorizationHandler
