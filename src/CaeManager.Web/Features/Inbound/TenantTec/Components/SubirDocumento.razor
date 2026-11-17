@@ -139,7 +139,7 @@
 
             <label class="sub-comentarios">
                 <span>@Textos["SbComentarios"]</span>
-                <textarea class="campo-input" rows="3" @bind="_comentarios" @bind:event="oninput"></textarea>
+                <textarea class="campo-input" rows="3" maxlength="@CaeManager.Domain.Documentos.Documento.LongitudMaximaComentarios" @bind="_comentarios" @bind:event="oninput"></textarea>
             </label>
         }
     </ChildContent>
@@ -221,6 +221,12 @@
             {
                 lista.Add(("ok", "✓", Textos["SbCheckFormatoOk", extension.TrimStart('.').ToUpperInvariant()]));
             }
+        }
+
+        // El servidor rechaza una emisión futura: se dice aquí, antes de subir, en vez de un error al pulsar.
+        if (_emision is { } emision && emision > CaeManager.Domain.Common.DiaDeNegocio.Hoy())
+        {
+            lista.Add(("error", "✕", Textos["SbCheckEmisionMal"]));
         }
 
         if (_vencimiento is { } vencimiento)

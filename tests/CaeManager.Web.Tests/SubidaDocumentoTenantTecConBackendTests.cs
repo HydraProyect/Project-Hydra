@@ -111,10 +111,12 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             Task.FromResult<Stream>(new MemoryStream(Guardados[identificador]));
 
+        public bool FallaAlEliminar { get; init; }
+
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
         {
             Eliminados.Add(identificador);
-            return Task.CompletedTask;
+            return FallaAlEliminar ? throw new IOException("El almacenamiento de prueba no borra.") : Task.CompletedTask;
         }
     }
 
@@ -194,7 +196,7 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
     }
 
     [Fact]
-    public async Task Si_el_comando_lanza_borra_el_archivo_y_deja_salir_la_excepcion()
+    public async Task Si_el_comando_lanza_conserva_el_archivo_por_si_un_Documento_lo_adopto_y_deja_salir_la_excepcion()
     {
         var fila = Fila("Formación en altura", "Luis Gómez Ara");
         var mediador = new MediadorDePrueba([fila]) { ExcepcionAlSubir = new InvalidOperationException("Fallo de prueba.") };
@@ -204,7 +206,39 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
 
         await subir.Should().ThrowAsync<InvalidOperationException>().WithMessage("Fallo de prueba.");
         almacen.Guardados.Should().ContainSingle();
+        almacen.Eliminados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_validacion_rechaza_el_comando_borra_el_archivo_y_responde_su_motivo()
+    {
+        var fila = Fila("Formación en altura", "Luis Gómez Ara");
+        var mediador = new MediadorDePrueba([fila])
+        {
+            ExcepcionAlSubir = new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure("FechaEmision", "La fecha de emisión no puede ser futura.")]),
+        };
+        var almacen = new AlmacenEnMemoria();
+
+        var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, PdfDeUnaPagina()));
+
+        respuesta.Resultado.Should().Be(ResultadoSubidaTec.Error);
+        respuesta.Mensaje.Should().Be("La fecha de emisión no puede ser futura.");
         almacen.Eliminados.Should().Equal(almacen.Guardados.Keys);
+    }
+
+    [Fact]
+    public async Task Si_el_borrado_del_huerfano_falla_la_respuesta_sigue_dando_el_motivo_del_servidor()
+    {
+        var fila = Fila("Formación en altura", "Luis Gómez Ara");
+        var mediador = new MediadorDePrueba([fila], Result.Fallo<Guid>(SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado));
+        var almacen = new AlmacenEnMemoria { FallaAlEliminar = true };
+
+        var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, PdfDeUnaPagina()));
+
+        respuesta.Resultado.Should().Be(ResultadoSubidaTec.Error);
+        respuesta.Mensaje.Should().Be(SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado.Mensaje);
+        almacen.Eliminados.Should().ContainSingle();
     }
 
     [Fact]
@@ -235,6 +269,7 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
         var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, "esto no es un PDF"u8.ToArray()));
 
         respuesta.Resultado.Should().Be(ResultadoSubidaTec.Error);
+        respuesta.Mensaje.Should().Be(CaeManager.Application.Common.Archivos.ValidadorFirmaArchivo.MensajeDocumentoNoValido);
         mediador.Subidas.Should().BeEmpty();
         almacen.Guardados.Should().BeEmpty();
     }

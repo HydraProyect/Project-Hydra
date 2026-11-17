@@ -272,6 +272,22 @@ public sealed class InboundTenantTecTests : BunitContext
     }
 
     [Fact]
+    public void SubirDocumento_una_emision_futura_se_marca_antes_de_subir_y_los_comentarios_tienen_el_tope_del_servidor()
+    {
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Subido)));
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("%PDF", "aptitud.pdf"));
+
+        cut.FindAll("[role=dialog] input[type=date]")[0].Change(CaeManager.Domain.Common.DiaDeNegocio.Hoy().AddDays(1).ToString("yyyy-MM-dd"));
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("La fecha de emisión no puede ser futura.");
+        BotonDelDialogo(cut, "Subir").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[role=dialog] textarea").GetAttribute("maxlength").Should()
+            .Be(CaeManager.Domain.Documentos.Documento.LongitudMaximaComentarios.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void SubirDocumento_un_error_sin_motivo_pinta_el_generico()
     {
         var subida = new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Error));

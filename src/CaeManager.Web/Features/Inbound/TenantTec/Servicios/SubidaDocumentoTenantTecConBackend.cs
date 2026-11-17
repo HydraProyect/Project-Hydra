@@ -3,7 +3,9 @@ using CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDocumen
 using CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Documentos;
+using FluentValidation;
 using MediatR;
+using ValidadorFirmaArchivoAplicacion = CaeManager.Application.Common.Archivos.ValidadorFirmaArchivo;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Inbound.TenantTec.Servicios;
@@ -15,8 +17,9 @@ namespace CaeManager.Web.Features.Inbound.TenantTec.Servicios;
 ///
 /// <para>
 /// El archivo sigue el camino del alta individual (<c>DrawerGestionDocumento</c>): lectura con reserva del presupuesto de
-/// memoria, firma del contenido real, conversión a un único PDF y guardado cifrado. Si el comando falla, la clave recién
-/// guardada se borra, porque ningún Documento la adopta. Sin emisión se toma hoy, como el alta individual. Todavía no hay
+/// memoria, firma del contenido real, conversión a un único PDF y guardado cifrado. Si el comando responde con un fallo o
+/// la validación lo rechaza, la clave recién guardada se borra (de mejor esfuerzo), porque ningún Documento la adopta; si
+/// lanza otra excepción, se conserva, porque el alta pudo confirmarse antes. El motivo claro llega a la pantalla. Sin emisión se toma hoy, como el alta individual. Todavía no hay
 /// filtro de contenido de datos de salud (B-20): nunca responde <see cref="ResultadoSubidaTec.NoAceptadoPorDatosDeSalud"/>.
 /// </para>
 /// </summary>
@@ -42,7 +45,7 @@ public sealed class SubidaDocumentoTenantTecConBackend(
             return new RespuestaSubidaTec(ResultadoSubidaTec.Error, Mensaje: SubirDocumentoRequerimientoTecErrores.RequisitoNoEncontrado.Mensaje);
 
         if (await GuardarPdfAsync(solicitud, ct) is not { } archivoUrl)
-            return new RespuestaSubidaTec(ResultadoSubidaTec.Error);
+            return new RespuestaSubidaTec(ResultadoSubidaTec.Error, Mensaje: ValidadorFirmaArchivoAplicacion.MensajeDocumentoNoValido);
 
         Result<Guid> resultado;
         try
@@ -51,15 +54,25 @@ public sealed class SubidaDocumentoTenantTecConBackend(
                 requerimiento.ContratoAccesoId, requerimiento.RequisitoId, requerimiento.Sujeto, requerimiento.SujetoId,
                 solicitud.Emision ?? DiaDeNegocio.Hoy(), solicitud.Vencimiento, archivoUrl, solicitud.Comentarios), ct);
         }
-        catch
+        catch (ValidationException validacion)
         {
-            await almacenamiento.EliminarAsync(archivoUrl, CancellationToken.None);
+            // La validación corre antes de cualquier handler: ningún Documento ha adoptado la clave y el motivo se puede decir.
+            await DescartarHuerfanoAsync(archivoUrl);
+            return new RespuestaSubidaTec(ResultadoSubidaTec.Error,
+                Mensaje: string.Join(" ", validacion.Errors.Select(e => e.ErrorMessage).Distinct()));
+        }
+        catch (Exception excepcion)
+        {
+            // Una excepción puede llegar después de que el alta o la renovación confirmara (por ejemplo, al liberar la
+            // conexión): borrar dejaría un Documento sin archivo. Como el alta individual, se prefiere el huérfano.
+            registro.LogWarning(excepcion, "La subida al requerimiento {RequerimientoId} ha fallado; se conserva el archivo {ArchivoUrl} por si un Documento lo adoptó.",
+                solicitud.RequerimientoId, archivoUrl);
             throw;
         }
 
         if (resultado.EsFallido)
         {
-            await almacenamiento.EliminarAsync(archivoUrl, CancellationToken.None);
+            await DescartarHuerfanoAsync(archivoUrl);
             registro.LogWarning("La subida al requerimiento {RequerimientoId} no se ha guardado: {Codigo}.",
                 solicitud.RequerimientoId, resultado.Error.Codigo);
             // El motivo del servidor llega a la pantalla (D1 pide un error claro); ninguno identifica a un Gestor CAE (P-4).
@@ -87,6 +100,19 @@ public sealed class SubidaDocumentoTenantTecConBackend(
         {
             registro.LogWarning(excepcion, "El documento del requerimiento {RequerimientoId} se ha guardado, pero no se ha podido leer el siguiente pendiente.", subidoId);
             return null;
+        }
+    }
+
+    /// <summary>Borra de mejor esfuerzo la clave que ningún Documento adopta: si el borrado falla, queda registrada y la respuesta no cambia.</summary>
+    private async Task DescartarHuerfanoAsync(string archivoUrl)
+    {
+        try
+        {
+            await almacenamiento.EliminarAsync(archivoUrl, CancellationToken.None);
+        }
+        catch (Exception excepcion)
+        {
+            registro.LogWarning(excepcion, "No se ha podido borrar el archivo huérfano {ArchivoUrl} de una subida a un requerimiento.", archivoUrl);
         }
     }
 

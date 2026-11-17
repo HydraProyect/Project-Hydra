@@ -93,11 +93,19 @@ public static class SubirDocumentoRequerimientoTecErrores
         "RequerimientoTec.TipoDeSaludNoLegible",
         "Este tipo de documento tiene datos de salud que la Empresa que pide el documento no puede ver: no se sube desde aquí.");
 
-    public static Error TipoSinCorrespondencia(string nombre, int encontrados) => Error.Crear(
+    /// <summary>
+    /// Sin un único tipo propio utilizable. Si el nombre existe pero archivado o de otro ámbito, no se ofrece crearlo: el
+    /// nombre es único por Tenant propietario y un tipo archivado no se desarchiva.
+    /// </summary>
+    public static Error TipoSinCorrespondencia(string nombre, int encontrados, bool existeNoUtilizable = false) => Error.Crear(
         "RequerimientoTec.TipoSinCorrespondencia",
-        encontrados == 0
-            ? $"Tu catálogo no tiene un tipo de documento activo llamado \"{nombre}\" para este sujeto: créalo con ese nombre exacto."
-            : $"Tu catálogo tiene {encontrados} tipos de documento activos llamados \"{nombre}\" para este sujeto: deja solo uno.");
+        encontrados switch
+        {
+            0 when existeNoUtilizable =>
+                $"Tu catálogo tiene un tipo de documento llamado \"{nombre}\", pero está archivado o no es para este sujeto: no se puede subir desde aquí.",
+            0 => $"Tu catálogo no tiene un tipo de documento activo llamado \"{nombre}\" para este sujeto: créalo con ese nombre exacto.",
+            _ => $"Tu catálogo tiene {encontrados} tipos de documento activos llamados \"{nombre}\" para este sujeto: deja solo uno.",
+        });
 }
 
 public class SubirDocumentoRequerimientoTecCommandHandler(
@@ -139,14 +147,15 @@ public class SubirDocumentoRequerimientoTecCommandHandler(
         // D1: el tipo propio por el nombre exacto del catálogo del Tenant TCE. La base compara con su intercalación; el
         // emparejamiento exacto (ordinal), el archivado y el ámbito se deciden en memoria.
         var ambito = request.Sujeto == SujetoRequerimientoTec.Trabajador ? AmbitoAplicacion.Trabajador : AmbitoAplicacion.Empresa;
-        var tipos = (await tiposDocumentoContext.TiposDocumento
+        var delNombre = (await tiposDocumentoContext.TiposDocumento
                 .Where(t => t.Nombre == requisito.TipoDocumentoNombre)
                 .ToListAsync(cancellationToken))
-            .Where(t => string.Equals(t.Nombre, requisito.TipoDocumentoNombre, StringComparison.Ordinal)
-                        && !t.Archivado && t.AmbitoAplicacion == ambito)
+            .Where(t => string.Equals(t.Nombre, requisito.TipoDocumentoNombre, StringComparison.Ordinal))
             .ToList();
+        var tipos = delNombre.Where(t => !t.Archivado && t.AmbitoAplicacion == ambito).ToList();
         if (tipos.Count != 1)
-            return Result.Fallo<Guid>(SubirDocumentoRequerimientoTecErrores.TipoSinCorrespondencia(requisito.TipoDocumentoNombre, tipos.Count));
+            return Result.Fallo<Guid>(SubirDocumentoRequerimientoTecErrores.TipoSinCorrespondencia(
+                requisito.TipoDocumentoNombre, tipos.Count, existeNoUtilizable: delNombre.Count > tipos.Count));
 
         var tipo = tipos[0];
 

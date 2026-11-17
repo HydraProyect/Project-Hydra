@@ -388,6 +388,8 @@ public class SubirDocumentoRequerimientoTecCommandTests
         var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("RequerimientoTec.TipoSinCorrespondencia");
+        // El nombre es único por Tenant propietario y un tipo archivado no se desarchiva: no se ofrece crearlo.
+        resultado.Error.Mensaje.Should().Contain("archivado").And.NotContain("créalo");
         mediador.Enviados.Should().BeEmpty();
     }
 
@@ -433,6 +435,7 @@ public class SubirDocumentoRequerimientoTecCommandTests
         var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("RequerimientoTec.TipoSinCorrespondencia");
+        resultado.Error.Mensaje.Should().Contain("créalo con ese nombre exacto");
         mediador.Enviados.Should().BeEmpty();
     }
 
