@@ -23,10 +23,21 @@ public sealed class AbiertaConPapelInboundAttribute : Attribute
 /// <summary>
 /// Cierra con papel Inbound, por defecto, toda página y todo endpoint mínimo del Núcleo y de Facturación (decisión O-1
 /// (b)): solo se abre lo que lleva <see cref="AbiertaConPapelInboundAttribute"/> o <c>.AbiertoConPapelInbound()</c>. Así
-/// una página o un endpoint nuevos nacen cerrados con ese papel en vez de abiertos por olvido. Mismo criterio que la
-/// guarda de comandos y que las páginas de Outbound (<see cref="CriterioDePapel"/>): se niega con papel Inbound y con
-/// una Asignación de Operación que ya no autoriza; el Tenant de origen, el papel Outbound y la Sesión Privilegiada
-/// (sin papel) no pierden nada.
+/// una página o un endpoint nuevos nacen cerrados con ese papel en vez de abiertos por olvido. Se niega solo con
+/// <see cref="PapelActivo.Inbound"/>; el Tenant de origen, el papel Outbound y la Sesión Privilegiada (sin papel) no
+/// pierden nada.
+///
+/// <para>
+/// Una Asignación de Operación que ya no autoriza (<see cref="PapelActivo.OperacionQueYaNoAutoriza"/>) no cierra el
+/// Núcleo, a diferencia de la guarda de comandos y de las páginas de Outbound (<see cref="CriterioDePapel"/>): O-1 (b)
+/// cierra con papel Inbound, y ese estado no es un papel, sino una selección caducada que retira en la misma petición
+/// <see cref="RevalidacionClienteActivoMiddleware"/>. Ese middleware corre después de <c>UseAuthorization</c>
+/// (<c>Program.cs</c>), así que negar aquí cortaba la petición hacia «Acceso denegado» antes de que la revalidación
+/// devolviera la sesión al Tenant de origen (el E2E <c>PropuestaApoyoCarteraE2ETests</c>: tras desasignarse, Trabajadores
+/// debe pintarse en el origen). Lo que impide operar o leer con esa selección no cambia: la guarda de comandos la
+/// niega, <c>RolEfectivoDelWorkspaceMiddleware</c> retira el rol, el alcance de datos de Outbound queda vacío y, dentro
+/// de un circuito ya vivo, la revalida <c>RevalidacionCircuitoActivoHandler</c>; es lo mismo que había antes de O-1 (b).
+/// </para>
 ///
 /// <para>
 /// Qué se cierra. Una página (<see cref="Microsoft.AspNetCore.Components.RouteData"/> en <c>AuthorizeRouteView</c>, o el
@@ -55,7 +66,8 @@ public sealed class NucleoCerradoConPapelInboundAuthorizationHandler(ICurrentUse
         if (!SeCierraConPapelInbound(context.Resource))
             return;
 
-        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(await currentUserService.ObtenerPapelActivoAsync()))
+        // Solo papel Inbound (O-1 (b)); una operación que ya no autoriza la retira la revalidación (ver el resumen).
+        if (await currentUserService.ObtenerPapelActivoAsync() == PapelActivo.Inbound)
             context.Fail();
     }
 

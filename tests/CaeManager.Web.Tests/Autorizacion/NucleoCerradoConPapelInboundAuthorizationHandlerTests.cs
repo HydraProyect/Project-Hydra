@@ -20,25 +20,27 @@ namespace CaeManager.Web.Tests.Autorizacion;
 
 /// <summary>
 /// Decisión O-1 (b): con papel Inbound, el Núcleo y Facturación quedan cerrados por defecto, salvo lo abierto de forma
-/// explícita. Mismo criterio que la guarda de comandos (<see cref="CriterioDePapel"/>): el Tenant de origen, el papel
-/// Outbound y la Sesión Privilegiada (sin papel) no pierden nada. También la extensión: con la sesión web y papel
-/// Inbound no se emite su token ni responden las dos rutas que aceptan la sesión.
+/// explícita. Se niega solo con papel Inbound: el Tenant de origen, el papel Outbound y la Sesión Privilegiada (sin
+/// papel) no pierden nada, y una operación que ya no autoriza tampoco cierra el Núcleo, porque la retira la revalidación
+/// del cliente activo en la misma petición (a diferencia de <see cref="CriterioDePapel"/>, que sí la niega en la guarda
+/// de comandos y en las páginas de Outbound). También la extensión: con la sesión web y papel Inbound no se emite su
+/// token ni responden las dos rutas que aceptan la sesión.
 /// </summary>
 public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
 {
     private static readonly Type Usuarios = typeof(Features.Usuarios.Pages.Usuarios);
+    private static readonly Type Trabajadores = typeof(Features.Trabajadores.Pages.Trabajadores);
     private static readonly Type CambiarContrasena = typeof(Components.Account.Pages.CambiarContrasena);
     private static readonly Type MiTrabajo = typeof(Features.Bandeja.Pages.MiTrabajo);
     private static readonly Type CentrosInbound = typeof(Features.Inbound.CentroInbound.Pages.CentrosInbound);
 
     [Theory]
     [InlineData(PapelActivo.Inbound, false)]
-    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, false)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, true)]
     [InlineData(PapelActivo.Outbound, true)]
     [InlineData(PapelActivo.TenantDeOrigen, true)]
     [InlineData(PapelActivo.SinPapel, true)]
-    public async Task Una_pagina_cerrada_del_Nucleo_solo_se_abre_con_un_papel_que_admite_lo_que_no_es_Inbound(
-        PapelActivo papel, bool entra)
+    public async Task Una_pagina_cerrada_del_Nucleo_se_niega_solo_con_papel_Inbound(PapelActivo papel, bool entra)
     {
         var usuario = new UsuarioConPapel(papel);
 
@@ -47,6 +49,35 @@ public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
 
         // El primer render por HTTP: el middleware evalúa el endpoint de la página con el HttpContext como recurso.
         (await AutorizarAsync(PeticionA(new ComponentTypeMetadata(Usuarios)), new UsuarioConPapel(papel))).Succeeded.Should().Be(entra);
+    }
+
+    /// <summary>
+    /// El caso de <c>PropuestaApoyoCarteraE2ETests</c>: tras desasignarse, la cookie del Tenant seleccionado lleva una
+    /// operación que ya no autoriza hasta que <c>RevalidacionClienteActivoMiddleware</c>, que corre después de
+    /// <c>UseAuthorization</c>, la retira en esa misma petición. Trabajadores (<c>[Authorize]</c> sin roles, del Núcleo y
+    /// sin marca) tiene que pasar la autorización, por HTTP y en el router, para que la revalidación devuelva la sesión al
+    /// Tenant de origen y la página se pinte allí, como antes de O-1 (b); negarla aquí mandaba a «Acceso denegado». Con
+    /// papel Inbound sigue cerrada, y una página de Outbound marcada sigue negando ese estado (su criterio no cambia).
+    /// </summary>
+    [Fact]
+    public async Task Una_operacion_que_ya_no_autoriza_no_cierra_el_Nucleo_y_el_papel_Inbound_si()
+    {
+        NucleoCerradoConPapelInboundAuthorizationHandler.SeCierraConPapelInbound(Trabajadores)
+            .Should().BeTrue("Trabajadores es del Núcleo y no está abierta: el papel se mira");
+
+        foreach (var recurso in new object[] { Ruta(Trabajadores), PeticionA(new ComponentTypeMetadata(Trabajadores)) })
+        {
+            var caducada = new UsuarioConPapel(PapelActivo.OperacionQueYaNoAutoriza);
+            (await AutorizarAsync(recurso, caducada)).Succeeded
+                .Should().BeTrue("la selección caducada la retira la revalidación, que corre después de la autorización");
+            caducada.ConsultasDePapel.Should().Be(1, "el handler sí consulta el papel de una página que cierra");
+
+            (await AutorizarAsync(recurso, new UsuarioConPapel(PapelActivo.Inbound))).Succeeded
+                .Should().BeFalse("con papel Inbound el Núcleo sigue cerrado (O-1 (b))");
+        }
+
+        (await AutorizarAsync(Ruta(MiTrabajo), new UsuarioConPapel(PapelActivo.OperacionQueYaNoAutoriza))).Succeeded
+            .Should().BeFalse("las páginas de Outbound siguen el criterio de la guarda de comandos");
     }
 
     [Theory]
@@ -78,7 +109,7 @@ public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
 
     [Theory]
     [InlineData(PapelActivo.Inbound, false)]
-    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, false)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, true)]
     [InlineData(PapelActivo.Outbound, true)]
     [InlineData(PapelActivo.TenantDeOrigen, true)]
     [InlineData(PapelActivo.SinPapel, true)]
