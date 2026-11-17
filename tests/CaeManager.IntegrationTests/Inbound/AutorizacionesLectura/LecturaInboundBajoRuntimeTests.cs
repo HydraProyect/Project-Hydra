@@ -535,6 +535,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             ["app_inbound_archivo_autorizado"] = "p_contrato uuid, p_documento uuid",
             // Lectura inversa X-2 (demo Inbound, P0a): sin parámetros, el Tenant TEC sale del contexto firmado.
             ["app_inbound_tec_requerimientos"] = "",
+            // Lectura inversa X-2 (demo Inbound, P0b): los veredictos, también sin parámetros.
+            ["app_inbound_tec_veredictos"] = "",
         };
         var auxiliares = new[]
         {
@@ -624,6 +626,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [InlineData("app_inbound_documentos_autorizados(uuid)", "SELECT * FROM public.app_inbound_documentos_autorizados(NULL)")]
     [InlineData("app_inbound_archivo_autorizado(uuid,uuid)", "SELECT * FROM public.app_inbound_archivo_autorizado(NULL, NULL)")]
     [InlineData("app_inbound_tec_requerimientos()", "SELECT * FROM public.app_inbound_tec_requerimientos()")]
+    [InlineData("app_inbound_tec_veredictos()", "SELECT * FROM public.app_inbound_tec_veredictos()")]
     public async Task Sin_propietario_que_evita_rls_la_lectura_falla_cerrada(string firma, string consulta)
     {
         await using var conexion = new NpgsqlConnection(_cadena);
