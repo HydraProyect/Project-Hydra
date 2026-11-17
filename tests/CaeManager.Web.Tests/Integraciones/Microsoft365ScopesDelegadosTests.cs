@@ -46,10 +46,48 @@ public class Microsoft365ScopesDelegadosTests
         ]);
     }
 
-    [Fact]
-    public void La_lista_unica_que_usan_autorizacion_canje_y_refresco_incluye_User_Read()
+    private sealed class CapturaFormularioHandler : HttpMessageHandler
     {
-        Microsoft365GraphClient.ScopesDelegados.Should().Contain("https://graph.microsoft.com/User.Read");
+        public string? Cuerpo { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Cuerpo = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"access_token":"a","refresh_token":"r","expires_in":3600}""", Encoding.UTF8, "application/json"),
+            };
+        }
+    }
+
+    private static (Microsoft365GraphClient Cliente, CapturaFormularioHandler Handler) ClienteConSecreto()
+    {
+        var handler = new CapturaFormularioHandler();
+        var opciones = new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto", UrlPublicaBase = "https://talveg.example" };
+        return (new Microsoft365GraphClient(new HttpClient(handler), Options.Create(opciones), NullLogger<Microsoft365GraphClient>.Instance), handler);
+    }
+
+    [Fact]
+    public async Task El_canje_del_codigo_pide_los_mismos_scopes_que_la_autorizacion_con_User_Read()
+    {
+        var (cliente, handler) = ClienteConSecreto();
+
+        await cliente.IntercambiarCodigoPorTokensAsync("codigo", "https://talveg.example/cb", CancellationToken.None);
+
+        System.Web.HttpUtility.ParseQueryString(handler.Cuerpo!)["scope"].Should().Be(Microsoft365GraphClient.ScopesDelegados)
+            .And.Contain("https://graph.microsoft.com/User.Read");
+    }
+
+    [Fact]
+    public async Task El_refresco_no_pide_User_Read_para_no_exceder_lo_concedido_a_las_conexiones_ya_guardadas()
+    {
+        var (cliente, handler) = ClienteConSecreto();
+
+        await cliente.RefrescarTokensAsync("refresh", CancellationToken.None);
+
+        var scope = System.Web.HttpUtility.ParseQueryString(handler.Cuerpo!)["scope"];
+        scope.Should().Be(Microsoft365GraphClient.ScopesRefresco).And.NotContain("User.Read");
+        scope.Should().Contain("offline_access").And.Contain("Mail.Read").And.Contain("Mail.Send");
     }
 
     [Fact]

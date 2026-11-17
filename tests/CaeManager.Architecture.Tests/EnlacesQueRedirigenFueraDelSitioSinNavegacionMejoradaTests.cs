@@ -25,7 +25,8 @@ public class EnlacesQueRedirigenFueraDelSitioSinNavegacionMejoradaTests
             .SelectMany(f => EnlaceExterno.Matches(File.ReadAllText(f)).Select(m => (Fichero: Path.GetRelativePath(web, f), Etiqueta: m.Value)))
             .ToList();
 
-        enlaces.Should().NotBeEmpty("el control positivo prueba que el patrón encuentra los enlaces conocidos");
+        enlaces.Select(e => Path.GetFileName(e.Fichero)).Should().Contain(["Conexiones.razor", "Login.razor", "ConfigurarAutenticadorDosFactores.razor"],
+            "el control positivo prueba que el patrón encuentra cada uno de los enlaces conocidos");
         enlaces.Where(e => !e.Etiqueta.Contains("data-enhance-nav=\"false\"", StringComparison.Ordinal))
             .Select(e => $"{e.Fichero}: {e.Etiqueta}")
             .Should().BeEmpty("la navegación mejorada intercepta el enlace y la CSP bloquea la redirección a Microsoft");
