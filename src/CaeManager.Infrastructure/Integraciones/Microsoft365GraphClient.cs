@@ -33,8 +33,13 @@ public class Microsoft365GraphClient(
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     // Solo el buzón propio de quien consiente. Los buzones compartidos no van por aquí: usan el
     // token de aplicación del directorio (ObtenerTokenAplicacionAsync), acotado en Exchange.
-    internal const string ScopesDelegados =
+    // Refresco: la lista que ya tenían las conexiones guardadas. Con refresh_token el scope debe ser un subconjunto
+    // de lo concedido, así que no se le añade User.Read, que solo hace falta en el alta (/me).
+    internal const string ScopesRefresco =
         "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+
+    // Autorización y canje: ObtenerBuzonEmailAsync lee /me?$select=mail,userPrincipalName y Graph responde 403 sin User.Read.
+    internal const string ScopesDelegados = ScopesRefresco + " https://graph.microsoft.com/User.Read";
 
     private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
 
@@ -86,7 +91,7 @@ public class Microsoft365GraphClient(
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken,
-            ["scope"] = ScopesDelegados,
+            ["scope"] = ScopesRefresco,
         };
 
         var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);

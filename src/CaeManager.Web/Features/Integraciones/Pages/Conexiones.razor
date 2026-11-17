@@ -59,7 +59,7 @@
                     Placeholder="@Textos["PlaceholderBuzonCompartido"]" Type="email"
                     Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || _clienteSeleccionadoId is not null)" />
 
-        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
+        <a class="enlace-conectar-microsoft" href="@UrlConectar" data-enhance-nav="false">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
 
     @if (_cargando)
