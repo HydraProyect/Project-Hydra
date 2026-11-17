@@ -356,6 +356,37 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Decisión de Legal del 2026-11-17: un tipo de salud no se lee con IA aunque la fila se guardara con la lectura y la
+    /// detección encendidas, cuando el comando aún lo permitía. El dominio ya no deja fabricarla, así que se escribe por
+    /// SQL; el trigger de la base solo apaga al insertar o al reclasificar como salud.
+    /// </summary>
+    [Fact]
+    public async Task No_lee_con_IA_un_tipo_de_salud_aunque_la_fila_guardada_tenga_la_lectura_encendida()
+    {
+        var salud = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
+            && t.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud);
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "TiposDocumento" SET "LecturaIaActiva" = true, "DeteccionTrabajadoresActiva" = true WHERE "Id" = {salud.Id}""");
+        await _dbContext.Entry(salud).ReloadAsync();
+        salud.LecturaIaActiva.Should().BeTrue("control positivo: la fila fabricada tiene la lectura encendida");
+        salud.DeteccionTrabajadoresActiva.Should().BeTrue();
+
+        var empresa = new Empresa("Ibertec S.A.");
+        _dbContext.Empresas.Add(empresa);
+        var documento = Documento.DeEmpresa(empresa.Id, salud.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var llamadas = 0;
+        var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => llamadas++));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        llamadas.Should().Be(0, "un documento de salud no sale hacia el proveedor de IA");
+        (await _dbContext.DeteccionesTrabajador.AnyAsync(d => d.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
     [Fact]
     public async Task No_hace_nada_si_el_tipo_de_documento_no_tiene_deteccion_activa()
     {
