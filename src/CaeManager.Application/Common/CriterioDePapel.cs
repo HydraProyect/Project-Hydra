@@ -1,10 +1,11 @@
 namespace CaeManager.Application.Common;
 
 /// <summary>
-/// El criterio de papel que comparten las tres puertas de lo que no es Inbound (DN-21 del mapa de flujos de Inbound;
-/// B-02b y su hueco declarado): <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> para un comando que no es
-/// <see cref="IComandoInbound"/> ni de autoservicio, <c>AlcanceDatosService</c> para el alcance de datos de Outbound y
-/// <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> para las páginas de Outbound.
+/// El criterio de papel que comparten las puertas de lo que no es Inbound (DN-21 del mapa de flujos de Inbound;
+/// B-02b y su hueco declarado; O-1 (b)): <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> para un comando que
+/// no es <see cref="IComandoInbound"/> ni de autoservicio, <c>AlcanceDatosService</c> para el alcance de datos de
+/// Outbound, <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> para las páginas y endpoints de Outbound y
+/// <c>NucleoCerradoConPapelInboundAuthorizationHandler</c> para los del Núcleo y de Facturación, cerrados por defecto.
 ///
 /// <para>
 /// Se niega con papel <see cref="PapelActivo.Inbound"/> y con una operación que ya no autoriza

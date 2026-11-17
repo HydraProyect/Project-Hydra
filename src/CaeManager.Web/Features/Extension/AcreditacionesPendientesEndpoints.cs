@@ -1,5 +1,6 @@
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services.Autorizacion;
 using MediatR;
 
 namespace CaeManager.Web.Features.Extension;
@@ -33,7 +34,10 @@ public static class AcreditacionesPendientesEndpoints
         // IAlcanceDatosService dentro de la query con el rol real de quien
         // pide, que para la extensión es el del usuario que emitió el token.
         // Conserva el ámbito de gestión, también al minimizar los datos del DTO.
-        .RequireAuthorization(Policies.SesionOExtension);
+        .RequireAuthorization(Policies.SesionOExtension)
+        // Con la sesión web y papel Inbound, se niega como las páginas de Outbound (O-1 (b)). Por el token, el papel es
+        // el de la Asignación de Operación de Outbound que resuelve ContextoExtensionMiddleware, o el Tenant de origen.
+        .DeOutbound();
 
         return endpoints;
     }
