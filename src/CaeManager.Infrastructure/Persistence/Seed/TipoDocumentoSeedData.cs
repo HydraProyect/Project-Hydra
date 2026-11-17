@@ -751,6 +751,24 @@ public static class TipoDocumentoSeedData
         return copias.Values;
     }
 
+    /// <summary>
+    /// Las mismas copias sin los tipos que revelan salud (<see cref="TipoDocumento.RevelaSalud"/>): las de un Tenant que
+    /// se siembra fuera de Development (D7, DECISION_LOG 2026-11-17). Ningún tipo que quede se archiva hacia uno quitado:
+    /// si pasara, lanza en vez de dejar un sustituto que no existe en el Tenant.
+    /// </summary>
+    public static IReadOnlyList<TipoDocumento> CrearCopiasParaTenantSinTiposDeSalud()
+    {
+        var copias = CrearCopiasParaTenant().ToList();
+        var quedan = copias.Where(t => !t.RevelaSalud).ToList();
+        var ids = quedan.Select(t => t.Id).ToHashSet();
+
+        if (quedan.FirstOrDefault(t => t.SustitutoId is { } s && !ids.Contains(s)) is { } huerfano)
+            throw new InvalidOperationException(
+                $"El tipo «{huerfano.Nombre}» se archiva hacia un tipo de salud: sin los tipos de salud quedaría sin sustituto.");
+
+        return quedan;
+    }
+
     /// <summary>Proyección plana usada por HasData (necesita anonymous/objeto con las propiedades de la entidad).</summary>
     public static IEnumerable<object> ComoFilasParaMigracion() =>
         Datos.Select(d => new
