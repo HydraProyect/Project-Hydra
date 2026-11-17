@@ -47,11 +47,12 @@ public record ConexionIntegracionListaDto(
 {
     /// <summary>
     /// El aviso del hueco está en el estado en que <c>ReconocerAvisoHuecoCommand</c> lo reconoce: con marca, Habilitada y
-    /// sin marca por registrar. No dice quién puede (eso es <c>PuedeReconocerAvisoHuecoQuery</c>) y el comando lo vuelve a
-    /// comprobar con la conexión releída: es lo que las pantallas usan para no ofrecer Confirmar en vano.
+    /// sin marca por registrar (<see cref="ConexionIntegracion.EsAvisoHuecoReconocible"/>, el mismo predicado que usa el
+    /// comando). No dice quién puede (eso es <c>PuedeReconocerAvisoHuecoQuery</c>) y el comando lo vuelve a comprobar con
+    /// la conexión releída: es lo que las pantallas usan para no ofrecer Confirmar en vano.
     /// </summary>
     public bool AvisoHuecoReconocible =>
-        CorreoNoRecuperadoDesdeUtc is not null && Estado == EstadoConexionIntegracion.Habilitada && !HuecoSinRegistrar;
+        ConexionIntegracion.EsAvisoHuecoReconocible(CorreoNoRecuperadoDesdeUtc, Estado, HuecoSinRegistrar);
 }
 
 /// <remarks>

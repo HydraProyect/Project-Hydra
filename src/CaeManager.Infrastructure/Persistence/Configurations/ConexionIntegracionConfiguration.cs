@@ -26,6 +26,7 @@ public class ConexionIntegracionConfiguration : IEntityTypeConfiguration<Conexio
 
         builder.Ignore(c => c.ResponsableEfectivoId);
         builder.Ignore(c => c.RequiereVerificacionIdentidad);
+        builder.Ignore(c => c.AvisoHuecoReconocible);
 
         builder.HasIndex(c => new { c.TenantId, c.Nombre }).IsUnique();
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
