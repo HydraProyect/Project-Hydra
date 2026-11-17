@@ -62,6 +62,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.AsistenteIa.Edicion.RevisionPlanAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        services.AddScoped<
+            CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.IAvisoDeCarteraSinGestorCae,
+            CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.AvisoDeCarteraSinGestorCae>();
         // Webhook de Stripe: aplica el estado actual de la Subscription, no la copia del evento.
         services.AddScoped<CaeManager.Application.Comercial.Common.IProcesadorWebhookSuscripcion,
             CaeManager.Application.Comercial.Common.ProcesadorWebhookSuscripcion>();

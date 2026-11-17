@@ -4,6 +4,7 @@ using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
@@ -69,7 +70,7 @@ public class GestionCuentasCommandsTests
 
         (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), HayOtroAdministrador).Handle(Edicion("GestorCae"), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
         (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -278,7 +279,7 @@ public class GestionCuentasCommandsTests
 
         (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), HayOtroAdministrador).Handle(Edicion("GestorCae"), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
         (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
@@ -397,7 +398,7 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Actor] = CuentaPropia("Administrador", pendiente: true, id: Actor) };
         var actor = ActorCon("Administrador");
 
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Actor, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado()).Handle(new(Actor, false), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
         (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Actor), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
@@ -415,7 +416,7 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
         var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
         var bloqueo = new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso();
-        var handler = new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, bloqueo, new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador);
+        var handler = new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, bloqueo, new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado());
 
         (await handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
         (await handler.Handle(new(Cuenta, true), default)).EsExitoso.Should().BeTrue();
@@ -434,20 +435,25 @@ public class GestionCuentasCommandsTests
 
     private readonly CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso _bloqueoDelRelevo = new();
 
+    /// <summary>
+    /// <see cref="Cuenta"/> es un Coordinador CAE principal de una operación externa. Desde la decisión del
+    /// 2026-11-14 solo la cartera de un Gestor CAE se retira al desactivarlo (ver los tests de más abajo);
+    /// un Coordinador CAE conserva la suya y solo pierde la marca, que sigue el relevo de ADR-011 § 2.7.
+    /// </summary>
     private (CambiarActivacionUsuarioCommandHandler Handler, CatalogoIncorporacionCarteraFalso Catalogo, CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa Transaccion)
         DesactivacionDelPrincipal(Guid? coordinador, bool coordinadorActivo = true)
     {
         var catalogo = new CatalogoIncorporacionCarteraFalso();
-        catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionExterna, Propietario, "Talleres Norte", Cuenta, "GestorCae", true, null)));
+        catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionExterna, Propietario, "Talleres Norte", Cuenta, "CoordinadorCae", true, null)));
         catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionExterna, Propietario, "Talleres Norte", Apoyo, "GestorCae", false, null)));
         var roles = new DirectorioRolesEnOrigen();
         roles.Asignar(Coordinador, Tenant, "CoordinadorCae");
         if (!coordinadorActivo) roles.Desactivar(Coordinador);
         var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
         var handler = new CambiarActivacionUsuarioCommandHandler(
-            new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") }, ActorCon("Administrador"), EnSuTenant, transaccion,
+            new GestionCuentasFalsa { [Cuenta] = CuentaPropia("CoordinadorCae") }, ActorCon("Administrador"), EnSuTenant, transaccion,
             _bloqueoDelRelevo, catalogo,
-            new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles, HayOtroAdministrador);
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles, HayOtroAdministrador, new AvisoSinGestorCaeAnotado());
         return (handler, catalogo, transaccion);
     }
 
@@ -455,7 +461,7 @@ public class GestionCuentasCommandsTests
         catalogo.CarterasVivas.Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
 
     [Fact]
-    public async Task Desactivar_al_principal_pasa_la_marca_a_su_Coordinador_CAE_y_su_cartera_sigue_viva()
+    public async Task Desactivar_a_un_Coordinador_CAE_principal_pasa_la_marca_a_su_Coordinador_CAE_y_conserva_su_cartera()
     {
         var (handler, catalogo, transaccion) = DesactivacionDelPrincipal(Coordinador);
 
@@ -464,7 +470,9 @@ public class GestionCuentasCommandsTests
         PrincipalDe(catalogo).Should().Be(Coordinador);
         catalogo.CarterasVivas.Single(c => c.Cartera.UsuarioId == Coordinador).Cartera.Rol.Should().Be("CoordinadorCae");
         catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId).Should().BeEquivalentTo(
-            [Cuenta, Apoyo, Coordinador], "el desactivado pierde la marca, no la cartera (opción C), y el apoyo no se toca");
+            [Cuenta, Apoyo, Coordinador],
+            "un Coordinador CAE desactivado pierde la marca y conserva su cartera: la decisión del 2026-11-14 retira solo la del Gestor CAE; el apoyo no se toca");
+        catalogo.Retiradas.Should().BeEmpty();
         // Apagar y relevar van con el Tenant propietario como ámbito, cada uno con su guardado.
         catalogo.CambiosDeMarca.Select(c => (c.Paso, c.TenantActivo)).Should().Equal(
             ("apagar", Propietario), ("guardar", Propietario), ("relevar", Propietario), ("guardar", Propietario));
@@ -516,7 +524,7 @@ public class GestionCuentasCommandsTests
         var apoyo = new CambiarActivacionUsuarioCommandHandler(
             new GestionCuentasFalsa { [Apoyo] = CuentaPropia("GestorCae", id: Apoyo) }, ActorCon("Administrador"), EnSuTenant,
             new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(),
-            catalogo, new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", Coordinador, EsOperadorDelegado: false)), new DirectorioRolesEnOrigen(), HayOtroAdministrador);
+            catalogo, new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", Coordinador, EsOperadorDelegado: false)), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado());
         _ = handler;
 
         (await apoyo.Handle(new(Apoyo, false), default)).EsExitoso.Should().BeTrue();
@@ -537,12 +545,452 @@ public class GestionCuentasCommandsTests
         transaccion.Deshechas.Should().Be(1);
     }
 
+    // ---------- Cartera del Gestor CAE al desactivarlo (decisión de Chris del 2026-11-14) ----------
+
+    private static readonly Guid Destino = Guid.NewGuid();
+    // Perezosas: Beneficiario1 y Beneficiario2 se inicializan más abajo en el fichero.
+    private static readonly Lazy<AsignacionOperacion> _operacionUno = new(() => Operacion(Beneficiario1, Tenant));
+    private static readonly Lazy<AsignacionOperacion> _operacionDos = new(() => Operacion(Beneficiario2, Tenant));
+    private static AsignacionOperacion OperacionUno => _operacionUno.Value;
+    private static AsignacionOperacion OperacionDos => _operacionDos.Value;
+
+    private sealed record EscenarioDeCartera(
+        CambiarActivacionUsuarioCommandHandler Handler, CatalogoIncorporacionCarteraFalso Catalogo,
+        TransaccionDeComandoFalsa Transaccion, AvisoSinGestorCaeAnotado Aviso, GestionCuentasFalsa Cuentas,
+        BloqueoCarteraUsuarioFalso Bloqueo, DirectorioDestinosPorUsuario Destinos);
+
+    /// <summary>
+    /// <see cref="Cuenta"/> es un Gestor CAE con Beneficiario Uno (principal) y Beneficiario Dos enteros en su
+    /// cartera; <see cref="Destino"/>, otro Gestor CAE activo del mismo Operador CAE, ya apoya en Beneficiario Uno.
+    /// </summary>
+    private static EscenarioDeCartera DesactivacionDeGestorConCartera(
+        string rolActor = "Administrador", bool identityConfirmaAlActor = true, Guid? tenantOrigen = null,
+        IEncargoDeAdministracionActual? encargo = null)
+    {
+        var catalogo = new CatalogoIncorporacionCarteraFalso { IncorporacionDirectaComoLaReal = true };
+        catalogo.RegistrarAsignable(Tenant, OperacionUno, "Beneficiario Uno");
+        catalogo.RegistrarAsignable(Tenant, OperacionDos, "Beneficiario Dos");
+        catalogo.CarterasUniversales.Add((Tenant, Cuenta, new TenantEnCarteraDeGestor(Beneficiario1, "Beneficiario Uno")));
+        catalogo.CarterasUniversales.Add((Tenant, Cuenta, new TenantEnCarteraDeGestor(Beneficiario2, "Beneficiario Dos")));
+        catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionUno.Id, Beneficiario1, "Beneficiario Uno", Cuenta, "GestorCae", true, null)));
+        catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionUno.Id, Beneficiario1, "Beneficiario Uno", Destino, "GestorCae", false, null)));
+        catalogo.CarterasVivas.Add((Tenant, new CarteraVivaDeOperacion(OperacionDos.Id, Beneficiario2, "Beneficiario Dos", Cuenta, "GestorCae", false, null)));
+
+        var roles = new DirectorioRolesEnOrigen();
+        if (identityConfirmaAlActor) roles.Asignar(Actor, Tenant, rolActor);
+        roles.Asignar(Coordinador, Tenant, "CoordinadorCae");
+
+        var destinos = new DirectorioDestinosPorUsuario();
+        destinos.Cuentas[Cuenta] = new DestinoCartera(true, "GestorCae", Coordinador, EsOperadorDelegado: false, Tenant);
+        destinos.Cuentas[Destino] = new DestinoCartera(true, "GestorCae", Coordinador, EsOperadorDelegado: false, Tenant);
+
+        var cuentas = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae"), [Destino] = CuentaPropia("GestorCae", id: Destino) };
+        var transaccion = new TransaccionDeComandoFalsa();
+        var bloqueo = new BloqueoCarteraUsuarioFalso();
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var handler = new CambiarActivacionUsuarioCommandHandler(
+            cuentas, ActorCon(rolActor, tenantOrigen), EnSuTenant, transaccion, bloqueo, catalogo, destinos, roles, HayOtroAdministrador, aviso,
+            encargo);
+        return new(handler, catalogo, transaccion, aviso, cuentas, bloqueo, destinos);
+    }
+
+    /// <summary>«A nadie por ahora», confirmado en el diálogo.</summary>
+    private static CambiarActivacionUsuarioCommand SinDestino(Guid usuarioId) => new(usuarioId, false, SinDestinoConfirmado: true);
+
+    private static void HacerTemporal(CatalogoIncorporacionCarteraFalso catalogo, Guid usuarioId, Guid propietarioTenantId)
+    {
+        var i = catalogo.CarterasVivas.FindIndex(c => c.Cartera.UsuarioId == usuarioId && c.Cartera.PropietarioTenantId == propietarioTenantId);
+        catalogo.CarterasVivas[i] = (catalogo.CarterasVivas[i].OperadorTenantId,
+            catalogo.CarterasVivas[i].Cartera with { VigenciaHasta = DateTime.UtcNow.AddDays(10) });
+    }
+
+    private static Guid? PrincipalDe(CatalogoIncorporacionCarteraFalso catalogo, Guid asignacionOperacionId) =>
+        catalogo.CarterasVivas
+            .Where(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal)
+            .Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
+
+    [Fact]
+    public async Task Desactivar_a_un_Gestor_CAE_con_destino_pasa_cada_cartera_y_la_marca_al_destino_sin_aviso()
+    {
+        var e = DesactivacionDeGestorConCartera();
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, Destino), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        e.Cuentas.Escrituras.Should().Equal($"activacion:{Cuenta}:False");
+        e.Catalogo.Retiradas.Select(r => (r.PropietarioTenantId, r.OperadorTenantId, r.UsuarioId, r.ActorUsuarioId, r.TenantActivo))
+            .Should().BeEquivalentTo([(Beneficiario1, Tenant, Cuenta, Actor, (Guid?)Beneficiario1), (Beneficiario2, Tenant, Cuenta, Actor, (Guid?)Beneficiario2)]);
+        e.Catalogo.IncorporacionesDirectas.Should().BeEquivalentTo(
+            [(Beneficiario1, Tenant, OperacionUno.Id, Destino, (Guid?)Beneficiario1), (Beneficiario2, Tenant, OperacionDos.Id, Destino, (Guid?)Beneficiario2)],
+            "la reasignación abre una Asignación de Cartera nueva del destino en cada operación, no reescribe la del desactivado");
+        PrincipalDe(e.Catalogo, OperacionUno.Id).Should().Be(Destino, "la marca va con la cartera reasignada, no al Coordinador CAE");
+        e.Catalogo.CambiosDeMarca.Select(c => c.Paso).Should().NotContain("relevar");
+        e.Catalogo.CarterasVivas.Should().NotContain(c => c.Cartera.UsuarioId == Cuenta, "nadie desactivado conserva una cartera viva");
+        e.Aviso.Avisos.Should().BeEmpty("ningún Tenant beneficiario se quedó sin Gestor CAE");
+        e.Transaccion.Confirmadas.Should().Be(1);
+        e.Bloqueo.Exclusivos.Should().Equal(Cuenta);
+        e.Bloqueo.Compartidos.Should().Contain(Destino, "el destino no puede estar desactivándose a la vez");
+    }
+
+    [Fact]
+    public async Task Desactivar_a_un_Gestor_CAE_sin_destino_retira_su_cartera_y_avisa_solo_de_los_que_quedan_sin_ningun_Gestor_CAE()
+    {
+        var e = DesactivacionDeGestorConCartera();
+
+        var resultado = await e.Handler.Handle(SinDestino(Cuenta), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        e.Cuentas.Escrituras.Should().Equal($"activacion:{Cuenta}:False");
+        e.Catalogo.Retiradas.Select(r => r.PropietarioTenantId).Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+        e.Catalogo.IncorporacionesDirectas.Should().BeEmpty("sin destino nadie recibe una cartera nueva de Gestor CAE");
+        e.Catalogo.CarterasVivas.Should().NotContain(c => c.Cartera.UsuarioId == Cuenta);
+        PrincipalDe(e.Catalogo, OperacionUno.Id).Should().Be(Coordinador, "la marca sigue el relevo de ADR-011 § 2.7");
+        var aviso = e.Aviso.Avisos.Should().ContainSingle().Subject;
+        aviso.OperadorTenantId.Should().Be(Tenant, "se avisa en el Tenant propietario de la cuenta desactivada");
+        aviso.SinGestorCae.Select(t => t.PropietarioTenantId).Should().Equal(
+            [Beneficiario2], "Beneficiario Uno sigue con el Gestor CAE que ya tenía su cartera entera y sin fecha de fin");
+        e.Transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Con_cartera_y_sin_decision_explicita_no_se_desactiva_ni_se_retira_nada()
+    {
+        // El diálogo se abrió sin cartera y otra sesión la incorporó antes de confirmar: null no es «A nadie».
+        var e = DesactivacionDeGestorConCartera();
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Transaccion.Deshechas.Should().Be(1, "la desactivación ya escrita se deshace");
+        e.Catalogo.Retiradas.Should().BeEmpty();
+        e.Aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_cartera_la_desactivacion_no_pide_decision()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.CarterasUniversales.Clear();
+
+        (await e.Handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
+        e.Transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Destino_y_sin_destino_a_la_vez_se_rechaza_sin_escribir()
+    {
+        var e = DesactivacionDeGestorConCartera();
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino, SinDestinoConfirmado: true), default)).Error
+            .Should().Be(CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraAmbigua);
+        e.Transaccion.Ejecutadas.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Tres Tenants: el Administrador de A administra por Encargo de administración las cuentas de B, y B es
+    /// Operador CAE externo de C. La cartera del Gestor CAE de B sobre C no es visible desde A como origen.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fuera_del_Tenant_de_origen_desactivar_a_un_Gestor_CAE_falla_cerrado(bool conDestino)
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantC = Guid.NewGuid();
+        var e = DesactivacionDeGestorConCartera(tenantOrigen: tenantA, encargo: new EncargoPlenoFijo());
+        e.Catalogo.CarterasUniversales.Add((Tenant, Cuenta, new TenantEnCarteraDeGestor(tenantC, "Tenant C")));
+
+        var resultado = await e.Handler.Handle(
+            conDestino ? new(Cuenta, false, Destino) : SinDestino(Cuenta), default);
+
+        resultado.Error.Should().Be(CambiarActivacionUsuarioCommandHandler.CarteraFueraDelTenantDeOrigen);
+        e.Transaccion.Ejecutadas.Should().Be(0);
+        e.Cuentas.Escrituras.Should().BeEmpty("la cuenta sigue activa");
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_destino_pendiente_de_activar_se_rechaza()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Cuentas[Destino] = CuentaPropia("GestorCae", pendiente: true, id: Destino);
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).Error.Codigo
+            .Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoPendienteDeActivar.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_destino_para_quien_no_es_Gestor_CAE_se_rechaza_en_vez_de_ignorarse()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Cuentas[Cuenta] = CuentaPropia("CoordinadorCae");
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).Error
+            .Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoSoloAlDesactivar);
+        e.Transaccion.Ejecutadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_el_destino_ya_tenia_solo_una_parte_del_Tenant_beneficiario_se_deshace_todo()
+    {
+        // YaEnCartera por una cartera parcial o una fila heredada: no es una cartera entera bajo esa operación.
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.YaEnCarteraPor.Add((Destino, Beneficiario2));
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, Destino), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoConCarteraIncompleta.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Transaccion.Deshechas.Should().Be(1, "las retiradas ya escritas se deshacen con la transacción");
+        e.Aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_destino_solo_apoyaba_con_fecha_de_fin_se_deshace_todo()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        HacerTemporal(e.Catalogo, Destino, Beneficiario1);
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, Destino), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoConCarteraIncompleta.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_apoyo_temporal_del_desactivado_se_retira_sin_reasignarlo()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        HacerTemporal(e.Catalogo, Cuenta, Beneficiario2);
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).EsExitoso.Should().BeTrue();
+
+        e.Catalogo.Retiradas.Select(r => r.PropietarioTenantId).Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+        e.Catalogo.IncorporacionesDirectas.Select(i => i.PropietarioTenantId).Should().Equal(
+            [Beneficiario1], "el apoyo temporal no pasa al destino");
+        e.Aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId).Should().Equal(Beneficiario2);
+    }
+
+    [Fact]
+    public async Task La_cartera_nueva_del_destino_nace_principal_si_el_desactivado_lo_era()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        var i = e.Catalogo.CarterasVivas.FindIndex(c => c.Cartera.UsuarioId == Cuenta && c.Cartera.PropietarioTenantId == Beneficiario2);
+        e.Catalogo.CarterasVivas[i] = (Tenant, e.Catalogo.CarterasVivas[i].Cartera with { EsPrincipal = true });
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).EsExitoso.Should().BeTrue();
+
+        PrincipalDe(e.Catalogo, OperacionDos.Id).Should().Be(Destino);
+        e.Catalogo.CambiosDeMarca.Should().NotContain(c => c.Paso == "encender" && c.AsignacionOperacionId == OperacionDos.Id,
+            "la marca llega con la cartera nueva: el cierre de la anterior la apagó y la nueva nace principal");
+        e.Aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Desactivar_sin_poder_confirmar_la_autoridad_sobre_la_cartera_no_toca_ni_la_cuenta_ni_la_cartera()
+    {
+        // La sesión dice Administrador, pero Identity ya no lo confirma: gestiona cuentas por el claim,
+        // no tiene autoridad sobre la cartera.
+        var e = DesactivacionDeGestorConCartera(identityConfirmaAlActor: false);
+
+        var resultado = await e.Handler.Handle(SinDestino(Cuenta), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(AutoridadSobreCarteraDeGestorCae.SinAutoridad.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Transaccion.Deshechas.Should().Be(1, "la desactivación ya escrita se deshace");
+        e.Catalogo.Retiradas.Should().BeEmpty();
+        e.Aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_autoridad_sobre_cuentas_un_Coordinador_CAE_no_desactiva_ni_reasigna()
+    {
+        var e = DesactivacionDeGestorConCartera(rolActor: "CoordinadorCae");
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
+
+        e.Transaccion.Ejecutadas.Should().Be(0);
+        e.Cuentas.Escrituras.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_destino_de_otro_Tenant_se_rechaza_y_no_se_escribe_nada(bool comoOperadorCaeExterno)
+    {
+        var e = DesactivacionDeGestorConCartera();
+        var ajeno = Guid.NewGuid();
+        // Sin entrada: no es alcanzable desde el Tenant de origen. Con ella: es la cuenta de un Operador CAE externo.
+        if (comoOperadorCaeExterno)
+            e.Destinos.Cuentas[ajeno] = new DestinoCartera(true, "GestorCae", null, EsOperadorDelegado: true, OtroTenant);
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, ajeno), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(AutoridadSobreCarteraDeGestorCae.GestorNoAlcanzable.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+        e.Catalogo.IncorporacionesDirectas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_destino_desactivado_se_rechaza()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Destinos.Cuentas[Destino] = new DestinoCartera(false, "GestorCae", Coordinador, EsOperadorDelegado: false, Tenant);
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, Destino), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoDesactivado.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_destino_que_no_es_Gestor_CAE_se_rechaza()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Destinos.Cuentas[Destino] = new DestinoCartera(true, "CoordinadorCae", null, EsOperadorDelegado: false, Tenant);
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).Error.Codigo
+            .Should().Be(AutoridadSobreCarteraDeGestorCae.CuentaNoEsGestorCae.Codigo);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_destino_no_puede_ser_el_propio_desactivado_ni_pedirse_al_reactivar()
+    {
+        var e = DesactivacionDeGestorConCartera();
+
+        (await e.Handler.Handle(new(Cuenta, false, Cuenta), default)).Error.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoEsElDesactivado);
+        (await e.Handler.Handle(new(Cuenta, true, Destino), default)).Error.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoSoloAlDesactivar);
+        e.Transaccion.Ejecutadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_operacion_que_ya_no_admite_cartera_nueva_queda_sin_Gestor_CAE_aunque_haya_destino()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.Asignables.RemoveAll(a => a.Asignable.PropietarioTenantId == Beneficiario2);
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).EsExitoso.Should().BeTrue();
+
+        e.Catalogo.IncorporacionesDirectas.Select(i => i.PropietarioTenantId).Should().Equal(Beneficiario1);
+        e.Aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId).Should().Equal(Beneficiario2);
+    }
+
+    [Fact]
+    public async Task Si_una_retirada_pierde_la_carrera_no_se_confirma_nada_ni_se_avisa()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.PierdeLaCarrera = true;
+
+        var resultado = await e.Handler.Handle(SinDestino(Cuenta), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.PrincipalNoRelevado.Codigo, "falla la retirada, no otra guarda anterior");
+        e.Catalogo.Retiradas.Should().NotBeEmpty("se llegó a pedir la retirada");
+
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Aviso.Avisos.Should().BeEmpty("el aviso solo sale con la transacción confirmada");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_que_ya_no_es_Gestor_CAE_pero_conserva_su_cartera_no_se_desactiva()
+    {
+        // El cambio de rol no cierra las carteras de Gestor CAE: desactivarla las dejaría vivas sin decisión.
+        var e = DesactivacionDeGestorConCartera();
+        e.Cuentas[Cuenta] = CuentaPropia("Consulta");
+
+        var resultado = await e.Handler.Handle(SinDestino(Cuenta), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.CarteraDeOtroRol.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+        e.Aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_rol_que_decide_es_el_leido_bajo_el_candado()
+    {
+        // Al empezar era Consulta; cuando el candado se concede, ya es Gestor CAE con cartera: hace falta decisión.
+        var e = DesactivacionDeGestorConCartera();
+        e.Cuentas[Cuenta] = CuentaPropia("Consulta");
+        e.Bloqueo.AlBloquearExclusivo = () => e.Cuentas[Cuenta] = CuentaPropia("GestorCae");
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false), default);
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo);
+        e.Transaccion.Confirmadas.Should().Be(0);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_cartera_bajo_otra_operacion_del_mismo_Tenant_beneficiario_no_se_pasa_a_la_operacion_vigente()
+    {
+        // La cartera del desactivado sobre Beneficiario Dos no está bajo la operación que hoy admite cartera nueva.
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.Asignables.RemoveAll(a => a.Asignable.PropietarioTenantId == Beneficiario2);
+        e.Catalogo.RegistrarAsignable(Tenant, Operacion(Beneficiario2, Tenant), "Beneficiario Dos");
+
+        (await e.Handler.Handle(new(Cuenta, false, Destino), default)).EsExitoso.Should().BeTrue();
+
+        e.Catalogo.Retiradas.Select(r => r.PropietarioTenantId).Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+        e.Catalogo.IncorporacionesDirectas.Select(i => i.PropietarioTenantId).Should().Equal(Beneficiario1);
+        e.Aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId).Should().Equal(Beneficiario2);
+    }
+
+    [Fact]
+    public async Task El_aviso_cuenta_como_sin_Gestor_CAE_al_que_solo_le_queda_el_relevo_de_un_Coordinador_CAE()
+    {
+        // Beneficiario Uno: el desactivado era el principal y no queda ningún otro Gestor CAE. La marca va al
+        // Coordinador CAE, cuya cartera no es de Gestor CAE: el Tenant beneficiario entra en el aviso.
+        var e = DesactivacionDeGestorConCartera();
+        e.Catalogo.CarterasVivas.RemoveAll(c => c.Cartera.UsuarioId == Destino);
+
+        (await e.Handler.Handle(SinDestino(Cuenta), default)).EsExitoso.Should().BeTrue();
+
+        PrincipalDe(e.Catalogo, OperacionUno.Id).Should().Be(Coordinador, "premisa: el relevo dejó una cartera viva de Coordinador CAE");
+        e.Aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId)
+            .Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+    }
+
+    [Fact]
+    public async Task El_aviso_cuenta_como_sin_Gestor_CAE_al_que_solo_le_queda_un_apoyo_temporal()
+    {
+        var e = DesactivacionDeGestorConCartera();
+        HacerTemporal(e.Catalogo, Destino, Beneficiario1);
+
+        (await e.Handler.Handle(SinDestino(Cuenta), default)).EsExitoso.Should().BeTrue();
+
+        e.Aviso.Avisos.Should().ContainSingle().Which.SinGestorCae.Select(t => t.PropietarioTenantId)
+            .Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+    }
+
+    /// <summary>El aviso a los Administradores tiene sus propios tests; aquí se anota lo que se pidió.</summary>
+    private sealed class AvisoSinGestorCaeAnotado : IAvisoDeCarteraSinGestorCae
+    {
+        public List<(Guid OperadorTenantId, string NombreDesactivado, IReadOnlyList<TenantEnCarteraDeGestor> SinGestorCae)> Avisos { get; } = [];
+
+        public Task AvisarAsync(
+            Guid operadorTenantId, string nombreDesactivado, IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae,
+            CancellationToken cancellationToken)
+        {
+            Avisos.Add((operadorTenantId, nombreDesactivado, sinGestorCae));
+            return Task.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task Una_cuenta_que_ya_no_existe_pide_recargar_la_lista()
     {
         var puerto = new GestionCuentasFalsa();
 
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.CuentaInexistente);
     }
 
@@ -918,7 +1366,7 @@ public class GestionCuentasCommandsTests
         IGestionCuentasUsuario puerto, ICurrentUserService actor, IEncargoDeAdministracionActual? encargoActual = null) =>
         new(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
             new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, encargoActual);
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador, new AvisoSinGestorCaeAnotado(), encargoActual);
 
     [Theory]
     [InlineData("Administrador", "Administrador")]
@@ -1483,7 +1931,7 @@ public class GestionCuentasCommandsTests
         IAdministradoresDelTenant administradores) =>
         new(puerto, actor, EnSuTenant, transaccion, new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(),
             new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(),
-            administradores);
+            administradores, new AvisoSinGestorCaeAnotado());
 
     private sealed class AdministradoresDelTenantFalso(bool hayOtro) : IAdministradoresDelTenant
     {

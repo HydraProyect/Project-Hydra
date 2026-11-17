@@ -508,9 +508,12 @@ public class AlcanceDatosService(
 
     private async Task<AlcanceCartera> ObtenerCarteraParaCoordinadorAsync(Guid coordinadorUsuarioId, CancellationToken cancellationToken)
     {
-        // Sin filtro de cuenta activa, a propósito (decisión del propietario, opción C, 2026-09-24):
-        // desactivar a un Gestor CAE no cierra sus Asignaciones de Cartera, y su Coordinador CAE sigue
-        // heredándolas —con una universal, el Tenant entero— para que el servicio continúe.
+        // Sin filtro de cuenta activa, a propósito. Desde la decisión de Chris del 2026-11-14, desactivar a
+        // un Gestor CAE retira sus Asignaciones de Cartera externas de Tenants beneficiarios enteros
+        // (CambiarActivacionUsuarioCommand); lo que un Gestor CAE desactivado aún conserva —su cartera
+        // interna de la operación raíz (decisión del 2026-11-16) y las de cuentas desactivadas antes de
+        // esa regla— lo sigue heredando su Coordinador CAE (con una universal, el Tenant entero) para que
+        // el servicio continúe.
         var gestorIds = await dbContext.Users
             .Where(u => u.CoordinadorUsuarioId == coordinadorUsuarioId)
             .Select(u => u.Id)
