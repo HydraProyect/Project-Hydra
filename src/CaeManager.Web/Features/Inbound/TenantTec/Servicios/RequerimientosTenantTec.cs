@@ -97,8 +97,8 @@ public sealed record RequerimientoTec(
 /// Lectura inversa de los requerimientos que los Clientes empresariales piden al Tenant TEC.
 /// </summary>
 /// <remarks>
-/// shortcut: sin backend, cablear cuando entre B-11 (lectura inversa X-2: contratos, requerimientos,
-/// motivos e información del Centro para el Tenant TEC, sin identidad del Gestor CAE).
+/// En ejecución lo implementa <see cref="RequerimientosTenantTecConBackend"/> (lectura inversa X-2, sin identidad del
+/// Gestor CAE). Todavía sin veredictos ni motivos (P0b) ni información del Centro.
 /// </remarks>
 public interface IRequerimientosTenantTec
 {
@@ -108,7 +108,7 @@ public interface IRequerimientosTenantTec
     Task<IReadOnlyList<RequerimientoTec>> ListarAsync(CancellationToken ct = default);
 }
 
-// shortcut: sin backend, cablear cuando entre B-11
+/// <summary>Sin backend: la pantalla avisa de que no está disponible. Ya no se registra en ejecución; lo usan las pruebas.</summary>
 public sealed class RequerimientosTenantTecSinBackend : IRequerimientosTenantTec
 {
     public bool Disponible => false;

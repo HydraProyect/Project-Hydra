@@ -215,6 +215,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorDocumentosInboundEnBase.cs",
             """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
 
+        // Lectura inversa X-2 de Inbound (demo P1): app_inbound_tec_requerimientos() de la migración
+        // AnadeLecturaRequerimientosTec. Los requisitos son del Tenant TCE y RLS los oculta, como debe, a la conexión del
+        // Tenant TEC; la función SECURITY DEFINER toma el Tenant TEC del contexto firmado y solo devuelve los de contratos de
+        // acceso Activos y vinculados con la línea Inbound vigente del Tenant TCE (D10). Sin parámetros.
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorRequerimientosTecEnBase.cs",
+            """.SqlQuery<FilaRequisito>($"SELECT * FROM app_inbound_tec_requerimientos()")""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista

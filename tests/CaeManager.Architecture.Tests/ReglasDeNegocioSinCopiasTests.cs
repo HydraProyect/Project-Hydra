@@ -224,6 +224,10 @@ public class ReglasDeNegocioSinCopiasTests
         // estado pinta punto verde y texto gris en vez de pastilla. Es una pregunta de presentación sobre el rótulo de una
         // fila (Vigente y Sin caducidad), no un porcentaje: Próximo y Urgente son conformes y aun así llevan pastilla.
         ["src/CaeManager.Web/Features/Documentos/EstadoDocumentoUi.cs"] = 1,
+        // Requerimientos del Tenant TEC (demo Inbound P1): traduce el estado del documento vigente propio a la columna
+        // Vigencia de la pantalla (Sin caducidad y Vigente se pintan igual, Próximo y Urgente con su color). Mapeo de
+        // presentación de una fila, no un recuento.
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Servicios/RequerimientosTenantTecConBackend.cs"] = 1,
     };
 
     [Fact]

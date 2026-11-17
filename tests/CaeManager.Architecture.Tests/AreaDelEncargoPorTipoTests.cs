@@ -150,6 +150,8 @@ namespace CaeManager.Architecture.Tests
             "ObtenerIncidenteSeguridadQuery",
             "ObtenerLineasWhatsAppQuery",
             "ObtenerRegistroAuditoriaPorIdQuery",
+            // Demo Inbound P1: los Requerimientos del Tenant TEC son AutorizacionesLectura, como el resto de la carpeta.
+            "ObtenerRequerimientosTecQuery",
             "ObtenerResumenFacturacionQuery",
             "ObtenerSolicitudDerechoInteresadoQuery",
             "ObtenerSolicitudesPurgaQuery",

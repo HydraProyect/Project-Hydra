@@ -255,6 +255,12 @@
   <data name="MasTarde" xml:space="preserve">
     <value>Més tard</value>
   </data>
+  <data name="NivelCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="NivelClienteEmpresarial" xml:space="preserve">
+    <value>Exigències del Client</value>
+  </data>
   <data name="QlAutorizacionTitulo" xml:space="preserve">
     <value>Autorització única de reutilització</value>
   </data>
