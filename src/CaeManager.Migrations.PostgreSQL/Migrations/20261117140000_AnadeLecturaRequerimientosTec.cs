@@ -21,6 +21,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>"CapaPlantilla"</c> dice de cuál viene.
     /// </para>
     /// <para>
+    /// Lo que deliberadamente no mira ni devuelve, a la letra de D10 y del encargo de la P0a: las fechas del contrato
+    /// (<c>FechaInicio</c>, <c>FechaFin</c>), porque el criterio es el estado Activo y no <c>ContratoAcceso.VigenteEn</c>; y los
+    /// atributos del requisito que no pide el encargo (<c>SePideA</c>, <c>TiposContratacion</c>, <c>Equivalencias</c> y
+    /// <c>Origen</c>). Ampliar cualquiera de los dos es una decisión de producto y cambia la firma: una migración nueva.
+    /// </para>
+    /// <para>
     /// Qué columnas (P-4 y Q-18): ninguna identifica a un Gestor CAE ni a ninguna otra persona: ni usuarios, ni nombres de
     /// persona, ni correos. Del Tenant TCE solo su nombre visible; del Cliente empresarial, su razón social, y nunca su
     /// <c>"EjecutivoUsuarioId"</c>. El tipo de documento sale con su nombre exacto (D1), porque el Tenant TEC lo empareja con

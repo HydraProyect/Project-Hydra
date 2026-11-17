@@ -78,6 +78,8 @@ public class LecturaRequerimientosTecTests
     {
         Cuerpo.Should().Contain("(p.\"Tipo\" = 'DeCentro' AND p.\"CentroId\" = c.\"CentroId\")")
             .And.Contain("(p.\"Tipo\" = 'ExigenciasClienteEmpresarial' AND p.\"ClienteEmpresarialId\" = c.\"ClienteEmpresarialId\")")
+            .And.Contain("AND p.\"Activa\" AND NOT p.\"EstaEliminado\"")
+            .And.Contain("r.\"PlantillaId\" = p.\"Id\" AND r.\"Activo\"")
             .And.NotContain("PorActividad").And.NotContain("PorRiesgo");
     }
 

@@ -1,3 +1,4 @@
+using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comercial;
 using CaeManager.Domain.Documentos;
@@ -5,6 +6,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Domain.Inbound.Requisitos;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -57,8 +59,9 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             contexto.Tenants.AddRange(_tce, _tceSinLinea, _tec, _otroTec);
 
             var cliente = Empresa.CrearComoCliente("Cliente empresarial de Delta Sur", "B10380186", false, null, null);
+            var otroCliente = Empresa.CrearComoCliente("Otro Cliente empresarial de Delta Sur", "B10380210", false, null, null);
             var contratistaLocal = new Empresa("Montajes Moncayo S.L.", "B10380194");
-            contexto.Empresas.AddRange(cliente, contratistaLocal);
+            contexto.Empresas.AddRange(cliente, otroCliente, contratistaLocal);
             var centro = new Centro(cliente.Id, cliente.Id, "Nave logística de Delta Sur");
             var otroCentro = new Centro(cliente.Id, cliente.Id, "Otro Centro de Delta Sur");
             contexto.Centros.AddRange(centro, otroCentro);
@@ -66,7 +69,19 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             var tipoN3 = new TipoDocumento("Seguro de responsabilidad civil", null, false, 1, AmbitoAplicacion.Empresa);
             var tipoRetirado = new TipoDocumento("Requisito retirado", null, false, 2, AmbitoAplicacion.Trabajador);
             var tipoOtroCentro = new TipoDocumento("Requisito de otro Centro", null, false, 3, AmbitoAplicacion.Trabajador);
-            contexto.TiposDocumento.AddRange(tipoCentro, tipoN3, tipoRetirado, tipoOtroCentro);
+            var tipoPlantillaRetirada = new TipoDocumento("Requisito de la plantilla retirada", null, false, 4, AmbitoAplicacion.Trabajador);
+            var tipoOtroCliente = new TipoDocumento("Exigencia de otro Cliente empresarial", null, false, 5, AmbitoAplicacion.Empresa);
+            contexto.TiposDocumento.AddRange(tipoCentro, tipoN3, tipoRetirado, tipoOtroCentro, tipoPlantillaRetirada, tipoOtroCliente);
+            await contexto.SaveChangesAsync();
+
+            // Una plantilla retirada del mismo Centro (convive con la activa: el índice único solo cubre las activas) y las
+            // exigencias de otro Cliente empresarial del mismo Tenant TCE: ninguna de las dos es capa del contrato.
+            var retirada = PlantillaRequisitos.ParaCentro(centro.Id);
+            retirada.AnadirRequisito(tipoPlantillaRetirada, null, Basicos);
+            retirada.Retirar();
+            var deOtroCliente = PlantillaRequisitos.ParaExigenciasDe(otroCliente.Id);
+            deOtroCliente.AnadirRequisito(tipoOtroCliente, null, Basicos with { Origen = OrigenRequisito.ExigenciaN3 });
+            contexto.PlantillasRequisitos.AddRange(retirada, deOtroCliente);
             await contexto.SaveChangesAsync();
 
             var deCentro = PlantillaRequisitos.ParaCentro(centro.Id);
@@ -144,7 +159,8 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
     {
         var filas = await LeerComoRuntimeAsync(_tec.Id, _usuarioTec);
 
-        filas.Should().HaveCount(2, "un requisito de la plantilla del Centro y otro de las exigencias N3; ni el retirado ni el de otro Centro");
+        filas.Should().HaveCount(2, "un requisito de la plantilla del Centro y otro de las exigencias N3; ni el requisito retirado, ni la plantilla " +
+            "retirada, ni la de otro Centro, ni las exigencias de otro Cliente empresarial");
         filas.Should().AllSatisfy(f =>
         {
             f.ContratoAccesoId.Should().Be(_activo);
@@ -190,6 +206,17 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
         // La conexión puede escribir app.tenant_id, pero no firmar el contexto: el Tenant TEC sale del token.
         (await LeerComoRuntimeAsync(_otroTec.Id, _usuarioOtroTec, $"SET LOCAL app.tenant_id = '{_tec.Id}';")).Should().BeEmpty();
         (await LeerComoRuntimeAsync(_tec.Id, _usuarioTec)).Should().NotBeEmpty("control: con su propio token, el Tenant TEC sí lee");
+    }
+
+    [Fact]
+    public async Task Bajo_un_Operador_CAE_externo_solo_cuenta_el_Tenant_activo_y_nunca_el_de_origen()
+    {
+        // Una persona cuyo Tenant de origen es el Tenant TEC vinculado, operando otro Tenant beneficiario: no lee lo del suyo.
+        (await LeerComoRuntimeAsync(_otroTec.Id, _usuarioTec, tenantOrigen: _tec.Id)).Should().BeEmpty(
+            "el Tenant TEC es el activo del contexto, no el de origen de la persona (operación ≠ propiedad)");
+        // Y al revés: operando el Tenant TEC vinculado desde otro Tenant de origen, lee lo del Tenant TEC activo.
+        (await LeerComoRuntimeAsync(_tec.Id, _usuarioOtroTec, tenantOrigen: _otroTec.Id)).Select(f => f.ContratoAccesoId)
+            .Distinct().Should().Equal([_activo]);
     }
 
     [Fact]
@@ -277,13 +304,13 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
         Guid RequisitoId, Guid TipoDocumentoId, string TipoDocumentoNombre, string Entidad, string? Criterio, string ModoVigencia,
         int? VigenciaMeses, int? ToleranciaDias, bool BloqueaAcceso, string AmbitoDocumento, string CapaPlantilla);
 
-    private async Task<List<Fila>> LeerComoRuntimeAsync(Guid tenant, Guid usuario, string? antes = null)
+    private async Task<List<Fila>> LeerComoRuntimeAsync(Guid tenant, Guid usuario, string? antes = null, Guid? tenantOrigen = null)
     {
         await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadena));
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
-        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant, tenantOrigenId: tenant, usuarioId: usuario, local: true,
-            transaccion: transaccion);
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant, tenantOrigenId: tenantOrigen ?? tenant, usuarioId: usuario,
+            local: true, transaccion: transaccion);
 
         await using (var identidad = new NpgsqlCommand("SELECT session_user::text || '/' || current_user::text;", conexion, transaccion))
             ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_runtime/cae_app_runtime");
