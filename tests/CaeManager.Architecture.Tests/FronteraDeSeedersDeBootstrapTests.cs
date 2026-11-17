@@ -176,18 +176,27 @@ public class FronteraDeSeedersDeBootstrapTests
     /// <c>IsDevelopment()</c> dentro de su propio código. Hoy esa guarda solo la fijan los tests de cada seeder: un
     /// seeder nuevo que entrara en la lista declarando esa promesa podría entrar sin guarda, y sembraría con el rol
     /// propietario en cualquier entorno sin que ningún ratchet lo notara. El test recorre el diccionario, sin una
-    /// lista aparte, así que cubre solo a todo seeder que declare esa promesa en el futuro.
+    /// lista aparte, así que cubre a todo seeder que declare esa promesa, hoy y en el futuro.
     /// </para>
     ///
     /// <para>
     /// <b>Qué cuenta como guarda.</b> Se quitan antes los comentarios (<c>//</c>, <c>///</c> y <c>/* */</c>) y el
     /// contenido de los literales de cadena, para que mencionar <c>IsDevelopment()</c> en un comentario o en un
-    /// mensaje no cuente. Sobre el código que queda se exige un <c>if</c> cuya condición niegue
-    /// <c>IsDevelopment()</c> (<c>!entorno.IsDevelopment()</c>), sin <c>&amp;&amp;</c> —con <c>&amp;&amp;</c> la
-    /// salida ya no cubriría el caso «no es Development»—, y cuyo cuerpo empiece por <c>return</c> o <c>throw</c>:
-    /// la salida temprana, que es lo que impide llegar a la escritura. Admite que la negación vaya como un
-    /// disyunto más (<c>!activo || !entorno.IsDevelopment()</c>). Una forma de guarda legítima que no encaje se
+    /// mensaje no cuente. Sobre el código que queda se exige un <c>if</c> cuyo cuerpo empiece por <c>return</c> o
+    /// <c>throw</c> (la salida temprana) y cuya condición, partida por <c>||</c>, tenga un disyunto que sea
+    /// exactamente <c>!receptor.IsDevelopment()</c>: <c>!entorno.IsDevelopment()</c> solo, o junto a otras
+    /// condiciones como <c>!activo || !entorno.IsDevelopment()</c>. Cualquier otra forma de condición (con
+    /// <c>&amp;&amp;</c>, <c>&amp;</c>, <c>?:</c>, doble negación o la llamada dentro de una lambda) no se acepta, porque
+    /// ya no garantiza salir siempre que el entorno no sea Development. Una forma legítima que no encaje se
     /// reescribe a esa, o se amplía este criterio con su propio caso en el test del detector; el fallo avisa.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Límites declarados.</b> El detector es léxico y trabaja por fichero: comprueba que la guarda existe, no
+    /// que esté en el camino de ejecución de la escritura (un segundo punto de entrada sin guarda, una guarda tras
+    /// la escritura o bajo <c>#if DEBUG</c> no se distinguen), y la vigilancia depende de que el motivo contenga la
+    /// frase «Solo en Development» tal cual. Lo que sí garantiza es que un seeder no entra en la lista con esa
+    /// promesa y sin ninguna guarda en su código.
     /// </para>
     ///
     /// <para>
@@ -242,9 +251,19 @@ public class FronteraDeSeedersDeBootstrapTests
     /// <summary>
     /// El detector de guardas es el instrumento del test anterior: se prueba contra casos construidos para
     /// que no dé por buena una guarda que no lo es (comentario, cadena, condición con <c>&amp;&amp;</c>, falta de
-    /// salida) y acepte las dos formas que usan los seeders reales.
+    /// salida) y acepte las formas de guarda legítimas, con y sin condiciones adicionales.
     /// </summary>
     [Theory]
+    [InlineData("var a = @\"if (!entorno.IsDevelopment()) return;\";", false)]
+    [InlineData("var a = $\"x {y} if (!entorno.IsDevelopment()) return;\";", false)]
+    [InlineData("var a = \"\"\"if (!entorno.IsDevelopment()) return;\"\"\"; var b = 1;", false)]
+    [InlineData("var c = '\"'; if (!entorno.IsDevelopment()) return;", true)]
+    [InlineData("var a = @\"hola\"\" mundo\"; if (!entorno.IsDevelopment()) return;", true)]
+    [InlineData("var a = \"\"\"\"x \"\"\" y\"\"\"\"; if (!entorno.IsDevelopment()) return;", true)]
+    [InlineData("if (activo & !entorno.IsDevelopment()) return;", false)]
+    [InlineData("if (!!entorno.IsDevelopment()) return;", false)]
+    [InlineData("if (lista.Any(x => !x.IsDevelopment())) return;", false)]
+    [InlineData("if (cond ? !entorno.IsDevelopment() : false) return;", false)]
     [InlineData("if (!entorno.IsDevelopment()) throw new InvalidOperationException(\"x\");", true)]
     [InlineData("if (!entorno.IsDevelopment())\n    return;", true)]
     [InlineData("if (!configuration.GetValue<bool>(\"A:B\") || !entorno.IsDevelopment()) { return; }", true)]
@@ -267,12 +286,12 @@ public class FronteraDeSeedersDeBootstrapTests
         @"\bif\s*\(([^;{}]*)\)\s*(?:\{\s*)?(?:return|throw)\b", RegexOptions.Compiled);
 
     private static readonly Regex NegacionDeIsDevelopment = new(
-        @"!\s*[\w.]+\s*\.\s*IsDevelopment\s*\(\s*\)", RegexOptions.Compiled);
+        @"^\s*!\s*[\w.]+\s*\.\s*IsDevelopment\s*\(\s*\)\s*$", RegexOptions.Compiled);
 
     private static bool TieneGuardaDeDevelopment(string codigoSinComentarios) =>
         IfConSalida.Matches(codigoSinComentarios)
             .Select(m => m.Groups[1].Value)
-            .Any(condicion => !condicion.Contains("&&") && NegacionDeIsDevelopment.IsMatch(condicion));
+            .Any(condicion => condicion.Split("||").Any(NegacionDeIsDevelopment.IsMatch));
 
     private static List<string> LocalizarFuenteDeClase(string raiz, string clase)
     {
@@ -318,10 +337,16 @@ public class FronteraDeSeedersDeBootstrapTests
                 i = fin < 0 ? codigo.Length : fin + 2;
                 salida.Append(' ');
             }
-            else if (c == '"' && string.CompareOrdinal(codigo, i, "\"\"\"", 0, 3) == 0)
+            else if (c == '"' && string.CompareOrdinal(codigo, i, "\"\"\"", 0, 3) == 0
+                && !(i > 0 && codigo[i - 1] == '@'))
             {
-                var fin = codigo.IndexOf("\"\"\"", i + 3, StringComparison.Ordinal);
-                i = fin < 0 ? codigo.Length : fin + 3;
+                // Literal de cadena sin escapes: abre con N comillas (N >= 3) y cierra con otras N.
+                var comillas = 0;
+                while (i + comillas < codigo.Length && codigo[i + comillas] == '"')
+                    comillas++;
+
+                var fin = codigo.IndexOf(new string('"', comillas), i + comillas, StringComparison.Ordinal);
+                i = fin < 0 ? codigo.Length : fin + comillas;
                 salida.Append("\"\"");
             }
             else if (c == '"')
