@@ -22,9 +22,11 @@ namespace CaeManager.IntegrationTests.Inbound.AutorizacionesLectura;
 /// <summary>
 /// Lectura inversa X-2 de la demo Inbound (P0a): <c>app_inbound_tec_requerimientos()</c> bajo <c>cae_app_runtime</c> con el
 /// contexto firmado. El Tenant TEC lee los requisitos que el Tenant TCE le pide en sus contratos de acceso Activos y
-/// vinculados (D10), solo de las capas del Centro y de las exigencias del Cliente empresarial (D9), y sin ninguna columna
-/// que identifique a un Gestor CAE (P-4, Q-18). Contratos y plantillas comparten Centro y Cliente empresarial, así que lo
-/// único que separa un contrato que se lee de uno que no es su estado, su vínculo o la línea Inbound de su Tenant TCE.
+/// vinculados (D10) y dentro de sus fechas el día de negocio (opción C), solo de las capas del Centro y de las exigencias
+/// del Cliente empresarial (D9), con la aplicabilidad de cada requisito (<c>SePideA</c>, <c>TiposContratacion</c>) y sin
+/// ninguna columna que identifique a un Gestor CAE (P-4, Q-18). Contratos y plantillas comparten Centro y Cliente
+/// empresarial, así que lo único que separa un contrato que se lee de uno que no es su estado, sus fechas, su vínculo o la
+/// línea Inbound de su Tenant TCE.
 /// </summary>
 public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
 {
@@ -51,6 +53,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
     private Guid _tipoCentro;
     private Guid _tipoN3;
     private readonly Dictionary<string, Guid> _excluidos = [];
+    private readonly Dictionary<string, Guid> _fueraDeFechas = [];
 
     public async Task InitializeAsync()
     {
@@ -86,7 +89,12 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var deCentro = PlantillaRequisitos.ParaCentro(centro.Id);
-            var requisitoCentro = deCentro.AnadirRequisito(tipoCentro, null, Basicos);
+            // Aplicabilidad distinta de la de serie en cada capa, para que las dos columnas no coincidan por casualidad.
+            var requisitoCentro = deCentro.AnadirRequisito(tipoCentro, null, Basicos with
+            {
+                SePideA = DestinatarioRequisito.Extranjeros,
+                TiposContratacion = TiposContratacion.CuentaAjena | TiposContratacion.Autonomo,
+            });
             var retirado = deCentro.AnadirRequisito(tipoRetirado, null, Basicos);
             deCentro.RetirarRequisito(retirado.Id);
             var deN3 = PlantillaRequisitos.ParaExigenciasDe(cliente.Id);
@@ -98,14 +106,15 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
                 BloqueaAcceso = false,
                 Criterio = "Póliza en vigor",
                 AmbitoDocumento = AmbitoDocumentoRequisito.EspecificoTce,
+                SePideA = DestinatarioRequisito.Nacionales,
             });
             var deOtroCentro = PlantillaRequisitos.ParaCentro(otroCentro.Id);
             deOtroCentro.AnadirRequisito(tipoOtroCentro, null, Basicos);
             contexto.PlantillasRequisitos.AddRange(deCentro, deN3, deOtroCentro);
 
-            ContratoAcceso Contrato(bool vincular = true, bool pendiente = false)
+            ContratoAcceso Contrato(bool vincular = true, bool pendiente = false, DateOnly? inicio = null, DateOnly? fin = null)
             {
-                var c = ContratoAcceso.Crear(cliente.Id, centro.Id, contratistaLocal.Id, _hoy.AddDays(-10), null, null,
+                var c = ContratoAcceso.Crear(cliente.Id, centro.Id, contratistaLocal.Id, inicio ?? _hoy.AddDays(-10), fin, null,
                     pendienteDeConfirmar: pendiente);
                 if (vincular) c.VincularTenantContratista(_tec.Id);
                 contexto.ContratosAcceso.Add(c);
@@ -124,6 +133,13 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             eliminado.MarcarComoEliminado(Guid.NewGuid());
             _excluidos["eliminado"] = eliminado.Id;
             _excluidos["sin vincular"] = Contrato(vincular: false).Id;
+            // Activos, vinculados y con las mismas plantillas, pero fuera de sus fechas (opción C). Dos días de margen: el día
+            // de negocio de la función sale de now() y el del fixture de DiaDeNegocio.Hoy(), y una medianoche entre los dos no
+            // debe meterlos en el resultado.
+            _fueraDeFechas["fin ya pasado"] = Contrato(inicio: _hoy.AddDays(-30), fin: _hoy.AddDays(-2)).Id;
+            _fueraDeFechas["inicio futuro"] = Contrato(inicio: _hoy.AddDays(2)).Id;
+            foreach (var (caso, contrato) in _fueraDeFechas)
+                _excluidos[caso] = contrato;
 
             contexto.ProductosContratados.Add(LineaInbound());
             await contexto.SaveChangesAsync();
@@ -188,6 +204,8 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             ToleranciaDias = (int?)null,
             BloqueaAcceso = true,
             AmbitoDocumento = "GeneralTec",
+            SePideA = "Extranjeros",
+            TiposContratacion = (int)(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo),
         });
         var n3 = filas.Single(f => f.CapaPlantilla == "ExigenciasClienteEmpresarial");
         n3.Should().BeEquivalentTo(new
@@ -201,7 +219,46 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             VigenciaMeses = (int?)12,
             BloqueaAcceso = false,
             AmbitoDocumento = "EspecificoTce",
+            SePideA = "Nacionales",
+            TiposContratacion = (int)TiposContratacion.Todos,
         });
+    }
+
+    [Fact]
+    public async Task Un_contrato_Activo_fuera_de_sus_fechas_no_da_filas()
+    {
+        var filas = await LeerComoRuntimeAsync(_tec.Id, _usuarioTec);
+        (string, bool, bool, Guid?) activoVinculadoSinCierreNiBaja = ("Activo", false, false, _tec.Id);
+
+        filas.Select(f => f.ContratoAccesoId).Distinct().Should().Equal([_activo], "control: el contrato dentro de sus fechas sí se lee");
+        foreach (var (caso, contrato) in _fueraDeFechas)
+        {
+            filas.Where(f => f.ContratoAccesoId == contrato).Should().BeEmpty(caso);
+            // Control: lo único que lo separa del contrato leído son las fechas, no el estado, el cierre, la baja ni el vínculo.
+            (await EstadoDelContratoAsync(contrato)).Should().Be(activoVinculadoSinCierreNiBaja, caso);
+        }
+    }
+
+    [Fact]
+    public async Task El_dia_de_inicio_y_el_de_fin_del_contrato_cuentan_como_vigentes()
+    {
+        // Las dos fechas en el día de negocio que calcula PostgreSQL, para que la frontera la marque el mismo reloj que la función.
+        await using (var conexion = new NpgsqlConnection(_cadena))
+        {
+            await conexion.OpenAsync();
+            await using var comando = new NpgsqlCommand(
+                """
+                UPDATE public."ContratosAcceso"
+                   SET "FechaInicio" = (now() AT TIME ZONE 'Europe/Madrid')::date,
+                       "FechaFin" = (now() AT TIME ZONE 'Europe/Madrid')::date
+                 WHERE "Id" = @id;
+                """, conexion);
+            comando.Parameters.AddWithValue("id", _activo);
+            (await comando.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        (await LeerComoRuntimeAsync(_tec.Id, _usuarioTec)).Select(f => f.ContratoAccesoId).Distinct().Should().Equal(
+            [_activo], "VigenteEn incluye el día de inicio y el de fin");
     }
 
     [Fact]
@@ -280,7 +337,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
         columnas.Should().Equal(
             "ContratoAccesoId", "TenantTceNombre", "CentroId", "CentroNombre", "ClienteEmpresarialNombre", "RequisitoId",
             "TipoDocumentoId", "TipoDocumentoNombre", "Entidad", "Criterio", "ModoVigencia", "VigenciaMeses", "ToleranciaDias",
-            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla");
+            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla", "SePideA", "TiposContratacion");
         columnas.Should().NotContain(c => c.Contains("Usuario", StringComparison.OrdinalIgnoreCase)
                                           || c.Contains("Gestor", StringComparison.OrdinalIgnoreCase)
                                           || c.Contains("Email", StringComparison.OrdinalIgnoreCase)
@@ -320,7 +377,8 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
     private sealed record Fila(
         Guid ContratoAccesoId, string TenantTceNombre, Guid CentroId, string CentroNombre, string ClienteEmpresarialNombre,
         Guid RequisitoId, Guid TipoDocumentoId, string TipoDocumentoNombre, string Entidad, string? Criterio, string ModoVigencia,
-        int? VigenciaMeses, int? ToleranciaDias, bool BloqueaAcceso, string AmbitoDocumento, string CapaPlantilla);
+        int? VigenciaMeses, int? ToleranciaDias, bool BloqueaAcceso, string AmbitoDocumento, string CapaPlantilla, string SePideA,
+        int TiposContratacion);
 
     private async Task<List<Fila>> LeerComoRuntimeAsync(Guid tenant, Guid usuario, string? antes = null, Guid? tenantOrigen = null)
     {
@@ -348,10 +406,26 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
                 lector.GetGuid(5), lector.GetGuid(6), lector.GetString(7), lector.GetString(8),
                 lector.IsDBNull(9) ? null : lector.GetString(9), lector.GetString(10),
                 lector.IsDBNull(11) ? null : lector.GetInt32(11), lector.IsDBNull(12) ? null : lector.GetInt32(12),
-                lector.GetBoolean(13), lector.GetString(14), lector.GetString(15)));
+                lector.GetBoolean(13), lector.GetString(14), lector.GetString(15), lector.GetString(16), lector.GetInt32(17)));
         }
 
         return filas;
+    }
+
+    private async Task<(string Estado, bool Cerrado, bool Eliminado, Guid? TenantContratista)> EstadoDelContratoAsync(Guid contrato)
+    {
+        // Identidad propietaria: ve las filas sin la RLS.
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT "Estado", "FechaCierreReal" IS NOT NULL, "EstaEliminado", "TenantContratistaId"
+              FROM public."ContratosAcceso" WHERE "Id" = @id;
+            """, conexion);
+        comando.Parameters.AddWithValue("id", contrato);
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+        return (lector.GetString(0), lector.GetBoolean(1), lector.GetBoolean(2), lector.IsDBNull(3) ? null : lector.GetGuid(3));
     }
 
     private async Task<long> RequisitosActivosDelTenantAsync(Guid tenant)

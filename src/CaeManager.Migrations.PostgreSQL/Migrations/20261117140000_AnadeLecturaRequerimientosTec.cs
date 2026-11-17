@@ -21,10 +21,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>"CapaPlantilla"</c> dice de cuál viene.
     /// </para>
     /// <para>
-    /// Lo que deliberadamente no mira ni devuelve, a la letra de D10 y del encargo de la P0a: las fechas del contrato
-    /// (<c>FechaInicio</c>, <c>FechaFin</c>), porque el criterio es el estado Activo y no <c>ContratoAcceso.VigenteEn</c>; y los
-    /// atributos del requisito que no pide el encargo (<c>SePideA</c>, <c>TiposContratacion</c>, <c>Equivalencias</c> y
-    /// <c>Origen</c>). Ampliar cualquiera de los dos es una decisión de producto y cambia la firma: una migración nueva.
+    /// Fechas y aplicabilidad (opción C de la subcoordinadora de Inbound, 2026-11-17, sobre D10): además del estado Activo, el
+    /// contrato tiene que estar dentro de sus fechas el día de negocio de la transacción, con el mismo criterio que
+    /// <c>ContratoAcceso.VigenteEn</c> y los bordes incluidos: <c>"FechaInicio" &lt;= v_hoy</c> y <c>"FechaFin"</c> nulo o
+    /// <c>v_hoy &lt;= "FechaFin"</c>, con <c>v_hoy</c> = <c>now()</c> en Europe/Madrid (<c>DiaDeNegocio</c>), como las vecinas
+    /// <c>app_inbound_*</c>. Solo restringe: el estado Activo sin cierre real sigue siendo condición, así que un contrato
+    /// Finalizado no entra aunque <c>VigenteEn</c> lo dé por vigente el día del cierre. Del requisito salen también
+    /// <c>"SePideA"</c> (Todos, Nacionales o Extranjeros, el texto del enumerado) y <c>"TiposContratacion"</c> (la máscara de
+    /// bits de <c>TiposContratacion</c>: CuentaAjena, Autonomo y Voluntario; 7 es Todos), porque sin ellos el Tenant TEC no sabe
+    /// a qué Trabajadores o contrataciones aplica cada requisito. Siguen fuera, deliberadamente, <c>Equivalencias</c> y
+    /// <c>Origen</c>: ampliarlos es otra decisión de producto y cambia la firma.
     /// </para>
     /// <para>
     /// Qué columnas (P-4 y Q-18): ninguna identifica a un Gestor CAE ni a ninguna otra persona: ni usuarios, ni nombres de
@@ -50,13 +56,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 RETURNS TABLE("ContratoAccesoId" uuid, "TenantTceNombre" text, "CentroId" uuid, "CentroNombre" text,
                               "ClienteEmpresarialNombre" text, "RequisitoId" uuid, "TipoDocumentoId" uuid, "TipoDocumentoNombre" text,
                               "Entidad" text, "Criterio" text, "ModoVigencia" text, "VigenciaMeses" integer, "ToleranciaDias" integer,
-                              "BloqueaAcceso" boolean, "AmbitoDocumento" text, "CapaPlantilla" text)
+                              "BloqueaAcceso" boolean, "AmbitoDocumento" text, "CapaPlantilla" text, "SePideA" text,
+                              "TiposContratacion" integer)
                 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
                 SET search_path TO 'pg_catalog', 'pg_temp'
                 AS $$
             #variable_conflict use_column
             DECLARE
                 v_tec uuid;
+                v_hoy date;
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
                                 WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
@@ -66,11 +74,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RAISE EXCEPTION 'Sin contexto firmado con Tenant y usuario: no se lee nada de otro Tenant.' USING ERRCODE = '42501';
                 END IF;
                 v_tec := public.app_ctx_tenant_id();
+                v_hoy := (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date;
                 RETURN QUERY
                     SELECT c."Id", tn."Nombre"::text, ce."Id", ce."Nombre"::text, ec."RazonSocial"::text,
                            r."Id", r."TipoDocumentoId", td."Nombre"::text, r."Entidad"::text, r."Criterio"::text,
                            r."ModoVigencia"::text, r."VigenciaMeses", r."ToleranciaDias", r."BloqueaAcceso",
-                           r."AmbitoDocumento"::text, p."Tipo"::text
+                           r."AmbitoDocumento"::text, p."Tipo"::text, r."SePideA"::text, r."TiposContratacion"
                       FROM public."ContratosAcceso" c
                       JOIN public."Tenants" tn ON tn."Id" = c."TenantId"
                       JOIN public."Centros" ce ON ce."TenantId" = c."TenantId" AND ce."Id" = c."CentroId"
@@ -87,6 +96,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                        AND NOT c."EstaEliminado"
                        AND c."Estado" = 'Activo'
                        AND c."FechaCierreReal" IS NULL
+                       AND c."FechaInicio" <= v_hoy
+                       AND (c."FechaFin" IS NULL OR v_hoy <= c."FechaFin")
                        AND EXISTS (SELECT 1 FROM public."ProductosContratados" pc
                                     WHERE pc."TenantId" = c."TenantId" AND pc."Linea" = 'Inbound'
                                       AND pc."Estado" = 'Vigente' AND NOT pc."EstaEliminado"

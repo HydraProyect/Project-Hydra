@@ -74,6 +74,16 @@ public class LecturaRequerimientosTecTests
     }
 
     [Fact]
+    public void Solo_contratos_dentro_de_sus_fechas_el_dia_de_negocio_con_los_bordes_incluidos()
+    {
+        // El criterio de ContratoAcceso.VigenteEn sobre las fechas (opción C), con el día de negocio de las vecinas app_inbound_*.
+        Cuerpo.Should().Contain("v_hoy := (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date;")
+            .And.Contain("AND c.\"FechaInicio\" <= v_hoy")
+            .And.Contain("AND (c.\"FechaFin\" IS NULL OR v_hoy <= c.\"FechaFin\")")
+            .And.NotContain("CURRENT_DATE").And.NotContain("current_date");
+    }
+
+    [Fact]
     public void Solo_las_capas_del_Centro_y_de_las_exigencias_del_Cliente_empresarial()
     {
         Cuerpo.Should().Contain("(p.\"Tipo\" = 'DeCentro' AND p.\"CentroId\" = c.\"CentroId\")")
@@ -91,7 +101,8 @@ public class LecturaRequerimientosTecTests
         Regex.Matches(columnas, "\"(?<nombre>[A-Za-z]+)\"").Select(m => m.Groups["nombre"].Value).Should().Equal(
             "ContratoAccesoId", "TenantTceNombre", "CentroId", "CentroNombre", "ClienteEmpresarialNombre", "RequisitoId",
             "TipoDocumentoId", "TipoDocumentoNombre", "Entidad", "Criterio", "ModoVigencia", "VigenciaMeses", "ToleranciaDias",
-            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla");
-        Cuerpo.Should().NotContainAny("Usuario", "Gestor", "Email", "Correo", "NombreCompleto", "Ejecutivo", "AspNetUsers");
+            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla", "SePideA", "TiposContratacion");
+        Cuerpo.Should().NotContainAny("Usuario", "Gestor", "Email", "Correo", "NombreCompleto", "Ejecutivo", "AspNetUsers",
+            "Equivalencias", "Origen");
     }
 }
