@@ -71,10 +71,12 @@ public sealed class AvisoDeCarteraSinGestorCae(
                     return;
                 }
 
-                var mensaje = Mensaje(nombreDesactivado, sinGestorCae);
-                foreach (var administradorId in administradores)
-                    notificaciones.Agregar(new NotificacionUsuario(
-                        administradorId, Titulo, mensaje, RutaUsuarios, "Asignar un Gestor CAE"));
+                // Un aviso por tanda que quepa entera en el mensaje: la notificación trunca lo que pasa de su
+                // longitud máxima, y un nombre cortado dejaría a un Tenant beneficiario fuera del aviso.
+                foreach (var mensaje in Mensajes(nombreDesactivado, sinGestorCae))
+                    foreach (var administradorId in administradores)
+                        notificaciones.Agregar(new NotificacionUsuario(
+                            administradorId, Titulo, mensaje, RutaUsuarios, "Asignar un Gestor CAE"));
 
                 await unitOfWork.SaveChangesAsync(cancellationToken);
             }
@@ -86,6 +88,29 @@ public sealed class AvisoDeCarteraSinGestorCae(
                 "Se desactivó a un Gestor CAE y {Cuantos} Tenants beneficiarios quedaron sin Gestor CAE en el Operador CAE {TenantId}, pero no se pudo avisar.",
                 sinGestorCae.Count, operadorTenantId);
         }
+    }
+
+    /// <summary>
+    /// Los mensajes del aviso, cada uno dentro de <see cref="NotificacionUsuario.LongitudMaximaMensaje"/>: se reparte la
+    /// lista en tandas que caben enteras. Un nombre que por sí solo no cabe se recorta (no se puede partir mejor).
+    /// </summary>
+    public static IReadOnlyList<string> Mensajes(string nombreDesactivado, IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae)
+    {
+        var mensajes = new List<string>();
+        var tanda = new List<TenantEnCarteraDeGestor>();
+        foreach (var tenant in sinGestorCae)
+        {
+            tanda.Add(tenant);
+            if (tanda.Count > 1 && Mensaje(nombreDesactivado, tanda).Length > NotificacionUsuario.LongitudMaximaMensaje)
+            {
+                tanda.RemoveAt(tanda.Count - 1);
+                mensajes.Add(Mensaje(nombreDesactivado, tanda));
+                tanda = [tenant];
+            }
+        }
+        if (tanda.Count > 0)
+            mensajes.Add(Mensaje(nombreDesactivado, tanda));
+        return mensajes;
     }
 
     public static string Mensaje(string nombreDesactivado, IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae)

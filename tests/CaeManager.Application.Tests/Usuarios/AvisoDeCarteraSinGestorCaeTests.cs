@@ -4,6 +4,7 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Domain.Notificaciones;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -76,6 +77,23 @@ public class AvisoDeCarteraSinGestorCaeTests
 
         _notificaciones.Notificaciones.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_lista_que_no_cabe_en_un_mensaje_se_reparte_en_varios_sin_perder_ninguna_organizacion()
+    {
+        var muchos = Enumerable.Range(1, 60)
+            .Select(i => new TenantEnCarteraDeGestor(Guid.NewGuid(), $"Organización con un nombre bastante largo número {i:00}"))
+            .ToList();
+
+        await Aviso().AvisarAsync(Operador, "Ana Pérez", muchos, default);
+
+        var delPrimero = _notificaciones.Notificaciones.Where(n => n.UsuarioDestinatarioId == Administrador1).ToList();
+        delPrimero.Should().HaveCountGreaterThan(1, "60 nombres largos no caben en 1.000 caracteres");
+        delPrimero.Should().OnlyContain(n => n.Mensaje.Length <= NotificacionUsuario.LongitudMaximaMensaje && n.Mensaje.EndsWith("."),
+            "ningún mensaje llega recortado");
+        foreach (var tenant in muchos)
+            delPrimero.Count(n => n.Mensaje.Contains($"«{tenant.Nombre}»")).Should().Be(1, $"«{tenant.Nombre}» aparece una sola vez");
     }
 
     [Fact]

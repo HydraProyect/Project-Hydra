@@ -56,6 +56,13 @@ namespace CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 /// Tenant entero, sin fecha de fin y bajo esa misma Asignación de Operación; si no (cartera parcial,
 /// fila heredada sola o apoyo temporal), la transacción entera se deshace
 /// (<see cref="CambiarActivacionUsuarioCommandHandler.DestinoConCarteraIncompleta"/>).</item>
+/// <item><b>Sin operación propia que la admita</b>: una cartera del desactivado cuya Asignación de Operación ya no
+/// autoriza, o que no es la que hoy admite cartera nueva en ese Tenant beneficiario, se retira sin pasarla a
+/// otra operación, y el Tenant beneficiario entra en el aviso si se queda sin Gestor CAE.</item>
+/// <item><b>Cambio de rol previo</b>: el rol se vuelve a leer bajo el candado. Una cuenta que ya no es Gestor CAE
+/// pero conserva carteras de Gestor CAE no se desactiva
+/// (<see cref="CambiarActivacionUsuarioCommandHandler.CarteraDeOtroRol"/>): no hay sobre quién decidir con la
+/// autoridad de cartera de Gestor CAE, y desactivarla las dejaría vivas.</item>
 /// <item><b>Apoyos temporales</b> del desactivado (Asignación de Cartera con fecha de fin): se retiran
 /// sin reasignarlos (decisión de Chris del 2026-11-16).</item>
 /// <item><b>Aviso</b>: ya confirmada la transacción, se avisa a los Administradores del Tenant
@@ -150,6 +157,10 @@ public class CambiarActivacionUsuarioCommandHandler(
         "Usuarios.DestinoConCarteraIncompleta",
         "El Gestor CAE elegido ya tiene una parte o un apoyo temporal de alguna de esas organizaciones. No se ha cambiado nada; elige otro o resuélvelo antes.");
 
+    public static readonly Error CarteraDeOtroRol = Error.Crear(
+        "Usuarios.CarteraDeOtroRol",
+        "Conserva organizaciones en su cartera de cuando era Gestor CAE. Devuélvele el rol Gestor CAE para decidir a quién pasan y desactívala después. No se ha cambiado nada.");
+
     public static readonly Error CarteraFueraDelTenantDeOrigen = Error.Crear(
         "Usuarios.CarteraFueraDelTenantDeOrigen",
         "Un Gestor CAE solo se desactiva desde su propia organización, porque hay que decidir a quién pasa su cartera. No se ha cambiado nada.");
@@ -212,6 +223,20 @@ public class CambiarActivacionUsuarioCommandHandler(
 
                 await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
             }
+
+            // El rol se vuelve a leer con el candado tomado: el leído al empezar pudo cambiar después, y es
+            // el de ahora el que dice si la cartera se retira y si la guarda del Tenant de origen aplica.
+            var esGestorCaeAhora = esGestorCae;
+            if (!request.Activar)
+            {
+                var cuentaAhora = await cuentas.ObtenerAsync(request.UsuarioId, ct);
+                if (cuentaAhora is null)
+                    return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
+                esGestorCaeAhora = cuentaAhora.Roles.Contains(RolGestorCae);
+                if (esGestorCaeAhora && (tenantOrigenId is null || tenantOrigenId != tenantActual.TenantId))
+                    return Result.Fallo(CarteraFueraDelTenantDeOrigen);
+            }
+
             var cambio = await cuentas.CambiarActivacionAsync(request.UsuarioId, request.Activar, ct);
             if (cambio.EsFallido)
                 return cambio;
@@ -224,7 +249,7 @@ public class CambiarActivacionUsuarioCommandHandler(
             operadorDelAviso = operadorTenantId;
 
             return await RetirarOReasignarCarteraAsync(
-                request.UsuarioId, esGestorCae, request.GestorCaeDestinoId, request.SinDestinoConfirmado,
+                request.UsuarioId, esGestorCaeAhora, request.GestorCaeDestinoId, request.SinDestinoConfirmado,
                 operadorTenantId, sinGestorCae, ct);
         }, cancellationToken);
 
@@ -304,11 +329,13 @@ public class CambiarActivacionUsuarioCommandHandler(
         }
 
         var principales = await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(operadorTenantId, usuarioId, ct);
-        IReadOnlyList<TenantEnCarteraDeGestor> enCartera = esGestorCae
-            ? await catalogo.ObtenerCarteraUniversalAsync(operadorTenantId, usuarioId, ct)
-            : [];
+        // Se lee con cualquier rol: una cuenta a la que le cambiaron el rol puede conservar carteras de
+        // Gestor CAE (el cambio de rol no las cierra), y desactivarla no puede dejarlas vivas en silencio.
+        var enCartera = await catalogo.ObtenerCarteraUniversalAsync(operadorTenantId, usuarioId, ct);
         if (enCartera.Count == 0)
             return await CederMarcaDePrincipalAsync(usuarioId, operadorTenantId, principales, ct);
+        if (!esGestorCae)
+            return Result.Fallo(CarteraDeOtroRol);
 
         // Ya con el candado: la cartera que se ve ahora es la que se retira. Si apareció después de
         // abrir el diálogo, quien desactiva no decidió sobre ella.
@@ -325,13 +352,18 @@ public class CambiarActivacionUsuarioCommandHandler(
             return Result.Fallo(AutoridadSobreCarteraDeGestorCae.SinAutoridad);
         var actorUsuarioId = autoridad.Valor.ActorUsuarioId;
 
-        // Apoyos temporales del desactivado: se retiran sin reasignarlos.
-        var temporales = new HashSet<Guid>();
+        // Lo que se puede reasignar de cada Tenant beneficiario: las Asignaciones de Operación bajo las que el
+        // desactivado tiene una cartera del Tenant entero, sin fecha de fin, que autoriza hoy. Un apoyo temporal
+        // se retira sin reasignarlo, y una cartera bajo una operación que ya no autoriza (no aparece aquí) se
+        // retira sin pasarla a otra operación del mismo Tenant beneficiario.
+        var reasignables = new Dictionary<Guid, HashSet<Guid>>();
         foreach (var tenant in enCartera)
         {
             var vivas = await catalogo.ObtenerCarterasVivasAsync(operadorTenantId, tenant.PropietarioTenantId, ct);
-            if (vivas.Any(c => c.UsuarioId == usuarioId && c.Rol == RolGestorCae && c.VigenciaHasta is not null))
-                temporales.Add(tenant.PropietarioTenantId);
+            reasignables[tenant.PropietarioTenantId] = vivas
+                .Where(c => c.UsuarioId == usuarioId && c.Rol == RolGestorCae && c.VigenciaHasta is null)
+                .Select(c => c.AsignacionOperacionId)
+                .ToHashSet();
         }
 
         var asignables = destinoId is null
@@ -358,8 +390,8 @@ public class CambiarActivacionUsuarioCommandHandler(
         {
             var principalesDelTenant = principales.Where(p => p.PropietarioTenantId == tenant.PropietarioTenantId).ToList();
             if (destinoId is not { } destinoUsuarioId
-                || temporales.Contains(tenant.PropietarioTenantId)
-                || !asignables.TryGetValue(tenant.PropietarioTenantId, out var asignable))
+                || !asignables.TryGetValue(tenant.PropietarioTenantId, out var asignable)
+                || !reasignables[tenant.PropietarioTenantId].Contains(asignable.AsignacionOperacionId))
             {
                 aRelevar.AddRange(principalesDelTenant);
                 continue;

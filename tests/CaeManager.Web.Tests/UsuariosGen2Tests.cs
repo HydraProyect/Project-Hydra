@@ -441,6 +441,15 @@ public partial class UsuariosGen2Tests : BunitContext
     /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
     /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
     /// </summary>
+    /// <summary>El aviso a los Administradores se prueba en Application; esta pantalla no lo mira.</summary>
+    private sealed class AvisoSinGestorCaeInerte
+        : CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.IAvisoDeCarteraSinGestorCae
+    {
+        public Task AvisarAsync(
+            Guid operadorTenantId, string nombreDesactivado,
+            IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     private sealed class CatalogoCarteraFalso : ICatalogoIncorporacionCartera
     {
         public List<TenantCandidatoIncorporacion> Asignables { get; } = [];
@@ -752,7 +761,7 @@ public partial class UsuariosGen2Tests : BunitContext
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                 cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
-                new OtroAdministradorSiempre()).Handle(c, ct),
+                new OtroAdministradorSiempre(), new AvisoSinGestorCaeInerte()).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
