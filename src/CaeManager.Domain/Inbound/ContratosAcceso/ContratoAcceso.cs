@@ -283,6 +283,20 @@ public class ContratoAcceso : EntidadBase, IAccionAuditoriaPropia
     }
 
     /// <summary>
+    /// DN1 (DECISION_LOG 2026-11-15): baja lógica de un contrato, solo si está Cancelado o no ha empezado
+    /// (<paramref name="hoy"/> anterior al inicio). Uno que ya empezó y no se canceló se finaliza, no se elimina. No cambia
+    /// el estado: marca el contrato como eliminado (el runtime no tiene DELETE sobre <c>ContratosAcceso</c>).
+    /// </summary>
+    public void Eliminar(DateOnly hoy, Guid usuarioId)
+    {
+        if (EstadoEfectivo != EstadoContratoAcceso.Cancelado && hoy >= FechaInicio)
+            throw new InvalidOperationException(
+                $"Un contrato de acceso en estado {EstadoEfectivo} que ya empezó no se puede eliminar: solo uno Cancelado o que no ha empezado.");
+
+        MarcarComoEliminado(usuarioId);
+    }
+
+    /// <summary>
     /// Vincula el contrato con el Tenant de la Empresa contratista. <b>Una sola vez</b>: un vínculo equivocado se
     /// corrige cerrando este contrato y creando otro, nunca cambiándolo. Cambiar el vínculo después de que el Tenant
     /// de la Empresa contratista haya concedido su autorización de lectura redirigiría en silencio esa lectura hacia

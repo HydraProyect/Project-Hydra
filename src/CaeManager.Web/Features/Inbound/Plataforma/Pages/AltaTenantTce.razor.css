@@ -1,0 +1,282 @@
+/* Tarjeta 31 (AltaTenantTCE.dc.html): mismas medidas que la maqueta (at-*). Los campos de la línea llevan su propio CamposLinea.razor.css. */
+.alta-tce {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.alta-tce-cab {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.alta-tce-cab .titulo-pagina {
+    margin: 0;
+}
+
+.alta-tce-kicker {
+    font: 600 12px/16px var(--font-family);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.alta-tce-subtitulo,
+.alta-tce-mut {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+.alta-tce-aviso {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50);
+    border: 1px solid var(--color-warning-700);
+    color: var(--color-text);
+    font: 400 13px/19px var(--font-family);
+}
+
+.alta-tce-aviso strong {
+    color: var(--color-warning-700);
+}
+
+.alta-tce-tarjeta {
+    max-width: 860px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.alta-tce-bloqueo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 24px;
+}
+
+.alta-tce-bloqueo h2,
+.alta-tce-ok h2 {
+    margin: 0;
+    font: 600 20px/26px var(--font-family);
+}
+
+.alta-tce-bloqueo p,
+.alta-tce-ok p {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
+.alta-tce-pasos {
+    padding: 16px 24px 0;
+}
+
+.alta-tce-cuerpo {
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.alta-tce-fila {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.campo-label {
+    font: 600 13px/18px var(--font-family);
+    color: var(--color-text);
+}
+
+.campo-obligatorio {
+    margin-left: 2px;
+    color: var(--color-danger-700);
+}
+
+.campo-ayuda {
+    font: 400 12px/17px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+.alta-tce-solo-lectura {
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 400 14px/20px var(--font-family);
+}
+
+.alta-tce-solo-lectura {
+    display: flex;
+    align-items: center;
+    background: var(--color-surface-subtle);
+}
+
+.alta-tce-nota {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-50);
+    color: var(--color-text);
+    font: 400 13px/19px var(--font-family);
+}
+
+.alta-tce-radios {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.alta-tce-radios legend {
+    margin-bottom: 8px;
+    font: 600 13px/18px var(--font-family);
+}
+
+.alta-tce-opc {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.alta-tce-opc.off {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.alta-tce-opc input {
+    margin-top: 3px;
+}
+
+.alta-tce-opc b {
+    display: block;
+    font: 600 14px/20px var(--font-family);
+}
+
+.alta-tce-opc span span {
+    display: block;
+    font: 400 12px/17px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+.alta-tce-seccion {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.alta-tce-sec-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--color-border);
+    font: 600 14px/20px var(--font-family);
+}
+
+.alta-tce-res {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    margin: 0;
+    padding: 12px 16px;
+    gap: 6px 16px;
+    font-size: 13px;
+    line-height: 19px;
+}
+
+.alta-tce-res dt {
+    color: var(--color-text-muted);
+}
+
+.alta-tce-res dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.alta-tce-err {
+    margin: 0;
+    font: 600 12px/16px var(--font-family);
+    color: var(--color-danger-700);
+}
+
+.alta-tce-exito {
+    margin: 0;
+    font: 600 12px/16px var(--font-family);
+    color: var(--color-success-700);
+}
+
+.alta-tce-pie {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface-subtle);
+}
+
+.alta-tce-sep {
+    margin-left: auto;
+}
+
+.alta-tce-ok {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 28px 24px;
+    align-items: flex-start;
+}
+
+.alta-tce-linea {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 24px 20px;
+}
+
+.alta-tce-linea-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.alta-tce-linea-cab h2 {
+    margin: 0;
+    font: 600 16px/22px var(--font-family);
+}
+
+.alta-tce-linea-acciones {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+    .alta-tce-fila,
+    .alta-tce-res {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

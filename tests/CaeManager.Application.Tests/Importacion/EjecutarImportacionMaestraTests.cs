@@ -1075,4 +1075,76 @@ public class EjecutarImportacionMaestraTests
         await act.Should().ThrowAsync<InvalidOperationException>();
         alertas.Alertas.Should().BeEmpty();
     }
+
+    // ---- #1991: los duplicados de CIF y de razón social se comprueban sobre una lectura, no con una consulta por fila ----
+
+    /// <summary>Un CIF de letra B válido por su dígito de control, distinto para cada <paramref name="n"/>.</summary>
+    private static string CifValido(int n)
+    {
+        var digitos = (1000000 + n).ToString("D7", System.Globalization.CultureInfo.InvariantCulture);
+        var suma = 0;
+        for (var i = 0; i < 7; i++)
+        {
+            var d = digitos[i] - '0';
+            suma += i % 2 == 0 ? (d * 2 / 10) + (d * 2 % 10) : d;
+        }
+        return $"B{digitos}{(10 - (suma % 10)) % 10}";
+    }
+
+    private static async Task<(int Lecturas, int Unitarias, ResultadoImportacionMaestraDto Resultado)> ImportarClientesAsync(int clientes)
+    {
+        var e = new Escenario();
+        var plan = Plan([FilaEmpresa()], [.. Enumerable.Range(1, clientes).Select(i =>
+            new ClienteEmpresarialMaestraDto(3 + i, $"Cliente Ficticio {i}, S.A.", CifValido(i), EsCritico: false, CifGestionada, null, YaExiste: false))]);
+
+        var r = await e.EjecutarAsync(plan);
+
+        r.EsExitoso.Should().BeTrue();
+        return (e.EmpresaRepositorio.LecturasDeIdentidades, e.EmpresaRepositorio.ConsultasDeDuplicadoUnitarias, r.Valor);
+    }
+
+    [Fact]
+    public async Task Las_lecturas_de_duplicados_no_crecen_con_las_filas()
+    {
+        var una = await ImportarClientesAsync(1);
+        var veinte = await ImportarClientesAsync(20);
+
+        una.Resultado.ClientesCreados.Should().Be(1, "control: la fila se escribe");
+        veinte.Resultado.ClientesCreados.Should().Be(20, "control: las veinte filas se escriben");
+        veinte.Unitarias.Should().Be(0, "ni el CIF ni la razón social de ninguna fila se consultan uno a uno");
+        una.Unitarias.Should().Be(0);
+        veinte.Lecturas.Should().Be(una.Lecturas, "una lectura del catálogo por pasada, sean cuantas sean las filas")
+            .And.BeGreaterThan(0, "control: el catálogo se lee");
+    }
+
+    [Fact]
+    public async Task Un_CIF_del_plan_dado_de_baja_sigue_parando_la_importacion()
+    {
+        var e = new Escenario();
+        var baja = new Empresa("Distribuciones Antiguas, S.A.", CifCliente, cnae: null, convenioAplicable: null);
+        baja.MarcarComoEliminado(Guid.NewGuid());
+        e.EmpresaRepositorio.Empresas.Add(baja);
+
+        var r = await e.EjecutarAsync(Plan([FilaEmpresa()], [FilaCliente()]));
+
+        r.EsExitoso.Should().BeFalse();
+        r.Error.Should().BeEquivalentTo(DuplicadosEmpresa.ErrorDeBajaEnImportacion(CifCliente));
+        e.EmpresaRepositorio.ConsultasDeDuplicadoUnitarias.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_razon_social_de_una_baja_sigue_omitiendo_la_fila_con_el_motivo_de_baja()
+    {
+        var e = new Escenario();
+        var baja = new Empresa("Distribuciones Ficticias, S.A.", CifValido(7), cnae: null, convenioAplicable: null);
+        baja.MarcarComoEliminado(Guid.NewGuid());
+        e.EmpresaRepositorio.Empresas.Add(baja);
+        var motivoBaja = DuplicadosEmpresa.ErrorRazonSocialDuplicada(dadaDeBaja: true).Mensaje;
+
+        var previa = (await e.PrevisualizarAsync(Plan([FilaEmpresa()], [FilaCliente()]))).Valor;
+
+        previa.ClientesCreados.Should().Be(0);
+        previa.Omitidos.Should().ContainSingle().Which.ToString().Should().Contain(motivoBaja);
+        e.EmpresaRepositorio.ConsultasDeDuplicadoUnitarias.Should().Be(0);
+    }
 }

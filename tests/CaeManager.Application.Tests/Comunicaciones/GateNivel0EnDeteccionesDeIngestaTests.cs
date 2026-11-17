@@ -235,16 +235,78 @@ public class GateNivel0EnDeteccionesDeIngestaTests
         IAsignacionesQueryContext? asignaciones = null,
         ITrabajadoresQueryContext? trabajadores = null,
         ITiposDocumentoQueryContext? tiposDocumento = null,
-        IDeteccionGestionCorreoService? deteccion = null) =>
+        IDeteccionGestionCorreoService? deteccion = null,
+        bool? vigente = null) =>
         new(centros,
             asignaciones ?? new AsignacionesQueryContextQueLanzaSiSeInvoca(),
             trabajadores ?? new TrabajadoresQueryContextQueLanzaSiSeInvoca(),
             tiposDocumento ?? new TiposDocumentoQueryContextQueLanzaSiSeInvoca(),
             deteccion ?? new DeteccionGestionQueLanzaSiSeInvoca(),
             new SugerenciaGestionRepositorioQueLanzaSiSeInvoca(),
-            new InstruccionTratamientoIaFalsa(habilitada),
+            new InstruccionTratamientoIaFalsa(habilitada, vigente),
             new TenantActualFalso(TenantId),
             registro);
+
+    // ─────────────────────────── Causa en el registro (#2010, D-7) ───────────────────────────
+    // Revisión Codex P3 de la PR #2274: con la IA excluida por objeción a un subencargado, el registro no puede decir
+    // «sin instrucción vigente», porque la hay. Cada servicio, con cada causa.
+
+    [Theory]
+    [InlineData(false, MotivoIaNoHabilitada.SinInstruccion)]
+    [InlineData(true, MotivoIaNoHabilitada.DesactivadaPorObjecion)]
+    public async Task La_relevancia_cae_registra_la_causa_real(bool vigente, string motivo)
+    {
+        var registro = new LoggerRecolector<RelevanciaCaeService>();
+        var servicio = new RelevanciaCaeService(
+            new DeteccionRelevanciaQueLanzaSiSeInvoca(), new ClasificacionRelevanciaCaeRepositorioEspia(),
+            new InstruccionTratamientoIaFalsa(habilitada: false, vigente), new TenantActualFalso(TenantId), registro);
+
+        await servicio.ProcesarAsync(ConversacionConUnMensaje(), CancellationToken.None);
+
+        registro.Mensajes.Should().ContainSingle().Which.Should().Contain(motivo);
+    }
+
+    [Theory]
+    [InlineData(false, MotivoIaNoHabilitada.SinInstruccion)]
+    [InlineData(true, MotivoIaNoHabilitada.DesactivadaPorObjecion)]
+    public async Task La_sugerencia_de_visita_registra_la_causa_real(bool vigente, string motivo)
+    {
+        var registro = new LoggerRecolector<SugerenciaVisitaCorreoService>();
+        var servicio = new SugerenciaVisitaCorreoService(
+            new CentrosQueryContextEspia(CentroDelCliente()), new DeteccionVisitaQueLanzaSiSeInvoca(),
+            new SugerenciaVisitaRepositorioQueLanzaSiSeInvoca(),
+            new InstruccionTratamientoIaFalsa(habilitada: false, vigente), new TenantActualFalso(TenantId), registro);
+
+        await servicio.ProcesarAsync(MensajeEntrante(), ClienteId, CancellationToken.None);
+
+        registro.Mensajes.Should().ContainSingle().Which.Should().Contain(motivo);
+    }
+
+    [Theory]
+    [InlineData(false, MotivoIaNoHabilitada.SinInstruccion)]
+    [InlineData(true, MotivoIaNoHabilitada.DesactivadaPorObjecion)]
+    public async Task La_sugerencia_de_gestion_registra_la_causa_real(bool vigente, string motivo)
+    {
+        var registro = new LoggerRecolector<SugerenciaGestionCorreoService>();
+        var servicio = ServicioDeGestion(new CentrosQueryContextEspia(CentroDelCliente()), habilitada: false, registro, vigente: vigente);
+
+        await servicio.ProcesarAsync(MensajeEntrante(), ClienteId, CancellationToken.None);
+
+        registro.Mensajes.Should().ContainSingle().Which.Should().Contain(motivo);
+    }
+
+    [Fact]
+    public async Task Sin_tenant_resuelto_el_registro_no_atribuye_la_omision_a_la_instruccion()
+    {
+        var registro = new LoggerRecolector<RelevanciaCaeService>();
+        var servicio = new RelevanciaCaeService(
+            new DeteccionRelevanciaQueLanzaSiSeInvoca(), new ClasificacionRelevanciaCaeRepositorioEspia(),
+            new InstruccionTratamientoIaQueLanzaSiSeInvoca(), new TenantActualFalso(null), registro);
+
+        await servicio.ProcesarAsync(ConversacionConUnMensaje(), CancellationToken.None);
+
+        registro.Mensajes.Should().ContainSingle().Which.Should().Contain(MotivoIaNoHabilitada.SinTenant);
+    }
 
     // ─────────────────────────── Material de prueba ───────────────────────────
 
@@ -258,10 +320,14 @@ public class GateNivel0EnDeteccionesDeIngestaTests
 
     private static Mensaje MensajeEntrante() => ConversacionConUnMensaje().Mensajes.Single();
 
-    private sealed class InstruccionTratamientoIaFalsa(bool habilitada) : IInstruccionTratamientoIaService
+    /// <summary><paramref name="vigente"/> sin <paramref name="habilitada"/> es la IA excluida por objeción a un subencargado.</summary>
+    private sealed class InstruccionTratamientoIaFalsa(bool habilitada, bool? vigente = null) : IInstruccionTratamientoIaService
     {
         public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
             Task.FromResult(habilitada);
+
+        public Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(vigente ?? habilitada);
     }
 
     /// <summary>Sin tenant resuelto no debe llegarse siquiera a preguntar por la instrucción.</summary>

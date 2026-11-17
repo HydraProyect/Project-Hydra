@@ -12,7 +12,8 @@ public record RestaurarEmpresaCommand(Guid Id) : ICommand;
 
 public class RestaurarEmpresaCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RestaurarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(RestaurarEmpresaCommand request, CancellationToken cancellationToken)
@@ -36,6 +37,12 @@ public class RestaurarEmpresaCommandHandler(
         // bajo el candado del Tenant, como el alta.
         return await limiteEmpresaPropia.SerializarAsync(async ct =>
         {
+            // La Asignación de Cartera se vuelve a decidir después de esperar el candado, sin el alcance memoizado de
+            // antes de la espera (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(empresa.Id, ct))
+                return Result.Fallo(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa eliminada."));
+
             if (empresa.EsPropia
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);

@@ -129,6 +129,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Cliente 360 (varias Empresas empleadoras): el mismo cálculo, con los mismos contextos que el lote de arriba,
+        // que ahora lo delega en este.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),
@@ -334,6 +341,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.CambiarAddOnSubidaAutomaticaCommandHandler", "ITenantsQueryContext"),
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
+        // #2010, D-7: la objeción a un subencargado la registra el Administrador del Tenant propietario,
+        // nunca el Tenant de Plataforma; el handler solo lee Tenant.EsPlataforma del Tenant de la sesión
+        // para rechazarlo (AutorizacionSubencargados).
+        ("Cumplimiento.ObjetarSubencargadoCommandHandler", "ITenantsQueryContext"),
         // Línea Inbound (B-04a): solo comprueba que el Tenant beneficiario existe y no es el de plataforma antes de
         // contratarle el Producto Contratado. No escribe en Tenants.
         ("Comercial.ContratarLineaInboundCommandHandler", "ITenantsQueryContext"),
@@ -899,6 +910,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IClientesQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de varias Subcontratas: la misma derivación que la de una (que lo delega en él), con sus mismos contextos.
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IAsignacionesQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ICentrosQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IAsignacionesQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IClientesQueryContext"),

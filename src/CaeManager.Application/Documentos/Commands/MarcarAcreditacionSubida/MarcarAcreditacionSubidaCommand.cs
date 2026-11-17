@@ -33,7 +33,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// Desde ahí sí se marca subida. La lista de la extensión reutiliza esta regla.
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId) : ICommand;
+public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId) : ICommand, ICambiaEstadoDeAcreditacion;
 
 /// <summary>
 /// Lo que comparten «Marcar subido» y «Lo he enviado» de la extensión antes de escribir: la acreditación existe, su

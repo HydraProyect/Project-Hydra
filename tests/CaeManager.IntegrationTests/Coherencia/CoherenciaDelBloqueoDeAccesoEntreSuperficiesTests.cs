@@ -61,7 +61,12 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     private readonly Guid _tenantB = Guid.NewGuid();
     private readonly Guid _tenantC = Guid.NewGuid();
     private readonly Guid _tenantD = Guid.NewGuid();
-    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
+    // El «hoy» del test se toma UNA vez y se fija como día de negocio en InitializeAsync y en cada test (RelojDePrueba):
+    // la siembra es relativa a _hoy y Mi trabajo y la cola leen DiaDeNegocio.Hoy() en cada consulta, así que con el reloj
+    // real una ejecución que cruzase la medianoche de Europe/Madrid entre la siembra y la consulta veía «vence hoy» y los
+    // límites de tolerancia como Vencido (#2236, igual que #2073 en CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests).
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+    private readonly DateOnly _hoy;
     private readonly Guid _usuario = Guid.NewGuid();
     private static int _contadorDni = 10_000_000;
 
@@ -89,8 +94,11 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         public Dictionary<Guid, Esperado?> PorCentro { get; } = [];
     }
 
+    public CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests() => _hoy = DiaDeNegocio.De(_instante);
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantPorAmbito = new TenantActualPorAmbito();
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -530,6 +538,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task Control_la_lectura_va_bajo_RLS_efectiva()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Sin este control, «el Tenant A no ve lo de B» pasaria tambien sobre una conexion que se salta RLS.
         var comoA = Runtime(_tenantA);
         (await comoA.Centros.IgnoreQueryFilters().CountAsync(x => x.Id == _centroB)).Should().Be(0);
@@ -539,6 +548,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_del_Cliente_empresarial_es_del_Tenant_propietario_y_RLS_la_aisla()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // La tabla nueva tiene RLS por Tenant: cada Tenant ve solo sus filas, aunque se salten los filtros de EF.
         var delA = await Runtime(_tenantA).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters()
             .Select(t => new { t.ClienteEmpresarialId, t.ToleranciaDias }).ToListAsync();
@@ -573,6 +583,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_misma_documentacion_da_el_mismo_bloqueo_en_Mi_trabajo_y_en_la_cola()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var pendientes = await MiTrabajo(Runtime(_tenantA));
         var fallos = new List<string>();
 
@@ -647,6 +658,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task El_detalle_por_Trabajador_de_un_Centro_es_Mi_trabajo_restringido_a_ese_Centro()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var comoA = Runtime(_tenantA);
         var miTrabajo = await MiTrabajo(comoA);
         var evaluacion = new EvaluacionDeAccesoPorCentroService(comoA, comoA, comoA, comoA, comoA, new AlcanceDatosServiceFalso());
@@ -682,6 +694,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_pantalla_de_tolerancia_por_defecto_del_Cliente_empresarial_lee_la_misma_tolerancia_que_aplica_la_regla()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var comoA = Runtime(_tenantA);
         var handler = new ObtenerToleranciasClienteEmpresarialQueryHandler(comoA, new AlcanceDatosServiceFalso());
 
@@ -705,6 +718,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task R2_con_alcance_limitado_solo_ve_su_Centro_y_el_bloqueo_se_decide_con_las_condiciones_de_ese_Centro()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Un Gestor CAE que ve solo el Centro A2 (tolerancia 15). El alcance limita lo que se devuelve; el bloqueo es el
         // de A2, no el de A1 (tolerancia 0): la Empresa vencida hace 1 dia esta bloqueada en A1 pero no aqui.
         var pendientes = await MiTrabajo(Runtime(_tenantA), new AlcanceDatosServiceFalso(centroIds: [_centroA2]));
@@ -727,6 +741,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_pantalla_de_requisitos_del_Centro_ensena_la_tolerancia_propia_y_la_heredada_de_su_Cliente_empresarial()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Lo que el Gestor CAE ve al editar: la personalizada del Centro (null = hereda) y la que heredaria del Cliente
         // empresarial TITULAR DE ESE CENTRO. Cada Centro lee la de su Cliente empresarial, no la de otro.
         var comoA = Runtime(_tenantA);
@@ -751,6 +766,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task Aislamiento_cada_Tenant_ve_solo_lo_suyo_y_un_requisito_de_otro_Tenant_no_bloquea_a_nadie()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // B: su Trabajador esta bloqueado por el certificado de su Empresa y solo B lo ve; rige la tolerancia de SU
         // Cliente empresarial (100), no la del Tenant A (30).
         var deB = await MiTrabajo(Runtime(_tenantB));
@@ -775,6 +791,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task Un_tipo_de_Empresa_marcado_solo_en_un_Centro_sin_gestion_CAE_no_declara_requisito()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // La marca de un Centro sin gestion CAE no cuenta (ese Centro no exige nada): no se extiende a los demas Centros.
         var comoD = Runtime(_tenantD);
 

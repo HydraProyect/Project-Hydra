@@ -505,6 +505,9 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si encara no la tens instal·lada, mira «Instal·la l'extensió», més avall.</value>
   </data>
+  <data name="ExtensionVigenciaToken" xml:space="preserve">
+    <value>Dura com a molt 8 hores i no es renova sol. Deixa de valer abans si la teva sessió es tanca, també per inactivitat: fer servir l'extensió no la manté oberta.</value>
+  </data>
   <data name="CumplimientoEtiqueta" xml:space="preserve">
     <value>{0} % de compliment</value>
     <comment>{0}: percentatge de 0 a 100. Nom accessible per defecte de BarraCumplimiento.</comment>
@@ -878,10 +881,31 @@
   <data name="CampoFechaInstrucciones" xml:space="preserve">
     <value>Fletxes: canviar de dia. Re Pàg i Av Pàg: canviar de mes. Inici i Fi: principi o final de la setmana. Retorn: triar. Esc: tancar.</value>
   </data>
+  <data name="MenuLineaOutbound" xml:space="preserve">
+    <value>Outbound</value>
+  </data>
+  <data name="MenuLineaInboundTce" xml:space="preserve">
+    <value>Inbound · Tenant TCE</value>
+  </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contractes d&apos;accés</value>
   </data>
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documents per validar</value>
+  </data>
+  <data name="MenuInboundCentros" xml:space="preserve">
+    <value>Centres</value>
+  </data>
+  <data name="MenuInboundInformacionCentro" xml:space="preserve">
+    <value>Informació del Centre</value>
+  </data>
+  <data name="MenuInboundPlantillas" xml:space="preserve">
+    <value>Plantilles de requisits</value>
+  </data>
+  <data name="MenuInboundReglasAviso" xml:space="preserve">
+    <value>Regles d&apos;avís</value>
+  </data>
+  <data name="MenuInboundGobierno" xml:space="preserve">
+    <value>Govern d&apos;Inbound</value>
   </data>
 </root>

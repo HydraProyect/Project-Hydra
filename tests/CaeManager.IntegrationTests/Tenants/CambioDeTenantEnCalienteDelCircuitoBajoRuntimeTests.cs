@@ -81,9 +81,11 @@ public class CambioDeTenantEnCalienteDelCircuitoBajoRuntimeTests : IAsyncLifetim
             var ahora = DateTime.UtcNow;
             var operacion = AsignacionOperacion.Externa(
                 _beneficiario, _operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-30), vigenciaHasta: null, ahora);
-            siembra.AsignacionesOperacion.Add(operacion);
-            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
-            siembra.DelegacionesTenant.Add(new DelegacionTenant(_operador, _beneficiario));
+            // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223),
+            // sellada como origen de la operación para que EF inserte la delegación antes.
+            var delegacion = new DelegacionTenant(_operador, _beneficiario);
+            siembra.DelegacionesTenant.Add(delegacion);
+            OperacionExternaAmparada.Agregar(siembra, operacion, delegacion);
             siembra.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestor, Roles.GestorCae, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
             await siembra.SaveChangesAsync();

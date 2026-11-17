@@ -9,7 +9,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.RetirarRequisitoPla
 
 /// <summary>Retira un requisito de su plantilla. No se borra: lo ya pedido con él lo sigue citando.</summary>
 [AreaDelEncargo("TiposDocumento")]
-public record RetirarRequisitoPlantillaCommand(Guid PlantillaId, Guid RequisitoId, Guid Version = default) : ICommand;
+public record RetirarRequisitoPlantillaCommand(Guid PlantillaId, Guid RequisitoId, Guid Version = default) : ICommand, IComandoInbound;
 
 public class RetirarRequisitoPlantillaCommandValidator : AbstractValidator<RetirarRequisitoPlantillaCommand>
 {

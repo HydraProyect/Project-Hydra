@@ -9,7 +9,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.RetirarPlantillaReq
 
 /// <summary>Retira una plantilla de requisitos: deja de pedirse lo que pedía. No se borra ni se reactiva.</summary>
 [AreaDelEncargo("TiposDocumento")]
-public record RetirarPlantillaRequisitosCommand(Guid Id, Guid Version = default) : ICommand;
+public record RetirarPlantillaRequisitosCommand(Guid Id, Guid Version = default) : ICommand, IComandoInbound;
 
 public class RetirarPlantillaRequisitosCommandValidator : AbstractValidator<RetirarPlantillaRequisitosCommand>
 {

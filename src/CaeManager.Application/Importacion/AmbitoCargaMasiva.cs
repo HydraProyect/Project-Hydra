@@ -21,16 +21,29 @@ namespace CaeManager.Application.Importacion;
 /// que crea la propia carga tampoco entra (decisión de Chris, 2026-11-03): su fila y las que la citan llevan un texto que
 /// dice qué hacer (<see cref="AvisoEmpresaCreadaFueraDeCartera"/>, <see cref="MotivoEmpresaCreadaFueraDeCartera"/>).
 /// </para>
+///
+/// <para>
+/// Las listas se leen al empezar la carga, pero lo que se escribe se confirma después de esperar un candado (el de la
+/// regla A-1 o el de Empresa propia). Por eso el ámbito recuerda cada entidad que dio por dentro y
+/// <see cref="SigueDentroBajoElCandadoAsync"/> vuelve a leer las listas bajo ese candado (issue #2118).
+/// </para>
 /// </summary>
 public sealed class AmbitoCargaMasiva
 {
+    private readonly AutoridadCargaMasiva _autoridad;
     private readonly bool _sinRestriccion;
-    private readonly HashSet<Guid>? _clientes;
-    private readonly HashSet<Guid>? _empresas;
-    private readonly HashSet<Guid>? _centros;
-    private readonly HashSet<Guid>? _trabajadores;
+    private HashSet<Guid>? _clientes;
+    private HashSet<Guid>? _empresas;
+    private HashSet<Guid>? _centros;
+    private HashSet<Guid>? _trabajadores;
     private readonly HashSet<Guid> _trabajadoresCreados = [];
     private readonly HashSet<Guid> _empresasCreadas = [];
+
+    /// <summary>
+    /// Cada entidad que una comprobación dio por dentro del ámbito, también las de las búsquedas por nombre. No incluye los
+    /// Trabajadores que crea la propia carga: dependen de su Empresa, que sí figura aquí.
+    /// </summary>
+    private readonly HashSet<(EntidadDelAmbito Entidad, Guid Id)> _admitidas = [];
 
     /// <summary>
     /// La Asignación de Cartera universal alcanza el Tenant entero aunque sus listas sean explícitas
@@ -40,9 +53,10 @@ public sealed class AmbitoCargaMasiva
     private bool _alcanzaElTenantEntero;
 
     private AmbitoCargaMasiva(
-        bool sinRestriccion, IReadOnlyList<Guid>? clientes, IReadOnlyList<Guid>? empresas,
+        AutoridadCargaMasiva autoridad, bool sinRestriccion, IReadOnlyList<Guid>? clientes, IReadOnlyList<Guid>? empresas,
         IReadOnlyList<Guid>? centros, IReadOnlyList<Guid>? trabajadores)
     {
+        _autoridad = autoridad;
         _sinRestriccion = sinRestriccion;
         _clientes = clientes is null ? null : [.. clientes];
         _empresas = empresas is null ? null : [.. empresas];
@@ -54,13 +68,14 @@ public sealed class AmbitoCargaMasiva
         AutoridadCargaMasiva autoridad, IAlcanceDatosService alcance, CancellationToken cancellationToken)
     {
         if (autoridad == AutoridadCargaMasiva.Total)
-            return new AmbitoCargaMasiva(true, null, null, null, null);
+            return new AmbitoCargaMasiva(autoridad, true, null, null, null, null);
 
         // Fallo cerrado: sin autoridad no hay ámbito (el handler ya habrá devuelto el error antes).
         if (autoridad != AutoridadCargaMasiva.Acotada)
-            return new AmbitoCargaMasiva(false, [], [], [], []);
+            return new AmbitoCargaMasiva(autoridad, false, [], [], [], []);
 
         return new AmbitoCargaMasiva(
+            autoridad,
             false,
             await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken),
             await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken),
@@ -71,7 +86,29 @@ public sealed class AmbitoCargaMasiva
         };
     }
 
-    public bool Cliente(Guid id) => _sinRestriccion || _clientes is null || _clientes.Contains(id);
+    /// <summary>
+    /// Bajo el candado que precede al guardado, y con el alcance ya invalidado (<see cref="IInvalidadorAlcance"/>): vuelve a
+    /// leer las listas y responde si todas las entidades que la carga ya dio por dentro siguen dentro. Desde aquí, las
+    /// comprobaciones que queden usan las listas releídas. Si responde <c>false</c>, quien llama no guarda nada: lo decidido
+    /// antes de esperar el candado se decidió con una Asignación de Cartera que ya no existe. Con autoridad Total no hay
+    /// listas que releer.
+    /// </summary>
+    public async Task<bool> SigueDentroBajoElCandadoAsync(IAlcanceDatosService alcance, CancellationToken cancellationToken)
+    {
+        if (_sinRestriccion)
+            return true;
+
+        var actual = await ResolverAsync(_autoridad, alcance, cancellationToken);
+        _clientes = actual._clientes;
+        _empresas = actual._empresas;
+        _centros = actual._centros;
+        _trabajadores = actual._trabajadores;
+        _alcanzaElTenantEntero = actual._alcanzaElTenantEntero;
+
+        return _admitidas.All(a => Contiene(ListaDe(a.Entidad), a.Id));
+    }
+
+    public bool Cliente(Guid id) => Admite(EntidadDelAmbito.Cliente, id);
 
     /// <summary>
     /// Si la confirmación puede nombrar a quien carga una Empresa en posición de Cliente empresarial que no está en ninguna
@@ -83,12 +120,32 @@ public sealed class AmbitoCargaMasiva
     /// </summary>
     public bool PuedeNombrarCliente(Guid id) => !Recorta(EntidadDelAmbito.Cliente) || Cliente(id);
 
-    public bool Empresa(Guid id) => _sinRestriccion || _empresas is null || _empresas.Contains(id);
+    public bool Empresa(Guid id) => Admite(EntidadDelAmbito.Empresa, id);
 
-    public bool Centro(Guid id) => _sinRestriccion || _centros is null || _centros.Contains(id);
+    public bool Centro(Guid id) => Admite(EntidadDelAmbito.Centro, id);
 
-    public bool Trabajador(Guid id) =>
-        _sinRestriccion || _trabajadores is null || _trabajadores.Contains(id) || _trabajadoresCreados.Contains(id);
+    public bool Trabajador(Guid id) => _trabajadoresCreados.Contains(id) || Admite(EntidadDelAmbito.Trabajador, id);
+
+    private bool Admite(EntidadDelAmbito entidad, Guid id)
+    {
+        if (_sinRestriccion)
+            return true;
+        if (!Contiene(ListaDe(entidad), id))
+            return false;
+        _admitidas.Add((entidad, id));
+        return true;
+    }
+
+    private static bool Contiene(HashSet<Guid>? lista, Guid id) => lista is null || lista.Contains(id);
+
+    private HashSet<Guid>? ListaDe(EntidadDelAmbito entidad) => entidad switch
+    {
+        EntidadDelAmbito.Cliente => _clientes,
+        EntidadDelAmbito.Empresa => _empresas,
+        EntidadDelAmbito.Centro => _centros,
+        EntidadDelAmbito.Trabajador => _trabajadores,
+        _ => throw new ArgumentOutOfRangeException(nameof(entidad), entidad, null),
+    };
 
     /// <summary>Un Trabajador creado por esta carga (solo se crea con su Empresa dentro del ámbito) está dentro de él.</summary>
     public void RegistrarTrabajadorCreado(Guid id) => _trabajadoresCreados.Add(id);
@@ -194,4 +251,13 @@ public static class ErroresCargaMasiva
     public static readonly Error SinAutoridad = Error.Crear(
         "Importacion.SinAutoridadCargaMasiva",
         "Solo el Administrador, la Dirección CAE o el Coordinador CAE pueden ejecutar una carga masiva.");
+
+    /// <summary>
+    /// La Asignación de Cartera de quien carga cambió mientras la carga esperaba el candado de su guardado, y algo que ya se
+    /// había dado por dentro de su ámbito quedó fuera (<see cref="AmbitoCargaMasiva.SigueDentroBajoElCandadoAsync"/>). No se
+    /// escribe nada. No dice qué quedó fuera: lo de fuera del ámbito no se nombra.
+    /// </summary>
+    public static readonly Error AmbitoCambiadoAlConfirmar = Error.Crear(
+        "Importacion.AmbitoCambiadoAlConfirmar",
+        "Tu Asignación de Cartera ha cambiado mientras se confirmaba la carga y parte de lo que el archivo escribe ha quedado fuera de tu ámbito: no se ha escrito nada. Vuelve a cargar el archivo.");
 }

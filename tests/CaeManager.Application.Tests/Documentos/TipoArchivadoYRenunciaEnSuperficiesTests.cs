@@ -205,6 +205,8 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         documentos.ListaDocumentos.Add(documento);
         var tipos = new TiposDocumentoQueryContextFalso();
         tipos.ListaTiposDocumento.Add(tipo);
+        // El sello usa la regla de bloqueo común (#2005): solo cuenta un tipo que el Centro marca como bloqueante.
+        tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true, bloqueaAcceso: true));
         var trabajadores = new TrabajadoresQueryContextFalso();
         trabajadores.ListaTrabajadores.Add(trabajador);
         var configuracion = new ConfiguracionQueryContextFalso();
@@ -217,13 +219,12 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Visitas.Add(visita);
 
-        var sellado = await new EvaluadorExpedienteVisitaService(
-                visitas, centros, documentos, tipos, trabajadores, configuracion, repositorio, new UnitOfWorkFalso(),
-                NullLogger<EvaluadorExpedienteVisitaService>.Instance)
+        var sellado = await EvaluadorExpedienteDePrueba.Crear(
+                visitas, centros, documentos, tipos, trabajadores, configuracion, repositorio)
             .EvaluarAsync(visita.Id);
 
         sellado.Should().Be(completoEsperado, esRenuncia
-            ? "una renuncia no acredita: el tipo requerido queda sin cubrir"
+            ? "una renuncia no acredita: el tipo bloqueante queda sin cubrir"
             : "control: el mismo documento sin renuncia sí cubre el tipo");
     }
 
@@ -246,7 +247,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         centros.ListaCentros.Add(centro);
         var tipos = new TiposDocumentoQueryContextFalso();
         tipos.ListaTiposDocumento.Add(tipo);
-        tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true));
+        tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true, bloqueaAcceso: true));
         var trabajadores = new TrabajadoresQueryContextFalso();
         trabajadores.ListaTrabajadores.Add(trabajador);
         var configuracion = new ConfiguracionQueryContextFalso();
@@ -259,14 +260,13 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Visitas.Add(visita);
 
-        var sellado = await new EvaluadorExpedienteVisitaService(
-                visitas, centros, new DocumentosQueryContextFalso(), tipos, trabajadores, configuracion, repositorio, new UnitOfWorkFalso(),
-                NullLogger<EvaluadorExpedienteVisitaService>.Instance)
+        var sellado = await EvaluadorExpedienteDePrueba.Crear(
+                visitas, centros, new DocumentosQueryContextFalso(), tipos, trabajadores, configuracion, repositorio)
             .EvaluarAsync(visita.Id);
 
         sellado.Should().Be(completoEsperado, archivado
             ? "un tipo archivado no admite documentos nuevos: exigirlo dejaría el expediente sin completar nunca"
-            : "control: el mismo tipo sin archivar, incluido por el Centro y sin documento, deja el expediente incompleto");
+            : "control: el mismo tipo sin archivar, bloqueante en el Centro y sin documento, deja el expediente incompleto");
     }
 
     private sealed class VisitasQueryContextFalso : IVisitasQueryContext

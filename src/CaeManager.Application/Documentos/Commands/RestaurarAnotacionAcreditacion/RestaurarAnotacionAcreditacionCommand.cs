@@ -29,7 +29,7 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditac
 /// </summary>
 [AreaDelEncargo("Documentos")]
 public record RestaurarAnotacionAcreditacionCommand(
-    Guid AcreditacionId, EstadoAcreditacion EstadoPrevio, VigenciaEnPlataforma VigenciaPrevia, Guid VersionEsperada) : ICommand;
+    Guid AcreditacionId, EstadoAcreditacion EstadoPrevio, VigenciaEnPlataforma VigenciaPrevia, Guid VersionEsperada) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class RestaurarAnotacionAcreditacionCommandValidator : AbstractValidator<RestaurarAnotacionAcreditacionCommand>
 {

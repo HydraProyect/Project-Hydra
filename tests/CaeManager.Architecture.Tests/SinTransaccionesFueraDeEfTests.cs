@@ -29,8 +29,25 @@ namespace CaeManager.Architecture.Tests;
 /// relacionales (que fijan <c>CurrentTransaction</c>), y EnlistTransaction no se llama, salvo la lista
 /// cerrada; no se mira el nombre del receptor, que una variable puede imitar;</item>
 /// <item>en los <c>.razor</c>, fuera de comentarios, ni esos métodos ni cadenas (también crudas y
-/// multilínea) con SQL de transacción.</item>
+/// multilínea, interpoladas con cadenas en sus huecos, y con cualquier terminador de línea de C#)
+/// con SQL de transacción; las localiza <see cref="EscanerDeCadenasEnRazor"/> con el léxico de
+/// Roslyn y no con una expresión regular (#2113);</item>
+/// <item>ninguna concatenación de constantes (<c>"BEG" + "IN;"</c>, <c>A + B</c>, una interpolada
+/// con huecos constantes) de <c>src</c> forma una sentencia de transacción, según el valor
+/// constante que calcula Roslyn en el proyecto compilado (#2113);</item>
+/// <item>ninguna rama de <c>#if</c>, <c>#elif</c> o <c>#else</c> de <c>src</c> queda sin tomarse en
+/// Debug ni en Release (las dos configuraciones que compila el análisis semántico): lo que solo
+/// existe bajo otro símbolo, bajo <c>#if false</c>, bajo una <c>#else</c> inalcanzable o bajo
+/// <c>#if !TRACE</c> no lo ve ese análisis, así que su sola existencia hace fallar el trinquete (#2113).</item>
 /// </list>
+///
+/// Límites conocidos: el trinquete es léxico y constante. No ve una transacción cuyo texto se arma
+/// en tiempo de ejecución (<c>string.Concat</c>, <c>string.Join</c>, <c>string.Format</c>, variables
+/// locales, una concatenación con un operando que no es constante), ni en un .razor la concatenación
+/// de constantes nombradas o con huecos (solo une cadenas literales contiguas). En un .razor, una
+/// comilla suelta del marcado en la misma línea que el código puede desalinear la cadena de esa
+/// línea (el recorrido sigue en la comilla siguiente al literal, no desde las interiores). La unión
+/// con la expresión anterior no lo mitiga: lee igual ese desalineamiento. Es un límite que ya existía.
 /// </summary>
 public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
 {
@@ -168,52 +185,90 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     private static readonly Regex NombreDeTransaccionEnRazor = new(@"\b(BeginTransaction|BeginTransactionAsync|EnlistTransaction)\b", RegexOptions.Compiled);
 
     /// <summary>
-    /// Una cadena de C# dentro de un .razor, con sus prefijos: primero la cruda, con cualquier número
-    /// de <c>$</c> y de comillas y con la gramática de C#: o de una línea (abre y cierra en ella) o
-    /// multilínea (tras las comillas de apertura solo hay espacios hasta el fin de línea, y las de
-    /// cierre empiezan su línea tras espacios); cierra con exactamente las mismas comillas con que
-    /// abre. Luego la verbatim y por último la normal, interpoladas o no. La cruda va primero para
-    /// que sus comillas no se lean como una cadena vacía seguida de otra.
-    /// </summary>
-    private static readonly Regex CadenaEnRazor = new(
-        @"\$*(?<q>""{3,})(?!"")(?:[^\r\n]*?(?<!"")\k<q>|[ \t]*\r?\n[\s\S]*?\n[ \t]*\k<q>)(?!"")" +
-        @"|(?:\$*@|@\$+)""(?:[^""]|"""")*""" +
-        @"|\$*""(?:[^""\\\r\n]|\\.)*""",
-        RegexOptions.Compiled);
-
-    /// <summary>
     /// La expresión de antes de reconocer las crudas: solo normales y verbatim. Un .razor no dice
-    /// dónde acaba el marcado y empieza el C#, así que unas comillas triples del marcado pueden
-    /// casar con otras y tragarse un bloque <c>@code</c> entero; para que eso nunca oculte lo que
-    /// ya se detectaba, sus infractoras se suman siempre a las de <see cref="CadenaEnRazor"/>.
+    /// dónde acaba el marcado y empieza el C#, así que unas comillas del marcado pueden casar con
+    /// otras y tragarse un bloque <c>@code</c> entero; para que eso nunca oculte lo que ya se
+    /// detectaba, sus infractoras se suman siempre a las de <see cref="EscanerDeCadenasEnRazor"/>.
     /// </summary>
     private static readonly Regex CadenaEnRazorAnterior = new(@"@""(?:[^""]|"""")*""|""(?:[^""\\\r\n]|\\.)*""", RegexOptions.Compiled);
 
-    private static int LineaDe(string texto, int indice) => texto.AsSpan(0, indice).Count('\n') + 1;
+    /// <summary>
+    /// El número de línea (desde 1) del índice dado, con los terminadores de línea de C#: LF, CRLF,
+    /// CR solo, NEL, LS y PS. Contar solo LF dejaba un fichero con CR solo en una única línea.
+    /// </summary>
+    private static int LineaDe(string texto, int indice)
+    {
+        var linea = 1;
+        for (var i = 0; i < indice; i++)
+        {
+            var c = texto[i];
+            if (c == '\n' || ("\u0085\u2028\u2029".Contains(c)) || (c == '\r' && (i + 1 >= texto.Length || texto[i + 1] != '\n')))
+                linea++;
+        }
+
+        return linea;
+    }
 
     /// <summary>
     /// Las líneas de un .razor, sin sus comentarios, que nombran un método de transacción, y las de
     /// las cadenas (normales, verbatim, interpoladas o crudas, también multilínea; la línea es la de
-    /// su apertura) que abren una transacción por SQL. El valor de cada cadena lo da Roslyn, que
-    /// resuelve escapes, huecos y la sangría de las crudas; además se examina su texto decodificado
-    /// entre los delimitadores, por si Roslyn no la reconoce. Las infractoras son la unión con las
-    /// de <see cref="InfractorasEnRazorAnteriores"/>: detecta siempre un superconjunto de lo que
-    /// detectaba la expresión anterior.
+    /// su apertura) que abren una transacción por SQL, o cuya concatenación con las contiguas la
+    /// abre (<c>"BEG" + "IN;"</c>). Las cadenas las localiza <see cref="EscanerDeCadenasEnRazor"/>;
+    /// el valor de cada una lo da Roslyn, que resuelve escapes, huecos (también las cadenas de dentro
+    /// de un hueco) y la sangría de las crudas, y además se examina su texto decodificado entre los
+    /// delimitadores, por si Roslyn no la reconoce. Las infractoras son la unión con las de
+    /// <see cref="InfractorasEnRazorAnteriores"/>: detecta siempre un superconjunto de lo que
+    /// detectaba la expresión anterior. El total cuenta las cadenas del recorrido principal.
     /// </summary>
     internal static (List<int> Nombres, (int Total, List<int> Infractoras) Cadenas) TransaccionesEnRazor(string fuente)
     {
         var limpio = LimpiadorDeComentarios.Quitar(fuente, razor: true);
 
         var nombres = NombreDeTransaccionEnRazor.Matches(limpio).Select(m => LineaDe(limpio, m.Index)).ToList();
-        var cadenas = CadenaEnRazor.Matches(limpio);
+        var cadenas = EscanerDeCadenasEnRazor.Escanear(limpio);
         var infractoras = cadenas
-            .Where(m => ValoresDeCadenaEnRazor(m.Value).Any(AbreTransaccion))
-            .Select(m => LineaDe(limpio, m.Index))
+            .Where(c => ValoresDeCadenaEnRazor(limpio.Substring(c.Inicio, c.Longitud)).Any(AbreTransaccion))
+            .Select(c => LineaDe(limpio, c.Inicio))
+            .Concat(ConcatenacionesInfractorasEnRazor(limpio, cadenas))
             .Concat(InfractorasEnRazorAnteriores(limpio))
             .Distinct()
             .Order()
             .ToList();
-        return (nombres, (cadenas.Count, infractoras));
+        return (nombres, (cadenas.Count(c => !c.EsDeInterior), infractoras));
+    }
+
+    /// <summary>
+    /// Las líneas donde una racha de cadenas unidas solo por <c>+</c> (y blancos o paréntesis) forma,
+    /// juntas, una sentencia de transacción. Una racha termina en cualquier otra cosa: un operando que
+    /// no es cadena, una coma.
+    /// </summary>
+    private static IEnumerable<int> ConcatenacionesInfractorasEnRazor(string limpio, IReadOnlyList<EscanerDeCadenasEnRazor.Cadena> cadenas)
+    {
+        // Todas las cadenas, también las que salen de reescanear el interior de una cruda multilínea:
+        // las que se solapan no se unen (el siguiente empieza antes de que acabe el anterior).
+        var principales = cadenas.OrderBy(c => c.Inicio).ToList();
+        for (var i = 0; i < principales.Count; i++)
+        {
+            var valor = ValoresDeCadenaEnRazor(limpio.Substring(principales[i].Inicio, principales[i].Longitud)).First();
+            var j = i;
+            while (j + 1 < principales.Count && UnidasPorMas(limpio, principales[j], principales[j + 1]))
+            {
+                j++;
+                valor += ValoresDeCadenaEnRazor(limpio.Substring(principales[j].Inicio, principales[j].Longitud)).First();
+            }
+
+            if (j > i && AbreTransaccion(valor))
+                yield return LineaDe(limpio, principales[i].Inicio);
+            i = j;
+        }
+    }
+
+    private static readonly Regex SoloUnMas = new(@"^[\s()]*\+[\s()]*$", RegexOptions.Compiled);
+
+    private static bool UnidasPorMas(string limpio, EscanerDeCadenasEnRazor.Cadena anterior, EscanerDeCadenasEnRazor.Cadena siguiente)
+    {
+        var finAnterior = anterior.Inicio + anterior.Longitud;
+        return siguiente.Inicio > finAnterior && SoloUnMas.IsMatch(limpio.AsSpan(finAnterior, siguiente.Inicio - finAnterior));
     }
 
     /// <summary>
@@ -852,6 +907,477 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
             """;
 
         Cadenas(fuente).Where(c => AbreTransaccion(c.Texto)).Select(c => c.Linea).Should().Equal(8, 11);
+    }
+
+    // ── Issue #2113: huecos del trinquete de .razor ─────────────────────────────────────────────
+    // Cada caso demuestra con InfractorasEnRazorAnteriores (la referencia fija de origin/main antes
+    // de las crudas, que no cambia) que el analizador antiguo no lo veía, y que el actual sí.
+
+    private static string RazorConCodigo(string argumento) =>
+        "@code {\n    void F() { Db.Database.ExecuteSqlRaw(" + argumento + "); }\n}";
+
+    /// <summary>Hueco 1: una cadena dentro del hueco de una interpolada desalineaba las comillas.</summary>
+    public static TheoryData<string> LiteralesConUnaCadenaEnUnHueco() => new()
+    {
+        "$\"{Ejecutar(\"BEGIN;\")}\"",
+        "$@\"{Ejecutar(\"BEGIN;\")}\"",
+        "$\"{(x ? \"BEGIN;\" : \"y\")}\"",
+        "$\"a{Ejecutar($\"{x}\", \"START TRANSACTION\")}b\"",
+        "$$\"\"\"{{Ejecutar(\"BEGIN;\")}}\"\"\"",
+    };
+
+    [Theory]
+    [MemberData(nameof(LiteralesConUnaCadenaEnUnHueco))]
+    public void El_detector_de_razor_ve_una_cadena_dentro_de_un_hueco_de_una_interpolada(string literal)
+    {
+        var fuente = RazorConCodigo(literal);
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty(
+            "el analizador anterior emparejaba las comillas del hueco con las de la interpolada");
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([2]);
+    }
+
+    [Fact]
+    public void Una_cadena_inocua_dentro_de_un_hueco_de_una_interpolada_no_es_infractora()
+    {
+        var (_, cadenas) = TransaccionesEnRazor(RazorConCodigo("$\"{Ejecutar(\"SELECT 1\")} y {x}\""));
+
+        cadenas.Infractoras.Should().BeEmpty();
+        cadenas.Total.Should().Be(1, "la interpolada, con la cadena de su hueco dentro, es una sola cadena del recorrido");
+    }
+
+    /// <summary>Hueco 2: la comilla de <c>'"'</c> abría una cadena que se tragaba la apertura de la cruda siguiente.</summary>
+    [Theory]
+    [InlineData("'\"'")]
+    [InlineData("'\\\"'")]
+    public void Un_literal_de_caracter_con_comilla_no_oculta_una_cruda_en_razor(string caracter)
+    {
+        var fuente = "@code {\n    void F() { var q = " + caracter + "; Db.Database.ExecuteSqlRaw(\"\"\"\n        BEGIN;\n        \"\"\"); }\n}";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty(
+            "la comilla del literal de carácter abría una cadena que casaba con la primera comilla de la cruda");
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([2]);
+    }
+
+    [Fact]
+    public void Un_apostrofo_del_marcado_no_se_confunde_con_un_literal_de_caracter()
+    {
+        const string fuente = "<p>It's a 'x' and '\\n' plan</p>\n@code {\n    void F() { Db.Database.ExecuteSqlRaw(\"BEGIN;\"); }\n}";
+
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([3]);
+    }
+
+    /// <summary>
+    /// Hueco del comentario de la #2113 (ronda 2 de la #2114): unas comillas triples del marcado con
+    /// forma de apertura multilínea, y un BEGIN en una cruda real posterior cuya apertura queda a mitad
+    /// de línea, dentro del token que abren las del marcado. Sin sangría en la cruda real, para que la
+    /// del marcado sea léxicamente válida hasta el cierre real.
+    /// </summary>
+    [Fact]
+    public void Comillas_triples_del_marcado_no_ocultan_una_cruda_real_posterior()
+    {
+        const string fuente = "<p>\"\"\"\n@code {\n    void F() { Db.Database.ExecuteSqlRaw(\"\"\"\nBEGIN;\n\"\"\"); }\n}";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty();
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([3]);
+    }
+
+    /// <summary>
+    /// Unas comillas triples del marcado con forma de apertura multilínea forman un token válido hasta
+    /// unas de cierre posteriores y se tragan el <c>@code</c> que hay entre ellas, con una interpolada
+    /// con una cadena en su hueco dentro: solo el reescaneo del interior de la cruda multilínea la ve.
+    /// </summary>
+    [Fact]
+    public void Comillas_triples_del_marcado_no_se_tragan_una_interpolada_con_BEGIN_en_un_hueco()
+    {
+        const string fuente = "<p>\"\"\"\n</p>\n@code {\n    void F() { Db.Database.ExecuteSqlRaw($\"{Ejecutar(\"BEGIN;\")}\"); }\n}\n\"\"\"</p>";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty();
+        var (_, cadenas) = TransaccionesEnRazor(fuente);
+
+        cadenas.Infractoras.Should().Equal([4]);
+        cadenas.Total.Should().Be(1, "solo la cruda del marcado es cadena del recorrido principal; lo que sale de su interior no suma al total");
+    }
+
+    /// <summary>
+    /// Hueco del comentario de la #2113 (Codex, ronda 2 de la #2114): C# admite CR solo como
+    /// terminador de línea; una cruda multilínea con CR solo no la leía la expresión (que pedía LF).
+    /// </summary>
+    [Fact]
+    public void Una_cruda_multilinea_con_saltos_CR_solo_se_examina_y_se_numera()
+    {
+        const string fuente = "@code {\r    void F() { Db.Database.ExecuteSqlRaw(\"\"\"\r        BEGIN;\r        \"\"\"); }\r}";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty();
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([2], "la línea se cuenta con CR solo, no solo con LF");
+    }
+
+    /// <summary>
+    /// Un comentario <c>//</c> termina en CR solo igual que en LF; sin eso, en un fichero con CR el
+    /// comentario se tragaba el resto del .razor, BEGIN incluido.
+    /// </summary>
+    [Fact]
+    public void Un_comentario_de_linea_en_razor_con_CR_solo_no_se_traga_el_resto_del_fichero()
+    {
+        const string fuente = "@code {\r    // nota\r    void F() { Db.Database.ExecuteSqlRaw(\"BEGIN;\"); }\r}";
+
+        var (_, cadenas) = TransaccionesEnRazor(fuente);
+
+        cadenas.Infractoras.Should().Equal([3]);
+    }
+
+    /// <summary>
+    /// La concatenación también se une entre las cadenas que salen de reescanear el interior de unas
+    /// comillas triples del marcado que se tragan el <c>@code</c>.
+    /// </summary>
+    [Fact]
+    public void El_detector_de_razor_une_una_concatenacion_dentro_de_unas_comillas_triples_del_marcado()
+    {
+        const string fuente = "<p>\"\"\"\n</p>\n@code {\n    void F() { Db.Database.ExecuteSqlRaw(\"BEG\" + \"IN;\"); }\n}\n\"\"\"</p>";
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty();
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([4]);
+    }
+
+    /// <summary>
+    /// Una comilla suelta del marcado dentro de un bloque Razor que se lee como código, en un fichero
+    /// con CR solo: la cadena normal sin cerrar acaba con la línea (CR), no se traga el resto del
+    /// fichero; si lo hiciera, el comentario de después no se quitaría y su texto contaría como cadena.
+    /// </summary>
+    [Fact]
+    public void Una_cadena_normal_sin_cerrar_en_razor_con_CR_solo_acaba_con_la_linea()
+    {
+        const string fuente = "@if (x) {\r<p>5\" dolares</p>\r}\r@code {\r    // \"BEGIN;\"\r    void F() { }\r}";
+
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().BeEmpty("el comentario con BEGIN se quita");
+    }
+
+    /// <summary>NEL, LS y PS también terminan línea en C#: el comentario <c>//</c> acaba y la línea se numera.</summary>
+    [Theory]
+    [InlineData(0x0085)]
+    [InlineData(0x2028)]
+    [InlineData(0x2029)]
+    public void Los_terminadores_de_linea_NEL_LS_y_PS_terminan_comentarios_y_numeran_lineas(int terminador)
+    {
+        var t = ((char)terminador).ToString();
+        var fuente = "@code {" + t + "    // nota" + t + "    void F() { Db.Database.ExecuteSqlRaw(\"BEGIN;\"); }" + t + "}";
+
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([3]);
+    }
+
+    /// <summary>Hueco 4 en .razor: <c>"BEG" + "IN;"</c> son dos cadenas inocuas; juntas, una transacción.</summary>
+    [Theory]
+    [InlineData("\"BEG\" + \"IN;\"")]
+    [InlineData("(\"BEG\") + (\"IN;\")")]
+    [InlineData("x + \"BEG\" +\n        \"IN;\"")]
+    [InlineData("\"SELECT 1; \" + \"BEG\" + @\"IN\" + $\";\"")]
+    public void El_detector_de_razor_ve_una_transaccion_partida_en_una_concatenacion(string argumento)
+    {
+        var fuente = RazorConCodigo(argumento);
+
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().BeEmpty(
+            "ningún trozo suelto abre una transacción");
+        TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Equal([2]);
+    }
+
+    [Theory]
+    [InlineData("\"BEG\" + x + \"IN;\"")]
+    [InlineData("\"SELECT 'a' \" + \"FROM t\"")]
+    [InlineData("\"BEG\", \"IN;\"")]
+    public void El_detector_de_razor_no_une_cadenas_que_no_estan_concatenadas(string argumento)
+    {
+        TransaccionesEnRazor(RazorConCodigo(argumento)).Cadenas.Infractoras.Should().BeEmpty();
+    }
+
+    // ── Issue #2113, huecos 3 y 4 en .cs ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Las concatenaciones de constantes de un árbol cuyo valor, ya unido, no es ninguna de las
+    /// cadenas sueltas que ve <see cref="Cadenas"/>: <c>"BEG" + "IN;"</c>, <c>A + B</c> con A y B
+    /// constantes, <c>x + "BEG" + "IN;"</c> (la racha de sumandos constantes contiguos) y la
+    /// interpolada con huecos constantes. El valor lo calcula el modelo semántico de Roslyn
+    /// (<c>GetConstantValue</c>), también el de una constante declarada en otro fichero del proyecto.
+    /// Una concatenación con un operando que no es constante no tiene valor conocido: solo cuentan sus
+    /// rachas de dos o más sumandos constantes contiguos.
+    /// </summary>
+    internal static IEnumerable<(int Linea, string Valor)> ConstantesCompuestas(CSharpCompilation compilacion, SyntaxTree arbol)
+    {
+        SemanticModel? modelo = null;
+        foreach (var nodo in arbol.GetRoot().DescendantNodes())
+        {
+            if (nodo is InterpolatedStringExpressionSyntax interpolada)
+            {
+                if (!interpolada.Contents.Any(c => c is InterpolationSyntax))
+                    continue;
+                modelo ??= compilacion.GetSemanticModel(arbol);
+                if (modelo.GetConstantValue(interpolada).Value is string valorInterpolado)
+                    yield return (LineaDeNodo(interpolada), valorInterpolado);
+                continue;
+            }
+
+            if (nodo is not BinaryExpressionSyntax suma || !suma.IsKind(SyntaxKind.AddExpression)
+                || (suma.Parent is BinaryExpressionSyntax padre && padre.IsKind(SyntaxKind.AddExpression) && padre.Left == suma))
+                continue; // solo el nodo más externo de una cadena de sumas
+
+            var sumandos = Sumandos(suma);
+            if (!HayDosContiguosPosiblementeConstantes(sumandos))
+                continue;
+
+            modelo ??= compilacion.GetSemanticModel(arbol);
+            if (modelo.GetTypeInfo(suma).Type?.SpecialType != SpecialType.System_String)
+                continue;
+
+            var racha = new List<string>();
+            var lineaDeLaRacha = 0;
+            foreach (var sumando in sumandos.Append(null))
+            {
+                var constante = sumando is null ? default : modelo.GetConstantValue(sumando);
+                if (constante is { HasValue: true, Value: not null })
+                {
+                    if (racha.Count == 0)
+                        lineaDeLaRacha = LineaDeNodo(sumando!);
+                    racha.Add(Convert.ToString(constante.Value, System.Globalization.CultureInfo.InvariantCulture)!);
+                    continue;
+                }
+
+                if (racha.Count >= 2)
+                    yield return (lineaDeLaRacha, string.Concat(racha));
+                racha.Clear();
+            }
+        }
+    }
+
+    private static int LineaDeNodo(SyntaxNode nodo) => nodo.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+
+    private static List<ExpressionSyntax> Sumandos(BinaryExpressionSyntax cadena)
+    {
+        var sumandos = new List<ExpressionSyntax>();
+        ExpressionSyntax actual = cadena;
+        while (actual is BinaryExpressionSyntax suma && suma.IsKind(SyntaxKind.AddExpression))
+        {
+            sumandos.Add(suma.Right);
+            actual = suma.Left;
+        }
+
+        sumandos.Add(actual);
+        sumandos.Reverse();
+        return sumandos;
+    }
+
+    /// <summary>
+    /// Filtro sintáctico barato antes de pedir el modelo semántico: solo una racha de dos sumandos
+    /// contiguos que puedan ser constantes (literales, nombres, accesos a miembro, paréntesis,
+    /// <c>nameof</c>, interpoladas…) merece la consulta; una llamada o un acceso a elemento no es constante.
+    /// </summary>
+    private static bool HayDosContiguosPosiblementeConstantes(List<ExpressionSyntax> sumandos)
+    {
+        for (var i = 1; i < sumandos.Count; i++)
+        {
+            if (PuedeSerConstante(sumandos[i - 1]) && PuedeSerConstante(sumandos[i]))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool PuedeSerConstante(ExpressionSyntax e) => e switch
+    {
+        LiteralExpressionSyntax or InterpolatedStringExpressionSyntax or IdentifierNameSyntax or ParenthesizedExpressionSyntax
+            or BinaryExpressionSyntax or CastExpressionSyntax or ConditionalExpressionSyntax or PrefixUnaryExpressionSyntax
+            or PostfixUnaryExpressionSyntax => true,
+        MemberAccessExpressionSyntax m => m.IsKind(SyntaxKind.SimpleMemberAccessExpression),
+        InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.ValueText: "nameof" } } => true,
+        _ => false,
+    };
+
+    private const string FuenteConCadenasPartidas = """
+        class C
+        {
+            const string Inicio = "BEG";
+            const string Fin = "IN;";
+            const string Junta = Inicio + Fin;
+            const string Interpolada = $"{Inicio}{Fin}";
+            void F(string x)
+            {
+                var a = "BEG" + "IN;";
+                var b = x + "START " + "TRANSACTION";
+                var c = Inicio + Fin;
+                var d = "BEG" + x + "IN;";
+                var e = "SELECT " + "1";
+            }
+        }
+        """;
+
+    /// <summary>Hueco 4 en .cs: ninguna cadena suelta abre una transacción, juntas sí; sin ellas <see cref="Cadenas"/> no lo ve.</summary>
+    [Fact]
+    public void El_detector_ve_una_transaccion_partida_en_una_concatenacion_constante()
+    {
+        Cadenas(FuenteConCadenasPartidas).Where(c => AbreTransaccion(c.Texto)).Should().BeEmpty(
+            "ninguna cadena suelta lo es: así se veía antes, y el caso es sensible a la concatenación");
+
+        var (compilacion, arbol) = CompilacionDeEjemplo(FuenteConCadenasPartidas);
+        var compuestas = ConstantesCompuestas(compilacion, arbol).ToList();
+
+        compuestas.Where(c => AbreTransaccion(c.Valor)).Select(c => c.Linea).Order().Should().Equal(
+            [5, 6, 9, 10, 11], "la constante, la interpolada constante, el literal, la racha tras un operando no constante y las constantes de dos nombres");
+        compuestas.Should().NotContain(c => c.Linea == 12, "los operandos no contiguos no forman un valor conocido");
+        compuestas.Should().Contain(c => c.Linea == 13 && !AbreTransaccion(c.Valor), "una concatenación inocua se ve y no es infractora");
+    }
+
+    [Fact]
+    public void Las_concatenaciones_constantes_de_src_no_abren_transacciones()
+    {
+        var src = Path.Combine(BuscarRaizDelRepositorio(), "src");
+        var proyectos = Directory.EnumerateFiles(src, "*.csproj", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToList();
+        proyectos.Should().HaveCountGreaterThan(3, "el instrumento tiene que compilar los proyectos de src");
+
+        var vistas = 0;
+        var infractoras = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var (configuracion, opciones) in Configuraciones)
+        {
+            foreach (var proyecto in proyectos)
+            {
+                var (compilacion, arboles) = CompilacionDelProyecto(proyecto, opciones);
+                foreach (var arbol in arboles)
+                {
+                    var relativa = Path.GetRelativePath(src, arbol.FilePath).Replace('\\', '/');
+                    foreach (var (linea, valor) in ConstantesCompuestas(compilacion, arbol))
+                    {
+                        vistas++;
+                        if (AbreTransaccion(valor))
+                            infractoras.Add($"{configuracion} {relativa}:{linea}");
+                    }
+                }
+            }
+        }
+
+        salida.WriteLine($"Concatenaciones constantes vistas: {vistas}; infractoras: {infractoras.Count}");
+        vistas.Should().BeGreaterThan(50, "el instrumento tiene que ver las concatenaciones constantes de src");
+        infractoras.Should().BeEmpty(
+            "una transacción partida en trozos constantes la abre igual por SQL crudo y no la ve la guarda del registro " +
+            "de lecturas en Sesión Privilegiada");
+    }
+
+    /// <summary>
+    /// Las ramas condicionales (<c>#if</c>, <c>#elif</c>, <c>#else</c>) de un fuente que no se toman ni
+    /// en Debug ni en Release, las dos configuraciones que compila el análisis semántico: su contenido
+    /// es invisible a ese análisis y, salvo la rama que solo existe sin símbolos, también a
+    /// <see cref="Cadenas"/>. Cubre cualquier símbolo ajeno (<c>#if STAGING</c>), <c>#if false</c>,
+    /// <c>#if A &amp;&amp; B</c> inalcanzable, una versión de .NET que no se define, la <c>#else</c> de
+    /// una condición que siempre se cumple y <c>#if !TRACE</c>.
+    /// </summary>
+    internal static IEnumerable<(int Linea, string Directiva)> RamasCondicionalesSinExaminar(string fuente)
+    {
+        var ramas = new Dictionary<int, (int Linea, string Directiva, bool Tomada)>();
+        // Solo Debug y Release: son las únicas configuraciones que compila el análisis semántico (las
+        // llamadas de transacción y las constantes compuestas); la rama que solo existe sin símbolos
+        // (#if !TRACE) la ve Cadenas pero no el análisis semántico, así que también falla.
+        foreach (var opciones in Configuraciones.Select(c => c.Opciones))
+        {
+            var raiz = CSharpSyntaxTree.ParseText(fuente, opciones).GetRoot();
+            foreach (var directiva in raiz.DescendantTrivia().Where(t => t.IsDirective).Select(t => t.GetStructure()).OfType<BranchingDirectiveTriviaSyntax>())
+            {
+                var tomada = ramas.TryGetValue(directiva.SpanStart, out var previa) && previa.Tomada;
+                ramas[directiva.SpanStart] = (LineaDeNodo(directiva), directiva.ToString().Trim(), tomada || directiva.BranchTaken);
+            }
+        }
+
+        return ramas.Values.Where(r => !r.Tomada).OrderBy(r => r.Linea).Select(r => (r.Linea, r.Directiva));
+    }
+
+    private const string FuenteConRamasInvisibles = """
+        class C
+        {
+            void F(System.Data.Common.DbCommand cmd)
+            {
+        #if STAGING
+                cmd.CommandText = "BEGIN;";
+        #endif
+        #if false
+                cmd.CommandText = "START TRANSACTION";
+        #endif
+        #if DEBUG && RELEASE
+                cmd.CommandText = "BEGIN";
+        #endif
+        #if NET9_0
+                cmd.CommandText = "begin";
+        #endif
+        #if !STAGING
+                cmd.CommandText = "SELECT 1";
+        #else
+                cmd.CommandText = "BEGIN TRANSACTION";
+        #endif
+        #if !TRACE
+                cmd.CommandText = "SELECT 9";
+        #endif
+            }
+        }
+        """;
+
+    private const string FuenteConRamasVisibles = """
+        class C
+        {
+            void F(System.Data.Common.DbCommand cmd)
+            {
+        #region Cosas
+        #if DEBUG
+                cmd.CommandText = "SELECT 1";
+        #else
+                cmd.CommandText = "SELECT 2";
+        #endif
+        #if TRACE
+                cmd.CommandText = "SELECT 3";
+        #endif
+        #if NET10_0_OR_GREATER && !RELEASE
+                cmd.CommandText = "SELECT 5";
+        #elif RELEASE
+                cmd.CommandText = "SELECT 6";
+        #endif
+        #if true
+                cmd.CommandText = "SELECT 7";
+        #endif
+        #endregion
+            }
+        }
+        """;
+
+    /// <summary>Hueco 3: una cadena tras un símbolo ajeno o bajo <c>#if false</c> era invisible; ahora lo es la rama, y falla.</summary>
+    [Fact]
+    public void El_detector_ve_las_ramas_condicionales_que_el_trinquete_no_examina()
+    {
+        Cadenas(FuenteConRamasInvisibles).Where(c => AbreTransaccion(c.Texto)).Should().BeEmpty(
+            "ninguna de las cadenas con transacción está en una rama que Debug, Release o sin símbolos tomen: así era antes");
+
+        RamasCondicionalesSinExaminar(FuenteConRamasInvisibles).Should().Equal(
+            [(5, "#if STAGING"), (8, "#if false"), (11, "#if DEBUG && RELEASE"), (14, "#if NET9_0"), (19, "#else"), (22, "#if !TRACE")],
+            "las ramas que ni Debug ni Release toman, incluidas la #else de una condición que siempre se cumple y la que solo existe sin símbolos");
+    }
+
+    [Fact]
+    public void El_detector_no_marca_las_ramas_que_alguna_configuracion_examina()
+    {
+        RamasCondicionalesSinExaminar(FuenteConRamasVisibles).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Ninguna_rama_condicional_de_src_queda_sin_examinar()
+    {
+        var infractoras = new List<string>();
+        var conAlmohadilla = 0;
+        foreach (var (relativa, fuente) in FicherosDeSrc())
+        {
+            if (!fuente.Contains('#'))
+                continue;
+            conAlmohadilla++;
+            infractoras.AddRange(RamasCondicionalesSinExaminar(fuente).Select(r => $"{relativa}:{r.Linea} {r.Directiva}"));
+        }
+
+        salida.WriteLine($".cs con '#': {conAlmohadilla}; ramas sin examinar: {infractoras.Count}");
+        infractoras.Should().BeEmpty(
+            "el análisis semántico compila Debug y Release: el código bajo un #if con otro símbolo, bajo #if false, " +
+            "bajo #if !TRACE o bajo una #else que nunca se toma no lo ve nadie; quita la condición o amplía las configuraciones");
     }
 
     private static string BuscarRaizDelRepositorio()

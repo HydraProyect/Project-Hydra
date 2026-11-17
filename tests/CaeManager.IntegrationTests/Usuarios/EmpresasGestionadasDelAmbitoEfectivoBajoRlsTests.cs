@@ -105,15 +105,28 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var sobreVAcotada = AsignacionOperacion.Externa(
             _empresaV, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeV), desde, null, ahora);
         var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
+        // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223),
+        // sellada como origen de cada operación para que EF inserte la delegación antes. La Inbound entera de V también
+        // nace amparada por la delegación de V (un estado que producción no genera): sin origen, el amparo la excluiría
+        // por sí solo y las aserciones de V no aislarían el filtro de Servicio (revisión puente de la ronda 6 de la PR #2237).
+        var delegacionX = new DelegacionTenant(_operadorA, _empresaX);
+        var delegacionY = new DelegacionTenant(_operadorA, _empresaY);
+        var delegacionW = new DelegacionTenant(_operadorA, _empresaW);
+        var delegacionV = new DelegacionTenant(_operadorA, _empresaV);
+        var delegacionZ = new DelegacionTenant(_operadorB, _empresaZ);
         using (AmbitoTenantExplicito.Establecer(_operadorA))
-            propietario.AsignacionesOperacion.AddRange(sobreX, sobreY, sobreW, sobreZ, sobreVAcotada, sobreVEntera);
-        // La vía de Operación exige la DelegacionTenant de Operador CAE externo del par activa y sin caducar (opción A, PR #2223).
+        {
+            OperacionExternaAmparada.Agregar(propietario, sobreX, delegacionX);
+            OperacionExternaAmparada.Agregar(propietario, sobreY, delegacionY);
+            OperacionExternaAmparada.Agregar(propietario, sobreW, delegacionW);
+            OperacionExternaAmparada.Agregar(propietario, sobreZ, delegacionZ);
+            OperacionExternaAmparada.Agregar(propietario, sobreVAcotada, delegacionV);
+            OperacionExternaAmparada.Agregar(propietario, sobreVEntera, delegacionV);
+        }
         using (AmbitoTenantExplicito.Establecer(_operadorA))
-            propietario.DelegacionesTenant.AddRange(
-                new DelegacionTenant(_operadorA, _empresaX), new DelegacionTenant(_operadorA, _empresaY),
-                new DelegacionTenant(_operadorA, _empresaW), new DelegacionTenant(_operadorA, _empresaV));
+            propietario.DelegacionesTenant.AddRange(delegacionX, delegacionY, delegacionW, delegacionV);
         using (AmbitoTenantExplicito.Establecer(_operadorB))
-            propietario.DelegacionesTenant.Add(new DelegacionTenant(_operadorB, _empresaZ));
+            propietario.DelegacionesTenant.Add(delegacionZ);
         await propietario.SaveChangesAsync();
 
         var cerradaEnY = AsignacionCartera.Externa(sobreY, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora);

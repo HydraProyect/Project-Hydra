@@ -116,12 +116,12 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
 
         var raiz = AsignacionOperacion.Raiz(_propietario.Id, ServicioCae.Outbound, ahora.AddDays(-1), ahora);
         contexto.AsignacionesOperacion.Add(raiz);
-        contexto.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
-            _propietario.Id, _operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
-            vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora));
 
         var delegacion = new DelegacionTenant(_operadorExterno.Id, _propietario.Id);
         contexto.DelegacionesTenant.Add(delegacion);
+        OperacionExternaAmparada.Agregar(contexto, AsignacionOperacion.Externa(
+            _propietario.Id, _operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: ahora.AddDays(-1), vigenciaHasta: null, ahora), delegacion);
         contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacion.Id, _gestorDelegado, "GestorCae"),
             new AsignacionOperadorDelegado(delegacion.Id, _otroGestorDelegado, "GestorCae"),

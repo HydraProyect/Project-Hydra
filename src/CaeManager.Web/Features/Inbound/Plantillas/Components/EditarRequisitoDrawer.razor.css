@@ -1,0 +1,35 @@
+/* Panel Editar requisito (Configuracion.dc.html): clases cfg-*. */
+.cfg-etq { font: 600 13px/18px var(--font-family); color: var(--color-text); }
+.cfg-ayuda { margin: 0; font: 400 12px/16px var(--font-family); color: var(--color-text-muted); }
+.cfg-fijo { margin: 0; font: 600 14px/20px var(--font-family); }
+.cfg-input { height: 40px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); font: 400 14px/20px var(--font-family); color: var(--color-text); background: var(--color-surface); }
+.cfg-input:focus { outline: 2px solid var(--color-primary-500); outline-offset: -1px; }
+.cfg-meses { width: 72px; text-align: center; }
+.cfg-cont { display: block; text-align: right; font: 400 12px/16px var(--font-family); color: var(--color-text-muted); }
+.cfg-seg { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); overflow: hidden; align-self: flex-start; }
+.cfg-seg button { height: 36px; padding: 0 14px; border: 0; border-right: 1px solid var(--color-border-strong); background: var(--color-surface); font: 500 13px/18px var(--font-family); color: var(--color-text); cursor: pointer; }
+.cfg-seg button:last-child { border-right: 0; }
+.cfg-seg button[aria-pressed="true"] { background: var(--color-primary-50); color: var(--color-primary-700); font-weight: 600; }
+.cfg-seg button:disabled { cursor: default; color: var(--color-text-muted); }
+.cfg-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cfg-cat-busca { height: 40px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm) var(--radius-sm) 0 0; font: 400 14px/20px var(--font-family); color: var(--color-text); background: var(--color-surface); }
+.cfg-cat-busca:focus { outline: 2px solid var(--color-primary-500); outline-offset: -2px; }
+.cfg-cat-lista { max-height: 212px; overflow: auto; display: flex; flex-direction: column; border: 1px solid var(--color-border-strong); border-top: 0; border-radius: 0 0 var(--radius-sm) var(--radius-sm); background: var(--color-surface); }
+.cfg-cat-it { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--color-border); background: var(--color-surface); font: 400 14px/20px var(--font-family); color: var(--color-text); text-align: left; cursor: pointer; }
+.cfg-cat-it:last-child { border-bottom: 0; }
+.cfg-cat-it:hover { background: var(--color-surface-subtle); }
+.cfg-cat-it[aria-selected="true"] { background: var(--color-primary-50); font-weight: 600; }
+.cfg-cat-it:disabled { cursor: default; color: var(--color-text-muted); background: var(--color-surface); }
+.cfg-cat-n { flex: 1 1 auto; min-width: 0; }
+.cfg-cat-e { flex: none; font: 400 12px/16px var(--font-family); color: var(--color-text-muted); }
+.cfg-cat-vacio { margin: 0; padding: 12px; font: 400 13px/18px var(--font-family); color: var(--color-text-muted); }
+.cfg-nuevo { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-subtle); }
+.cfg-nuevo-bloque { display: flex; flex-direction: column; gap: 8px; }
+.cfg-nuevo-h { margin: 0; font: 600 14px/20px var(--font-family); color: var(--color-text); }
+.cfg-par { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--color-warning-500, #f0b429); border-radius: var(--radius-sm); background: var(--color-surface); }
+.cfg-par-t { flex: 1 1 auto; min-width: 0; }
+.cfg-nuevo-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cfg-dato-t { display: block; font: 600 13px/18px var(--font-family); }
+.cfg-dato-d { display: block; font: 400 12px/16px var(--font-family); color: var(--color-text-muted); }
+.cfg-info { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--color-primary-50); color: var(--color-primary-700); font: 400 12px/16px var(--font-family); }
+.cfg-proximamente { opacity: .85; }

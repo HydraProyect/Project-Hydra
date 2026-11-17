@@ -16,7 +16,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlan
 /// </summary>
 [AreaDelEncargo("TiposDocumento")]
 public record EditarRequisitoPlantillaCommand(
-    Guid PlantillaId, Guid RequisitoId, AtributosRequisito Atributos, Guid Version = default) : ICommand;
+    Guid PlantillaId, Guid RequisitoId, AtributosRequisito Atributos, Guid Version = default) : ICommand, IComandoInbound;
 
 public class EditarRequisitoPlantillaCommandValidator : AbstractValidator<EditarRequisitoPlantillaCommand>
 {

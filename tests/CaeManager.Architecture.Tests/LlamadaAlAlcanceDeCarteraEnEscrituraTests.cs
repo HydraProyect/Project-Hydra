@@ -206,6 +206,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.FijarAcuseAutomaticoBuzonCommandHandler",
         "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
+        "Integraciones.ReconocerAvisoHuecoCommandHandler",
         "Integraciones.RepararMarcaHuecoCommandHandler",
 
         // Plantillas
@@ -319,6 +320,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Visitas.MarcarNotificadoClienteCommandHandler",
         "Visitas.QuitarMarcaDocumentacionGestionadaCommandHandler",
         "Visitas.QuitarTrabajadorDeVisitaCommandHandler",
+        "Visitas.ReabrirExpedienteVisitaCommandHandler",
         "Visitas.ReactivarVisitaCommandHandler",
     ];
 

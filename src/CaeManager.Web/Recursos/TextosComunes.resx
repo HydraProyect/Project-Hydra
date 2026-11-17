@@ -519,6 +519,9 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si todavía no la tienes instalada, mira «Instalar la extensión», más abajo.</value>
   </data>
+  <data name="ExtensionVigenciaToken" xml:space="preserve">
+    <value>Dura como mucho 8 horas y no se renueva solo. Deja de valer antes si tu sesión se cierra, también por inactividad: usar la extensión no la mantiene abierta.</value>
+  </data>
   <data name="CumplimientoEtiqueta" xml:space="preserve">
     <value>{0} % de cumplimiento</value>
     <comment>{0}: porcentaje de 0 a 100. Nombre accesible por defecto de BarraCumplimiento.</comment>
@@ -893,10 +896,31 @@
   <data name="CampoFechaInstrucciones" xml:space="preserve">
     <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
   </data>
+  <data name="MenuLineaOutbound" xml:space="preserve">
+    <value>Outbound</value>
+  </data>
+  <data name="MenuLineaInboundTce" xml:space="preserve">
+    <value>Inbound · Tenant TCE</value>
+  </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contratos de acceso</value>
   </data>
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documentos por validar</value>
+  </data>
+  <data name="MenuInboundCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="MenuInboundInformacionCentro" xml:space="preserve">
+    <value>Información del Centro</value>
+  </data>
+  <data name="MenuInboundPlantillas" xml:space="preserve">
+    <value>Plantillas de requisitos</value>
+  </data>
+  <data name="MenuInboundReglasAviso" xml:space="preserve">
+    <value>Reglas de aviso</value>
+  </data>
+  <data name="MenuInboundGobierno" xml:space="preserve">
+    <value>Gobierno de Inbound</value>
   </data>
 </root>
