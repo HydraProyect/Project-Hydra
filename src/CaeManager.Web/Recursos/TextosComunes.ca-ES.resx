@@ -887,6 +887,12 @@
   <data name="MenuInboundValidacion" xml:space="preserve">
     <value>Documents per validar</value>
   </data>
+  <data name="MenuInboundCentros" xml:space="preserve">
+    <value>Centres</value>
+  </data>
+  <data name="MenuInboundInformacionCentro" xml:space="preserve">
+    <value>Informació del Centre</value>
+  </data>
   <data name="MenuInboundReglasAviso" xml:space="preserve">
     <value>Regles d&apos;avís</value>
   </data>
