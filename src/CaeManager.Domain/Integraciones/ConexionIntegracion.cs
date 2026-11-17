@@ -213,7 +213,8 @@ public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
     /// La recuperación en curso está detenida en este segundo: una página con más detrás no sale del segundo del cursor y
     /// el segundo tampoco se puede recorrer por Id (issue #2263): la página vino vacía, alguna recepción trae fracción de
     /// segundo (<c>eq</c> el segundo no la encontraría), o la página por Id no es coherente (vacía con más detrás, fuera
-    /// del segundo o fuera de orden, que el adaptador rechaza). La página no se encola, el cursor no avanza y la marca se
+    /// del segundo o fuera de orden, que el adaptador rechaza, un filtro que Graph no acepta, o un recorrido que no ve lo
+    /// que el listado por fecha ve de ese segundo). La página no se encola, el cursor no avanza y la marca se
     /// queda; Conexiones avisa de la recuperación detenida. Se vuelve a pedir en cada pasada y se borra en cuanto una
     /// página avanza el cursor, o al anular la recuperación. Null: no está detenida.
     /// </summary>
