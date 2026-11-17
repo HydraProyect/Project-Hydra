@@ -154,7 +154,8 @@ public class ReconocerAvisoHuecoCommandHandler(
         if (actual.HuecoPendienteDesdeUtc is not { } marca)
             return Result.Exito();
 
-        if (actual.Estado != EstadoConexionIntegracion.Habilitada || actual.MarcaHuecoPorRegistrarDesdeUtc is not null)
+        // La misma condición que ConexionIntegracionListaDto.AvisoHuecoReconocible, por el predicado de la conexión.
+        if (!actual.AvisoHuecoReconocible)
             return Result.Fallo(Error.Crear(
                 CodigoNoReconocible,
                 "Este buzón no está conectado y funcionando, así que el correo puede seguir sin llegar: no se puede dar el aviso por revisado todavía. Actualizamos el listado."));

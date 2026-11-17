@@ -25,4 +25,25 @@ public class TextosConexionesTests
         catalan.Should().NotBeNullOrWhiteSpace();
         catalan.Should().NotBe(ConectarBuzonMicrosoft365CommandHandler.MensajeAltaCompartidaEnPausa);
     }
+
+    /// <summary>
+    /// Seguimiento de la #2319 (issue #2124): el botón Confirmar del aviso del hueco sale de dos fuentes, porque la regla de
+    /// Architecture no deja a un Boton de Comunicaciones usar este .resx: Conexiones y el diálogo usan
+    /// <c>TextosConexiones.AccionConfirmarAvisoHueco</c> y Buzón usa <c>TextosComunes.AccionConfirmar</c>. Aquí se fija que
+    /// dicen lo mismo en cada cultura, en imperativo en catalán (como «Cancel·la»), y que el texto del aviso nombra el botón
+    /// con ese mismo verbo.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", "Confirmar", "Cancelar")]
+    [InlineData("ca-ES", "Confirma", "Cancel·la")]
+    public void El_boton_Confirmar_del_aviso_del_hueco_dice_lo_mismo_en_Conexiones_y_en_Buzon(string cultura, string confirmar, string cancelar)
+    {
+        var cultureInfo = CultureInfo.GetCultureInfo(cultura);
+        var comunes = new ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes));
+
+        Recursos.GetString("AccionConfirmarAvisoHueco", cultureInfo).Should().Be(confirmar);
+        comunes.GetString("AccionConfirmar", cultureInfo).Should().Be(confirmar, "Buzón lo toma de TextosComunes y debe coincidir con Conexiones");
+        Recursos.GetString("AccionCancelarAvisoHueco", cultureInfo).Should().Be(cancelar, "el otro botón del diálogo va en el mismo modo verbal");
+        Recursos.GetString("AvisoCorreoNoRecuperadoConfirmable", cultureInfo).Should().Contain(" " + confirmar + ";", "el aviso nombra el botón real");
+    }
 }
