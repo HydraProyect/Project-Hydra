@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using Npgsql;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerEstructuraBuzon;
 using CaeManager.Application.Integraciones.Queries.ObtenerMensajesCarpeta;
@@ -34,6 +35,9 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
 
+    /// <summary>Los textos del aviso del hueco y de su Confirmar: los mismos que en Conexiones, sin copiarlos.</summary>
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Integraciones.Recursos.TextosConexiones> TextosAviso { get; set; } = default!;
+
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
     private bool _cargandoConexiones = true;
@@ -64,19 +68,114 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     private string? _redactarError;
     private bool _enviandoRedaccion;
 
+    private bool? _puedeConfirmarAviso;
+    private ConexionIntegracionListaDto? _avisoHuecoAConfirmar;
+    private bool _confirmandoAvisoHueco;
+
     protected override async Task OnInitializedAsync()
     {
         var (generacion, token) = IniciarCargaConexiones();
         try
         {
-            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true), token);
-            if (EsCargaConexionesVigente(generacion, token))
-                _conexiones = conexiones;
+            await CargarConexionesAsync(generacion, token);
         }
         finally
         {
             if (EsCargaConexionesVigente(generacion, token))
                 _cargandoConexiones = false;
+        }
+    }
+
+    /// <summary>
+    /// El listado del selector y, solo si alguna conexión tiene el aviso del hueco, si quien mira puede confirmarlo
+    /// (<see cref="PuedeReconocerAvisoHuecoQuery"/>, la misma regla que el comando). Se pregunta una vez por página: no
+    /// depende de la conexión. En Sesión Privilegiada no se pregunta: Soporte TALVEG es de solo lectura y el comando no
+    /// llegaría al handler.
+    /// </summary>
+    private async Task CargarConexionesAsync(long generacion, CancellationToken token)
+    {
+        var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true), token);
+        if (!EsCargaConexionesVigente(generacion, token)) return;
+
+        if (_puedeConfirmarAviso is null && conexiones.Any(c => c.CorreoNoRecuperadoDesdeUtc is not null))
+        {
+            var actor = await ActorAuditoria.ObtenerAsync();
+            var puede = actor.Via != TipoViaAcceso.SesionPrivilegiada && await Mediator.Send(new PuedeReconocerAvisoHuecoQuery(), token);
+            if (!EsCargaConexionesVigente(generacion, token)) return;
+            _puedeConfirmarAviso = puede;
+        }
+
+        _conexiones = conexiones;
+    }
+
+    private ConexionIntegracionListaDto? ConexionSeleccionada =>
+        _conexionSeleccionadaId is { } id ? _conexiones.FirstOrDefault(c => c.Id == id) : null;
+
+    /// <summary>
+    /// Confirmar sobre el aviso: quien mira puede (rol y cartera) y la conexión está en el estado en que el comando lo
+    /// acepta (<see cref="ConexionIntegracionListaDto.AvisoHuecoReconocible"/>). Sin eso el aviso se ve, sin botón.
+    /// </summary>
+    private bool OfreceConfirmar(ConexionIntegracionListaDto conexion) =>
+        _puedeConfirmarAviso == true && conexion.AvisoHuecoReconocible;
+
+    private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
+    {
+        if (_confirmandoAvisoHueco) return;
+        _avisoHuecoAConfirmar = conexion;
+    }
+
+    private void CerrarConfirmacionAvisoHueco()
+    {
+        if (!_confirmandoAvisoHueco) _avisoHuecoAConfirmar = null;
+    }
+
+    /// <summary>
+    /// Envía la fecha del aviso que se ve en el diálogo, como Conexiones: si la marca ya es otra, el servidor no la reconoce
+    /// y su mensaje sale tal cual. Con respuesta, el diálogo se cierra y el listado se recarga para mostrar el estado real;
+    /// la conexión elegida, sus carpetas y su historial no cambian.
+    /// </summary>
+    private async Task ConfirmarAvisoHuecoAsync()
+    {
+        if (_avisoHuecoAConfirmar is not { CorreoNoRecuperadoDesdeUtc: { } marca } conexion || _confirmandoAvisoHueco) return;
+
+        _confirmandoAvisoHueco = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ReconocerAvisoHuecoCommand(conexion.Id, marca));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(TextosAviso["AvisoHuecoConfirmado"], TonoToast.Exito);
+
+            _avisoHuecoAConfirmar = null;
+            await RecargarConexionesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar el aviso del hueco de la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(TextosAviso["ErrorConfirmarAvisoHueco"], TonoToast.Error);
+        }
+        finally
+        {
+            _confirmandoAvisoHueco = false;
+        }
+    }
+
+    private async Task RecargarConexionesAsync()
+    {
+        var (generacion, token) = IniciarCargaConexiones();
+        try
+        {
+            await CargarConexionesAsync(generacion, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // La página se cerró o empezó otra carga: no hay nada que avisar.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al recargar las conexiones de Buzón.");
+            ToastService.Mostrar(TextosAviso["AvisoRecargaFallida"], TonoToast.Error);
         }
     }
 

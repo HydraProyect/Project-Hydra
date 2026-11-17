@@ -43,7 +43,16 @@ public record ConexionIntegracionListaDto(
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
     bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false,
     DateTime? CorreoNoRecuperadoDesdeUtc = null, bool CorreoRetenido = false, bool CorreoDescartado = false,
-    bool HuecoSinRegistrar = false, DateTime? RecuperacionDetenidaEnUtc = null);
+    bool HuecoSinRegistrar = false, DateTime? RecuperacionDetenidaEnUtc = null)
+{
+    /// <summary>
+    /// El aviso del hueco está en el estado en que <c>ReconocerAvisoHuecoCommand</c> lo reconoce: con marca, Habilitada y
+    /// sin marca por registrar. No dice quién puede (eso es <c>PuedeReconocerAvisoHuecoQuery</c>) y el comando lo vuelve a
+    /// comprobar con la conexión releída: es lo que las pantallas usan para no ofrecer Confirmar en vano.
+    /// </summary>
+    public bool AvisoHuecoReconocible =>
+        CorreoNoRecuperadoDesdeUtc is not null && Estado == EstadoConexionIntegracion.Habilitada && !HuecoSinRegistrar;
+}
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que

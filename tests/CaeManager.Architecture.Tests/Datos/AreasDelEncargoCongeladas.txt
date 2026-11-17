@@ -560,6 +560,7 @@ ProponerPlanDeTareaAsistenteCommand	AsistenteIa
 ProponerSubencargadoCommand	Cumplimiento
 PuedeInicializarPlataformaQuery	Plataforma
 PuedeReactivarQuery	Tenants
+PuedeReconocerAvisoHuecoQuery	Integraciones
 PuedeRevocarQuery	Tenants
 QuitarMarcaDocumentacionGestionadaCommand	Visitas
 QuitarRequisitoEventoCommand	Proyectos

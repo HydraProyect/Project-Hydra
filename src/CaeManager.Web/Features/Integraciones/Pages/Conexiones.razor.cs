@@ -396,10 +396,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     /// Administrador siempre recibiría «no encontrada».
     /// </summary>
     private static bool PuedeConfirmarAvisoHueco(ConexionIntegracionListaDto conexion) =>
-        conexion.CorreoNoRecuperadoDesdeUtc is not null
-        && conexion.Estado == EstadoConexionIntegracion.Habilitada
-        && !conexion.HuecoSinRegistrar
-        && conexion.GestorPropietarioId is null;
+        conexion.AvisoHuecoReconocible && conexion.GestorPropietarioId is null;
 
     private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
     {
@@ -407,13 +404,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _avisoHuecoAConfirmar = conexion;
     }
 
-    private Task CerrarConfirmacionAvisoHueco() => CerrarConfirmacionAvisoHueco(false);
-
-    private Task CerrarConfirmacionAvisoHueco(bool visible)
+    private void CerrarConfirmacionAvisoHueco()
     {
-        if (visible || _confirmandoAvisoHueco) return Task.CompletedTask;
-        _avisoHuecoAConfirmar = null;
-        return Task.CompletedTask;
+        if (!_confirmandoAvisoHueco) _avisoHuecoAConfirmar = null;
     }
 
     /// <summary>
