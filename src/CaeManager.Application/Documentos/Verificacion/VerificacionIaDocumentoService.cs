@@ -98,7 +98,9 @@ public class VerificacionIaDocumentoService(
             .Include(t => t.Aliases)
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
-        if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || !tipoDocumento.VerificacionIaActiva)
+        // RevelaSalud además de LecturaIaActiva: una fila guardada antes de la decisión de Legal del 2026-11-17 puede
+        // tener la lectura encendida en un tipo de salud, y esa lectura queda bloqueada aunque la fila diga otra cosa.
+        if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || tipoDocumento.RevelaSalud || !tipoDocumento.VerificacionIaActiva)
             return null;
 
         var yaHayRevisionPendiente = await documentosContext.RevisionesIaDocumento

@@ -151,11 +151,16 @@ public class TipoDocumentoTests
 
         setter.Should().NotBeNull();
         setter!.IsPublic.Should().BeFalse();
+
+        static bool RecibeSensibilidad(System.Reflection.MethodBase m) =>
+            m.GetParameters().Any(p => p.ParameterType == typeof(SensibilidadDocumental));
+
         typeof(TipoDocumento).GetMethods()
-            .Where(m => m.DeclaringType == typeof(TipoDocumento) && !m.IsSpecialName)
+            .Where(m => m.DeclaringType == typeof(TipoDocumento) && !m.IsSpecialName && RecibeSensibilidad(m))
             .Select(m => m.Name)
-            .Should().NotContain(n => n.Contains("Sensibilidad"),
-                "reclasificar un tipo como de salud tiene que apagar su lectura por IA");
+            .Should().BeEmpty("reclasificar un tipo como de salud tiene que apagar su lectura por IA en el mismo método");
+        typeof(TipoDocumento).GetConstructors().Where(RecibeSensibilidad)
+            .Should().ContainSingle("solo el constructor que apaga la lectura de un tipo de salud fija la sensibilidad");
     }
 
     [Fact]

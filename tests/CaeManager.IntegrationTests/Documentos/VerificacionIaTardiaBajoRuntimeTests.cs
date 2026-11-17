@@ -202,7 +202,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     {
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        var revision = RevisionIaDocumento.Crear(documentoId, 60, "Apto médico", Emision, null, true, "Confianza baja (60%)");
+        var revision = RevisionIaDocumento.Crear(documentoId, 60, "Formación PRL", Emision, null, true, "Confianza baja (60%)");
         contexto.RevisionesIaDocumento.Add(revision);
         await contexto.SaveChangesAsync();
         return revision.Id;
@@ -262,7 +262,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
         contexto.Empresas.Add(empresa);
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Gómez", "12345678Z");
         contexto.Trabajadores.Add(trabajador);
-        var tipo = new TipoDocumento("Apto médico", 12, aplicaVencimientoAutomatico: true, orden: 1,
+        var tipo = new TipoDocumento("Formación PRL", 12, aplicaVencimientoAutomatico: true, orden: 1,
             AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si,
             // Un tipo de salud no admite lectura por IA (decisión de Legal del 2026-11-17).
             sensibilidad: SensibilidadDocumental.DatosPersonales);
@@ -378,7 +378,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
             Llamadas++;
             if (durante is not null)
                 await durante();
-            return Result.Exito(new MetadatosDocumentoExtraidosDto("Apto médico", Emision, null, true, 99, null, new ContrasteTextoDocumentoDto(false, false, [Emision])));
+            return Result.Exito(new MetadatosDocumentoExtraidosDto("Formación PRL", Emision, null, true, 99, null, new ContrasteTextoDocumentoDto(false, false, [Emision])));
         }
     }
 

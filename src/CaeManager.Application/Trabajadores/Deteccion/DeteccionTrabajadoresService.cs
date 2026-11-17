@@ -78,7 +78,9 @@ public class DeteccionTrabajadoresService(
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
-        if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || !tipoDocumento.DeteccionTrabajadoresActiva)
+        // RevelaSalud además de LecturaIaActiva: misma guarda que VerificacionIaDocumentoService para una fila de salud
+        // guardada con la lectura encendida antes de la decisión de Legal del 2026-11-17.
+        if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || tipoDocumento.RevelaSalud || !tipoDocumento.DeteccionTrabajadoresActiva)
             return;
 
         var empresaId = documento.EmpresaId.Value;
