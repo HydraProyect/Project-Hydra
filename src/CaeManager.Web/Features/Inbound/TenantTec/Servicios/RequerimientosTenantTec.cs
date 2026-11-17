@@ -142,13 +142,22 @@ public sealed record SolicitudSubidaTec(
     DateOnly? Vencimiento,
     string? Comentarios);
 
-public sealed record RespuestaSubidaTec(ResultadoSubidaTec Resultado, Guid? SiguientePendienteId = null, string? SiguientePendiente = null);
+/// <summary>
+/// Respuesta de una subida. <paramref name="Mensaje"/> solo acompaña a <see cref="ResultadoSubidaTec.Error"/>: es el motivo
+/// claro que da el servidor (requisito que ya no se pide, tipo sin correspondencia...) y la pantalla lo pinta en lugar del
+/// error genérico; sin él, el genérico.
+/// </summary>
+public sealed record RespuestaSubidaTec(
+    ResultadoSubidaTec Resultado, Guid? SiguientePendienteId = null, string? SiguientePendiente = null, string? Mensaje = null);
 
 /// <summary>
 /// Subida de un documento a un requerimiento: formatos, conversión a PDF, comprobaciones C0/C1,
 /// filtro de datos de salud e historial.
 /// </summary>
-/// <remarks>shortcut: sin backend, cablear cuando entre B-20 (subida Inbound).</remarks>
+/// <remarks>
+/// En ejecución lo implementa <see cref="SubidaDocumentoTenantTecConBackend"/> (demo Inbound, P2). Las comprobaciones C0/C1,
+/// el filtro de contenido de datos de salud y el historial siguen pendientes de B-20.
+/// </remarks>
 public interface ISubidaDocumentoTenantTec
 {
     bool Disponible { get; }
@@ -156,7 +165,7 @@ public interface ISubidaDocumentoTenantTec
     Task<RespuestaSubidaTec> SubirAsync(SolicitudSubidaTec solicitud, CancellationToken ct = default);
 }
 
-// shortcut: sin backend, cablear cuando entre B-20
+/// <summary>Sin backend: «Subir» queda deshabilitado con su motivo. Ya no se registra en ejecución; lo usan las pruebas.</summary>
 public sealed class SubidaDocumentoTenantTecSinBackend : ISubidaDocumentoTenantTec
 {
     public bool Disponible => false;

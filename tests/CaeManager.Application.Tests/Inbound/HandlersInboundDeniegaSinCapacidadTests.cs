@@ -28,6 +28,7 @@ public class HandlersInboundDeniegaSinCapacidadTests
         ["AutorizacionesLectura.Commands.ConcederAutorizacionLectura.ConcederAutorizacionLecturaCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Commands.RetirarTrabajadorAutorizacion.RetirarTrabajadorAutorizacionCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Commands.RevocarAutorizacionLectura.RevocarAutorizacionLecturaCommandHandler"] = CapacidadInbound.ParticipanteTec,
+        ["AutorizacionesLectura.Commands.SubirDocumentoRequerimientoTec.SubirDocumentoRequerimientoTecCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQueryHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQueryHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler"] = CapacidadInbound.ParticipanteTec,

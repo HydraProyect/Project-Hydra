@@ -800,6 +800,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "ITiposDocumentoQueryContext"),
         ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "IDocumentosQueryContext"),
         ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "IConfiguracionQueryContext"),
+        // Subida a un requerimiento (demo Inbound, P2): elige el tipo propio del mismo nombre (D1) y busca el documento
+        // vigente propio del sujeto para decidir entre crear y renovar; escribe por CrearDocumento/RenovarDocumento.
+        ("AutorizacionesLectura.SubirDocumentoRequerimientoTecCommandHandler", "ITiposDocumentoQueryContext"),
+        ("AutorizacionesLectura.SubirDocumentoRequerimientoTecCommandHandler", "IDocumentosQueryContext"),
         // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
         // (Domain.Inbound.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
         // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de

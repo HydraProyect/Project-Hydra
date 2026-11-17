@@ -81,7 +81,8 @@ public class PaginasClasificadasParaElEncargoTests
             "pantalla del Tenant TEC (demo Inbound, P1): lee por ObtenerRequerimientosTecQuery, que pide ParticipanteTec y cuya "
             + "área AutorizacionesLectura está excluida del encargo no pleno, así que quien administra por ese encargo recibe el "
             + "aviso de error de la página sin ningún dato (falla cerrado en la petición). Excluir también la página, para que "
-            + "no aparezca, queda pendiente con la revisión de QuienLeeMisDocumentos; la subida (B-20) sigue sin backend",
+            + "no aparezca, queda pendiente con la revisión de QuienLeeMisDocumentos; la subida (P2) va por "
+            + "SubirDocumentoRequerimientoTecCommand, de la misma área y con la misma capacidad, y falla cerrado igual",
         ["src/CaeManager.Web/Features/Inbound/TenantTec/Pages/QuienLeeMisDocumentos.razor"] =
             "pantalla del Tenant TEC sin backend (shortcut de B-09): quién lee sus documentos y su autorización única; "
             + "solo muestra «no disponible» y no lee datos; su clasificación se revisa al cablear B-09, junto con la de "

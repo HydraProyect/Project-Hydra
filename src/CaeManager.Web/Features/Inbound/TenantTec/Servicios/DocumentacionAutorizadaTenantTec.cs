@@ -126,12 +126,13 @@ public static class InboundTenantTecServiceCollectionExtensions
 {
     /// <summary>
     /// Registra los servicios de las pantallas del Tenant TEC. Los requerimientos ya leen datos reales (demo Inbound, P1,
-    /// lectura inversa X-2); el resto sigue sin backend: quien cablee B-09 o B-20 sustituye aquí la implementación.
+    /// lectura inversa X-2) y la subida a un requerimiento ya guarda el documento (P2, sin el filtro de contenido de salud de
+    /// B-20); el resto sigue sin backend: quien cablee B-09 sustituye aquí la implementación.
     /// </summary>
     public static IServiceCollection AddInboundTenantTec(this IServiceCollection servicios)
     {
         servicios.AddScoped<IRequerimientosTenantTec, RequerimientosTenantTecConBackend>();
-        servicios.AddScoped<ISubidaDocumentoTenantTec, SubidaDocumentoTenantTecSinBackend>();
+        servicios.AddScoped<ISubidaDocumentoTenantTec, SubidaDocumentoTenantTecConBackend>();
         servicios.AddScoped<IQuienLeeTenantTec, QuienLeeTenantTecSinBackend>();
         servicios.AddScoped<IAvisoContratoTenantTec, AvisoContratoTenantTecSinBackend>();
         return servicios;

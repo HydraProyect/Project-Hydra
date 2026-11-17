@@ -498,6 +498,9 @@
   <data name="SbCentro" xml:space="preserve">
     <value>Centro</value>
   </data>
+  <data name="SbCheckEmisionMal" xml:space="preserve">
+    <value>La fecha de emisión no puede ser futura.</value>
+  </data>
   <data name="SbCheckEspera" xml:space="preserve">
     <value>Elige un archivo para comprobarlo.</value>
   </data>
@@ -508,7 +511,7 @@
     <value>Vencimiento: {0}.</value>
   </data>
   <data name="SbCheckFormatoMal" xml:space="preserve">
-    <value>Formato no admitido: {0}. Sube un PDF, un Word o una foto (JPG, PNG, HEIC).</value>
+    <value>Formato no admitido: {0}. Sube un PDF, un Word (.docx) o una foto (JPG, PNG).</value>
   </data>
   <data name="SbCheckFormatoOk" xml:space="preserve">
     <value>Formato admitido: {0}.</value>
@@ -538,7 +541,7 @@
     <value>No se ha podido subir el documento. Inténtalo de nuevo.</value>
   </data>
   <data name="SbFormatos" xml:space="preserve">
-    <value>PDF, Word o foto (JPG, PNG, HEIC), hasta 10 MB.</value>
+    <value>PDF, Word (.docx) o foto (JPG, PNG), hasta 10 MB.</value>
   </data>
   <data name="SbHechoTitulo" xml:space="preserve">
     <value>Documento subido</value>

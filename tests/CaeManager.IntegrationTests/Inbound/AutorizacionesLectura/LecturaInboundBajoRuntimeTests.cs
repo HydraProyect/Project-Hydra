@@ -288,6 +288,42 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             "de los tres Trabajadores asignados solo Ana se puede leer: Eva está eliminada e Iker anonimizado");
     }
 
+    /// <summary>
+    /// Demo P2: lo que deja en la base la subida del Tenant TEC a un requerimiento (<c>SubirDocumentoRequerimientoTecCommand</c>,
+    /// que con un vigente propio del mismo tipo lo renueva). El Documento nuevo se escribe bajo el runtime con el contexto
+    /// firmado del Tenant TEC, queda en su Tenant y es el que lee el Tenant TCE; el renovado sale del alcance. La composición
+    /// del handler la prueban sus tests de Application; aquí, solo que el resultado llega a
+    /// <c>app_inbound_documentos_autorizados</c>.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_subido_por_el_Tenant_TEC_a_un_requerimiento_aparece_para_el_Tenant_TCE()
+    {
+        Guid subido;
+        await using (var contexto = Contexto(_contratista.Id, _usuarioContratista))
+        {
+            var anterior = await contexto.Documentos.SingleAsync(d => d.Id == _deTrabajador);
+            var nuevo = Documento.DeTrabajador(anterior.TrabajadorId!.Value, anterior.TipoDocumentoId, _hoy,
+                VigenciaDocumento.VenceEl(_hoy.AddYears(2)), "y/ana-subido.pdf");
+            contexto.Documentos.Add(nuevo);
+            await contexto.SaveChangesAsync();
+            anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+            subido = nuevo.Id;
+        }
+
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            var lector = new LectorDocumentosInboundEnBase(contexto);
+            var documentos = await lector.DocumentosAutorizadosAsync(_vigente.Id);
+            documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_deEmpresa, subido],
+                "el subido ocupa el lugar del que renovó, que sale del alcance");
+            documentos.Single(d => d.DocumentoId == subido).FechaVencimiento.Should().Be(_hoy.AddYears(2));
+            (await lector.ArchivoAutorizadoAsync(_vigente.Id, subido))
+                .Should().Be(new ArchivoInboundDto(subido, _contratista.Id, "y/ana-subido.pdf", false),
+                    "el Documento subido es del Tenant TEC, nunca del Tenant TCE que lo pide");
+        }
+    }
+
     [Fact]
     public async Task Un_tipo_de_categoria_especial_de_salud_nunca_aparece()
     {

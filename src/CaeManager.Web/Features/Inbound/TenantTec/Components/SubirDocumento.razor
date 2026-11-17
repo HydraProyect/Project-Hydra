@@ -7,8 +7,9 @@
 @inject IStringLocalizer<TextosInboundTenantTec> Textos
 @inject ILogger<SubirDocumento> Registro
 
-@* «Subir documento» del Tenant TEC, en un drawer sobre la lista de requerimientos. La subida real (formatos, conversión a PDF,
-   comprobaciones C0/C1, filtro de datos de salud) es de B-20: hasta entonces «Subir» queda deshabilitado y lo dice. *@
+@* «Subir documento» del Tenant TEC, en un drawer sobre la lista de requerimientos. La subida guarda el documento desde la demo
+   Inbound P2 (SubidaDocumentoTenantTecConBackend); las comprobaciones C0/C1 y el filtro de contenido de salud siguen siendo de
+   B-20. Sin backend, «Subir» queda deshabilitado y lo dice. *@
 @{
     var r = Requerimiento;
 }
@@ -104,11 +105,11 @@
             <label class="sub-zona">
                 <span><strong>@(_archivo?.Name ?? Textos["SbZona"].Value)</strong></span>
                 <span class="det-sub">@Textos["SbFormatos"]</span>
-                <InputFile class="sub-oculto" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic" OnChange="ElegirArchivo" />
+                <InputFile class="sub-oculto" accept=".pdf,.docx,.jpg,.jpeg,.png" OnChange="ElegirArchivo" />
             </label>
             <label class="sub-camara">
                 @Textos["SbCamara"]
-                <InputFile class="sub-oculto" accept="image/*" capture="environment" OnChange="ElegirArchivo" />
+                <InputFile class="sub-oculto" accept="image/jpeg,image/png" capture="environment" OnChange="ElegirArchivo" />
             </label>
             @if (_seConvierte)
             {
@@ -138,7 +139,7 @@
 
             <label class="sub-comentarios">
                 <span>@Textos["SbComentarios"]</span>
-                <textarea class="campo-input" rows="3" @bind="_comentarios" @bind:event="oninput"></textarea>
+                <textarea class="campo-input" rows="3" maxlength="@CaeManager.Domain.Documentos.Documento.LongitudMaximaComentarios" @bind="_comentarios" @bind:event="oninput"></textarea>
             </label>
         }
     </ChildContent>
@@ -152,7 +153,7 @@
 
 @code {
     private const long TamanoMaximo = CaeManager.Application.Common.LimitesArchivoSubido.TamanoMaximoBytes;
-    private static readonly string[] Extensiones = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic"];
+    private static readonly string[] Extensiones = [".pdf", ".docx", ".jpg", ".jpeg", ".png"];
 
     private IBrowserFile? _archivo;
     private DateOnly? _emision;
@@ -222,6 +223,12 @@
             }
         }
 
+        // El servidor rechaza una emisión futura: se dice aquí, antes de subir, en vez de un error al pulsar.
+        if (_emision is { } emision && emision > CaeManager.Domain.Common.DiaDeNegocio.Hoy())
+        {
+            lista.Add(("error", "✕", Textos["SbCheckEmisionMal"]));
+        }
+
         if (_vencimiento is { } vencimiento)
         {
             lista.Add(vencimiento < CaeManager.Domain.Common.DiaDeNegocio.Hoy()
@@ -264,7 +271,8 @@
             }
             else
             {
-                _error = Textos["SbError"];
+                // El motivo claro del servidor, si lo da; si no, el genérico.
+                _error = string.IsNullOrWhiteSpace(respuesta.Mensaje) ? Textos["SbError"] : respuesta.Mensaje;
             }
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)

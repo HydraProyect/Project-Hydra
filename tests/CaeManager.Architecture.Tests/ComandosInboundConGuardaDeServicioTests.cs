@@ -42,6 +42,8 @@ public class ComandosInboundConGuardaDeServicioTests
             "Lado del Tenant TEC (DN-2): lo hace su Administrador propio o el Operador CAE externo que lo opera en Outbound; con el marcador, la guarda lo negaba con papel Outbound. Lo autoriza IAutorizacionInbound con ParticipanteTec",
         ["CaeManager.Application.Inbound.AutorizacionesLectura.Commands.RevocarAutorizacionLectura.RevocarAutorizacionLecturaCommand"] =
             "Lado del Tenant TEC (DN-2): lo hace su Administrador propio o el Operador CAE externo que lo opera en Outbound; con el marcador, la guarda lo negaba con papel Outbound. Lo autoriza IAutorizacionInbound con ParticipanteTec",
+        ["CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDocumentoRequerimientoTec.SubirDocumentoRequerimientoTecCommand"] =
+            "Lado del Tenant TEC (DN-2): lo hace su Administrador propio o el Operador CAE externo que lo opera en Outbound; con el marcador, la guarda lo negaba con papel Outbound. Lo autoriza IAutorizacionInbound con ParticipanteTec",
     };
 
     private static IReadOnlyList<Type> Comandos() =>
