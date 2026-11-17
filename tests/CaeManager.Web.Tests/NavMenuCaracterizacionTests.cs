@@ -558,8 +558,11 @@ public class NavMenuCaracterizacionTests
         // Administración, en medio de un tramo, lo cierra (SinLinea) y Operación reabre Outbound.
         rotulos.Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
         {
-            ["negocio"] = LineaMenu.Outbound, ["administracion"] = LineaMenu.SinLinea, ["operacion"] = LineaMenu.Outbound,
-            ["inbound"] = LineaMenu.Inbound, ["control"] = LineaMenu.Outbound,
+            ["negocio"] = LineaMenu.Outbound,
+            ["administracion"] = LineaMenu.SinLinea,
+            ["operacion"] = LineaMenu.Outbound,
+            ["inbound"] = LineaMenu.Inbound,
+            ["control"] = LineaMenu.Outbound,
         });
     }
 
@@ -571,7 +574,9 @@ public class NavMenuCaracterizacionTests
             Grupo("administracion", LineaMenu.SinLinea), Grupo("plataforma", LineaMenu.SinLinea)])
             .Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
             {
-                ["negocio"] = LineaMenu.Outbound, ["inbound"] = LineaMenu.Inbound, ["administracion"] = LineaMenu.SinLinea,
+                ["negocio"] = LineaMenu.Outbound,
+                ["inbound"] = LineaMenu.Inbound,
+                ["administracion"] = LineaMenu.SinLinea,
             }, "Dashboards, antes de todo tramo, no lleva nada; Plataforma sigue al cierre de Administración");
     }
 
@@ -580,9 +585,14 @@ public class NavMenuCaracterizacionTests
     {
         CatalogoMenuLateral.Grupos.ToDictionary(g => g.Id, g => g.Linea).Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
         {
-            ["dashboards"] = LineaMenu.SinLinea, ["negocio"] = LineaMenu.Outbound, ["operacion"] = LineaMenu.Outbound,
-            ["control"] = LineaMenu.Outbound, ["inbound"] = LineaMenu.Inbound, ["inbound-config"] = LineaMenu.Inbound,
-            ["administracion"] = LineaMenu.SinLinea, ["plataforma"] = LineaMenu.SinLinea,
+            ["dashboards"] = LineaMenu.SinLinea,
+            ["negocio"] = LineaMenu.Outbound,
+            ["operacion"] = LineaMenu.Outbound,
+            ["control"] = LineaMenu.Outbound,
+            ["inbound"] = LineaMenu.Inbound,
+            ["inbound-config"] = LineaMenu.Inbound,
+            ["administracion"] = LineaMenu.SinLinea,
+            ["plataforma"] = LineaMenu.SinLinea,
         });
     }
 
