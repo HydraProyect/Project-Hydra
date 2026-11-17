@@ -16,11 +16,14 @@ namespace CaeManager.IntegrationTests.Importacion;
 /// antes la violación de otro índice único (aquí, el CIF de una Empresa que la ganadora creó) que la de la marca de la
 /// operación. EF inserta las Empresas antes que las marcas (orden de tabla), así que el estado de la base tras el
 /// COMMIT de la ganadora reproduce, sin hilos, el orden de detección de la carrera real. Antes de la corrección, este
-/// guardado lanzaba la DbUpdateException del CIF.
+/// guardado lanzaba la violación del CIF, que el DbContext traduce a <see cref="CifEmpresaDuplicadoException"/> (con la
+/// DbUpdateException como interna): por eso el repositorio la busca en la cadena de internas y no solo como
+/// DbUpdateException, que es lo que veían los dobles de las pruebas unitarias.
 /// </summary>
 public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
 {
     private const string Cif = "B12345674";
+    private const string RazonSocialRepetida = "Repetida S.L.";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly TenantActualAmbiental _tenantActual = new() { TenantId = Guid.NewGuid() };
@@ -67,9 +70,9 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
 
         var guardar = () => contexto.SaveChangesAsync();
 
-        (await guardar.Should().ThrowAsync<DbUpdateException>())
-            .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
-            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
+        // El DbContext traduce la violación del CIF a la excepción de dominio que ve el resto de la aplicación.
+        (await guardar.Should().ThrowAsync<CifEmpresaDuplicadoException>())
+            .Which.Should().Match<Exception>(ex => RestriccionViolada(ex) == "IX_Empresas_TenantId_Cif");
     }
 
     [Fact]
@@ -112,9 +115,9 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
 
         var guardar = () => repositorio.GuardarSiOperacionNuevaAsync();
 
-        (await guardar.Should().ThrowAsync<DbUpdateException>("un CIF repetido sin carrera es un error real del plan"))
-            .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
-            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
+        // Se propaga la misma excepción que ve el resto de la aplicación ante un CIF repetido: la traducida.
+        (await guardar.Should().ThrowAsync<CifEmpresaDuplicadoException>("un CIF repetido sin carrera es un error real del plan"))
+            .Which.Should().Match<Exception>(ex => RestriccionViolada(ex) == "IX_Empresas_TenantId_Cif");
     }
 
     [Fact]
@@ -132,10 +135,59 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
 
         var guardar = () => repositorio.GuardarSiOperacionNuevaAsync();
 
-        (await guardar.Should().ThrowAsync<DbUpdateException>("la marca existente es de otra operación: el CIF repetido es un error real"))
-            .Which.InnerException.Should().BeOfType<Npgsql.PostgresException>()
-            .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_Cif");
+        (await guardar.Should().ThrowAsync<CifEmpresaDuplicadoException>("la marca existente es de otra operación: el CIF repetido es un error real"))
+            .Which.Should().Match<Exception>(ex => RestriccionViolada(ex) == "IX_Empresas_TenantId_Cif");
     }
+
+    [Fact]
+    public async Task La_violacion_de_la_razon_social_con_la_operacion_ya_guardada_es_ya_ejecutada()
+    {
+        // La otra violación que el DbContext traduce (a DatoEmpresaDuplicadoException, no a la de CIF): la relectura
+        // también la reconoce, no solo la del CIF.
+        var operacionId = Guid.NewGuid();
+        await using (var ganadora = CrearContexto())
+        {
+            ganadora.Empresas.Add(new Empresa(RazonSocialRepetida));
+            ganadora.OperacionesImportacion.Add(OperacionImportacion.Registrar(operacionId));
+            await ganadora.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var repositorio = new OperacionImportacionRepository(contexto);
+        repositorio.Agregar(OperacionImportacion.Registrar(operacionId));
+        contexto.Empresas.Add(new Empresa(RazonSocialRepetida));
+
+        (await repositorio.GuardarSiOperacionNuevaAsync()).Should().BeFalse();
+        contexto.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_violacion_de_la_razon_social_sin_la_operacion_guardada_se_propaga_traducida()
+    {
+        await using (var ganadora = CrearContexto())
+        {
+            ganadora.Empresas.Add(new Empresa(RazonSocialRepetida));
+            await ganadora.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var repositorio = new OperacionImportacionRepository(contexto);
+        repositorio.Agregar(OperacionImportacion.Registrar(Guid.NewGuid()));
+        contexto.Empresas.Add(new Empresa(RazonSocialRepetida));
+
+        var guardar = () => repositorio.GuardarSiOperacionNuevaAsync();
+
+        (await guardar.Should().ThrowAsync<DatoEmpresaDuplicadoException>())
+            .Which.Should().Match<DatoEmpresaDuplicadoException>(ex =>
+                ex.EsRazonSocial && RestriccionViolada(ex) == "IX_Empresas_TenantId_RazonSocial");
+    }
+
+    /// <summary>
+    /// La restricción que PostgreSQL dice violada, bajo la traducción del DbContext: la excepción de dominio conserva la
+    /// DbUpdateException de EF como interna, y esta, la PostgresException.
+    /// </summary>
+    private static string? RestriccionViolada(Exception ex) =>
+        ex.InnerException is DbUpdateException { InnerException: Npgsql.PostgresException pg } ? pg.ConstraintName : null;
 
     [Fact]
     public async Task La_violacion_de_la_propia_marca_sigue_siendo_ya_ejecutada()

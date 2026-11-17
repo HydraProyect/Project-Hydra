@@ -39,9 +39,15 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
         //   repetida (las Empresas se insertan antes que las marcas).
         // Si la operación no está guardada, la otra violación es un error real del
         // plan y se propaga tal cual en vez de disfrazarse de «ya ejecutada».
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+        //
+        // El DbContext traduce la violación de los índices de CIF y de razón social
+        // de Empresa a DatoEmpresaDuplicadoException, con la DbUpdateException como
+        // interna (CaeManagerDbContext.GuardarTraduciendoAsync): esa violación, la
+        // de la carrera real cuando el plan crea Empresas, no llega aquí como
+        // DbUpdateException. Por eso se busca la violación en la cadena de internas,
+        // y lo que se propaga es la excepción tal como la lanzó el DbContext.
+        catch (Exception ex) when (ViolacionDeUnicidad(ex) is { } pg)
         {
-            var pg = (PostgresException)ex.InnerException!;
             if (pg.ConstraintName != IndiceUnicoOperacion && !await OperacionYaGuardadaAsync(operacionesPendientes, cancellationToken))
                 throw;
             // Un SaveChangesAsync fallido NO revierte el estado Added de las
@@ -53,6 +59,21 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
             dbContext.ChangeTracker.Clear();
             return false;
         }
+    }
+
+    /// <summary>
+    /// La violación de unicidad (23505) de un guardado fallido, tanto si llega como la DbUpdateException de EF como si el
+    /// DbContext la ha traducido a una excepción de dominio que la conserva como interna. Solo cuenta una PostgresException
+    /// que sea la interna directa de una DbUpdateException: la forma en que EF informa del rechazo de la base.
+    /// </summary>
+    private static PostgresException? ViolacionDeUnicidad(Exception ex)
+    {
+        for (var actual = ex; actual is not null; actual = actual.InnerException)
+        {
+            if (actual is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg })
+                return pg;
+        }
+        return null;
     }
 
     /// <summary>

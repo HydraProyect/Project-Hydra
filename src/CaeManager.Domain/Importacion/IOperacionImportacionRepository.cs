@@ -34,9 +34,12 @@ public interface IOperacionImportacionRepository
     /// También es <c>false</c> la violación de otro índice único (un CIF, una
     /// razón social, un DNI) si, releída tras el fallo, la operación ya está
     /// guardada: es la misma carrera, y PostgreSQL ha detectado antes la fila
-    /// repetida que la ganadora creó que su marca (#1992). Cualquier otro fallo
-    /// de guardado, y esa misma violación sin la operación guardada, se propaga
-    /// sin tocar.
+    /// repetida que la ganadora creó que su marca (#1992). Cuenta igual la
+    /// violación que el guardado ya entrega traducida a una excepción de dominio
+    /// (la del CIF o la razón social de una Empresa, como
+    /// <c>DatoEmpresaDuplicadoException</c>). Cualquier otro fallo de guardado,
+    /// y esa misma violación sin la operación guardada, se propaga sin tocar,
+    /// tal como la lanzó el guardado (traducida, si lo estaba).
     /// </summary>
     Task<bool> GuardarSiOperacionNuevaAsync(CancellationToken cancellationToken = default);
 
