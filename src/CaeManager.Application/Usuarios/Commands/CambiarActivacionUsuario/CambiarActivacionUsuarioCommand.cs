@@ -202,7 +202,7 @@ public class CambiarActivacionUsuarioCommandHandler(
         else if (request.Activar && request.SinDestinoConfirmado)
             return Result.Fallo(DestinoSoloAlDesactivar);
 
-        // Falla cerrado (decisión de Chris del 2026-11-16): fuera del Tenant de origen la cartera del Gestor CAE
+        // Falla cerrado (decidido por el módulo Outbound el 2026-11-16, sin Chris; DECISION_LOG): fuera del Tenant de origen la cartera del Gestor CAE
         // no es visible (RLS: su Operador CAE es el Tenant activo, no el de origen), y desactivar no puede
         // dejarla viva a nombre de una cuenta que ya no entra ni retirarla sin verla.
         if (!request.Activar && esGestorCae && (tenantOrigenId is null || tenantOrigenId != tenantActual.TenantId))

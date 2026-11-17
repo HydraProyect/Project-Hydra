@@ -436,11 +436,6 @@ public partial class UsuariosGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
-    /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
-    /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
-    /// </summary>
     /// <summary>El aviso a los Administradores se prueba en Application; esta pantalla no lo mira.</summary>
     private sealed class AvisoSinGestorCaeInerte
         : CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.IAvisoDeCarteraSinGestorCae
@@ -450,6 +445,11 @@ public partial class UsuariosGen2Tests : BunitContext
             IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
+    /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
+    /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
+    /// </summary>
     private sealed class CatalogoCarteraFalso : ICatalogoIncorporacionCartera
     {
         public List<TenantCandidatoIncorporacion> Asignables { get; } = [];
