@@ -29,6 +29,7 @@ area Domain.Vehiculos                = Nucleo
 area Domain.Centros                  = Nucleo
 area Domain.RelacionesEmpresariales  = Nucleo
 area Domain.Comercial                = Nucleo
+area Domain.Exportacion              = Nucleo      provisional  # § 3 (Exportacion), como Application/Infrastructure/Web.Exportacion
 area Domain.AltaAutonoma             = Nucleo      provisional  # § 3: plano Comercial; hoy solo vende Outbound (INFERENCE)
 area Domain.Cumplimiento             = Nucleo      provisional  # § 3: plano Comercial; firme solo el Producto Contratado
 area Domain.DerechosInteresado       = Nucleo      provisional  # § 3 sin fila; registro RGPD del Tenant propietario, común a Outbound e Inbound (INFERENCE, #2002)

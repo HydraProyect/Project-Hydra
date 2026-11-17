@@ -120,6 +120,9 @@ public static class ActosExcluidosDelEncargo
         // IAdministradorDelTenantPropietario) y lo valida un Actor de Plataforma TALVEG; ninguno de los dos actos
         // es de quien administra por encargo.
         "ContactosSeguridad",
+        // Exportación completa del Tenant propietario en autoservicio (#2008, D-8): la pide y la descarga solo su
+        // propio Administrador, nunca quien administra por encargo.
+        "Exportacion",
         "Facturacion",  // tarifas, resumen y su exportación
         "Importacion",  // importaciones masivas (Clientes empresariales, Documentos, combinada)
         "Retencion",    // purga y retención

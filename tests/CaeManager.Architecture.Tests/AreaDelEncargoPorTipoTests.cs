@@ -119,6 +119,7 @@ namespace CaeManager.Architecture.Tests
             "CrearTarifaClienteCommand",
             "DecidirIncidenteSeguridadCommand",
             "DenegarSolicitudDerechoCommand",
+            "DescargarExportacionCompletaCommand",
             "DesconectarBuzonCommand",
             "DiagnosticarDatosPurgablesCommand",
             "EjecutarImportacionCombinadaCommand",
@@ -169,6 +170,7 @@ namespace CaeManager.Architecture.Tests
             "RevocarCapacidadTenantCommand",
             "RevocarClaveApiCommand",
             "RevocarClaveApiDeMiOrganizacionCommand",
+            "SolicitarExportacionCompletaCommand",
             "ValidarContactoSeguridadCommand",
             "VerificarIdentidadSolicitudDerechoCommand",
         ];

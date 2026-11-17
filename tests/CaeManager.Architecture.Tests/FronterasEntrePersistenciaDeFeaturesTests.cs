@@ -76,6 +76,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
+        // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
+        // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
+        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
         // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
         ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
