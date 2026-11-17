@@ -11,6 +11,7 @@ using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Inbound.AutorizacionesLectura;
+using CaeManager.Domain.Trabajadores;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -75,8 +76,9 @@ public sealed record RequerimientoTecDto(
 /// mismo contrato de acceso, no eliminados ni anonimizados, y la Empresa propia si esa autorización la incluye y el Tenant
 /// TEC tiene exactamente una Empresa propia (el mismo criterio que <c>app_inbound_documentos_del_alcance</c>, EP-6). Un
 /// contrato sin autorización vigente no da filas. Los requisitos de vehículo o máquina no salen: no hay asignación de
-/// vehículos. Este incremento no evalúa <c>SePideA</c> ni los tipos de contratación (Trabajador extranjero, #2338): el
-/// requisito se aplica a todos los Trabajadores asignados, que es fallar cerrado.
+/// vehículos. A cada Trabajador asignado solo se le aplica el requisito si su máscara <c>TiposContratacion</c> incluye el
+/// <c>TipoContratacion</c> del Trabajador (#2338: la máscara es el único criterio para el Trabajador, también para el
+/// Trabajador extranjero). <c>SePideA</c> no se lee en el Trabajador; los requisitos de Empresa no llevan máscara.
 /// <b>Con qué documento.</b> El documento vigente propio de un tipo del catálogo del Tenant TEC con el mismo nombre exacto
 /// (D1), no eliminado, no anonimizado, no sustituido, no vencido y que la lectura del Tenant TCE podría ver (fuera de la
 /// categoría especial de salud salvo el tipo de solo conclusión de aptitud). Si el requisito pide un documento específico
@@ -141,7 +143,7 @@ public class ObtenerRequerimientosTecQueryHandler(
         var trabajadorIds = asignados.Select(a => a.TrabajadorId).Distinct().ToList();
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id) && !t.EstaEliminado && t.AnonimizadoEnUtc == null)
-            .Select(t => new { t.Id, t.Nombre, t.Apellidos, t.EmpresaId })
+            .Select(t => new { t.Id, t.Nombre, t.Apellidos, t.EmpresaId, t.TipoContratacion })
             .ToListAsync(cancellationToken);
         var trabajadoresPorId = trabajadores.ToDictionary(t => t.Id);
 
@@ -248,9 +250,15 @@ public class ObtenerRequerimientosTecQueryHandler(
             }
             else if (string.Equals(requisito.Entidad, EntidadTrabajador, StringComparison.Ordinal))
             {
+                var contrataciones = (TiposContratacion)requisito.TiposContratacion;
                 foreach (var trabajadorId in trabajadoresPorContrato.GetValueOrDefault(requisito.ContratoAccesoId) ?? [])
                 {
                     var trabajador = trabajadoresPorId[trabajadorId];
+                    // La máscara de contratación es el único criterio para pedir algo a un Trabajador (#2338): un requisito
+                    // solo de Extranjero no se pide a un Trabajador por cuenta ajena. «Se pide a» no se lee en el Trabajador.
+                    if (!contrataciones.Incluye(trabajador.TipoContratacion))
+                        continue;
+
                     var empresa = trabajador.EmpresaId is { } id ? nombresEmpresa.GetValueOrDefault(id) ?? string.Empty : string.Empty;
                     resultado.Add(Fila(requisito, SujetoRequerimientoTec.Trabajador, trabajadorId,
                         $"{trabajador.Nombre} {trabajador.Apellidos}".Trim(), empresa,
