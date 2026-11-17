@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.Web.Tests;
@@ -21,9 +23,9 @@ namespace CaeManager.Web.Tests;
 /// <see cref="Cargar_la_cuenta_entera_falla_en_este_arnes"/> demuestra que el instrumento lo detecta.
 ///
 /// <para>
-/// Límite del instrumento: SQLite no tiene RLS, roles ni los interceptores de producción. La auditoría y el
-/// 42501 de <c>cae_app_soporte</c> se miden sobre PostgreSQL en
-/// <c>AuditoriaDeGestionDeUsuariosTests</c> y <c>FronteraCuentaFirmadaTests</c>.
+/// Límite del instrumento: SQLite no tiene RLS, roles ni los interceptores de producción. El 42501 se simula aquí
+/// lanzando un <c>PostgresException</c> desde el comando; que <c>cae_app_soporte</c> lo provoque de verdad, y la
+/// auditoría, se miden sobre PostgreSQL en <c>AuditoriaDeGestionDeUsuariosTests</c> y <c>FronteraCuentaFirmadaTests</c>.
 /// </para>
 /// </summary>
 public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
@@ -37,6 +39,7 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
     private readonly SqliteConnection _conexion = new("Data Source=:memory:");
     private readonly ComandosAnotados _comandos = new();
     private readonly EscrituraAjena _ajena;
+    private readonly RegistroCapturado _registro = new();
     private CaeManagerDbContext _contexto = null!;
     private PreferenciasCuentaPropia _preferencias = null!;
 
@@ -68,7 +71,7 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
             VALUES ({_usuarioId}, {_tenantId}, {SelloInicial}, {(int)TemaPreferido.Claro}, {(int)IdiomaPreferido.Espanol}, {Instante})
             """);
 
-        _preferencias = new PreferenciasCuentaPropia(_contexto, new PuertaAccesoDatos());
+        _preferencias = new PreferenciasCuentaPropia(_contexto, new PuertaAccesoDatos(), _registro);
         _comandos.Textos.Clear();
     }
 
@@ -239,7 +242,106 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
 
         var acto = () => _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro);
 
-        await acto.Should().ThrowAsync<DbUpdateException>("bajo cae_app_soporte el 42501 sigue subiendo como hasta ahora");
+        await acto.Should().ThrowAsync<DbUpdateException>("un rechazo que no es el 42501 de Postgres sigue subiendo");
+        _comandos.Actualizaciones.Should().ContainSingle();
+        _contexto.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>cae_app_soporte</c> no tiene <c>UPDATE</c> sobre la tabla: la base responde 42501 y el puerto lo devuelve como
+    /// <see cref="ResultadoEscrituraCuenta.NoPermitida"/> en las tres escrituras, sin reintentar y sin dejar rastro.
+    /// </summary>
+    [Theory]
+    [InlineData("tema")]
+    [InlineData("idioma")]
+    [InlineData("actividad")]
+    public async Task Un_42501_de_Postgres_se_devuelve_como_NoPermitida_sin_reintentar_ni_dejar_rastro(string escritura)
+    {
+        _comandos.FalloEnActualizacion = new PostgresException(
+            "permission denied for table AspNetUsers", "ERROR", "ERROR", PostgresErrorCodes.InsufficientPrivilege);
+
+        var resultado = escritura switch
+        {
+            "tema" => await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro),
+            "idioma" => await _preferencias.GuardarIdiomaAsync(_usuarioId, IdiomaPreferido.Catalan),
+            _ => await _preferencias.RegistrarActividadAsync(_usuarioId, Instante.AddMinutes(5)),
+        };
+
+        resultado.Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+        _comandos.Actualizaciones.Should().ContainSingle("el 42501 no se reintenta: la base volvería a negarlo");
+        _contexto.ChangeTracker.Entries().Should().BeEmpty("el lote fallido no puede arrastrarse al siguiente guardado del circuito");
+    }
+
+    /// <summary>
+    /// El 42501 también lo da una violación de <c>WITH CHECK</c> de una política RLS, y los llamadores solo ven el valor
+    /// del enum: sin esta traza esa denegación no dejaría diagnóstico. Se exige la excepción original adjunta y que el
+    /// resultado siga siendo <see cref="ResultadoEscrituraCuenta.NoPermitida"/>.
+    /// </summary>
+    [Fact]
+    public async Task Un_42501_deja_una_entrada_de_registro_con_la_excepcion_adjunta_y_sigue_devolviendo_NoPermitida()
+    {
+        var denegacion = new PostgresException(
+            "permission denied for table AspNetUsers", "ERROR", "ERROR", PostgresErrorCodes.InsufficientPrivilege);
+        _comandos.FalloEnActualizacion = denegacion;
+
+        var resultado = await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro);
+
+        resultado.Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+        var entrada = _registro.Entradas.Should().ContainSingle("una denegación deja una sola traza, sin duplicar por reintento").Subject;
+        entrada.Nivel.Should().Be(LogLevel.Warning);
+        entrada.Excepcion.Should().BeOfType<DbUpdateException>().Which.InnerException
+            .Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        entrada.Mensaje.Should().Contain(PostgresErrorCodes.InsufficientPrivilege).And.Contain(denegacion.MessageText,
+            "el texto de la base es lo que dice qué tabla o política negó la escritura");
+    }
+
+    [Fact]
+    public async Task Una_escritura_guardada_no_deja_entradas_de_registro()
+    {
+        (await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro)).Should().Be(ResultadoEscrituraCuenta.Guardada);
+
+        _registro.Entradas.Should().BeEmpty();
+    }
+
+    private sealed record EntradaDeRegistro(LogLevel Nivel, Exception? Excepcion, string Mensaje);
+
+    private sealed class RegistroCapturado : ILogger<PreferenciasCuentaPropia>
+    {
+        public List<EntradaDeRegistro> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entradas.Add(new EntradaDeRegistro(logLevel, exception, formatter(state, exception)));
+    }
+
+    [Fact]
+    public async Task Un_42501_con_una_cuenta_rastreada_vigente_tambien_la_saca_del_rastreo()
+    {
+        var rastreada = Rastrear(SelloInicial);
+        _comandos.FalloEnActualizacion = new PostgresException(
+            "permission denied for table AspNetUsers", "ERROR", "ERROR", PostgresErrorCodes.InsufficientPrivilege);
+
+        (await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro)).Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+
+        _contexto.Entry(rastreada).State.Should().Be(EntityState.Detached,
+            "esa instancia conserva en memoria un valor que no llegó a la fila");
+    }
+
+    /// <summary>Solo el 42501 es esperado: cualquier otro error de Postgres (aquí, una clave duplicada) sigue escapando.</summary>
+    [Fact]
+    public async Task Otro_error_de_Postgres_distinto_del_42501_sigue_subiendo()
+    {
+        _comandos.FalloEnActualizacion = new PostgresException(
+            "duplicate key value violates unique constraint", "ERROR", "ERROR", PostgresErrorCodes.UniqueViolation);
+
+        var acto = () => _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro);
+
+        (await acto.Should().ThrowAsync<DbUpdateException>()).WithInnerException<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
         _comandos.Actualizaciones.Should().ContainSingle();
         _contexto.ChangeTracker.Entries().Should().BeEmpty();
     }
@@ -319,12 +421,16 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
     {
         public List<string> Textos { get; } = [];
 
+        /// <summary>Si no es <c>null</c>, cada <c>UPDATE</c> falla con esta excepción, como lo haría el servidor.</summary>
+        public Exception? FalloEnActualizacion { get; set; }
+
         public IEnumerable<string> Actualizaciones => Textos.Where(t => t.Contains("UPDATE", StringComparison.Ordinal));
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             Textos.Add(command.CommandText);
+            FallarSiToca(command);
             return ValueTask.FromResult(result);
         }
 
@@ -332,7 +438,14 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
             DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
             Textos.Add(command.CommandText);
+            FallarSiToca(command);
             return ValueTask.FromResult(result);
+        }
+
+        private void FallarSiToca(DbCommand command)
+        {
+            if (FalloEnActualizacion is not null && command.CommandText.Contains("UPDATE", StringComparison.Ordinal))
+                throw FalloEnActualizacion;
         }
     }
 
