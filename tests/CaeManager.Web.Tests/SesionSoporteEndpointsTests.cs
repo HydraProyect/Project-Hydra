@@ -294,7 +294,10 @@ public class SesionSoporteEndpointsTests
             new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } }, protector);
         var ejecutado = false;
         var resultado = await new GuardaPestanaObsoletaBehavior<CerrarSesionPrivilegiadaCommand, Result>(
-                new GuardaSeleccionVigente(peticionCierre, registro), new RegistroCambioQueNoSeUsa())
+                new GuardaSeleccionVigente(peticionCierre, registro),
+                new ServiceCollection()
+                    .AddSingleton<CaeManager.Application.Auditoria.IRegistroCambioContexto>(new RegistroCambioQueNoSeUsa())
+                    .BuildServiceProvider())
             .Handle(new CerrarSesionPrivilegiadaCommand(Sesion), _ =>
             {
                 ejecutado = true;

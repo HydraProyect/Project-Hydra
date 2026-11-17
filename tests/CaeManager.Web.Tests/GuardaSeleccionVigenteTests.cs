@@ -157,9 +157,12 @@ public class GuardaSeleccionVigenteTests
         var auditados = new List<CaeManager.Domain.Auditoria.RegistroAuditoria>();
         var behavior = new GuardaPestanaObsoletaBehavior<ComandoDePrueba, CaeManager.Domain.Common.Result>(
             Guarda(pestana),
-            new CaeManager.Application.Auditoria.RegistroCambioContextoService(
-                new ActorFijo(), new RepositorioFalso(auditados),
-                Microsoft.Extensions.Logging.Abstractions.NullLogger<CaeManager.Application.Auditoria.RegistroCambioContextoService>.Instance));
+            new ServiceCollection()
+                .AddSingleton<CaeManager.Application.Auditoria.IRegistroCambioContexto>(
+                    new CaeManager.Application.Auditoria.RegistroCambioContextoService(
+                        new ActorFijo(), new RepositorioFalso(auditados),
+                        Microsoft.Extensions.Logging.Abstractions.NullLogger<CaeManager.Application.Auditoria.RegistroCambioContextoService>.Instance))
+                .BuildServiceProvider());
         var ejecutado = false;
 
         var resultado = await behavior.Handle(new ComandoDePrueba(), _ =>

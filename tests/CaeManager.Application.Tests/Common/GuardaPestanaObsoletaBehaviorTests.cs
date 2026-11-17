@@ -108,6 +108,24 @@ public class GuardaPestanaObsoletaBehaviorTests
         consulta.EsExitoso.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Un_rechazo_sin_auditoria_compuesta_falla_cerrado_sin_ejecutar_el_comando()
+    {
+        // Un host con guarda real que no registre la auditoría: ni el comando corre ni el rechazo pasa sin rastro.
+        var ejecutado = false;
+        var behavior = new GuardaPestanaObsoletaBehavior<ComandoDePrueba, Result>(
+            new GuardaFija(SeleccionNoVigente.CambiadaEnOtraPestana), new ServiceCollection().BuildServiceProvider());
+
+        var accion = () => behavior.Handle(new ComandoDePrueba(), _ =>
+        {
+            ejecutado = true;
+            return Task.FromResult(Result.Exito());
+        }, default);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+        ejecutado.Should().BeFalse();
+    }
+
     private GuardaPestanaObsoletaBehavior<TRequest, TResponse> Behavior<TRequest, TResponse>(SeleccionNoVigente? motivo)
         where TRequest : notnull =>
         new(new GuardaFija(motivo),

@@ -21,12 +21,17 @@ namespace CaeManager.Architecture.Tests;
 /// <remarks>
 /// Se recorre el grafo de constructores en vez de construir el contenedor con Infrastructure: esa composición no
 /// existe sin el actor de Web (el <c>AuditoriaInterceptor</c> del DbContext ya lo pide), y la que falló es la de
-/// solo Application. Un registro por fábrica no se puede recorrer y se da por bueno; hoy los behaviors no tienen ninguno.
+/// solo Application. Límites del instrumento: solo reconoce <see cref="IActorAuditoria"/> y los <c>*Repository</c> de
+/// Domain; solo recorre lo que Application registra por tipo, así que no ve un puerto de Application que solo
+/// implementa Infrastructure aunque esa implementación pida el actor, ni lo que llega por <c>IEnumerable&lt;T&gt;</c>, por
+/// fábrica o resuelto en el constructor a través de <see cref="IServiceProvider"/>. Un behavior registrado por fábrica
+/// rompe el test de forma visible (no tiene tipo de implementación). La resolución ansiosa de la guarda la vigila
+/// <c>ApplicationServiceCollectionExtensionsTests</c>, que construye el behavior con solo <c>AddApplication()</c>.
 /// </remarks>
 public class PipelineDeComandoSinWebTests
 {
     [Fact]
-    public void Ningun_behavior_arrastra_en_su_constructor_lo_que_solo_registran_Web_o_Infrastructure()
+    public void Ningun_behavior_pide_en_su_constructor_el_actor_de_auditoria_ni_un_repositorio_de_Domain()
     {
         var servicios = new ServiceCollection().AddApplication();
         var behaviors = servicios
