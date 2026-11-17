@@ -207,6 +207,13 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
         leida!.RecuperacionHuecoCursorUtc.Should().Be(segundo);
         leida.RecuperacionHuecoCursorId.Should().Be("AAMkAG-id-03");
         leida.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+
+        // Releída la fila, el veto del recorrido por Id conserva la marca al terminar el listado.
+        leida.AvanzarRecuperacionHuecoEnSegundo(null, hayMas: false);
+        leida.RecuperacionHuecoCursorDesempate.Should().BeNull("el segundo está leído entero");
+        leida.AvanzarRecuperacionHueco(null, hayMas: false);
+        leida.CompletarRecuperacionHueco().Should().BeFalse();
+        leida.HuecoPendienteDesdeUtc.Should().NotBeNull("el aviso de posible correo no recuperado se queda");
     }
 
     private async Task<Guid> SembrarBuzonConMarcaAsync(Guid tenantId, string email)

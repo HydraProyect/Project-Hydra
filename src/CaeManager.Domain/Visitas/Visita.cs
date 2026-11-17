@@ -60,9 +60,9 @@ public class Visita : EntidadBase
     public DateTime? FechaHoraSolicitudUtc { get; private set; }
 
     /// <summary>
-    /// Instante en que dejó de faltar documentación por primera vez. Se sella una sola vez y no
-    /// se reabre: es el punto de corte que decide la atribución de la matriz de antelación, y
-    /// nada más. No es el estado de la columna «Documentación» ni dice que la Visita esté
+    /// Instante en que dejó de faltar documentación. Se sella de una vez y solo lo retira la
+    /// reapertura del Gestor CAE (<see cref="ReabrirExpediente"/>, D-4): es el punto de corte que
+    /// decide la atribución de la matriz de antelación, y nada más. No es el estado de la columna «Documentación» ni dice que la Visita esté
     /// gestionada: eso es <see cref="DocumentacionGestionadaEnUtc"/>, que sí se borra.
     /// </summary>
     public DateTime? FechaHoraExpedienteCompletoUtc { get; private set; }
@@ -104,6 +104,17 @@ public class Visita : EntidadBase
 
     /// <summary>Motivo opcional de la última reactivación.</summary>
     public string? MotivoReactivacion { get; private set; }
+
+    /// <summary>
+    /// Instante de la última reapertura del expediente por el Gestor CAE (D-4, #2005, decisión del 2026-11-15), o
+    /// null si nunca se reabrió. Junto con <see cref="MotivoReaperturaExpediente"/> hace que el registro de auditoría
+    /// de la reapertura lleve fecha y motivo propios; ese mismo registro conserva en «antes» el sello retirado
+    /// (fecha, antelaciones, tramo y atribución) y separa el Actor real del Usuario simulado.
+    /// </summary>
+    public DateTime? ExpedienteReabiertoEnUtc { get; private set; }
+
+    /// <summary>Motivo obligatorio de la última reapertura del expediente.</summary>
+    public string? MotivoReaperturaExpediente { get; private set; }
 
     /// <summary>
     /// Contacto de la Visita (decisión de producto, 2026-10-16): la persona a la que se dirige quien entra en el
@@ -276,7 +287,7 @@ public class Visita : EntidadBase
 
     /// <summary>
     /// Sella el momento en que dejó de faltar documentación y congela la atribución.
-    /// De un solo sentido: si más adelante se añade un trabajador y vuelve a faltar
+    /// De un solo sentido, salvo la reapertura expresa del Gestor CAE (<see cref="ReabrirExpediente"/>): si más adelante se añade un trabajador y vuelve a faltar
     /// papel, el sello no se retira — el margen que tuvo el Gestor CAE para la solicitud
     /// original no deja de haber existido. Devuelve false si ya estaba sellado o si no
     /// hay solicitud de origen que medir. Ese mismo cambio de Trabajadores sí devuelve la
@@ -331,6 +342,33 @@ public class Visita : EntidadBase
         MotivoCancelacion = null;
         ReactivadaEnUtc = ahoraUtc;
         MotivoReactivacion = motivoNormalizado;
+    }
+
+    /// <summary>
+    /// Reabre el expediente sellado (D-4, #2005, decisión del 2026-11-15, opción A): retira el sello y la atribución
+    /// congelada para que el expediente se reevalúe al momento con la regla de bloqueo común; si sigue completo, se
+    /// vuelve a sellar con una atribución nueva. Es la única salida del sello de un solo sentido de
+    /// <see cref="MarcarExpedienteCompleto"/>, y solo la usa el Gestor CAE con Asignación de Cartera sobre el Centro
+    /// (la autorización vive en el Command). El motivo es obligatorio. Lanza si no estaba sellado o si la Visita
+    /// está cancelada (se reactiva antes, y al reactivarla se evalúa).
+    /// </summary>
+    public void ReabrirExpediente(DateTime ahoraUtc, string motivo)
+    {
+        if (FechaHoraExpedienteCompletoUtc is null)
+            throw new InvalidOperationException("El expediente de esta visita no está sellado.");
+        if (EstaCancelada)
+            throw new InvalidOperationException("La visita está cancelada.");
+
+        var motivoNormalizado = NormalizarMotivo(motivo, nameof(motivo))
+            ?? throw new ArgumentException("El motivo de la reapertura es obligatorio.", nameof(motivo));
+
+        FechaHoraExpedienteCompletoUtc = null;
+        AntelacionNominalHoras = null;
+        AntelacionEfectivaHoras = null;
+        Tramo = null;
+        Atribucion = AtribucionUrgencia.SinUrgencia;
+        ExpedienteReabiertoEnUtc = ahoraUtc;
+        MotivoReaperturaExpediente = motivoNormalizado;
     }
 
     private static string? NormalizarMotivo(string? motivo, string parametro)

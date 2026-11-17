@@ -1,0 +1,77 @@
+@page "/inbound/plantillas/{Id:guid}/requisitos/{RequisitoId:guid}/formulario"
+@* Campos del formulario (Inbound): colocar sobre el PDF del Centro los datos del perfil de la Empresa contratista que se rellenan
+   solos. shortcut: sin backend, cablear cuando entre B-30 (formularios del Centro: PDF, cajas de campos, idiomas y descarga
+   precargada). Hoy la pantalla enseña el contexto (plantilla y requisito) y dice que el formulario no está disponible; no hay
+   PDF ni campos que cargar ni guardar, y no se inventan. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Application.Inbound.Requisitos.Queries
+@using CaeManager.Web.Features.Inbound.Plantillas.Recursos
+@using CaeManager.Web.Features.Inbound.Plantillas.Servicios
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosPlantillasRequisitos> Textos
+@inject MediatR.IMediator Mediator
+@inject ResolutorPlantillasRequisitos Resolutor
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["FormularioTitulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["FormularioTitulo"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="@Kicker" Titulo="@Textos["FormularioTitulo"]" />
+    <p class="inbound-secundario"><a href="@($"/inbound/plantillas/{Id}/requisitos")">@Textos["VolverRequisitos"]</a></p>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else
+    {
+        <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["FormularioNoDisponibleTitulo"]" Descripcion="@Textos["FormularioNoDisponibleDetalle"]">
+            <Accion>
+                <InsigniaProximamente />
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/inbound/plantillas/{Id}/requisitos")">@Textos["VolverRequisitos"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [Parameter] public Guid RequisitoId { get; set; }
+
+    private bool _cargando = true;
+    private string? _plantilla;
+    private string? _requisito;
+
+    private string Kicker => _plantilla is null
+        ? Textos["Kicker"].Value
+        : _requisito is null ? Textos["KickerPlantilla", _plantilla].Value : Textos["KickerFormulario", _plantilla, _requisito].Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var plantilla = await Mediator.Send(new ObtenerPlantillaRequisitosPorIdQuery(Id));
+            if (plantilla is not null)
+            {
+                var refs = await Resolutor.CargarAsync();
+                _plantilla = refs.NombreDe(plantilla.Tipo, plantilla.ReferenciaId) ?? Textos["ReferenciaNoDisponible"].Value;
+                var requisito = plantilla.Requisitos.FirstOrDefault(r => r.Id == RequisitoId);
+                if (requisito is not null && refs.Tipos.TryGetValue(requisito.TipoDocumentoId, out var tipo))
+                    _requisito = tipo.Nombre;
+            }
+        }
+        catch (Exception)
+        {
+            // Sin contexto la pantalla sigue diciendo lo importante: el formulario no está disponible.
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+}

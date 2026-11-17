@@ -59,6 +59,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContactosSeguridad.ProponerContactoSeguridadCommandHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadDeMiOrganizacionQueryHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadVigenteQueryHandler", "IContactoSeguridadTenantRepository"),
+        // La concesión de una capacidad del Tenant (decisión D-3 del 2026-11-15) es del plano de Propiedad del Tenant:
+        // su entidad y su repositorio viven en Domain/Tenants; la Feature CapacidadesTenant es su superficie.
+        ("CapacidadesTenant.ConcederCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        ("CapacidadesTenant.RevocarCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        // Una solicitud de derechos del interesado puede señalar a un Trabajador de la cartera de quien la registra.
+        ("DerechosInteresado.RegistrarSolicitudDerechoInteresadoCommandHandler", "ITrabajadorRepository"),
         // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
         // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
@@ -70,6 +76,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
+        // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
+        // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
+        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
         // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
         ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
@@ -124,6 +135,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITiposDocumentoQueryContext"),
         ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de Cliente 360 (varias Empresas empleadoras): el mismo cálculo, con los mismos contextos que el lote de arriba,
+        // que ahora lo delega en este.
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ICentrosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IConfiguracionQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "IDocumentosQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Asignaciones.ObtenerCumplimientoDeAsignacionesPorCentrosYEmpresasQueryHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "IClientesQueryContext"),
         ("Asignaciones.ObtenerAsignacionesQueryHandler", "ITrabajadoresQueryContext"),
@@ -329,6 +347,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.CambiarAddOnSubidaAutomaticaCommandHandler", "ITenantsQueryContext"),
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
+        // #2010, D-7: la objeción a un subencargado la registra el Administrador del Tenant propietario,
+        // nunca el Tenant de Plataforma; el handler solo lee Tenant.EsPlataforma del Tenant de la sesión
+        // para rechazarlo (AutorizacionSubencargados).
+        ("Cumplimiento.ObjetarSubencargadoCommandHandler", "ITenantsQueryContext"),
         // Línea Inbound (B-04a): solo comprueba que el Tenant beneficiario existe y no es el de plataforma antes de
         // contratarle el Producto Contratado. No escribe en Tenants.
         ("Comercial.ContratarLineaInboundCommandHandler", "ITenantsQueryContext"),
@@ -894,6 +916,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IClientesQueryContext"),
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
+        // El lote de varias Subcontratas: la misma derivación que la de una (que lo delega en él), con sus mismos contextos.
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IAsignacionesQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ICentrosQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "IEmpresasQueryContext"),
+        ("Subcontratas.ObtenerCentrosConActividadDeSubcontratasQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IAsignacionesQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IClientesQueryContext"),

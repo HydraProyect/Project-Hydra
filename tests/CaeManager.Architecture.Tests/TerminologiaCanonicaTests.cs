@@ -495,18 +495,45 @@ public class TerminologiaCanonicaTests
         // 356 → 358 (2026-11-14, PR #2223): TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion
         // exige el mismo predicado en la vía de Operación del selector y consulta el DbSet DelegacionesTenant y
         // PropositoDelegacion, tipos ya existentes (+2). Ningún identificador nuevo.
-        // 358 → 380 (2026-11-15, fase de expansión de la procedencia de la Asignación de Operación externa, PR 1 del
-        // corte de la #2237): +22, todo referencias a tipos y miembros legacy que ya existen; ningún miembro ni
-        // identificador nuevo lleva el término (OrigenId, RevocacionesDelOrigen, Revocaciones, FijarOrigen,
-        // AmparoDeOrigen, AmparadasPorSuOrigen, SinOrigenOAmparadasPorSuOrigen, OrigenUnicoDelParAsync). El predicado
-        // único AmparoDeOrigen lee DelegacionTenant y PropositoDelegacion (+4); AsignacionOperacion.FijarOrigen valida
-        // la delegación de origen (+2) y su configuración declara la FK (+1). Los lectores leen las delegaciones del
-        // ITenantsQueryContext.DelegacionesTenant ya existente (IOperacionesQueryContext no gana ningún miembro) y lo
-        // pasan al filtro de expansión: TenantsBeneficiariosAutorizados (+3), DirectorioUsuariosTenant, VistaDemoActual
-        // y ContextoOperativoConversacionService (+2 cada uno) y AlcanceDatosService (+1); en esta fase conservan su
-        // comprobación de main. El writer resuelve la única delegación vigente del par para fijarla como origen
-        // (+5). Baja con la migración de DelegacionTenant, que es un incremento propio.
-        ["Delegacion"] = 380,
+        // 358 → 382 (2026-11-14, procedencia de la Asignación de Operación externa, sigue a la PR #2223): +24, todo
+        // referencias a tipos y miembros legacy que ya existen; los identificadores nuevos evitan el término
+        // (OrigenId, RevocacionesDelOrigen, FijarOrigen, AmparoDeOrigen, AmparadasPorSuOrigen, OrigenUnicoDelParAsync).
+        // Cada operación externa apunta a la DelegacionTenant de la que nace (FK y configuración: DelegacionTenant ×1)
+        // y el predicado único AmparoDeOrigen la lee (DelegacionTenant ×1, PropositoDelegacion ×1), con su
+        // versión en memoria en AsignacionOperacion.FijarOrigen/EstaAmparadaPor (DelegacionTenant ×2,
+        // PropositoDelegacion ×2). Para aplicarlo, cada lector de alcance pasa el DbSet DelegacionesTenant:
+        // IOperacionesQueryContext y CaeManagerDbContext lo exponen (DelegacionesTenant ×3, DelegacionTenant ×2),
+        // TenantsBeneficiariosAutorizados (+2, −1 PropositoDelegacion que ya lleva el predicado), DirectorioUsuariosTenant,
+        // VistaDemoActual y ContextoOperativoConversacionService (+2 cada uno); AlcanceDatosService y
+        // CatalogoIncorporacionCartera retiran su comparación propia (−1 cada uno). El writer resuelve la única
+        // delegación vigente del par para fijarla como origen (DelegacionesTenant ×3, DelegacionTenant ×2,
+        // PropositoDelegacion ×2). Baja con la migración de DelegacionTenant, que es un incremento propio.
+        // 382 → 385 (2026-11-15, ronda 2 tras Codex r1 en la PR #2237): +3, referencias legacy existentes, ningún
+        // identificador nuevo. CatalogoIncorporacionCartera y TarifasOperadorCae pasan el DbSet DelegacionesTenant a
+        // AmparadasPorSuOrigen (+1 cada uno) y DesactivarDelegacionTenantCommand filtra las filas heredadas por
+        // DelegacionTenantId para revocarlas (+1).
+        // 385 → 392 (2026-11-15, ronda 3 tras Codex r2 en la PR #2237): +7, referencias legacy existentes, ningún
+        // identificador nuevo. HistoriaDelParEnSiembra lee DelegacionesTenant y las filas heredadas por
+        // DelegacionTenantId para decidir si un par tiene historia, y DelegacionDemoSeeder abre la operación de la
+        // delegación que acaba de crear. Baja con la migración de DelegacionTenant.
+        // 392 → 390 (2026-11-15, cierre de la ronda 3 en la PR #2237): EncargoAdministracionRepository deja de pasar el
+        // DbSet DelegacionesTenant a AmparadasPorSuOrigen (−2): el amparo se evalúa en PostgreSQL
+        // (FuncionAmparoDeOrigen) porque la vía de Aprovisionamiento no lee esa tabla.
+        // 390 → 397 (2026-11-15, ronda 4 en la PR #2237, autorizada por Chris): +7, usos de los tipos legacy existentes
+        // (DelegacionTenant, DelegacionesTenant, PropositoDelegacion), ningún nombre nuevo con el término. La ronda 4
+        // cierra los hallazgos de Codex r3 sobre la delegación de origen: el contador sellado de la fila heredada (la
+        // leen y la pasan CrearAsignacionOperadorDelegadoCommand y CatalogoIncorporacionCartera, que además lleva en línea
+        // el DbSet DelegacionesTenant en el join de RetirarFilaHeredadaSiSobraAsync para el trinquete de Servicio), el
+        // propósito comprobado en la siembra de cobertura y los parámetros DelegacionTenant de
+        // HistoriaDelParEnSiembra.TieneOperacionExternaAsync y ParDe. CoberturaPantallasSeeder retira
+        // DelegacionDelParAsync. Baja con la migración de DelegacionTenant, que es un incremento propio.
+        // 397 → 398 (2026-11-16, siembra Inbound de Development): el alias de DelegacionDemoSeeder en InboundDemoSeeder.cs,
+        // para reutilizar el aprovisionamiento de Tenants y cuentas de la demo; el mismo uso que CoberturaPantallasSeeder.
+        // 398 → 400 (2026-11-17, siembra de la línea P de Development): +2, usos de los tipos legacy existentes
+        // (DelegacionesTenant y PropositoDelegacion) en la guarda de gestión propia de LineaOutboundGestionPropiaDemoSeeder,
+        // que lee si el Tenant de su lista tiene una delegación activa de Operador CAE externo; ningún nombre nuevo con el
+        // término. Baja con la migración de DelegacionTenant, que es un incremento propio.
+        ["Delegacion"] = 400,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

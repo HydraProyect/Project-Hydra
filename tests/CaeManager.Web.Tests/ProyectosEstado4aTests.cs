@@ -43,7 +43,7 @@ public class ProyectosEstado4aTests : BunitContext
     private sealed class MediadorFalso : IMediator
     {
         public List<ClienteAutorizadoDto> Autorizados { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Si se fija, la resolución de la empresa activa espera a esta tarea.</summary>
         public Task? RetenerAutorizados { get; set; }

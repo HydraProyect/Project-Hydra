@@ -62,25 +62,25 @@ public class ContratoAccesoAutorizacionTests
     private static readonly TimeProvider AntesDelInicio = new RelojFijo(new DateTimeOffset(2026, 2, 27, 9, 0, 0, TimeSpan.Zero));
 
     private ActualizarContratoAccesoCommandHandler Actualizar(AlcanceDatosServiceFalso alcance) =>
-        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), AntesDelInicio);
+        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), AntesDelInicio, new AutorizacionInboundQuePermite());
 
     private RenovarContratoAccesoCommandHandler Renovar(AlcanceDatosServiceFalso alcance, TimeProvider? reloj = null) =>
-        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), reloj ?? AntesDelInicio);
+        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), reloj ?? AntesDelInicio, new AutorizacionInboundQuePermite());
 
     private CancelarContratoAccesoCommandHandler Cancelar(AlcanceDatosServiceFalso alcance, TimeProvider? reloj = null) =>
-        new(_repositorio, new EvidenciasFalsas(_evidencias), alcance, _unitOfWork, reloj ?? AntesDelInicio);
+        new(_repositorio, new EvidenciasFalsas(_evidencias), alcance, _unitOfWork, reloj ?? AntesDelInicio, new AutorizacionInboundQuePermite());
 
     private EliminarContratoAccesoCommandHandler Eliminar(AlcanceDatosServiceFalso alcance, TimeProvider? reloj = null) =>
-        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), reloj ?? AntesDelInicio);
+        new(_repositorio, alcance, _unitOfWork, new CurrentUserServiceFalso(_usuario), reloj ?? AntesDelInicio, new AutorizacionInboundQuePermite());
 
     private FijarCondicionesContratoAccesoCommandHandler FijarCondiciones(AlcanceDatosServiceFalso alcance) =>
-        new(_repositorio, alcance, _unitOfWork);
+        new(_repositorio, alcance, _unitOfWork, new AutorizacionInboundQuePermite());
 
     private static readonly CondicionesContratoAccesoDatos ConCupo =
         new(TipoContratoAcceso.Temporal, PropiaActividadContrato.NoLoSe, 1, 8, 2, "Aforo del muelle");
 
     private CrearContratoAccesoCommandHandler Crear(AlcanceDatosServiceFalso alcance) =>
-        new(_repositorio, _centros, _empresas, alcance, _unitOfWork);
+        new(_repositorio, _centros, _empresas, alcance, _unitOfWork, new AutorizacionInboundQuePermite());
 
     private ContratoAcceso ContratoExistente(Guid? clienteEmpresarialId = null)
     {
@@ -250,7 +250,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoExistente();
 
         var resultado = await new ActualizarContratoAccesoCommandHandler(
-                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio)
+                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio, new AutorizacionInboundQuePermite())
             .Handle(new ActualizarContratoAccesoCommand(contrato.Id, Inicio.AddDays(10), "Cambiada", contrato.Version), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -277,7 +277,7 @@ public class ContratoAccesoAutorizacionTests
     {
         var contrato = ContratoExistente();
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5)), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.NoEncontrado");
@@ -291,7 +291,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoAcceso.Crear(_cliente.Id, _centro.Id, _contratista.Id, Inicio, null, null, pendienteDeConfirmar: true);
         _repositorio.Agregar(contrato);
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5)), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
@@ -307,7 +307,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoExistente();
         contrato.Suspender();
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5), contrato.Version), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida");
@@ -382,7 +382,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoConFin();
 
         var resultado = await new RenovarContratoAccesoCommandHandler(
-                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio)
+                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio, new AutorizacionInboundQuePermite())
             .Handle(new RenovarContratoAccesoCommand(contrato.Id, Inicio.AddDays(60), contrato.Version), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -484,7 +484,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoExistente();
         contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false);
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5)), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "un Cancelado no se cerró nunca");
@@ -500,7 +500,7 @@ public class ContratoAccesoAutorizacionTests
         contrato.Cancelar(Inicio.AddDays(-1), tieneActividad: false);
         typeof(ContratoAcceso).GetProperty(nameof(ContratoAcceso.FechaCierreReal))!.SetValue(contrato, Inicio.AddDays(5));
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.TransicionNoPermitida", "un Cancelado no se finalizó nunca");
@@ -530,7 +530,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoConFin();
         typeof(ContratoAcceso).GetProperty(nameof(ContratoAcceso.FechaCierreReal))!.SetValue(contrato, Inicio.AddDays(5));
 
-        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+        var resultado = await new CerrarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.YaCerrado");
@@ -550,7 +550,7 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoExistente();
 
         var resultado = await new ActualizarContratoAccesoCommandHandler(
-                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio)
+                _repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork, new CurrentUserServiceFalso(null), AntesDelInicio, new AutorizacionInboundQuePermite())
             .Handle(new ActualizarContratoAccesoCommand(contrato.Id, null, "Solo la nota", contrato.Version), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -814,12 +814,12 @@ public class ContratoAccesoAutorizacionTests
         var contrato = ContratoExistente();
         var alcance = AlcanceSinAcceso(_cliente.Id);
 
-        (await new CerrarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork)
+        (await new CerrarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(5)), CancellationToken.None)).EsExitoso.Should().BeTrue();
         contrato.FechaCierreReal.Should().Be(Inicio.AddDays(5));
         contrato.Estado.Should().Be(EstadoContratoAcceso.Finalizado, "Cerrar es Finalizar: D-21 retira Reabrir");
 
-        (await new CerrarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork)
+        (await new CerrarContratoAccesoCommandHandler(_repositorio, alcance, _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new CerrarContratoAccesoCommand(contrato.Id, Inicio.AddDays(6)), CancellationToken.None))
             .Error.Codigo.Should().Be("ContratoAcceso.YaCerrado");
         _unitOfWork.VecesGuardado.Should().Be(1);
@@ -858,15 +858,15 @@ public class ContratoAccesoAutorizacionTests
         var contexto = new ContratosAccesoQueryContextFalso();
         contexto.ListaContratos.Add(contrato);
 
-        (await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_otroCliente.Id), new PoliticaNotaInternaFalsa(true))
+        (await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_otroCliente.Id), new PoliticaNotaInternaFalsa(true), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerContratoAccesoPorIdQuery(contrato.Id), CancellationToken.None)).Should().BeNull();
 
-        var visible = await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(true))
+        var visible = await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(true), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerContratoAccesoPorIdQuery(contrato.Id), CancellationToken.None);
         visible!.Id.Should().Be(contrato.Id);
         visible.Notas.Should().Be("Nota");
 
-        var sinNota = await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(false))
+        var sinNota = await new ObtenerContratoAccesoPorIdQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(false), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerContratoAccesoPorIdQuery(contrato.Id), CancellationToken.None);
         sinNota!.Notas.Should().BeNull("las notas siguen la política de la «Nota interna»");
     }
@@ -883,7 +883,7 @@ public class ContratoAccesoAutorizacionTests
         eliminado.MarcarComoEliminado(Guid.NewGuid());
         var contexto = new ContratosAccesoQueryContextFalso();
         contexto.ListaContratos.AddRange([vigente, caducado, deOtraContratista, fueraDeAlcance, eliminado]);
-        var handler = new ObtenerContratosAccesoQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(true));
+        var handler = new ObtenerContratosAccesoQueryHandler(contexto, AlcanceSinAcceso(_cliente.Id), new PoliticaNotaInternaFalsa(true), new AutorizacionInboundQuePermite());
 
         (await handler.Handle(new ObtenerContratosAccesoQuery(), CancellationToken.None))
             .Select(c => c.Id).Should().BeEquivalentTo([vigente.Id, caducado.Id, deOtraContratista.Id]);

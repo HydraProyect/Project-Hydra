@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Tenants.Encargo;
@@ -16,7 +17,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CancelarContra
 /// asignaciones se sumarán cuando existan (B-17). El contrato no se borra: queda Cancelado y no da acceso nunca.
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record CancelarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand;
+public record CancelarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand, IComandoInbound;
 
 public class CancelarContratoAccesoCommandValidator : AbstractValidator<CancelarContratoAccesoCommand>
 {
@@ -28,11 +29,14 @@ public class CancelarContratoAccesoCommandValidator : AbstractValidator<Cancelar
 
 public class CancelarContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, IEvidenciasInboundQueryContext evidenciasContext, IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork, TimeProvider reloj)
+    IUnitOfWork unitOfWork, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<CancelarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(CancelarContratoAccesoCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var contrato = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (contrato is null || !await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo(ContratoAccesoErrores.NoEncontrado);

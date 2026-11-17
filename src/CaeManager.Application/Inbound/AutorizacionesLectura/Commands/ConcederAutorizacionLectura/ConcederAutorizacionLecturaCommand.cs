@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
@@ -49,11 +50,14 @@ public class ConcederAutorizacionLecturaCommandHandler(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     TimeProvider reloj,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ConcederAutorizacionLecturaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(ConcederAutorizacionLecturaCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ParticipanteTec, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await AutorizacionLecturaAutoridad.EsAdministradorAsync(currentUserService)
             || await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId
             || tenantActual.TenantId is not { } tenantId)

@@ -232,6 +232,11 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl,
             Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        // Lo que la página escribe en la consola y los errores que lanza, desde que se inició sesión: si la franja no llega a
+        // marcarse, el mensaje del fallo los lleva (un error del circuito o de la navegación mejorada se vería aquí).
+        var consola = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        page.Console += (_, mensaje) => Registrar(consola, $"console.{mensaje.Type}: {mensaje.Text}");
+        page.PageError += (_, error) => Registrar(consola, $"pageerror: {error}");
         var filas = page.Locator("table.tabla-proyectos tbody tr");
         var nombresDeLasFilas = filas.Locator("button.nombre-proyecto");
         var todos = page.Locator(".franja-estado-boton:not([data-estado])");
@@ -307,32 +312,12 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         }
         catch (PlaywrightException ex)
         {
+            // La URL se lee primero: es lo que decide si la navegación llegó a producirse.
             var urlActual = page.Url;
-            var estado = "No se pudo obtener el estado de los botones.";
-            var snapshot = "No se pudo obtener el aria snapshot de la franja.";
-            try
-            {
-                estado = await page.EvaluateAsync<string>("""
-                    () => JSON.stringify(Array.from(document.querySelectorAll('.franja-estado-boton'),
-                        boton => ({ texto: boton.innerText, estado: boton.getAttribute('data-estado'),
-                            ariaPressed: boton.getAttribute('aria-pressed'), html: boton.outerHTML })), null, 2)
-                    """);
-            }
-            catch (Exception diagnostico)
-            {
-                estado += $" {diagnostico.Message}";
-            }
-
-            try
-            {
-                snapshot = await page.Locator(".franja-estado").AriaSnapshotAsync(new() { Timeout = 1000 });
-            }
-            catch (Exception diagnostico)
-            {
-                snapshot += $" {diagnostico.Message}";
-            }
-
-            throw new PlaywrightException($"{ex.Message}\nURL actual: {urlActual}\nBotones de la franja: {estado}\nAria snapshot: {snapshot}", ex);
+            var diagnostico = await DiagnosticarLaFranjaAsync(page, cerrados, new Diagnostico(
+                UrlDeLaVista: urlDeLaVista.ToString(), UrlDeDestino: urlDeDestino.ToString(),
+                Pregunta: pregunta, Selector: selector, Buscador: buscador, Filas: filas, Panel: panel, Consola: consola));
+            throw new PlaywrightException($"{ex.Message}\nURL actual: {urlActual}\n{diagnostico}", ex);
         }
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "false");
         await Expect(buscador).ToHaveValueAsync(termino!);
@@ -342,6 +327,88 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(page).ToHaveURLAsync(urlDeDestino);
         // El panel era de un Proyecto de la lista anterior.
         await Expect(panel).ToHaveCountAsync(0);
+    }
+
+    /// <summary>Lo que el diagnóstico de la franja necesita del test, para que el mensaje del fallo no dependa de variables sueltas.</summary>
+    private sealed record Diagnostico(
+        string UrlDeLaVista, string UrlDeDestino, ILocator Pregunta, ILocator Selector, ILocator Buscador,
+        ILocator Filas, ILocator Panel, System.Collections.Concurrent.ConcurrentQueue<string> Consola);
+
+    private static void Registrar(System.Collections.Concurrent.ConcurrentQueue<string> cola, string linea)
+    {
+        cola.Enqueue(linea);
+        while (cola.Count > 60)
+            cola.TryDequeue(out _);
+    }
+
+    /// <summary>
+    /// Qué había en pantalla cuando la franja no llegó a marcar «Cerrados» tras «Salir y descartar» (#1888, un solo
+    /// fallo en CI, sin reproducir). Cada dato descarta una causa distinta: la URL y el historial dicen si la
+    /// navegación llegó a producirse o se deshizo; el diálogo dice si la página volvió a preguntar (el
+    /// <c>ToBeHiddenAsync</c> anterior pasa también si la pregunta desaparece un instante entre las dos); el
+    /// Cliente empresarial, el buscador y las filas dicen si la vista tomó algo de la URL de destino; y la
+    /// consola dice si el circuito o la navegación mejorada fallaron. Al final se espera 10 s más (solo en el
+    /// camino del fallo; el criterio del test no cambia) para saber si la franja acaba marcándose tarde o
+    /// no se marca nunca. Medir no puede ocultar el fallo: cada dato se pide por separado y el que no se
+    /// pueda obtener lo dice en vez de lanzar.
+    /// </summary>
+    private static async Task<string> DiagnosticarLaFranjaAsync(IPage page, ILocator cerrados, Diagnostico d)
+    {
+        var partes = new List<string>
+        {
+            $"URL esperada de la vista: {d.UrlDeLaVista}",
+            $"URL esperada de destino: {d.UrlDeDestino}",
+            "Botones de la franja: " + await MedirAsync(() => page.EvaluateAsync<string>("""
+                () => JSON.stringify(Array.from(document.querySelectorAll('.franja-estado-boton'),
+                    boton => ({ texto: boton.innerText, estado: boton.getAttribute('data-estado'),
+                        ariaPressed: boton.getAttribute('aria-pressed'), html: boton.outerHTML })), null, 2)
+                """)),
+            "Aria snapshot de la franja: " + await MedirAsync(() => page.Locator(".franja-estado").AriaSnapshotAsync(new() { Timeout = 1000 })),
+            "Pregunta de «Salir y descartar»: " + await MedirAsync(async () =>
+                $"{await d.Pregunta.CountAsync()} en el DOM, visible: {await d.Pregunta.IsVisibleAsync()}"),
+            "Diálogos visibles: " + await MedirAsync(async () =>
+                string.Join(" | ", await page.GetByRole(AriaRole.Dialog).AllInnerTextsAsync())),
+            "Pastilla de Cliente empresarial: " + await MedirAsync(async () =>
+                await d.Selector.GetAttributeAsync("aria-label", new() { Timeout = 1000 }) ?? "(sin aria-label)"),
+            "Buscador: " + await MedirAsync(async () => await d.Buscador.InputValueAsync(new() { Timeout = 1000 })),
+            "Filas de la lista: " + await MedirAsync(async () =>
+                string.Join(" | ", await d.Filas.Locator("button.nombre-proyecto").AllTextContentsAsync())),
+            "Paneles de detalle: " + await MedirAsync(async () => (await d.Panel.CountAsync()).ToString()),
+            // Navigation API (Chromium): las entradas del historial y cuál es la actual, que es lo que
+            // aviso-salida-navegador.js usa para deshacer y repetir el recorrido.
+            "Historial: " + await MedirAsync(() => page.EvaluateAsync<string>("""
+                () => JSON.stringify({ longitud: history.length, estado: history.state,
+                    entradas: window.navigation ? window.navigation.entries().map(e => e.url) : null,
+                    actual: window.navigation ? window.navigation.currentEntry.index : null }), null, 2)
+                """)),
+            "Consola y errores de la página (últimos 60): " + (d.Consola.IsEmpty ? "(vacía)" : "\n" + string.Join("\n", d.Consola)),
+        };
+
+        partes.Add("¿La franja se marca en los 10 s siguientes?: " + await MedirAsync(async () =>
+        {
+            try
+            {
+                await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true", new() { Timeout = 10_000 });
+                return "sí, tarde (la lista de destino tardó más de 5 s en aplicarse)";
+            }
+            catch (PlaywrightException)
+            {
+                return $"no, sigue sin marcarse. URL ahora: {page.Url}";
+            }
+        }));
+        return string.Join("\n", partes);
+    }
+
+    private static async Task<string> MedirAsync(Func<Task<string>> medir)
+    {
+        try
+        {
+            return await medir();
+        }
+        catch (Exception ex)
+        {
+            return $"(no se pudo obtener: {ex.Message})";
+        }
     }
 
     /// <summary>

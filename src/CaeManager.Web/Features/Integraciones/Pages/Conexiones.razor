@@ -120,7 +120,7 @@
                             }
                             @if (conexion.CorreoNoRecuperadoDesdeUtc is { } noRecuperadoDesde)
                             {
-                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@TextoAvisoCorreoNoRecuperado(conexion, noRecuperadoDesde)</span>
                             }
                             @if (conexion.RecuperacionDetenidaEnUtc is { } detenidaEn)
                             {
@@ -133,6 +133,13 @@
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">
+                            @if (PuedeConfirmarAvisoHueco(conexion))
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" data-testid="accion-confirmar-aviso-hueco"
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => AbrirConfirmacionAvisoHueco(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    @Textos["AccionConfirmarAvisoHueco"]
+                                </Boton>
+                            }
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
@@ -251,6 +258,9 @@
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desconectando" OnClick="DesconectarAsync">Desconectar</Boton>
     </Pie>
 </Modal>
+
+<CaeManager.Web.Features.Integraciones.Components.ModalConfirmarAvisoHueco Conexion="_avisoHuecoAConfirmar" Confirmando="_confirmandoAvisoHueco"
+    OnCancelar="CerrarConfirmacionAvisoHueco" OnConfirmar="ConfirmarAvisoHuecoAsync" />
 
 @* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso fijo (el rechazo del servidor) y aviso de navegación
    vienen del kit. «Guardando» ya impide cerrar por fuera mientras se guarda: no hace falta Bloqueante (que quita la salida del todo). Con 8 a 10

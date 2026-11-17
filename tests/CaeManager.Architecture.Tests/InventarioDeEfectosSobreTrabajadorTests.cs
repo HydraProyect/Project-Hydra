@@ -58,6 +58,7 @@ public class InventarioDeEfectosSobreTrabajadorTests
         "src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs",
         "src/CaeManager.Application/Trabajadores/Queries/ObtenerDocumentacionPorCentroDeTrabajador/ObtenerDocumentacionPorCentroDeTrabajadorQuery.cs",
         "src/CaeManager.Application/Trabajadores/Queries/ObtenerTrabajadores/ObtenerTrabajadoresQuery.cs",
+        "src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs", // sello del expediente de la Visita con la regla común (D-4, #2005); sin persona, sin alcance
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor.cs",
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.cs",

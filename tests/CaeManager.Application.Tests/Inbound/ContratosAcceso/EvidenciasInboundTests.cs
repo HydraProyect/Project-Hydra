@@ -82,7 +82,7 @@ public class EvidenciasInboundTests
     private RegistrarEvidenciaInboundCommandHandler Registrar(string? rol = "GestorCae", Guid? clienteVisible = null) =>
         new(_contratos, _tipos, _empresas, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector, _originales,
             _almacen, _repositorio, _unidad, new RelojFijo(new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero)),
-            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _registro);
+            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _registro, new AutorizacionInboundQuePermite());
 
     private static AlcanceDatosServiceFalso Alcance(Guid clienteVisible) =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
@@ -357,9 +357,9 @@ public class EvidenciasInboundTests
         var reloj = new RelojFijo(new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero));
 
         RechazarEvidenciaInboundCommandHandler Rechazar(string rol, Guid cliente) =>
-            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj);
+            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj, new AutorizacionInboundQuePermite());
         ValidarEvidenciaInboundCommandHandler Validar(string rol, Guid cliente) =>
-            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj);
+            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj, new AutorizacionInboundQuePermite());
         var rechazo = new RechazarEvidenciaInboundCommand(evidencia.Id, CausaRechazoAcreditacion.DatosErroneos, "El NIE no coincide");
 
         (await Rechazar("Consulta", _cliente).Handle(rechazo, CancellationToken.None)).Error.Should().Be(EvidenciaInboundErrores.NoEncontrada);
@@ -384,9 +384,9 @@ public class EvidenciasInboundTests
         var contexto = new EvidenciasQueryContextFalso(_repositorio.Agregadas);
 
         ObtenerEvidenciasInboundQueryHandler Lista(string rol, Guid cliente) =>
-            new(contexto, _tipos, _contratos, Alcance(cliente), new UsuarioConRol(rol));
+            new(contexto, _tipos, _contratos, Alcance(cliente), new UsuarioConRol(rol), new AutorizacionInboundQuePermite());
         ObtenerEvidenciaInboundPorIdQueryHandler PorId(string rol, Guid cliente) =>
-            new(contexto, _tipos, _contratos, Alcance(cliente), new UsuarioConRol(rol));
+            new(contexto, _tipos, _contratos, Alcance(cliente), new UsuarioConRol(rol), new AutorizacionInboundQuePermite());
 
         (await Lista("Consulta", _cliente).Handle(new(_contrato.Id), CancellationToken.None)).Should().BeNull();
         (await Lista("GestorCae", Guid.NewGuid()).Handle(new(_contrato.Id), CancellationToken.None)).Should().BeNull();

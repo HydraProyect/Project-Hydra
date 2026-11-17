@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -13,15 +14,18 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.EliminarContra
 /// cambió desde entonces (p. ej. alguien lo canceló o lo finalizó), responde el conflicto de concurrencia.
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record EliminarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand;
+public record EliminarContratoAccesoCommand(Guid Id, Guid Version = default) : ICommand, IComandoInbound;
 
 public class EliminarContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService, TimeProvider reloj)
+    ICurrentUserService currentUserService, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<EliminarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(EliminarContratoAccesoCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var contrato = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (contrato is null || !await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo(ContratoAccesoErrores.NoEncontrado);

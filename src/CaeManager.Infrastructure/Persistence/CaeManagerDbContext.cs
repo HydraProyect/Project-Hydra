@@ -99,8 +99,16 @@ public class CaeManagerDbContext(
         CaeManager.Application.Facturacion.LiquidacionesOperadorCae.ICobrosLiquidacionOperadorCaeContext,
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
         CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext,
-        CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext
+        CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext,
+        CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext,
+        CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext
 {
+    // Línea Inbound vigente del Tenant beneficiario: el runtime solo tiene SELECT y la política aislamiento_tenant.
+    IQueryable<CaeManager.Domain.Comercial.ProductoContratado> CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext.ProductosContratados => ProductosContratados.AsNoTracking();
+
+    // Estado de la línea Outbound del Tenant beneficiario (guarda de EP-4): mismo SELECT y misma política.
+    IQueryable<CaeManager.Domain.Comercial.ProductoContratado> CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext.ProductosContratados => ProductosContratados.AsNoTracking();
+
     // Plantillas de requisitos del Tenant TCE (B-14), con RLS por Tenant.
     public DbSet<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos> PlantillasRequisitos => Set<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos>();
     public DbSet<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla> RequisitosPlantilla => Set<CaeManager.Domain.Inbound.Requisitos.RequisitoPlantilla>();
@@ -240,6 +248,8 @@ public class CaeManagerDbContext(
     IQueryable<AuditoriaExtraccionIa> IDocumentosIaQueryContext.AuditoriasExtraccionIa => AuditoriasExtraccionIa;
     public DbSet<ExtraccionIaCacheDocumento> ExtraccionesIaCacheDocumentos => Set<ExtraccionIaCacheDocumento>();
     public DbSet<TrabajoAnalisisDocumento> TrabajosAnalisisDocumento => Set<TrabajoAnalisisDocumento>();
+    public DbSet<CaeManager.Domain.Exportacion.SolicitudExportacionCompleta> SolicitudesExportacionCompleta =>
+        Set<CaeManager.Domain.Exportacion.SolicitudExportacionCompleta>();
     public DbSet<FirmaDigitalDocumento> FirmasDigitalesDocumento => Set<FirmaDigitalDocumento>();
     IQueryable<FirmaDigitalDocumento> IDocumentosQueryContext.FirmasDigitalesDocumento => FirmasDigitalesDocumento;
     public DbSet<FirmaEnCampoDocumento> FirmasEnCampoDocumento => Set<FirmaEnCampoDocumento>();
@@ -259,6 +269,7 @@ public class CaeManagerDbContext(
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();
+    public DbSet<CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia> ArchivosPendientesDeReferencia => Set<CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia>();
     IQueryable<Documento> IDocumentosQueryContext.Documentos => Documentos;
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
     IQueryable<Asignacion> IAsignacionesQueryContext.Asignaciones => Asignaciones;
@@ -323,6 +334,7 @@ public class CaeManagerDbContext(
     IQueryable<PlantillaRequisitosEventoTipo> IRequisitosEventoQueryContext.PlantillasRequisitosEventoTipos => PlantillasRequisitosEventoTipos;
     public DbSet<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
     IQueryable<DelegacionTenant> ITenantsQueryContext.DelegacionesTenant => DelegacionesTenant;
+    IQueryable<DelegacionTenant> CaeManager.Application.Operaciones.IOperacionesQueryContext.DelegacionesTenant => DelegacionesTenant;
     public DbSet<CaeManager.Domain.Soporte.RegistroActividadSoporte> RegistrosActividadSoporte => Set<CaeManager.Domain.Soporte.RegistroActividadSoporte>();
     IQueryable<CaeManager.Domain.Soporte.RegistroActividadSoporte> ITenantsQueryContext.RegistrosActividadSoporte => RegistrosActividadSoporte;
     public DbSet<AceptacionTerminos> AceptacionesTerminos => Set<AceptacionTerminos>();
@@ -332,6 +344,12 @@ public class CaeManagerDbContext(
         => Set<CaeManager.Domain.Cumplimiento.AcuseAceptacionContractualTenant>();
     public DbSet<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario> InstruccionesTratamientoIaTenantPropietario
         => Set<CaeManager.Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado> Subencargados
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.Subencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado> AvisosCambioSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.AvisoCambioSubencargado>();
+    public DbSet<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado> ObjecionesSubencargado
+        => Set<CaeManager.Domain.Cumplimiento.Subencargados.ObjecionSubencargado>();
     public DbSet<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> AvisosRevisionNormativa => Set<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa>();
     IQueryable<CaeManager.Domain.VigilanciaNormativa.AvisoRevisionNormativa> CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext.AvisosRevisionNormativa => AvisosRevisionNormativa;
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
@@ -339,6 +357,9 @@ public class CaeManagerDbContext(
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
     public DbSet<EnvioReclamacion> EnviosReclamacion => Set<EnvioReclamacion>();
     public DbSet<ContactoSeguridadTenant> ContactosSeguridadTenant => Set<ContactoSeguridadTenant>();
+    public DbSet<ConcesionCapacidadTenant> ConcesionesCapacidadTenant => Set<ConcesionCapacidadTenant>();
+    public DbSet<CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado> SolicitudesDerechoInteresado =>
+        Set<CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado>();
     IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<CaeManager.Domain.Contactos.ContactoAgenda> ContactosAgenda => Set<CaeManager.Domain.Contactos.ContactoAgenda>();
     IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;
@@ -387,6 +408,8 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     IQueryable<Guid> IOperacionesQueryContext.TenantsSuspendidosIds =>
         Tenants.Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
+    IQueryable<AsignacionOperacion> IOperacionesQueryContext.OperacionesInboundAmparadas =>
+        AsignacionesOperacion.Where(o => o.Servicio == ServicioCae.Inbound && FuncionAmparoInbound.Ampara(o.Id));
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
@@ -694,6 +717,8 @@ public class CaeManagerDbContext(
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
         builder.MapearTextoDeBusqueda();
+        builder.MapearAmparoDeOrigen();
+        builder.MapearAmparoInbound();
 
         // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(

@@ -78,7 +78,7 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
 
     private sealed class MediatorFalso(CentroDetalleDto detalle, List<DocumentacionRequeridaCentroDto> filas) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Se espera antes de contestar a cada petición: deja una petición «en vuelo» hasta que el test la suelta.</summary>
         public Func<object, Task>? AntesDeResponder { get; set; }

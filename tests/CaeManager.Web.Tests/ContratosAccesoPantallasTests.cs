@@ -57,7 +57,7 @@ public class ContratosAccesoPantallasTests : BunitContext
 
         public bool FallaLaLista { get; init; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -374,13 +374,9 @@ public class ContratosAccesoPantallasTests : BunitContext
         var grupos = CatalogoMenuLateral.Visibles(ContextoMenu(lineaInbound: true));
 
         var inbound = grupos.Single(g => g.Grupo.Id == "inbound");
-        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/validacion");
+        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/centros", "inbound/validacion", "inbound/informacion-centro");
     }
 
-    [Fact]
-    public async Task Sin_lectura_de_la_linea_Inbound_el_gate_falla_cerrado()
-    {
-        (await new LineaInboundNoDisponible().EstaVigenteAsync()).Should().BeFalse(
-            "no hay Query de lectura de LineaProductoContratado: hasta que exista, el menú de Inbound no se enseña a nadie");
-    }
+    // El gate de la línea Inbound (LineaInboundVigenteDelProductoContratado y AdmisionDeDestinos) lo cubre
+    // LineaInboundVigenteGateTests.
 }

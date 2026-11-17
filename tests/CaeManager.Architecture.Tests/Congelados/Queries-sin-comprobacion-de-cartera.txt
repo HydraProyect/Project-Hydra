@@ -19,7 +19,10 @@
 # Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
-# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas.
+# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas. #2124 (opción B) añade
+# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 117 entradas (116 en origin/main 6d0e857ce, contadas el 2026-11-17). La demo P4 (D6) añade
+# TieneAutorizacionLecturaConcedidaQueryHandler, con su comentario encima: una entrada más sobre esa medida (las que hayan
+# entrado en origin/main después van aparte).
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1
@@ -32,6 +35,10 @@ Auditoria.Queries :: ObtenerAccesosDocumentosSensiblesQueryHandler[Auditoria.Que
 Auditoria.Queries :: ObtenerAuditoriaQueryHandler[Auditoria.Queries.ObtenerAuditoriaQuery] = 1
 Auditoria.Queries :: ObtenerRegistroAuditoriaPorIdQueryHandler[Auditoria.Queries.ObtenerRegistroAuditoriaPorIdQuery] = 1
 Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
+# Grupo «Mis Clientes» del menu (Tenant TEC, D6): lee solo si el Tenant activo tiene alguna autorizacion de lectura concedida
+# (vigente y sin revocar) y devuelve un booleano para la interfaz, nunca una fila; la autorizacion no tiene cartera. En lugar de la
+# cartera decide la capacidad ParticipanteTec de IAutorizacionInbound (Administrador del Tenant TEC), que la Query llama primero.
+Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida :: TieneAutorizacionLecturaConcedidaQueryHandler[Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQuery] = 1
 Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
 Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1
 BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1
@@ -41,6 +48,9 @@ Inbound.CatalogoBase.Queries :: ObtenerCatalogoBaseQueryHandler[Inbound.Catalogo
 # Plataforma; ninguno tiene cartera. Solo el lado de gestion (OperaDesdeElLadoDeGestionAsync) recibe sugerencias.
 Inbound.Requisitos.Queries :: BuscarRequisitosParecidosQueryHandler[Inbound.Requisitos.Queries.BuscarRequisitosParecidosQuery] = 1
 Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenantsQueryHandler[Comercial.Queries.ObtenerEstadoComercialTenants.ObtenerEstadoComercialTenantsQuery] = 1
+# Linea Inbound vigente del Tenant activo (plano comercial): lee solo el Producto Contratado del Tenant beneficiario, que no
+# tiene cartera, y devuelve un booleano para la interfaz (menu y paleta), nunca una fila.
+Inbound.Comercial.Queries.LineaInboundVigente :: LineaInboundVigenteQueryHandler[Inbound.Comercial.Queries.LineaInboundVigente.LineaInboundVigenteQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
 Configuracion.Queries :: ObtenerFiltrosGuardadosQueryHandler[Configuracion.Queries.ObtenerFiltrosGuardadosQuery] = 1
@@ -62,6 +72,11 @@ Cumplimiento.AceptacionContractual :: ObtenerTextoDocumentoContractualQueryHandl
 Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos :: ObtenerEstadoAceptacionTerminosQueryHandler[Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos.ObtenerEstadoAceptacionTerminosQuery] = 1
 Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual :: ObtenerEstadoTratamientoIaActualQueryHandler[Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQuery] = 1
 Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario :: ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandler[Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario.ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery] = 1
+# Registro de solicitudes de derechos del interesado del Tenant propietario (#2002, D-3 del 2026-11-15): la lectura es del Tenant
+# entero y la decide IAutoridadCapacidadesTenant.TieneCapacidadAsync (Administrador del Tenant propietario o concesion vigente de
+# 'Derechos del interesado', sin contexto cruzado); sin la capacidad la lista sale vacia y la ficha nula. La cartera no aplica.
+DerechosInteresado.Queries :: SolicitudesDerechoInteresadoQueryHandler[DerechosInteresado.Queries.ListarSolicitudesDerechoInteresadoQuery] = 1
+DerechosInteresado.Queries :: SolicitudesDerechoInteresadoQueryHandler[DerechosInteresado.Queries.ObtenerSolicitudDerechoInteresadoQuery] = 1
 Dashboard.Queries :: ContarExtranjerosCobrablesDelMesQueryHandler[Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery] = 1
 Dashboard.Queries :: ObtenerComunicacionesCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerComunicacionesCuadroDireccionQuery] = 1
 Dashboard.Queries :: ObtenerCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerCuadroDireccionQuery] = 1
@@ -88,6 +103,9 @@ HerramientasPdf :: PrepararDivisionPdfQueryHandler[HerramientasPdf.PrepararDivis
 HerramientasPdf :: PrepararUnionPdfQueryHandler[HerramientasPdf.PrepararUnionPdfQuery] = 1
 Importacion.Queries :: AnalizarPlantillaMaestraQueryHandler[Importacion.Queries.AnalizarPlantillaMaestraQuery] = 1
 Importacion.Queries.ObtenerHistorialImportaciones :: ObtenerHistorialImportacionesQueryHandler[Importacion.Queries.ObtenerHistorialImportaciones.ObtenerHistorialImportacionesQuery] = 1
+# #2124, opción B: ¿ofrece Buzón Confirmar sobre el aviso del hueco? No lee ninguna fila: devuelve un booleano por el rol
+# efectivo y AlcanzaElTenantEnteroAsync, con la misma regla que ReconocerAvisoHuecoCommand, que comparte handler y decide.
+Integraciones.Commands.ReconocerAvisoHueco :: ReconocerAvisoHuecoCommandHandler[Integraciones.Commands.ReconocerAvisoHueco.PuedeReconocerAvisoHuecoQuery] = 1
 Integraciones.Queries.ObtenerLineasWhatsApp :: ObtenerLineasWhatsAppQueryHandler[Integraciones.Queries.ObtenerLineasWhatsApp.ObtenerLineasWhatsAppQuery] = 1
 Integraciones.Queries.ObtenerProveedoresPlataformaCae :: ObtenerProveedoresPlataformaCaeQueryHandler[Integraciones.Queries.ObtenerProveedoresPlataformaCae.ObtenerProveedoresPlataformaCaeQuery] = 1
 Marco.Queries.ObtenerContextoMarco :: ObtenerContextoMarcoQueryHandler[Marco.Queries.ObtenerContextoMarco.ObtenerContextoMarcoQuery] = 1

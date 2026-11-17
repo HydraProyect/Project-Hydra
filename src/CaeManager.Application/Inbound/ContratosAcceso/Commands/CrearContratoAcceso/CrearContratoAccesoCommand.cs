@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -18,7 +19,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CrearContratoA
 public record CrearContratoAccesoCommand(
     Guid ClienteEmpresarialId, Guid CentroId, Guid EmpresaContratistaId, DateOnly FechaInicio, DateOnly? FechaFin, string? Notas,
     CondicionesContratoAccesoDatos? Condiciones = null)
-    : ICommand<Guid>;
+    : ICommand<Guid>, IComandoInbound;
 
 public class CrearContratoAccesoCommandValidator : AbstractValidator<CrearContratoAccesoCommand>
 {
@@ -43,11 +44,14 @@ public class CrearContratoAccesoCommandValidator : AbstractValidator<CrearContra
 /// </summary>
 public class CrearContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<CrearContratoAccesoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearContratoAccesoCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         // Un único error para «no existe», «está dado de baja» y «no lo ves», sea el Cliente empresarial, el Centro o la
         // Empresa contratista: la respuesta no sirve de oráculo de qué Empresas o Centros hay en el Tenant ni fuera del
         // alcance del actor.

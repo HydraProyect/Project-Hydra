@@ -113,6 +113,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 NormalizedEmail = $"{id:N}@CAEMANAGER.LOCAL",
                 NombreCompleto = rol,
                 EmailConfirmed = true,
+                // Ya activadas: una cuenta sin contraseña ni login externo está pendiente y no puede ser destino.
+                PasswordHash = "hash-de-prueba",
                 SecurityStamp = Guid.NewGuid().ToString(),
                 ConcurrencyStamp = Guid.NewGuid().ToString(),
                 CoordinadorUsuarioId = coordinadorId,
@@ -149,8 +151,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 beneficiario.Id, (operador ?? _operador).Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
             var vinculo = new DelegacionTenant((operador ?? _operador).Id, beneficiario.Id);
-            contexto.AsignacionesOperacion.Add(operacion);
             contexto.DelegacionesTenant.Add(vinculo);
+            OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
             return (operacion, vinculo);
         }
 
@@ -375,25 +377,33 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             var ahora = DateTime.UtcNow;
             contexto.Tenants.AddRange(conInbound, conDelegacionDesactivada, control);
 
-            AsignacionOperacion Abrir(Tenant propietario, ServicioCae servicio, bool delegacionActiva)
+            DelegacionTenant Abrir(Tenant propietario, ServicioCae servicio, out Guid operacionId)
             {
                 var operacion = AsignacionOperacion.Externa(
                     propietario.Id, _otroOperador.Id, servicio, AmbitoAsignacion.Universal,
                     vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
                 var vinculo = new DelegacionTenant(_otroOperador.Id, propietario.Id);
-                if (!delegacionActiva) vinculo.Desactivar();
-                contexto.AsignacionesOperacion.Add(operacion);
                 contexto.DelegacionesTenant.Add(vinculo);
+                // Las tres nacen amparadas por su delegación (revisión puente de la ronda 5 de la PR #2237): sin
+                // origen, el amparo las excluiría a todas por igual y ni el filtro de Servicio ni el de la delegación
+                // desactivada quedarían aislados. Producción no da origen a una Inbound: aquí fija el filtro de
+                // Servicio como defensa en profundidad.
+                OperacionExternaAmparada.Agregar(contexto, operacion, vinculo);
                 var cartera = AsignacionCartera.Externa(operacion, _coordinadorAjeno, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
                 cartera.DesignarPrincipal();
                 contexto.AsignacionesCartera.Add(cartera);
-                return operacion;
+                operacionId = operacion.Id;
+                return vinculo;
             }
 
-            Abrir(conInbound, ServicioCae.Inbound, delegacionActiva: true);
-            Abrir(conDelegacionDesactivada, ServicioCae.Outbound, delegacionActiva: false);
-            operacionDeControl = Abrir(control, ServicioCae.Outbound, delegacionActiva: true).Id;
+            Abrir(conInbound, ServicioCae.Inbound, out _);
+            var aDesactivar = Abrir(conDelegacionDesactivada, ServicioCae.Outbound, out _).Id;
+            Abrir(control, ServicioCae.Outbound, out operacionDeControl);
             await contexto.SaveChangesAsync();
+
+            // Como la ranura anterior: solo escribe Activa, después de que la operación naciera amparada.
+            (await contexto.DelegacionesTenant.IgnoreQueryFilters().Where(d => d.Id == aDesactivar)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.Activa, false))).Should().Be(1);
         }
 
         Task<IReadOnlyList<OperacionExternaSobreTenant>> Leer(Tenant propietario) =>
@@ -484,9 +494,101 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Desactivar_al_principal_le_quita_la_marca_pero_no_la_cartera_y_releva_a_su_Coordinador_CAE()
+    public async Task Desactivar_al_principal_sin_destino_retira_su_cartera_y_releva_a_su_Coordinador_CAE()
     {
-        var resultado = await EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, sp) =>
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var resultado = await DesactivarAsync(_gestorA, destinoId: null, aviso, sinDestinoConfirmado: true);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var carteras = await CarterasAsync(_operacion);
+        carteras.Where(c => c.UsuarioId == _gestorA).Should().OnlyContain(
+            c => c.Estado == EstadoAsignacion.Cerrada && !c.EsPrincipal,
+            "decisión del 2026-11-14: nadie desactivado conserva una Asignación de Cartera vigente");
+        carteras.Single(c => c.UsuarioId == _coordinador).Should().Match<AsignacionCartera>(
+            c => c.EsPrincipal && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiario.Id);
+        (await PrincipalesAsync(_operacion)).Should().Equal(_coordinador);
+        (await PrincipalesAsync(_operacionSinPrincipal)).Should().BeEmpty("donde no era el principal no hay nada que relevar");
+        aviso.Avisos.Should().BeEmpty(
+            "el Tenant beneficiario sigue con _gestorB y _gestorC, que tienen su cartera entera y sin fecha de fin");
+    }
+
+    [Fact]
+    public async Task Desactivar_sin_decision_con_cartera_no_desactiva_ni_retira()
+    {
+        var resultado = await DesactivarAsync(_gestorA, destinoId: null, new AvisoSinGestorCaeAnotado());
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo);
+        (await CarterasAsync(_operacion)).Single(c => c.UsuarioId == _gestorA).Should().Match<AsignacionCartera>(
+            c => c.Estado == EstadoAsignacion.Vigente && c.EsPrincipal);
+        (await CuentaActivaAsync(_gestorA)).Should().BeTrue("la desactivación se deshace con la transacción");
+    }
+
+    [Fact]
+    public async Task Desactivar_con_un_destino_sin_cartera_previa_le_abre_una_cartera_nueva_que_nace_principal()
+    {
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var resultado = await DesactivarAsync(_gestorA, destinoId: _gestorSinCoordinador, aviso);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var carteras = await CarterasAsync(_operacion);
+        carteras.Where(c => c.UsuarioId == _gestorA).Should().OnlyContain(c => c.Estado == EstadoAsignacion.Cerrada);
+        carteras.Where(c => c.UsuarioId == _gestorSinCoordinador).Should().ContainSingle().Which.Should().Match<AsignacionCartera>(
+            c => c.Estado == EstadoAsignacion.Vigente && c.EsPrincipal && c.Rol == Roles.GestorCae && c.VigenciaHasta == null,
+            "cerrar y abrir otra: la cartera nueva del destino nace principal porque la del desactivado ya apagó la marca");
+        (await PrincipalesAsync(_operacion)).Should().Equal(_gestorSinCoordinador);
+        aviso.Avisos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_destino_solo_apoyaba_con_fecha_de_fin_la_retirada_ya_hecha_se_deshace_entera()
+    {
+        // _gestorB tiene los dos Tenants beneficiarios; _gestorC, el primero entero y el segundo con fecha de fin.
+        // Se retiran las dos carteras de _gestorB, la primera se reutiliza y la segunda falla: todo vuelve atrás.
+        await using (var propietario = ContextoPropietario(_beneficiarioSinPrincipal.Id))
+        {
+            var operacion = await propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionSinPrincipal);
+            var ahora = DateTime.UtcNow;
+            propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, _gestorC, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, ahora.AddDays(10), ahora));
+            await propietario.SaveChangesAsync();
+        }
+
+        var resultado = await DesactivarAsync(_gestorB, destinoId: _gestorC, new AvisoSinGestorCaeAnotado());
+
+        resultado.Error.Codigo.Should().Be(CambiarActivacionUsuarioCommandHandler.DestinoConCarteraIncompleta.Codigo);
+        (await CarterasAsync(_operacion)).Single(c => c.UsuarioId == _gestorB).Estado.Should().Be(EstadoAsignacion.Vigente);
+        (await CarterasAsync(_operacionSinPrincipal)).Single(c => c.UsuarioId == _gestorB).Estado.Should().Be(EstadoAsignacion.Vigente);
+        (await CarterasAsync(_operacionSinPrincipal)).Where(c => c.UsuarioId == _gestorC).Should().ContainSingle(
+            "no se le abrió ninguna cartera nueva al destino");
+        (await CuentaActivaAsync(_gestorB)).Should().BeTrue();
+    }
+
+    private async Task<bool> CuentaActivaAsync(Guid usuarioId)
+    {
+        await using var contexto = ContextoPropietario(_operador.Id);
+        var bloqueo = await contexto.Users.AsNoTracking().Where(u => u.Id == usuarioId).Select(u => u.LockoutEnd).SingleAsync();
+        return !ApplicationUser.BloqueoDesactivaLaCuenta(bloqueo, DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Desactivar_al_principal_con_destino_pasa_cartera_y_marca_al_destino_sin_aviso()
+    {
+        var aviso = new AvisoSinGestorCaeAnotado();
+        var resultado = await DesactivarAsync(_gestorA, destinoId: _gestorB, aviso);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var carteras = await CarterasAsync(_operacion);
+        carteras.Where(c => c.UsuarioId == _gestorA).Should().OnlyContain(c => c.Estado == EstadoAsignacion.Cerrada);
+        carteras.Where(c => c.UsuarioId == _gestorB && c.Estado == EstadoAsignacion.Vigente).Should().ContainSingle()
+            .Which.EsPrincipal.Should().BeTrue("la marca va con la cartera reasignada, no al Coordinador CAE");
+        (await PrincipalesAsync(_operacion)).Should().Equal(_gestorB);
+        aviso.Avisos.Where(a => a.SinGestorCae.Any(t => t.PropietarioTenantId == _beneficiario.Id))
+            .Should().BeEmpty("el Tenant beneficiario no se quedó sin Gestor CAE");
+    }
+
+    private Task<Result> DesactivarAsync(
+        Guid usuarioId, Guid? destinoId, AvisoSinGestorCaeAnotado aviso, bool sinDestinoConfirmado = false) =>
+        EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, sp) =>
         {
             var cuentas = new GestionCuentasUsuarioIdentity(
                 sp.GetRequiredService<UserManager<ApplicationUser>>(), sp.GetRequiredService<PuertaAccesoDatos>(), directorio, contexto);
@@ -494,19 +596,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     cuentas, usuario, sp.GetRequiredService<ITenantActual>(),
                     new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                     new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio,
-                    new AdministradoresDelTenant(contexto, directorio))
-                .Handle(new CambiarActivacionUsuarioCommand(_gestorA, Activar: false), CancellationToken.None);
+                    new AdministradoresDelTenant(contexto, directorio), aviso)
+                .Handle(new CambiarActivacionUsuarioCommand(usuarioId, Activar: false, destinoId, sinDestinoConfirmado), CancellationToken.None);
         });
-        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
-
-        var carteras = await CarterasAsync(_operacion);
-        carteras.Single(c => c.UsuarioId == _gestorA).Should().Match<AsignacionCartera>(
-            c => c.Estado == EstadoAsignacion.Vigente && !c.EsPrincipal, "opción C: pierde la marca, no el acceso");
-        carteras.Single(c => c.UsuarioId == _coordinador).Should().Match<AsignacionCartera>(
-            c => c.EsPrincipal && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiario.Id);
-        (await PrincipalesAsync(_operacion)).Should().Equal(_coordinador);
-        (await PrincipalesAsync(_operacionSinPrincipal)).Should().BeEmpty("donde no era el principal no hay nada que relevar");
-    }
 
     // ── Alerta, escalado y «Asumir» (I5) ────────────────────────────────────
 

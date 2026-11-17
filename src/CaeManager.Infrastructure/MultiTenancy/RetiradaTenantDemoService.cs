@@ -126,6 +126,12 @@ public static class RetiradaTenantDemoService
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
         // La siembra de cobertura de pantallas (Development): dos Tenants propietarios y su Operador CAE externo.
         ..CoberturaPantallasSeeder.NombresTenants,
+        // La siembra Inbound (Development): el Tenant TCE y sus tres Tenants TEC. Las constantes una a una, no la lista: se
+        // incrustan al compilar, así que este tipo del Núcleo no queda dependiendo de la siembra (Composición).
+        InboundDemoSeeder.NombreTenantTce,
+        InboundDemoSeeder.NombreTenantMoncayo,
+        InboundDemoSeeder.NombreTenantRibera,
+        InboundDemoSeeder.NombreTenantSomontano,
         // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
         // con nombres limpios. Ver ExigenMarcador.
         ..CatalogoPilotoOutbound.NombresTenants,
@@ -141,7 +147,11 @@ public static class RetiradaTenantDemoService
     private static bool ExigenMarcador(string nombre) =>
         SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
         CatalogoPilotoOutbound.NombresTenants.Contains(nombre) ||
-        nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
+        nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet
+            // La siembra Inbound pone siempre el marcador al aprovisionar y se niega ante un nombre suyo sin él: la retirada
+            // aplica la misma regla, aunque sus nombres lleven sufijo «(Inbound demo)».
+            or InboundDemoSeeder.NombreTenantTce or InboundDemoSeeder.NombreTenantMoncayo
+            or InboundDemoSeeder.NombreTenantRibera or InboundDemoSeeder.NombreTenantSomontano;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =
         typeof(RetiradaTenantDemoService).GetMethod(nameof(CargarFilasDeTenantAsync), BindingFlags.NonPublic | BindingFlags.Static)!;

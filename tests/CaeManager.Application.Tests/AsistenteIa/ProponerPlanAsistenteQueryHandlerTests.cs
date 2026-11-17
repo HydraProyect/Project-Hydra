@@ -162,6 +162,12 @@ public class ProponerPlanAsistenteQueryHandlerTests
         resultado.Error.Mensaje.Should().StartWith("Esta organización todavía no tiene").And.NotContainEquivalentOf("tenant");
         decisiones.Clasificaciones.Should().Be(0);
         decisiones.Solicitadas.Should().BeNull();
+
+        var porObjecion = await Handler(decisiones, excluidosPorObjecion: [TenantA]).Handle(new(Orden), default);
+        porObjecion.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        porObjecion.Error.Mensaje.Should().Contain("al objetar a un subencargado", "#2010, D-7: con la instrucción vigente, la causa es la objeción")
+            .And.NotContain("todavía no tiene");
+        decisiones.Clasificaciones.Should().Be(0);
     }
 
     [Fact]
@@ -317,9 +323,9 @@ public class ProponerPlanAsistenteQueryHandlerTests
 
     private static ProponerPlanAsistenteQueryHandler Handler(
         DecisionesFalsas decisiones, Guid? pantalla = null, Guid[]? habilitados = null, MediatorFalso? mediator = null,
-        LimitadorConsultaIa? limitador = null) =>
+        LimitadorConsultaIa? limitador = null, Guid[]? excluidosPorObjecion = null) =>
         new(mediator ?? new MediatorFalso(DosTenants(), habilitados), decisiones,
-            new InstruccionPorTenant(habilitados ?? [TenantA, TenantB]), new TenantActualFalso(pantalla ?? TenantA),
+            new InstruccionPorTenant(habilitados ?? [TenantA, TenantB], excluidosPorObjecion ?? []), new TenantActualFalso(pantalla ?? TenantA),
             limitador ?? new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions()), TimeProvider.System));
 
     private static CandidatosAsistenteDto DosTenants() => new(
@@ -361,9 +367,16 @@ public class ProponerPlanAsistenteQueryHandlerTests
         public void Avanzar(TimeSpan tiempo) => _ahora += tiempo;
     }
 
-    private sealed class InstruccionPorTenant(Guid[] habilitados) : IInstruccionTratamientoIaService
+    /// <summary>
+    /// <paramref name="habilitados"/> tienen instrucción vigente; de ellos, <paramref name="excluidosPorObjecion"/> tienen
+    /// la IA apagada por su objeción a un subencargado (#2010, D-7).
+    /// </summary>
+    private sealed class InstruccionPorTenant(Guid[] habilitados, Guid[] excluidosPorObjecion) : IInstruccionTratamientoIaService
     {
         public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(habilitados.Contains(tenantId) && !excluidosPorObjecion.Contains(tenantId));
+
+        public Task<bool> TieneInstruccionVigenteAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
             Task.FromResult(habilitados.Contains(tenantId));
     }
 

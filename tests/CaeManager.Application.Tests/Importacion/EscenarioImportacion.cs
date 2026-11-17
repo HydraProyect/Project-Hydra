@@ -138,7 +138,8 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
-    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador", IAlcanceDatosService? alcance = null) => new(
+    public EjecutarImportacionCommandHandler Handler(
+        string? rol = "Administrador", IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null) => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
@@ -153,7 +154,10 @@ internal sealed class EscenarioImportacion
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
             TiposDocumentoContexto, AcreditacionRepositorio),
         alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(),
-        Serializacion, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia());
+        Serializacion, Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia(), invalidador);
+
+    /// <summary>Límite de D-P11; sin asignar, el de un Tenant sin Producto Contratado P.</summary>
+    public CaeManager.Application.Empresas.ILimiteEmpresaPropia? Limite { get; set; }
 
     public RecorteDeAnalisisAlAmbito Recorte(string? rol, IAlcanceDatosService alcance) => new(
         new AutorizacionEscrituraEfectiva(

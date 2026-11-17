@@ -10,6 +10,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Visita)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
 @using CaeManager.Domain.Visitas
 @using CaeManager.Web.Features.Documentos.Components

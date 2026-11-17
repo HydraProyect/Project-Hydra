@@ -29,12 +29,15 @@ area Domain.Vehiculos                = Nucleo
 area Domain.Centros                  = Nucleo
 area Domain.RelacionesEmpresariales  = Nucleo
 area Domain.Comercial                = Nucleo
+area Domain.Exportacion              = Nucleo      provisional  # § 3 (Exportacion), como Application/Infrastructure/Web.Exportacion
 area Domain.AltaAutonoma             = Nucleo      provisional  # § 3: plano Comercial; hoy solo vende Outbound (INFERENCE)
 area Domain.Cumplimiento             = Nucleo      provisional  # § 3: plano Comercial; firme solo el Producto Contratado
+area Domain.DerechosInteresado       = Nucleo      provisional  # § 3 sin fila; registro RGPD del Tenant propietario, común a Outbound e Inbound (INFERENCE, #2002)
 area Domain.Asignaciones             = Nucleo      provisional  # § 3, N-1
 area Domain.Operaciones              = Nucleo      provisional  # § 3, M-4: entidad común acotada por ServicioCae
 area Domain.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación frente a plataforma va en excepciones
 area Domain.DocumentosIa             = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
+area Domain.Archivos                 = Nucleo      provisional  # sin fila en § 3: outbox técnico de archivos del Tenant propietario que referencian Documentos y versiones de plantilla, ambos Núcleo (#2123)
 area Domain.Plantillas               = Nucleo      provisional  # § 3, M-5: motor de generación que reutiliza Inbound (B-30)
 area Domain.Integraciones            = Nucleo      provisional  # § 3, A-2: canales técnicos; los conectores de plataformas CAE en excepciones
 area Domain.Notificaciones           = Nucleo      provisional  # § 3: servicio técnico (INFERENCE por nombre)
@@ -107,6 +110,8 @@ area Application.RelacionesEmpresariales  = Nucleo
 area Application.Comercial                = Nucleo
 area Application.AltaAutonoma             = Nucleo      provisional  # § 3: hoy solo vende Outbound (INFERENCE)
 area Application.Cumplimiento             = Nucleo      provisional  # § 3: firme solo el Producto Contratado
+area Application.DerechosInteresado       = Nucleo      provisional  # § 3 sin fila; registro RGPD del Tenant propietario (INFERENCE, #2002)
+area Application.CapacidadesTenant        = Nucleo      provisional  # § 3 sin fila; capacidades que concede el Administrador del Tenant propietario (INFERENCE, #2002)
 area Application.Asignaciones             = Nucleo      provisional  # § 3, N-1
 area Application.Operaciones              = Nucleo      provisional  # § 3, M-4
 area Application.Documentos               = Nucleo      provisional  # § 3, M-3; la acreditación en excepciones
@@ -278,7 +283,7 @@ excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions    
 # Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
 excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
 
-# Siembra: sin fila en § 3. Ninguna siembra tablas Inbound (§ 2.2); la de demo, la del piloto y los rellenos que solo
+# Siembra: sin fila en § 3. Solo InboundDemoSeeder siembra tablas Inbound (Development; excepción Composición, abajo); la de demo, la del piloto y los rellenos que solo
 # tocan datos Outbound (AsignacionesOperativasBackfillSeeder, que corre en cada arranque) existen para Outbound («ante la
 # duda, a su módulo»). Los datos de arranque que no son de un flujo (Tenant, roles, parámetros, catálogo) son Núcleo.
 excepcion Infrastructure.Persistence.Seed                                 = Outbound provisional  # sin fila en § 3: siembra de demo y piloto Outbound
@@ -290,6 +295,8 @@ excepcion Infrastructure.Persistence.Seed.AceptacionTerminosSeedHelper    = Nucl
 excepcion Infrastructure.Persistence.Seed.ConocimientoDeteccionCampoSeedData = Nucleo provisional  # sin fila en § 3: DocumentosIa
 excepcion Infrastructure.Persistence.Seed.SiembraEmpresaPropia            = Nucleo provisional  # sin fila en § 3: Empresa propia del Tenant
 excepcion Infrastructure.Persistence.Seed.DelegacionesSoporteSeeder       = Nucleo provisional  # sin fila en § 3: plano de Plataforma
+excepcion Infrastructure.Persistence.Seed.LineaInboundDemoSeeder          = Nucleo provisional  # sin fila en § 3: plano Comercial (la línea Inbound del Producto Contratado de la siembra Inbound)
+excepcion Infrastructure.Persistence.Seed.InboundDemoSeeder               = Composicion provisional  # sin fila en § 3: siembra de Development que compone el aprovisionamiento de la demo (Outbound) con las tablas Inbound; Outbound -> Inbound e Inbound -> Outbound están cerradas
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Código que generan los paquetes y el compilador fuera de CaeManager.* (generadores de fuentes, atributos embebidos)

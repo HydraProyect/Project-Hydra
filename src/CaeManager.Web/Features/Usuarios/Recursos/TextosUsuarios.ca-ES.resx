@@ -34,13 +34,40 @@
     <value>Perdrà l'accés en el moment que confirmis: la seva sessió oberta es tanca. Podràs reactivar-la després.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
-    <value>La seva Assignació de Cartera és tota l'operació d'aquesta organització. Continua oberta i la conserva el seu Coordinador CAE.</value>
+    <value>La seva Assignació de Cartera interna, la de tota l'operació d'aquesta organització, no es toca: la continua heretant el seu Coordinador CAE.</value>
   </data>
   <data name="DesactivarVolver" xml:space="preserve">
     <value>Volver</value>
   </data>
   <data name="DesactivarConfirmar" xml:space="preserve">
     <value>Desactivar</value>
+  </data>
+  <data name="DesactivarCarteraOrganizaciones" xml:space="preserve">
+    <value>És el Gestor CAE d'aquestes organitzacions: {0}. Tria a qui passen.</value>
+  </data>
+  <data name="DesactivarDestinoEtiqueta" xml:space="preserve">
+    <value>Reassignar la seva cartera a</value>
+  </data>
+  <data name="DesactivarDestinoSinElegir" xml:space="preserve">
+    <value>Tria una opció</value>
+  </data>
+  <data name="DesactivarDestinoNadie" xml:space="preserve">
+    <value>A ningú per ara</value>
+  </data>
+  <data name="DesactivarSinDestinoAyuda" xml:space="preserve">
+    <value>Aquestes organitzacions es quedaran sense Gestor CAE i avisarem els Administradors perquè els n'assignin un. Desactivar el seu compte no dona de baixa cap d'elles.</value>
+  </data>
+  <data name="DesactivarSinDecision" xml:space="preserve">
+    <value>Tria a qui passen les seves organitzacions, o «A ningú per ara», per poder desactivar el compte.</value>
+  </data>
+  <data name="DesactivarDecisionRequerida" xml:space="preserve">
+    <value>Té organitzacions a la seva cartera que no hi eren quan vas obrir aquest diàleg. No s'ha canviat res: tria a qui passen o «A ningú per ara».</value>
+  </data>
+  <data name="DesactivarCarteraNoLegible" xml:space="preserve">
+    <value>No hem pogut mostrar la seva cartera. Tanca aquest diàleg, recarrega la llista i torna-ho a provar.</value>
+  </data>
+  <data name="DesactivarErrorAlPreparar" xml:space="preserve">
+    <value>No hem pogut preparar la baixa d'aquest compte. Torna-ho a provar.</value>
   </data>
   <data name="ReenvioCorreoFallido" xml:space="preserve">
     <value>No hem pogut enviar el correu</value>

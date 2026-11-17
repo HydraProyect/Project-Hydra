@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -17,7 +18,7 @@ namespace CaeManager.Application.Inbound.Requisitos.Commands.CrearPlantillaRequi
 /// </summary>
 /// <param name="ReferenciaId">El Id de la Actividad, el riesgo, el Centro o la Empresa Cliente empresarial, según <paramref name="Tipo"/>.</param>
 [AreaDelEncargo("TiposDocumento")]
-public record CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos Tipo, Guid ReferenciaId) : ICommand<Guid>;
+public record CrearPlantillaRequisitosCommand(TipoPlantillaRequisitos Tipo, Guid ReferenciaId) : ICommand<Guid>, IComandoInbound;
 
 public class CrearPlantillaRequisitosCommandValidator : AbstractValidator<CrearPlantillaRequisitosCommand>
 {
@@ -30,12 +31,16 @@ public class CrearPlantillaRequisitosCommandValidator : AbstractValidator<CrearP
 
 public class CrearPlantillaRequisitosCommandHandler(
     IPlantillaRequisitosRepository repositorio, ICatalogoBaseQueryContext catalogo, ICentrosQueryContext centros,
-    IEmpresasQueryContext empresas, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IEmpresasQueryContext empresas, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<CrearPlantillaRequisitosCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearPlantillaRequisitosCommand request, CancellationToken cancellationToken)
     {
-        // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
+        // La capacidad (GestionarInbound) la pide arriba IAutorizacionInbound (B-03); el alcance de cartera del
+        // recurso lo decide PlantillaRequisitosAutorizacion con IAlcanceDatosService, del servicio del papel activo.
         // Fuera de la cartera, la referencia «no existe»: el mismo error que si no existiera.
         if (!await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(request.Tipo, request.ReferenciaId, alcanceDatos, cancellationToken))
             return Result.Fallo<Guid>(PlantillaRequisitosErrores.ReferenciaNoEncontrada);

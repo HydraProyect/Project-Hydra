@@ -112,6 +112,9 @@ public class ObtenerDelegacionesQueryTests
     {
         public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
             new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
+        private readonly List<CaeManager.Domain.Tenants.DelegacionTenant> _amparoPorDefecto = [];
+        public IQueryable<CaeManager.Domain.Tenants.DelegacionTenant> DelegacionesTenant =>
+            CaeManager.Application.Tests.Integraciones.OperacionesEnMemoria.AmparoPorDefecto(operaciones, _amparoPorDefecto);
 
         public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera =>

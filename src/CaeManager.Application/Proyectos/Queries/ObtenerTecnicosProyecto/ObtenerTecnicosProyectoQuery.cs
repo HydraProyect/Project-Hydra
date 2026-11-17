@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Proyectos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,9 +11,14 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 [AreaDelEncargo("Proyectos")]
 public record ObtenerTecnicosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<TecnicoProyectoDto>>;
 
+/// <param name="MotivoBaja">
+/// Por qué se dio de baja (D-4, #2005): una baja del Sistema al cerrar el evento se distingue de una desasignación
+/// hecha a mano. Nulo si está activo o si la baja es anterior a la columna.
+/// </param>
 public record TecnicoProyectoDto(
     Guid Id, Guid TrabajadorId, string TrabajadorNombreCompleto,
-    DateOnly FechaAlta, DateOnly? FechaBaja, bool EstaActivo);
+    DateOnly FechaAlta, DateOnly? FechaBaja, bool EstaActivo,
+    MotivoBajaProyectoTecnico? MotivoBaja = null);
 
 /// <summary>
 /// Los técnicos de un Proyecto solo se nombran a quien ve el Proyecto: mismo criterio que
@@ -53,7 +59,8 @@ public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyecto
             orderby proyectoTecnico.FechaAlta descending
             select new TecnicoProyectoDto(
                 proyectoTecnico.Id, trabajador.Id, trabajador.Nombre + " " + trabajador.Apellidos,
-                proyectoTecnico.FechaAlta, proyectoTecnico.FechaBaja, proyectoTecnico.FechaBaja == null);
+                proyectoTecnico.FechaAlta, proyectoTecnico.FechaBaja, proyectoTecnico.FechaBaja == null,
+                proyectoTecnico.MotivoBaja);
 
         return await consulta.ToListAsync(cancellationToken);
     }
