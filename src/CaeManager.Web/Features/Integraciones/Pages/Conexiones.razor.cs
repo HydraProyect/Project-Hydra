@@ -7,6 +7,7 @@ using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -396,10 +397,16 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     /// Administrador siempre recibiría «no encontrada».
     /// </summary>
     private static bool PuedeConfirmarAvisoHueco(ConexionIntegracionListaDto conexion) =>
-        conexion.CorreoNoRecuperadoDesdeUtc is not null
-        && conexion.Estado == EstadoConexionIntegracion.Habilitada
-        && !conexion.HuecoSinRegistrar
-        && conexion.GestorPropietarioId is null;
+        conexion.AvisoHuecoReconocible && conexion.GestorPropietarioId is null;
+
+    /// <summary>
+    /// El aviso en una línea de la fila: el título que Buzón pinta en negrita y su detalle, unidos por el formato del
+    /// recurso, con la variante que nombra Confirmar solo si la fila lo ofrece.
+    /// </summary>
+    private string TextoAvisoCorreoNoRecuperado(ConexionIntegracionListaDto conexion, DateTime noRecuperadoDesdeUtc) =>
+        Textos["AvisoCorreoNoRecuperadoEnLinea",
+            Textos["AvisoCorreoNoRecuperadoTitulo", noRecuperadoDesdeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")].Value,
+            Textos[PuedeConfirmarAvisoHueco(conexion) ? "AvisoCorreoNoRecuperadoConfirmable" : "AvisoCorreoNoRecuperado"].Value];
 
     private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
     {
@@ -407,13 +414,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _avisoHuecoAConfirmar = conexion;
     }
 
-    private Task CerrarConfirmacionAvisoHueco() => CerrarConfirmacionAvisoHueco(false);
-
-    private Task CerrarConfirmacionAvisoHueco(bool visible)
+    private void CerrarConfirmacionAvisoHueco()
     {
-        if (visible || _confirmandoAvisoHueco) return Task.CompletedTask;
-        _avisoHuecoAConfirmar = null;
-        return Task.CompletedTask;
+        if (!_confirmandoAvisoHueco) _avisoHuecoAConfirmar = null;
     }
 
     /// <summary>

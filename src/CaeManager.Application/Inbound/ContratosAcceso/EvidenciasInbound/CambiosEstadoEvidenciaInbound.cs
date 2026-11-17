@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using CaeManager.Application.Tenants.Encargo;
@@ -33,11 +34,14 @@ public record ValidarEvidenciaInboundCommand(Guid EvidenciaId) : ICommand, IComa
 
 public class RechazarEvidenciaInboundCommandHandler(
     IEvidenciaInboundRepository repositorio, IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos,
-    ICurrentUserService currentUser, IUnitOfWork unitOfWork, TimeProvider reloj)
+    ICurrentUserService currentUser, IUnitOfWork unitOfWork, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RechazarEvidenciaInboundCommand, Result>
 {
     public async Task<Result> Handle(RechazarEvidenciaInboundCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var evidencia = await EvidenciaVisible.ObtenerAsync(
             request.EvidenciaId, repositorio, contratosContext, alcanceDatos, currentUser, cancellationToken);
         if (evidencia is null || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
@@ -53,11 +57,14 @@ public class RechazarEvidenciaInboundCommandHandler(
 
 public class ValidarEvidenciaInboundCommandHandler(
     IEvidenciaInboundRepository repositorio, IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos,
-    ICurrentUserService currentUser, IUnitOfWork unitOfWork, TimeProvider reloj)
+    ICurrentUserService currentUser, IUnitOfWork unitOfWork, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ValidarEvidenciaInboundCommand, Result>
 {
     public async Task<Result> Handle(ValidarEvidenciaInboundCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var evidencia = await EvidenciaVisible.ObtenerAsync(
             request.EvidenciaId, repositorio, contratosContext, alcanceDatos, currentUser, cancellationToken);
         if (evidencia is null || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)

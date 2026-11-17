@@ -121,6 +121,9 @@
   <data name="DescartarCambiosMensaje" xml:space="preserve">
     <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
   </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar cambios</value>
   </data>

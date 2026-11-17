@@ -19,7 +19,8 @@
 # Hoy todas las entradas cuelgan de Application y ninguna lleva el prefijo. (Tras fusionar origin/main 2adbdc365 la lista pasa de 113 a 112: main
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
-# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas.
+# ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas. #2124 (opción B) añade
+# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 117 entradas (116 en origin/main 6d0e857ce, contadas el 2026-11-17).
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1
@@ -94,6 +95,9 @@ HerramientasPdf :: PrepararDivisionPdfQueryHandler[HerramientasPdf.PrepararDivis
 HerramientasPdf :: PrepararUnionPdfQueryHandler[HerramientasPdf.PrepararUnionPdfQuery] = 1
 Importacion.Queries :: AnalizarPlantillaMaestraQueryHandler[Importacion.Queries.AnalizarPlantillaMaestraQuery] = 1
 Importacion.Queries.ObtenerHistorialImportaciones :: ObtenerHistorialImportacionesQueryHandler[Importacion.Queries.ObtenerHistorialImportaciones.ObtenerHistorialImportacionesQuery] = 1
+# #2124, opción B: ¿ofrece Buzón Confirmar sobre el aviso del hueco? No lee ninguna fila: devuelve un booleano por el rol
+# efectivo y AlcanzaElTenantEnteroAsync, con la misma regla que ReconocerAvisoHuecoCommand, que comparte handler y decide.
+Integraciones.Commands.ReconocerAvisoHueco :: ReconocerAvisoHuecoCommandHandler[Integraciones.Commands.ReconocerAvisoHueco.PuedeReconocerAvisoHuecoQuery] = 1
 Integraciones.Queries.ObtenerLineasWhatsApp :: ObtenerLineasWhatsAppQueryHandler[Integraciones.Queries.ObtenerLineasWhatsApp.ObtenerLineasWhatsAppQuery] = 1
 Integraciones.Queries.ObtenerProveedoresPlataformaCae :: ObtenerProveedoresPlataformaCaeQueryHandler[Integraciones.Queries.ObtenerProveedoresPlataformaCae.ObtenerProveedoresPlataformaCaeQuery] = 1
 Marco.Queries.ObtenerContextoMarco :: ObtenerContextoMarcoQueryHandler[Marco.Queries.ObtenerContextoMarco.ObtenerContextoMarcoQuery] = 1

@@ -118,6 +118,9 @@
   <data name="DescartarCambiosMensaje" xml:space="preserve">
     <value>Hi ha canvis que encara no s'han desat. Si tanques, es perden.</value>
   </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar els canvis</value>
   </data>

@@ -38,6 +38,9 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        // La autorización de Inbound (B-03): capacidades desde el papel activo y el rol; todo handler Inbound la llama.
+        services.AddScoped<CaeManager.Application.Inbound.Autorizacion.IAutorizacionInbound,
+            CaeManager.Application.Inbound.Autorizacion.AutorizacionInbound>();
         // Coste de acceso a datos del mismo scope (lo lee la cabecera Server-Timing).
         services.AddScoped<CosteCarga>();
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,
@@ -191,6 +194,9 @@ public static class ApplicationServiceCollectionExtensions
         // La guarda por servicio (DN-21, B-02b), después del rol y del estado del Tenant: un comando de Inbound con papel
         // Outbound, o uno que no es de Inbound con papel Inbound, falla cerrado antes del handler.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GuardaPorServicioBehavior<,>));
+        // El ámbito de petición de Inbound (B-03), dentro de la guarda: con papel Inbound, AlcanceDatosService solo da alcance
+        // dentro de una petición de Inbound; los lectores de otros módulos siguen en alcance cero.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AmbitoInboundBehavior<,>));
         // Después de la autorización de escritura: lo que el rol elevado por un Encargo de
         // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
         // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.
