@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
@@ -265,7 +265,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // clic dado en la ventana del prerenderizado se pierde en silencio y
         // el fallo saldría 30 s después esperando el botón de copiar enlace,
         // sin decir que la causa fue el clic (ver Ayudas.AbrirConversacionDeTablaAsync).
-        await Ayudas.AbrirConversacionDeTablaAsync(page, page.Locator(".tabla-conversaciones-asunto button").First);
+        await Ayudas.SeleccionarFilaBandejaAsync(page.Locator(".bandeja-fila").First);
         await page.Locator(".bandeja-centro-copiar-enlace").WaitForAsync();
         var asuntoOriginal = (await page.Locator(".bandeja-centro-titulo-fila h2").TextContentAsync())!.Trim();
 

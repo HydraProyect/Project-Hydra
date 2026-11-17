@@ -105,7 +105,7 @@ public class ComunicacionesHojaDeEstilosTests
         var bloque = Regla(css, @"\.bandeja-vacio-bloque");
         bloque.Should().MatchRegex(@"gap\s*:\s*8px").And.MatchRegex(@"justify-content\s*:\s*center");
         // El 60vh de la lista en móvil es del modo hilo: en la tabla empujaba la primera fila fuera de la pantalla.
-        Regex.IsMatch(css, @"@media \(max-width: 760px\)\s*\{[^@]*\.bandeja-modo-hilo \.bandeja-filtros\s*\{\s*min-height: 60vh").Should().BeTrue();
+        Regex.IsMatch(css, @"@media \(max-width: 760px\)\s*\{[^@]*\.bandeja-modo-lista \.bandeja-lista,\s*\.bandeja-modo-personal \.bandeja-lista\s*\{\s*min-height: 60vh").Should().BeTrue();
         Regex.IsMatch(css, @"(?m)^\s*\.bandeja-filtros\s*\{\s*min-height: 60vh").Should().BeFalse();
     }
 
@@ -129,9 +129,11 @@ public class ComunicacionesHojaDeEstilosTests
     public void Los_anchos_de_bandeja_lista_y_contexto_siguen_la_maqueta()
     {
         var css = Leer(Bandeja);
-        Regla(css, @"\.bandeja-modo-tabla").Should().Contain("--bandeja-ancho-lista: 240px");
-        Regla(css, @"\.bandeja-modo-hilo").Should().Contain("--bandeja-ancho-lista: 304px");
-        Regla(css, @"\.bandeja-modo-hilo:has\(\.bandeja-cliente\)").Should().Contain("344px");
+        // Maqueta 2026-11-01 (E27): cartera 200 y lista 320 a 1440; 184 y 304 por debajo; 216 y 344 desde 1600; 216 y 380 desde 1760.
+        Regla(css, @"\.bandeja-layout").Should().Contain("--bandeja-ancho-cartera: 200px").And.Contain("--bandeja-ancho-lista: 320px");
+        Regex.IsMatch(css, @"@media \(max-width: 1439px\)\s*\{[^@]*184px[^@]*304px").Should().BeTrue();
+        Regex.IsMatch(css, @"@media \(min-width: 1600px\)\s*\{[^@]*216px[^@]*344px").Should().BeTrue();
+        Regex.IsMatch(css, @"@media \(min-width: 1760px\)\s*\{[^@]*216px[^@]*380px").Should().BeTrue();
     }
 
     [Fact]
