@@ -78,7 +78,9 @@
                                     {
                                         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeContratacion", TextoContrataciones(r)]</Badge>
                                     }
-                                    @if (r.SePideA != DestinatarioRequisito.Todos)
+                                    @* shortcut: SePideA queda sin leerse en el Trabajador, al que se le pide con la contratación
+                                       Extranjero; en la Empresa contratista se sigue enseñando (decisión 2026-11-17). *@
+                                    @if (r.Entidad == EntidadRequisito.Empresa && r.SePideA != DestinatarioRequisito.Todos)
                                     {
                                         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveDestinatario(r.SePideA)]</Badge>
                                     }

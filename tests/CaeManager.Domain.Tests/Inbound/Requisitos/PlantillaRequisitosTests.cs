@@ -388,6 +388,37 @@ public class PlantillaRequisitosTests
     }
 
     [Fact]
+    public void Un_requisito_de_Trabajador_se_puede_acotar_al_Extranjero_y_una_Empresa_admite_Todos_o_el_Todos_anterior()
+    {
+        var requisito = DeCentro().AnadirRequisito(Tipo(), null, Basicos with { TiposContratacion = TiposContratacion.Extranjero });
+
+        requisito.TiposContratacion.Should().Be(TiposContratacion.Extranjero);
+        requisito.TiposContratacion.Incluye(TipoContratacion.Extranjero).Should().BeTrue();
+        requisito.TiposContratacion.Incluye(TipoContratacion.CuentaAjena).Should().BeFalse();
+
+        // La migración no toca la máscara de una Empresa: su 7 sigue valiendo, y una Empresa no se acota por contratación.
+        var empresa = Tipo(AmbitoAplicacion.Empresa, grupo: null);
+        var anterior = TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario;
+        DeCentro().AnadirRequisito(empresa, null, Basicos with { TiposContratacion = anterior })
+            .TiposContratacion.Should().Be(anterior);
+        DeCentro().AnadirRequisito(empresa, null, Basicos).TiposContratacion.Should().Be(TiposContratacion.Todos);
+        FluentActions.Invoking(() => DeCentro().AnadirRequisito(empresa, null, Basicos with { TiposContratacion = TiposContratacion.Extranjero }))
+            .Should().Throw<ArgumentException>("el tipo de contratación solo acota requisitos de Trabajador");
+    }
+
+    [Fact]
+    public void Una_Empresa_contratista_sigue_pidiendose_solo_a_extranjeras_con_SePideA()
+    {
+        // Decisión de la subcoordinadora de 2026-11-17: para la Empresa, SePideA se sigue leyendo (país de la Empresa, 2026-11-14).
+        var empresa = Tipo(AmbitoAplicacion.Empresa, grupo: null);
+
+        var requisito = DeCentro().AnadirRequisito(empresa, null, Basicos with { SePideA = DestinatarioRequisito.Extranjeros });
+
+        requisito.SePideA.Should().Be(DestinatarioRequisito.Extranjeros);
+        requisito.TiposContratacion.Should().Be(TiposContratacion.Todos);
+    }
+
+    [Fact]
     public void Las_equivalencias_se_limpian_y_no_valen_si_solo_se_pide_a_nacionales()
     {
         var requisito = DeCentro().AnadirRequisito(Tipo(), null,

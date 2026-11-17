@@ -128,7 +128,7 @@ public class Trabajador : EntidadBase
     public string? Nacionalidad { get; private set; }
     public string? TipoVinculo { get; private set; }
 
-    /// <summary>Cuenta ajena, autónomo o voluntario (ver <see cref="Trabajadores.TipoContratacion"/>). Por defecto, cuenta ajena.</summary>
+    /// <summary>Cuenta ajena, autónomo, voluntario o extranjero (ver <see cref="Trabajadores.TipoContratacion"/>). Por defecto, cuenta ajena.</summary>
     public TipoContratacion TipoContratacion { get; private set; } = TipoContratacion.CuentaAjena;
     public DateOnly? FechaAltaEmpresa { get; private set; }
     public DateOnly? FechaBajaEmpresa { get; private set; }
@@ -416,8 +416,8 @@ public class Trabajador : EntidadBase
     }
 
     /// <summary>
-    /// Fija si presta servicio por cuenta ajena, como autónomo o como voluntario. No se deduce de
-    /// <see cref="TipoVinculo"/> ni del documento de identidad.
+    /// Fija si presta servicio por cuenta ajena, como autónomo, como voluntario o como extranjero. No se deduce de
+    /// <see cref="TipoVinculo"/>, de <see cref="Nacionalidad"/> ni del documento de identidad.
     /// </summary>
     public void CambiarTipoContratacion(TipoContratacion tipo)
     {

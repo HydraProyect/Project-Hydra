@@ -91,6 +91,7 @@ public class RequisitoPlantillaConfiguration : IEntityTypeConfiguration<Requisit
                 "CK_RequisitosPlantilla_Tolerancia",
                 $"\"{tolerancia}\" IS NULL OR (\"{tolerancia}\" BETWEEN 1 AND {AtributosRequisito.ToleranciaMaximaDias} " +
                 $"AND \"{modo}\" <> '{nameof(ModoVigenciaRequisito.SinVencimiento)}')");
+            // Con Extranjero (2026-11-17) Todos es 15: la migración TraduceExtranjeroAModeloDeContratacion rehace este CHECK.
             t.HasCheckConstraint(
                 "CK_RequisitosPlantilla_TiposContratacion",
                 $"\"{contratacion}\" > 0 AND (\"{contratacion}\" & ~{(int)TiposContratacion.Todos}) = 0");
@@ -107,6 +108,7 @@ public class RequisitoPlantillaConfiguration : IEntityTypeConfiguration<Requisit
         builder.Property(r => r.Entidad).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.Origen).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.ModoVigencia).HasConversion<string>().HasMaxLength(30);
+        // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
         builder.Property(r => r.SePideA).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.AmbitoDocumento).HasConversion<string>().HasMaxLength(30);
         // Máscara de bits, entera como TipoDocumento.TiposContratacionDeSerie.

@@ -16,7 +16,7 @@ public class SerieDocumentalPorTipoContratacionTests
         new("Aptitud médica", 12, aplicaVencimientoAutomatico: true, orden: 1, ambito, requerido);
 
     [Fact]
-    public void Un_tipo_nuevo_se_pide_de_serie_a_los_tres_tipos_de_contratacion()
+    public void Un_tipo_nuevo_se_pide_de_serie_a_todos_los_tipos_de_contratacion_tambien_al_Extranjero()
     {
         var tipo = Tipo();
 
@@ -75,18 +75,64 @@ public class SerieDocumentalPorTipoContratacionTests
     {
         var tipo = Tipo();
 
-        tipo.EstablecerTiposContratacionDeSerie((TiposContratacion)(8 | (int)TiposContratacion.Autonomo));
+        tipo.EstablecerTiposContratacionDeSerie((TiposContratacion)(16 | (int)TiposContratacion.Autonomo));
 
         tipo.TiposContratacionDeSerie.Should().Be(TiposContratacion.Autonomo);
     }
 
-    [Theory]
-    [InlineData(TipoContratacion.CuentaAjena, 1)]
-    [InlineData(TipoContratacion.Autonomo, 2)]
-    [InlineData(TipoContratacion.Voluntario, 4)]
-    public void El_bit_de_cada_tipo_de_contratacion_es_estable_porque_se_persiste(TipoContratacion tipo, int bit)
+    [Fact]
+    public void La_normalizacion_conserva_el_bit_Extranjero()
     {
+        var tipo = Tipo();
+
+        tipo.EstablecerTiposContratacionDeSerie(TiposContratacion.Extranjero | (TiposContratacion)32);
+
+        tipo.TiposContratacionDeSerie.Should().Be(TiposContratacion.Extranjero);
+    }
+
+    [Fact]
+    public void Una_serie_solo_de_Extranjero_se_pide_al_Extranjero_y_no_a_cuenta_ajena_ni_a_autonomo()
+    {
+        var tipo = Tipo();
+
+        tipo.EstablecerTiposContratacionDeSerie(TiposContratacion.Extranjero);
+
+        tipo.SePideDeSerieA(TipoContratacion.Extranjero).Should().BeTrue();
+        tipo.SePideDeSerieA(TipoContratacion.CuentaAjena).Should().BeFalse();
+        tipo.SePideDeSerieA(TipoContratacion.Autonomo).Should().BeFalse();
+        tipo.SePideDeSerieA(TipoContratacion.Voluntario).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Una_serie_de_los_tres_anteriores_no_se_pide_al_Extranjero()
+    {
+        // El 7 que una base tenga después de la migración es una serie acotada a propósito, no «todos».
+        var tipo = Tipo();
+
+        tipo.EstablecerTiposContratacionDeSerie(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario);
+
+        tipo.SePideDeSerieA(TipoContratacion.Extranjero).Should().BeFalse();
+        tipo.SePideDeSerieA(TipoContratacion.CuentaAjena).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(TipoContratacion.CuentaAjena, 0, 1)]
+    [InlineData(TipoContratacion.Autonomo, 1, 2)]
+    [InlineData(TipoContratacion.Voluntario, 2, 4)]
+    [InlineData(TipoContratacion.Extranjero, 3, 8)]
+    public void El_ordinal_y_el_bit_de_cada_tipo_de_contratacion_son_estables_porque_se_persisten(
+        TipoContratacion tipo, int ordinal, int bit)
+    {
+        ((int)tipo).Should().Be(ordinal);
         ((int)tipo.ComoConjunto()).Should().Be(bit);
-        ((int)TiposContratacion.Todos).Should().Be(7);
+    }
+
+    [Fact]
+    public void Todos_es_15_y_contiene_cada_tipo_de_contratacion()
+    {
+        ((int)TiposContratacion.Todos).Should().Be(15);
+        Enum.GetValues<TipoContratacion>().Should().HaveCount(4);
+        foreach (var contratacion in Enum.GetValues<TipoContratacion>())
+            TiposContratacion.Todos.Incluye(contratacion).Should().BeTrue();
     }
 }

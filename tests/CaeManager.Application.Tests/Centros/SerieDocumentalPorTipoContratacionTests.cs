@@ -212,4 +212,41 @@ public class SerieDocumentalPorTipoContratacionTests
         (await LaFichaLoExigeA(_voluntario)).Should().BeTrue();
         (await ElAcordeonDelCentroLoExigeA(_voluntario)).Should().BeTrue();
     }
+
+    // ---- (4) El Extranjero como modelo de contratación (decisión 2026-11-17) ----
+
+    private Trabajador AsignarExtranjero()
+    {
+        var extranjero = Trabajador.DeEmpresa(_proveedora.Id, "Amina", "El Idrissi", "AB1234567");
+        extranjero.CambiarTipoContratacion(TipoContratacion.Extranjero);
+        _trabajadores.ListaTrabajadores.Add(extranjero);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(extranjero.Id, _centro.Id, Hoy.AddDays(-10)));
+        return extranjero;
+    }
+
+    [Fact]
+    public async Task Una_serie_solo_de_Extranjero_se_exige_al_Extranjero_y_no_al_de_cuenta_ajena_en_las_cuatro_superficies()
+    {
+        var extranjero = AsignarExtranjero();
+        _tipo.EstablecerTiposContratacionDeSerie(TiposContratacion.Extranjero);
+
+        (await EstadoDelCentroLoEchaEnFaltaA(extranjero)).Should().BeTrue();
+        (await FaltantesLoEchanEnFaltaA(extranjero)).Should().BeTrue();
+        (await LaFichaLoExigeA(extranjero)).Should().BeTrue();
+        (await ElAcordeonDelCentroLoExigeA(extranjero)).Should().BeTrue();
+
+        (await EstadoDelCentroLoEchaEnFaltaA(_cuentaAjena)).Should().BeFalse();
+        (await FaltantesLoEchanEnFaltaA(_cuentaAjena)).Should().BeFalse();
+        (await LaFichaLoExigeA(_cuentaAjena)).Should().BeFalse();
+        (await ElAcordeonDelCentroLoExigeA(_cuentaAjena)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task La_serie_por_defecto_tambien_se_exige_al_Extranjero()
+    {
+        var extranjero = AsignarExtranjero();
+
+        (await EstadoDelCentroLoEchaEnFaltaA(extranjero)).Should().BeTrue();
+        (await FaltantesLoEchanEnFaltaA(extranjero)).Should().BeTrue();
+    }
 }

@@ -319,7 +319,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         cut.FindAll(".bloque-serie-contratacion label.opcion-serie-contratacion input[type=checkbox]");
 
     [Fact]
-    public async Task La_serie_de_un_tipo_de_trabajador_nace_marcada_para_los_tres_y_se_guarda_sin_voluntario()
+    public async Task La_serie_de_un_tipo_de_trabajador_nace_marcada_para_los_cuatro_y_se_guarda_sin_voluntario()
     {
         var escenario = new Escenario();
         escenario.Tipos.Add(Tipo("Aptitud médica", AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si));
@@ -328,15 +328,16 @@ public class TiposDocumentoGen2Tests : BunitContext
         await PulsarEditar(cut, "Aptitud médica");
 
         cut.FindAll(".bloque-serie-contratacion label.opcion-serie-contratacion").Select(Texto)
-            .Should().Equal("Cuenta ajena", "Autónomo", "Voluntario");
+            .Should().Equal("Cuenta ajena", "Autónomo", "Voluntario", "Extranjero");
         CasillasSerie(cut).Should().OnlyContain(c => c.HasAttribute("checked"));
 
         await CasillasSerie(cut)[2].ChangeAsync(new ChangeEventArgs { Value = false });
-        CasillasSerie(cut).Should().NotContain(c => c.HasAttribute("disabled"), "quedan dos marcadas");
+        CasillasSerie(cut).Should().NotContain(c => c.HasAttribute("disabled"), "quedan tres marcadas");
         await PulsarGuardar(cut);
 
         mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()
-            .Which.TiposContratacionDeSerie.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo);
+            .Which.TiposContratacionDeSerie.Should().Be(
+                TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Extranjero);
     }
 
     [Fact]
@@ -349,6 +350,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         await PulsarEditar(cut, "Aptitud médica");
         await CasillasSerie(cut)[1].ChangeAsync(new ChangeEventArgs { Value = false });
         await CasillasSerie(cut)[2].ChangeAsync(new ChangeEventArgs { Value = false });
+        await CasillasSerie(cut)[3].ChangeAsync(new ChangeEventArgs { Value = false });
 
         CasillasSerie(cut)[0].HasAttribute("disabled").Should().BeTrue();
         await CasillasSerie(cut)[0].ChangeAsync(new ChangeEventArgs { Value = false });
@@ -371,7 +373,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         await PulsarEditar(cut, "Aptitud médica");
 
         CasillasSerie(cut).Select(c => c.HasAttribute("checked")).Should().Equal(
-            [true, true, false], "el drawer lee la serie guardada, no la reinicia a Todos");
+            [true, true, false, false], "el drawer lee la serie guardada, no la reinicia a Todos");
         await PulsarGuardar(cut);
 
         mediador.Enviados.OfType<EditarTipoDocumentoCommand>().Should().ContainSingle()

@@ -22,6 +22,9 @@ public record RequisitoPlantillaDto(
     int? ToleranciaDias,
     bool BloqueaAcceso,
     string? Criterio,
+    // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
+    // En un requisito de Trabajador solo viaja para que Editar requisito lo devuelva sin cambiarlo; en uno de Empresa contratista
+    // la pantalla lo enseña y decide con él (la decisión del 2026-11-14 sobre el país de la Empresa).
     DestinatarioRequisito SePideA,
     TiposContratacion TiposContratacion,
     IReadOnlyList<string> Equivalencias,
