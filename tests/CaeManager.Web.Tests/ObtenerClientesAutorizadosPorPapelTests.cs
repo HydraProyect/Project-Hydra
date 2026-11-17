@@ -12,8 +12,9 @@ using ContextoPrueba = CaeManager.Web.Tests.ClienteActivoEndpointsAutorizacionTe
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Decisión D-4 (2026-11-16): con <see cref="ObtenerClientesAutorizadosQuery.PorPapel"/> el Gestor CAE de un Operador
-/// CAE externo recibe una entrada por Asignación de Operación vigente (Tenant beneficiario y servicio), y todos los
+/// Decisiones D-4 (2026-11-16) y O-2 (b) (2026-11-17): con <see cref="ObtenerClientesAutorizadosQuery.PorPapel"/> quien
+/// llega a un Tenant beneficiario por una Asignación de Operación de su Operador CAE externo, sea cual sea su perfil,
+/// recibe una entrada por Asignación de Operación vigente (Tenant beneficiario y servicio), y todos los
 /// demás lectores, que agrupan por Tenant, siguen recibiendo una entrada por Tenant y sin servicio. Es la capa de
 /// Application (el handler real) sobre SQLite con el mismo contexto de prueba que el POST <c>/cuenta/cliente-activo</c>;
 /// no sustituye los tests PostgreSQL/RLS de CI.
@@ -143,7 +144,8 @@ public class ObtenerClientesAutorizadosPorPapelTests
         await e.Db.SaveChangesAsync();
 
         (await Pedir(e, porPapel: true)).Should().ContainSingle(c => c.TenantId == e.Sur.Id && c.Servicio == ServicioCae.Inbound
-                                                                    && c.Nombre == "Empresa Sur");
+                                                                    && c.Nombre == "Empresa Sur")
+            .Which.EsCarteraGestorCae.Should().BeTrue("para el Gestor CAE la entrada Inbound es de su cartera");
         (await Pedir(e, porPapel: false)).Should().NotContain(c => c.TenantId == e.Sur.Id,
             "la lista por Tenant de los demás lectores no se ensancha con la vía Inbound");
     }
@@ -196,6 +198,39 @@ public class ObtenerClientesAutorizadosPorPapelTests
             .And.NotContain(c => c.TenantId == e.Sur.Id);
     }
 
+    private sealed class LenteDemoGestor(params Guid[] tenants) : CaeManager.Application.VistaDemo.IVistaDemoActual
+    {
+        public Task<bool> EstaDisponibleAsync(System.Threading.CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<CaeManager.Application.VistaDemo.VistaDemoEfectiva?> ObtenerEfectivaAsync(
+            System.Threading.CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<System.Collections.Generic.IReadOnlyList<CaeManager.Application.VistaDemo.GestorDeVistaDemo>> ObtenerGestoresElegiblesAsync(
+            System.Threading.CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<System.Collections.Generic.IReadOnlyList<Guid>?> ObtenerTenantIdsAcotadosAsync(
+            System.Threading.CancellationToken cancellationToken = default) => Task.FromResult<System.Collections.Generic.IReadOnlyList<Guid>?>(tenants);
+    }
+
+    /// <summary>
+    /// Con la lente de demo Gestor, el perfil que decide sigue siendo el de la cuenta real (aquí, el Administrador del
+    /// Operador CAE externo): sus Asignaciones de Operación no pintan papeles en la demo del Gestor CAE simulado.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_lente_de_demo_Gestor_la_lista_por_papel_queda_por_Tenant()
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        Outbound(e, e.Norte, conCartera: false);
+        Inbound(e, e.Norte);
+        Inbound(e, e.Sur);
+        await e.Db.SaveChangesAsync();
+
+        var porPapel = await new ObtenerClientesAutorizadosQueryHandler(e.Db, e.Db, new Usuaria(e.Origen.Id, "Administrador"),
+                vistaDemo: new LenteDemoGestor(e.Norte.Id))
+            .Handle(new ObtenerClientesAutorizadosQuery { PorPapel = true }, default);
+
+        porPapel.Should().OnlyContain(c => c.Servicio == null);
+        porPapel.Select(c => c.TenantId).Should().Equal(e.Origen.Id, e.Norte.Id);
+    }
+
     /// <summary>
     /// El Administrador del Tenant propio (aquí, el de Empresa Norte, Tenant beneficiario que gestiona el Operador CAE
     /// externo) no llega a ningún Tenant por una Asignación de Operación: las de Empresa Norte son del Operador CAE, no
@@ -238,6 +273,7 @@ public class ObtenerClientesAutorizadosPorPapelTests
         lista.Where(c => c.Servicio is null).Select(c => c.TenantId).Should().Equal(
             (await Pedir(e, porPapel: false)).Select(c => c.TenantId), "la lista por Tenant de siempre va entera y sin papel");
         lista.Should().ContainSingle(c => c.Servicio == ServicioCae.Inbound).Which.TenantId.Should().Be(e.Sur.Id);
+        lista.Single(c => c.Servicio == ServicioCae.Inbound).EsCarteraGestorCae.Should().BeTrue("es de la cartera del Gestor CAE");
         var activo = ClientesAutorizados.Activo(lista, e.Sur.Id);
         activo!.Nombre.Should().Be("Empresa Sur", "el Tenant activo de la interfaz es el elegido con la entrada Inbound");
         ClientesAutorizados.SelectorVisible(lista, activo).Should().BeTrue("la entrada Inbound hace visible el selector de la cabecera");

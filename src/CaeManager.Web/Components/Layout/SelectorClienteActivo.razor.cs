@@ -123,8 +123,8 @@ public partial class SelectorClienteActivo
             || _entradas.Any(e => e.Servicio == CaeManager.Domain.Operaciones.ServicioCae.Inbound));
 
     /// <summary>
-    /// Activa solo la entrada del Tenant y el papel en curso: una sola por listbox. Sin papel (origen, vía heredada o
-    /// perfiles sin selector de papel) se compara null con null, así que la entrada sin papel del Tenant sigue activa;
+    /// Activa solo la entrada del Tenant y el papel en curso: una sola por listbox. Sin papel (origen o vía heredada, que no
+    /// llegan por una Asignación de Operación) se compara null con null, así que la entrada sin papel del Tenant sigue activa;
     /// con un papel resuelto, la entrada sin papel del mismo Tenant no lo está.
     /// </summary>
     private bool EsActiva(ClienteAutorizadoDto entrada) =>

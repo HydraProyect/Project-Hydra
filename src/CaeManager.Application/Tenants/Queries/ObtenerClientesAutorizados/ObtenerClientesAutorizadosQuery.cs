@@ -238,13 +238,17 @@ public class ObtenerClientesAutorizadosQueryHandler(
         // Copia propia en cada llamada: la lente quita entradas y quien llama recibe una lista suya, nunca la
         // memoizada.
         var resultado = reales.ToList();
+        var acotados = vistaDemo is null ? null : await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken);
 
         // Decisión O-2 (b) de Chris (2026-11-17): el selector de papel y los lectores del Tenant activo no miran el rol,
         // sino si la persona llega al Tenant por una Asignación de Operación; lo deciden los mismos predicados, con el
-        // mismo perfil de origen, que aplica el POST /cuenta/cliente-activo (sin ninguna, nada cambia).
-        if (request.PorPapel)
+        // mismo perfil de origen, que aplica el POST /cuenta/cliente-activo (sin ninguna, nada cambia). Con la lente de
+        // demo Gestor no se aplica: el perfil que decide sigue siendo el de la cuenta real, y sus Asignaciones de
+        // Operación pintarían papeles que el Gestor CAE simulado no tiene; la lista queda por Tenant, como antes.
+        if (acotados is null && request.PorPapel)
             resultado = await PorPapelAsync(resultado, usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, cancellationToken);
-        else if (request.ParaTenantActivo
+        else if (acotados is null
+                 && request.ParaTenantActivo
                  && tenantActual?.TenantId is { } activoId
                  && resultado.All(c => c.TenantId != activoId)
                  && await TenantActivoSoloInboundAsync(
@@ -255,7 +259,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
         // cartera vigente (más el propio, que siempre está autorizado sobre sí mismo). Solo QUITA
         // entradas de la lista real — nunca añade un Tenant que la cuenta no alcanzara ya —, y
         // el endpoint de cambio de Tenant activo sigue autorizando contra las carteras reales.
-        if (vistaDemo is not null && await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken) is { } acotados)
+        if (acotados is not null)
             resultado.RemoveAll(c => !c.EsOrigen && !acotados.Contains(c.TenantId));
 
         return resultado;
