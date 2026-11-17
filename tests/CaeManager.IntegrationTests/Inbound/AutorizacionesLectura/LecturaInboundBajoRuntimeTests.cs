@@ -961,8 +961,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Una_linea_Inbound_vigente_con_inicio_futuro_no_abre_la_lectura()
     {
-        // El dominio no deja contratar con inicio futuro (ProductoContratado.Contratar), pero la base sí lo admitiría: el
-        // gate sigue el criterio de EstaVigenteEn y no da por vigente lo que aún no ha empezado.
+        // El dominio no deja contratar con inicio futuro (ProductoContratado.Contratar), y la política de INSERT de
+        // cae_app_aprovisionamiento tampoco (issue #2259), pero el propietario de la base no pasa por ella: el gate sigue el
+        // criterio de EstaVigenteEn como defensa y no da por vigente lo que aún no ha empezado.
         await FinalizarLineaInboundDelLectorAsync();
         await using (var conexion = new NpgsqlConnection(_cadena))
         {
