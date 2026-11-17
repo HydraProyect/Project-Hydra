@@ -94,6 +94,32 @@ public class GuardaPorServicioBehaviorTests
                 : "Autorizacion.ComandoFueraDelPapelInbound");
     }
 
+    /// <summary>
+    /// Las páginas de Outbound y el alcance de datos usan <see cref="CriterioDePapel"/>; la guarda decide lo mismo para un
+    /// comando que no es Inbound ni de autoservicio, con todos los valores del papel, también los que se añadan.
+    /// </summary>
+    [Fact]
+    public async Task La_guarda_y_el_criterio_de_las_paginas_de_Outbound_coinciden_para_todo_papel()
+    {
+        foreach (var papel in Enum.GetValues<PapelActivo>())
+        {
+            var (_, llego) = await Ejecutar(new ComandoSinServicio(), papel, Result.Exito());
+
+            llego.Should().Be(CriterioDePapel.AdmiteLoQueNoEsInbound(papel), $"con papel {papel}");
+        }
+    }
+
+    [Theory]
+    [InlineData(PapelActivo.TenantDeOrigen, true)]
+    [InlineData(PapelActivo.Outbound, true)]
+    [InlineData(PapelActivo.SinPapel, true)]
+    [InlineData(PapelActivo.Inbound, false)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza, false)]
+    public void El_criterio_de_papel_admite_lo_que_no_es_Inbound(PapelActivo papel, bool admite)
+    {
+        CriterioDePapel.AdmiteLoQueNoEsInbound(papel).Should().Be(admite);
+    }
+
     [Theory]
     [InlineData(PapelActivo.Inbound)]
     [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]

@@ -3,6 +3,8 @@ using System.Reflection;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
+using CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado;
+using CaeManager.Application.DerechosInteresado.Queries;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
@@ -111,6 +113,9 @@ public static class ActosExcluidosDelEncargo
         // efectivo Administrador (AutorizacionLecturaAutoridad). Con encargo no pleno el Tenant propietario tiene
         // Administrador propio, que es quien las concede; con encargo pleno esta lista no rige.
         "AutorizacionesLectura",
+        // Capacidades del Tenant (decisión D-3 del 2026-11-15): las concede y revoca solo el Administrador del Tenant
+        // propietario operando su propio Tenant (AutoridadCapacidadesTenant); nunca quien administra por encargo.
+        "CapacidadesTenant",
         // Contacto de seguridad del Tenant beneficiario: lo propone su propio Administrador (leído en la base,
         // IAdministradorDelTenantPropietario) y lo valida un Actor de Plataforma TALVEG; ninguno de los dos actos
         // es de quien administra por encargo.
@@ -157,6 +162,16 @@ public static class ActosExcluidosDelEncargo
         typeof(ActualizarPresupuestoIaCommand),
         // Seguridad de acceso del Tenant: solo su Administrador, leído en la base. Leerla sigue permitido.
         typeof(ActualizarSeguridadAccesoCommand),
+        // Derechos del interesado (decisión D-3 del 2026-11-15): registrar una solicitud sigue permitido; tramitarla,
+        // resolverla y leer el registro son del Administrador del Tenant propietario o de quien tenga la capacidad
+        // «Derechos del interesado» (AutoridadCapacidadesTenant, que además cierra el contexto cruzado).
+        typeof(VerificarIdentidadSolicitudDerechoCommand),
+        typeof(IniciarTramitacionSolicitudDerechoCommand),
+        typeof(ProrrogarSolicitudDerechoCommand),
+        typeof(ResolverSolicitudDerechoCommand),
+        typeof(DenegarSolicitudDerechoCommand),
+        typeof(ListarSolicitudesDerechoInteresadoQuery),
+        typeof(ObtenerSolicitudDerechoInteresadoQuery),
     };
 
     /// <summary>
@@ -167,7 +182,7 @@ public static class ActosExcluidosDelEncargo
     {
         "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "Bandeja", "Blindaje42", "BusquedaGlobal",
         "Calendario", "CatalogoBase", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos", "ContratosAcceso",
-        "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "HerramientasPdf", "Incidencias",
+        "Cumplimiento", "Dashboard", "DerechosInteresado", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "HerramientasPdf", "Incidencias",
         "Integraciones", "Marco", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",
         "Reclamaciones", "Reportes", "Subcontratas", "Telemetria", "Tenants",
         "TiposDocumento", "Trabajadores", "Usuarios", "Vehiculos", "VigilanciaNormativa", "Visitas",

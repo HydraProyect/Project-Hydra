@@ -4,6 +4,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services.Autorizacion;
 using MediatR;
 
 namespace CaeManager.Web.Reportes;
@@ -23,6 +24,10 @@ namespace CaeManager.Web.Reportes;
 ///    aquí se traduce a 404, nunca a 403 — un 403 confirmaría que el Cliente
 ///    pedido existe.
 ///
+/// Además, como la página /reportes es de Outbound, el grupo lleva
+/// <c>.DeOutbound()</c>: con papel Inbound se niega igual que la página
+/// (<see cref="PaginaDeOutboundPorPapelAuthorizationHandler"/>).
+///
 /// Cada descarga, Excel o PDF, deja su rastro antes de entregarse
 /// (<see cref="IRegistroExportacionService"/>; ASVS 4.0.3 V7.1.3 y V7.2.2).
 /// </summary>
@@ -36,7 +41,8 @@ public static class ReportesEndpoints
     public static IEndpointRouteBuilder MapReportesEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var grupo = endpoints.MapGroup("/reportes")
-            .RequireAuthorization(politica => politica.RequireRole(RolesConAccesoAReportes));
+            .RequireAuthorization(politica => politica.RequireRole(RolesConAccesoAReportes))
+            .DeOutbound();
 
         grupo.MapGet("/vigencia.xlsx", VigenciaXlsxAsync);
         grupo.MapGet("/vigencia.pdf", VigenciaPdfAsync);
