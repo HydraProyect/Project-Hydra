@@ -260,6 +260,7 @@ public class FronteraDeSeedersDeBootstrapTests
     [InlineData("var c = '\"'; if (!entorno.IsDevelopment()) return;", true)]
     [InlineData("var a = @\"hola\"\" mundo\"; if (!entorno.IsDevelopment()) return;", true)]
     [InlineData("var a = \"\"\"\"x \"\"\" y\"\"\"\"; if (!entorno.IsDevelopment()) return;", true)]
+    [InlineData("if (!entorno.IsDevelopment() && activo) return;", false)]
     [InlineData("if (activo & !entorno.IsDevelopment()) return;", false)]
     [InlineData("if (!!entorno.IsDevelopment()) return;", false)]
     [InlineData("if (lista.Any(x => !x.IsDevelopment())) return;", false)]
