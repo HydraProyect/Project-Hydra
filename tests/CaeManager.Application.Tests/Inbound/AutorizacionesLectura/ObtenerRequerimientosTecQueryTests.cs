@@ -214,13 +214,43 @@ public class ObtenerRequerimientosTecQueryTests
     }
 
     [Fact]
-    public async Task Un_Trabajador_eliminado_o_anonimizado_no_aparece()
+    public async Task Un_Trabajador_eliminado_no_aparece()
     {
         _requisitos.Add(Requisito("Formación en altura"));
         Autorizar(trabajadores: [_asignado, _noAsignado]);
         _asignado.MarcarComoEliminado(Guid.NewGuid());
 
         (await Leer()).Select(f => f.SujetoId).Should().Equal(_noAsignado.Id);
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_anonimizado_no_aparece()
+    {
+        _requisitos.Add(Requisito("Formación en altura"));
+        Autorizar(trabajadores: [_asignado, _noAsignado]);
+        _asignado.Anonimizar(DateTime.UtcNow);
+
+        (await Leer()).Select(f => f.SujetoId).Should().Equal(_noAsignado.Id);
+    }
+
+    [Fact]
+    public async Task Cada_requisito_cuenta_solo_el_documento_de_su_tipo()
+    {
+        var alta = new TipoDocumento("Alta en la Seguridad Social", null, false, 3, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.DatosPersonales);
+        _tipos.ListaTiposDocumento.Add(alta);
+        _requisitos.AddRange([Requisito("Formación en altura"), Requisito("Alta en la Seguridad Social")]);
+        Autorizar(trabajadores: [_asignado]);
+        DocumentoDe(_asignado, _formacion, VigenciaDocumento.NoCaduca);
+
+        var filas = await Leer();
+
+        filas.Should().HaveCount(2);
+        filas.Single(f => f.TipoDocumentoNombre == "Formación en altura").Estado.Should().Be(EstadoRequerimientoTecSinVeredicto.PendienteDeValidar);
+        var sinDocumento = filas.Single(f => f.TipoDocumentoNombre == "Alta en la Seguridad Social");
+        sinDocumento.Estado.Should().Be(EstadoRequerimientoTecSinVeredicto.PendienteDeSubir,
+            "D1: el documento de otro tipo del mismo Trabajador no cubre este requisito");
+        sinDocumento.DocumentosVigentes.Should().Be(0);
     }
 
     [Fact]
