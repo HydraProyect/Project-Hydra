@@ -1,5 +1,5 @@
 using Bunit;
-using CaeManager.Web.Features.Comunicaciones.Components;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Comunicaciones.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Web;
