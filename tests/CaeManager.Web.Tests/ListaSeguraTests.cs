@@ -23,6 +23,9 @@ public sealed class ListaSeguraTests
             }
         });
 
+        // Sin esperar al escritor, un runner cargado enumeraría una lista vacía y el test pasaría sin ejercitar la carrera.
+        SpinWait.SpinUntil(() => enviadas.Count > 0, TimeSpan.FromSeconds(10)).Should().BeTrue();
+
         var fallos = new List<Exception>();
         for (var i = 0; i < 2_000; i++)
         {
