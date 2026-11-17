@@ -37,7 +37,11 @@ public enum CausaNoAptitudInbound
     /// <summary>El requisito toma el vencimiento del documento y la evidencia no lo trae: no se puede dar por vigente.</summary>
     SinFechaDeVencimiento = 3,
 
-    /// <summary>La evidencia de aptitud médica transcribe «No apto». Solo se sabe que no acredita; la conclusión no sale.</summary>
+    /// <summary>
+    /// Un requisito cuyo tipo de documento revela salud (art. 9 RGPD) no se acredita, sea cual sea la causa: sin documento,
+    /// vencido, sin fecha o con un «No apto» transcrito. Es la única causa que sale para esos requisitos, y sin fecha, para que
+    /// la causa no delate la conclusión médica (decisión del 2026-11-13: el certificado de aptitud solo dice «vencido»).
+    /// </summary>
     NoAcreditado = 4,
 }
 
@@ -59,7 +63,14 @@ public enum SujetoDelRequisitoInbound
 /// </param>
 /// <param name="FechaVencimiento">
 /// El vencimiento del requisito citado; con <see cref="EstadoAptitudInbound.Apto"/>, el próximo vencimiento de lo que bloquea.
+/// Nulo en un requisito que revela salud y no se acredita (<see cref="CausaNoAptitudInbound.NoAcreditado"/>).
 /// </param>
+/// <remarks>
+/// Proyección completa (con requisito, sujeto, causa y fecha) solo para quien tiene <see cref="CapacidadInbound.ValidarInbound"/>,
+/// el Gestor CAE (DECISION_LOG del 2026-11-14, duda 6). Para los demás roles con <see cref="CapacidadInbound.LeerInbound"/>,
+/// Consulta incluido, la proyección restringida: nombre, DNI parcial, Empresa contratista y apto o no apto («en tolerancia» cuenta
+/// como apto, Q-10), con requisito, sujeto, causa y fecha a null.
+/// </remarks>
 public record AptoHoyDto(
     Guid TrabajadorId,
     string Nombre,
@@ -72,6 +83,19 @@ public record AptoHoyDto(
     SujetoDelRequisitoInbound? SujetoDelRequisito,
     CausaNoAptitudInbound? Causa,
     DateOnly? FechaVencimiento);
+
+/// <summary>
+/// El DNI parcial de «Aptos hoy»: los cuatro últimos caracteres, como el del Importador. Aplicarlo dos veces da lo mismo. Vive
+/// aquí porque Inbound no depende de las pantallas de Outbound (ratchet Modulos-Inbound-a-Outbound, cerrado).
+/// </summary>
+public static class DniParcialAptosHoy
+{
+    public static string Enmascarar(string? documento)
+    {
+        var limpio = documento?.Trim();
+        return string.IsNullOrEmpty(limpio) ? string.Empty : limpio.Length <= 4 ? "****" : "****" + limpio[^4..];
+    }
+}
 
 /// <summary>
 /// «Aptos hoy» del Centro: para cada Trabajador con alguna evidencia Inbound en el Tenant del Cliente empresarial, su estado en
@@ -90,7 +114,9 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// <b>Regla.</b> Por cada contrato de acceso Activo, vinculado y vigente hoy en el Centro, y cada requisito activo que bloquea
 /// (plantilla del Centro y exigencias del Cliente empresarial): hay una evidencia Aceptada del mismo tipo de documento y
 /// vigente hoy, Apto; vencida dentro de <see cref="RequisitoPlantilla.ToleranciaEfectiva"/>, EnTolerancia (Q-10); si no,
-/// NoApto. Con «Fija N meses» el vencimiento es el más temprano entre la emisión más N meses y la fecha del documento (D4).
+/// NoApto. Con «Fija N meses» el vencimiento es el más temprano entre la emisión más N meses y la fecha del documento (D4); con
+/// «Sin vencimiento» vale la fecha del documento si la trae y, si no, la evidencia no vence. En un requisito que revela salud
+/// la causa de un NoApto es siempre <see cref="CausaNoAptitudInbound.NoAcreditado"/>, sin fecha (art. 9 RGPD).
 /// Un requisito de la Empresa contratista que bloquea y falla deja NoApto a todos sus Trabajadores (D3). Un Trabajador es Apto
 /// solo si todo lo que bloquea, suyo y de su Empresa, es Apto o EnTolerancia.
 /// </para>
@@ -118,10 +144,11 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     public async Task<IReadOnlyList<AptoHoyDto>> Handle(ObtenerAptosHoyDelCentroQuery request, CancellationToken cancellationToken)
     {
         // B-03: la misma puerta que el listado de contratos de acceso; sin ella el papel Outbound en el lado del Tenant TCE,
-        // una Sesión Privilegiada sin rol o un usuario de portal leerían evidencias que Inbound les niega. Qué capacidad da
-        // la proyección completa (con requisito y causa) frente a la restringida es una decisión de producto pendiente.
+        // una Sesión Privilegiada sin rol o un usuario de portal leerían evidencias que Inbound les niega.
         if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
             return [];
+        // Duda 6 (DECISION_LOG del 2026-11-14): fuera del Gestor CAE, nunca el motivo. La proyección completa pide Validar.
+        var completa = await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken);
         if (!await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
             return [];
         var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
@@ -161,8 +188,9 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             .Select(r =>
             {
                 tipos.TryGetValue(r.TipoDocumentoId, out var tipo);
+                // Un tipo que no se encuentra se trata como si revelara salud: falla cerrado.
                 return new Exigido(
-                    r, tipo?.Nombre ?? "Requisito sin nombre", tipo is null ? 0 : r.ToleranciaEfectiva(tipo));
+                    r, tipo?.Nombre ?? "Requisito sin nombre", tipo is null ? 0 : r.ToleranciaEfectiva(tipo), tipo?.RevelaSalud ?? true);
             })
             .OrderBy(x => x.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Requisito.Id)
             .ToList();
@@ -189,10 +217,26 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             }
         }
 
+        // La restricción va antes de ordenar: el orden no puede delatar un «en tolerancia» que la proyección restringida oculta.
         return filas.Values
+            .Select(f => completa ? f : Restringida(f))
             .OrderByDescending(f => f.Estado).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.TrabajadorId)
             .ToList();
     }
+
+    /// <summary>
+    /// La proyección para quien no tiene <see cref="CapacidadInbound.ValidarInbound"/>: nombre, DNI parcial, Empresa contratista
+    /// y apto o no apto. Sin requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10).
+    /// </summary>
+    private static AptoHoyDto Restringida(AptoHoyDto fila) => fila with
+    {
+        DocumentoIdentidad = DniParcialAptosHoy.Enmascarar(fila.DocumentoIdentidad),
+        Estado = fila.Estado == EstadoAptitudInbound.NoApto ? EstadoAptitudInbound.NoApto : EstadoAptitudInbound.Apto,
+        Requisito = null,
+        SujetoDelRequisito = null,
+        Causa = null,
+        FechaVencimiento = null,
+    };
 
     private async Task<IReadOnlyList<RequisitoPlantilla>> RequisitosQueBloqueanAsync(
         Guid centroId, IReadOnlyList<ContratoAcceso> contratos, CancellationToken cancellationToken)
@@ -217,10 +261,15 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     private static List<Evaluado> Evaluar(
         IReadOnlyList<Exigido> exigidos, IReadOnlyList<EvidenciaInbound> delSujeto, DateOnly hoy, SujetoDelRequisitoInbound sujeto) =>
         exigidos
-            .Select(x => new Evaluado(
-                x.Nombre, sujeto,
-                MejorDe(x, delSujeto.Where(e => e.TipoDocumentoId == x.Requisito.TipoDocumentoId
-                    && EvidenciasInboundProyeccion.EstaAceptada(e)), hoy)))
+            .Select(x =>
+            {
+                var delTipo = delSujeto.Where(e => e.TipoDocumentoId == x.Requisito.TipoDocumentoId).ToList();
+                // Revela salud el tipo del Tenant TCE o cualquier evidencia que llegó como solo conclusión de aptitud: la marca
+                // dice de qué clase es el documento, no qué concluye, así que no delata nada.
+                var revelaSalud = x.RevelaSalud || delTipo.Any(e => e.SoloConclusionAptitud);
+                return new Evaluado(
+                    x.Nombre, sujeto, MejorDe(x, delTipo.Where(EvidenciasInboundProyeccion.EstaAceptada), hoy), revelaSalud);
+            })
             .ToList();
 
     private static AptoHoyDto Resumir(
@@ -237,12 +286,17 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             .Where(v => v is { } dia && dia >= hoy)
             .Min();
 
+        // Art. 9 RGPD: en un requisito que revela salud, sin documento, vencido, sin fecha o «No apto» salen igual (una sola
+        // causa y sin fecha), para que la causa no delate la conclusión médica.
+        var ocultaCausa = estado == EstadoAptitudInbound.NoApto && peor!.RevelaSalud;
+        var causa = estado != EstadoAptitudInbound.NoApto ? null
+            : ocultaCausa ? CausaNoAptitudInbound.NoAcreditado : peor!.Resultado.Causa;
+        var fecha = peor is null ? proximo : ocultaCausa ? null : peor.Resultado.Vencimiento;
+
         return new AptoHoyDto(
             trabajadorId, identidad.SujetoNombre, identidad.SujetoDocumentoIdentidad, contrato.Id, contrato.EmpresaContratistaId,
             contrato.Tipo, estado,
-            peor?.Nombre, peor?.Sujeto,
-            estado == EstadoAptitudInbound.NoApto ? peor!.Resultado.Causa : null,
-            peor is null ? proximo : peor.Resultado.Vencimiento);
+            peor?.Nombre, peor?.Sujeto, causa, fecha);
     }
 
     private static Resultado MejorDe(Exigido exigido, IEnumerable<EvidenciaInbound> candidatas, DateOnly hoy)
@@ -277,18 +331,20 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.NoAcreditado, null);
 
         var requisito = exigido.Requisito;
-        if (requisito.ModoVigencia == ModoVigenciaRequisito.SinVencimiento)
-            return new Resultado(EstadoAptitudInbound.Apto, null, null);
-
         DateOnly? vencimiento = requisito.ModoVigencia switch
         {
             // D4: la fecha más temprana entre la emisión más N meses y la del documento.
             ModoVigenciaRequisito.Fija => MasTemprana(
                 requisito.VigenciaMeses is { } meses ? evidencia.FechaEmision.AddMonths(meses) : null, evidencia.FechaVencimiento),
+            // Con «Sin vencimiento» el requisito no pone plazo, pero si el documento trae su fecha de vencimiento, cuenta.
             _ => evidencia.FechaVencimiento,
         };
         if (vencimiento is not { } dia)
-            return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.SinFechaDeVencimiento, null);
+        {
+            return requisito.ModoVigencia == ModoVigenciaRequisito.SinVencimiento
+                ? new Resultado(EstadoAptitudInbound.Apto, null, null)
+                : new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.SinFechaDeVencimiento, null);
+        }
 
         if (hoy.DayNumber <= dia.DayNumber)
             return new Resultado(EstadoAptitudInbound.Apto, null, dia);
@@ -300,9 +356,9 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     private static DateOnly? MasTemprana(DateOnly? a, DateOnly? b) =>
         a is null ? b : b is null ? a : a < b ? a : b;
 
-    private sealed record Exigido(RequisitoPlantilla Requisito, string Nombre, int ToleranciaDias);
+    private sealed record Exigido(RequisitoPlantilla Requisito, string Nombre, int ToleranciaDias, bool RevelaSalud);
 
     private sealed record Resultado(EstadoAptitudInbound Estado, CausaNoAptitudInbound? Causa, DateOnly? Vencimiento);
 
-    private sealed record Evaluado(string Nombre, SujetoDelRequisitoInbound Sujeto, Resultado Resultado);
+    private sealed record Evaluado(string Nombre, SujetoDelRequisitoInbound Sujeto, Resultado Resultado, bool RevelaSalud);
 }

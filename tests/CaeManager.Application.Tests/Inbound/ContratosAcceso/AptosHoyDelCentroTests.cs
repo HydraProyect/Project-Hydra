@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Tests.Clientes;
@@ -116,12 +117,12 @@ public class AptosHoyDelCentroTests
     public async Task Un_requisito_sin_documento_validado_es_NoApto_con_su_nombre()
     {
         var pilar = Guid.NewGuid();
-        Dar(pilar, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
 
         var fila = (await Consultar()).Should().ContainSingle().Subject;
 
         fila.Estado.Should().Be(EstadoAptitudInbound.NoApto);
-        fila.Requisito.Should().Be("Certificado de aptitud");
+        fila.Requisito.Should().Be(_formacion.Nombre);
         fila.Causa.Should().Be(CausaNoAptitudInbound.SinDocumentoValidado);
         fila.FechaVencimiento.Should().BeNull();
     }
@@ -241,6 +242,26 @@ public class AptosHoyDelCentroTests
 
         fila.Estado.Should().Be(EstadoAptitudInbound.Apto);
         fila.FechaVencimiento.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("2026-11-16", EstadoAptitudInbound.NoApto, "el documento venció ayer y el requisito no tiene tolerancia")]
+    [InlineData("2026-11-17", EstadoAptitudInbound.Apto, "el documento vence hoy: todavía vale")]
+    public async Task Con_Sin_vencimiento_cuenta_la_fecha_de_vencimiento_que_traiga_el_documento(
+        string fechaDelDocumento, EstadoAptitudInbound esperado, string porQue)
+    {
+        var plantilla = PlantillaRequisitos.ParaCentro(Guid.NewGuid());
+        var otro = ContratoNuevoEnOtroCentro(plantilla);
+        Requisito(plantilla, _formacion, ModoVigenciaRequisito.SinVencimiento, null);
+        var t = Guid.NewGuid();
+        Dar(t, "Javier Lasheras Pueyo", _formacion, new DateOnly(2001, 1, 1), DateOnly.Parse(fechaDelDocumento), contrato: otro);
+
+        var fila = (await Consultar(centro: plantilla.CentroId!.Value)).Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(esperado, porQue);
+        fila.FechaVencimiento.Should().Be(DateOnly.Parse(fechaDelDocumento));
+        CausaNoAptitudInbound? causa = esperado == EstadoAptitudInbound.NoApto ? CausaNoAptitudInbound.Vencido : null;
+        fila.Causa.Should().Be(causa);
     }
 
     // ---------------------------------------------------------------- D3: requisitos de la Empresa contratista
@@ -531,6 +552,95 @@ public class AptosHoyDelCentroTests
     }
 
     [Fact]
+    public async Task En_un_requisito_que_revela_salud_cualquier_causa_sale_igual_y_sin_fecha()
+    {
+        // Cuatro Trabajadores con la formación al día y el certificado de aptitud sin acreditar por cuatro causas distintas.
+        var sinDocumento = Guid.NewGuid();
+        var vencido = Guid.NewGuid();
+        var noApto = Guid.NewGuid();
+        var rechazado = Guid.NewGuid();
+        foreach (var t in new[] { sinDocumento, vencido, noApto, rechazado })
+            Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(vencido, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2025, 9, 1), conclusion: ConclusionAptitud.Apto);
+        Dar(noApto, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.NoApto);
+        Dar(rechazado, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto)
+            .Rechazar(CausaRechazoAcreditacion.DatosErroneos, "No es legible", _usuario, Ahora.UtcDateTime);
+
+        var filas = await Consultar();
+
+        filas.Should().HaveCount(4);
+        filas.Select(f => (f.Estado, f.Requisito, f.SujetoDelRequisito, f.Causa, f.FechaVencimiento)).Distinct().Should().ContainSingle()
+            .Which.Should().Be((EstadoAptitudInbound.NoApto, (string?)"Certificado de aptitud", (SujetoDelRequisitoInbound?)SujetoDelRequisitoInbound.Trabajador,
+                (CausaNoAptitudInbound?)CausaNoAptitudInbound.NoAcreditado, (DateOnly?)null),
+                "sin documento, vencido, «No apto» o rechazado no se distinguen: la causa delataría la conclusión médica");
+    }
+
+    [Fact]
+    public async Task Un_requisito_que_no_revela_salud_sigue_diciendo_su_causa()
+    {
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2025, 1, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+
+        var fila = (await Consultar()).Should().ContainSingle().Subject;
+
+        fila.Causa.Should().Be(CausaNoAptitudInbound.Vencido);
+        fila.FechaVencimiento.Should().Be(new DateOnly(2026, 1, 1));
+    }
+
+    // ---------------------------------------------------------------- Proyección completa y restringida (duda 6)
+
+    [Fact]
+    public async Task Con_ValidarInbound_el_Gestor_CAE_recibe_la_proyeccion_completa()
+    {
+        var t = Guid.NewGuid();
+        Dar(t, "Iván Bescós Lacasa", _formacion, new DateOnly(2025, 11, 10));
+        Dar(t, "Iván Bescós Lacasa", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+
+        var fila = (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound, CapacidadInbound.ValidarInbound)))
+            .Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(EstadoAptitudInbound.EnTolerancia);
+        fila.Requisito.Should().Be(_formacion.Nombre);
+        fila.SujetoDelRequisito.Should().Be(SujetoDelRequisitoInbound.Trabajador);
+        fila.FechaVencimiento.Should().Be(new DateOnly(2026, 11, 10));
+        fila.DocumentoIdentidad.Should().Be("12345678Z", "la pantalla lo enmascara para todos");
+    }
+
+    [Fact]
+    public async Task Sin_ValidarInbound_solo_sale_nombre_DNI_parcial_Empresa_y_apto_o_no_apto()
+    {
+        var tolerancia = Guid.NewGuid();
+        Dar(tolerancia, "Iván Bescós Lacasa", _formacion, new DateOnly(2025, 11, 10));
+        Dar(tolerancia, "Iván Bescós Lacasa", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+        var noApto = Guid.NewGuid();
+        Dar(noApto, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(noApto, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.NoApto);
+        var apto = Guid.NewGuid();
+        Dar(apto, "Javier Lasheras Pueyo", _formacion, new DateOnly(2026, 6, 1));
+        Dar(apto, "Javier Lasheras Pueyo", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+
+        var filas = await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound));
+
+        filas.Should().HaveCount(3);
+        filas.Should().OnlyContain(f => f.Requisito == null && f.SujetoDelRequisito == null && f.Causa == null && f.FechaVencimiento == null);
+        filas.Should().OnlyContain(f => f.DocumentoIdentidad == "****678Z");
+        filas.Should().OnlyContain(f => f.EmpresaContratistaId == _contrato.EmpresaContratistaId);
+        filas.Single(f => f.TrabajadorId == noApto).Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        filas.Single(f => f.TrabajadorId == tolerancia).Estado.Should().Be(EstadoAptitudInbound.Apto, "en tolerancia cuenta como apto (Q-10)");
+        filas.Single(f => f.TrabajadorId == apto).Estado.Should().Be(EstadoAptitudInbound.Apto);
+        filas.Select(f => f.TrabajadorId).Should().Equal([noApto, tolerancia, apto], "el orden tampoco delata el «en tolerancia»");
+    }
+
+    [Fact]
+    public async Task Sin_LeerInbound_no_sale_nada_aunque_tenga_ValidarInbound()
+    {
+        Dar(Guid.NewGuid(), "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+
+        (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.ValidarInbound))).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Una_conclusion_con_restricciones_acredita_y_las_restricciones_no_salen()
     {
         var t = Guid.NewGuid();
@@ -627,13 +737,20 @@ public class AptosHoyDelCentroTests
         return evidencia;
     }
 
-    private async Task<IReadOnlyList<AptoHoyDto>> Consultar(AlcanceDatosServiceFalso? alcance = null, Guid? centro = null, DateTimeOffset? ahora = null)
+    private async Task<IReadOnlyList<AptoHoyDto>> Consultar(
+        AlcanceDatosServiceFalso? alcance = null, Guid? centro = null, DateTimeOffset? ahora = null, IAutorizacionInbound? autorizacion = null)
     {
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(ahora ?? Ahora));
         var handler = new ObtenerAptosHoyDelCentroQueryHandler(
             _contratos, new EvidenciasQueryContextFalso(_evidencias), new PlantillasRequisitosQueryContextFalso(_plantillas), _tipos,
-            alcance ?? new AlcanceDatosServiceFalso(), new AutorizacionInboundQuePermite());
+            alcance ?? new AlcanceDatosServiceFalso(), autorizacion ?? new AutorizacionInboundQuePermite());
         return await handler.Handle(new ObtenerAptosHoyDelCentroQuery(centro ?? _centro), CancellationToken.None);
+    }
+
+    private sealed class AutorizacionSolo(params CapacidadInbound[] capacidades) : IAutorizacionInbound
+    {
+        public Task<bool> TieneAsync(CapacidadInbound capacidad, CancellationToken cancellationToken) =>
+            Task.FromResult(capacidades.Contains(capacidad));
     }
 
     private sealed class EvidenciasQueryContextFalso(List<EvidenciaInbound> evidencias) : IEvidenciasInboundQueryContext

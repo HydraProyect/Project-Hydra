@@ -113,7 +113,7 @@ public class AptosHoyDelCentroConBackendTests
     [Theory]
     [InlineData(CausaNoAptitudInbound.Vencido, "2026-10-30", "Vencido el 30/10/2026")]
     [InlineData(CausaNoAptitudInbound.SinFechaDeVencimiento, null, "El documento no trae fecha de vencimiento")]
-    [InlineData(CausaNoAptitudInbound.NoAcreditado, null, "No acredita el requisito")]
+    [InlineData(CausaNoAptitudInbound.NoAcreditado, null, "Vencido")]
     [InlineData(CausaNoAptitudInbound.SinDocumentoValidado, null, "Sin documento validado")]
     public async Task El_detalle_de_un_No_apto_dice_la_causa_sin_ningun_motivo_clinico(CausaNoAptitudInbound causa, string? vence, string esperado)
     {
@@ -131,6 +131,46 @@ public class AptosHoyDelCentroConBackendTests
 
         aptos.Single().Detalle.Should().Be(esperado);
         aptos.Single().RequisitoQueBloquea.Should().Be("Certificado de aptitud");
+    }
+
+    [Fact]
+    public async Task Un_requisito_que_revela_salud_dice_solo_Vencido_y_lo_mismo_que_uno_vencido_sin_fecha()
+    {
+        var mediador = new MediadorDePrueba
+        {
+            Contratos = [Contrato(EmpresaId)],
+            Filas =
+            [
+                Fila("Javier Lasheras Pueyo", EstadoAptitudInbound.NoApto, "Certificado de aptitud", SujetoDelRequisitoInbound.Trabajador,
+                    CausaNoAptitudInbound.NoAcreditado),
+                Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.NoApto, "Certificado de aptitud", SujetoDelRequisitoInbound.Trabajador,
+                    CausaNoAptitudInbound.Vencido),
+            ],
+        };
+
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
+
+        aptos.Select(a => a.Detalle).Distinct().Should().Equal("Vencido");
+    }
+
+    [Fact]
+    public async Task La_proyeccion_restringida_no_inventa_requisito_ni_detalle()
+    {
+        var mediador = new MediadorDePrueba
+        {
+            Contratos = [Contrato(EmpresaId)],
+            Filas =
+            [
+                Fila("Javier Lasheras Pueyo", EstadoAptitudInbound.NoApto, dni: "****678Z"),
+                Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.Apto, dni: "****678Z"),
+            ],
+        };
+
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
+
+        aptos.Should().OnlyContain(a => a.RequisitoQueBloquea == null && a.Detalle == null);
+        aptos.Should().OnlyContain(a => a.DniParcial == "****678Z" && a.EmpresaContratista == "Montajes Moncayo S.L.");
+        aptos.Select(a => a.Estado).Should().Equal(EstadoAptitudHoy.NoApto, EstadoAptitudHoy.Apto);
     }
 
     [Fact]

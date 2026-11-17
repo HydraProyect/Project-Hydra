@@ -59,7 +59,9 @@ public sealed class AptosHoyDelCentroConBackend(
 
     /// <summary>
     /// El detalle bajo el requisito: solo nombre de requisito y fechas, nunca el motivo de una conclusión médica. Un requisito
-    /// de la Empresa contratista lo dice, porque deja fuera a todos sus Trabajadores.
+    /// que revela salud llega siempre como <see cref="CausaNoAptitudInbound.NoAcreditado"/> y sin fecha, y dice solo «Vencido»
+    /// (decisión del 2026-11-13). La proyección restringida (sin <c>ValidarInbound</c>) no trae causa: no hay detalle. Un
+    /// requisito de la Empresa contratista lo dice, porque deja fuera a todos sus Trabajadores.
     /// </summary>
     private string? DetalleDe(AptoHoyDto fila)
     {
@@ -72,23 +74,22 @@ public sealed class AptosHoyDelCentroConBackend(
                 ? textos["AptosTolerancia"].Value : textos["AptosToleranciaEl", cuando].Value,
             _ => fila.Causa switch
             {
+                null => null,
                 CausaNoAptitudInbound.Vencido => cuando is null ? textos["AptosVencido"].Value : textos["AptosVencidoEl", cuando].Value,
                 CausaNoAptitudInbound.SinFechaDeVencimiento => textos["AptosSinFechaVencimiento"].Value,
-                CausaNoAptitudInbound.NoAcreditado => textos["AptosNoAcredita"].Value,
+                CausaNoAptitudInbound.NoAcreditado => textos["AptosVencido"].Value,
                 _ => textos["AptosSinDocumento"].Value,
             },
         };
 
+        if (detalle is null)
+            return null;
+
         return deLaEmpresa && fila.Estado != EstadoAptitudInbound.Apto
-            ? textos["AptosRequisitoDeLaEmpresa", detalle!].Value
+            ? textos["AptosRequisitoDeLaEmpresa", detalle].Value
             : detalle;
     }
 
-    // El mismo enmascarado que el del Importador (cuatro últimos caracteres), escrito aquí porque Inbound no depende de las
-    // pantallas de Outbound (ratchet Modulos-Inbound-a-Outbound, cerrado). Unificarlo en el Núcleo es otro incremento.
-    private static string EnmascararDocumento(string? documento)
-    {
-        var limpio = documento?.Trim();
-        return string.IsNullOrEmpty(limpio) ? string.Empty : limpio.Length <= 4 ? "****" : "****" + limpio[^4..];
-    }
+    // El mismo enmascarado que aplica la Query en la proyección restringida; aplicarlo dos veces da lo mismo.
+    private static string EnmascararDocumento(string? documento) => DniParcialAptosHoy.Enmascarar(documento);
 }

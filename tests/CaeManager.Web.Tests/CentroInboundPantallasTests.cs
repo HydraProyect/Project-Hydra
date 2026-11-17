@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
+using CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
 using CaeManager.Domain.Inbound.ContratosAcceso;
@@ -33,6 +34,7 @@ public class CentroInboundPantallasTests : BunitContext
     {
         public bool CentroNoVisible { get; init; }
         public IReadOnlyList<ContratoAccesoDto> Contratos { get; init; } = [];
+        public IReadOnlyList<AptoHoyDto> AptosHoy { get; init; } = [];
         public List<ObtenerContratosAccesoQuery> PeticionesContratos { get; } = [];
 
         private IReadOnlyList<ContratoAccesoDto> Registrar(ObtenerContratosAccesoQuery q)
@@ -53,6 +55,7 @@ public class CentroInboundPantallasTests : BunitContext
                 // Registra la petición: sin CentroId (listado) devuelve todos los contratos, así que que la ficha acota por su Centro
                 // se comprueba sobre PeticionesContratos, no sobre los datos devueltos.
                 ObtenerContratosAccesoQuery q => (object)Registrar(q),
+                ObtenerAptosHoyDelCentroQuery q => q.CentroId == CentroId ? (object)AptosHoy : Array.Empty<AptoHoyDto>(),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza Norte", "Logística Delta Sur S.A.", "Logística Delta Sur S.A.", ClienteId) },
                 ObtenerEmpresaPorIdQuery q => new EmpresaDetalleDto(q.Id, "Montajes Moncayo S.L.", "B12345674", DateTime.UtcNow, [], Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -106,15 +109,19 @@ public class CentroInboundPantallasTests : BunitContext
 
     private void Preparar(
         IReadOnlyList<TrabajadorAptoHoy>? aptos = null, IReadOnlyList<DocumentoInformacionCentro>? docs = null,
-        bool centroNoVisible = false, params ContratoAccesoDto[] contratos)
+        bool centroNoVisible = false, IReadOnlyList<AptoHoyDto>? aptosDelBackend = null, params ContratoAccesoDto[] contratos)
     {
-        _mediador = new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos };
+        _mediador = new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos, AptosHoy = aptosDelBackend ?? [] };
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ResolutorContratosAcceso>();
         Services.AddSingleton<Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider>(new AntiforgeryFalso());
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
-        Services.AddScoped<IAptosHoyDelCentro>(_ => new AptosFalsos(aptos));
+        // Con filas del backend la pantalla usa el adaptador real, que es quien da formato a las fechas.
+        if (aptosDelBackend is null)
+            Services.AddScoped<IAptosHoyDelCentro>(_ => new AptosFalsos(aptos));
+        else
+            Services.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroConBackend>();
         _informacion = new InformacionFalsa(docs);
         Services.AddScoped<IInformacionDelCentro>(_ => _informacion);
     }
@@ -235,10 +242,14 @@ public class CentroInboundPantallasTests : BunitContext
     [Fact]
     public void Aptos_hoy_con_datos_enseña_sus_cuatro_columnas_la_nota_los_filtros_y_el_detalle_de_fechas()
     {
-        Preparar(aptos:
+        // Las fechas llegan como DateOnly y las formatea el adaptador real, no el fixture.
+        Preparar(aptosDelBackend:
         [
-            Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.NoApto, "Certificado de aptitud"),
-            Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+            new AptoHoyDto(Guid.NewGuid(), "Pilar Sanjuán Aznar", "12345678Z", ContratoId, EmpresaId, TipoContratoAcceso.Recurrente,
+                EstadoAptitudInbound.NoApto, "Carné de operador de plataforma elevadora", SujetoDelRequisitoInbound.Trabajador,
+                CausaNoAptitudInbound.Vencido, new DateOnly(2026, 10, 30)),
+            new AptoHoyDto(Guid.NewGuid(), "Javier Lasheras Pueyo", "87654321X", ContratoId, EmpresaId, TipoContratoAcceso.Recurrente,
+                EstadoAptitudInbound.Apto, null, null, null, new DateOnly(2027, 3, 2)),
         ], contratos: Contrato());
 
         var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
@@ -250,8 +261,8 @@ public class CentroInboundPantallasTests : BunitContext
         panel.QuerySelector("input[placeholder='Filtrar: Trabajador o DNI']").Should().NotBeNull();
         panel.TextContent.Should().Contain("Todos").And.Contain("En tolerancia").And.Contain("No aptos");
         var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
-        filas[0].Should().Contain("Montajes Moncayo S.L.").And.Contain("Vencido el 30/10/26");
-        filas[1].Should().Contain("Instalaciones Cinca S.L.").And.Contain("Siguiente vencimiento: 02/03/27");
+        filas[0].Should().Contain("Montajes Moncayo S.L.").And.Contain("****678Z").And.Contain("Vencido el 30/10/2026");
+        filas[1].Should().Contain("Montajes Moncayo S.L.").And.Contain("****321X").And.Contain("Siguiente vencimiento: 02/03/2027");
     }
 
     [Fact]

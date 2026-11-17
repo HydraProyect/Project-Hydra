@@ -513,9 +513,6 @@
   <data name="AptosSinFechaVencimiento" xml:space="preserve">
     <value>El documento no trae fecha de vencimiento</value>
   </data>
-  <data name="AptosNoAcredita" xml:space="preserve">
-    <value>No acredita el requisito</value>
-  </data>
   <data name="AptosSinDocumento" xml:space="preserve">
     <value>Sin documento validado</value>
   </data>
