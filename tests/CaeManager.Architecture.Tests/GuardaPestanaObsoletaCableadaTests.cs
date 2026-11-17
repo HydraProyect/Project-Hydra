@@ -52,7 +52,7 @@ public partial class GuardaPestanaObsoletaCableadaTests
     {
         var raiz = RaizDelRepositorio();
         var sitios = Directory.EnumerateFiles(Path.Combine(raiz, "src", "CaeManager.Web"), "*.cs", SearchOption.AllDirectories)
-            .Select(f => (Ruta: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Texto: File.ReadAllText(f)))
+            .Select(f => (Ruta: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Texto: SinComentarios(File.ReadAllText(f))))
             .Where(f => EscribeLaCookieDeContexto().IsMatch(f.Texto))
             .ToList();
 
@@ -62,7 +62,16 @@ public partial class GuardaPestanaObsoletaCableadaTests
                 $"{ruta} cambia la cookie de contexto: la selección que deja tiene que pasar a ser la vigente");
     }
 
-    private static string Leer(string ruta) => File.ReadAllText(Path.Combine(RaizDelRepositorio(), ruta));
+    private static string Leer(string ruta) => SinComentarios(File.ReadAllText(Path.Combine(RaizDelRepositorio(), ruta)));
+
+    /// <summary>
+    /// Sin comentarios de línea ni de documentación: una llamada comentada no cablea nada, y el trinquete tiene que
+    /// verla como ausente (comprobado comentando la adopción del handler y el registro de <c>Program.cs</c>).
+    /// </summary>
+    private static string SinComentarios(string texto) => LineaComentada().Replace(texto, string.Empty);
+
+    [GeneratedRegex(@"//.*")]
+    private static partial Regex LineaComentada();
 
     private static string RaizDelRepositorio()
     {

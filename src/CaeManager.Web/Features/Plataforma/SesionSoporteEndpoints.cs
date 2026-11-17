@@ -216,10 +216,12 @@ public static class SesionSoporteEndpoints
     ///
     /// <para>
     /// <b>La guarda vive aquí y no en la pantalla</b>, y no es una preferencia. Dentro
-    /// de un circuito de Blazor no hay <c>HttpContext</c>, así que
-    /// <c>ClienteActivoSeleccionado</c> resuelve a nulo y memoiza ese nulo
-    /// (<c>SeleccionSinHttpContextTests</c>): una comprobación en la página diría
-    /// siempre «no hay sesión activa» y sería un instrumento ciego. En un endpoint la
+    /// de un circuito de Blazor no hay <c>HttpContext</c> después de la negociación, así que
+    /// <c>ClienteActivoSeleccionado</c> conserva lo que leyó entonces
+    /// (<c>RevalidacionCircuitoActivoHandler.SembrarSeleccionMientrasHayHttpContext</c>) o, sin esa
+    /// lectura, resuelve a nulo y memoiza ese nulo (<c>SeleccionSinHttpContextTests</c>): una
+    /// comprobación en la página vería la sesión de cuando se abrió el circuito, no la de ahora,
+    /// y sería un instrumento ciego. En un endpoint la
     /// cookie sí es legible, así que aquí la comprobación observa de verdad lo que dice
     /// observar.
     /// </para>

@@ -234,12 +234,14 @@ public class ClienteActivoEndpointsAutorizacionTests
     {
         await using var db = await CrearContexto();
         var http = Contexto();
+        http.RequestServices = new ServiceCollection()
+            .AddScoped<IClienteActivoSeleccionado, SeleccionConSesionPrivilegiada>()
+            .BuildServiceProvider();
         var registro = new RegistroCambioFalso();
 
         var resultado = await ClienteActivoEndpoints.CambiarAsync(
             alOrigen ? Origen : Destino, "/", http, db, new UsuarioActual("GestorCae"), db, _protector, default,
-            registroCambioContexto: registro,
-            clienteActivoSeleccionado: new SeleccionConSesionPrivilegiada());
+            registroCambioContexto: registro);
 
         resultado.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>();
         http.Response.Headers.SetCookie.Should().BeEmpty();

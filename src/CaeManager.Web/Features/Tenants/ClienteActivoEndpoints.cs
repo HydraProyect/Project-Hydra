@@ -63,8 +63,7 @@ public static class ClienteActivoEndpoints
         IContadorPendientesSelectorTenant? contadorPendientes = null,
         CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
         ServicioCae? servicio = null,
-        IRegistroCambioContexto? registroCambioContexto = null,
-        IClienteActivoSeleccionado? clienteActivoSeleccionado = null)
+        IRegistroCambioContexto? registroCambioContexto = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
@@ -75,8 +74,8 @@ public static class ClienteActivoEndpoints
         // Con una Sesión Privilegiada activa el selector no cambia nada, ni siquiera vuelve al origen: fallo cerrado
         // (D-6 b, R-2; A-23). La entrada y la salida del Tenant visitado van por SesionSoporteEndpoints, que las deja
         // en RegistroActividadSoporte; por aquí serían una salida del plano 3 sin cerrar la sesión.
-        if ((clienteActivoSeleccionado ?? httpContext.RequestServices?.GetService<IClienteActivoSeleccionado>())
-            ?.SesionPrivilegiadaIdSeleccionada is not null)
+        if (httpContext.RequestServices?.GetService<IClienteActivoSeleccionado>()?.SesionPrivilegiadaIdSeleccionada
+            is not null)
             return Results.Forbid();
 
         var ahora = DateTime.UtcNow;
@@ -138,7 +137,7 @@ public static class ClienteActivoEndpoints
         // versión de la cookie que se emite después, que además deja obsoleta la selección de las demás pestañas.
         var token = tenantId == tenantOrigenId.Value
             ? null
-            : ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
+            : CookieDeContextoTenant.ProtegerSeleccion(dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
         if (registroCambioContexto is not null)
             await registroCambioContexto.RegistrarCambioAsync(
                 tenantId, asignacionOperacionId, RegistroCambioContextoService.OrigenSelector,

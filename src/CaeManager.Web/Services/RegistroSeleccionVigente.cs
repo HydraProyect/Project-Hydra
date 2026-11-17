@@ -58,7 +58,7 @@ public sealed class RegistroSeleccionVigente
     public void Registrar(string claveSesion, string version)
     {
         var ahora = DateTime.UtcNow;
-        _vigentes[claveSesion] = (version, ahora.Add(ClienteActivoSeleccionado.Vigencia));
+        _vigentes[claveSesion] = (version, ahora.Add(CookieDeContextoTenant.VigenciaSeleccion));
 
         if (_vigentes.Count <= UmbralPurga) return;
         foreach (var (clave, valor) in _vigentes)

@@ -194,7 +194,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     // nada que aún no se hubiera consultado.
                     seleccionConcreta?.Invalidar();
 
-                    BorrarSeleccion(contexto);
+                    CookieDeContextoTenant.RetirarSeleccion(contexto);
 
                     return;
                 }
@@ -205,7 +205,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 
                 seleccionConcreta?.Invalidar();
 
-                BorrarSeleccion(contexto);
+                CookieDeContextoTenant.RetirarSeleccion(contexto);
             }
         }
         else
@@ -232,23 +232,12 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 + "usuario actual).",
                 ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()));
 
-            BorrarSeleccion(contexto);
+            CookieDeContextoTenant.RetirarSeleccion(contexto);
         }
 
         await siguiente(contexto);
     }
 
-    /// <summary>
-    /// Borra la cookie de contexto y deja la vuelta al origen como selección vigente de la sesión de navegador (D-6 b,
-    /// R-2): las peticiones siguientes llegan sin cookie y, si el registro conservara la versión retirada, la guarda de
-    /// pestaña obsoleta las rechazaría hasta que un circuito la adoptara. Esta misma petición, con la selección ya
-    /// invalidada, sigue rechazando comandos como retirada tras pintar.
-    /// </summary>
-    private static void BorrarSeleccion(HttpContext contexto)
-    {
-        contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
-        CookieDeContextoTenant.RegistrarSeleccionVigente(contexto, tokenEmitido: null);
-    }
 
     /// <summary>
     /// Único punto de registro para las dos ramas de aborto de arriba —misma línea

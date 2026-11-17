@@ -41,7 +41,7 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public class ClienteActivoSeleccionado(
     IHttpContextAccessor httpContextAccessor,
-    IDataProtectionProvider dataProtectionProvider) : IClienteActivoSeleccionado, IAvisoSeleccionRetirada
+    IDataProtectionProvider dataProtectionProvider) : IClienteActivoSeleccionado, IAvisoSeleccionRetirada, ISeleccionContextoVersionada
 {
     public const string NombreCookie = "cae_cliente_activo";
 

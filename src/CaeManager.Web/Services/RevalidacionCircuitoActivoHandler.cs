@@ -188,7 +188,7 @@ public class RevalidacionCircuitoActivoHandler(
 
         // La cookie de la negociación es la última del navegador: su versión pasa a ser la vigente de la sesión, y la
         // de cualquier otro circuito suyo que pintara con otra queda obsoleta (guarda de pestaña, D-6 b, R-2).
-        if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion && registroSeleccionVigente is not null)
+        if (clienteActivoSeleccionado is ISeleccionContextoVersionada seleccion && registroSeleccionVigente is not null)
             seleccion.AdoptarComoVigente(registroSeleccionVigente);
     }
 

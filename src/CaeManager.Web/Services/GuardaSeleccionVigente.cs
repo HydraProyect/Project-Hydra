@@ -16,12 +16,12 @@ namespace CaeManager.Web.Services;
 /// </para>
 /// </summary>
 public sealed class GuardaSeleccionVigente(
-    IClienteActivoSeleccionado clienteActivoSeleccionado,
+    IClienteActivoSeleccionado seleccionDeContexto,
     RegistroSeleccionVigente registro) : IGuardaSeleccionVigente
 {
     public SeleccionNoVigente? Comprobar()
     {
-        if (clienteActivoSeleccionado is not ClienteActivoSeleccionado seleccion)
+        if (seleccionDeContexto is not ISeleccionContextoVersionada seleccion)
             return null;
 
         // La versión primero: fuerza la lectura de la selección si nadie la ha leído aún.

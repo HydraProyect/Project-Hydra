@@ -140,7 +140,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
 
         // Auditada como la del selector, con su propio origen y antes de la cookie (D-6 b, R-2): si no queda
         // registrada, la excepción la recoge InvokeAsync y la petición sigue en el Tenant de origen.
-        var token = ClienteActivoSeleccionado.Proteger(
+        var token = CookieDeContextoTenant.ProtegerSeleccion(
             dataProtectionProvider, usuarioId, porDefecto.TenantId, asignacionOperacionId);
         if (contexto.RequestServices?.GetService<CaeManager.Application.Auditoria.IRegistroCambioContexto>() is { } registro)
             await registro.RegistrarCambioAsync(
