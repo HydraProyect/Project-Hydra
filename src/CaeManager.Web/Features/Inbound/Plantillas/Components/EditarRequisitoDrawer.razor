@@ -116,8 +116,24 @@
         }
     </div>
 
-    @* «Se pide a» (todos, nacionales o extranjeros) ya no se ofrece: desde el 2026-11-17 al extranjero se le pide un requisito
-       con el modelo de contratación Extranjero, y la máscara es el único criterio. *@
+    @* «Se pide a» (todos, nacionales o extranjeros) solo se ofrece para la Empresa contratista: desde el 2026-11-17 al
+       Trabajador extranjero se le pide un requisito con el modelo de contratación Extranjero, y la máscara es su único criterio.
+       shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa se sigue leyendo porque la decisión del Extranjero solo
+       trata del Trabajador y la del 2026-11-14 (el país de la Empresa contratista) sigue vigente (decisión 2026-11-17). *@
+    @if (EntidadActual == EntidadRequisito.Empresa)
+    {
+        <div class="campo">
+            <span class="cfg-etq" id="e-ori">@Textos["CampoDestinatario"]</span>
+            <div class="cfg-seg" role="radiogroup" aria-labelledby="e-ori">
+                @foreach (var d in PlantillaRequisitosUi.Destinatarios)
+                {
+                    <button type="button" role="radio" aria-checked="@(DestinatarioEnviado == d)" aria-pressed="@(DestinatarioEnviado == d)" @onclick="() => _destinatario = d">@Textos[PlantillaRequisitosUi.ClaveDestinatario(d)]</button>
+                }
+            </div>
+            <p class="cfg-ayuda">@Textos["DestinatarioAyuda"]</p>
+        </div>
+    }
+
     @if (EntidadActual == EntidadRequisito.Trabajador)
     {
         <div class="campo">
@@ -240,6 +256,7 @@
     private Guid? _tipoId;
     private bool _propio;
     private AmbitoAplicacion _ambito = AmbitoAplicacion.Empresa;
+    private DestinatarioRequisito _destinatario = DestinatarioRequisito.Todos;
     private TiposContratacion _contrataciones = TiposContratacion.Todos;
     private string _equivalencias = string.Empty;
     private ModoVigenciaRequisito _modo = ModoVigenciaRequisito.LaPoneElDocumento;
@@ -258,16 +275,21 @@
     private int ToleranciaElegida => _modo == ModoVigenciaRequisito.SinVencimiento || _propio ? 0 : _tolerancia;
 
     // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
-    // El Command todavía lo recibe: un requisito nuevo lo envía en Todos y uno editado devuelve el que tenía, sin
-    // enseñarlo ni decidir nada con él, para no reescribir un dato que la migración dejó intacto.
-    private DestinatarioRequisito DestinatarioEnviado => Requisito?.SePideA ?? DestinatarioRequisito.Todos;
+    // En la Empresa contratista se elige y se lee como antes. En el Trabajador, el Command todavía lo recibe: un requisito
+    // nuevo lo envía en Todos y uno editado devuelve el que tenía, sin enseñarlo ni decidir nada con él, para no reescribir
+    // un dato que la migración dejó intacto. Un vehículo o máquina no es nacional ni extranjero: siempre Todos.
+    private DestinatarioRequisito DestinatarioEnviado => EntidadActual switch
+    {
+        EntidadRequisito.Empresa => _destinatario,
+        EntidadRequisito.Trabajador => Requisito?.SePideA ?? DestinatarioRequisito.Todos,
+        _ => DestinatarioRequisito.Todos,
+    };
 
     // Las equivalencias son de un extranjero: en un Trabajador se ofrecen si la máscara incluye Extranjero (o si ya hay
-    // alguna escrita, para no perderla al guardar); la Empresa y el vehículo o máquina no se acotan por contratación.
-    private bool AdmiteEquivalencias =>
-        EntidadActual != EntidadRequisito.Trabajador
-        || _contrataciones.Incluye(TipoContratacion.Extranjero)
-        || !string.IsNullOrWhiteSpace(_equivalencias);
+    // alguna escrita, para no perderla al guardar); en la Empresa contratista, si no se pide solo a nacionales.
+    private bool AdmiteEquivalencias => EntidadActual == EntidadRequisito.Trabajador
+        ? _contrataciones.Incluye(TipoContratacion.Extranjero) || !string.IsNullOrWhiteSpace(_equivalencias)
+        : DestinatarioEnviado != DestinatarioRequisito.Nacionales;
 
     private bool SinContratacion => EntidadActual == EntidadRequisito.Trabajador && (_contrataciones & TiposContratacion.Todos) == TiposContratacion.Ninguno;
 
@@ -303,7 +325,7 @@
 
     private bool HayCambiosSinGuardar => EsAlta
         ? _tipoId is not null || _propio || !string.IsNullOrWhiteSpace(_criterio)
-        : Requisito is { } r && (_contrataciones != r.TiposContratacion
+        : Requisito is { } r && (_destinatario != r.SePideA || _contrataciones != r.TiposContratacion
             || _equivalencias != string.Join('\n', r.Equivalencias) || _modo != r.ModoVigencia
             || _meses != (r.VigenciaMeses?.ToString() ?? string.Empty) || _tolerancia != (r.ToleranciaDias ?? 0)
             || _criterio != (r.Criterio ?? string.Empty));
@@ -324,6 +346,7 @@
             if (Requisito is { } r)
             {
                 _tipoId = r.TipoDocumentoId;
+                _destinatario = r.SePideA;
                 _contrataciones = r.TiposContratacion;
                 _equivalencias = string.Join('\n', r.Equivalencias);
                 _modo = r.ModoVigencia;
@@ -333,6 +356,7 @@
             }
             else
             {
+                _destinatario = DestinatarioRequisito.Todos;
                 _contrataciones = TiposContratacion.Todos;
                 _equivalencias = string.Empty;
                 _modo = ModoVigenciaRequisito.LaPoneElDocumento;
@@ -447,7 +471,7 @@
         // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
         // Un «Nacionales» guardado no admite equivalencias en el dominio: si ahora las lleva (la máscara incluye Extranjero),
         // se envía Todos, que es lo que la máscara dice ya.
-        var sePideA = equivalencias.Count > 0 && DestinatarioEnviado == DestinatarioRequisito.Nacionales
+        var sePideA = EntidadActual == EntidadRequisito.Trabajador && equivalencias.Count > 0 && DestinatarioEnviado == DestinatarioRequisito.Nacionales
             ? DestinatarioRequisito.Todos
             : DestinatarioEnviado;
         atributos = new AtributosRequisito(

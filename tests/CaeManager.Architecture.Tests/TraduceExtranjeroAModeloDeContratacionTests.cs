@@ -6,45 +6,41 @@ using Microsoft.EntityFrameworkCore.Migrations.Operations;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// <c>TraduceExtranjeroAModeloDeContratacion</c> sin base de datos: la lectura inversa X-2 (<c>app_inbound_tec_requerimientos()</c>)
-/// se sustituye por la misma función sin <c>"SePideA"</c> y con el mismo contrato de seguridad, el CHECK de la máscara se rehace
-/// alrededor de la traducción y el Down devuelve la función original. La traducción fila a fila la mide
-/// <c>TraduceExtranjeroAModeloDeContratacionTests</c> de la suite de integración (solo en CI).
+/// <c>TraduceExtranjeroAModeloDeContratacion</c> sin base de datos: el CHECK de la máscara se rehace alrededor de la traducción,
+/// la traducción solo toca requisitos de Trabajador y ninguna función cambia (la lectura inversa X-2 sigue igual). La
+/// traducción fila a fila la mide <c>TraduceExtranjeroAModeloDeContratacionTests</c> de la suite de integración (solo en CI).
 /// </summary>
 public class TraduceExtranjeroAModeloDeContratacionTests
 {
     private static readonly TraduceExtranjeroAModeloDeContratacion Migracion = new();
 
-    private static string Normalizado(string sql) => Regex.Replace(sql, @"\s+", " ").Trim();
-
     [Fact]
-    public void La_funcion_nueva_es_la_original_sin_SePideA_con_el_mismo_contrato_de_seguridad()
+    public void Ninguna_operacion_toca_funciones_ni_privilegios()
     {
-        var original = Normalizado(AnadeLecturaRequerimientosTec.CreaFuncionRequerimientosTec);
-        var esperada = "DROP FUNCTION public.app_inbound_tec_requerimientos(); "
-            + original.Replace("\"SePideA\" text, ", string.Empty, StringComparison.Ordinal)
-                .Replace("r.\"SePideA\"::text, ", string.Empty, StringComparison.Ordinal);
-
-        esperada.Should().NotContain("SePideA");
-        Normalizado(TraduceExtranjeroAModeloDeContratacion.CreaFuncionRequerimientosTecSinSePideA).Should().Be(esperada,
-            "solo cambia la columna retirada: SECURITY DEFINER, search_path, guardias, filas, REVOKE y GRANT siguen iguales");
-        Regex.Matches(TraduceExtranjeroAModeloDeContratacion.CreaFuncionRequerimientosTecSinSePideA, @"GRANT\s")
-            .Should().ContainSingle("ningún otro rol recibe nada");
+        foreach (var sql in Migracion.UpOperations.Concat(Migracion.DownOperations).OfType<SqlOperation>().Select(o => o.Sql))
+            sql.Should().NotContainAny("FUNCTION", "GRANT", "REVOKE", "POLICY");
     }
 
     [Fact]
-    public void El_Up_quita_el_CHECK_traduce_lo_rehace_para_el_bit_Extranjero_y_cambia_la_funcion()
+    public void La_traduccion_de_requisitos_solo_toca_los_de_Trabajador()
+    {
+        var updates = Regex.Matches(TraduceExtranjeroAModeloDeContratacion.TraduceMascaras,
+            @"UPDATE public\.""RequisitosPlantilla""(?<cuerpo>[^;]*);").Select(m => m.Groups["cuerpo"].Value).ToList();
+
+        updates.Should().HaveCount(3).And.OnlyContain(u => u.Contains("\"Entidad\" = 'Trabajador'"));
+    }
+
+    [Fact]
+    public void El_Up_quita_el_CHECK_traduce_y_lo_rehace_para_el_bit_Extranjero()
     {
         var operaciones = Migracion.UpOperations;
 
-        operaciones.Should().HaveCount(5);
+        operaciones.Should().HaveCount(4);
         operaciones[0].Should().BeOfType<SqlOperation>().Which.Sql.Should().Contain("rolbypassrls");
         operaciones[1].Should().BeOfType<DropCheckConstraintOperation>().Which.Name.Should().Be("CK_RequisitosPlantilla_TiposContratacion");
         operaciones[2].Should().BeOfType<SqlOperation>().Which.Sql.Should().Be(TraduceExtranjeroAModeloDeContratacion.TraduceMascaras);
         operaciones[3].Should().BeOfType<AddCheckConstraintOperation>().Which.Sql
             .Should().Be("\"TiposContratacion\" > 0 AND (\"TiposContratacion\" & ~15) = 0");
-        operaciones[4].Should().BeOfType<SqlOperation>().Which.Sql
-            .Should().Be(TraduceExtranjeroAModeloDeContratacion.CreaFuncionRequerimientosTecSinSePideA);
     }
 
     [Fact]
@@ -59,12 +55,10 @@ public class TraduceExtranjeroAModeloDeContratacionTests
     }
 
     [Fact]
-    public void El_Down_devuelve_la_funcion_original_y_el_CHECK_anterior()
+    public void El_Down_revierte_las_mascaras_y_devuelve_el_CHECK_anterior()
     {
         var operaciones = Migracion.DownOperations;
 
-        operaciones.OfType<SqlOperation>().Should().Contain(o =>
-            o.Sql == "DROP FUNCTION public.app_inbound_tec_requerimientos();\n" + AnadeLecturaRequerimientosTec.CreaFuncionRequerimientosTec);
         operaciones.OfType<SqlOperation>().Should().Contain(o => o.Sql == TraduceExtranjeroAModeloDeContratacion.RevierteMascaras);
         operaciones.OfType<AddCheckConstraintOperation>().Should().ContainSingle().Which.Sql
             .Should().Be("\"TiposContratacion\" > 0 AND (\"TiposContratacion\" & ~7) = 0");

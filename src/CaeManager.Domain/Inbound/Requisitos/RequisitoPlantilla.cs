@@ -25,6 +25,9 @@ namespace CaeManager.Domain.Inbound.Requisitos;
 /// </summary>
 public sealed class RequisitoPlantilla : EntidadConTenant
 {
+    private const TiposContratacion TodosAnteriorAlExtranjero =
+        TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario;
+
     private List<string> _equivalencias = [];
 
     public Guid PlantillaId { get; private set; }
@@ -167,8 +170,9 @@ public sealed class RequisitoPlantilla : EntidadConTenant
 
         var entidad = EntidadDe(tipo);
         // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
-        // Se sigue validando y guardando porque es parte del contrato de los Commands (AtributosRequisito); no decide a
-        // quién se pide el requisito.
+        // En un requisito de Trabajador se sigue validando y guardando porque es parte del contrato de los Commands
+        // (AtributosRequisito), pero no decide a quién se pide. En uno de Empresa contratista sí se sigue leyendo: la decisión
+        // del Extranjero solo trata del Trabajador, y la del 2026-11-14 (el país de la Empresa) sigue vigente.
         var sePideA = ReglasCatalogoBase.ValidarEnum(atributos.SePideA, nameof(atributos.SePideA));
         if (entidad == EntidadRequisito.VehiculoOMaquina && sePideA != DestinatarioRequisito.Todos)
             throw new ArgumentException("Un vehículo o máquina no es nacional ni extranjero: se pide a todos.", nameof(atributos.SePideA));
@@ -176,7 +180,9 @@ public sealed class RequisitoPlantilla : EntidadConTenant
         var contratacion = atributos.TiposContratacion & TiposContratacion.Todos;
         if (contratacion != atributos.TiposContratacion || contratacion == TiposContratacion.Ninguno)
             throw new ArgumentException("Marca al menos un tipo de contratación conocido.", nameof(atributos.TiposContratacion));
-        if (entidad != EntidadRequisito.Trabajador && contratacion != TiposContratacion.Todos)
+        // La migración TraduceExtranjeroAModeloDeContratacion no toca la máscara de Empresa ni de vehículo o máquina: su 7
+        // (el Todos anterior al Extranjero) sigue valiendo como Todos, porque la máscara no acota esas entidades.
+        if (entidad != EntidadRequisito.Trabajador && contratacion != TiposContratacion.Todos && contratacion != TodosAnteriorAlExtranjero)
             throw new ArgumentException("El tipo de contratación solo acota requisitos de Trabajador.", nameof(atributos.TiposContratacion));
 
         var equivalencias = NormalizarEquivalencias(atributos.Equivalencias);

@@ -71,19 +71,24 @@ public class TraduceExtranjeroAModeloDeContratacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_requisito_de_Empresa_o_de_vehiculo_sigue_en_Todos_sea_cual_sea_su_Se_pide_a()
+    public async Task Un_requisito_de_Empresa_o_de_vehiculo_queda_intacto_mascara_y_Se_pide_a()
     {
+        // Decisión de la subcoordinadora de 2026-11-17: la del Extranjero solo trata del Trabajador; una Empresa contratista
+        // pedida solo a extranjeras (2026-11-14) sigue así.
         await EjecutarAsync("""
             INSERT INTO public."RequisitosPlantilla" VALUES
                 (1, 'Empresa', 'Extranjeros', 7),
                 (2, 'Empresa', 'Nacionales', 7),
-                (3, 'VehiculoOMaquina', 'Todos', 7);
+                (3, 'VehiculoOMaquina', 'Todos', 7),
+                (4, 'Empresa', 'Todos', 7);
             """);
 
         await EjecutarAsync(TraduceExtranjeroAModeloDeContratacion.TraduceMascaras);
 
         (await LeerAsync("""SELECT "Id", "TiposContratacion" FROM public."RequisitosPlantilla" ORDER BY "Id";"""))
-            .Should().Equal((1, 15), (2, 15), (3, 15));
+            .Should().Equal((1, 7), (2, 7), (3, 7), (4, 7));
+        (await LeerTextoAsync("""SELECT string_agg("SePideA", ',' ORDER BY "Id") FROM public."RequisitosPlantilla";"""))
+            .Should().Be("Extranjeros,Nacionales,Todos,Todos");
     }
 
     [Fact]

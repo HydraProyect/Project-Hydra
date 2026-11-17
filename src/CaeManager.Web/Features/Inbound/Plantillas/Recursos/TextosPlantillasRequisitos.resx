@@ -465,4 +465,19 @@
   <data name="NombreNoDisponible" xml:space="preserve">
     <value>Ese nombre ya existe en el catálogo y no se puede pedir como requisito: está archivado o es de otro tipo de documento.</value>
   </data>
+  <data name="DestinatarioTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="DestinatarioNacionales" xml:space="preserve">
+    <value>Nacionales</value>
+  </data>
+  <data name="DestinatarioExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="CampoDestinatario" xml:space="preserve">
+    <value>A quién se pide</value>
+  </data>
+  <data name="DestinatarioAyuda" xml:space="preserve">
+    <value>Si la Empresa contratista es extranjera lo decide su país. Al Trabajador extranjero se le pide con la contratación Extranjero.</value>
+  </data>
 </root>

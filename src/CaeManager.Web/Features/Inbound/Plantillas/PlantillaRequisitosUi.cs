@@ -17,6 +17,9 @@ public static class PlantillaRequisitosUi
     /// <summary>Opciones del formulario de Editar requisito: tolerancia en días tras el vencimiento (R-6 la limita por tipo).</summary>
     public static IReadOnlyList<int> ToleranciasOfrecidas { get; } = [0, 7, 15, 30];
 
+    // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista se sigue ofreciendo (decisión 2026-11-17).
+    public static IReadOnlyList<DestinatarioRequisito> Destinatarios { get; } = Enum.GetValues<DestinatarioRequisito>();
+
     public static IReadOnlyList<ModoVigenciaRequisito> ModosVigencia { get; } = Enum.GetValues<ModoVigenciaRequisito>();
 
     public static IReadOnlyList<TipoPlantillaRequisitos> Niveles { get; } = Enum.GetValues<TipoPlantillaRequisitos>();
@@ -51,6 +54,13 @@ public static class PlantillaRequisitosUi
         OrigenRequisito.Actividad => TonoBadge.Exito,
         OrigenRequisito.ExigenciaN3 => TonoBadge.Advertencia,
         _ => TonoBadge.Neutro,
+    };
+
+    public static string ClaveDestinatario(DestinatarioRequisito destinatario) => destinatario switch
+    {
+        DestinatarioRequisito.Nacionales => "DestinatarioNacionales",
+        DestinatarioRequisito.Extranjeros => "DestinatarioExtranjeros",
+        _ => "DestinatarioTodos",
     };
 
     public static string ClaveModoVigencia(ModoVigenciaRequisito modo) => modo switch

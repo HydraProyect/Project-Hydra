@@ -465,4 +465,19 @@
   <data name="NombreNoDisponible" xml:space="preserve">
     <value>Aquest nom ja existeix al catàleg i no es pot demanar com a requisit: està arxivat o és d&apos;un altre tipus de document.</value>
   </data>
+  <data name="DestinatarioTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="DestinatarioNacionales" xml:space="preserve">
+    <value>Nacionals</value>
+  </data>
+  <data name="DestinatarioExtranjeros" xml:space="preserve">
+    <value>Estrangers</value>
+  </data>
+  <data name="CampoDestinatario" xml:space="preserve">
+    <value>A qui es demana</value>
+  </data>
+  <data name="DestinatarioAyuda" xml:space="preserve">
+    <value>Si l&apos;Empresa contractista és estrangera ho decideix el seu país. Al Treballador estranger se li demana amb la contractació Estranger.</value>
+  </data>
 </root>

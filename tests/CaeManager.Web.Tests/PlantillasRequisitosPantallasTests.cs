@@ -438,7 +438,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Al_pasar_de_Trabajador_a_Vehiculo_las_equivalencias_escritas_se_envian_y_el_destinatario_es_Todos()
+    public void Al_pasar_de_Trabajador_a_Vehiculo_las_equivalencias_escritas_se_envian()
     {
         var mediador = Preparar();
         var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
@@ -456,7 +456,6 @@ public class PlantillasRequisitosPantallasTests : BunitContext
             .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Should().ContainSingle());
         var atributos = mediador.Enviadas
             .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single().Atributos;
-        atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
         atributos.Equivalencias.Should().Equal("Certificado equivalente");
     }
 

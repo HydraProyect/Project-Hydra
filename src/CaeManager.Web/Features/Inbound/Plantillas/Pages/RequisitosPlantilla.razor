@@ -78,7 +78,12 @@
                                     {
                                         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeContratacion", TextoContrataciones(r)]</Badge>
                                     }
-                                    @* «Se pide a» ya no se enseña: a un extranjero se le pide con la contratación Extranjero (2026-11-17). *@
+                                    @* shortcut: SePideA queda sin leerse en el Trabajador, al que se le pide con la contratación
+                                       Extranjero; en la Empresa contratista se sigue enseñando (decisión 2026-11-17). *@
+                                    @if (r.Entidad == EntidadRequisito.Empresa && r.SePideA != DestinatarioRequisito.Todos)
+                                    {
+                                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveDestinatario(r.SePideA)]</Badge>
+                                    }
                                     @if (r.Equivalencias.Count > 0)
                                     {
                                         <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["BadgeEquivalencias", r.Equivalencias.Count]</Badge>
