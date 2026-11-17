@@ -67,7 +67,7 @@ public static class ConectarMicrosoft365Endpoints
                 // Gestor CAE. Se rechaza aquí para no consumir un consentimiento que el Command rechazaría.
                 compartido = NormalizarDireccionBuzon(buzonCompartido);
                 if (compartido is null || gestorPropietarioId is not null || clienteId is not null)
-                    return Results.LocalRedirect("/integraciones?error=buzon-compartido");
+                    return Results.LocalRedirect(RedireccionBuzonCompartido);
             }
 
             var solicitud = new SolicitudConexionMicrosoft365(usuarioId.Value, clienteId, gestorPropietarioId, DateTime.UtcNow, compartido);
@@ -187,12 +187,12 @@ public static class ConectarMicrosoft365Endpoints
             ? "/integraciones?conectado=true"
             : resultado.Error.Codigo is ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectado
                 or ConectarBuzonMicrosoft365CommandHandler.CodigoBuzonYaConectadoEnEstaOrganizacion
-                ? "/integraciones?error=ya-conectado"
+                ? RedireccionYaConectado
                 : resultado.Error.Codigo == ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa
-                    ? "/integraciones?error=compartidos-en-pausa"
+                    ? RedireccionCompartidosEnPausa
                     : resultado.Error.Codigo == ConectarBuzonMicrosoft365CommandHandler.CodigoSoloAdministrador
                         ? RedireccionSoloAdministrador
-                        : "/integraciones?error=suscripcion";
+                        : RedireccionSuscripcion;
 
     /// <summary>
     /// A dónde vuelve el callback cuando falla la preparación del alta (<see cref="AltaBuzonMicrosoft365Service"/>). Se clasifica
@@ -218,6 +218,10 @@ public static class ConectarMicrosoft365Endpoints
     public const string RedireccionSinBuzonExchange = "/integraciones?error=sin-buzon-exchange";
     public const string RedireccionSinAccesoCompartido = "/integraciones?error=sin-acceso-compartido";
     public const string RedireccionAutenticacion = "/integraciones?error=autenticacion";
+    public const string RedireccionBuzonCompartido = "/integraciones?error=buzon-compartido";
+    public const string RedireccionYaConectado = "/integraciones?error=ya-conectado";
+    public const string RedireccionCompartidosEnPausa = "/integraciones?error=compartidos-en-pausa";
+    public const string RedireccionSuscripcion = "/integraciones?error=suscripcion";
 
     /// <summary>
     /// Sin rol efectivo Administrador no se conecta nada; no es un fallo de las notificaciones, así que no vuelve con

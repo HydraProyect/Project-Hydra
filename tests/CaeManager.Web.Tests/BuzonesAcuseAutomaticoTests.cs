@@ -330,6 +330,7 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         cut.FindAll("[data-testid=fila-buzon]").Should().HaveCount(2, "control positivo: el listado se ve");
         cut.FindAll("[data-testid=interruptor-acuse]").Should().BeEmpty();
         cut.FindAll("[data-testid=selector-responsable]").Should().BeEmpty();
+        cut.FindAll("[data-testid=anadir-buzon]").Should().BeEmpty("con la URL pública configurada solo el Administrador ve «Añadir buzón»");
         cut.FindAll("[data-testid=estado-acuse]").Select(e => e.TextContent.Trim()).Should().Equal("Activado", "Desactivado");
     }
 

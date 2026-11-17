@@ -22,10 +22,13 @@
         </Descripcion>
         <Acciones>
             @* Secundario a la derecha del título (E31): abre el cajón con la elección de propietario y navega a la misma URL de
-               conectar que Conexiones. Sin la URL pública no hay flujo OAuth posible y no se ofrece. *@
+               conectar que Conexiones. Sin la URL pública no hay flujo OAuth posible y no se ofrece. Como los demás controles, solo
+               lo ve el Administrador; el endpoint de conectar lo vuelve a exigir en el servidor. *@
             @if (ConexionDisponible)
             {
-                <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCajonAsync" data-testid="anadir-buzon">@Textos["AnadirBuzon"]</Boton>
+                <AuthorizeView Roles="@RolAdministrador" Context="autorizacionAnadir">
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCajonAsync" data-testid="anadir-buzon">@Textos["AnadirBuzon"]</Boton>
+                </AuthorizeView>
             }
         </Acciones>
     </CabeceraPagina>
