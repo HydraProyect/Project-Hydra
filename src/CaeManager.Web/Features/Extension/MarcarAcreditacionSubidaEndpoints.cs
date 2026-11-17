@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Autenticacion;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
 using MediatR;
@@ -119,6 +120,9 @@ public static class MarcarAcreditacionSubidaEndpoints
         // Misma política que el resto de /extension/*: sesión interactiva o
         // token de extensión, nunca clave de API de tenant.
         .RequireAuthorization(Policies.SesionOExtension)
+        // Con la sesión web y papel Inbound, se niega como las páginas de Outbound (O-1 (b)); ver
+        // AcreditacionesPendientesEndpoints para la vía del token.
+        .DeOutbound()
         .AddEndpointFilter(async (contexto, siguiente) =>
         {
             // Solo el esquema validado de extensión exime del token: una cabecera

@@ -436,9 +436,9 @@ public static class TenantsBeneficiariosAutorizados
     /// operación Inbound el rol solo trae alcance de datos dentro de una petición de Inbound (<c>AlcanceDatosService</c> con
     /// <c>AmbitoPeticionInbound</c>, B-03). Las páginas de Outbound, aunque se autoricen solo por rol, no se abren con papel
     /// Inbound: las niega <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> con el criterio de
-    /// <see cref="Common.CriterioDePapel"/> (cierre del hueco declarado de B-02b). Lo que sigue abriendo el rol sin mirar el
-    /// papel son las páginas del Núcleo y de Facturación que se autorizan solo por rol (Auditoría, Usuarios, Configuración,
-    /// Facturación), pendiente de decidir.
+    /// <see cref="Common.CriterioDePapel"/> (cierre del hueco declarado de B-02b). Las del Núcleo y de Facturación (Auditoría,
+    /// Usuarios, Configuración, Facturación…) tampoco: con papel Inbound las cierra por defecto
+    /// <c>NucleoCerradoConPapelInboundAuthorizationHandler</c> (decisión O-1 (b)), salvo las abiertas de forma explícita.
     ///
     /// <para>
     /// El rol guardado en la Asignación de Cartera ya no decide: la cartera solo da acceso

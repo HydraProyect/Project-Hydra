@@ -88,16 +88,10 @@ public class PaginasDeOutboundPorPapelTests
     }
 
     private const string MotivoExtension =
-        "La llama la extensión de navegador con su propio token (Policies.SoloExtension o SesionOExtension): " +
-        "ContextoExtensionMiddleware solo resuelve Asignaciones de Operación de Outbound, y con papel Inbound los " +
-        "comandos los corta GuardaPorServicioBehavior y los datos AlcanceDatosService. Marcarla negaría la vía de la " +
-        "extensión, cuyo papel no se ha medido; queda declarado en la PR que cierra el hueco.";
-
-    private const string MotivoExtensionYSesion =
-        "Policies.SesionOExtension: la llama la extensión con su token y también la sesión web. Por la vía del token, " +
-        "ContextoExtensionMiddleware solo resuelve Asignaciones de Operación de Outbound; por la sesión web, con papel " +
-        "Inbound, AlcanceDatosService da alcance vacío y GuardaPorServicioBehavior corta la escritura, pero la ruta " +
-        "responde. Marcarla negaría también la vía de la extensión, cuyo papel no se ha medido; hueco declarado en la PR.";
+        "Solo el token de la extensión (Policies.SoloExtension): la cookie no autentica, así que la sesión web con " +
+        "papel Inbound no llega. El token ya no se emite con papel Inbound (ExtensionTokenEndpoints lleva .DeOutbound(), " +
+        "O-1 (b)), y por la vía del token ContextoExtensionMiddleware solo resuelve Asignaciones de Operación de " +
+        "Outbound o el Tenant de origen, nunca papel Inbound. Marcarla añadiría una consulta del papel sin cerrar nada.";
 
     /// <summary>Clases de endpoints de un área de Outbound que no llevan <c>.DeOutbound()</c>, con su motivo.</summary>
     private static readonly Dictionary<string, string> EndpointsExentos = new()
@@ -107,10 +101,7 @@ public class PaginasDeOutboundPorPapelTests
         ["CaeManager.Web.Api.V1.ClientesApiEndpoints"] =
             "API pública v1: la autentica la Clave de Integración (RequiereAlcanceIntegracion), sin sesión web ni " +
             "selección de Asignación de Operación, así que no hay papel Inbound que negar.",
-        ["CaeManager.Web.Features.Extension.AcreditacionesPendientesEndpoints"] = MotivoExtensionYSesion,
         ["CaeManager.Web.Features.Extension.EntregaArchivoExtensionEndpoints"] = MotivoExtension,
-        ["CaeManager.Web.Features.Extension.ExtensionTokenEndpoints"] = MotivoExtension,
-        ["CaeManager.Web.Features.Extension.MarcarAcreditacionSubidaEndpoints"] = MotivoExtensionYSesion,
         ["CaeManager.Web.Features.Extension.TenantsBeneficiariosExtensionEndpoints"] = MotivoExtension,
     };
 
@@ -131,7 +122,8 @@ public class PaginasDeOutboundPorPapelTests
                 SearchOption.AllDirectories)
             .ToLookup(Path.GetFileNameWithoutExtension, SinComentarios);
 
-        // Control positivo del instrumento: las diez clases marcadas al cerrar el hueco y las siete exentas.
+        // Control positivo del instrumento: trece clases marcadas (diez al cerrar el hueco y tres de la extensión en
+        // O-1 (b)) y cuatro exentas.
         ClasesDeEndpointsDeOutbound.Value.Should().HaveCountGreaterThanOrEqualTo(17);
 
         ClasesDeEndpointsDeOutbound.Value
