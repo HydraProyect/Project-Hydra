@@ -23,7 +23,10 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// </para>
 ///
 /// - El <b>cliente visitado</b> lo ve directamente: el registro lleva su
-///   <c>TenantId</c>, así que el filtro global se lo entrega sin más.
+///   <c>TenantId</c>, así que el filtro global se lo entrega, pero la RLS solo
+///   se lo entrega a su <b>Administrador</b> (política
+///   <c>administrador_del_tenant_propietario_lee</c>); cualquier otra cuenta del
+///   Tenant recibe una lista vacía.
 /// - La <b>plataforma</b> necesita ámbito explícito, porque desde su propia
 ///   organización el filtro global esconde —correctamente— los registros del
 ///   cliente. Sin esto, quien hace el soporte no podría revisar ni justificar
@@ -42,13 +45,15 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// (<see cref="IAutorizacionDelegacionTenant"/>, contra su Tenant <b>de
 /// origen</b>, nunca el Context Workspace), y solo las de su Tenant: el filtro
 /// explícito por Tenant objetivo (<c>TenantId</c> del registro = Tenant de
-/// origen) se suma a la RLS <c>aislamiento_tenant</c> y al filtro global. Sin
+/// origen) se suma a la RLS y al filtro global. Sin
 /// identidad del técnico (ADR-011 § 8.7, minimización): el DTO no lleva
 /// <see cref="ActividadSoporteDto.UsuarioSoporteId"/> y la pantalla dice
-/// «Soporte TALVEG». La RLS de <c>RegistrosActividadSoporte</c> aísla por Tenant,
-/// no por rol (a diferencia de la política <c>administrador_del_tenant_objetivo</c>
-/// de las Sesiones Privilegiadas): la comprobación de rol de este handler es la
-/// única barrera de rol, no una redundancia.
+/// «Soporte TALVEG». La RLS de <c>RegistrosActividadSoporte</c> lleva también la
+/// barrera de rol, como <c>administrador_del_tenant_objetivo</c> en las Sesiones
+/// Privilegiadas (migración <c>SoloElAdministradorLeeLaActividadDeSoporte</c>):
+/// bajo <c>cae_app_runtime</c> solo leen la tabla el Administrador del Tenant
+/// propietario y la plataforma de la visita. La comprobación de rol de este
+/// handler es la primera barrera, y la base, la segunda.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Tenants")]

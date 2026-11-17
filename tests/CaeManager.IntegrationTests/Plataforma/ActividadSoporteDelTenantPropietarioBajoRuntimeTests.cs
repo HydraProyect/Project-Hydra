@@ -3,6 +3,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -25,8 +26,10 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// <c>DelegacionTenantId</c> nulo, <c>TenantId</c> = Tenant objetivo; la función la mide
 /// <see cref="RegistroLecturaSesionPrivilegiadaBajoRuntimeTests"/>). La autorización de Application
 /// dice siempre que sí, como en <see cref="AccesosSoporteTalvegBajoRuntimeTests"/>: lo que un usuario
-/// no ve aquí lo ocultan la RLS <c>aislamiento_tenant</c> o el filtro explícito por Tenant objetivo del
-/// handler. La barrera del rol tiene sus tests con dobles en <c>Application.Tests</c>.
+/// no ve aquí lo ocultan la RLS de lectura de la tabla (bajo el runtime, solo el Administrador del Tenant
+/// propietario y la plataforma de la visita, migración <c>SoloElAdministradorLeeLaActividadDeSoporte</c>)
+/// o el filtro explícito por Tenant objetivo del handler. Por eso los Administradores son cuentas reales
+/// con su rol. La barrera del rol en Application tiene sus tests con dobles en <c>Application.Tests</c>.
 /// </para>
 /// </summary>
 public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifetime
@@ -73,6 +76,9 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
             _navegacionPorDelegacion = navegacion.Id;
         }
 
+        await AltaDeAdministradorAsync(_administradorDeA, _tenantA);
+        await AltaDeAdministradorAsync(_administradorDeB, _tenantB);
+
         await using (var contexto = CrearContexto(_tenantB, _tecnico, cadena: _cadenaConexion))
         {
             contexto.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorSesionPrivilegiada(
@@ -115,12 +121,15 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     }
 
     [Fact]
-    public async Task Con_el_contexto_de_datos_en_A_y_el_Tenant_de_origen_B_el_filtro_explicito_no_entrega_las_de_A()
+    public async Task Con_el_contexto_de_datos_en_A_y_el_Tenant_de_origen_B_ni_la_RLS_ni_el_filtro_explicito_entregan_las_de_A()
     {
-        // Context Workspace de A con Tenant de origen B: la RLS y el filtro global dejan pasar las
-        // filas de A, y solo el filtro explícito por Tenant objetivo (= Tenant de origen) las corta.
-        (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeB, _tenantA, _sesionSobreA)).Should().Be(2,
-            "control positivo: con app.tenant_id = A la base sí entrega las dos filas");
+        // Context Workspace de A con Tenant de origen B: el filtro global deja pasar las filas de A, pero
+        // la RLS solo se las entrega al Administrador de A, y el filtro explícito por Tenant objetivo
+        // (= Tenant de origen) las corta también.
+        (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeA, _tenantA, _sesionSobreA)).Should().Be(2,
+            "control positivo: con app.tenant_id = A la base entrega las dos filas a su Administrador");
+        (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeB, _tenantA, _sesionSobreA)).Should().Be(0,
+            "el Administrador de B no es Administrador de A: la RLS no se las entrega");
 
         (await ConsultarComoAsync(
                 _administradorDeB, tenantDelContexto: _tenantA, tenantOrigen: _tenantB,
@@ -129,10 +138,15 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     }
 
     [Fact]
-    public async Task La_actividad_por_delegacion_de_Soporte_sigue_apareciendo_al_Tenant_propietario_visitado()
+    public async Task La_actividad_por_delegacion_de_Soporte_sigue_apareciendo_al_Administrador_del_Tenant_propietario_visitado()
     {
+        (await ConsultarComoAsync(
+                Guid.NewGuid(), tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
+                ObtenerActividadSoporteQuery.PorViaHeredada(_delegacionSoporteDeA)))
+            .Should().BeEmpty("una cuenta que no es Administrador de A ya no recibe la traza: la RLS no se la entrega");
+
         var actividad = await ConsultarComoAsync(
-            Guid.NewGuid(), tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
+            _administradorDeA, tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
             ObtenerActividadSoporteQuery.PorViaHeredada(_delegacionSoporteDeA));
 
         var fila = actividad.Should().ContainSingle("solo la fila de la delegación, no las lecturas por Sesión Privilegiada").Subject;
@@ -142,6 +156,38 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     }
 
     // ── Andamiaje ──────────────────────────────────────────────────────────
+
+    /// <summary>Cuenta real del Tenant con el rol Administrador, sembrada como propietario.</summary>
+    private async Task AltaDeAdministradorAsync(Guid id, Guid tenantId)
+    {
+        var correo = $"admin.{id:N}@rls.local";
+        await using (var contexto = CrearContexto(tenantId, id, cadena: _cadenaConexion))
+        {
+            contexto.Users.Add(new ApplicationUser
+            {
+                Id = id,
+                UserName = correo,
+                NormalizedUserName = correo.ToUpperInvariant(),
+                Email = correo,
+                NormalizedEmail = correo.ToUpperInvariant(),
+                NombreCompleto = "Administrador",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                TenantId = tenantId,
+            });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var orden = new Npgsql.NpgsqlCommand(
+            """
+            INSERT INTO "AspNetUserRoles" ("UserId", "RoleId")
+            SELECT @cuenta, "Id" FROM "AspNetRoles" WHERE "Name" = @rol
+            """, conexion);
+        orden.Parameters.AddWithValue("cuenta", id);
+        orden.Parameters.AddWithValue("rol", Roles.Administrador);
+        (await orden.ExecuteNonQueryAsync()).Should().Be(1, "barrera: el rol existe y la fila entró");
+    }
 
     private async Task<IReadOnlyList<ActividadSoporteDto>> ConsultarComoAsync(
         Guid usuario, Guid tenantDelContexto, Guid tenantOrigen, ObtenerActividadSoporteQuery consulta)
