@@ -11,7 +11,7 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// Preparación de D-12: cada versión de un documento es una fila de Documentos, y la fila guarda quién la subió en
-/// dos columnas opcionales sin FK. Esta fase solo añade el esquema; ningún escritor las rellena todavía.
+/// dos columnas opcionales sin FK. Las rellena el nacimiento de la versión (ver <see cref="AutorVersionDocumentoEscritoresTests"/>).
 /// </summary>
 public class AutorVersionDocumentoModeloTests
 {
@@ -36,7 +36,7 @@ public class AutorVersionDocumentoModeloTests
         propiedad.GetContainingIndexes().Should().BeEmpty("esta fase no añade índices");
 
         var setter = typeof(Documento).GetProperty(nombre)!.SetMethod!;
-        setter.IsPrivate.Should().BeTrue("solo el propio Documento podrá asignarlo cuando lleguen los escritores");
+        setter.IsPrivate.Should().BeTrue("solo el propio Documento lo asigna, al nacer la versión");
     }
 
     [Fact]
