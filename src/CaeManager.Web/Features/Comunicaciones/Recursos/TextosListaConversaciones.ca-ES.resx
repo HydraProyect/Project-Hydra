@@ -72,7 +72,8 @@
   <data name="Vistas" xml:space="preserve"><value>Vistes</value></data>
   <data name="FueraDePlazo" xml:space="preserve"><value>Fora de termini</value></data>
   <data name="VerComoLista" xml:space="preserve"><value>Veure com a llista</value></data>
-  <data name="GestionarMacros" xml:space="preserve"><value>Gestionar macros →</value></data>
+  <data name="GestionarMacros" xml:space="preserve"><value>Gestiona les macros →</value></data>
+  <data name="MetricasEquipo" xml:space="preserve"><value>Mètriques de l'equip al Quadre de direcció →</value></data>
   <data name="ListaConversaciones" xml:space="preserve"><value>Llista de converses</value></data>
   <data name="VistasYBuzones" xml:space="preserve"><value>Cartera i bústies</value></data>
   <data name="Canal" xml:space="preserve"><value>Canal</value></data>

@@ -71,6 +71,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunesPagina { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
+    [Inject] private Microsoft.AspNetCore.Authorization.IAuthorizationService Autorizacion { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private INotificadorMensajesTiempoReal Notificador { get; set; } = default!;
@@ -118,6 +119,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// hoy en Documentos). Consulta no: ni se le ofrece el Origen «Reclamaciones» ni se atiende desde la URL.
     /// </summary>
     private bool _puedeLeerReclamaciones;
+
+    /// <summary>
+    /// La política de página del Cuadro de dirección (<c>PoliticaCuadroDireccion</c>) concede el acceso: solo entonces el pie de la cartera ofrece
+    /// «Métricas del equipo en el Cuadro de dirección →». Es presentación: la página y cada consulta del Cuadro vuelven a exigirla.
+    /// </summary>
+    private bool _puedeVerCuadroDireccion;
+
+    private async Task<bool> PuedeVerCuadroDireccionAsync() =>
+        EstadoAutenticacion is not null
+        && (await Autorizacion.AuthorizeAsync((await EstadoAutenticacion).User, CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre)).Succeeded;
 
     private bool OrigenReclamacionesActivo => _puedeLeerReclamaciones && _origen == OrigenReclamaciones;
 
@@ -517,6 +528,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         // Antes de sincronizar la URL: el Origen «Reclamaciones» solo se atiende a quien lee el historial.
         _puedeLeerReclamaciones = await PuedeLeerReclamacionesAsync();
+        _puedeVerCuadroDireccion = await PuedeVerCuadroDireccionAsync();
 
         // Los [Parameter] ya están asignados en este punto — se leen aquí y
         // no solo en OnParametersSet porque en el primer render

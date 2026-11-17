@@ -236,10 +236,14 @@
                 </details>
             }
 
-            @* Pie de la cartera (maqueta, `.link`): la administración de macros conserva su ruta. «Métricas del equipo en el Cuadro de
-               dirección →» no se añade: esta página no tiene ruta del Cuadro de dirección que ver con este rol (ver la entrega). *@
+            @* Pie de la cartera (maqueta, `.link`): la administración de macros conserva su ruta y, solo con la política del Cuadro de
+               dirección (decisión de Chris del 2026-11-17), el enlace a /direccion. *@
             <div class="bandeja-cartera-pie">
                 <a class="bandeja-enlace" href="/comunicaciones/macros">@TextosLista["GestionarMacros"]</a>
+                @if (_puedeVerCuadroDireccion)
+                {
+                    <a class="bandeja-enlace" href="/direccion">@TextosLista["MetricasEquipo"]</a>
+                }
             </div>
         </aside>
 
@@ -332,6 +336,14 @@
                     }
                 }
             </section>
+
+            @* D-26: divisor arrastrable (y con flechas) del ancho de la lista; vive en el hueco entre columnas (absoluto, no es una
+               celda de la rejilla) y sigue a la lista (hermano anterior). Lo gestiona wwwroot/js/panel-redimensionable.js, sin interop.
+               La maqueta fija 320/344/380 px como ancho por defecto; el ajuste del gestor se recuerda en su navegador. *@
+            <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
+                 aria-label="@TextosLista["AjustarAnchoLista"]"
+                 aria-valuemin="260" aria-valuemax="560" aria-valuenow="320"
+                 data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
         }
 
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">

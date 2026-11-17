@@ -34,8 +34,11 @@
     --bandeja-ancho-cartera: 200px;
     --bandeja-ancho-lista: 320px;
     --bandeja-ancho-ctx: 300px;
+    /* Ancho efectivo de la lista (D-26): el de la maqueta por defecto, o el que el gestor fijó con el divisor (variable
+       --bandeja-lista-ancho en <html>, ver panel-redimensionable.js); nunca más del 40 % de la ventana. */
+    --bandeja-lista-efectiva: clamp(260px, var(--bandeja-lista-ancho, var(--bandeja-ancho-lista)), 40vw);
     display: grid;
-    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-ancho-lista) minmax(0, 1fr);
+    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr);
     gap: 0;
     align-items: start;
     position: relative;
@@ -45,7 +48,31 @@
 }
 
 .bandeja-layout:has(.bandeja-cliente) {
-    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-ancho-lista) minmax(0, 1fr) var(--bandeja-ancho-ctx);
+    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr) var(--bandeja-ancho-ctx);
+}
+
+/* Divisor del ancho de la lista: una franja de 8 px a caballo del borde entre la lista y el centro. */
+.bandeja-divisor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--bandeja-ancho-cartera) + var(--bandeja-lista-efectiva) - var(--space-1));
+    width: var(--space-2);
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 1;
+}
+
+.bandeja-divisor:hover,
+.bandeja-divisor:focus-visible,
+.bandeja-divisor.divisor-arrastrando {
+    background-color: var(--color-primary-200);
+}
+
+@media (max-width: 1099px) {
+    .bandeja-divisor {
+        display: none;
+    }
 }
 
 /* Las columnas se tocan (maqueta): solo la primera y la última redondean su esquina exterior. */
@@ -166,13 +193,16 @@
     max-height: 60vh;
     overflow-y: auto;
     border: var(--border-default);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     background: var(--color-surface);
     box-shadow: var(--shadow-overlay);
 }
 
 /* Pie de la cartera (maqueta, `.link`): 12/16 600 en primario, abajo del todo. */
 .bandeja-cartera-pie {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-top: auto;
     padding: 0 8px;
 }
@@ -970,7 +1000,7 @@ a.bandeja-documento-citado-nombre:hover {
 /* El cajón de contexto (E4) y el de la cartera (E1) no existen aún: de momento la ficha del Cliente se oculta por debajo de 1280 px. */
 @media (max-width: 1279px) {
     .bandeja-layout:has(.bandeja-cliente) {
-        grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-ancho-lista) minmax(0, 1fr);
+        grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr);
     }
 
     .bandeja-cliente {

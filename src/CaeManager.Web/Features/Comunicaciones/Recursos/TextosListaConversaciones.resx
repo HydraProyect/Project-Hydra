@@ -73,6 +73,7 @@
   <data name="FueraDePlazo" xml:space="preserve"><value>Fuera de plazo</value></data>
   <data name="VerComoLista" xml:space="preserve"><value>Ver como lista</value></data>
   <data name="GestionarMacros" xml:space="preserve"><value>Gestionar macros →</value></data>
+  <data name="MetricasEquipo" xml:space="preserve"><value>Métricas del equipo en el Cuadro de dirección →</value></data>
   <data name="ListaConversaciones" xml:space="preserve"><value>Lista de conversaciones</value></data>
   <data name="VistasYBuzones" xml:space="preserve"><value>Cartera y buzones</value></data>
   <data name="Canal" xml:space="preserve"><value>Canal</value></data>
