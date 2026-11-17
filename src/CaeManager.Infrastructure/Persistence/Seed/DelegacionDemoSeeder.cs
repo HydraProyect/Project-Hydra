@@ -91,7 +91,8 @@ public static class DelegacionDemoSeeder
         IConfiguration configuration,
         IHostEnvironment entorno,
         ILogger logger,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IFileStorageService? almacen = null)
     {
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
@@ -133,6 +134,9 @@ public static class DelegacionDemoSeeder
         {
             await DatosPruebaSeeder.SeedAsync(dbContext, userManager, userStore, configuration, entorno, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
+            // El conjunto curado para revisar toda la pantalla de Comunicaciones y la de Buzones: idempotente por conversación,
+            // con los canales Deshabilitados (nada sale hacia Microsoft Graph, SMTP ni WhatsApp) y con la misma guarda.
+            await ComunicacionesDemoCompletaSeeder.SeedAsync(dbContext, userManager, almacen, configuration, logger, cancellationToken);
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
         }

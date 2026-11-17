@@ -120,9 +120,7 @@ public static class ComunicacionesDatosPruebaSeeder
 
         // F3b — Empresas, no la tabla legacy Clientes: DatosPruebaSeeder ya
         // crea los clientes de demo ahí.
-        var clientes = await dbContext.Empresas
-            .Where(e => e.EsCritico != null)
-            .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
+        var clientes = await EmpresasClienteDeDemoAsync(dbContext, cancellationToken);
         if (clientes.Count == 0)
         {
             logger.LogInformation("No hay Clientes sembrados todavía — se omite la siembra de Comunicaciones (ejecuta DatosPruebaSeeder primero).");
@@ -235,6 +233,15 @@ public static class ComunicacionesDatosPruebaSeeder
             totalConversaciones, conversacionesTriage, macros.Count,
             resumenBpo.Visitas, resumenBpo.Tramos, resumenBpo.Sugerencias);
     }
+
+    /// <summary>
+    /// Las Empresas que la siembra de demo da de alta como Empresa cliente (las que llevan el marcador de criticidad), por
+    /// razón social. La comparte <see cref="ComunicacionesDemoCompletaSeeder"/> para sembrar con los mismos interlocutores.
+    /// </summary>
+    internal static Task<List<Empresa>> EmpresasClienteDeDemoAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken) =>
+        dbContext.Empresas
+            .Where(e => e.EsCritico != null)
+            .OrderBy(e => e.RazonSocial).Take(40).ToListAsync(cancellationToken);
 
     private record ResumenBpo(int Visitas, int Tramos, int Sugerencias);
 
