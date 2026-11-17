@@ -81,18 +81,19 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         usuario.ConsultasDePapel.Should().Be(0);
     }
 
-    public static TheoryData<Type> PaginasMarcadas =>
-    [
-        .. typeof(PaginaDeOutboundAttribute).Assembly.GetTypes()
+    private static List<Type> Marcadas() =>
+        typeof(PaginaDeOutboundAttribute).Assembly.GetTypes()
             .Where(PaginaDeOutboundPorPapelAuthorizationHandler.EsPaginaDeOutbound)
-            .OrderBy(t => t.FullName, StringComparer.Ordinal),
-    ];
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToList();
+
+    public static TheoryData<Type> PaginasMarcadas => [.. Marcadas()];
 
     [Fact]
     public void Hay_paginas_marcadas()
     {
         // Control positivo de la teoría de abajo: sin páginas marcadas pasaría vacía.
-        Enumerable.Count(PaginasMarcadas).Should().BeGreaterThanOrEqualTo(31);
+        Marcadas().Should().HaveCountGreaterThanOrEqualTo(31);
     }
 
     [Theory]
