@@ -33,8 +33,10 @@ public class Microsoft365GraphClient(
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     // Solo el buzón propio de quien consiente. Los buzones compartidos no van por aquí: usan el
     // token de aplicación del directorio (ObtenerTokenAplicacionAsync), acotado en Exchange.
+    // User.Read: ObtenerBuzonEmailAsync lee /me?$select=mail,userPrincipalName y Graph responde 403 sin él.
+    // La misma lista sirve a la autorización, al canje del código y al refresco, que deben coincidir.
     internal const string ScopesDelegados =
-        "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+        "offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
 
     private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
 

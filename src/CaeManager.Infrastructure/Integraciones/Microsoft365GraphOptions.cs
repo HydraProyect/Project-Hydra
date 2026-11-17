@@ -11,7 +11,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// **multi-tenant** ("cuentas de cualquier organización") porque cada buzón
 /// conectado pertenece al Entra ID de un cliente distinto — por eso el
 /// endpoint de autorización usa <c>common</c>, no un <c>TenantId</c> fijo.
-/// Permisos delegados necesarios: <c>Mail.Read</c>, <c>Mail.Send</c>,
+/// Permisos delegados necesarios: <c>User.Read</c> (para <c>/me</c>), <c>Mail.Read</c>, <c>Mail.Send</c>,
 /// <c>offline_access</c> (para el refresh token) — ver Project-Hydra-Negocio/tecnico/DEPLOY.md.
 ///
 /// Apagado por defecto, mismo patrón que el resto de integraciones

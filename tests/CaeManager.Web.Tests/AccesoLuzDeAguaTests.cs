@@ -115,6 +115,14 @@ public class AccesoLuzDeAguaTests : BunitContext
     }
 
     [Fact]
+    public void El_boton_de_Microsoft_sale_por_navegacion_completa_porque_el_desafio_redirige_fuera_del_sitio()
+    {
+        ConfigurarSso();
+
+        Render<Login>().Find("a.acceso-microsoft").GetAttribute("data-enhance-nav").Should().Be("false");
+    }
+
+    [Fact]
     public void El_boton_de_Microsoft_lleva_el_logotipo_oficial_decorativo_sin_deformarlo()
     {
         ConfigurarSso();
