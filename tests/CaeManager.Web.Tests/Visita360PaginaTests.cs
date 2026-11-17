@@ -90,7 +90,7 @@ public partial class Visita360PaginaTests : BunitContext
         public Dictionary<Guid, DetalleVisitaDto> Detalles { get; } = [];
         public Dictionary<Guid, TaskCompletionSource<DetalleVisitaDto?>> DetallesDiferidos { get; } = [];
         public DocumentacionVisitaDto Documentacion { get; set; } = new(Guid.NewGuid(), new(EstadoDocumento.Vigente, []), []);
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

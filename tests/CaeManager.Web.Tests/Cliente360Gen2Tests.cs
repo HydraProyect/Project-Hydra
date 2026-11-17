@@ -67,7 +67,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         /// <summary>Si devuelve true, la petición lanza en vez de responder.</summary>
         public Func<object, bool>? Lanzar { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];

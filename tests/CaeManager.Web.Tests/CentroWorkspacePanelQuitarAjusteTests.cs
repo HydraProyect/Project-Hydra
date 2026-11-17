@@ -50,7 +50,7 @@ public class CentroWorkspacePanelQuitarAjusteTests : BunitContext
 
     private sealed class MediatorFalso(CentroDetalleDto detalle) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
