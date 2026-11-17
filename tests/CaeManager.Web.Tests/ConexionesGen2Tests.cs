@@ -370,7 +370,7 @@ public class ConexionesGen2Tests : BunitContext
     {
         var cut = Renderizar();
 
-        // E31 queda pendiente: «Añadir buzón» en la cabecera arrancaría la conexión sin ver el propietario elegido más abajo.
+        // «Añadir buzón» (E31) vive en Buzones, con su cajón de propietario; en Conexiones el enlace sigue junto a los selectores.
         var conectar = cut.Find("a.enlace-conectar-microsoft");
         conectar.TextContent.Trim().Should().Contain("Conectar buzón de Microsoft 365");
         conectar.Closest(".acciones-conexion-buzon").Should().NotBeNull("el enlace sigue junto a los selectores de propietario");

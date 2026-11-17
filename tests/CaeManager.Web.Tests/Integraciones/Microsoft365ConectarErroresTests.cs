@@ -335,6 +335,54 @@ public class Microsoft365ConectarErroresTests
 
         AfirmarRedireccionCerrada(contexto).Should().Be("canje-tokens");
         escenario.Solicitudes.Eliminadas.Should().ContainSingle().Which.Should().BeSameAs(solicitud);
+        escenario.Unidad.PeticionesAlGuardar.Should().Equal([0], "el state se consume y se guarda antes de llamar a Microsoft");
+        escenario.Mediador.Comandos.Should().BeEmpty();
+
+        var peticionesAntes = escenario.Microsoft.Peticiones.Count;
+        var segundo = await escenario.CallbackAsync($"?code=otro-codigo&state={solicitud.Id}");
+
+        AfirmarRedireccionCerrada(segundo).Should().Be("solicitud", "un state consumido no vale para un segundo intento");
+        escenario.Microsoft.Peticiones.Should().HaveCount(peticionesAntes);
+    }
+
+    /// <summary>
+    /// Lo que el cliente Graph no traduce a un Result (el límite de tiempo o el circuito abierto de la resiliencia del cliente
+    /// tipado, un perfil que no es JSON) vuelve con el aviso de autenticación, con el state ya consumido, y nunca con un 500.
+    /// </summary>
+    [Theory]
+    [InlineData("timeout-canje")]
+    [InlineData("circuito-perfil")]
+    [InlineData("perfil-no-json")]
+    public async Task Callback_con_una_excepcion_de_Microsoft_vuelve_con_autenticacion_y_no_con_un_500(string caso)
+    {
+        var escenario = new Escenario();
+        var solicitud = escenario.SolicitudValida();
+        switch (caso)
+        {
+            case "timeout-canje": escenario.Microsoft.FalloCanje = new Polly.Timeout.TimeoutRejectedException(); break;
+            case "circuito-perfil": escenario.Microsoft.FalloPerfil = new Polly.CircuitBreaker.BrokenCircuitException(); break;
+            default: escenario.Microsoft.Perfil = (HttpStatusCode.OK, "<html>no es json</html>"); break;
+        }
+
+        var contexto = await escenario.CallbackAsync($"?code=codigo&state={solicitud.Id}");
+
+        AfirmarRedireccionCerrada(contexto).Should().Be("autenticacion");
+        escenario.Unidad.Guardados.Should().Be(1);
+        escenario.Solicitudes.Guardadas.Should().NotContain(solicitud);
+        escenario.Mediador.Comandos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Callback_que_no_puede_consumir_el_state_vuelve_con_solicitud_sin_llamar_a_Microsoft()
+    {
+        var escenario = new Escenario();
+        var solicitud = escenario.SolicitudValida();
+        escenario.Unidad.Fallo = new InvalidOperationException("otro callback consumió antes este state");
+
+        var contexto = await escenario.CallbackAsync($"?code=codigo&state={solicitud.Id}");
+
+        AfirmarRedireccionCerrada(contexto).Should().Be("solicitud");
+        escenario.Microsoft.Peticiones.Should().BeEmpty();
         escenario.Mediador.Comandos.Should().BeEmpty();
     }
 
@@ -513,6 +561,11 @@ public class Microsoft365ConectarErroresTests
 
         public List<string> Peticiones { get; } = [];
 
+        /// <summary>Excepción que lanza el canje del código (la que lanzaría la resiliencia del cliente tipado).</summary>
+        public Exception? FalloCanje { get; set; }
+
+        public Exception? FalloPerfil { get; set; }
+
         public MicrosoftFalso()
         {
             TokenDelegado = (HttpStatusCode.OK, TokensDelegados(TokenJwt($$"""{"tid":"{{Directorio:D}}"}""")));
@@ -522,6 +575,10 @@ public class Microsoft365ConectarErroresTests
         {
             var url = request.RequestUri!;
             Peticiones.Add(url.AbsoluteUri);
+            if (FalloCanje is not null && url.Host == "login.microsoftonline.com" && url.AbsolutePath.StartsWith("/common/", StringComparison.Ordinal))
+                throw FalloCanje;
+            if (FalloPerfil is not null && url.Host == "graph.microsoft.com" && url.AbsolutePath == "/v1.0/me")
+                throw FalloPerfil;
             var (estado, cuerpo) = url.Host switch
             {
                 "login.microsoftonline.com" when url.AbsolutePath.StartsWith("/common/", StringComparison.Ordinal) => TokenDelegado,
@@ -543,6 +600,15 @@ public class Microsoft365ConectarErroresTests
         public UnidadDeTrabajoFalsa Unidad { get; } = new();
         public UsuarioActualFalso Usuario { get; } = new();
         public MediadorConectar Mediador { get; } = new();
+
+        public Escenario()
+        {
+            Unidad.AlGuardar = () =>
+            {
+                Unidad.PeticionesAlGuardar.Add(Microsoft.Peticiones.Count);
+                Solicitudes.Confirmar();
+            };
+        }
 
         public SolicitudConexionMicrosoft365 SolicitudValida(
             Guid? usuarioId = null, DateTime? creadaUtc = null, string? buzonCompartido = null, Guid? clienteId = null)
@@ -594,15 +660,27 @@ public class Microsoft365ConectarErroresTests
         public void Agregar(SolicitudConexionMicrosoft365 solicitud) => Agregadas.Add(solicitud);
 
         public void Eliminar(SolicitudConexionMicrosoft365 solicitud) => Eliminadas.Add(solicitud);
+
+        /// <summary>Lo que hace el guardado: la solicitud eliminada deja de encontrarse.</summary>
+        public void Confirmar() => Guardadas.RemoveAll(Eliminadas.Contains);
     }
 
     private sealed class UnidadDeTrabajoFalsa : IUnitOfWork
     {
         public int Guardados { get; private set; }
 
+        /// <summary>Peticiones hechas a Microsoft en el momento de cada guardado.</summary>
+        public List<int> PeticionesAlGuardar { get; } = [];
+
+        public Action? AlGuardar { get; set; }
+
+        public Exception? Fallo { get; set; }
+
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            if (Fallo is not null) throw Fallo;
             Guardados++;
+            AlGuardar?.Invoke();
             return Task.FromResult(1);
         }
     }

@@ -123,28 +123,38 @@ public static class ConectarMicrosoft365Endpoints
             // Consumo de un solo uso ANTES de canjear el código: aunque el
             // resto del flujo falle a partir de aquí, este "state" nunca
             // vuelve a ser válido para un segundo intento.
-            solicitudRepositorio.Eliminar(solicitud);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
-            var tokensResultado = await graphClient.IntercambiarCodigoPorTokensAsync(code, redirectUri, cancellationToken);
-            if (tokensResultado.EsFallido)
-                return Results.LocalRedirect(RedireccionCanjeTokens);
-
-            // Qué buzón, con qué token y con qué identidad: AltaBuzonMicrosoft365Service, con sus garantías
-            // (directorio del inicio de sesión, sonda con el token de aplicación, sin refresh token en el
-            // compartido) cubiertas por sus tests.
-            var preparado = await altaBuzon.PrepararAsync(tokensResultado.Valor, buzonCompartido, cancellationToken);
-            if (preparado.EsFallido)
-                return Results.LocalRedirect(RedireccionTrasFalloDeAlta(preparado.Error.Codigo));
-
-            var buzon = preparado.Valor;
-            var comando = new ConectarBuzonMicrosoft365Command(
-                buzon.BuzonEmail, buzon.BuzonEmail, clienteId, buzon.AccessToken, buzon.RefreshToken, opciones.Value.UrlPublicaBase,
-                buzon.IdentidadBuzon, gestorPropietarioId, DirectorioEntraId: buzon.DirectorioEntraId, ConsentidoPorUsuarioId: usuarioId.Value);
+            try
+            {
+                solicitudRepositorio.Eliminar(solicitud);
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Otro callback con el mismo state lo consumió antes (concurrencia) o la base no respondió: no se canjea
+                // nada y se vuelve con «solicitud», nunca con un 500.
+                logger.LogWarning(ex, "No se pudo consumir el \"state\" del callback de Microsoft 365 — descartado.");
+                return Results.LocalRedirect(RedireccionSolicitud);
+            }
 
             try
             {
+                var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
+                var tokensResultado = await graphClient.IntercambiarCodigoPorTokensAsync(code, redirectUri, cancellationToken);
+                if (tokensResultado.EsFallido)
+                    return Results.LocalRedirect(RedireccionCanjeTokens);
+
+                // Qué buzón, con qué token y con qué identidad: AltaBuzonMicrosoft365Service, con sus garantías
+                // (directorio del inicio de sesión, sonda con el token de aplicación, sin refresh token en el
+                // compartido) cubiertas por sus tests.
+                var preparado = await altaBuzon.PrepararAsync(tokensResultado.Valor, buzonCompartido, cancellationToken);
+                if (preparado.EsFallido)
+                    return Results.LocalRedirect(RedireccionTrasFalloDeAlta(preparado.Error.Codigo));
+
+                var buzon = preparado.Valor;
+                var comando = new ConectarBuzonMicrosoft365Command(
+                    buzon.BuzonEmail, buzon.BuzonEmail, clienteId, buzon.AccessToken, buzon.RefreshToken, opciones.Value.UrlPublicaBase,
+                    buzon.IdentidadBuzon, gestorPropietarioId, DirectorioEntraId: buzon.DirectorioEntraId, ConsentidoPorUsuarioId: usuarioId.Value);
+
                 var resultado = await mediator.Send(comando, cancellationToken);
                 return Results.LocalRedirect(RedireccionTrasConectar(resultado));
             }
@@ -153,6 +163,13 @@ public static class ConectarMicrosoft365Endpoints
                 // El state ya está consumido: una combinación que el Command rechaza vuelve a Conexiones con
                 // su error, no con un 500.
                 return Results.LocalRedirect(RedireccionSolicitud);
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Lo que el cliente Graph no traduce a Result (límite de tiempo o circuito abierto de la resiliencia, un
+                // cuerpo que no es JSON) vuelve con el aviso genérico de autenticación, no con un 500 ni con /Error.
+                logger.LogError(ex, "Fallo inesperado al completar la conexión de Microsoft 365 tras consumir el \"state\".");
+                return Results.LocalRedirect(RedireccionAutenticacion);
             }
         }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();

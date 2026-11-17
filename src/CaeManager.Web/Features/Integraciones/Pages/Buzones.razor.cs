@@ -18,7 +18,8 @@ namespace CaeManager.Web.Features.Integraciones.Pages;
 
 /// <summary>
 /// Administración de los buzones de Microsoft 365 (maqueta <c>Buzones.dc.html</c>): el listado con su Responsable y el
-/// interruptor del acuse automático. Conectar, desconectar y reactivar siguen en Conexiones. La página no es una frontera de
+/// interruptor del acuse automático, «Añadir buzón» (el mismo flujo de conectar que Conexiones) y «Reconectar» un buzón con error;
+/// desconectar sigue en Conexiones. La página no es una frontera de
 /// autorización: <c>FijarAcuseAutomaticoBuzonCommand</c> y <c>FijarResponsableBuzonCommand</c> exigen Administrador y buzón
 /// visible por su cuenta; aquí solo se decide qué se enseña (quien no es Administrador ve el estado, sin controles).
 /// </summary>
@@ -221,6 +222,8 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     {
         if (!ConexionDisponible) return;
         _propietario.Limpiar();
+        _saliendoAMicrosoft = false;
+        _navegacionAMicrosoftLanzada = false;
         _errorCajon = null;
         _cajonVisible = true;
         _cargandoCajon = true;
@@ -258,15 +261,12 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     {
     }
 
-    /// <summary>
-    /// A la misma URL que Conexiones, con navegación de página completa: la mejorada de Blazor haría un fetch al endpoint de
-    /// conectar y la CSP (connect-src 'self') bloquearía el salto a Microsoft.
-    /// </summary>
     /// <summary>Guardián del cajón: una elección hecha y todavía no enviada a Microsoft se pregunta antes de perderla.</summary>
     private bool HayEleccionSinEnviar() => !_saliendoAMicrosoft && _propietario.HayEleccion;
 
     /// <summary>
-    /// «Continuar en Microsoft» sale de la página a propósito, así que primero deja de haber cambios pendientes y se repinta:
+    /// «Continuar en Microsoft» va a la misma URL que Conexiones con página completa (la navegación mejorada haría un fetch al
+    /// endpoint y la CSP bloquearía el salto a Microsoft) y sale de la página a propósito, así que primero deja de haber cambios pendientes y se repinta:
     /// el NavigationLock del kit consulta HayCambios al navegar, pero el aviso del navegador (beforeunload) lo registra el
     /// render, y navegar antes de que ese render llegue al cliente haría saltar «¿salir del sitio?». La navegación sale de
     /// <see cref="OnAfterRenderAsync"/>, después de ese render.

@@ -691,6 +691,8 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         var navegacion = Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle().Subject;
         navegacion.Uri.Should().Be($"/integraciones/conectar-microsoft365?gestorPropietarioId={gestora.Id}");
         navegacion.Options.ForceLoad.Should().BeTrue("página completa: sin navegación mejorada hacia el endpoint OAuth");
+        navegacion.State.Should().Be(NavigationState.Succeeded, "el guardián del cajón no detiene la salida que el propio cajón lanza");
+        cut.FindComponents<PreguntaSalirSinGuardar>().Should().BeEmpty();
     }
 
     [Fact]
@@ -705,6 +707,22 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         var navegacion = Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle().Subject;
         navegacion.Uri.Should().Be("/integraciones/conectar-microsoft365");
         navegacion.Options.ForceLoad.Should().BeTrue();
+        navegacion.State.Should().Be(NavigationState.Succeeded);
+    }
+
+    /// <summary>El guardián del cajón es real: con una elección hecha y no enviada, «Cancelar» pregunta antes de perderla.</summary>
+    [Fact]
+    public void Cancelar_el_cajon_con_una_eleccion_hecha_pregunta_antes_de_descartarla()
+    {
+        var gestora = new CuentaVisibleEnRol(Guid.NewGuid(), "Marta Gestora", "marta@ejemplo.test", null);
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] }, gestores: [gestora]);
+
+        cut.Find("[data-testid=anadir-buzon]").Click();
+        cut.Find("[role=dialog]").QuerySelectorAll("select")[1].Change(gestora.Id.ToString());
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar").Click();
+
+        cut.FindComponents<ConfirmarDescartarCambios>().Should().ContainSingle("una elección no enviada no se tira sin preguntar");
+        Services.GetRequiredService<BunitNavigationManager>().History.Should().BeEmpty();
     }
 
     /// <summary>Un buzón con error muestra su último error en una franja <c>role=alert</c> y «Reconectar» lanza «Reactivar».</summary>
