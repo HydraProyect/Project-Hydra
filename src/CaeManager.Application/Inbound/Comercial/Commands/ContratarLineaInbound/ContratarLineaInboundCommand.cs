@@ -32,7 +32,8 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 /// <para>
 /// <b>Lo contratado</b> (D-B): el Actor de Plataforma introduce a mano el Customer de Stripe del Pagador TALVEG, que ya
 /// existe en Stripe, el tramo y la modalidad. El alta no llama a Stripe ni crea Customers, así que no comprueba que el
-/// Customer exista: solo su formato. La vigencia empieza al contratar. Un solo Producto Contratado de la línea Inbound
+/// Customer exista: solo su formato. La vigencia empieza al contratar, en el <c>now()</c> de la transacción de la base que
+/// inserta la fila: la base no admite una vigencia en el futuro (issue #2259). Un solo Producto Contratado de la línea Inbound
 /// vigente por Tenant: lo impone un índice único parcial de la base, porque el rol elevado no lee la fila entera (solo las
 /// columnas del WHERE de la baja, opción B del 2026-11-15).
 /// </para>
@@ -88,7 +89,7 @@ public class ContratarLineaInboundCommandHandler(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     ITenantsQueryContext tenants,
     IProductoContratadoRepository productosContratados,
-    TimeProvider reloj)
+    ITransaccionDeComando transaccion)
     : IRequestHandler<ContratarLineaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(ContratarLineaInboundCommand request, CancellationToken cancellationToken)
@@ -145,15 +146,27 @@ public class ContratarLineaInboundCommandHandler(
         if (tenant.EsPlataforma)
             return Result.Fallo<Guid>(ErroresContratarLineaInbound.TenantNoValido);
 
-        var ahora = reloj.GetUtcNow().UtcDateTime;
-        var producto = ProductoContratado.Contratar(
-            LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
-            vigenteDesdeUtc: ahora, ahoraUtc: ahora);
-        productosContratados.Agregar(producto);
+        // El inicio es el now() de la transacción que inserta, no el reloj de la aplicación (issue #2259): la política de
+        // INSERT no admite un inicio posterior a ese now(), para que ninguna fila visible tenga la vigencia en el futuro y
+        // el gate DN-7 dé el mismo resultado en cualquier momento de una consulta (STABLE). Con el reloj de la aplicación
+        // adelantado, el alta se rechazaría. Pedirlo dentro de la misma transacción lo hace el mismo instante con el que la
+        // base comprueba la política. Como en la corrección, si el alta falla o lanza, ITransaccionDeComando deshace y vacía
+        // el ChangeTracker entero, también lo que el repositorio había dejado intacto de otro acto; el comando corre en su
+        // propio ámbito, así que no hay otro acto que perder.
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            var ahora = await productosContratados.InstanteDeLaTransaccionAsync(ct);
+            var producto = ProductoContratado.Contratar(
+                LineaProductoContratado.Inbound, request.PagadorStripeCustomerId, request.Tramo, request.Modalidad,
+                vigenteDesdeUtc: ahora, ahoraUtc: ahora);
+            productosContratados.Agregar(producto);
 
-        // Ya contratada, o dos altas a la vez: el índice único parcial deja pasar una.
-        return await productosContratados.GuardarDetectandoInboundVigenteDuplicadoAsync(producto, cancellationToken)
-            ? Result.Exito(producto.Id)
-            : Result.Fallo<Guid>(ErroresContratarLineaInbound.YaContratada);
+            // Ya contratada, o dos altas a la vez: el índice único parcial deja pasar una.
+            return await productosContratados.GuardarDetectandoInboundVigenteDuplicadoAsync(producto, ct)
+                ? Result.Exito(producto.Id)
+                : Result.Fallo<Guid>(ErroresContratarLineaInbound.YaContratada);
+        }, cancellationToken);
+
+        return (Result<Guid>)resultado;
     }
 }

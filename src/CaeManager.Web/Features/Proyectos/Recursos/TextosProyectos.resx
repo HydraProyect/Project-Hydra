@@ -216,6 +216,9 @@
   <data name="MetaBajaFecha" xml:space="preserve">
     <value>baja {0:dd/MM/yyyy}</value>
   </data>
+  <data name="MetaBajaFinDelEvento" xml:space="preserve">
+    <value>baja {0:dd/MM/yyyy} por fin del evento</value>
+  </data>
   <data name="EtiquetaTecnico" xml:space="preserve">
     <value>Técnico</value>
   </data>

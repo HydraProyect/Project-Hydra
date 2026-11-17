@@ -17,9 +17,13 @@ namespace CaeManager.IntegrationTests;
 /// </param>
 public class CurrentUserServiceFalso(
     Guid? usuarioId = null, string? rol = null, Guid? tenantOrigenId = null, bool tieneDobleFactorActivo = true,
-    string? rolOrigen = null, Guid? encargoPleno = null, string? perfilQueDecideAlcance = null, bool porOperacion = false)
+    string? rolOrigen = null, Guid? encargoPleno = null, string? perfilQueDecideAlcance = null, bool porOperacion = false,
+    PapelActivo papel = PapelActivo.SinPapel)
     : ICurrentUserService, IEncargoDeAdministracionActual
 {
+    /// <summary>El papel activo (B-02b); por defecto, el de quien no lo sabe, como la interfaz.</summary>
+    public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel);
+
     public Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => Task.FromResult(perfilQueDecideAlcance ?? rol);
 
     public Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(porOperacion);

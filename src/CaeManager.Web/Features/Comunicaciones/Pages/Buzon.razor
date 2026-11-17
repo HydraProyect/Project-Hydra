@@ -56,6 +56,29 @@
     }
     else if (_conexionSeleccionadaId is not null)
     {
+        @* Issue #2124, opción B: el aviso del hueco de la conexión elegida, que ya está en el listado del selector. Confirmar
+           solo a quien el comando aceptaría (OfreceConfirmar); a los demás, el aviso sin botón y con el texto que no lo nombra. *@
+        @if (ConexionSeleccionada is { CorreoNoRecuperadoDesdeUtc: { } noRecuperadoDesde } seleccionada)
+        {
+            var confirmable = OfreceConfirmar(seleccionada);
+            <div class="buzon-aviso-hueco" role="status" data-testid="aviso-correo-no-recuperado">
+                <span class="buzon-aviso-hueco-icono"><Icono Nombre="info" /></span>
+                <div class="buzon-aviso-hueco-textos">
+                    <span class="buzon-aviso-hueco-titulo">@TextosAviso["AvisoCorreoNoRecuperadoTitulo", FormatearFecha(noRecuperadoDesde)]</span>
+                    <span class="buzon-aviso-hueco-detalle">@TextosAviso[confirmable ? "AvisoCorreoNoRecuperadoConfirmable" : "AvisoCorreoNoRecuperado"]</span>
+                </div>
+                @if (confirmable)
+                {
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" data-testid="accion-confirmar-aviso-hueco"
+                               Deshabilitado="_confirmandoAvisoHueco" OnClick="() => AbrirConfirmacionAvisoHueco(seleccionada)">
+                            @Comunes["AccionConfirmar"]
+                        </Boton>
+                    </SoloConEscritura>
+                }
+            </div>
+        }
+
         <div class="buzon-layout">
             <aside class="buzon-columna buzon-carpetas">
                 @if (_cargandoCarpetas)
@@ -194,5 +217,8 @@
         <InputFile OnChange="ManejarArchivosRedactarAsync" multiple />
     </label>
 </DrawerFormulario>
+
+<CaeManager.Web.Features.Integraciones.Components.ModalConfirmarAvisoHueco Conexion="_avisoHuecoAConfirmar" Confirmando="_confirmandoAvisoHueco"
+    OnCancelar="CerrarConfirmacionAvisoHueco" OnConfirmar="ConfirmarAvisoHuecoAsync" />
 
 </LimiteDeErrores>

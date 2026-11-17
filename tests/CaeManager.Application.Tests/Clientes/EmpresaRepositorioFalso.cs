@@ -49,13 +49,32 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
 
     public Guid TenantPropietarioId { get; set; }
 
-    public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
-            && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
+    /// <summary>Cuántas consultas de duplicado por un solo CIF o una sola razón social se han hecho (#1991).</summary>
+    public int ConsultasDeDuplicadoUnitarias { get; private set; }
 
-    public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+    /// <summary>Cuántas veces se ha leído el catálogo de identidades entero (#1991).</summary>
+    public int LecturasDeIdentidades { get; private set; }
+
+    public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default)
+    {
+        ConsultasDeDuplicadoUnitarias++;
+        return Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+            && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
+    }
+
+    public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default)
+    {
+        ConsultasDeDuplicadoUnitarias++;
+        return Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
             && e.Cif == cif.Trim().ToUpperInvariant() && e.Id != excluirId));
+    }
+
+    public Task<IReadOnlyList<IdentidadEmpresa>> ListarIdentidadesIncluyendoBajasAsync(CancellationToken cancellationToken = default)
+    {
+        LecturasDeIdentidades++;
+        return Task.FromResult<IReadOnlyList<IdentidadEmpresa>>(Empresas.Where(e => e.TenantId == TenantPropietarioId)
+            .Select(e => new IdentidadEmpresa(e.Id, e.Cif, e.RazonSocial, e.EstaEliminado)).ToList());
+    }
 
     public Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.Any(e => e.Cif == cif && e.Id != excluirId));

@@ -2,9 +2,11 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInbound;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Comercial;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
@@ -21,13 +23,21 @@ namespace CaeManager.Application.Tests.Inbound.Comercial;
 /// </summary>
 public class ContratarLineaInboundCommandTests
 {
-    private static readonly DateTimeOffset Ahora = new(2026, 11, 15, 10, 30, 0, TimeSpan.Zero);
+    /// <summary>El <c>now()</c> de la transacción de la base que devuelve el repositorio falso.</summary>
+    private static readonly DateTime AhoraDeLaBase = new(2026, 11, 15, 10, 30, 0, DateTimeKind.Utc);
 
     private readonly Tenant _tenant = new("Tenant TCE de prueba");
     private readonly TenantsFalsos _tenants = new();
-    private readonly ProductosContratadosFalsos _productos = new();
+    private readonly TransaccionDeComandoFalsa _transaccionInterna = new();
+    private readonly TransaccionQueAnota _transaccion;
+    private readonly ProductosContratadosFalsos _productos;
 
-    public ContratarLineaInboundCommandTests() => _tenants.Lista.Add(_tenant);
+    public ContratarLineaInboundCommandTests()
+    {
+        _tenants.Lista.Add(_tenant);
+        _transaccion = new TransaccionQueAnota(_transaccionInterna);
+        _productos = new ProductosContratadosFalsos(() => _transaccion.Dentro);
+    }
 
     private static ContratarLineaInboundCommand Comando(string pagador = "cus_PagadorTce") =>
         new(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual);
@@ -45,9 +55,14 @@ public class ContratarLineaInboundCommandTests
         producto.PagadorStripeCustomerId.Should().Be("cus_PagadorTce", "el Pagador TALVEG lo introduce a mano el Actor de Plataforma");
         producto.Tramo.Should().Be(TramoTrabajadoresActivos.De41A80);
         producto.Modalidad.Should().Be(ModalidadSuscripcionAlta.Anual);
-        producto.VigenteDesdeUtc.Should().Be(Ahora.UtcDateTime);
+        // Issue #2259: el inicio es el now() de la transacción de la base, no el reloj de la aplicación, porque la política
+        // de INSERT no admite un inicio posterior a ese now().
+        producto.VigenteDesdeUtc.Should().Be(AhoraDeLaBase);
+        producto.VigenteDesdeUtc.Kind.Should().Be(DateTimeKind.Utc);
         producto.Estado.Should().Be(EstadoProductoContratado.Vigente);
+        _productos.InstantesPedidos.Should().Be(1);
         _productos.Guardados.Should().Be(1);
+        _transaccionInterna.Confirmadas.Should().Be(1);
     }
 
     [Fact]
@@ -61,6 +76,7 @@ public class ContratarLineaInboundCommandTests
         _tenants.Lecturas.Should().Be(0, "la autoridad va antes que cualquier lectura");
         _productos.Agregados.Should().BeEmpty();
         _productos.Guardados.Should().Be(0);
+        _transaccionInterna.Ejecutadas.Should().Be(0, "sin autoridad no se abre la transacción ni se pide el instante");
     }
 
     public static TheoryData<CapacidadPrivilegio> CapacidadesQueNoSonAprovisionamiento()
@@ -161,6 +177,7 @@ public class ContratarLineaInboundCommandTests
 
         resultado.Error.Should().Be(ErroresContratarLineaInbound.YaContratada);
         _productos.Guardados.Should().Be(1, "la regla la impone el índice único parcial al guardar, no una lectura previa");
+        _transaccionInterna.Deshechas.Should().Be(1, "el intento rechazado no confirma nada");
     }
 
     [Theory]
@@ -219,7 +236,7 @@ public class ContratarLineaInboundCommandTests
         new(Guid.NewGuid(), Guid.NewGuid(), tenantObjetivo, capacidad, null);
 
     private ContratarLineaInboundCommandHandler Handler(SesionPrivilegiadaActiva? sesion, Guid? tenantActivo) =>
-        new(new TenantActivo(tenantActivo), new SesionFija(sesion), _tenants, _productos, new RelojFijo(Ahora));
+        new(new TenantActivo(tenantActivo), new SesionFija(sesion), _tenants, _productos, _transaccion);
 
     private sealed class TenantActivo(Guid? tenantId) : ITenantActual
     {
@@ -236,11 +253,6 @@ public class ContratarLineaInboundCommandTests
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
                 "El handler no revalida: la conexión elevada no tiene SELECT sobre SesionesPrivilegiadas (42501).");
-    }
-
-    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => ahora;
     }
 
     /// <summary>Cuenta los accesos al catálogo de Tenants; el resto de colecciones no se lee.</summary>
@@ -266,19 +278,50 @@ public class ContratarLineaInboundCommandTests
             throw new NotSupportedException("el alta de la línea solo lee Tenants");
     }
 
-    private sealed class ProductosContratadosFalsos : IProductoContratadoRepository
+    /// <summary>
+    /// Anota si el instante y el guardado llegan dentro de la transacción del comando: el instante tiene que ser el
+    /// <c>now()</c> de la misma transacción que inserta, el que comprueba la política.
+    /// </summary>
+    private sealed class TransaccionQueAnota(TransaccionDeComandoFalsa interna) : ITransaccionDeComando
+    {
+        public bool Dentro { get; private set; }
+
+        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            Dentro = true;
+            try
+            {
+                return await interna.EjecutarAsync(operacion, cancellationToken);
+            }
+            finally
+            {
+                Dentro = false;
+            }
+        }
+    }
+
+    private sealed class ProductosContratadosFalsos(Func<bool> dentroDeLaTransaccion) : IProductoContratadoRepository
     {
         public List<ProductoContratado> Agregados { get; } = [];
         public int Guardados { get; private set; }
+        public int InstantesPedidos { get; private set; }
         public bool RechazarPorInboundVigenteDuplicado { get; set; }
 
         public void Agregar(ProductoContratado producto) => Agregados.Add(producto);
+
+        public Task<DateTime> InstanteDeLaTransaccionAsync(CancellationToken cancellationToken = default)
+        {
+            dentroDeLaTransaccion().Should().BeTrue("el instante es el now() de la transacción que inserta la fila");
+            InstantesPedidos++;
+            return Task.FromResult(AhoraDeLaBase);
+        }
 
         public Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
             ProductoContratado intento, CancellationToken cancellationToken = default)
         {
             // El handler guarda exactamente la instancia que añadió: el repositorio la identifica por referencia.
             Agregados.Should().ContainSingle().Which.Should().BeSameAs(intento);
+            dentroDeLaTransaccion().Should().BeTrue("la fila se guarda en la transacción de la que salió el instante");
             Guardados++;
             return Task.FromResult(!RechazarPorInboundVigenteDuplicado);
         }

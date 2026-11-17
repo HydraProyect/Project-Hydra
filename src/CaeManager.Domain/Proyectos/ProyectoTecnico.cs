@@ -19,6 +19,12 @@ public class ProyectoTecnico : EntidadConTenant, IVersionable
     public DateOnly? FechaBaja { get; private set; }
 
     /// <summary>
+    /// Por qué se dio de baja (D-4, #2005). Nulo mientras está activo, y también en las bajas anteriores a esta
+    /// columna, de las que no consta el motivo: no se rellenan a posteriori.
+    /// </summary>
+    public MotivoBajaProyectoTecnico? MotivoBaja { get; private set; }
+
+    /// <summary>
     /// Auditoría Módulo 5, hueco arquitectónico: DesasignarTecnicoProyecto no
     /// llevaba protección de concurrencia — dos gestores podían dar de baja
     /// al mismo técnico con información obsoleta sin que ninguno se enterara.
@@ -46,16 +52,20 @@ public class ProyectoTecnico : EntidadConTenant, IVersionable
         FechaAlta = fechaAlta;
     }
 
-    public void DarDeBaja(DateOnly fechaBaja)
+    public void DarDeBaja(DateOnly fechaBaja, MotivoBajaProyectoTecnico motivo = MotivoBajaProyectoTecnico.Desasignado)
     {
         if (fechaBaja < FechaAlta)
             throw new ArgumentException("La fecha de baja no puede ser anterior a la fecha de alta.", nameof(fechaBaja));
+        if (!Enum.IsDefined(motivo))
+            throw new ArgumentOutOfRangeException(nameof(motivo), motivo, "Motivo de baja desconocido.");
 
         FechaBaja = fechaBaja;
+        MotivoBaja = motivo;
     }
 
     public void ReactivarAlta()
     {
         FechaBaja = null;
+        MotivoBaja = null;
     }
 }

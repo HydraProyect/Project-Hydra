@@ -94,7 +94,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];

@@ -25,6 +25,13 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
 {
     public void Agregar(ProductoContratado producto) => dbContext.ProductosContratados.Add(producto);
 
+    // now() es el inicio de la transacción en PostgreSQL: el mismo instante con el que comparan las políticas de
+    // cae_app_aprovisionamiento, que no admiten una vigencia posterior a él (issue #2259).
+    public async Task<DateTime> InstanteDeLaTransaccionAsync(CancellationToken cancellationToken = default) =>
+        DateTime.SpecifyKind(
+            await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),
+            DateTimeKind.Utc);
+
     public async Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
         ProductoContratado intento, CancellationToken cancellationToken = default)
     {
@@ -100,9 +107,7 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
         // El fin es el now() de la transacción (el inicio de la transacción en PostgreSQL): el mismo que usa el WITH CHECK
         // de las políticas, y anterior a cualquier clock_timestamp() lector que vea el COMMIT (gate DN-7). Dentro de la
         // transacción del comando, la corrección inserta la nueva con ese mismo instante como inicio.
-        var vigenteHastaUtc = DateTime.SpecifyKind(
-            await dbContext.Database.SqlQuery<DateTime>($"SELECT now() AS \"Value\"").SingleAsync(cancellationToken),
-            DateTimeKind.Utc);
+        var vigenteHastaUtc = await InstanteDeLaTransaccionAsync(cancellationToken);
 
         int filas;
         try
@@ -117,8 +122,11 @@ public class ProductoContratadoRepository(CaeManagerDbContext dbContext, IActorA
                     .SetProperty(p => p.Estado, EstadoProductoContratado.Finalizado)
                     .SetProperty(p => p.VigenteHastaUtc, vigenteHastaUtc), cancellationToken);
         }
-        // Fin antes del inicio: la vigencia aún no había empezado. ExecuteUpdate no pasa por SaveChanges, así que la
-        // PostgresException suele llegar sin envolver; se acepta también envuelta para no depender de la versión de EF.
+        // Fin antes del inicio: la vigencia aún no había empezado para el now() de esta transacción (una fila del
+        // propietario de la base o anterior a VigenciaProductoContratadoNuncaFutura, o un alta cuya transacción empezó
+        // después que esta y que confirmó antes de esta sentencia, que en READ COMMITTED sí se ve). ExecuteUpdate no
+        // pasa por SaveChanges, así que la PostgresException suele llegar sin envolver; se acepta también envuelta para no
+        // depender de la versión de EF.
         catch (Exception ex) when ((ex as PostgresException ?? ex.InnerException as PostgresException) is
         { SqlState: PostgresErrorCodes.CheckViolation } pg
                                    && pg.ConstraintName == ProductoContratadoConfiguration.RestriccionEstadoYVigencia)

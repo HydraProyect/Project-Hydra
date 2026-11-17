@@ -35,10 +35,13 @@ public class RepararMarcaHuecoCommandValidator : AbstractValidator<RepararMarcaH
 /// se toca nada y se devuelve <see cref="CodigoNoDeshabilitada"/>; una reactivación ya registró lo pendiente
 /// (<see cref="ConexionIntegracion.Rehabilitar"/>). El registro en sí es el de
 /// <see cref="ReparacionMarcaHuecoService.RepararBajoCerrojoAsync"/>, que solo escribe la marca y el valor por registrar.
+/// Solo el Administrador repara, y el rol efectivo se mira aquí, antes de leer nada, y no solo en la página: la pantalla
+/// no es una frontera de autorización. La reparación del ciclo diario no pasa por este comando.
 /// </summary>
 public class RepararMarcaHuecoCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     ICerrojoVerificacionBuzon cerrojo,
     ReparacionMarcaHuecoService reparacion,
     ILogger<RepararMarcaHuecoCommandHandler> logger)
@@ -49,6 +52,11 @@ public class RepararMarcaHuecoCommandHandler(
 
     public async Task<Result> Handle(RepararMarcaHuecoCommand request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
+            return Result.Fallo(Error.Crear(
+                DesconectarBuzonCommandHandler.CodigoSoloAdministrador,
+                "Solo el Administrador puede reparar el registro del hueco de un buzón."));
+
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
         if (conexion is null || !await DesconectarBuzonCommandHandler.ConexionVisibleAsync(alcanceDatos, conexion, cancellationToken))
             return NoEncontrada();

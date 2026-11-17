@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -26,11 +27,14 @@ public class ActualizarContratoAccesoCommandValidator : AbstractValidator<Actual
 
 public class ActualizarContratoAccesoCommandHandler(
     IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    ICurrentUserService currentUserService, TimeProvider reloj)
+    ICurrentUserService currentUserService, TimeProvider reloj, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ActualizarContratoAccesoCommand, Result>
 {
     public async Task<Result> Handle(ActualizarContratoAccesoCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var contrato = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (contrato is null || !await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("ContratoAcceso.NoEncontrado", "El contrato de acceso no existe o no tienes acceso."));

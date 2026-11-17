@@ -19,18 +19,19 @@ public class DesconectarBuzonCommandHandlerTests
         ReclamacionBuzonIntegracionRepositorioFalso reclamacionRepositorio,
         AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
         IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso? cerrojo = null, IDescarteCambiosPendientes? descarte = null,
-        TimeProvider? reloj = null, ILogger<DesconectarBuzonCommandHandler>? logger = null) =>
+        TimeProvider? reloj = null, ILogger<DesconectarBuzonCommandHandler>? logger = null, string? rol = "Administrador") =>
         CrearHandlerCon(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
             credencialRepositorio, unitOfWork, cerrojo ?? new CerrojoVerificacionBuzonFalso(), descarte ?? new DescarteContado(),
-            reloj, logger);
+            reloj, logger, rol);
 
     private static DesconectarBuzonCommandHandler CrearHandlerCon(
         ConexionIntegracionRepositorioFalso conexionRepositorio, SuscripcionWebhookRepositorioFalso suscripcionRepositorio,
         ReclamacionBuzonIntegracionRepositorioFalso reclamacionRepositorio,
         AlcanceDatosServiceFalso alcanceDatos, Microsoft365GraphClientFalso graphClient, CredencialIntegracionRepositorioFalso credencialRepositorio,
         IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso cerrojo, IDescarteCambiosPendientes descarte,
-        TimeProvider? reloj, ILogger<DesconectarBuzonCommandHandler>? logger) =>
-        new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos, graphClient,
+        TimeProvider? reloj, ILogger<DesconectarBuzonCommandHandler>? logger, string? rol) =>
+        new(conexionRepositorio, suscripcionRepositorio, reclamacionRepositorio, alcanceDatos,
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), graphClient,
             new AccesoGraphService(credencialRepositorio, graphClient), unitOfWork, cerrojo, descarte,
             new ReparacionMarcaHuecoService(conexionRepositorio, unitOfWork, cerrojo, descarte, NullLogger<ReparacionMarcaHuecoService>.Instance),
             reloj ?? TimeProvider.System, logger ?? NullLogger<DesconectarBuzonCommandHandler>.Instance);
@@ -135,6 +136,66 @@ public class DesconectarBuzonCommandHandlerTests
         var suscripciones = new SuscripcionWebhookRepositorioFalso();
         suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, graphId, "estado", DateTime.UtcNow.AddDays(2)));
         return (conexion, conexiones, suscripciones);
+    }
+
+    /// <summary>
+    /// La pantalla no es una frontera de autorización: sin rol efectivo Administrador, Desconectar no lee la conexión, no
+    /// toma el cerrojo, no guarda, no libera la reclamación ni borra la suscripción en Graph.
+    /// </summary>
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    [InlineData("Consulta")]
+    [InlineData(null)]
+    public async Task Sin_rol_efectivo_Administrador_no_desconecta_ni_toca_nada(string? rol)
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        reclamaciones.AgregarHeredada(conexion.BuzonEmail, conexion.Id);
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        var handler = CrearHandler(conexiones, suscripciones, reclamaciones, new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork, cerrojo, rol: rol);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        cerrojo.Pedidos.Should().BeEmpty();
+        conexiones.VecesLeidaActual.Should().Be(0);
+        unitOfWork.VecesGuardado.Should().Be(0);
+        reclamaciones.Reclamaciones.Should().ContainSingle(r => r.ConexionIntegracionId == conexion.Id, "la reclamación no se libera");
+        graph.SuscripcionesEliminadas.Should().BeEmpty();
+    }
+
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(),
+            new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            new CredencialIntegracionRepositorioFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
+    }
+
+    [Fact]
+    public async Task El_Administrador_desconecta()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        var graph = new Microsoft365GraphClientFalso();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("control: el mismo caso con Administrador sí desconecta");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
     }
 
     // Ronda 11, C1: Desconectar comparte el cerrojo por conexión de Reactivar y de la verificación.

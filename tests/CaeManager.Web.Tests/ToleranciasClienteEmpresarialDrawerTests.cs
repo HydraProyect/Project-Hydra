@@ -40,7 +40,7 @@ public class ToleranciasClienteEmpresarialDrawerTests : BunitContext
         public Result Resultado { get; set; } = Result.Exito();
         public Guid? FallaSoloElTipo { get; set; }
         public bool LaLecturaLanza { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

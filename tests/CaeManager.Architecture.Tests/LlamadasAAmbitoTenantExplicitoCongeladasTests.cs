@@ -387,6 +387,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los tenants desde el propio servicio"),
         ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del trabajo reclamado por SKIP LOCKED, nunca de un parámetro de petición"),
+        ["src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre los Tenants no de plataforma desde el propio servicio (exportación completa en autoservicio, #2008); dentro, cada solicitud se lee bajo RLS de ese Tenant y se reclama con SKIP LOCKED, nunca de un parámetro de petición"),
         ["src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario (2026-09-23: sin él, cae_app_runtime veía cero filas de AsignacionesOperacion/AsignacionesCartera)"),
         ["src/CaeManager.Infrastructure/Proyectos/CierreEventosTerminadosHostedService.cs"] =

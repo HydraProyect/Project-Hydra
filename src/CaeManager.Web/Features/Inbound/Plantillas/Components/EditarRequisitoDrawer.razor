@@ -1,0 +1,521 @@
+@* Editar requisito (tarjeta 9): añadir un requisito a la plantilla (del catálogo de tipos de documento del Tenant TCE o propio) o editar
+   los atributos de uno. Comandos: AnadirRequisitoAPlantilla, CrearRequisitoPropio y EditarRequisitoPlantilla; la sugerencia de
+   parecidos es BuscarRequisitosParecidosQuery. «Datos que lee la IA», «Formulario del Centro» y «Alcance del cambio» no
+   tienen backend y salen con la insignia «Próximamente». *@
+@using CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla
+@using CaeManager.Application.Inbound.Requisitos.Commands.CrearRequisitoPropio
+@using CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla
+@using CaeManager.Application.Inbound.Requisitos.Queries
+@using CaeManager.Application.Common
+@using CaeManager.Web.Services
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Inbound.Requisitos
+@using CaeManager.Domain.Trabajadores
+@using CaeManager.Web.Features.Inbound.Plantillas.Recursos
+@using CaeManager.Web.Features.Inbound.Plantillas.Servicios
+@using FluentValidation
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject MediatR.IMediator Mediator
+@inject IStringLocalizer<TextosPlantillasRequisitos> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@(EsAlta ? Textos["EditarTituloAlta"] : Textos["EditarTitulo"])"
+                  Subtitulo="@Textos["EditarSubtitulo", NombrePlantilla]" Ancho="AnchoDrawer.Ancho"
+                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]" HayCambios="() => HayCambiosSinGuardar"
+                  Guardando="_guardando" MensajeError="@_mensajeError" HayErroresDeCampo="@(_errores.Count > 0)"
+                  MotivoGuardarDeshabilitado="@MotivoNoGuardable" OnGuardar="GuardarAsync">
+    @if (EsAlta)
+    {
+        <div class="campo cfg-catalogo" data-pieza="catalogo-requisitos">
+            <label for="cfg-busca">@Textos["CampoRequisito"]</label>
+            <p class="cfg-ayuda">@Textos["CatalogoAyuda"]</p>
+            <input id="cfg-busca" class="cfg-cat-busca" type="search" placeholder="@Textos["CatalogoBuscar"]" value="@_busca"
+                   @oninput="e => CambiarBuscaAsync(e.Value?.ToString() ?? string.Empty)" />
+            <div class="cfg-cat-lista" role="listbox" aria-label="@Textos["CatalogoEtiqueta"]">
+                @foreach (var tipo in TiposVisibles)
+                {
+                    var usado = _usados.Contains(tipo.Id);
+                    <button type="button" class="cfg-cat-it" role="option" aria-selected="@(_tipoId == tipo.Id)" disabled="@usado"
+                            @onclick="() => ElegirTipo(tipo)">
+                        <span class="cfg-cat-n">@tipo.Nombre</span>
+                        <span class="cfg-cat-e">@(usado ? Textos["CatalogoYaEnPlantilla"].Value : Textos[PlantillaRequisitosUi.ClaveEntidad(PlantillaRequisitosUi.EntidadDe(tipo.AmbitoAplicacion))].Value)</span>
+                    </button>
+                }
+                @if (TiposVisibles.Count == 0)
+                {
+                    <p class="cfg-cat-vacio">@(string.IsNullOrWhiteSpace(_busca) ? Textos["CatalogoVacio"] : Textos["CatalogoSinCoincidencias"])</p>
+                }
+            </div>
+            @if (_tipoId is not null || _propio)
+            {
+                <p class="cfg-info">@Textos["CatalogoElegido", NombreElegido]</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_busca) && !_propio && CoincideConTipoNoAdmitido)
+            {
+                @* El nombre es el de un tipo archivado o de otro ámbito: crear uno propio con ese nombre acabaría en «nombre duplicado». *@
+                <p class="cfg-info" data-pieza="nombre-no-disponible">@Textos["NombreNoDisponible"]</p>
+            }
+            @if (!string.IsNullOrWhiteSpace(_busca) && !_propio && !CoincideConAlgunTipo)
+            {
+                <div class="cfg-nuevo">
+                    @if (_parecidos.Count > 0)
+                    {
+                        <div class="cfg-nuevo-bloque">
+                            <h3 class="cfg-nuevo-h">@Textos["ParecidosTitulo"]</h3>
+                            <p class="cfg-ayuda">@Textos["ParecidosAyuda"]</p>
+                            @foreach (var p in _parecidos)
+                            {
+                                <div class="cfg-par" data-parecido="@p.Id">
+                                    <span class="cfg-par-t"><span class="cfg-dato-t">@p.Nombre</span><span class="cfg-dato-d">@Textos["ParecidosVia", p.CoincideCon]</span></span>
+                                    @if (p.Origen == OrigenSugerencia.TipoDocumentoDelTenant && !_usados.Contains(p.Id))
+                                    {
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ElegirParecido(p)"
+                                               aria-label="@Textos["ParecidosAnadirAria", p.Nombre]">@Textos["BotonAnadir"]</Boton>
+                                    }
+                                    else
+                                    {
+                                        @* El catálogo base se añade con su tipo de documento: sin tipo en el Tenant TCE no hay nada que añadir todavía. *@
+                                        <span class="cfg-cat-e">@(p.Origen == OrigenSugerencia.CatalogoBase ? Textos["ParecidosCatalogoBase"] : Textos["CatalogoYaEnPlantilla"])</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="cfg-nuevo-fila">
+                        <span><span class="cfg-dato-t">@Textos["CrearPropioTitulo", _busca.Trim()]</span><span class="cfg-dato-d">@Textos["CrearPropioAyuda"]</span></span>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="ElegirPropio"
+                               aria-label="@Textos["CrearPropioAria", _busca.Trim()]">@Textos["BotonAnadir"]</Boton>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="campo">
+            <label>@Textos["CampoRequisito"]</label>
+            <p class="cfg-fijo">@NombreElegido</p>
+        </div>
+    }
+
+    <div class="campo">
+        <span class="cfg-etq" id="e-ent">@Textos["CampoEntidad"]</span>
+        @if (_propio)
+        {
+            <div class="cfg-seg" role="group" aria-labelledby="e-ent">
+                @foreach (var ambito in AmbitosPropios)
+                {
+                    <button type="button" aria-pressed="@(_ambito == ambito)" @onclick="() => _ambito = ambito">@Textos[PlantillaRequisitosUi.ClaveEntidad(PlantillaRequisitosUi.EntidadDe(ambito))]</button>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="cfg-fijo">@(EntidadActual is { } entidad ? Textos[PlantillaRequisitosUi.ClaveEntidad(entidad)].Value : Textos["EntidadSinElegir"].Value)</p>
+            <p class="cfg-ayuda">@Textos["EntidadAyuda"]</p>
+        }
+    </div>
+
+    <div class="campo">
+        <span class="cfg-etq" id="e-ori">@Textos["CampoDestinatario"]</span>
+        <div class="cfg-seg" role="radiogroup" aria-labelledby="e-ori">
+            @foreach (var d in PlantillaRequisitosUi.Destinatarios)
+            {
+                <button type="button" role="radio" aria-checked="@(DestinatarioEnviado == d)" aria-pressed="@(DestinatarioEnviado == d)" disabled="@(SoloTodos && d != DestinatarioRequisito.Todos)" @onclick="() => _destinatario = d">@Textos[PlantillaRequisitosUi.ClaveDestinatario(d)]</button>
+            }
+        </div>
+        <p class="cfg-ayuda">@Textos["DestinatarioAyuda"]</p>
+    </div>
+
+    @if (EntidadActual == EntidadRequisito.Trabajador)
+    {
+        <div class="campo">
+            <span class="cfg-etq" id="e-con">@Textos["CampoContratacion"]</span>
+            <div class="cfg-seg" role="group" aria-labelledby="e-con">
+                @foreach (var c in PlantillaRequisitosUi.Contrataciones)
+                {
+                    <button type="button" aria-pressed="@_contrataciones.Incluye(c)" @onclick="() => AlternarContratacion(c)">@Textos[PlantillaRequisitosUi.ClaveContratacion(c)]</button>
+                }
+            </div>
+            <p class="cfg-ayuda">@Textos["ContratacionAyuda"]</p>
+        </div>
+    }
+
+    @if (DestinatarioEnviado != DestinatarioRequisito.Nacionales)
+    {
+        <div class="campo">
+            <span class="cfg-etq">@Textos["CampoEquivalencias"]</span>
+            <p class="cfg-ayuda">@Textos["EquivalenciasAyuda", AtributosRequisito.MaximoEquivalencias]</p>
+            <CampoTextarea Valor="@_equivalencias" ValorChanged="v => { _equivalencias = v; _errores.Remove(CampoEquivalencias); }" Filas="3"
+                           MensajeError="@ErrorDe(CampoEquivalencias)" />
+        </div>
+    }
+
+    <div class="campo">
+        <span class="cfg-etq" id="e-vig">@Textos["CampoVigencia"]</span>
+        <div class="cfg-fila">
+            <div class="cfg-seg" role="group" aria-labelledby="e-vig">
+                @foreach (var modo in PlantillaRequisitosUi.ModosVigencia)
+                {
+                    <button type="button" aria-pressed="@(_modo == modo)" @onclick="() => _modo = modo">@Textos[PlantillaRequisitosUi.ClaveModoVigencia(modo)]</button>
+                }
+            </div>
+            @if (_modo == ModoVigenciaRequisito.Fija)
+            {
+                <input class="cfg-input cfg-meses" inputmode="numeric" maxlength="3" value="@_meses" aria-label="@Textos["VigenciaMesesAria"]"
+                       @oninput="e => { _meses = e.Value?.ToString() ?? string.Empty; _errores.Remove(CampoVigencia); }" />
+                <span class="inbound-secundario">@Textos["VigenciaMesesSufijo"]</span>
+            }
+        </div>
+        @if (ErrorDe(CampoVigencia) is { } errorVigencia)
+        {
+            <p class="campo-mensaje-error" aria-live="polite">@errorVigencia</p>
+        }
+        <p class="cfg-ayuda">@Textos[_modo switch { ModoVigenciaRequisito.Fija => "VigenciaAyudaFija", ModoVigenciaRequisito.LaPoneElDocumento => "VigenciaAyudaDocumento", _ => "VigenciaAyudaSin" }]</p>
+    </div>
+
+    <div class="campo">
+        <span class="cfg-etq" id="e-tol">@Textos["CampoTolerancia"] <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["ColToleranciaDecision"]</Badge></span>
+        <div class="cfg-seg" role="group" aria-labelledby="e-tol">
+            @foreach (var dias in PlantillaRequisitosUi.ToleranciasOfrecidas)
+            {
+                <button type="button" aria-pressed="@(ToleranciaElegida == dias)" disabled="@(_modo == ModoVigenciaRequisito.SinVencimiento || _propio)"
+                        @onclick="() => _tolerancia = dias">@(dias == 0 ? Textos["ToleranciaSin"].Value : Textos["ToleranciaDias", dias].Value)</button>
+            }
+        </div>
+        <p class="cfg-ayuda">@Textos[_propio ? "ToleranciaAyudaPropio" : _modo == ModoVigenciaRequisito.SinVencimiento ? "ToleranciaAyudaNoVence" : "ToleranciaAyuda"]</p>
+    </div>
+
+    <div class="campo">
+        <span class="cfg-etq">@Textos["CampoCriterio"]</span>
+        <p class="cfg-ayuda">@Textos["CriterioAyuda"]</p>
+        <CampoTextarea Valor="@_criterio" ValorChanged="v => { _criterio = v; _errores.Remove(CampoCriterio); }" Filas="5"
+                       MensajeError="@ErrorDe(CampoCriterio)" />
+        <span class="cfg-cont cifras">@_criterio.Length / @AtributosRequisito.LongitudMaximaCriterio</span>
+    </div>
+
+    <div class="campo cfg-proximamente" data-pieza="datos-ia">
+        <span class="cfg-etq">@Textos["CampoDatosIa"] <InsigniaProximamente /></span>
+        @* shortcut: sin backend, cablear cuando exista dónde guardar los datos que lee la IA por requisito (B-14 no los guarda). *@
+        <p class="cfg-ayuda">@Textos["DatosIaAyuda"]</p>
+    </div>
+
+    <div class="campo cfg-proximamente" data-pieza="formulario-centro">
+        <span class="cfg-etq">@Textos["CampoFormulario"] <InsigniaProximamente /></span>
+        @* shortcut: sin backend, cablear cuando entre B-30 (formularios del Centro: PDF, campos e idiomas). *@
+        <p class="cfg-ayuda">@Textos["FormularioAyuda"]</p>
+        @if (Requisito is { } requisitoConFormulario)
+        {
+            <a href="@($"/inbound/plantillas/{Plantilla.Id}/requisitos/{requisitoConFormulario.Id}/formulario")">@Textos["FormularioTitulo"]</a>
+        }
+    </div>
+
+    <div class="campo cfg-proximamente" data-pieza="alcance-cambio">
+        <span class="cfg-etq">@Textos["CampoAlcance"] <InsigniaProximamente /></span>
+        @* shortcut: sin backend, cablear cuando entre B-15 (ajuste por contrato: el cambio vale solo para los contratos nuevos o también para los existentes). *@
+        <p class="cfg-ayuda">@Textos["AlcanceAyuda"]</p>
+    </div>
+</DrawerFormulario>
+
+@code {
+    private const string CampoVigencia = "Atributos.VigenciaMeses";
+    private const string CampoCriterio = "Atributos.Criterio";
+    private const string CampoEquivalencias = "Atributos.Equivalencias";
+    private const string CampoNombre = "Nombre";
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public PlantillaRequisitosDto Plantilla { get; set; } = default!;
+    [Parameter, EditorRequired] public string NombrePlantilla { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public ReferenciasPlantillas Referencias { get; set; } = default!;
+
+    /// <summary>El requisito que se edita; nulo para añadir uno nuevo.</summary>
+    [Parameter] public RequisitoPlantillaDto? Requisito { get; set; }
+
+    /// <summary>Se invoca cuando el comando salió bien; el padre recarga la plantilla y avisa.</summary>
+    [Parameter] public EventCallback<bool> OnGuardado { get; set; }
+
+    /// <summary>Se invoca cuando el comando devolvió un error: el padre vuelve a leer la plantilla para tener su Version vigente.</summary>
+    [Parameter] public EventCallback<string> OnFallo { get; set; }
+
+    /// <summary>Turno de lecturas de la página: la búsqueda al teclear no usa el DbContext del circuito a la vez que ella.</summary>
+    [Parameter] public SerieDeLecturas? Serie { get; set; }
+
+    private static readonly AmbitoAplicacion[] AmbitosPropios = [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador, AmbitoAplicacion.Vehiculo];
+
+    private readonly Dictionary<string, string> _errores = [];
+    private IReadOnlyList<RequisitoParecidoDto> _parecidos = [];
+    private string _busca = string.Empty;
+    private Guid? _tipoId;
+    private bool _propio;
+    private AmbitoAplicacion _ambito = AmbitoAplicacion.Empresa;
+    private DestinatarioRequisito _destinatario = DestinatarioRequisito.Todos;
+    private TiposContratacion _contrataciones = TiposContratacion.Todos;
+    private string _equivalencias = string.Empty;
+    private ModoVigenciaRequisito _modo = ModoVigenciaRequisito.LaPoneElDocumento;
+    private string _meses = string.Empty;
+    private int _tolerancia;
+    private string _criterio = string.Empty;
+    private string? _mensajeError;
+    private bool _guardando;
+    private bool _eraVisible;
+    private int _versionBusqueda;
+    private CancellationTokenSource? _busquedaCts;
+
+    private bool EsAlta => Requisito is null;
+
+    // Sin vencimiento no hay tolerancia, y un requisito propio nace sin grupo de documento, que R-6 trata como «sin tolerancia».
+    private int ToleranciaElegida => _modo == ModoVigenciaRequisito.SinVencimiento || _propio ? 0 : _tolerancia;
+
+    // Un vehículo o máquina no es nacional ni extranjero: el dominio exige «Todos».
+    private bool SoloTodos => EntidadActual == EntidadRequisito.VehiculoOMaquina;
+
+    private DestinatarioRequisito DestinatarioEnviado => SoloTodos ? DestinatarioRequisito.Todos : _destinatario;
+
+    private bool SinContratacion => EntidadActual == EntidadRequisito.Trabajador && (_contrataciones & TiposContratacion.Todos) == TiposContratacion.Ninguno;
+
+    private HashSet<Guid> _usados = [];
+
+    private IReadOnlyList<Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto> TiposVisibles =>
+        Referencias.Tipos.Values
+            .Where(Referencias.AdmiteAlta)
+            .Where(t => string.IsNullOrWhiteSpace(_busca) || t.Nombre.Contains(_busca.Trim(), StringComparison.CurrentCultureIgnoreCase))
+            .OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
+            .Take(50)
+            .ToList();
+
+    private bool CoincideConAlgunTipo =>
+        Referencias.Tipos.Values.Any(t => string.Equals(t.Nombre, _busca.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+    private bool CoincideConTipoNoAdmitido =>
+        CoincideConAlgunTipo && !TiposVisibles.Any(t => string.Equals(t.Nombre, _busca.Trim(), StringComparison.CurrentCultureIgnoreCase));
+
+    private string NombreElegido => _propio ? _busca.Trim()
+        : _tipoId is { } id && Referencias.Tipos.TryGetValue(id, out var t) ? t.Nombre : Textos["RequisitoNoDisponible"].Value;
+
+    private EntidadRequisito? EntidadActual =>
+        _propio ? PlantillaRequisitosUi.EntidadDe(_ambito)
+        : Requisito is not null ? Requisito.Entidad
+        : _tipoId is { } id && Referencias.Tipos.TryGetValue(id, out var t) ? PlantillaRequisitosUi.EntidadDe(t.AmbitoAplicacion)
+        : null;
+
+    private string? MotivoNoGuardable =>
+        EsAlta && !_propio && _tipoId is null ? Textos["MotivoFaltaRequisito"].Value
+        : SinContratacion ? Textos["MotivoFaltaContratacion"].Value
+        : null;
+
+    private bool HayCambiosSinGuardar => EsAlta
+        ? _tipoId is not null || _propio || !string.IsNullOrWhiteSpace(_criterio)
+        : Requisito is { } r && (_destinatario != r.SePideA || _contrataciones != r.TiposContratacion
+            || _equivalencias != string.Join('\n', r.Equivalencias) || _modo != r.ModoVigencia
+            || _meses != (r.VigenciaMeses?.ToString() ?? string.Empty) || _tolerancia != (r.ToleranciaDias ?? 0)
+            || _criterio != (r.Criterio ?? string.Empty));
+
+    protected override void OnParametersSet()
+    {
+        // Cada apertura parte de lo que el requisito tiene ahora (o de lo vacío), no de lo que quedó a medias.
+        if (Visible && !_eraVisible)
+        {
+            _errores.Clear();
+            _mensajeError = null;
+            _busca = string.Empty;
+            _parecidos = [];
+            _tipoId = null;
+            _propio = false;
+            _ambito = AmbitoAplicacion.Empresa;
+            _usados = Plantilla.Requisitos.Where(r => r.Activo).Select(r => r.TipoDocumentoId).ToHashSet();
+            if (Requisito is { } r)
+            {
+                _tipoId = r.TipoDocumentoId;
+                _destinatario = r.SePideA;
+                _contrataciones = r.TiposContratacion;
+                _equivalencias = string.Join('\n', r.Equivalencias);
+                _modo = r.ModoVigencia;
+                _meses = r.VigenciaMeses?.ToString() ?? string.Empty;
+                _tolerancia = r.ToleranciaDias ?? 0;
+                _criterio = r.Criterio ?? string.Empty;
+            }
+            else
+            {
+                _destinatario = DestinatarioRequisito.Todos;
+                _contrataciones = TiposContratacion.Todos;
+                _equivalencias = string.Empty;
+                _modo = ModoVigenciaRequisito.LaPoneElDocumento;
+                _meses = string.Empty;
+                _tolerancia = 0;
+                _criterio = string.Empty;
+            }
+        }
+        _eraVisible = Visible;
+    }
+
+    public void Dispose()
+    {
+        _busquedaCts?.Cancel();
+        _busquedaCts?.Dispose();
+    }
+
+    private string? ErrorDe(string campo) => _errores.GetValueOrDefault(campo);
+
+    private async Task CambiarBuscaAsync(string texto)
+    {
+        _busca = texto;
+        if (_propio)
+            _propio = false;
+        var version = ++_versionBusqueda;
+        // Cada pulsación cancela la búsqueda anterior y espera su turno: nunca hay dos consultas a la vez en el DbContext del circuito.
+        _busquedaCts?.Cancel();
+        var cts = _busquedaCts = new CancellationTokenSource();
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            _parecidos = [];
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<RequisitoParecidoDto> encontrados;
+            using (await SerieDeLecturas.TomarSiHayAsync(Serie, cts.Token))
+            {
+                cts.Token.ThrowIfCancellationRequested();
+                encontrados = await Mediator.Send(new BuscarRequisitosParecidosQuery(texto.Trim()), cts.Token);
+            }
+
+            // Solo vale la respuesta de la última pulsación.
+            // Los parecidos del Tenant pasan por el mismo filtro que el catálogo: sin archivados ni ámbito Cliente o Proyecto.
+            if (version == _versionBusqueda)
+                _parecidos = encontrados
+                    .Where(p => p.Origen != OrigenSugerencia.TipoDocumentoDelTenant
+                        || (Referencias.Tipos.TryGetValue(p.Id, out var tipo) && Referencias.AdmiteAlta(tipo)))
+                    .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            // Una pulsación más reciente la sustituyó.
+        }
+        catch (Exception)
+        {
+            if (version == _versionBusqueda)
+                _parecidos = [];
+        }
+    }
+
+    private void ElegirTipo(Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto tipo)
+    {
+        _tipoId = tipo.Id;
+        _propio = false;
+        _mensajeError = null;
+    }
+
+    private void ElegirParecido(RequisitoParecidoDto parecido)
+    {
+        _tipoId = parecido.Id;
+        _propio = false;
+        _mensajeError = null;
+    }
+
+    private void ElegirPropio()
+    {
+        _propio = true;
+        _tipoId = null;
+        _mensajeError = null;
+    }
+
+    private void AlternarContratacion(TipoContratacion tipo)
+    {
+        var bit = tipo.ComoConjunto();
+        _contrataciones = _contrataciones.Incluye(tipo) ? _contrataciones & ~bit : _contrataciones | bit;
+    }
+
+    private OrigenRequisito OrigenDeAlta() =>
+        _propio ? OrigenRequisito.PropioTenant
+        : Plantilla.Tipo == TipoPlantillaRequisitos.ExigenciasClienteEmpresarial ? OrigenRequisito.ExigenciaN3
+        : OrigenRequisito.PropioTenant; // sin requisito de base el dominio exige PropioTenant o ExigenciaN3 (ValidarOrigen)
+
+    private bool TryAtributos(out AtributosRequisito atributos)
+    {
+        atributos = default!;
+        int? vigencia = null;
+        if (_modo == ModoVigenciaRequisito.Fija)
+        {
+            if (!int.TryParse(_meses, out var meses))
+            {
+                _errores[CampoVigencia] = Textos["VigenciaMesesInvalida"];
+                return false;
+            }
+            vigencia = meses;
+        }
+
+        var equivalencias = DestinatarioEnviado == DestinatarioRequisito.Nacionales
+            ? []
+            : _equivalencias.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        atributos = new AtributosRequisito(
+            Origen: Requisito?.Origen ?? OrigenDeAlta(),
+            ModoVigencia: _modo,
+            VigenciaMeses: vigencia,
+            ToleranciaDias: ToleranciaElegida > 0 ? ToleranciaElegida : null,
+            BloqueaAcceso: Requisito?.BloqueaAcceso ?? true,
+            Criterio: string.IsNullOrWhiteSpace(_criterio) ? null : _criterio.Trim(),
+            SePideA: DestinatarioEnviado,
+            TiposContratacion: EntidadActual == EntidadRequisito.Trabajador ? _contrataciones : TiposContratacion.Todos,
+            Equivalencias: equivalencias,
+            AmbitoDocumento: Requisito?.AmbitoDocumento ?? (_propio ? AmbitoDocumentoRequisito.EspecificoTce : AmbitoDocumentoRequisito.GeneralTec));
+        return true;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _errores.Clear();
+        _mensajeError = null;
+        if (!TryAtributos(out var atributos))
+            return;
+
+        _guardando = true;
+        try
+        {
+            CaeManager.Domain.Common.Result resultado;
+            // El comando también usa el DbContext del circuito: toma el turno de la serie, y lo suelta antes de avisar al padre.
+            using (await SerieDeLecturas.TomarSiHayAsync(Serie, CancellationToken.None))
+            {
+                if (Requisito is { } existente)
+                    resultado = await Mediator.Send(new EditarRequisitoPlantillaCommand(Plantilla.Id, existente.Id, atributos, Plantilla.Version));
+                else if (_propio)
+                    resultado = await Mediator.Send(new CrearRequisitoPropioCommand(
+                        Plantilla.Id, _busca.Trim(), _ambito, null, null, atributos, Plantilla.Version));
+                else if (_tipoId is { } tipoId)
+                    resultado = await Mediator.Send(new AnadirRequisitoAPlantillaCommand(Plantilla.Id, tipoId, null, atributos, Plantilla.Version));
+                else
+                    return;
+            }
+
+            if (!resultado.EsExitoso)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                // Solo un conflicto de versión cierra el panel (la plantilla cambió: se relee). Cualquier otro error se queda
+                // dentro del panel, con lo escrito.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                    await OnFallo.InvokeAsync(resultado.Error.Mensaje);
+                return;
+            }
+
+            await OnGuardado.InvokeAsync(EsAlta);
+        }
+        catch (ValidationException ex)
+        {
+            foreach (var grupo in ex.Errors.GroupBy(e => e.PropertyName))
+                _errores[grupo.Key] = grupo.First().ErrorMessage;
+            // Los campos sin control propio (nombre, tolerancia, equivalencias de más) se dicen en el aviso del panel.
+            _mensajeError = _errores.Keys.All(k => k is CampoVigencia or CampoCriterio)
+                ? (_errores.Count == 0 ? Textos["ErrorGuardar"].Value : null)
+                : ex.Errors.First().ErrorMessage;
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

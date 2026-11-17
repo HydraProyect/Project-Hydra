@@ -50,8 +50,11 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
             return ResultadoReclamacionBuzon.AltaCompartidaEnPausa;
         }
         // Comprobar el nombre de la restricción (mismo patrón que
-        // OperacionImportacionRepository.GuardarSiOperacionNuevaAsync) y no
-        // cualquier 23505: una violación de unicidad distinta en el mismo
+        // ExpiracionAsignacionesHostedService.GuardarODejarComoEstabaAsync) y no
+        // cualquier 23505. A diferencia de
+        // OperacionImportacionRepository.GuardarSiOperacionNuevaAsync, aquí no
+        // hay relectura que convierta otra violación en el mismo desenlace
+        // (#1992): una violación de unicidad distinta en el mismo
         // SaveChangesAsync (p. ej. el nombre de la conexión) es un error real
         // del plan, no la guarda de buzón, y debe propagarse tal cual.
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException

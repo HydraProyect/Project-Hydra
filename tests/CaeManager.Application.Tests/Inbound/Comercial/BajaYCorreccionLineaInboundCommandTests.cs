@@ -269,6 +269,11 @@ public class BajaYCorreccionLineaInboundCommandTests
             Agregados.Add(producto);
         }
 
+        // La corrección toma el instante de la finalización, no lo pide aparte: así el fin de la sustituida y el inicio de la
+        // corregida son el mismo.
+        public Task<DateTime> InstanteDeLaTransaccionAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("la baja y la corrección usan el fin que devuelve la finalización");
+
         public Task<bool> GuardarDetectandoInboundVigenteDuplicadoAsync(
             ProductoContratado intento, CancellationToken cancellationToken = default)
         {
