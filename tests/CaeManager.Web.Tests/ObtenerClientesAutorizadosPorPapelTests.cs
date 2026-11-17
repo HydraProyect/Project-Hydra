@@ -164,10 +164,16 @@ public class ObtenerClientesAutorizadosPorPapelTests
                 "la vía heredada conserva su entrada sin papel junto a la de Inbound: el selector la ofrece y se vuelve a ella");
     }
 
+    /// <summary>
+    /// Decisión O-2 (b) de Chris (2026-11-17): el selector de papel es de quien llega por una Asignación de Operación del
+    /// Tenant entero de su Operador CAE externo, sin cartera, igual que el POST le autoriza a abrirlo con ese servicio.
+    /// </summary>
     [Theory]
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]
-    public async Task Sin_perfil_Gestor_CAE_la_lista_por_papel_es_la_de_siempre(string rol)
+    [InlineData("CoordinadorCae")]
+    [InlineData("Consulta")]
+    public async Task Con_otro_perfil_del_Operador_CAE_externo_que_llega_por_Asignacion_de_Operacion_recibe_las_entradas_con_papel(string rol)
     {
         var e = await CrearAsync();
         await using var _ = e.Db;
@@ -176,10 +182,40 @@ public class ObtenerClientesAutorizadosPorPapelTests
         await e.Db.SaveChangesAsync();
 
         var porPapel = await Pedir(e, porPapel: true, rol);
-        var porTenant = await Pedir(e, porPapel: false, rol);
 
-        porPapel.Should().Equal(porTenant, "el Administrador del Tenant y los demás perfiles no tienen selector de papel");
-        porPapel.Should().OnlyContain(c => c.Servicio == null);
+        porPapel.Where(c => !c.EsOrigen).Select(c => (c.TenantId, c.Servicio)).Should().Equal(
+            (e.Norte.Id, (ServicioCae?)ServicioCae.Outbound), (e.Sur.Id, (ServicioCae?)ServicioCae.Inbound));
+        porPapel.Single(c => c.EsOrigen).Servicio.Should().BeNull("el Tenant de origen no tiene papel de Operación");
+        porPapel.Should().OnlyContain(c => !c.EsCarteraGestorCae,
+            "fuera del Gestor CAE ninguna entrada es de cartera: la decisión 7 quater no elige Tenant por defecto");
+        ClientesAutorizados.TenantPorDefecto(porPapel).Should().BeNull();
+        ClientesAutorizados.SelectorVisible(porPapel, ClientesAutorizados.Activo(porPapel, null)).Should().BeTrue();
+
+        // La lista por Tenant de los demás lectores no cambia: sin papel y sin el Tenant que solo alcanza Inbound.
+        (await Pedir(e, porPapel: false, rol)).Should().OnlyContain(c => c.Servicio == null)
+            .And.NotContain(c => c.TenantId == e.Sur.Id);
+    }
+
+    /// <summary>
+    /// El Administrador del Tenant propio (aquí, el de Empresa Norte, Tenant beneficiario que gestiona el Operador CAE
+    /// externo) no llega a ningún Tenant por una Asignación de Operación: las de Empresa Norte son del Operador CAE, no
+    /// suyas, y su lista por papel es la de siempre, sin selector de papel.
+    /// </summary>
+    [Fact]
+    public async Task El_Administrador_del_Tenant_propio_sigue_sin_selector_de_papel()
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        Outbound(e, e.Norte, conCartera: false);
+        Inbound(e, e.Norte);
+        await e.Db.SaveChangesAsync();
+
+        var handler = new ObtenerClientesAutorizadosQueryHandler(e.Db, e.Db, new Usuaria(e.Norte.Id, "Administrador"));
+        var porPapel = await handler.Handle(new ObtenerClientesAutorizadosQuery { PorPapel = true }, default);
+        var porTenant = await handler.Handle(new ObtenerClientesAutorizadosQuery(), default);
+
+        porPapel.Should().Equal(porTenant);
+        porPapel.Should().OnlyContain(c => c.Servicio == null && c.EsOrigen && c.TenantId == e.Norte.Id);
     }
 
     /// <summary>La lista de los lectores del Tenant activo (<see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>).</summary>
@@ -273,11 +309,11 @@ public class ObtenerClientesAutorizadosPorPapelTests
     }
 
     [Theory]
-    [InlineData("Administrador", "abierta")]
-    [InlineData("DireccionCae", "abierta")]
+    [InlineData("Administrador", "cerrada")]
+    [InlineData("DireccionCae", "sin-linea")]
     [InlineData("GestorCae", "cerrada")]
     [InlineData("GestorCae", "sin-linea")]
-    public async Task Para_el_Tenant_activo_sin_Gestor_CAE_o_sin_Inbound_que_autorice_la_lista_es_la_por_Tenant(string rol, string caso)
+    public async Task Para_el_Tenant_activo_sin_Inbound_que_autorice_la_lista_es_la_por_Tenant(string rol, string caso)
     {
         var e = await CrearAsync();
         await using var _ = e.Db;
@@ -286,6 +322,36 @@ public class ObtenerClientesAutorizadosPorPapelTests
         await e.Db.SaveChangesAsync();
 
         (await PedirParaTenantActivo(e, e.Sur, PapelActivo.Inbound, rol)).Should().Equal(await Pedir(e, porPapel: false, rol),
-            "el Administrador del Tenant y los demás perfiles no cambian, y una operación Inbound que no autoriza no trae nada");
+            "una operación Inbound que no autoriza no trae nada, sea cual sea el perfil");
+    }
+
+    /// <summary>O-2 (b): con papel Inbound, los lectores del Tenant activo pintan el Tenant para cualquier perfil que llegue por la Asignación de Operación.</summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("Consulta")]
+    public async Task Para_el_Tenant_activo_con_papel_Inbound_otro_perfil_del_Operador_CAE_externo_ve_el_Tenant(string rol)
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        Outbound(e, e.Norte, conCartera: false);
+        Inbound(e, e.Sur);
+        await e.Db.SaveChangesAsync();
+
+        var lista = await PedirParaTenantActivo(e, e.Sur, PapelActivo.Inbound, rol);
+
+        var sur = lista.Should().ContainSingle(c => c.Servicio == ServicioCae.Inbound).Which;
+        sur.TenantId.Should().Be(e.Sur.Id);
+        sur.EsCarteraGestorCae.Should().BeFalse("solo el Gestor CAE tiene entradas de cartera");
+        var activo = ClientesAutorizados.Activo(lista, e.Sur.Id);
+        activo!.Nombre.Should().Be("Empresa Sur", "la cabecera pinta el Tenant elegido con la entrada Inbound, no el origen");
+        ClientesAutorizados.PideElegirEmpresa(lista, e.Sur.Id).Should().BeFalse();
+
+        // El Administrador del Tenant propio de Empresa Sur no llega por esa operación: nada cambia para él.
+        var propio = await new ObtenerClientesAutorizadosQueryHandler(e.Db, e.Db,
+                new Usuaria(e.Sur.Id, "Administrador", PapelActivo.Inbound), tenantActual: new TenantActivo(e.Sur.Id))
+            .Handle(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, default);
+        propio.Should().OnlyContain(c => c.Servicio == null && c.EsOrigen);
     }
 }

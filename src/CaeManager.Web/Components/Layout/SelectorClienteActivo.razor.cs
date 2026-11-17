@@ -57,8 +57,8 @@ public partial class SelectorClienteActivo
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
 
     /// <summary>
-    /// Lo que se pinta: una entrada por Asignación de Operación para el Gestor CAE (D-4, con <c>Servicio</c>), o la lista
-    /// de siempre para cualquier otro perfil. <see cref="_clientes"/> sigue decidiendo la visibilidad y los pendientes.
+    /// Lo que se pinta: una entrada por Asignación de Operación para quien llega por ella, sea cual sea
+    /// su perfil (D-4 y O-2 (b), con <c>Servicio</c>), y sin papel el origen y la vía heredada. <see cref="_clientes"/> sigue decidiendo la visibilidad y los pendientes.
     /// </summary>
     private IReadOnlyList<ClienteAutorizadoDto> _entradas = [];
 
@@ -498,16 +498,14 @@ public partial class SelectorClienteActivo
             if (_usuarioId is { } usuario)
                 _recientesIds = LectorRecientes.Leer(usuario);
 
-            // Selector de papel (D-4): solo el Gestor CAE tiene entradas por Asignación de Operación; para el resto la
-            // consulta devolvería la misma lista y no se pide.
-            if (await CurrentUserService.ObtenerPerfilQueDecideAlcanceAsync()
-                == CaeManager.Application.Tenants.TenantsBeneficiariosAutorizados.RolAcotadoPorCartera)
-            {
-                _entradas = ConPapeles(_clientes, await Mediator.Send(new ObtenerClientesAutorizadosQuery { PorPapel = true }));
-                papel = await CurrentUserService.ObtenerPapelActivoAsync();
-                if (_usuarioId is { } dueno && ProveedorServicios.GetService<ILectorPapelRecordadoSelectorTenant>() is { } lector)
-                    _papelesRecordados = lector.Leer(dueno);
-            }
+            // Selector de papel (D-4; O-2 (b), Chris 2026-11-17): lo tiene quien llega a un Tenant por una Asignación de
+            // Operación, sea cual sea su perfil; no se decide aquí por el rol, sino en la consulta, con los mismos
+            // predicados que el POST. Sin ninguna (el Administrador del Tenant propio, la vía heredada) la lista vuelve
+            // sin papel y el selector queda como estaba.
+            _entradas = ConPapeles(_clientes, await Mediator.Send(new ObtenerClientesAutorizadosQuery { PorPapel = true }));
+            papel = await CurrentUserService.ObtenerPapelActivoAsync();
+            if (_usuarioId is { } dueno && ProveedorServicios.GetService<ILectorPapelRecordadoSelectorTenant>() is { } lector)
+                _papelesRecordados = lector.Leer(dueno);
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {

@@ -81,13 +81,13 @@ public class SelectorClienteActivoTests : BunitContext
         public Task Publish<T>(T notification, CancellationToken cancellationToken = default) where T : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioFalso(Func<PapelActivo>? papel = null) : ICurrentUserService
+    private sealed class UsuarioFalso(Func<PapelActivo>? papel = null, Func<string>? rol = null) : ICurrentUserService
     {
         public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel?.Invoke() ?? PapelActivo.SinPapel);
         public static readonly Guid Id = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Id);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol?.Invoke() ?? "GestorCae");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Origen);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
@@ -107,6 +107,7 @@ public class SelectorClienteActivoTests : BunitContext
     private IReadOnlyList<Guid> _recientes = [];
     private IReadOnlyList<ClienteAutorizadoDto>? _listaPorPapel;
     private PapelActivo _papel = PapelActivo.SinPapel;
+    private string _rol = "GestorCae";
     private IReadOnlyDictionary<Guid, ServicioCae> _papelesRecordados = new Dictionary<Guid, ServicioCae>();
     private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
     private int _cuantasVecesSeCalculoMiTrabajo;
@@ -123,7 +124,7 @@ public class SelectorClienteActivoTests : BunitContext
             () => _participaEnIncorporacion, () => _contextosPedidos++, () => _listaPorPapel));
         Services.AddScoped<ContextoMarcoDelAmbito>();
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
-        Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(() => _papel));
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(() => _papel, () => _rol));
         Services.AddScoped<ILectorPapelRecordadoSelectorTenant>(_ => new PapelesRecordadosFalsos(() => _papelesRecordados));
         // El Tenant efectivo es el seleccionado, como en la composición real: entra en la clave de la presentación.
         Services.AddScoped<ITenantActual>(sp =>
@@ -1027,6 +1028,50 @@ public class SelectorClienteActivoTests : BunitContext
 
         // El origen no tiene papel: su formulario no envía servicio.
         FormularioDe(cut, Origen, null, "[data-selector-tenant-origen]").Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// O-2 (b), Chris 2026-11-17: el selector de papel no mira el rol. El Administrador, la Dirección CAE, el
+    /// Coordinador CAE y la Consulta del Operador CAE externo que llegan por una Asignación de Operación Inbound reciben
+    /// sus entradas con pastilla (la consulta las decide con los predicados del POST) y el selector las pinta.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("Consulta")]
+    public async Task O2_otro_perfil_del_Operador_CAE_externo_con_Asignacion_de_Operacion_ve_el_selector_de_papel(string rol)
+    {
+        _rol = rol;
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte") with { EsCarteraGestorCae = false }];
+        _listaPorPapel =
+        [
+            Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound) with { EsCarteraGestorCae = false },
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Inbound) with { EsCarteraGestorCae = false },
+        ];
+
+        var cut = Renderizar();
+        cut.FindAll(".selector-tenant").Should().NotBeEmpty();
+        await Abrir(cut);
+
+        cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
+            .Should().BeEquivalentTo(["Outbound", "Inbound"]);
+        FormularioDe(cut, Sur, ServicioCae.Inbound).Should().NotBeNull("la entrada Inbound envía servicio=Inbound al POST, que revalida");
+    }
+
+    [Fact]
+    public void O2_el_Administrador_del_Tenant_propio_sigue_sin_selector_de_papel()
+    {
+        // Sin ninguna Asignación de Operación la consulta devuelve la lista sin papel (lo fija el handler real en
+        // ObtenerClientesAutorizadosPorPapelTests); el selector no pinta nada.
+        _rol = "Administrador";
+        _lista = [Propio()];
+        _listaPorPapel = [Propio()];
+
+        var cut = Renderizar();
+
+        cut.FindAll(".selector-tenant").Should().BeEmpty();
+        cut.FindAll(".selector-tenant-papel").Should().BeEmpty();
     }
 
     [Fact]

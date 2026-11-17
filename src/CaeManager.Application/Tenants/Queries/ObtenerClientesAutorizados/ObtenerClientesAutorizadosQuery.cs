@@ -43,23 +43,26 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 
     /// <summary>
     /// Una entrada por Asignación de Operación para el selector de papel (decisión D-4 de Chris del 2026-11-16; DN-21):
-    /// el Gestor CAE de un Operador CAE externo recibe una entrada por cada par de Tenant beneficiario y servicio
+    /// quien llega a un Tenant beneficiario por una Asignación de Operación de su Operador CAE externo, sea cual sea su
+    /// perfil de origen (Administrador, Dirección CAE, Coordinador CAE, Gestor CAE o Consulta; decisión O-2 (b) de Chris
+    /// del 2026-11-17), recibe una entrada por cada par de Tenant beneficiario y servicio
     /// (<see cref="ClienteAutorizadoDto.Servicio"/>), así que un mismo Tenant puede salir dos veces, una con Outbound y
-    /// otra con Inbound. Solo lo pide el selector de la cabecera: todos los demás lectores agrupan por Tenant y siguen
-    /// recibiendo la forma de siempre, una entrada por Tenant y sin servicio. Para cualquier otro perfil la lista es la
-    /// misma que sin esta opción. No autoriza nada: el POST <c>/cuenta/cliente-activo</c> revalida el servicio pedido.
+    /// otra con Inbound. Las deciden los mismos predicados y el mismo perfil que el POST <c>/cuenta/cliente-activo</c>.
+    /// Solo lo pide el selector de la cabecera: todos los demás lectores agrupan por Tenant y siguen recibiendo la forma
+    /// de siempre, una entrada por Tenant y sin servicio. Sin ninguna Asignación de Operación (el Administrador del Tenant
+    /// propio, la vía heredada) la lista es la misma que sin esta opción. No autoriza nada: el POST revalida el servicio pedido.
     /// </summary>
     public bool PorPapel { get; init; }
 
     /// <summary>
     /// La lista por Tenant de siempre para los lectores del Tenant activo de la interfaz (cabecera de las pantallas de un
     /// Tenant a la vez, estado 4a de las exportaciones, paleta de comandos, asistente IA, fichas y paneles no encontrados y
-    /// aviso de enlace profundo): su única fuente. Cuando el Gestor CAE tiene activo, con el papel Inbound que resolvió el
+    /// aviso de enlace profundo): su única fuente. Cuando la persona tiene activo, con el papel Inbound que resolvió el
     /// servidor (<see cref="ICurrentUserService.ObtenerPapelActivoAsync"/>), un Tenant beneficiario al que solo llega por
-    /// una Asignación de Operación Inbound (D-4), la lista añade ese Tenant, y solo ese, con
-    /// <see cref="ClienteAutorizadoDto.Servicio"/> Inbound; sin esto <see cref="ClientesAutorizados.Activo"/> caería al
-    /// Tenant de origen o al estado 4a. Con el papel Outbound, sin papel, con otro perfil o con un Tenant activo que ya está
-    /// en la lista, devuelve la lista por Tenant sin cambios. Es presentación: no autoriza nada, y el Tenant efectivo, la
+    /// una Asignación de Operación Inbound (D-4), sea cual sea su perfil de origen (O-2 (b)), la lista añade ese Tenant, y
+    /// solo ese, con <see cref="ClienteAutorizadoDto.Servicio"/> Inbound; sin esto <see cref="ClientesAutorizados.Activo"/>
+    /// caería al Tenant de origen o al estado 4a. Con el papel Outbound, sin papel, sin una Asignación de Operación Inbound
+    /// que lo autorice o con un Tenant activo que ya está en la lista, devuelve la lista por Tenant sin cambios. Es presentación: no autoriza nada, y el Tenant efectivo, la
     /// revalidación de la selección y RLS siguen decidiendo qué se lee.
     /// </summary>
     public bool ParaTenantActivo { get; init; }
@@ -88,8 +91,8 @@ public record ClienteAutorizadoDto(
     /// <summary>
     /// El servicio de la Asignación de Operación de esta entrada (el papel que el selector envía al elegirla), o
     /// <c>null</c>: siempre <c>null</c> fuera de <see cref="ObtenerClientesAutorizadosQuery.PorPapel"/>, y también ahí para
-    /// el Tenant de origen, para la vía heredada y para los perfiles que no son Gestor CAE (sin selector de papel,
-    /// § 1.4 de la interfaz Inbound y Outbound). Es una coordenada de presentación, no una autoridad.
+    /// el Tenant de origen y para la vía heredada, que no llegan por una Asignación de Operación (sin selector de papel,
+    /// § 1.4 de la interfaz Inbound y Outbound; O-2 (b)). Es una coordenada de presentación, no una autoridad.
     /// </summary>
     public ServicioCae? Servicio { get; init; }
 }
@@ -236,10 +239,12 @@ public class ObtenerClientesAutorizadosQueryHandler(
         // memoizada.
         var resultado = reales.ToList();
 
-        if (request.PorPapel && rolDeOrigen == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera)
+        // Decisión O-2 (b) de Chris (2026-11-17): el selector de papel y los lectores del Tenant activo no miran el rol,
+        // sino si la persona llega al Tenant por una Asignación de Operación; lo deciden los mismos predicados, con el
+        // mismo perfil de origen, que aplica el POST /cuenta/cliente-activo (sin ninguna, nada cambia).
+        if (request.PorPapel)
             resultado = await PorPapelAsync(resultado, usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, cancellationToken);
         else if (request.ParaTenantActivo
-                 && rolDeOrigen == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera
                  && tenantActual?.TenantId is { } activoId
                  && resultado.All(c => c.TenantId != activoId)
                  && await TenantActivoSoloInboundAsync(
@@ -257,18 +262,21 @@ public class ObtenerClientesAutorizadosQueryHandler(
     }
 
     /// <summary>
-    /// Una entrada por Asignación de Operación vigente del Gestor CAE (D-4): la de Outbound es la entrada de cartera de
-    /// siempre (<see cref="ClienteAutorizadoDto.EsCarteraGestorCae"/>, el mismo predicado
-    /// <see cref="TenantsBeneficiariosAutorizados.OperacionesQueAutorizan"/>) con su servicio; la de Inbound sale de
-    /// <see cref="TenantsBeneficiariosAutorizados.OperacionesInboundQueAutorizan"/>, el predicado que aplica el POST con
-    /// <c>servicio=Inbound</c>, y existe aunque el Tenant no tenga entrada de Outbound. El origen y la vía heredada quedan
-    /// como estaban, sin servicio. Se lee siempre de la base (sin memo): la clave del memo no distingue esta forma.
+    /// Una entrada por Asignación de Operación que autoriza a esta persona (D-4; O-2 (b): sea cual sea su perfil de
+    /// origen): la de Outbound es la entrada por Operación de siempre (<see cref="ClienteAutorizadoDto.EsGestionadoPorOperacion"/>,
+    /// el predicado <see cref="TenantsBeneficiariosAutorizados.OperacionesQueAutorizan"/> que aplica el POST sin servicio o
+    /// con Outbound) con su servicio; la de Inbound sale de <see cref="TenantsBeneficiariosAutorizados.OperacionesInboundQueAutorizan"/>,
+    /// el predicado que aplica el POST con <c>servicio=Inbound</c>, y existe aunque el Tenant no tenga entrada de Outbound.
+    /// Una entrada Inbound es de cartera de Gestor CAE (<see cref="ClienteAutorizadoDto.EsCarteraGestorCae"/>) solo con
+    /// ese perfil, como la de Outbound. El origen y la vía heredada quedan como estaban, sin servicio. Se lee siempre de
+    /// la base (sin memo): la clave del memo no distingue esta forma.
     /// </summary>
     private async Task<List<ClienteAutorizadoDto>> PorPapelAsync(
         List<ClienteAutorizadoDto> porTenant, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         CancellationToken cancellationToken)
     {
         var ahora = DateTime.UtcNow;
+        var esCarteraGestorCae = rolDeOrigen == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera;
         var inboundIds = (await TenantsBeneficiariosAutorizados
             .OperacionesInboundQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .Select(o => o.PropietarioTenantId)
@@ -286,16 +294,16 @@ public class ObtenerClientesAutorizadosQueryHandler(
                 .ToListAsync(cancellationToken);
 
         var externos = porTenant
-            .Where(c => !c.EsOrigen && c.EsCarteraGestorCae)
+            .Where(c => !c.EsOrigen && c.EsGestionadoPorOperacion)
             .Select(c => c with { Servicio = ServicioCae.Outbound })
-            .Concat(porTenant.Where(c => !c.EsOrigen && !c.EsCarteraGestorCae))
+            .Concat(porTenant.Where(c => !c.EsOrigen && !c.EsGestionadoPorOperacion))
             .Concat(inboundIds
                 .Select(id => conocidos.TryGetValue(id, out var c)
                     ? new ClienteAutorizadoDto(id, c.Nombre, EsOrigen: false, EsGestionadoPorOperacion: true,
-                        LogoVersion: c.LogoVersion, EsCarteraGestorCae: true)
+                        LogoVersion: c.LogoVersion, EsCarteraGestorCae: esCarteraGestorCae)
                     : nombresInbound.Where(t => t.Id == id)
                         .Select(t => new ClienteAutorizadoDto(t.Id, t.Nombre, EsOrigen: false, EsGestionadoPorOperacion: true,
-                            LogoVersion: t.LogoVersion, EsCarteraGestorCae: true))
+                            LogoVersion: t.LogoVersion, EsCarteraGestorCae: esCarteraGestorCae))
                         .FirstOrDefault())
                 .OfType<ClienteAutorizadoDto>()
                 .Select(c => c with { Servicio = ServicioCae.Inbound }))
@@ -307,9 +315,10 @@ public class ObtenerClientesAutorizadosQueryHandler(
     }
 
     /// <summary>
-    /// La entrada del Tenant activo que el Gestor CAE alcanza solo por Inbound (<see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>),
-    /// o <c>null</c>: exige el papel Inbound resuelto por el servidor y el mismo predicado que el POST con
-    /// <c>servicio=Inbound</c> y que la entrada Inbound del selector (<see cref="TenantsBeneficiariosAutorizados.OperacionesInboundQueAutorizan"/>).
+    /// La entrada del Tenant activo que la persona alcanza solo por Inbound (<see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>),
+    /// o <c>null</c>: exige el papel Inbound resuelto por el servidor y el mismo predicado, con el mismo perfil de origen,
+    /// que el POST con <c>servicio=Inbound</c> y que la entrada Inbound del selector
+    /// (<see cref="TenantsBeneficiariosAutorizados.OperacionesInboundQueAutorizan"/>), sea cual sea ese perfil (O-2 (b)).
     /// Nunca el Tenant de origen. Se lee de la base (sin memo), y solo cuando el Tenant activo no está en la lista por Tenant.
     /// </summary>
     private async Task<ClienteAutorizadoDto?> TenantActivoSoloInboundAsync(
@@ -330,7 +339,8 @@ public class ObtenerClientesAutorizadosQueryHandler(
         return tenant is null
             ? null
             : new ClienteAutorizadoDto(tenant.Id, tenant.Nombre, EsOrigen: false, EsGestionadoPorOperacion: true,
-                LogoVersion: tenant.LogoVersion, EsCarteraGestorCae: true)
+                LogoVersion: tenant.LogoVersion,
+                EsCarteraGestorCae: rolDeOrigen == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera)
             { Servicio = ServicioCae.Inbound };
     }
 

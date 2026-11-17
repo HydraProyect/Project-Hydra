@@ -16,7 +16,7 @@ public sealed record ContextoEmpresaActiva(ClienteAutorizadoDto? Activa, bool Si
 
     /// <summary>
     /// Resuelve el contexto con la lista autorizada de los lectores del Tenant activo
-    /// (<see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>: incluye el Tenant que el Gestor CAE tiene activo
+    /// (<see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>: incluye el Tenant que la persona tiene activo
     /// con papel Inbound aunque no esté en la lista por Tenant, D-4) y el Tenant efectivo. Las pantallas no montan su lista ni
     /// sus acciones hasta que esto termina (<c>_resolviendoEmpresa</c>), para no lanzar cargas del Tenant de
     /// origen mientras la consulta está en vuelo.
