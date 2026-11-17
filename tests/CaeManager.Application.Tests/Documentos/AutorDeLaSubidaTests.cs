@@ -60,7 +60,17 @@ public class AutorDeLaSubidaTests
     public void Sin_identidad_resuelta_la_version_queda_sin_autor()
     {
         AutorDeLaSubida.Desde(ActorAuditoria.SinResolver).Should().Be(AutorVersionDocumento.Desconocido);
-        AutorDeLaSubida.Desde(ActorAuditoria.Normal(Guid.Empty)).Should().Be(AutorVersionDocumento.Desconocido);
+    }
+
+    [Fact]
+    public void Una_persona_con_Id_vacio_no_pasa_a_sin_autor_sino_que_la_subida_falla()
+    {
+        var conActorVacio = () => AutorDeLaSubida.Desde(ActorAuditoria.Normal(Guid.Empty));
+        var conSimuladoVacio = () => AutorDeLaSubida.Desde(
+            new ActorAuditoria(ActorReal, Guid.Empty, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()));
+
+        conActorVacio.Should().Throw<ArgumentException>("«sin autor» es el estado validable: una identidad corrupta falla cerrada");
+        conSimuladoVacio.Should().Throw<ArgumentException>();
     }
 
     [Fact]

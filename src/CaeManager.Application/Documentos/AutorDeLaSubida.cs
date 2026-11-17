@@ -14,6 +14,11 @@ namespace CaeManager.Application.Documentos;
 /// identidad resuelta, pero no es una persona) o una identidad sin resolver dejan la versión sin autor, que cae en
 /// D-12.1.
 /// </para>
+///
+/// <para>
+/// Una persona con un Id vacío no pasa a «sin autor», que es el estado que se puede validar: es una identidad
+/// corrupta y la subida falla, porque <see cref="AutorVersionDocumento.Persona"/> lanza.
+/// </para>
 /// </summary>
 public static class AutorDeLaSubida
 {
@@ -25,9 +30,7 @@ public static class AutorDeLaSubida
 
     public static AutorVersionDocumento Desde(ActorAuditoria actor)
     {
-        if (actor.ResolverTipoActor() != TipoActor.Persona
-            || actor.ActorRealUsuarioId is not { } actorReal || actorReal == Guid.Empty
-            || actor.UsuarioSimuladoId == Guid.Empty)
+        if (actor.ResolverTipoActor() != TipoActor.Persona || actor.ActorRealUsuarioId is not { } actorReal)
             return AutorVersionDocumento.Desconocido;
 
         return AutorVersionDocumento.Persona(actor.UsuarioSimuladoId ?? actorReal, actorReal);
