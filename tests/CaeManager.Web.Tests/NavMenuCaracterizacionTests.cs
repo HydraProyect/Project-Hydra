@@ -591,9 +591,100 @@ public class NavMenuCaracterizacionTests
             ["control"] = LineaMenu.Outbound,
             ["inbound"] = LineaMenu.Inbound,
             ["inbound-config"] = LineaMenu.Inbound,
+            ["inbound-tec"] = LineaMenu.SinLinea,
             ["administracion"] = LineaMenu.SinLinea,
             ["plataforma"] = LineaMenu.SinLinea,
         });
+    }
+
+    // Grupo «Mis Clientes empresariales» del Tenant TEC (demo P4, D6) en el menú pintado: lo que diga IEsTenantTecInbound llega a
+    // ContextoMenuLateral; sin servicio o si falla, no hay grupo. Independiente de la línea Inbound.
+    private static IRenderedComponent<NavMenu> PintarConTenantTec(string tenantTec, string rol = Roles.Administrador, bool lineaInbound = false)
+    {
+        var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
+        ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(rol);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(Options.Create(new ComunicacionesOptions { Activo = false }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
+            new Combinacion(rol, null, false, false, PerfilVocabularioTenant.Consultora, 1)));
+        ctx.Services.AddSingleton<ILineaInboundVigente>(new LineaInboundDePrueba(lineaInbound ? "vigente" : "no-vigente"));
+        if (tenantTec != "sin-servicio")
+            ctx.Services.AddSingleton<IEsTenantTecInbound>(new TenantTecDePrueba(tenantTec));
+        return ctx.Render<NavMenu>();
+    }
+
+    [Theory]
+    [InlineData("concedida", true)]
+    [InlineData("sin-autorizacion", false)]
+    [InlineData("falla", false)]
+    [InlineData("sin-servicio", false)]
+    public void El_grupo_del_Tenant_TEC_del_menu_pintado_sigue_a_la_autorizacion_concedida(string tenantTec, bool esperado)
+    {
+        var cut = PintarConTenantTec(tenantTec);
+
+        cut.FindAll("[data-grupo]").Any(g => g.GetAttribute("data-grupo") == "inbound-tec").Should().Be(esperado, $"Tenant TEC «{tenantTec}»");
+        cut.FindAll("[data-grupo]").Any(g => g.GetAttribute("data-grupo") == "inbound")
+            .Should().BeFalse("sin la línea Inbound no hay sección del Tenant TCE, con o sin grupo del Tenant TEC");
+        cut.FindAll(".nav-linea-rotulo").Should().BeEmpty("con una sola línea de producto visible no hay rótulos; el grupo del Tenant TEC no es una línea");
+    }
+
+    [Fact]
+    public void Quien_no_es_Administrador_no_ve_el_grupo_del_Tenant_TEC_pintado()
+    {
+        var cut = PintarConTenantTec("concedida", Roles.GestorCae);
+
+        cut.FindAll("[data-grupo]").Select(g => g.GetAttribute("data-grupo")).Should().NotContain("inbound-tec");
+        cut.FindAll("[data-enlace]").Select(e => e.GetAttribute("data-enlace")).Should().NotContain("inbound-requerimientos");
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Mis Clientes", "Requerimientos", "Quién lee mis documentos")]
+    [InlineData("ca-ES", "Els meus Clients", "Requeriments", "Qui llegeix els meus documents")]
+    public void El_grupo_del_Tenant_TEC_pinta_titulo_y_enlaces_en_cada_idioma(string cultura, string titulo, string requerimientos, string quienLee)
+    {
+        var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = PintarConTenantTec("concedida");
+
+            var grupo = cut.Find("[data-grupo=inbound-tec]");
+            grupo.QuerySelector("summary .nav-grupo-rotulo")!.TextContent.Trim().Should().Be(titulo);
+            grupo.QuerySelectorAll("a").Select(a => (Href: a.GetAttribute("href"), Texto: Regex.Replace(a.TextContent, @"\s+", " ").Trim()))
+                .Should().Equal(("inbound/requerimientos", requerimientos), ("inbound/quien-lee", quienLee));
+            grupo.HasAttribute("open").Should().BeTrue("nace abierto");
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = anterior;
+        }
+    }
+
+    [Fact]
+    public void El_grupo_del_Tenant_TEC_tiene_su_texto_en_el_recurso_catalan_propio()
+    {
+        // Con valores que coinciden con el neutral, ResourceManager caería a él si faltara la clave en ca-ES: se comprueba que está
+        // en su propio recurso y que el catalán no repite el castellano.
+        var recurso = new System.Resources.ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes))
+            .GetResourceSet(System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), createIfNotExists: true, tryParents: false);
+        recurso.Should().NotBeNull();
+
+        recurso!.GetString("MenuGrupoInboundTec").Should().Be("Els meus Clients");
+        recurso.GetString("MenuInboundRequerimientos").Should().Be("Requeriments");
+        recurso.GetString("MenuInboundQuienLee").Should().Be("Qui llegeix els meus documents");
+    }
+
+    private sealed class TenantTecDePrueba(string estado) : IEsTenantTecInbound
+    {
+        public Task<bool> EsAsync(CancellationToken cancellationToken = default) => estado switch
+        {
+            "concedida" => Task.FromResult(true),
+            "falla" => throw new InvalidOperationException("lectura de autorizaciones no disponible"),
+            _ => Task.FromResult(false),
+        };
     }
 
     private sealed class LineaInboundDePrueba(string linea) : ILineaInboundVigente

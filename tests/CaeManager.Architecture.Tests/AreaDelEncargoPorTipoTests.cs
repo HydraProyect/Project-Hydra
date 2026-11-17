@@ -161,6 +161,7 @@ namespace CaeManager.Architecture.Tests
             "RevocarAutorizacionLecturaCommand",
             "RevocarClaveApiCommand",
             "RevocarClaveApiDeMiOrganizacionCommand",
+            "TieneAutorizacionLecturaConcedidaQuery",
             "ValidarContactoSeguridadCommand",
         ];
 

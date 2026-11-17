@@ -145,7 +145,7 @@
         {
             <details class="nav-grupo-detalle" data-grupo="@grupo.Id" data-abierto-defecto="@(grupo.AbiertoPorDefecto ? "true" : "false")" open="@grupo.AbiertoPorDefecto">
                 <summary class="nav-grupo-titulo" aria-expanded="@(grupo.AbiertoPorDefecto ? "true" : "false")">
-                    <span class="nav-grupo-rotulo">@grupo.Titulo</span>
+                    <span class="nav-grupo-rotulo">@grupo.TituloEn(Textos)</span>
                     <span class="nav-grupo-extremo">
                         <span class="nav-grupo-punto" aria-hidden="true"></span>
                         <span class="nav-solo-lector">@Textos["MenuGrupoContieneActual"]</span>
@@ -247,6 +247,21 @@
             }
         }
 
+        // Gate del grupo «Mis Clientes empresariales» (Tenant TEC, D6): al menos una autorización de lectura documental concedida
+        // por el Tenant activo (IEsTenantTecInbound). Independiente de la línea Inbound; misma forma y mismo fallo cerrado.
+        var esTenantTecInbound = false;
+        if (Servicios.GetService<IEsTenantTecInbound>() is { } tenantTec)
+        {
+            try
+            {
+                esTenantTecInbound = await tenantTec.EsAsync();
+            }
+            catch (Exception)
+            {
+                esTenantTecInbound = false;
+            }
+        }
+
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             marco.EsAdministradorPlataforma, marco.PerfilVocabulario, VariosTenants: marco.ClientesAutorizados.Count > 1,
@@ -254,7 +269,8 @@
             RotulosPrimeraPersona: marco.RotulosPrimeraPersona,
             HerramientasPdfDisponibles: herramientasPdfDisponibles,
             MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios),
-            LineaInboundVigente: lineaInboundVigente);
+            LineaInboundVigente: lineaInboundVigente,
+            EsTenantTecInbound: esTenantTecInbound);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

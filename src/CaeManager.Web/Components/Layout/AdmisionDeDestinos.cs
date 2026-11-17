@@ -216,10 +216,26 @@ public static class AdmisionDeDestinos
             }
         }
 
+        // Gate del grupo «Mis Clientes empresariales» (Tenant TEC, D6): el mismo que el del menú lateral (NavMenu), con la misma
+        // forma que el de la línea Inbound. Falla cerrado: sin sesión, sin el servicio registrado o si falla, no.
+        var esTenantTecInbound = false;
+        if (usuario.Identity?.IsAuthenticated == true && servicios.GetService<IEsTenantTecInbound>() is { } tenantTec)
+        {
+            try
+            {
+                esTenantTecInbound = await tenantTec.EsAsync(ct);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                esTenantTecInbound = false;
+            }
+        }
+
         return new ContextoMenuLateral(
             usuario, vista, comunicacionesActivo, esAdministradorPlataforma,
             default(PerfilVocabularioTenant), VariosTenants: false,
             MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(servicios),
-            LineaInboundVigente: lineaInboundVigente);
+            LineaInboundVigente: lineaInboundVigente,
+            EsTenantTecInbound: esTenantTecInbound);
     }
 }

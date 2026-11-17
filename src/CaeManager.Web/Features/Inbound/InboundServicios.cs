@@ -19,6 +19,7 @@ public static class InboundServicios
     public static IServiceCollection Registrar(IServiceCollection servicios)
     {
         servicios.AddScoped<ILineaInboundVigente, LineaInboundVigenteDelProductoContratado>();
+        servicios.AddScoped<IEsTenantTecInbound, EsTenantTecPorAutorizacionConcedida>();
         servicios.AddScoped<IActividadDeContratoAcceso, ActividadDeContratoAccesoNoDisponible>();
         servicios.AddScoped<ISelectorEmpresasContratistas, SelectorEmpresasContratistasNoDisponible>();
         servicios.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroNoDisponible>();

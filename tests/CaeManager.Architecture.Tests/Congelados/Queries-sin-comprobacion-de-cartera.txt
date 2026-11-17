@@ -32,6 +32,9 @@ Auditoria.Queries :: ObtenerAccesosDocumentosSensiblesQueryHandler[Auditoria.Que
 Auditoria.Queries :: ObtenerAuditoriaQueryHandler[Auditoria.Queries.ObtenerAuditoriaQuery] = 1
 Auditoria.Queries :: ObtenerRegistroAuditoriaPorIdQueryHandler[Auditoria.Queries.ObtenerRegistroAuditoriaPorIdQuery] = 1
 Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
+# Grupo «Mis Clientes empresariales» del menu (Tenant TEC, D6): lee solo si el Tenant activo tiene alguna autorizacion de lectura
+# concedida (vigente y sin revocar) y devuelve un booleano para la interfaz, nunca una fila; la autorizacion no tiene cartera.
+Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida :: TieneAutorizacionLecturaConcedidaQueryHandler[Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQuery] = 1
 Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
 Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1
 BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1

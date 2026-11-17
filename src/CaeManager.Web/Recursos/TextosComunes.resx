@@ -923,4 +923,13 @@
   <data name="MenuInboundGobierno" xml:space="preserve">
     <value>Gobierno de Inbound</value>
   </data>
+  <data name="MenuGrupoInboundTec" xml:space="preserve">
+    <value>Mis Clientes</value>
+  </data>
+  <data name="MenuInboundRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="MenuInboundQuienLee" xml:space="preserve">
+    <value>Quién lee mis documentos</value>
+  </data>
 </root>

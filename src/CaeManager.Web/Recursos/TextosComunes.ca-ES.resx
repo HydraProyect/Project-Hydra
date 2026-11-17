@@ -908,4 +908,13 @@
   <data name="MenuInboundGobierno" xml:space="preserve">
     <value>Govern d&apos;Inbound</value>
   </data>
+  <data name="MenuGrupoInboundTec" xml:space="preserve">
+    <value>Els meus Clients</value>
+  </data>
+  <data name="MenuInboundRequerimientos" xml:space="preserve">
+    <value>Requeriments</value>
+  </data>
+  <data name="MenuInboundQuienLee" xml:space="preserve">
+    <value>Qui llegeix els meus documents</value>
+  </data>
 </root>
