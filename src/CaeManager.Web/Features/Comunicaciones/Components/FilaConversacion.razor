@@ -7,7 +7,7 @@
 @inject IStringLocalizer<TextosPlazosConversacion> TextosPrioridades
 @inject IStringLocalizer<TextosPlazoConversacion> TextosPlazo
 
-<li class="bandeja-fila fila-conversacion@(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
+<li class="bandeja-fila fila-conversacion @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <span class="bandeja-fila-avatar" aria-hidden="true">
         @ObtenerIniciales(Conversacion.RemitentePrincipal)
         <span class="bandeja-fila-canal bandeja-fila-canal-@Conversacion.Canal.ToString().ToLowerInvariant()" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">

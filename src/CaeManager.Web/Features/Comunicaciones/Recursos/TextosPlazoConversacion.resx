@@ -14,6 +14,7 @@
   </resheader>
   <data name="Plazo" xml:space="preserve"><value>Plazo</value></data>
   <data name="FueraDePlazo" xml:space="preserve"><value>Fuera de plazo · {0}</value></data>
+  <data name="FueraDePlazoSinCifra" xml:space="preserve"><value>Fuera de plazo</value></data>
   <data name="PorVencer" xml:space="preserve"><value>Por vencer · {0}</value></data>
   <data name="Quedan" xml:space="preserve"><value>Quedan {0}</value></data>
   <data name="Minutos" xml:space="preserve"><value>{0} min</value></data>

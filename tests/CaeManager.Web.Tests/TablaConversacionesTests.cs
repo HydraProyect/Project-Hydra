@@ -58,6 +58,17 @@ public class TablaConversacionesTests : BunitContext
     }
 
     [Fact]
+    public void Un_plazo_a_cero_con_el_vencimiento_ya_pasado_es_fuera_de_plazo_y_no_por_vencer()
+    {
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones,
+            [CrearConversacion() with { SlaRestante = TimeSpan.Zero, VencimientoSlaUtc = DateTime.UtcNow.AddHours(-10) }]));
+
+        var plazo = cut.FindAll("[role=cell]")[5].QuerySelector(".plazo-conversacion")!;
+        plazo.TextContent.Trim().Should().Be("Fuera de plazo");
+        plazo.ClassList.Should().Contain("plazo-conversacion-vencido");
+    }
+
+    [Fact]
     public void Sin_plazo_la_celda_de_Plazo_queda_vacia()
     {
         var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
@@ -71,7 +82,8 @@ public class TablaConversacionesTests : BunitContext
         var con = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion() with { NumeroTicket = 10479 }]));
         var sin = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion() with { NumeroTicket = 0 }]));
 
-        con.Find(".tabla-conversaciones-remitente").TextContent.Should().StartWith("Nº 10479 · contacto@example.invalid");
+        con.Find(".tabla-conversaciones-remitente").TextContent.Should().StartWith("Nº 10479 · contacto@example.invalid")
+            .And.MatchRegex(@" · \d{2}/\d{2}/\d{4} \d{2}:\d{2}$", "la fecha va separada del remitente por « · »");
         sin.Find(".tabla-conversaciones-remitente").TextContent.Should().StartWith("contacto@example.invalid").And.NotContain("Nº");
     }
 
@@ -83,6 +95,8 @@ public class TablaConversacionesTests : BunitContext
         var nota = cut.Find(".tabla-conversaciones-nota").TextContent;
         nota.Should().Contain("de 8:00 a 10:00 y de 10:30 a 15:00, y de 16:00 a 17:00")
             .And.Contain("Crítica, 1 h. Urgente, 4 h. Normal, 1 día laborable.")
+            .And.Contain("salvo los viernes, en julio y agosto y la víspera de un festivo")
+            .And.Contain("Los festivos los fija cada Operador CAE.")
             .And.Contain("menos de 2 h");
         nota.Should().NotContain("8:00 a 18:00");
     }

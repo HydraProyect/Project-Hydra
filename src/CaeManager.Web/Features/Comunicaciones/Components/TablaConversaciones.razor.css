@@ -126,6 +126,11 @@
     .tabla-conversaciones-cabecera > :nth-child(n+4) {
         display: none;
     }
+
+    /* Sin plazo la celda de Plazo queda vacía: apilada, dejaría una fila de alto 0 más su hueco. */
+    .tabla-conversaciones-fila > [role=cell]:empty {
+        display: none;
+    }
 }
 
 @media (max-width: 640px) {

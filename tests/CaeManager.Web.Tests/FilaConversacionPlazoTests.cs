@@ -63,6 +63,28 @@ public class FilaConversacionPlazoTests : BunitContext
     }
 
     [Fact]
+    public void Un_plazo_a_cero_es_vencido_o_por_vencer_segun_el_vencimiento()
+    {
+        // Vencido el viernes a las 15:00 y es sábado: no hay tiempo laborable entre medias, así que el servidor da 0 y no un negativo.
+        var vencido = Plazo(Render(Crear(TimeSpan.Zero) with { VencimientoSlaUtc = DateTime.UtcNow.AddHours(-10) }));
+        vencido.TextContent.Trim().Should().Be("Fuera de plazo");
+        vencido.ClassList.Should().Contain("plazo-conversacion-vencido");
+
+        // Vivo, pero sin tiempo laborable hasta que abra mañana: «0 min», en ámbar.
+        var vivo = Plazo(Render(Crear(TimeSpan.Zero) with { VencimientoSlaUtc = DateTime.UtcNow.AddHours(10) }));
+        vivo.TextContent.Trim().Should().Be("Por vencer · 0 min");
+        vivo.ClassList.Should().Contain("plazo-conversacion-por-vencer");
+    }
+
+    [Fact]
+    public void La_fila_activa_conserva_su_clase_de_seleccion_junto_a_la_propia_del_componente()
+    {
+        var clases = Render<FilaConversacion>(p => p.Add(c => c.Conversacion, Crear(null)).Add(c => c.Activa, true)).Find("li").ClassList;
+
+        clases.Should().Contain(["bandeja-fila", "fila-conversacion", "bandeja-fila-activa"]);
+    }
+
+    [Fact]
     public void Sin_plazo_no_pinta_nada()
     {
         var fila = Render(Crear(null));
