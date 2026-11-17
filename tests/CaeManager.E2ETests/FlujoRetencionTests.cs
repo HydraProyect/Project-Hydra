@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -50,7 +51,22 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 
         // --- Detectar ---
-        await page.GetByRole(AriaRole.Button, new() { Name = "Buscar datos que hayan cumplido plazo", Exact = true }).ClickAsync();
+        var botonBuscar = page.GetByRole(AriaRole.Button, new() { Name = "Buscar datos que hayan cumplido plazo", Exact = true });
+        await botonBuscar.ClickAsync();
+
+        // Barrera (#2187): que haya una tabla visible no prueba que Buscar haya terminado. En el run 43122999105, anterior
+        // a #2198, «He avisado a la organización» se pulsó a ~15 ms del fin de BuscarDatosPurgablesCommand y
+        // MarcarTenantAvisadoCommand no llegó al mediador. Por qué se perdió ese clic no está demostrado. El mecanismo
+        // probable era la carga inicial, que comparte la PuertaAccesoDatos del circuito con el Command: al correr
+        // detrás de él, pintaba sus propuestas con la recarga de Buscar aún en vuelo. #2198 lo cierra en producto, y
+        // esta espera no depende de esa causa: el test no toca la tabla mientras Buscar siga en curso. El aviso de
+        // Buscar sale cuando el Command ha terminado, y el botón solo vuelve a habilitarse cuando BuscarAsync ha
+        // terminado del todo, recarga incluida (Cargando="_buscando", Deshabilitado="… || _cargando"). Vale cualquiera
+        // de los dos avisos de éxito: la barrera no depende de quién creó las propuestas, que se comprueban abajo.
+        await Assertions.Expect(page.Locator(".anfitrion-toasts")).ToContainTextAsync(
+            new Regex(@"propuesta\(s\) nueva\(s\) pendientes de revisión\.|Ningún dato ha cumplido todavía su plazo\."),
+            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Assertions.Expect(botonBuscar).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 15_000 });
 
         var tabla = page.Locator(".tabla-datos");
         await tabla.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
@@ -66,7 +82,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         // --- Avisar (solo la fila de Documentos sigue el camino completo) ---
         await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "He avisado a la organización", Exact = true }).ClickAsync();
-        await AsegurarTextoEnFilaAsync(filaDocumentos, "Organización avisada");
+        await AsegurarTextoEnFilaAsync(page, filaDocumentos, "Organización avisada");
 
         // --- Autorizar, con fecha de ejecución de hoy mismo para poder
         // ejecutar en el mismo test sin esperar 30 días ---
@@ -76,9 +92,9 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await Ayudas.RellenarFechaAsync(modalAutorizar.GetByLabel("Fecha de ejecución"), Ayudas.HoyDeNegocio());
         await modalAutorizar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
-        await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        await EsperarCierreAsync(page, modalAutorizar);
 
-        await AsegurarTextoEnFilaAsync(filaDocumentos, "Lista para ejecutar");
+        await AsegurarTextoEnFilaAsync(page, filaDocumentos, "Lista para ejecutar");
 
         // --- Ejecutar ---
         await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "Ejecutar ahora", Exact = true }).ClickAsync();
@@ -86,9 +102,9 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         var modalEjecutar = page.GetByRole(AriaRole.Dialog, new() { Name = "Ejecutar la destrucción", Exact = true });
         await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalEjecutar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Destruir definitivamente", Exact = true }).ClickAsync();
-        await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        await EsperarCierreAsync(page, modalEjecutar);
 
-        await AsegurarTextoEnFilaAsync(filaDocumentos, "Ejecutada el");
+        await AsegurarTextoEnFilaAsync(page, filaDocumentos, "Ejecutada el");
 
         // --- La otra propuesta se descarta en vez de ejecutarse — camino
         // alternativo, no todo lo detectado termina en destrucción ---
@@ -98,9 +114,9 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalDescartar.GetByLabel("Motivo").FillAsync("E2E: la organización conserva estos registros por política interna (P1-19)");
         await modalDescartar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Descartar", Exact = true }).ClickAsync();
-        await modalDescartar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        await EsperarCierreAsync(page, modalDescartar);
 
-        await AsegurarTextoEnFilaAsync(filaTrabajadores, "Descartada");
+        await AsegurarTextoEnFilaAsync(page, filaTrabajadores, "Descartada");
         traza.Superada();
     }
 
@@ -145,7 +161,70 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
     /// El QuickGrid/tabla se reconstruye tras cada Command (nueva consulta a
     /// ObtenerSolicitudesPurgaQuery) — esperar el texto en vez de leer una
     /// sola vez evita una carrera con el re-render.
+    ///
+    /// <para>
+    /// Si el texto no llega, el mensaje lleva el estado de la pantalla en ese momento (filas de la tabla y avisos),
+    /// para que la próxima aparición de un intermitente diga qué se vio y no solo qué faltó (#2187).
+    /// </para>
     /// </summary>
-    private static async Task AsegurarTextoEnFilaAsync(ILocator fila, string textoEsperado) =>
-        await fila.GetByText(textoEsperado).WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+    private static async Task AsegurarTextoEnFilaAsync(IPage page, ILocator fila, string textoEsperado)
+    {
+        try
+        {
+            await fila.GetByText(textoEsperado).WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TimeoutException(
+                $"«{textoEsperado}» no apareció en la fila en 10 s. {await DescribirPantallaAsync(page)}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Espera a que el diálogo se cierre; si no se cierra, el mensaje lleva su texto, que es donde el
+    /// <c>ModalFormulario</c> enseña el error del servidor o de validación (p. ej. «Indica una fecha válida.»).
+    /// </summary>
+    private static async Task EsperarCierreAsync(IPage page, ILocator modal)
+    {
+        try
+        {
+            await modal.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        }
+        catch (TimeoutException ex)
+        {
+            string textoModal;
+            try
+            {
+                textoModal = string.Join(" | ", await modal.AllInnerTextsAsync());
+            }
+            catch (PlaywrightException errorLectura)
+            {
+                textoModal = $"no se pudo leer ({errorLectura.Message})";
+            }
+
+            throw new TimeoutException(
+                $"El diálogo sigue abierto a los 10 s. Diálogo: [{textoModal}]. {await DescribirPantallaAsync(page)}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Lectura sin espera (AllInnerTexts no aguarda a que exista nada): solo instrumenta el mensaje del fallo. Si la
+    /// página ya no responde, lo dice en vez de lanzar, para no tapar el TimeoutException original.
+    /// </summary>
+    private static async Task<string> DescribirPantallaAsync(IPage page)
+    {
+        try
+        {
+            var filas = await page.Locator(".tabla-datos tbody tr").AllInnerTextsAsync();
+            var avisos = await page.Locator(".anfitrion-toasts").AllInnerTextsAsync();
+            return $"Filas de la tabla ({filas.Count}): [{string.Join(" | ", filas.Select(Compactar))}]. " +
+                   $"Avisos: [{string.Join(" | ", avisos.Select(Compactar))}].";
+        }
+        catch (PlaywrightException ex)
+        {
+            return $"Pantalla no disponible para describirla ({ex.Message}).";
+        }
+
+        static string Compactar(string texto) => string.Join(' ', texto.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
 }
