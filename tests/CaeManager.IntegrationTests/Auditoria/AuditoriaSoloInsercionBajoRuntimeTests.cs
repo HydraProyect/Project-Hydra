@@ -105,7 +105,7 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
         {
             comandoSelect.CommandText = """SELECT COUNT(*) FROM "RegistrosActividadSoporte";""";
             ((long)(await comandoSelect.ExecuteScalarAsync())!).Should().Be(0,
-                "sin Administrador del Tenant en el contexto, la política restrictiva no entrega la fila");
+                "sin Administrador del Tenant en el contexto, ninguna política de lectura del runtime entrega la fila");
         }
 
         await using var comandoUpdate = conexionRuntime.CreateCommand();

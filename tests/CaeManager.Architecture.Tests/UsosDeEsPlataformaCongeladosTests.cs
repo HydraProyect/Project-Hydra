@@ -507,9 +507,10 @@ public class UsosDeEsPlataformaCongeladosTests
                 "qué cuenta admite. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261117120000_SoloElAdministradorLeeLaActividadDeSoporte.cs"] =
             new(1, CategoriaUso.MigracionManual,
-                "rama de la plataforma de la política AS RESTRICTIVE solo_el_administrador_o_la_plataforma_de_la_visita " +
-                "(RegistrosActividadSoporte): la rama esLaPlataforma de ObtenerActividadSoporteQuery en SQL, para que la " +
-                "barrera de rol del Administrador no le quite a Soporte TALVEG la traza de su propia visita. Solo restringe"),
+                "política PERMISSIVE de SELECT plataforma_lee_su_visita (RegistrosActividadSoporte, solo cae_app_runtime): " +
+                "la rama esLaPlataforma de ObtenerActividadSoporteQuery en SQL, para que la barrera de rol del " +
+                "Administrador no le quite a Soporte TALVEG la traza de su propia visita. Solo dentro del Tenant del " +
+                "contexto, así que no ve nada que aislamiento_tenant no dejara ver antes"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
             new(2, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +

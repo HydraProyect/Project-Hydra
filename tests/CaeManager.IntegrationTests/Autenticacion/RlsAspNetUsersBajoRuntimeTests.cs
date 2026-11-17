@@ -200,7 +200,7 @@ public class RlsAspNetUsersBajoRuntimeTests
         });
         visibles.Should().NotContain(
             e.SoporteP.Id,
-            "G3 lee RegistrosActividadSoporte con los privilegios de quien consulta, y su política restrictiva " +
+            "G3 lee RegistrosActividadSoporte con los privilegios de quien consulta, y su lectura bajo el runtime " +
             "solo entrega la actividad al Administrador de X (SoloElAdministradorLeeLaActividadDeSoporte)");
         visibles.Should().NotContain(e.AjenaY.Id, "no guarda ninguna relación con X");
         visibles.Should().NotContain(
