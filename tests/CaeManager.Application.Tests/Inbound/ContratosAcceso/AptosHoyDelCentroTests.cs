@@ -632,7 +632,7 @@ public class AptosHoyDelCentroTests
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(ahora ?? Ahora));
         var handler = new ObtenerAptosHoyDelCentroQueryHandler(
             _contratos, new EvidenciasQueryContextFalso(_evidencias), new PlantillasRequisitosQueryContextFalso(_plantillas), _tipos,
-            alcance ?? new AlcanceDatosServiceFalso());
+            alcance ?? new AlcanceDatosServiceFalso(), new AutorizacionInboundQuePermite());
         return await handler.Handle(new ObtenerAptosHoyDelCentroQuery(centro ?? _centro), CancellationToken.None);
     }
 

@@ -1,4 +1,4 @@
-using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+﻿using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
@@ -90,10 +90,10 @@ public class AptosHoyDelCentroConBackendTests
             ],
         };
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
         aptos.Should().NotBeNull();
-        aptos!.Should().HaveCount(3);
+        aptos.Should().HaveCount(3);
         aptos.Should().OnlyContain(a => a.EmpresaContratista == "Montajes Moncayo S.L." && a.TipoDeContrato == "Recurrente");
         aptos.Should().OnlyContain(a => a.DniParcial == "****678Z", "el DNI sale siempre enmascarado");
 
@@ -127,9 +127,9 @@ public class AptosHoyDelCentroConBackendTests
             ],
         };
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
-        aptos!.Single().Detalle.Should().Be(esperado);
+        aptos.Single().Detalle.Should().Be(esperado);
         aptos.Single().RequisitoQueBloquea.Should().Be("Certificado de aptitud");
     }
 
@@ -146,9 +146,9 @@ public class AptosHoyDelCentroConBackendTests
             ],
         };
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
-        aptos!.Single().RequisitoQueBloquea.Should().Be("Seguro de responsabilidad civil");
+        aptos.Single().RequisitoQueBloquea.Should().Be("Seguro de responsabilidad civil");
         aptos.Single().Detalle.Should().Be("Requisito de la Empresa contratista · Sin documento validado");
     }
 
@@ -165,9 +165,9 @@ public class AptosHoyDelCentroConBackendTests
             ],
         };
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
-        aptos!.Single(a => a.Nombre == "Pilar Sanjuán Aznar").EmpresaContratista.Should().Be("Montajes Moncayo S.L.");
+        aptos.Single(a => a.Nombre == "Pilar Sanjuán Aznar").EmpresaContratista.Should().Be("Montajes Moncayo S.L.");
         aptos.Single(a => a.Nombre == "Iván Bescós Lacasa").EmpresaContratista.Should().Be("Instalaciones Cinca S.L.");
     }
 
@@ -195,9 +195,9 @@ public class AptosHoyDelCentroConBackendTests
             Filas = [Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.Apto)],
         };
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
-        aptos!.Single().EmpresaContratista.Should().Be("Empresa no disponible");
+        aptos.Single().EmpresaContratista.Should().Be("Empresa no disponible");
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public class AptosHoyDelCentroConBackendTests
     {
         var mediador = new MediadorDePrueba();
 
-        var aptos = await Adaptador(mediador).ObtenerAsync(CentroId);
+        var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
         aptos.Should().NotBeNull().And.BeEmpty();
         mediador.Peticiones.Should().ContainSingle().Which.Should().Be(new ObtenerAptosHoyDelCentroQuery(CentroId));

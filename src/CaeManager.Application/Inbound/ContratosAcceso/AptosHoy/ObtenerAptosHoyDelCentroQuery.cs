@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.Requisitos;
 using CaeManager.Application.Tenants.Encargo;
@@ -110,11 +111,17 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     IEvidenciasInboundQueryContext evidenciasContext,
     IPlantillasRequisitosQueryContext plantillasContext,
     ITiposDocumentoQueryContext tiposContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerAptosHoyDelCentroQuery, IReadOnlyList<AptoHoyDto>>
 {
     public async Task<IReadOnlyList<AptoHoyDto>> Handle(ObtenerAptosHoyDelCentroQuery request, CancellationToken cancellationToken)
     {
+        // B-03: la misma puerta que el listado de contratos de acceso; sin ella el papel Outbound en el lado del Tenant TCE,
+        // una Sesión Privilegiada sin rol o un usuario de portal leerían evidencias que Inbound les niega. Qué capacidad da
+        // la proyección completa (con requisito y causa) frente a la restringida es una decisión de producto pendiente.
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return [];
         if (!await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
             return [];
         var centrosVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
