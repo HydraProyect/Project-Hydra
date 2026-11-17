@@ -41,6 +41,7 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     private readonly Guid _tecnico = Guid.NewGuid();
     private readonly Guid _administradorDeA = Guid.NewGuid();
     private readonly Guid _administradorDeB = Guid.NewGuid();
+    private readonly Guid _usuarioSinRolDeA = Guid.NewGuid();
     private readonly Guid _sesionSobreA = Guid.NewGuid();
     private readonly Guid _sesionSobreB = Guid.NewGuid();
 
@@ -78,6 +79,7 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
 
         await AltaDeAdministradorAsync(_administradorDeA, _tenantA);
         await AltaDeAdministradorAsync(_administradorDeB, _tenantB);
+        await AltaDeCuentaAsync(_usuarioSinRolDeA, _tenantA, conRolAdministrador: false);
 
         await using (var contexto = CrearContexto(_tenantB, _tecnico, cadena: _cadenaConexion))
         {
@@ -111,7 +113,8 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
             .Should().BeEmpty("la sesión es sobre A: B no la ve ni nombrándola");
 
         (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeB, _tenantB, _sesionSobreA)).Should().Be(0,
-            "la RLS aislamiento_tenant tampoco las entrega a B, sin el filtro de la consulta");
+            "la RLS tampoco las entrega a B, sin el filtro de la consulta: la fila es de A, y las políticas de SELECT " +
+            "por sujeto (administrador_del_tenant_propietario_lee, plataforma_lee_su_visita) exigen que sea del Tenant del contexto");
 
         (await ConsultarComoAsync(
                 _administradorDeB, tenantDelContexto: _tenantB, tenantOrigen: _tenantB,
@@ -128,8 +131,10 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
         // (= Tenant de origen) las corta también.
         (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeA, _tenantA, _sesionSobreA)).Should().Be(2,
             "control positivo: con app.tenant_id = A la base entrega las dos filas a su Administrador");
-        (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeB, _tenantA, _sesionSobreA)).Should().Be(0,
-            "el Administrador de B no es Administrador de A: la RLS no se las entrega");
+        (await ContarFilasVisiblesDeLaSesionAsync(
+                _administradorDeB, _tenantA, _sesionSobreA, tenantOrigen: _tenantB)).Should().Be(0,
+            "el contexto firmado tiene como Tenant de origen a B y el Administrador de B no es Administrador de A: " +
+            "la RLS no se las entrega");
 
         (await ConsultarComoAsync(
                 _administradorDeB, tenantDelContexto: _tenantA, tenantOrigen: _tenantB,
@@ -141,9 +146,12 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     public async Task La_actividad_por_delegacion_de_Soporte_sigue_apareciendo_al_Administrador_del_Tenant_propietario_visitado()
     {
         (await ConsultarComoAsync(
-                Guid.NewGuid(), tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
+                _usuarioSinRolDeA, tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
                 ObtenerActividadSoporteQuery.PorViaHeredada(_delegacionSoporteDeA)))
-            .Should().BeEmpty("una cuenta que no es Administrador de A ya no recibe la traza: la RLS no se la entrega");
+            .Should().BeEmpty("una cuenta real de A sin el rol Administrador ya no recibe la traza: la RLS no se la entrega");
+
+        (await ContarFilasVisiblesDeLaSesionAsync(_usuarioSinRolDeA, _tenantA, _sesionSobreA)).Should().Be(0,
+            "misma cuenta real de A, sin rol: la RLS tampoco le entrega las lecturas por Sesión Privilegiada");
 
         var actividad = await ConsultarComoAsync(
             _administradorDeA, tenantDelContexto: _tenantA, tenantOrigen: _tenantA,
@@ -158,9 +166,17 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
     /// <summary>Cuenta real del Tenant con el rol Administrador, sembrada como propietario.</summary>
-    private async Task AltaDeAdministradorAsync(Guid id, Guid tenantId)
+    private Task AltaDeAdministradorAsync(Guid id, Guid tenantId) =>
+        AltaDeCuentaAsync(id, tenantId, conRolAdministrador: true);
+
+    /// <summary>
+    /// Cuenta real del Tenant, sembrada como propietario. Con <paramref name="conRolAdministrador"/> a
+    /// <c>false</c> existe en <c>AspNetUsers</c> con su <c>TenantId</c> pero sin fila en <c>AspNetUserRoles</c>:
+    /// el negativo distingue el rol, no la mera existencia de la cuenta.
+    /// </summary>
+    private async Task AltaDeCuentaAsync(Guid id, Guid tenantId, bool conRolAdministrador)
     {
-        var correo = $"admin.{id:N}@rls.local";
+        var correo = $"{(conRolAdministrador ? "admin" : "sinrol")}.{id:N}@rls.local";
         await using (var contexto = CrearContexto(tenantId, id, cadena: _cadenaConexion))
         {
             contexto.Users.Add(new ApplicationUser
@@ -170,12 +186,14 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
                 NormalizedUserName = correo.ToUpperInvariant(),
                 Email = correo,
                 NormalizedEmail = correo.ToUpperInvariant(),
-                NombreCompleto = "Administrador",
+                NombreCompleto = conRolAdministrador ? "Administrador" : "Usuario sin rol",
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 TenantId = tenantId,
             });
             await contexto.SaveChangesAsync();
         }
+
+        if (!conRolAdministrador) return;
 
         await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -192,7 +210,7 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     private async Task<IReadOnlyList<ActividadSoporteDto>> ConsultarComoAsync(
         Guid usuario, Guid tenantDelContexto, Guid tenantOrigen, ObtenerActividadSoporteQuery consulta)
     {
-        await using var contexto = CrearContexto(tenantDelContexto, usuario);
+        await using var contexto = CrearContexto(tenantDelContexto, usuario, tenantOrigen: tenantOrigen);
         var handler = new ObtenerActividadSoporteQueryHandler(
             contexto,
             new CurrentUserServiceFalso(usuario, rol: null, tenantOrigenId: tenantOrigen),
@@ -201,9 +219,10 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
     }
 
     /// <summary>Cuenta en SQL, sin el filtro global de EF: lo que queda fuera lo quita la RLS.</summary>
-    private async Task<int> ContarFilasVisiblesDeLaSesionAsync(Guid usuario, Guid tenant, Guid sesion)
+    private async Task<int> ContarFilasVisiblesDeLaSesionAsync(
+        Guid usuario, Guid tenant, Guid sesion, Guid? tenantOrigen = null)
     {
-        await using var contexto = CrearContexto(tenant, usuario);
+        await using var contexto = CrearContexto(tenant, usuario, tenantOrigen: tenantOrigen);
         return await contexto.Database
             .SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM \"RegistrosActividadSoporte\" WHERE \"SesionPrivilegiadaId\" = {sesion}")
             .SingleAsync();
@@ -211,9 +230,11 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
 
     /// <summary>
     /// Conecta como <c>cae_app_runtime</c> salvo que se pase la cadena del propietario (solo la
-    /// siembra). <paramref name="tenantId"/> es el que el interceptor fija en <c>app.tenant_id</c>.
+    /// siembra). <paramref name="tenantId"/> es el que el interceptor fija en <c>app.tenant_id</c>;
+    /// <paramref name="tenantOrigen"/> es el Tenant de origen que firma (por defecto, el mismo).
     /// </summary>
-    private CaeManagerDbContext CrearContexto(Guid tenantId, Guid usuario, string? cadena = null)
+    private CaeManagerDbContext CrearContexto(
+        Guid tenantId, Guid usuario, string? cadena = null, Guid? tenantOrigen = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -224,7 +245,7 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(
                     tenantActual, new SinSeleccion(),
-                    new CurrentUserServiceFalso(usuario, rol: null, tenantOrigenId: tenantId),
+                    new CurrentUserServiceFalso(usuario, rol: null, tenantOrigenId: tenantOrigen ?? tenantId),
                     BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
