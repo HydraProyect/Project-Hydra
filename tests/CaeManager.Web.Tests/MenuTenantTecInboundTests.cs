@@ -14,8 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// El grupo «Mis Clientes empresariales» del menú lateral (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): lo ve el
-/// Administrador de un Tenant que, como Tenant de origen, tiene al menos una autorización de lectura documental concedida
+/// El grupo «Mis Clientes» del menú lateral (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): lo ve el
+/// Administrador de un Tenant que, como Tenant propietario, tiene al menos una autorización de lectura documental concedida
 /// (<see cref="IEsTenantTecInbound"/>), con independencia de la línea Inbound. Qué cuenta como «concedida» (vigente y sin
 /// revocar) lo prueban los tests de la Query (Application) y su lectura bajo <c>cae_app_runtime</c> (integración, en CI); aquí
 /// se prueba el catálogo, el puerto y el contexto de la paleta y los atajos.

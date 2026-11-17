@@ -6,7 +6,7 @@ namespace CaeManager.Web.Features.Inbound;
 
 /// <summary>
 /// Implementación de <see cref="IEsTenantTecInbound"/> (puerto del Núcleo): pregunta a
-/// <see cref="TieneAutorizacionLecturaConcedidaQuery"/> si el Tenant activo, como Tenant de origen, tiene alguna autorización de
+/// <see cref="TieneAutorizacionLecturaConcedidaQuery"/> si el Tenant activo, como Tenant propietario, tiene alguna autorización de
 /// lectura documental concedida (decisión D6 de la demo de Inbound). Pasa por MediatR, así que el despacho comparte la puerta de
 /// acceso a datos del ámbito y los behaviors de siempre (Encargo de administración incluido).
 ///

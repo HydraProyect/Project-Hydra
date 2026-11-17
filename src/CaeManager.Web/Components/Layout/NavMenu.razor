@@ -247,7 +247,7 @@
             }
         }
 
-        // Gate del grupo «Mis Clientes empresariales» (Tenant TEC, D6): al menos una autorización de lectura documental concedida
+        // Gate del grupo «Mis Clientes» (Tenant TEC, D6): al menos una autorización de lectura documental concedida
         // por el Tenant activo (IEsTenantTecInbound). Independiente de la línea Inbound; misma forma y mismo fallo cerrado.
         var esTenantTecInbound = false;
         if (Servicios.GetService<IEsTenantTecInbound>() is { } tenantTec)

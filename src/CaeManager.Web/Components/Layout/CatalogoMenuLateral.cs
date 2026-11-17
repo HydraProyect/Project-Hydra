@@ -21,9 +21,9 @@ namespace CaeManager.Web.Components.Layout;
 /// ve una lista ajena.</param>
 /// <param name="LineaInboundVigente">El Producto Contratado del Tenant beneficiario tiene activa la línea Inbound
 /// (<see cref="ILineaInboundVigente"/>). Es el gate de la sección «Inbound»; sin la línea no hay grupo.</param>
-/// <param name="EsTenantTecInbound">El Tenant activo, como Tenant de origen, tiene al menos una autorización de lectura documental
+/// <param name="EsTenantTecInbound">El Tenant activo, como Tenant propietario, tiene al menos una autorización de lectura documental
 /// concedida (vigente y sin revocar; <see cref="IEsTenantTecInbound"/>, decisión D6 de la demo de Inbound). Es el gate del grupo
-/// «Mis Clientes empresariales», independiente de <paramref name="LineaInboundVigente"/>: el Tenant TEC no necesita la línea.</param>
+/// «Mis Clientes», independiente de <paramref name="LineaInboundVigente"/>: el Tenant TEC no necesita la línea.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
@@ -249,7 +249,7 @@ public static class CatalogoMenuLateral
         new("inbound-config", "Configuración", AbiertoPorDefecto: true,
             c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental), Linea: LineaMenu.Inbound),
 
-        // «Mis Clientes empresariales» (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): el menú del Tenant TEC, la Empresa
+        // «Mis Clientes» (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): el menú del Tenant TEC, la Empresa
         // contratista que autoriza la lectura de sus documentos. Gate propio e independiente de la línea Inbound
         // (ContextoMenuLateral.EsTenantTecInbound: al menos una autorización de lectura documental concedida como Tenant de
         // origen): el Tenant TEC no tiene Producto Contratado de Inbound. Solo el Administrador, el rol que autorizan sus dos

@@ -20,7 +20,9 @@
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
 # ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas. #2124 (opción B) añade
-# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 117 entradas (116 en origin/main 6d0e857ce, contadas el 2026-11-17).
+# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 117 entradas (116 en origin/main 6d0e857ce, contadas el 2026-11-17). La demo P4 (D6) añade
+# TieneAutorizacionLecturaConcedidaQueryHandler, con su comentario encima: una entrada más sobre esa medida (las que hayan
+# entrado en origin/main después van aparte).
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1
@@ -33,8 +35,9 @@ Auditoria.Queries :: ObtenerAccesosDocumentosSensiblesQueryHandler[Auditoria.Que
 Auditoria.Queries :: ObtenerAuditoriaQueryHandler[Auditoria.Queries.ObtenerAuditoriaQuery] = 1
 Auditoria.Queries :: ObtenerRegistroAuditoriaPorIdQueryHandler[Auditoria.Queries.ObtenerRegistroAuditoriaPorIdQuery] = 1
 Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAutorizacionesLecturaQueryHandler[Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQuery] = 1
-# Grupo «Mis Clientes empresariales» del menu (Tenant TEC, D6): lee solo si el Tenant activo tiene alguna autorizacion de lectura
-# concedida (vigente y sin revocar) y devuelve un booleano para la interfaz, nunca una fila; la autorizacion no tiene cartera.
+# Grupo «Mis Clientes» del menu (Tenant TEC, D6): lee solo si el Tenant activo tiene alguna autorizacion de lectura concedida
+# (vigente y sin revocar) y devuelve un booleano para la interfaz, nunca una fila; la autorizacion no tiene cartera. En lugar de la
+# cartera decide la capacidad ParticipanteTec de IAutorizacionInbound (Administrador del Tenant TEC), que la Query llama primero.
 Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida :: TieneAutorizacionLecturaConcedidaQueryHandler[Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQuery] = 1
 Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
 Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1

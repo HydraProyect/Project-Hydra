@@ -382,23 +382,26 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
     /// <summary>
     /// Demo de Inbound, pieza P4 (D6): la Query del menú del Tenant TEC contra PostgreSQL real, bajo <c>cae_app_runtime</c>. Prueba lo que
     /// los tests de Application no pueden, porque su contexto falso es LINQ a objetos: que <c>EstaVigenteEn</c> se traduce a SQL sobre esta
-    /// tabla (si no, la Query lanzaría y el menú, que falla cerrado, no mostraría nunca el grupo, sin error visible) y que RLS acota la lectura.
+    /// tabla (si no, la Query lanzaría y el menú, que falla cerrado, no mostraría nunca el grupo, sin error visible) y que el filtro por Tenant de la Query acota la lectura.
+    /// La RLS de la tabla la prueba la lectura cruzada de arriba, no esta: aquí el filtro de la Query sigue activo. No cubre una autorización con
+    /// <c>VigenciaHasta</c> ni con <c>VigenciaDesde</c> futura bajo SQL (hueco declarado en la PR).
     /// </summary>
     [Fact]
-    public async Task La_Query_del_menu_del_Tenant_TEC_se_traduce_a_SQL_y_cuenta_solo_las_concedidas_y_vigentes_del_Tenant_de_origen()
+    public async Task La_Query_del_menu_del_Tenant_TEC_se_traduce_a_SQL_y_cuenta_solo_las_concedidas_y_vigentes_del_Tenant_propietario()
     {
         async Task<bool> Tiene(Guid tenantId)
         {
-            await using var contexto = Contexto(tenantId, _administrador);
-            return await new TieneAutorizacionLecturaConcedidaQueryHandler(contexto, new TenantActualAmbiental { TenantId = tenantId }, TimeProvider.System)
+            await using var contexto = Contexto(tenantId, tenantId == _tenantCliente.Id ? _administradorCliente : _administrador);
+            return await new TieneAutorizacionLecturaConcedidaQueryHandler(
+                    contexto, new TenantActualAmbiental { TenantId = tenantId }, TimeProvider.System, new AutorizacionInboundQuePermite())
                 .Handle(new TieneAutorizacionLecturaConcedidaQuery(), CancellationToken.None);
         }
 
         (await Tiene(_tenantContratista.Id)).Should().BeTrue("tiene una concedida y vigente (y otra revocada)");
-        (await Tiene(_tenantCliente.Id)).Should().BeTrue("la suya, como Tenant de origen de su propia autorización");
+        (await Tiene(_tenantCliente.Id)).Should().BeTrue("la suya, como Tenant propietario de su propia autorización");
         (await Tiene(Guid.NewGuid())).Should().BeFalse("un Tenant sin autorizaciones no las hereda de otro: RLS y el filtro por Tenant");
 
-        // La revocación es definitiva: revocadas todas las del Tenant de origen, deja de tener el grupo.
+        // La revocación es definitiva: revocadas todas las del Tenant propietario, deja de tener el grupo.
         await using (var propietario = Contexto(_tenantContratista.Id))
         {
             (await propietario.AutorizacionesLecturaDocumental.SingleAsync(a => a.Id == _autorizacion)).Revocar(_administrador, DateTime.UtcNow);

@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Inbound.AutorizacionesLectura;
@@ -7,7 +8,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Inbound.AutorizacionesLectura;
 
 /// <summary>
-/// <see cref="TieneAutorizacionLecturaConcedidaQuery"/>: el Tenant activo, como Tenant de origen, tiene una autorización de lectura
+/// <see cref="TieneAutorizacionLecturaConcedidaQuery"/>: el Tenant activo, como Tenant propietario que concede, tiene una autorización de lectura
 /// documental concedida solo si alguna suya está sin revocar y dentro de su vigencia hoy (decisión D6 de la demo de Inbound).
 /// El contexto de lectura falso devuelve las autorizaciones de todos los Tenants, para que el filtro que se prueba sea el de la
 /// Query y no el global de EF ni la RLS; la lectura real bajo <c>cae_app_runtime</c> la prueba la integración, en CI.
@@ -23,11 +24,12 @@ public class TieneAutorizacionLecturaConcedidaQueryTests
 
     private readonly AutorizacionLecturaRepositorioFalso _repositorio = new();
 
-    private Task<bool> LeerAsync(Guid? tenantActivo = null, bool sinTenant = false) =>
+    private Task<bool> LeerAsync(Guid? tenantActivo = null, bool sinTenant = false, IAutorizacionInbound? autorizacion = null) =>
         new TieneAutorizacionLecturaConcedidaQueryHandler(
                 new AutorizacionesLecturaQueryContextFalso(_repositorio),
                 new TenantActualFijo(sinTenant ? null : tenantActivo ?? TenantActivo),
-                new RelojFijo(Ahora))
+                new RelojFijo(Ahora),
+                autorizacion ?? new AutorizacionInboundQuePermite())
             .Handle(new TieneAutorizacionLecturaConcedidaQuery(), CancellationToken.None);
 
     private AutorizacionLecturaDocumental Conceder(Guid tenantDeOrigen, DateOnly? desde = null, DateOnly? hasta = null)
@@ -44,6 +46,18 @@ public class TieneAutorizacionLecturaConcedidaQueryTests
     public async Task Un_Tenant_sin_ninguna_autorizacion_no_la_tiene()
     {
         (await LeerAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_la_capacidad_ParticipanteTec_no_la_da_aunque_tenga_una_concedida_y_vigente()
+    {
+        // B-03: el menú pide la misma capacidad que las páginas del grupo (Administrador del Tenant TEC; nunca papel Inbound ni sin papel).
+        Conceder(TenantActivo);
+        var puerta = new AutorizacionInboundQueNiega();
+
+        (await LeerAsync(autorizacion: puerta)).Should().BeFalse();
+
+        puerta.Pedidas.Should().Equal(CapacidadInbound.ParticipanteTec);
     }
 
     [Fact]
@@ -133,10 +147,22 @@ public class TieneAutorizacionLecturaConcedidaQueryTests
             repositorio.Agregar(autorizacion);
 
             var respuesta = await new TieneAutorizacionLecturaConcedidaQueryHandler(
-                    new AutorizacionesLecturaQueryContextFalso(repositorio), new TenantActualFijo(TenantActivo), new RelojFijo(Ahora))
+                    new AutorizacionesLecturaQueryContextFalso(repositorio), new TenantActualFijo(TenantActivo), new RelojFijo(Ahora),
+                    new AutorizacionInboundQuePermite())
                 .Handle(new TieneAutorizacionLecturaConcedidaQuery(), CancellationToken.None);
 
             respuesta.Should().Be(autorizacion.VigenteEn(Hoy), $"desde {desde}, hasta {hasta}, revocada {revocar}");
+        }
+    }
+
+    private sealed class AutorizacionInboundQueNiega : IAutorizacionInbound
+    {
+        public List<CapacidadInbound> Pedidas { get; } = [];
+
+        public Task<bool> TieneAsync(CapacidadInbound capacidad, CancellationToken cancellationToken)
+        {
+            Pedidas.Add(capacidad);
+            return Task.FromResult(false);
         }
     }
 
