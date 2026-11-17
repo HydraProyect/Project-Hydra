@@ -22,7 +22,7 @@ public record RegistrarSolicitudDerechoInteresadoCommand(
     DateOnly FechaRecepcion,
     string NombreInteresado,
     Guid? TrabajadorId,
-    string? Descripcion) : ICommand<Guid>;
+    string? Descripcion) : ICommand<Guid>, IComandoDeDerechosDelInteresado;
 
 public class RegistrarSolicitudDerechoInteresadoCommandValidator : AbstractValidator<RegistrarSolicitudDerechoInteresadoCommand>
 {

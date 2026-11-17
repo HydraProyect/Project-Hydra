@@ -794,6 +794,9 @@
   <data name="EstadoComercialNotaAcceso" xml:space="preserve">
     <value>La columna «Acceso» es otra cosa: «Suspendido» es la suspensión por incidente o seguridad.</value>
   </data>
+  <data name="EstadoComercialNotaExencionImpago" xml:space="preserve">
+    <value>salvo la exportación completa de sus datos y las solicitudes de derechos del interesado.</value>
+  </data>
   <data name="EstadoComercialTituloSuspender" xml:space="preserve">
     <value>¿Suspender esta organización?</value>
   </data>

@@ -31,4 +31,21 @@ public class ComandosQueReducenExposicionTests
             typeof(CaeManager.Application.Exportacion.SolicitarExportacionCompletaCommand),
             typeof(CaeManager.Application.Exportacion.DescargarExportacionCompletaCommand)]);
     }
+
+    // Los derechos del interesado saltan el gate comercial durante el impago (D-3, opción (b) del 2026-11-17): lista
+    // cerrada de los seis comandos de la solicitud, para que un comando nuevo con el marcador se decida aquí.
+    [Fact]
+    public void Solo_los_comandos_de_la_solicitud_de_derechos_llevan_la_exencion_de_derechos_del_interesado()
+    {
+        var marcados = typeof(IComandoDeDerechosDelInteresado).Assembly.GetTypes()
+            .Where(t => t.IsClass && t.IsAssignableTo(typeof(IComandoDeDerechosDelInteresado)));
+
+        marcados.Should().BeEquivalentTo([
+            typeof(CaeManager.Application.DerechosInteresado.Commands.RegistrarSolicitudDerechoInteresado.RegistrarSolicitudDerechoInteresadoCommand),
+            typeof(CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado.VerificarIdentidadSolicitudDerechoCommand),
+            typeof(CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado.IniciarTramitacionSolicitudDerechoCommand),
+            typeof(CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado.ProrrogarSolicitudDerechoCommand),
+            typeof(CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado.ResolverSolicitudDerechoCommand),
+            typeof(CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado.DenegarSolicitudDerechoCommand)]);
+    }
 }

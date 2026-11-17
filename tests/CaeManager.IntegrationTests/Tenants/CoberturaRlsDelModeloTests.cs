@@ -234,6 +234,35 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "Administradores de todos los Tenants (aviso de violaciones de seguridad, incremento 3a)"),
     };
 
+    /// <summary>
+    /// <b>Lectura partida por sujeto</b> (el patrón de <c>SesionesPrivilegiadas</c>): tablas con TenantId cuya lectura
+    /// no la abre <c>aislamiento_tenant</c>, sino varias políticas PERMISSIVE de SELECT, una por rol y sujeto, sin
+    /// disyunciones. En ellas <c>aislamiento_tenant</c> es solo de INSERT, con el WITH CHECK por Tenant de siempre, y
+    /// el resto de órdenes que cubría van en políticas propias con la misma expresión (PostgreSQL no admite una
+    /// política de «todas las órdenes salvo SELECT»). La lista fija, por tabla, todas las demás políticas: nombre,
+    /// orden (pg_policy.polcmd: 'r' SELECT, 'w' UPDATE, 'd' DELETE), roles exactos y los fragmentos que su USING y,
+    /// si lo tiene, su WITH CHECK tienen que contener. Una política de más o de menos, un rol distinto, una
+    /// RESTRICTIVE o una disyunción ponen el test en rojo. Que cada sujeto ve lo que debe y nada más lo prueban los
+    /// tests bajo runtime (<c>ActividadSoporteSoloAdministradorBajoRuntimeTests</c>).
+    /// </summary>
+    private static readonly Dictionary<string, (string Motivo, (string Politica, char Comando, string[] Roles, string[] Menciona)[] Politicas)> LecturasPartidasPorSujetoRevisadas = new()
+    {
+        ["RegistrosActividadSoporte"] = (
+            "la actividad de Soporte TALVEG (con UsuarioSoporteId) bajo cae_app_runtime solo la leen el Administrador " +
+            "del Tenant propietario y la plataforma de esa visita; cae_app_soporte conserva su lectura por Tenant " +
+            "(sigue a #2016 / #2303)",
+            [
+                ("aislamiento_tenant_actualiza", 'w', ["public"], ["\"TenantId\"", "app_ctx_tenant_id()"]),
+                ("aislamiento_tenant_borra", 'd', ["public"], ["\"TenantId\"", "app_ctx_tenant_id()"]),
+                ("soporte_lee_por_tenant", 'r', ["cae_app_soporte"], ["\"TenantId\"", "app_ctx_tenant_id()"]),
+                ("administrador_del_tenant_propietario_lee", 'r', ["cae_app_runtime"],
+                    ["\"TenantId\"", "app_ctx_tenant_id()", "app_es_administrador_del_tenant(", "app_ctx_usuario_id()"]),
+                ("plataforma_lee_su_visita", 'r', ["cae_app_runtime"],
+                    ["\"TenantId\"", "app_ctx_tenant_id()", "\"DelegacionesTenant\"", "\"TenantClienteId\"",
+                     "\"TenantConsultoraId\"", "app_ctx_tenant_origen_id()", "\"EsPlataforma\"", "'Soporte'"]),
+            ]),
+    };
+
     /// <summary>Política de los catálogos globales de asignación.</summary>
     private const string PoliticaPosicion = "posicion_en_la_asignacion";
 
@@ -480,8 +509,15 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         // demás, así que ensancha el acceso. Es exactamente el "accidentalmente
         // demasiado permisiva" que un recuento de políticas no vería.
         var conPoliticasDeMas = conRls
-            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p)))
-            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p) && !EsLecturaPartidaRevisada(t, p)))
+            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p) && !EsLecturaPartidaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
+            .ToList();
+
+        // Cada lectura partida revisada tiene en la base exactamente las políticas que la lista fija, todas
+        // PERMISSIVE, con su orden, sus roles y su expresión, y aislamiento_tenant solo de INSERT.
+        var lecturasPartidasQueNoDicenLoQueToca = LecturasPartidasPorSujetoRevisadas
+            .SelectMany(r => DiscrepanciasDeLecturaPartida(
+                r.Key, r.Value.Politicas, estado.TryGetValue(r.Key, out var e) ? e.Politicas : []))
             .ToList();
 
         // La lista de revisadas no es solo una lista blanca: cada entrada
@@ -545,7 +581,11 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         var conExpresionSospechosa = conRls
             .Select(t => (Tabla: t, Politica: estado[t].Politicas.FirstOrDefault(p => p.Nombre == PoliticaAislamiento)))
             .Where(x => x.Politica is not null)
-            .Where(x => !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica!.Using) || !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica.WithCheck))
+            // En una lectura partida aislamiento_tenant es solo de INSERT y no tiene USING: su lectura la fijan las
+            // políticas de LecturasPartidasPorSujetoRevisadas, y su forma la comprueba DiscrepanciasDeLecturaPartida.
+            .Where(x => LecturasPartidasPorSujetoRevisadas.ContainsKey(x.Tabla)
+                ? !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica!.WithCheck)
+                : !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica!.Using) || !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica.WithCheck))
             .Select(x => $"{x.Tabla} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -579,6 +619,11 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "una lectura de Plataforma revisada tiene que existir, ser PERMISSIVE solo de SELECT y sin WITH CHECK, y " +
             "pedir la concesión AdminPlataforma global sobre app_ctx_usuario_id(): si escribiera o se abriera a " +
             "otra condición, ensancharía el acceso entre Tenants");
+
+        string.Join(" | ", lecturasPartidasQueNoDicenLoQueToca).Should().BeEmpty(
+            "una lectura partida por sujeto revisada tiene que tener en la base exactamente las políticas PERMISSIVE " +
+            "que la lista fija, con su orden, sus roles y su expresión, sin disyunciones, y aislamiento_tenant solo de " +
+            "INSERT: una política de lectura de más, o para otro rol, volvería a abrir la tabla a todo el Tenant");
 
         string.Join(", ", aislamientoNoPermisivo).Should().BeEmpty(
             $"'{PoliticaAislamiento}' tiene que ser PERMISSIVE: es la que concede el acceso por tenant");
@@ -1372,7 +1417,54 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     }
 
     private sealed record PoliticaRls(
-        string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');
+        string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*', string[]? Roles = null);
+
+    private static bool EsLecturaPartidaRevisada(string tabla, PoliticaRls politica) =>
+        politica.Permisiva
+        && LecturasPartidasPorSujetoRevisadas.TryGetValue(tabla, out var revisada)
+        && revisada.Politicas.Any(r => r.Politica == politica.Nombre);
+
+    private static IEnumerable<string> DiscrepanciasDeLecturaPartida(
+        string tabla, (string Politica, char Comando, string[] Roles, string[] Menciona)[] revisadas, List<PoliticaRls> enBase)
+    {
+        var esperadas = revisadas.Select(r => r.Politica).Append(PoliticaAislamiento).OrderBy(n => n, StringComparer.Ordinal);
+        var presentes = enBase.Select(p => p.Nombre).OrderBy(n => n, StringComparer.Ordinal);
+        if (!esperadas.SequenceEqual(presentes))
+            yield return $"{tabla}: políticas [{string.Join(", ", presentes)}], se esperaban [{string.Join(", ", esperadas)}]";
+
+        var aislamiento = enBase.FirstOrDefault(p => p.Nombre == PoliticaAislamiento);
+        if (aislamiento is not null
+            && (!aislamiento.Permisiva || aislamiento.Comando != 'a' || aislamiento.Using is not null
+                || !(aislamiento.Roles ?? []).SequenceEqual(["public"])
+                || InspeccionTextoPoliticaRls.TieneDisyuncion(aislamiento.WithCheck)))
+            yield return $"{tabla}.{PoliticaAislamiento}: tiene que ser PERMISSIVE, solo de INSERT y para PUBLIC → " +
+                         $"comando {aislamiento.Comando} / roles {string.Join(",", aislamiento.Roles ?? [])} / USING {aislamiento.Using ?? "(ninguna)"}";
+
+        foreach (var revisada in revisadas)
+        {
+            var politica = enBase.FirstOrDefault(p => p.Nombre == revisada.Politica);
+            if (politica is null)
+                continue;
+
+            // UPDATE lleva USING y WITH CHECK; SELECT y DELETE, solo USING.
+            var conWithCheck = revisada.Comando == 'w';
+            var mal = !politica.Permisiva
+                      || politica.Comando != revisada.Comando
+                      || !(politica.Roles ?? []).OrderBy(r => r, StringComparer.Ordinal).SequenceEqual(revisada.Roles.OrderBy(r => r, StringComparer.Ordinal))
+                      || politica.Using is null
+                      || !revisada.Menciona.All(m => politica.Using.Contains(m, StringComparison.Ordinal))
+                      || (conWithCheck
+                          ? politica.WithCheck is null || !revisada.Menciona.All(m => politica.WithCheck.Contains(m, StringComparison.Ordinal))
+                          : politica.WithCheck is not null)
+                      || (politica.Using + politica.WithCheck).Contains("current_setting(", StringComparison.Ordinal)
+                      || InspeccionTextoPoliticaRls.TieneDisyuncion(politica.Using)
+                      || InspeccionTextoPoliticaRls.TieneDisyuncion(politica.WithCheck);
+            if (mal)
+                yield return $"{tabla}.{revisada.Politica} → {(politica.Permisiva ? "PERMISSIVE" : "RESTRICTIVE")} / comando " +
+                             $"{politica.Comando} / roles {string.Join(",", politica.Roles ?? [])} / USING {politica.Using ?? "(ninguna)"} / " +
+                             $"WITH CHECK {politica.WithCheck ?? "(ninguna)"}";
+        }
+    }
 
     private static bool EsRestrictivaRevisada(string tabla, PoliticaRls politica) =>
         !politica.Permisiva
@@ -1398,7 +1490,10 @@ SELECT c.relname,
        pg_get_expr(p.polqual, p.polrelid),
        pg_get_expr(p.polwithcheck, p.polrelid),
        p.polpermissive,
-       p.polcmd
+       p.polcmd,
+       ARRAY(SELECT CASE WHEN r.rol = 0 THEN 'public' ELSE pg_get_userbyid(r.rol)::text END
+               FROM unnest(p.polroles) AS r(rol)
+              ORDER BY 1)
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy p ON p.polrelid = c.oid
@@ -1419,7 +1514,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relname = ANY(@tabl
                     lector.IsDBNull(4) ? null : lector.GetString(4),
                     lector.IsDBNull(5) ? null : lector.GetString(5),
                     lector.GetBoolean(6),
-                    lector.GetChar(7)));
+                    lector.GetChar(7),
+                    lector.GetFieldValue<string[]>(8)));
         }
 
         return estado;

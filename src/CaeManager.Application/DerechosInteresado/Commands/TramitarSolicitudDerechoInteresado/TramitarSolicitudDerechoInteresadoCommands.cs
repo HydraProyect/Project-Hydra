@@ -10,27 +10,28 @@ namespace CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDe
 
 // Los cinco pasos de tramitación de una SolicitudDerechoInteresado. Todos exigen la capacidad «Derechos del
 // interesado» en el Tenant actual (PasoSolicitudDerechoInteresado) y están fuera del Encargo de administración
-// (ActosExcluidosDelEncargo.PeticionesExcluidas). Los invariantes de cada paso viven en el dominio.
+// (ActosExcluidosDelEncargo.PeticionesExcluidas). Los invariantes de cada paso viven en el dominio. Como el registro,
+// pasan el gate comercial durante el impago (IComandoDeDerechosDelInteresado); la suspensión operativa los bloquea.
 
 /// <summary>Recibida → IdentidadVerificada.</summary>
 [AreaDelEncargo("DerechosInteresado")]
-public record VerificarIdentidadSolicitudDerechoCommand(Guid SolicitudId) : ICommand;
+public record VerificarIdentidadSolicitudDerechoCommand(Guid SolicitudId) : ICommand, IComandoDeDerechosDelInteresado;
 
 /// <summary>IdentidadVerificada → EnCurso.</summary>
 [AreaDelEncargo("DerechosInteresado")]
-public record IniciarTramitacionSolicitudDerechoCommand(Guid SolicitudId) : ICommand;
+public record IniciarTramitacionSolicitudDerechoCommand(Guid SolicitudId) : ICommand, IComandoDeDerechosDelInteresado;
 
 /// <summary>La única prórroga, con motivo escrito; no cambia el estado.</summary>
 [AreaDelEncargo("DerechosInteresado")]
-public record ProrrogarSolicitudDerechoCommand(Guid SolicitudId, DateOnly NuevoPlazo, string Motivo) : ICommand;
+public record ProrrogarSolicitudDerechoCommand(Guid SolicitudId, DateOnly NuevoPlazo, string Motivo) : ICommand, IComandoDeDerechosDelInteresado;
 
 /// <summary>EnCurso → Resuelta, con el resultado opcional.</summary>
 [AreaDelEncargo("DerechosInteresado")]
-public record ResolverSolicitudDerechoCommand(Guid SolicitudId, string? Resultado) : ICommand;
+public record ResolverSolicitudDerechoCommand(Guid SolicitudId, string? Resultado) : ICommand, IComandoDeDerechosDelInteresado;
 
 /// <summary>Cualquier estado abierto → Denegada, con motivo escrito.</summary>
 [AreaDelEncargo("DerechosInteresado")]
-public record DenegarSolicitudDerechoCommand(Guid SolicitudId, string Motivo) : ICommand;
+public record DenegarSolicitudDerechoCommand(Guid SolicitudId, string Motivo) : ICommand, IComandoDeDerechosDelInteresado;
 
 public class ProrrogarSolicitudDerechoCommandValidator : AbstractValidator<ProrrogarSolicitudDerechoCommand>
 {

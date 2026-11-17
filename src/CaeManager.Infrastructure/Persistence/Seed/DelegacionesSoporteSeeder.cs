@@ -92,7 +92,7 @@ public static class DelegacionesSoporteSeeder
     /// deja <b>sin activar a propósito</b>: FlujoSoporteTests (E2E) ejercita
     /// el ciclo completo sobre ella —abrir, trazar, cerrar— y necesita
     /// encontrarla virgen. Guards propios: solo actúa sobre delegaciones de
-    /// soporte aún nunca activadas y si no hay actividad registrada.
+    /// soporte aún nunca activadas, y la traza solo en la pasada que activa la del demo 3.
     /// </summary>
     private static async Task SembrarVariantesDemoAsync(
         CaeManagerDbContext dbContext, IConfiguration configuration, Guid tenantPlataformaId,
@@ -120,11 +120,18 @@ public static class DelegacionesSoporteSeeder
         var ahora = DateTime.UtcNow;
         var huboCambios = false;
 
+        // La traza de la visita se siembra en la misma pasada que abre la ventana del demo 3, y solo
+        // entonces. No se puede preguntar a RegistrosActividadSoporte si ya está: su RLS solo deja leer
+        // las filas al Administrador del Tenant propietario o a la plataforma por su visita
+        // (SoloElAdministradorLeeLaActividadDeSoporte), y al arrancar no hay usuario en el contexto, así
+        // que la tabla parecería vacía y cada arranque duplicaría la traza.
+        var sembrarTraza = false;
         if (!soporteDemo3.Activa && soporteDemo3.MotivoActivacion is null)
         {
             soporteDemo3.ActivarParaSoporte(
                 "Incidencia DEMO-1234: documentos que no cargan en el listado.", ahora.AddHours(48), ahora);
             huboCambios = true;
+            sembrarTraza = true;
         }
 
         if (!soporteDemo2.Activa && soporteDemo2.MotivoActivacion is null)
@@ -147,6 +154,9 @@ public static class DelegacionesSoporteSeeder
         }
 
         // Traza de una visita de soporte completa en el tenant visitado.
+        if (!sembrarTraza)
+            return;
+
         var emailSoporte = configuration["AdministradorInicial:Email"] ?? IdentitySeeder.EmailAdministradorInicial;
         // La cuenta de soporte de demo es del Tenant de plataforma, y AspNetUsers
         // tiene RLS (P1-M1): sin Tenant en el contexto no se vería.
@@ -158,9 +168,6 @@ public static class DelegacionesSoporteSeeder
 
         using (AmbitoTenantExplicito.Establecer(demo3.Id))
         {
-            if (await dbContext.RegistrosActividadSoporte.AnyAsync(cancellationToken))
-                return;
-
             dbContext.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorViaHeredada(
                 usuarioSoporte.Id, soporteDemo3.Id, TipoActividadSoporte.AccesoConcedido,
                 "Incidencia DEMO-1234: documentos que no cargan en el listado."));
