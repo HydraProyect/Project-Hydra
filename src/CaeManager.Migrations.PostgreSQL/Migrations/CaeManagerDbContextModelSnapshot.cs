@@ -401,6 +401,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("UsosApiDiarios", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Clave")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("GuardadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Clave")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "GuardadoEnUtc");
+
+                    b.ToTable("ArchivosPendientesDeReferencia", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8816,6 +8843,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("RecuperacionHuecoCubreDesdeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RecuperacionHuecoCursorDesempate")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -8823,6 +8853,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RecuperacionHuecoRecorridaPorId")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")

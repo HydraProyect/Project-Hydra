@@ -196,6 +196,18 @@ public class EvidenciaInbound : EntidadBase
         RechazadaEnUtc = momentoUtc;
     }
 
+    /// <summary>
+    /// El mismo rechazo con la causa propia de Inbound (ADR-013 P-6). La conversión a la causa de acreditación que guarda
+    /// la columna (K-5) vive solo aquí, por nombre: una causa sin equivalente se rechaza en vez de guardarse como otra.
+    /// </summary>
+    public void Rechazar(CausaRechazoEvidenciaInbound causa, string motivoLiteral, Guid usuarioId, DateTime momentoUtc) =>
+        Rechazar(ACausaDeAcreditacion(causa), motivoLiteral, usuarioId, momentoUtc);
+
+    private static CausaRechazoAcreditacion ACausaDeAcreditacion(CausaRechazoEvidenciaInbound causa) =>
+        Enum.IsDefined(causa) && Enum.TryParse<CausaRechazoAcreditacion>(causa.ToString(), out var equivalente)
+            ? equivalente
+            : throw new ArgumentException("La causa del rechazo no es válida.", nameof(causa));
+
     /// <summary>Vuelve a validar una evidencia rechazada. El último rechazo se conserva como hecho pasado.</summary>
     public void Validar(Guid usuarioId, DateTime momentoUtc)
     {

@@ -119,7 +119,9 @@ public class TextosSinLocalizarCongeladosTests
         // .resx, con el texto de la maqueta en el marcado. Baja cuando se localicen (es y ca-ES).
         // 201 → 554 (461 de la tanda 2 más 93 de las tarjetas 14 y 15) el 2026-11-16 SIN migrar a .resx: «No aplica», «Reglas de aviso» y «Gobierno de Inbound» (tanda 2) nacen con el texto de
         // la maqueta en el marcado, como las dos de Validación. Baja cuando se localicen.
-        ["Inbound"] = 554,
+        // 554 → 552 el 2026-11-17: la demo mínima de Validación (cola real, Validar y Rechazar) nace con sus textos en
+        // TextosValidacionInbound.resx y migra los del documento sin páginas.
+        ["Inbound"] = 552,
         ["Integraciones"] = 87, // 93 → 87 el 2026-11-10 al migrar a TextosConexiones.resx el subtítulo y el pie de Buzones; 91 → 93 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plantillas"] = 158, // 159 → 158 el 2026-11-14 (PR9): el tipo que produce la plantilla y la entradilla pasan a TextosDocumentos; «Quitar los filtros» sigue sin migrar. Antes: 158 → 159 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plataforma"] = 74,

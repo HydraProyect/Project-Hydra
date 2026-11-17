@@ -1063,7 +1063,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
     /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada). Lo
     /// lee el DrawerFormulario (que lleva su aviso de navegación); cerrado (también tras guardar)
-    /// nunca hay nada que perder. El diálogo de desactivar no lo lee: no tiene ninguna elección que perder.
+    /// nunca hay nada que perder. El diálogo de desactivar pasa su propio HayCambios: solo hay elección que perder si el Gestor CAE tiene Tenants beneficiarios enteros en su cartera.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible && _instantanea.Difiere(ValoresFormulario());
@@ -1633,16 +1633,26 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// <c>return</c> sin toast ninguno: el menú se cerraba, la fila seguía
     /// igual y no había forma de saber si la orden se había ejecutado.
     /// </para>
+    ///
+    /// <para>
+    /// La decisión sobre la cartera de un Gestor CAE (<paramref name="gestorCaeDestinoId"/> o
+    /// <paramref name="sinDestinoConfirmado"/>) solo la manda el diálogo de desactivar. Si el Command rechaza esa
+    /// decisión (<see cref="EsErrorDeDecisionDeCartera"/>: falta, es ambigua o el destino ya no vale) y el llamante
+    /// dijo que la atiende (<paramref name="erroresDeDecisionALlamante"/>), no se muestra ningún toast y devuelve el
+    /// error: el diálogo sigue abierto y quien decide elige de nuevo. En cualquier otro desenlace devuelve <c>null</c>.
+    /// </para>
     /// </summary>
-    private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista)
+    private async Task<Error?> CambiarActivacionAsync(
+        UsuarioListaDto usuarioLista, Guid? gestorCaeDestinoId = null, bool sinDestinoConfirmado = false,
+        bool erroresDeDecisionALlamante = false)
     {
         if (usuarioLista.Id == _usuarioActualId)
         {
             ToastService.Mostrar("No puedes desactivar tu propia cuenta.", TonoToast.Error);
-            return;
+            return null;
         }
 
-        if (_cambiandoActivacionDe.Contains(usuarioLista.Id)) return;
+        if (_cambiandoActivacionDe.Contains(usuarioLista.Id)) return null;
         _cambiandoActivacionDe.Add(usuarioLista.Id);
 
         var token = _ciclo.Token;
@@ -1653,17 +1663,21 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // Application (P1-I2). Desactivar rota además el security stamp en
             // la misma escritura (ApplicationUser.Desactivar).
             var resultado = await Mediator.Send(
-                new CambiarActivacionUsuarioCommand(usuarioLista.Id, Activar: !usuarioLista.Activo), token);
+                new CambiarActivacionUsuarioCommand(
+                    usuarioLista.Id, Activar: !usuarioLista.Activo, gestorCaeDestinoId, sinDestinoConfirmado), token);
 
             if (resultado.EsFallido)
             {
+                if (erroresDeDecisionALlamante && EsErrorDeDecisionDeCartera(resultado.Error, gestorCaeDestinoId))
+                    return resultado.Error;
+
                 ToastService.MostrarError(resultado.Error);
 
                 // Una cuenta que ya no existe pide recargar; la fila de otra
                 // organización es legítima y no hay nada que recargar.
                 if (resultado.Error.Codigo == AutoridadSobreCuentas.CuentaInexistente.Codigo)
                     await CargarAsync();
-                return;
+                return null;
             }
 
             ToastService.Mostrar(
@@ -1689,8 +1703,26 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             _cambiandoActivacionDe.Remove(usuarioLista.Id);
         }
+
+        return null;
     }
 
+    /// <summary>
+    /// Los rechazos de la decisión de cartera que el diálogo de desactivar atiende en el propio diálogo (es donde se
+    /// elige de nuevo): falta la decisión, es ambigua o el destino ya no vale (desactivado, pendiente de activar, con
+    /// cartera incompleta o fuera del alcance de quien actúa). Los demás errores siguen siendo un toast.
+    /// </summary>
+    private static bool EsErrorDeDecisionDeCartera(Error error, Guid? destinoElegido)
+    {
+        var codigo = error.Codigo;
+        return codigo == CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo
+               || codigo == CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraAmbigua.Codigo
+               || codigo == CambiarActivacionUsuarioCommandHandler.DestinoEsElDesactivado.Codigo
+               || codigo == CambiarActivacionUsuarioCommandHandler.DestinoDesactivado.Codigo
+               || codigo == CambiarActivacionUsuarioCommandHandler.DestinoPendienteDeActivar.Codigo
+               || codigo == CambiarActivacionUsuarioCommandHandler.DestinoConCarteraIncompleta.Codigo
+               || (destinoElegido is not null && codigo.StartsWith("Cartera.", StringComparison.Ordinal));
+    }
     // --- Asignar empresas a un Gestor CAE que ya existe (2026-09-28) ---
 
     private UsuarioListaDto? _usuarioAAsignarEmpresas;
@@ -1902,12 +1934,89 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private UsuarioListaDto? _usuarioADesactivar;
     private CarteraDeUsuario? _carteraADesactivar;
     private bool _desactivando;
+    private string? _errorDesactivar;
 
     /// <summary>
-    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera en el momento (no
-    /// la de la última carga de la lista): si es el Tenant entero (cartera universal, la única que
-    /// existe desde D-7), el diálogo dice que la conserva su Coordinador CAE. No hay traspaso de
-    /// cartera: la cartera no se reparte Cliente empresarial a Cliente empresarial.
+    /// Valor de «A nadie por ahora» en el selector de destino. No es un Guid: un destino se reconoce por
+    /// <see cref="Guid.TryParse(string?, out Guid)"/>.
+    /// </summary>
+    private const string ValorANadiePorAhora = "nadie";
+
+    /// <summary>Los Tenants beneficiarios enteros de la Asignación de Cartera del Gestor CAE a desactivar, por nombre.</summary>
+    private IReadOnlyList<string> _organizacionesADesactivar = [];
+
+    /// <summary>A quién se puede reasignar esa cartera: los demás Gestores CAE activos de la organización.</summary>
+    private IReadOnlyList<UsuarioListaDto> _destinosDeCartera = [];
+
+    /// <summary>
+    /// La decisión del diálogo: vacío = sin elegir, <see cref="ValorANadiePorAhora"/> = «A nadie por ahora», o el Id del
+    /// Gestor CAE de destino.
+    /// </summary>
+    private string _destinoDeCartera = string.Empty;
+
+    /// <summary>El diálogo pregunta a quién pasan sus Tenants beneficiarios: se abrió con cartera.</summary>
+    private bool DesactivarExigeDecision => _organizacionesADesactivar.Count > 0;
+
+    private bool HayCambiosEnDesactivar => DesactivarExigeDecision && _destinoDeCartera.Length > 0;
+
+    /// <summary>«Desactivar» deshabilitado hasta decidir, con el motivo a la vista (un primario mudo no existe, D-02 y D-06).</summary>
+    private string? MotivoDesactivarDeshabilitado =>
+        _carteraIlegible
+            ? TextosUsuarios["DesactivarCarteraNoLegible"].Value
+            : DesactivarExigeDecision && _destinoDeCartera.Length == 0 ? TextosUsuarios["DesactivarSinDecision"].Value : null;
+
+    /// <summary>
+    /// Tras un rechazo del Command la cartera no se pudo releer (falló, o volvió vacía cuando el Command dice que la
+    /// hay): no se sabe qué decisión pedir, así que «Desactivar» solo podría fallar y queda deshabilitado con su motivo.
+    /// </summary>
+    private bool _carteraIlegible;
+
+    /// <summary>Lo que el diálogo de desactivar enseña de la cartera de un Gestor CAE, leído en el momento.</summary>
+    private sealed record CarteraParaDesactivar(
+        CarteraDeUsuario? Interna, IReadOnlyList<string> Organizaciones, IReadOnlyList<UsuarioListaDto> Destinos);
+
+    /// <summary>
+    /// Lee en el momento (no la de la última carga de la lista) la cartera de un Gestor CAE: la Asignación de Cartera
+    /// interna del Tenant activo, que el diálogo dice que se conserva, y sus Tenants beneficiarios enteros
+    /// (<see cref="ObtenerCarteraDeGestorCaeQuery"/>), por los que el diálogo pregunta a qué Gestor CAE pasan (decisión
+    /// de Chris del 2026-11-14). Ofrecer destinos es comodidad: quién vale como destino lo decide
+    /// <see cref="CambiarActivacionUsuarioCommand"/> al confirmar. <paramref name="ignorarRolDeLaFila"/>: tras un
+    /// <c>DecisionDeCarteraRequerida</c> el Command ya leyó el rol bajo el candado y la fila de la lista puede estar
+    /// obsoleta, así que no se filtra por ella.
+    /// </summary>
+    private async Task<CarteraParaDesactivar> LeerCarteraADesactivarAsync(UsuarioListaDto usuarioLista, bool ignorarRolDeLaFila = false)
+    {
+        if (!ignorarRolDeLaFila && (usuarioLista.Rol != Roles.GestorCae || usuarioLista.EsOperadorDelegado))
+            return new CarteraParaDesactivar(null, [], []);
+
+        var carteras = await ObtenerCarterasVigentesAsync(_ciclo.Token);
+        carteras.TryGetValue(usuarioLista.Id, out var interna);
+
+        var organizaciones = await Mediator.Send(new ObtenerCarteraDeGestorCaeQuery(usuarioLista.Id), _ciclo.Token);
+        var nombres = organizaciones.Where(o => o.EnCartera).Select(o => o.Nombre).ToList();
+        var destinos = nombres.Count == 0
+            ? []
+            : _usuarios
+                .Where(u => u.Id != usuarioLista.Id && u.Rol == Roles.GestorCae && u.Activo
+                            && !u.PendienteActivacion && !u.EsOperadorDelegado)
+                .OrderBy(u => u.NombreCompleto)
+                .ToList();
+        return new CarteraParaDesactivar(interna, nombres, destinos);
+    }
+
+    private void AplicarCarteraADesactivar(CarteraParaDesactivar cartera)
+    {
+        _carteraADesactivar = cartera.Interna;
+        _organizacionesADesactivar = cartera.Organizaciones;
+        _destinosDeCartera = cartera.Destinos;
+    }
+
+    /// <summary>Cada apertura del diálogo de desactivar: una lectura que llega tarde, de otra cuenta, no pisa a la actual.</summary>
+    private int _aperturaDesactivar;
+
+    /// <summary>
+    /// Abre la confirmación de desactivar. Un Gestor CAE con Tenants beneficiarios enteros en su cartera obliga a
+    /// decidir a quién pasan: sin elegir nada (ni «A nadie por ahora»), «Desactivar» no se puede pulsar.
     /// </summary>
     private async Task PedirDesactivacionAsync(UsuarioListaDto usuarioLista)
     {
@@ -1917,39 +2026,81 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
-        _carteraADesactivar = null;
-
-        if (usuarioLista.Rol == Roles.GestorCae && !usuarioLista.EsOperadorDelegado)
+        var apertura = ++_aperturaDesactivar;
+        try
         {
-            try
-            {
-                var carteras = await ObtenerCarterasVigentesAsync(_ciclo.Token);
-                if (carteras.TryGetValue(usuarioLista.Id, out var cartera))
-                    _carteraADesactivar = cartera;
-            }
-            catch (OperationCanceledException)
-            {
+            var cartera = await LeerCarteraADesactivarAsync(usuarioLista);
+            if (apertura != _aperturaDesactivar)
                 return;
-            }
+
+            AplicarCarteraADesactivar(cartera);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception excepcion)
+        {
+            Logger.LogError(excepcion, "Fallo al leer la cartera de {UsuarioId} para desactivarlo.", usuarioLista.Id);
+            ToastService.Mostrar(TextosUsuarios["DesactivarErrorAlPreparar"].Value, TonoToast.Error);
+            return;
         }
 
+        _destinoDeCartera = string.Empty;
+        _errorDesactivar = null;
+        _carteraIlegible = false;
         _usuarioADesactivar = usuarioLista;
     }
 
+    private void CerrarDesactivar()
+    {
+        _aperturaDesactivar++;
+        _usuarioADesactivar = null;
+        _carteraADesactivar = null;
+        _organizacionesADesactivar = [];
+        _destinosDeCartera = [];
+        _destinoDeCartera = string.Empty;
+        _errorDesactivar = null;
+        _carteraIlegible = false;
+    }
+
     /// <summary>
-    /// Desactiva la cuenta. La cartera sigue abierta y la hereda su Coordinador CAE (decisión del
-    /// 2026-09-24).
+    /// Desactiva la cuenta y manda la decisión de cartera que el diálogo pidió: el Gestor CAE de destino, o
+    /// <c>SinDestinoConfirmado</c> con «A nadie por ahora» (sus Tenants beneficiarios sin otro Gestor CAE quedan sin
+    /// Gestor CAE y se avisa a los Administradores). Un diálogo abierto sin cartera no manda decisión. Si el Command
+    /// rechaza la decisión (apareció una cartera mientras tanto, o el destino ya no vale) no desactiva nada: el diálogo
+    /// sigue abierto con el motivo, relee la cartera y pide elegir de nuevo. La Asignación de Cartera interna se
+    /// conserva (decisión del 2026-09-24 y 2026-11-16).
     /// </summary>
     private async Task ConfirmarDesactivacionAsync()
     {
         if (_usuarioADesactivar is not { } usuario || _desactivando)
             return;
 
+        Guid? destino = null;
+        var sinDestino = false;
+        if (DesactivarExigeDecision)
+        {
+            if (_destinoDeCartera == ValorANadiePorAhora)
+                sinDestino = true;
+            else if (Guid.TryParse(_destinoDeCartera, out var elegido))
+                destino = elegido;
+            else
+                return;
+        }
+
         _desactivando = true;
+        _errorDesactivar = null;
         try
         {
-            _usuarioADesactivar = null;
-            await CambiarActivacionAsync(usuario);
+            var rechazo = await CambiarActivacionAsync(usuario, destino, sinDestino, erroresDeDecisionALlamante: true);
+            if (rechazo is null)
+            {
+                CerrarDesactivar();
+                return;
+            }
+
+            await ReabrirDecisionTrasRechazoAsync(usuario, rechazo, destino);
         }
         catch (OperationCanceledException)
         {
@@ -1959,6 +2110,52 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             _desactivando = false;
         }
+    }
+
+    /// <summary>
+    /// El Command rechazó la decisión y no cambió nada. Se relee la cartera (sin fiarse del rol de la fila de la lista,
+    /// que pudo cambiar), se descarta lo elegido y el diálogo dice por qué. Un destino que ya no vale deja de ofrecerse.
+    /// </summary>
+    private async Task ReabrirDecisionTrasRechazoAsync(UsuarioListaDto usuario, Error rechazo, Guid? destino)
+    {
+        _destinoDeCartera = string.Empty;
+        Guid? destinoRechazado = destino is not null
+            && (rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoDesactivado.Codigo
+                || rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoPendienteDeActivar.Codigo)
+            ? destino
+            : null;
+        try
+        {
+            AplicarCarteraADesactivar(await LeerCarteraADesactivarAsync(usuario, ignorarRolDeLaFila: true));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception excepcion)
+        {
+            Logger.LogError(excepcion, "Fallo al releer la cartera de {UsuarioId} para desactivarlo.", usuario.Id);
+            QuitarDestinoRechazado(destinoRechazado);
+            _carteraIlegible = true;
+            _errorDesactivar = TextosUsuarios["DesactivarCarteraNoLegible"].Value;
+            return;
+        }
+
+        QuitarDestinoRechazado(destinoRechazado);
+        var pideDecision = rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo;
+        _carteraIlegible = pideDecision && !DesactivarExigeDecision;
+        _errorDesactivar = pideDecision
+            ? (DesactivarExigeDecision
+                ? TextosUsuarios["DesactivarDecisionRequerida"].Value
+                : TextosUsuarios["DesactivarCarteraNoLegible"].Value)
+            : rechazo.Mensaje;
+    }
+
+    /// <summary>Un destino que el Command rechazó por su estado (desactivado, pendiente de activar) deja de ofrecerse.</summary>
+    private void QuitarDestinoRechazado(Guid? destino)
+    {
+        if (destino is { } descartado)
+            _destinosDeCartera = _destinosDeCartera.Where(x => x.Id != descartado).ToList();
     }
 
     /// <summary>
