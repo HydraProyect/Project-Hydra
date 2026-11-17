@@ -137,6 +137,40 @@ public class ConsumidoresDelLectorInboundAcotadosTests
             "el lector entre Tenants sin la cartera solo lo piden los handlers que la deciden antes");
     }
 
+    /// <summary>
+    /// La lectura inversa X-2 (<c>app_inbound_tec_requerimientos()</c>) da al Tenant TEC requisitos de otros Tenants. Solo la
+    /// pide <see cref="CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler"/>,
+    /// que decide antes la capacidad ParticipanteTec y el alcance de datos y solo enseña sujetos asignados (D8).
+    /// </summary>
+    [Fact]
+    public void Solo_ObtenerRequerimientosTec_pide_la_lectura_inversa_X2()
+    {
+        NombranEnIl(typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec))
+            .Select(Exterior).Distinct().Should().BeEquivalentTo(
+            [
+                typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler),
+                typeof(CaeManager.Infrastructure.Inbound.Autorizacion.LectorRequerimientosTecEnBase),
+                typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
+            ],
+            "otro consumidor leería los requisitos de los Tenants TCE sin la capacidad ni el filtro de sujetos asignados");
+    }
+
+    /// <summary>P-4: nada de lo que lee el Tenant TEC lleva la identidad de un Gestor CAE ni de ningún usuario.</summary>
+    [Fact]
+    public void Los_DTO_de_la_lectura_inversa_no_llevan_identidad_de_persona_del_Tenant_TCE()
+    {
+        Type[] dtos =
+        [
+            typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.RequisitoTecDto),
+            typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.RequerimientoTecDto),
+        ];
+
+        dtos.SelectMany(t => t.GetProperties()).Select(p => p.Name)
+            .Should().HaveCountGreaterThan(20, "control positivo: la reflexión ve las propiedades")
+            .And.NotContain(n => n.Contains("Gestor") || n.Contains("Usuario") || n.Contains("Email") || n.Contains("Correo")
+                                 || n.Contains("Ejecutivo") || n.Contains("Subido"));
+    }
+
     [Fact]
     public void Control_el_escaneo_de_cuerpos_ve_un_puerto_pedido_dentro_de_un_metodo()
     {

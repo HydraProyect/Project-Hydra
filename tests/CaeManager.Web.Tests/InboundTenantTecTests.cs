@@ -307,11 +307,14 @@ public sealed class InboundTenantTecTests : BunitContext
         ]);
 
     [Fact]
-    public void AddInboundTenantTec_registra_los_cuatro_servicios_sin_backend_que_las_paginas_inyectan()
+    public void AddInboundTenantTec_registra_los_requerimientos_con_backend_y_los_otros_tres_servicios_sin_backend()
     {
-        var proveedor = InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(new ServiceCollection()).BuildServiceProvider();
+        var servicios = InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(new ServiceCollection());
+        // Requerimientos lee ya los datos reales (demo P1); su adaptador necesita el mediador, que aquí no se registra.
+        servicios.Should().ContainSingle(d => d.ServiceType == typeof(IRequerimientosTenantTec))
+            .Which.ImplementationType.Should().Be(typeof(RequerimientosTenantTecConBackend));
+        var proveedor = servicios.BuildServiceProvider();
 
-        proveedor.GetRequiredService<IRequerimientosTenantTec>().Should().NotBeNull();
         proveedor.GetRequiredService<ISubidaDocumentoTenantTec>().Disponible.Should().BeFalse();
         proveedor.GetRequiredService<IQuienLeeTenantTec>().Should().NotBeNull();
         proveedor.GetRequiredService<IAvisoContratoTenantTec>().Should().NotBeNull();

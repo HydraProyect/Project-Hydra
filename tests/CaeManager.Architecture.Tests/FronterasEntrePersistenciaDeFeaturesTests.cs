@@ -792,6 +792,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // solo por su Id, igual que AsignarTecnicoProyecto.
         ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
         ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
+        // Requerimientos del Tenant TEC (demo Inbound, P1): cruza los requisitos de la lectura inversa X-2 con los
+        // Trabajadores asignados y la Empresa propia, con los tipos del catálogo propio del mismo nombre (D1), sus documentos
+        // vigentes y los umbrales de vigencia. Todo es del propio Tenant TEC; lo de otro Tenant llega solo por X-2.
+        ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "ITrabajadoresQueryContext"),
+        ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "IEmpresasQueryContext"),
+        ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "ITiposDocumentoQueryContext"),
+        ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "IDocumentosQueryContext"),
+        ("AutorizacionesLectura.ObtenerRequerimientosTecQueryHandler", "IConfiguracionQueryContext"),
         // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
         // (Domain.Inbound.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
         // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
