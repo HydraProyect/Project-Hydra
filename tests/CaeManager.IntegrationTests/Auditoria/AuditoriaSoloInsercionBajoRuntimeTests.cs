@@ -88,13 +88,24 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
         await conexionRuntime.OpenAsync();
         await ContextoRlsDePruebas.FijarAsync(conexionRuntime, tenantId: TenantSeedData.IdPorDefecto);
 
-        // Control positivo: la fila existe y el runtime la ve; sin esto, un 42501
-        // abajo podría ser una conexión sin SELECT, no el REVOKE.
+        // Control positivo: la fila existe (la ve el propietario) y el runtime tiene
+        // SELECT (la consulta no falla); sin esto, un 42501 abajo podría ser una
+        // conexión sin SELECT, no el REVOKE. El runtime no la ve sin Administrador del
+        // Tenant en el contexto (SoloElAdministradorLeeLaActividadDeSoporte; lo mide
+        // ActividadSoporteSoloAdministradorBajoRuntimeTests).
+        await using (var conexionPropietario = new NpgsqlConnection(arnes.CadenaPropietario))
+        {
+            await conexionPropietario.OpenAsync();
+            await using var comandoPropietario = conexionPropietario.CreateCommand();
+            comandoPropietario.CommandText = """SELECT COUNT(*) FROM "RegistrosActividadSoporte";""";
+            ((long)(await comandoPropietario.ExecuteScalarAsync())!).Should().Be(1,
+                "el INSERT de la traza de soporte como runtime tiene que seguir funcionando");
+        }
         await using (var comandoSelect = conexionRuntime.CreateCommand())
         {
             comandoSelect.CommandText = """SELECT COUNT(*) FROM "RegistrosActividadSoporte";""";
-            ((long)(await comandoSelect.ExecuteScalarAsync())!).Should().Be(1,
-                "el INSERT de la traza de soporte como runtime tiene que seguir funcionando");
+            ((long)(await comandoSelect.ExecuteScalarAsync())!).Should().Be(0,
+                "sin Administrador del Tenant en el contexto, la política restrictiva no entrega la fila");
         }
 
         await using var comandoUpdate = conexionRuntime.CreateCommand();

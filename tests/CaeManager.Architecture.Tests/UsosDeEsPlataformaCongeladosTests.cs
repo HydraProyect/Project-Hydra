@@ -505,6 +505,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 "en el Down: la función se reescribe solo para bloquear sus operaciones con FOR NO KEY UPDATE en vez de " +
                 "FOR UPDATE (interbloqueo con el Encargo de Administración, ronda 4 de Codex en la PR #2237) y no cambia " +
                 "qué cuenta admite. Solo restringe"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261117120000_SoloElAdministradorLeeLaActividadDeSoporte.cs"] =
+            new(1, CategoriaUso.MigracionManual,
+                "rama de la plataforma de la política AS RESTRICTIVE solo_el_administrador_o_la_plataforma_de_la_visita " +
+                "(RegistrosActividadSoporte): la rama esLaPlataforma de ObtenerActividadSoporteQuery en SQL, para que la " +
+                "barrera de rol del Administrador no le quite a Soporte TALVEG la traza de su propia visita. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
             new(2, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +

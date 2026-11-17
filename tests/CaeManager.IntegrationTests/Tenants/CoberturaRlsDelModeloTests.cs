@@ -217,6 +217,11 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "la objeción a un subencargado (#2010, D-7) solo la registra el Administrador de ese Tenant propietario, " +
             "a su propio nombre",
             ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "\"UsuarioId\""], [], []),
+        ("RegistrosActividadSoporte", "solo_el_administrador_o_la_plataforma_de_la_visita", 'r',
+            "la actividad de Soporte TALVEG (con UsuarioSoporteId) solo la lee el Administrador del Tenant propietario o " +
+            "la plataforma, por la vía heredada, sobre la delegación de soporte de su visita (sigue a #2016 / #2303)",
+            [], ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "app_ctx_tenant_id()",
+                 "\"DelegacionesTenant\"", "app_ctx_tenant_origen_id()", "\"EsPlataforma\""], []),
     ];
 
     /// <summary>
