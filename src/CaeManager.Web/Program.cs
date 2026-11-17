@@ -1369,7 +1369,9 @@ using (var scope = app.Services.CreateScope())
         // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
         // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
         // nuevo y establece su propio AmbitoTenantExplicito internamente.
-        await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await DelegacionDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore, app.Configuration, app.Environment, logger,
+            almacen: scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>());
 
         // Matriz de estados de la demo a dirección — inerte salvo que
         // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
