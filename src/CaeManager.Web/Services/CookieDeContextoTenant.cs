@@ -53,11 +53,21 @@ public static class CookieDeContextoTenant
         HttpContext httpContext, IDataProtectionProvider dataProtectionProvider,
         Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId)
     {
-        httpContext.Response.Cookies.Append(
-            NombreSeleccion,
-            ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId),
-            Opciones(httpContext));
+        var token = ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId);
+        httpContext.Response.Cookies.Append(NombreSeleccion, token, Opciones(httpContext));
         httpContext.Response.Cookies.Delete(NombreOrigenElegido);
+        RegistrarVigente(httpContext, RegistroSeleccionVigente.Huella(token));
+    }
+
+    /// <summary>
+    /// La selección recién emitida pasa a ser la vigente de esta sesión de navegador: desde aquí, un circuito de
+    /// otra pestaña que pintó con la anterior no puede escribir (guarda de pestaña obsoleta, D-6 b, R-2).
+    /// </summary>
+    private static void RegistrarVigente(HttpContext httpContext, string version)
+    {
+        if (httpContext.RequestServices?.GetService(typeof(RegistroSeleccionVigente)) is RegistroSeleccionVigente registro
+            && RegistroSeleccionVigente.ClaveDe(httpContext.User) is { } clave)
+            registro.Registrar(clave, version);
     }
 
     /// <summary>
@@ -69,6 +79,7 @@ public static class CookieDeContextoTenant
     {
         httpContext.Response.Cookies.Delete(NombreSeleccion);
         httpContext.Response.Cookies.Append(NombreOrigenElegido, usuarioId.ToString("N"), Opciones(httpContext));
+        RegistrarVigente(httpContext, RegistroSeleccionVigente.VersionOrigen);
     }
 
     public static bool OrigenElegido(HttpRequest peticion, Guid usuarioId) =>

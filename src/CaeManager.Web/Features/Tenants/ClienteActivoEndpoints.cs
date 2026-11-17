@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
@@ -36,10 +37,12 @@ public static class ClienteActivoEndpoints
             IDataProtectionProvider dataProtectionProvider,
             IContadorPendientesSelectorTenant contadorPendientes,
             [FromServices] CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
+            [FromServices] IRegistroCambioContexto registroCambioContexto,
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio))
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio,
+                registroCambioContexto))
             // Con papel Inbound hace falta para volver a cambiar de papel (O-1 (b)); la selección la revalida CambiarAsync.
             .AbiertoConPapelInbound();
 
@@ -59,7 +62,8 @@ public static class ClienteActivoEndpoints
         CancellationToken cancellationToken,
         IContadorPendientesSelectorTenant? contadorPendientes = null,
         CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
-        ServicioCae? servicio = null)
+        ServicioCae? servicio = null,
+        IRegistroCambioContexto? registroCambioContexto = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
@@ -120,6 +124,14 @@ public static class ClienteActivoEndpoints
                 await senalesIncidente.AccesoAOtroTenantRechazadoAsync(usuarioId.Value, tenantOrigenId.Value, tenantId, cancellationToken);
             return Results.Forbid();
         }
+
+        // Cambio de contexto con éxito, auditado en el Tenant de destino y solo en él (D-6 b, R-2; propuesta § 5.5),
+        // antes de emitir la cookie: si no queda registrado, la excepción corta aquí y el contexto no cambia. Emitir la
+        // cookie deja además obsoleta la selección de las demás pestañas (CookieDeContextoTenant, guarda de R-2).
+        if (registroCambioContexto is not null)
+            await registroCambioContexto.RegistrarCambioAsync(
+                tenantId, tenantOrigenId.Value, asignacionOperacionId, RegistroCambioContextoService.OrigenSelector,
+                cancellationToken);
 
         if (tenantId == tenantOrigenId.Value)
             CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);

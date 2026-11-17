@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -93,6 +93,12 @@ public class ClienteActivoSeleccionado(
     private Guid? _sesionPrivilegiadaIdSeleccionada;
     private bool _leidoDeCookie;
 
+    // Guarda de pestaña obsoleta (D-6 b, R-2): con qué selección pinta este ámbito y de qué sesión de navegador es.
+    // Nulos cuando el contexto no sale de la cookie (extensión) o no hay usuario: entonces la guarda no aplica.
+    private string? _versionSeleccion;
+    private string? _claveSesion;
+    private bool _retiradaTrasLeer;
+
     /// <summary>
     /// Emite el token para la cookie. Solo debe llamarlo el endpoint
     /// <c>/cuenta/cliente-activo</c>, y solo después de haber
@@ -163,7 +169,55 @@ public class ClienteActivoSeleccionado(
         _tenantIdSeleccionado = leido.TenantId;
         _asignacionOperacionIdSeleccionada = leido.AsignacionOperacionId;
         _sesionPrivilegiadaIdSeleccionada = leido.SesionPrivilegiadaId;
+        if (httpContextAccessor.HttpContext is { } contexto)
+        {
+            _claveSesion = RegistroSeleccionVigente.ClaveDe(contexto.User);
+            _versionSeleccion = leido.TenantId is null
+                ? RegistroSeleccionVigente.VersionOrigen
+                : RegistroSeleccionVigente.Huella(contexto.Request.Cookies[NombreCookie]!);
+        }
         _leidoDeCookie = true;
+    }
+
+    /// <summary>
+    /// Versión de la selección con la que pinta este ámbito —el circuito o la petición—, o <c>null</c> si su
+    /// contexto no sale de la cookie. La fija la primera lectura; en un circuito, la de su negociación
+    /// (<see cref="RevalidacionCircuitoActivoHandler"/>), porque un circuito abierto no vuelve a ver la cookie.
+    /// </summary>
+    public string? VersionSeleccion
+    {
+        get
+        {
+            AsegurarLeidoDeCookie();
+            return _versionSeleccion;
+        }
+    }
+
+    /// <summary>La sesión de navegador (usuario y <c>talveg:sid</c>) a la que pertenece la selección leída.</summary>
+    public string? ClaveSesion
+    {
+        get
+        {
+            AsegurarLeidoDeCookie();
+            return _claveSesion;
+        }
+    }
+
+    /// <summary>
+    /// La selección con la que este ámbito pintó se retiró después (<see cref="Invalidar"/>): el Tenant de las
+    /// consultas siguientes ya no es el que la pantalla enseña, así que ningún comando puede salir de aquí.
+    /// </summary>
+    public bool RetiradaTrasLeer => _retiradaTrasLeer;
+
+    /// <summary>
+    /// Al abrirse un circuito: su cookie es la última que tiene el navegador, así que su versión pasa a ser la
+    /// vigente de esa sesión. Cierra además el caso de una respuesta de cambio perdida, que dejaría el registro
+    /// con una versión que el navegador nunca recibió.
+    /// </summary>
+    public void AdoptarComoVigente(RegistroSeleccionVigente registro)
+    {
+        if (ClaveSesion is { } clave && VersionSeleccion is { } version)
+            registro.Registrar(clave, version);
     }
 
     private bool LecturaPrematura() =>
@@ -182,6 +236,9 @@ public class ClienteActivoSeleccionado(
         _tenantIdSeleccionado = tenantId;
         _asignacionOperacionIdSeleccionada = asignacionOperacionId;
         _sesionPrivilegiadaIdSeleccionada = null;
+        // Contexto explícito de la petición, no de la cookie: la guarda de pestaña obsoleta no aplica.
+        _versionSeleccion = null;
+        _claveSesion = null;
         _leidoDeCookie = true;
     }
 
@@ -196,6 +253,8 @@ public class ClienteActivoSeleccionado(
     public void Invalidar()
     {
         var tenantRetirado = _tenantIdSeleccionado;
+        if (tenantRetirado is not null)
+            _retiradaTrasLeer = true;
 
         _tenantIdSeleccionado = null;
         _asignacionOperacionIdSeleccionada = null;

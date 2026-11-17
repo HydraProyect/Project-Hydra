@@ -34,10 +34,14 @@ namespace CaeManager.Web.Services;
 /// renderer del circuito, y llamarlas desde un temporizador en segundo plano
 /// arriesgaría una excepción de hilo peor que el hueco que se cierra. La
 /// próxima interacción del usuario (click, navegación, envío de formulario)
-/// ya despacha su Query/Command con la selección invalidada: el Tenant
+/// ya despacha su Query con la selección invalidada: el Tenant
 /// propietario retirado deja de resolverse y <c>TenantActual</c> cae al Tenant
 /// de origen del usuario, igual que el resto de
-/// <see cref="ClienteActivoSeleccionado"/>. El rol cae con él: el principal del
+/// <see cref="ClienteActivoSeleccionado"/>. Un Command, en cambio, ya no cae al
+/// Tenant de origen: la pantalla pintó con el Tenant retirado, así que
+/// <c>GuardaPestanaObsoletaBehavior</c> lo rechaza y lo deja auditado hasta que
+/// la pestaña recarga (D-6 b, R-2; antes se ejecutaba en el Tenant de origen
+/// sin que la persona lo supiera). El rol cae con él: el principal del
 /// circuito conserva el claim de rol de la cartera retirada, pero
 /// <c>CurrentUserService.ObtenerRolEfectivoAsync</c> devuelve sin selección el
 /// rol de la sesión en origen, no ese claim (hallazgo del 2026-10-09). Las
@@ -96,7 +100,8 @@ public class RevalidacionCircuitoActivoHandler(
     PuertaAccesoDatos puertaAccesoDatos,
     IOptions<IntervalosRevalidacionOptions> intervalos,
     ILogger<RevalidacionCircuitoActivoHandler> logger,
-    TimeProvider? reloj = null) : CircuitHandler, IAsyncDisposable
+    TimeProvider? reloj = null,
+    RegistroSeleccionVigente? registroSeleccionVigente = null) : CircuitHandler, IAsyncDisposable
 {
     /// <summary>
     /// Intervalo por defecto de la revalidación del circuito (invariante I3 del contrato del
@@ -177,8 +182,15 @@ public class RevalidacionCircuitoActivoHandler(
     /// que algo la cierra, nunca antes ni después) lo detectó: la comprobación
     /// gastaba la única lectura buena sin memoizar nada.
     /// </summary>
-    private void SembrarSeleccionMientrasHayHttpContext() =>
+    private void SembrarSeleccionMientrasHayHttpContext()
+    {
         _ = clienteActivoSeleccionado.TenantIdSeleccionado;
+
+        // La cookie de la negociación es la última del navegador: su versión pasa a ser la vigente de la sesión, y la
+        // de cualquier otro circuito suyo que pintara con otra queda obsoleta (guarda de pestaña, D-6 b, R-2).
+        if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion && registroSeleccionVigente is not null)
+            seleccion.AdoptarComoVigente(registroSeleccionVigente);
+    }
 
     public override async Task OnCircuitClosedAsync(Circuit circuit, CancellationToken cancellationToken)
     {

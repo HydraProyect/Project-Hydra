@@ -43,6 +43,18 @@ public class RegistroAuditoria : EntidadConTenant
     public const string AccionRestaurado = "Restaurado";
 
     /// <summary>
+    /// Acción del <b>cambio de contexto con éxito</b> a un Tenant (D-6 b, R-2): se registra solo en el Tenant de
+    /// destino y nunca nombra el Tenant seleccionado antes. <see cref="EntidadId"/> es el Tenant de destino.
+    /// </summary>
+    public const string AccionCambioDeContexto = "CambioDeContexto";
+
+    /// <summary>
+    /// Acción del <b>comando rechazado por pestaña obsoleta</b> (D-6 b, R-2): la selección con la que pintó la
+    /// pestaña ya no era la vigente. <see cref="DatosDespues"/> lleva el comando y el motivo, nunca su contenido.
+    /// </summary>
+    public const string AccionComandoRechazadoPorContextoObsoleto = "ComandoRechazadoPorContextoObsoleto";
+
+    /// <summary>
     /// Acción de la <b>emisión de un enlace de activación</b> para una cuenta que sigue
     /// pendiente de activación, sea el del alta o un reenvío. El enlace es una credencial
     /// al portador, así que cada emisión deja fila propia sobre la cuenta afectada. La

@@ -298,6 +298,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // exista la impersonacion.
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+// Guarda de pestaña obsoleta (D-6 b, R-2): la selección vigente de cada sesión de navegador, en memoria del proceso.
+builder.Services.AddSingleton<CaeManager.Web.Services.RegistroSeleccionVigente>();
+builder.Services.AddScoped<IGuardaSeleccionVigente, CaeManager.Web.Services.GuardaSeleccionVigente>();
 // Una petición de la extensión ya resuelta no se vuelve a autenticar (ver EvaluadorPoliticaExtension).
 builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyEvaluator, CaeManager.Web.Services.EvaluadorPoliticaExtension>();
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
