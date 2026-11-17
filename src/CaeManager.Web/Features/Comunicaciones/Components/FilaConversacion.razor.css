@@ -1,8 +1,8 @@
 /* Tercera línea de la fila (maqueta 2026-11-01, `.f3`): 12/16 en 500, apagada, con 2 px entre filas y 8 px entre piezas. Los estilos del resto de la
    fila viven en Bandeja.razor.css (`::deep`); aquí solo lo que añaden el plazo, la prioridad y el Nº de ticket. Las clases `fila-*` son propias de
    este componente: `bandeja-fila-linea3` también la pinta FilaMensajeBuzonPersonal y no puede declararse aquí (ClasesDeCssAisladoNoViajanEntreComponentesTests).
-   El selector lleva `li.fila-conversacion` delante para ganar en especificidad (0,4,1, con el atributo de scope) a `.bandeja-lista ::deep .bandeja-fila-linea3` (0,3,0), que
-   fija `space-between` y un hueco de 8 px. */
+   El selector lleva `li.fila-conversacion` delante para ganar en especificidad (0,3,1: el atributo de scope solo va en el último selector) a `.bandeja-lista ::deep .bandeja-fila-linea3` (0,3,0);
+   el margen es solo el selector de tipo `li`, no lo quites. La regla rival fija `space-between` y un hueco de 8 px. */
 li.fila-conversacion .fila-linea-meta {
     flex-wrap: wrap;
     justify-content: flex-start;

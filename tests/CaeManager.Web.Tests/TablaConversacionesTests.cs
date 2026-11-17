@@ -73,7 +73,8 @@ public class TablaConversacionesTests : BunitContext
     {
         var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
 
-        cut.FindAll("[role=cell]")[5].TextContent.Trim().Should().BeEmpty();
+        // Vacía de verdad, ni un espacio ni un comentario: la regla `:empty` que oculta la celda apilada depende de ello.
+        cut.FindAll("[role=cell]")[5].InnerHtml.Should().BeEmpty();
     }
 
     [Fact]
