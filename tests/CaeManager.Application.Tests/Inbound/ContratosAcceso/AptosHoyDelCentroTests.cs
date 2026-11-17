@@ -870,6 +870,50 @@ public class AptosHoyDelCentroTests
     }
 
     [Fact]
+    public async Task En_la_proyeccion_restringida_el_nombre_y_el_DNI_parcial_son_los_del_contrato_mas_reciente()
+    {
+        // El reciente (A) es Apto y trae el DNI; el antiguo (_contrato, B) está en tolerancia y trae el NIE: el estado menos
+        // favorable es el de B, pero la fila restringida cita A y muestra la identidad de A, no la de B.
+        var a = ContratoDesde(new DateOnly(2026, 6, 1));
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: a, documento: "12345678Z");
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto, contrato: a, documento: "12345678Z");
+        Dar(t, "P. Sanjuán Aznar (antiguo)", _formacion, new DateOnly(2025, 11, 16), documento: "X1234567L"); // venció ayer: en tolerancia
+        Dar(t, "P. Sanjuán Aznar (antiguo)", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto, documento: "X1234567L");
+
+        var completa = (await Consultar()).Should().ContainSingle().Subject;
+        var restringida = (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound))).Should().ContainSingle().Subject;
+
+        completa.Estado.Should().Be(EstadoAptitudInbound.EnTolerancia);
+        completa.ContratoAccesoId.Should().Be(_contrato.Id, "quien valida ve el contrato que da el estado");
+        restringida.Estado.Should().Be(EstadoAptitudInbound.Apto);
+        restringida.ContratoAccesoId.Should().Be(a.Id);
+        restringida.Nombre.Should().Be("Pilar Sanjuán Aznar");
+        restringida.DocumentoIdentidad.Should().Be("****678Z", "la identidad no sale del contrato menos favorable");
+    }
+
+    [Fact]
+    public async Task Un_NoApto_de_un_contrato_que_cuenta_no_evalua_a_los_demas_contratos_y_la_fila_cita_el_que_lo_tiene()
+    {
+        // A (inicio 2026-06-01, Empresa X): todo al día y el apto vigente. B (_contrato, inicio 2026-01-01, Empresa Y): un
+        // «No apto» Aceptado y vigente. Gana B, que tiene su propio «No apto»: la fila no puede citar a A ni a su Empresa.
+        var a = ContratoDesde(new DateOnly(2026, 6, 1));
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto, contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 10, 1), conclusion: ConclusionAptitud.NoApto);
+
+        var fila = (await Consultar()).Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        fila.ContratoAccesoId.Should().Be(_contrato.Id, "el «No apto» es de B");
+        fila.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId);
+        fila.Requisito.Should().Be(_aptitud.Nombre);
+        fila.EmpresasContratistaIds.Should().BeEquivalentTo([a.EmpresaContratistaId, _contrato.EmpresaContratistaId]);
+    }
+
+    [Fact]
     public async Task En_un_requisito_que_revela_salud_cualquier_causa_sale_igual_y_sin_fecha()
     {
         // Cuatro Trabajadores con la formación al día y el certificado de aptitud sin acreditar por cuatro causas distintas.
@@ -1105,19 +1149,20 @@ public class AptosHoyDelCentroTests
 
     private EvidenciaInbound Dar(
         Guid trabajador, string nombre, TipoDocumento tipo, DateOnly emision, DateOnly? venc = null,
-        ConclusionAptitud? conclusion = null, ContratoAcceso? contrato = null) =>
-        Registrar(contrato ?? _contrato, tipo, trabajador, nombre, emision, venc, conclusion);
+        ConclusionAptitud? conclusion = null, ContratoAcceso? contrato = null, string? documento = null) =>
+        Registrar(contrato ?? _contrato, tipo, trabajador, nombre, emision, venc, conclusion, documento);
 
     private EvidenciaInbound DarEmpresa(TipoDocumento tipo, DateOnly emision, DateOnly? venc = null) =>
         Registrar(_contrato, tipo, null, "Montajes Moncayo S.L.", emision, venc, null);
 
     private EvidenciaInbound Registrar(
-        ContratoAcceso contrato, TipoDocumento tipo, Guid? trabajador, string nombre, DateOnly emision, DateOnly? venc, ConclusionAptitud? conclusion)
+        ContratoAcceso contrato, TipoDocumento tipo, Guid? trabajador, string nombre, DateOnly emision, DateOnly? venc, ConclusionAptitud? conclusion,
+        string? documento = null)
     {
         var evidencia = EvidenciaInbound.Registrar(
             new EvidenciaInbound.Procedencia(contrato.Id, _tenantContratista, Guid.NewGuid(), Guid.NewGuid()),
             tipo.Id,
-            new EvidenciaInbound.Sujeto(trabajador, nombre, trabajador is null ? null : "12345678Z"),
+            new EvidenciaInbound.Sujeto(trabajador, nombre, trabajador is null ? null : documento ?? "12345678Z"),
             emision, venc, soloConclusionAptitud: conclusion is not null, conclusion,
             conclusion is null ? new EvidenciaInbound.ArchivoCopiado($"{Guid.NewGuid():N}/copia.pdf", new string('a', 64)) : null,
             _usuario, Ahora.UtcDateTime);

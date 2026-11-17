@@ -150,8 +150,11 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// del actor no deja ver no se lee (no se cambia la autorización). (8) Cada evidencia es de un
 /// contrato: un Trabajador en dos contratos se evalúa en cada uno y sale una sola vez, con el estado menos favorable de todos
 /// ellos (decisión del 2026-11-17, P3 punto 4); la fila cita el contrato y la Empresa contratista que dan ese estado y lleva en
-/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas (solo las de los contratos que cuentan); en la proyección
-/// restringida la fila cita, en cambio, el contrato y la Empresa del contrato más reciente que cuenta. (9) En una fila Apto de
+/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas (solo las de los contratos que cuentan). El «No apto» de un
+/// contrato que cuenta evalúa solo su propio contrato (la selección del estado menos favorable ya hace que gane el que lo
+/// tiene); solo los «No apto» de los contratos que no cuentan (7 bis) se suman a cada contrato. En la proyección restringida
+/// la fila cita, en cambio, el contrato, la Empresa y la identidad (nombre y DNI parcial) del contrato más reciente que
+/// cuenta. (9) En una fila Apto de
 /// la proyección completa, el próximo vencimiento puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
 /// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
 /// </para>
@@ -221,7 +224,10 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             : await evidenciasContext.EvidenciasInbound
                 .Where(e => otrosIds.Contains(e.ContratoAccesoId) && e.SoloConclusionAptitud && e.TrabajadorOrigenId != null)
                 .ToListAsync(cancellationToken);
-        var noAptosPorTrabajador = evidencias.Concat(evidenciasDeOtros)
+        // Solo los de los contratos que no cuentan se suman como ajenos: los «No apto» de los contratos que sí cuentan ya están en
+        // sus propias evidencias, y sumarlos a los demás contratos haría que un contrato salga NoApto por el «No apto» de otro y
+        // que la fila cite un contrato y una Empresa contratista que no lo tienen.
+        var noAptosDeContratosQueNoCuentan = evidenciasDeOtros
             .Where(e => e.TrabajadorOrigenId is not null && EsNoApto(e) && EvidenciasInboundProyeccion.EstaAceptada(e))
             .ToLookup(e => e.TrabajadorOrigenId!.Value);
 
@@ -245,7 +251,8 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
         var filas = new Dictionary<Guid, AptoHoyDto>();
         var empresasPorTrabajador = new Dictionary<Guid, List<Guid>>();
         // Los contratos van del más reciente al más antiguo: el primero en el que sale un Trabajador es el más reciente que cuenta.
-        var masRecientePorTrabajador = new Dictionary<Guid, ContratoAcceso>();
+        // Junto con la identidad (nombre y documento) que trae su evidencia más reciente: la proyección restringida cita ese contrato.
+        var masRecientePorTrabajador = new Dictionary<Guid, (ContratoAcceso Contrato, EvidenciaInbound Identidad)>();
         foreach (var contrato in contratos)
         {
             var delContrato = evidencias.Where(e => e.ContratoAccesoId == contrato.Id).ToList();
@@ -257,8 +264,8 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             foreach (var porTrabajador in delContrato.Where(e => e.TrabajadorOrigenId is not null).GroupBy(e => e.TrabajadorOrigenId!.Value))
             {
                 var propias = porTrabajador.ToList();
-                // Solo los «No apto» Aceptados de los demás contratos del Centro se suman a lo propio; nunca una acreditación positiva.
-                var ajenas = noAptosPorTrabajador[porTrabajador.Key].Where(e => e.ContratoAccesoId != contrato.Id);
+                // Solo los «No apto» Aceptados de los contratos que no cuentan se suman a lo propio; nunca una acreditación positiva.
+                var ajenas = noAptosDeContratosQueNoCuentan[porTrabajador.Key];
                 var evaluadas = evaluadasEmpresa.Concat(
                     Evaluar(exigidosTrabajador, propias.Concat(ajenas).ToList(), hoy, SujetoDelRequisitoInbound.Trabajador)).ToList();
                 var identidad = propias.OrderByDescending(e => e.ValidadaEnUtc).ThenBy(e => e.Id).First();
@@ -272,14 +279,14 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
                     empresasPorTrabajador[porTrabajador.Key] = empresas = [];
                 if (!empresas.Contains(contrato.EmpresaContratistaId))
                     empresas.Add(contrato.EmpresaContratistaId);
-                masRecientePorTrabajador.TryAdd(porTrabajador.Key, contrato);
+                masRecientePorTrabajador.TryAdd(porTrabajador.Key, (contrato, identidad));
             }
         }
 
         // La restricción va antes de ordenar: el orden no puede delatar un «en tolerancia» que la proyección restringida oculta.
         return filas
             .Select(par => par.Value with { EmpresasContratistaIds = empresasPorTrabajador[par.Key] })
-            .Select(f => completa ? f : Restringida(f, masRecientePorTrabajador[f.TrabajadorId]))
+            .Select(f => completa ? f : Restringida(f, masRecientePorTrabajador[f.TrabajadorId].Contrato, masRecientePorTrabajador[f.TrabajadorId].Identidad))
             .OrderByDescending(f => f.Estado).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.TrabajadorId)
             .ToList();
     }
@@ -287,14 +294,16 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     /// <summary>
     /// La proyección para quien no tiene <see cref="CapacidadInbound.ValidarInbound"/>: nombre, DNI parcial, Empresa contratista
     /// y apto o no apto. Sin tipo de contrato, requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10). La fila
-    /// cita el contrato y la Empresa contratista del contrato más reciente que cuenta, no los del estado menos favorable: citar
-    /// estos delataría en qué contrato está el «en tolerancia» o el motivo (decisión del 2026-11-17, P3, punto 5).
+    /// cita el contrato, la Empresa contratista y la identidad (nombre y documento) del contrato más reciente que cuenta, no los del
+    /// estado menos favorable: citar estos delataría en qué contrato está el «en tolerancia» o el motivo (decisión del 2026-11-17,
+    /// P3, puntos 5 y revisión de la ronda 6).
     /// </summary>
-    private static AptoHoyDto Restringida(AptoHoyDto fila, ContratoAcceso masReciente) => fila with
+    private static AptoHoyDto Restringida(AptoHoyDto fila, ContratoAcceso masReciente, EvidenciaInbound identidad) => fila with
     {
         ContratoAccesoId = masReciente.Id,
         EmpresaContratistaId = masReciente.EmpresaContratistaId,
-        DocumentoIdentidad = DniParcialAptosHoy.Enmascarar(fila.DocumentoIdentidad),
+        Nombre = identidad.SujetoNombre,
+        DocumentoIdentidad = DniParcialAptosHoy.Enmascarar(identidad.SujetoDocumentoIdentidad),
         TipoContrato = null,
         ProyeccionCompleta = false,
         Estado = fila.Estado == EstadoAptitudInbound.NoApto ? EstadoAptitudInbound.NoApto : EstadoAptitudInbound.Apto,
