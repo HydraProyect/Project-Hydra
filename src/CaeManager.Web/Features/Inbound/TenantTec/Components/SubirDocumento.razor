@@ -7,8 +7,9 @@
 @inject IStringLocalizer<TextosInboundTenantTec> Textos
 @inject ILogger<SubirDocumento> Registro
 
-@* «Subir documento» del Tenant TEC, en un drawer sobre la lista de requerimientos. La subida real (formatos, conversión a PDF,
-   comprobaciones C0/C1, filtro de datos de salud) es de B-20: hasta entonces «Subir» queda deshabilitado y lo dice. *@
+@* «Subir documento» del Tenant TEC, en un drawer sobre la lista de requerimientos. La subida guarda el documento desde la demo
+   Inbound P2 (SubidaDocumentoTenantTecConBackend); las comprobaciones C0/C1 y el filtro de contenido de salud siguen siendo de
+   B-20. Sin backend, «Subir» queda deshabilitado y lo dice. *@
 @{
     var r = Requerimiento;
 }

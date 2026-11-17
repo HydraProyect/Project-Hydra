@@ -148,7 +148,10 @@ public sealed record RespuestaSubidaTec(ResultadoSubidaTec Resultado, Guid? Sigu
 /// Subida de un documento a un requerimiento: formatos, conversión a PDF, comprobaciones C0/C1,
 /// filtro de datos de salud e historial.
 /// </summary>
-/// <remarks>shortcut: sin backend, cablear cuando entre B-20 (subida Inbound).</remarks>
+/// <remarks>
+/// En ejecución lo implementa <see cref="SubidaDocumentoTenantTecConBackend"/> (demo Inbound, P2). Las comprobaciones C0/C1,
+/// el filtro de contenido de datos de salud y el historial siguen pendientes de B-20.
+/// </remarks>
 public interface ISubidaDocumentoTenantTec
 {
     bool Disponible { get; }
@@ -156,7 +159,7 @@ public interface ISubidaDocumentoTenantTec
     Task<RespuestaSubidaTec> SubirAsync(SolicitudSubidaTec solicitud, CancellationToken ct = default);
 }
 
-// shortcut: sin backend, cablear cuando entre B-20
+/// <summary>Sin backend: «Subir» queda deshabilitado con su motivo. Ya no se registra en ejecución; lo usan las pruebas.</summary>
 public sealed class SubidaDocumentoTenantTecSinBackend : ISubidaDocumentoTenantTec
 {
     public bool Disponible => false;

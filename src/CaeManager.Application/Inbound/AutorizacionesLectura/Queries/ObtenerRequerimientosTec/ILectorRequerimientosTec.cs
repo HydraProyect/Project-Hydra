@@ -9,8 +9,10 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRe
 ///
 /// <para>
 /// <b>No dice a quién se aplica cada requisito.</b> Eso lo decide quien llama con los datos propios del Tenant TEC (los
-/// Trabajadores asignados a la autorización de lectura del contrato). Solo lo consume
-/// <see cref="ObtenerRequerimientosTecQueryHandler"/> (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
+/// Trabajadores asignados a la autorización de lectura del contrato). Solo lo consumen
+/// <see cref="ObtenerRequerimientosTecQueryHandler"/> y la subida a un requerimiento (demo P2,
+/// <c>SubirDocumentoRequerimientoTecCommandHandler</c>), que revalida el sujeto con esa Query
+/// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
 /// </summary>
 public interface ILectorRequerimientosTec

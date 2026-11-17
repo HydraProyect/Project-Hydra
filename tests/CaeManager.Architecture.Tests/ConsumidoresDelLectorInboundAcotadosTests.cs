@@ -136,15 +136,17 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     /// <summary>
     /// La lectura inversa X-2 (<c>app_inbound_tec_requerimientos()</c>) da al Tenant TEC requisitos de otros Tenants. Solo la
     /// pide <see cref="CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler"/>,
-    /// que decide antes la capacidad ParticipanteTec y el alcance de datos y solo enseña sujetos asignados (D8).
+    /// que decide antes la capacidad ParticipanteTec y el alcance de datos y solo enseña sujetos asignados (D8), y la subida
+    /// a un requerimiento (demo P2), que pide la misma capacidad antes de leer y revalida el sujeto contra esa Query.
     /// </summary>
     [Fact]
-    public void Solo_ObtenerRequerimientosTec_pide_la_lectura_inversa_X2()
+    public void Solo_ObtenerRequerimientosTec_y_la_subida_piden_la_lectura_inversa_X2()
     {
         NombranEnIl(typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec))
             .Select(Exterior).Distinct().Should().BeEquivalentTo(
             [
                 typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler),
+                typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDocumentoRequerimientoTec.SubirDocumentoRequerimientoTecCommandHandler),
                 typeof(CaeManager.Infrastructure.Inbound.Autorizacion.LectorRequerimientosTecEnBase),
                 typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
             ],

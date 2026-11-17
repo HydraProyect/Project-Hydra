@@ -173,6 +173,8 @@ namespace CaeManager.Architecture.Tests
             "RevocarClaveApiCommand",
             "RevocarClaveApiDeMiOrganizacionCommand",
             "SolicitarExportacionCompletaCommand",
+            // Demo Inbound P2: la subida del Tenant TEC a un requerimiento es AutorizacionesLectura, como su Query.
+            "SubirDocumentoRequerimientoTecCommand",
             "TieneAutorizacionLecturaConcedidaQuery",
             "ValidarContactoSeguridadCommand",
             "VerificarIdentidadSolicitudDerechoCommand",
