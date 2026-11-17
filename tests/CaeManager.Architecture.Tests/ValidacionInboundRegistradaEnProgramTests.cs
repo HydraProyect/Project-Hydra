@@ -18,17 +18,28 @@ public class ValidacionInboundRegistradaEnProgramTests
     {
         var programa = ProgramSinComentarios();
 
+        // La llamada es una sentencia suelta: la precede el fin de otra («;») o de un bloque («}»), no un «if (…)» ni un
+        // «{» de una rama por entorno.
         programa.Should().MatchRegex(
-            @"[\w.]*\bAddValidacionInbound\(\s*builder\.Services\s*,\s*builder\.Configuration\s*\)\s*;",
+            @"[;}]\s*[\w.]*\bAddValidacionInbound\(\s*builder\.Services\s*,\s*builder\.Configuration\s*\)\s*;",
             "la validación Inbound se compone con la configuración del host, sin una variante por entorno");
         Regex.Matches(programa, @"\bAddValidacionInbound\b").Count.Should().Be(1);
     }
 
+    [Fact]
+    public void Program_no_retoca_las_opciones_de_la_validacion_Inbound()
+    {
+        // Un Configure o PostConfigure de OpcionesValidacionInbound en Program.cs podría volver a atarlas al entorno.
+        Regex.Matches(ProgramSinComentarios(), @"\bOpcionesValidacionInbound\b").Count.Should().Be(0);
+    }
+
+    // Primero los comentarios de línea y después los de bloque: Program.cs tiene «/*» dentro de comentarios de línea
+    // (rutas como /cuenta/*), y quitar antes los bloques podría comerse código hasta el siguiente «*/».
     private static string ProgramSinComentarios()
     {
         var codigo = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
-        codigo = Regex.Replace(codigo, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-        return Regex.Replace(codigo, @"(?<!:)//[^\n]*", string.Empty);
+        codigo = Regex.Replace(codigo, @"(?<!:)//[^\n]*", string.Empty);
+        return Regex.Replace(codigo, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
     }
 
     private static string RaizDelRepositorio()
