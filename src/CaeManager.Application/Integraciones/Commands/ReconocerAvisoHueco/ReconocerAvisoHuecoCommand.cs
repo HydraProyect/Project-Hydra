@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 
 /// <summary>
-/// La acción Confirmar de Conexiones (issue #2124): da por revisado el aviso «posible correo no recuperado desde» de un
+/// La acción Confirmar de Conexiones y de Buzón (issue #2124): da por revisado el aviso «posible correo no recuperado desde» de un
 /// buzón de Microsoft 365. Limpia <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>, anula la recuperación en curso
 /// y deja una fila de auditoría propia (<see cref="Domain.Auditoria.RegistroAuditoria.AccionHuecoReconocido"/>).
 /// <paramref name="MarcaVistaUtc"/> es la fecha del aviso que la persona tenía delante al confirmar: si la marca guardada
@@ -21,7 +21,7 @@ public record ReconocerAvisoHuecoCommand(Guid ConexionId, DateTime MarcaVistaUtc
 
 /// <summary>
 /// ¿Ofrece la pantalla Confirmar a quien mira? La pregunta de Buzón (issue #2124, opción B), que no es solo de
-/// Administrador: el Gestor CAE con el Tenant en su Asignación de Cartera también confirma. Comparte handler con el comando
+/// Administrador: el Gestor CAE y el Coordinador CAE con el Tenant en su Asignación de Cartera también confirman. Comparte handler con el comando
 /// a propósito, para que el mismo <see cref="ReconocerAvisoHuecoCommandHandler.PuedeReconocerAsync"/> decida en los dos
 /// (como <c>PuedeReactivarQuery</c>). Solo responde por quién actúa: el estado de cada conexión (con aviso, Habilitada, sin
 /// marca por registrar) lo lee la página del listado que ya ve, y el comando lo vuelve a comprobar todo.
@@ -40,7 +40,8 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 
 /// <summary>
 /// <para>
-/// <b>Autoridad</b> (decisión de Chris, 2026-11-16), comprobada aquí y no solo en la página. Pueden confirmar:
+/// <b>Autoridad</b> (decisiones de Chris del 2026-11-16 y, para el Coordinador CAE, del 2026-11-17), comprobada aquí y no
+/// solo en la página. Pueden confirmar:
 /// <list type="bullet">
 /// <item>el Administrador del Tenant propietario de la conexión;</item>
 /// <item>el Administrador del Operador CAE externo que opera ese Tenant beneficiario por Asignación de Operación, que
@@ -50,8 +51,10 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// empresarial, así que se pide que la cartera alcance el Tenant entero (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>:
 /// acceso total o Asignación de Cartera de ámbito universal efectiva), la misma condición que piden los actos que valen
 /// para todo el Tenant. Una cartera acotada a Clientes empresariales no basta (límite (1), abajo).</item>
+/// <item>el Coordinador CAE, con la misma condición de cartera que el Gestor CAE (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>,
+/// que también cuenta la Asignación de Cartera de un Gestor CAE a su cargo).</item>
 /// </list>
-/// Cualquier otro rol (Coordinador CAE, Dirección CAE, Consulta, Cliente) y un Gestor CAE sin cartera en el Tenant
+/// Cualquier otro rol (Dirección CAE, Consulta, Cliente) y un Gestor CAE o un Coordinador CAE sin cartera en el Tenant
 /// reciben <see cref="CodigoSinPermiso"/>. La Propiedad la ponen el filtro de Tenant y la RLS: una conexión de otro Tenant
 /// no se lee y sale como no encontrada, igual que una que el alcance no deja ver (por la cartera del Cliente empresarial
 /// o, en un buzón personal, por no ser de quien actúa). Soporte TALVEG en Sesión Privilegiada no llega aquí:
@@ -68,7 +71,7 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// visto.
 /// </para>
 /// <para>
-/// <b>Límites declarados.</b> (1) Un Gestor CAE cuya Asignación de Cartera cuelga de una Asignación de Operación acotada a
+/// <b>Límites declarados.</b> (1) Un Gestor CAE o un Coordinador CAE cuya Asignación de Cartera cuelga de una Asignación de Operación acotada a
 /// un Cliente empresarial no alcanza el Tenant entero y recibe <see cref="CodigoSinPermiso"/>: se rechaza de más, nunca de
 /// menos. (2) Confirmar no exige que la suscripción de Graph siga viva: si ya expiró, la renovación diaria vuelve a fijar
 /// la marca (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>) y el aviso reaparece, porque la
@@ -91,7 +94,7 @@ public class ReconocerAvisoHuecoCommandHandler(
     : IRequestHandler<ReconocerAvisoHuecoCommand, Result>,
       IRequestHandler<PuedeReconocerAvisoHuecoQuery, bool>
 {
-    /// <summary>Quien actúa no es ninguno de los tres perfiles que pueden confirmar el aviso.</summary>
+    /// <summary>Quien actúa no es ninguno de los perfiles que pueden confirmar el aviso.</summary>
     public const string CodigoSinPermiso = "ConexionIntegracion.ReconocerAvisoSinPermiso";
 
     /// <summary>La conexión no está Habilitada o tiene una marca del hueco por registrar: el hueco sigue abierto.</summary>
@@ -105,7 +108,7 @@ public class ReconocerAvisoHuecoCommandHandler(
         if (!await PuedeReconocerAsync(cancellationToken))
             return Result.Fallo(Error.Crear(
                 CodigoSinPermiso,
-                "Solo un Administrador o el Gestor CAE con esta organización en su cartera pueden dar por revisado este aviso."));
+                "Solo un Administrador, o un Gestor CAE o un Coordinador CAE con esta organización en su cartera, pueden dar por revisado este aviso."));
 
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
         if (conexion is null || !await DesconectarBuzonCommandHandler.ConexionVisibleAsync(alcanceDatos, conexion, cancellationToken))
@@ -128,7 +131,7 @@ public class ReconocerAvisoHuecoCommandHandler(
         await usuarioActual.ObtenerRolEfectivoAsync() switch
         {
             "Administrador" => true,
-            "GestorCae" => await alcanceDatos.AlcanzaElTenantEnteroAsync(cancellationToken),
+            "GestorCae" or "CoordinadorCae" => await alcanceDatos.AlcanzaElTenantEnteroAsync(cancellationToken),
             _ => false,
         };
 

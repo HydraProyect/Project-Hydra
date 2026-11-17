@@ -86,11 +86,14 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         }
     }
 
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
+
     /// <summary>
     /// El listado del selector y, solo si alguna conexión tiene el aviso del hueco, si quien mira puede confirmarlo
     /// (<see cref="PuedeReconocerAvisoHuecoQuery"/>, la misma regla que el comando). Se pregunta una vez por página: no
-    /// depende de la conexión. En Sesión Privilegiada no se pregunta: Soporte TALVEG es de solo lectura y el comando no
-    /// llegaría al handler.
+    /// depende de la conexión. No se pregunta en Sesión Privilegiada (Soporte TALVEG es de solo lectura y el comando no
+    /// llegaría al handler) ni con un rol sin escritura (<see cref="SoloConEscritura"/>), para que el texto del aviso no
+    /// nombre un Confirmar que no se ofrece.
     /// </summary>
     private async Task CargarConexionesAsync(long generacion, CancellationToken token)
     {
@@ -99,13 +102,32 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
         if (_puedeConfirmarAviso is null && conexiones.Any(c => c.CorreoNoRecuperadoDesdeUtc is not null))
         {
-            var actor = await ActorAuditoria.ObtenerAsync();
-            var puede = actor.Via != TipoViaAcceso.SesionPrivilegiada && await Mediator.Send(new PuedeReconocerAvisoHuecoQuery(), token);
+            var puede = await PreguntarSiPuedeConfirmarAsync(token);
             if (!EsCargaConexionesVigente(generacion, token)) return;
             _puedeConfirmarAviso = puede;
         }
 
         _conexiones = conexiones;
+    }
+
+    /// <summary>
+    /// La pregunta es accesoria: si falla, falla cerrada (sin botón y con el texto que no nombra Confirmar) y el resto de la
+    /// página sigue. Queda sin responder (null) para volver a preguntar en la siguiente recarga.
+    /// </summary>
+    private async Task<bool?> PreguntarSiPuedeConfirmarAsync(CancellationToken token)
+    {
+        try
+        {
+            var actor = await ActorAuditoria.ObtenerAsync();
+            if (actor.Via == TipoViaAcceso.SesionPrivilegiada || !await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
+                return false;
+            return await Mediator.Send(new PuedeReconocerAvisoHuecoQuery(), token);
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        {
+            Logger.LogError(ex, "Error al comprobar si se puede confirmar el aviso del hueco en Buzón.");
+            return null;
+        }
     }
 
     private ConexionIntegracionListaDto? ConexionSeleccionada =>
@@ -163,6 +185,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
     private async Task RecargarConexionesAsync()
     {
+        if (_desechada) return;
         var (generacion, token) = IniciarCargaConexiones();
         try
         {
@@ -424,8 +447,12 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         _cargandoMensajes = false;
     }
 
+    /// <summary>La página se ha cerrado: un Confirmar que vuelve después no recarga ni crea otro ciclo de carga.</summary>
+    private bool _desechada;
+
     public void Dispose()
     {
+        _desechada = true;
         _cicloConexiones?.Cancel();
         _cicloConexiones?.Dispose();
         CancelarCargaCarpetas();
