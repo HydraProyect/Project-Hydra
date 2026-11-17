@@ -397,9 +397,20 @@ public class UsosDeEsPlataformaCongeladosTests
                 "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +
                 "listado ya autorizado por PuedeGlobalmenteAsync; no concede nada"),
         ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
-            new(2, CategoriaUso.Guarda,
+            new(4, CategoriaUso.Guarda,
                 "lee el flag del Tenant pedido y rechaza exportar el Tenant de plataforma TALVEG como si fuera un " +
-                "Tenant propietario. Solo impide; la autorización es la concesión AdminPlataforma vigente sobre ese Tenant"),
+                "Tenant propietario, en las dos vías: la de la CLI (autorizada por la concesión AdminPlataforma " +
+                "vigente sobre ese Tenant) y la del autoservicio (#2008, autorizada por AutoridadExportacionCompleta " +
+                "al solicitar). Solo impide; no concede nada"),
+        ["src/CaeManager.Application/Exportacion/AutoridadExportacionCompleta.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "la exportación completa en autoservicio (#2008, D-8) se rechaza en el Tenant de plataforma TALVEG, " +
+                "que no es un Tenant propietario de datos de cliente. Va después de exigir rol efectivo Administrador " +
+                "sin contexto cruzado y Administrador en la base: solo impide, no concede"),
+        ["src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "el servicio de fondo de la exportación en autoservicio (#2008) solo recorre los Tenants que no son " +
+                "el de plataforma: recorta el conjunto sobre el que trabaja, no concede nada a nadie"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +

@@ -69,10 +69,10 @@ public class PlantillaRequisitosHandlersTests
     private static AlcanceDatosServiceFalso Portal() => new(tieneAccesoTotal: false, ladoDeGestion: false, centroIdsParaGestion: []);
 
     private CrearPlantillaRequisitosCommandHandler Crear(IAlcanceDatosService alcance) =>
-        new(_plantillas, _catalogo, _centros, _empresas, alcance, _unitOfWork);
+        new(_plantillas, _catalogo, _centros, _empresas, alcance, _unitOfWork, new AutorizacionInboundQuePermite());
 
     private AnadirRequisitoAPlantillaCommandHandler Anadir(IAlcanceDatosService alcance) =>
-        new(_plantillas, _tipos, _catalogo, alcance, _unitOfWork);
+        new(_plantillas, _tipos, _catalogo, alcance, _unitOfWork, new AutorizacionInboundQuePermite());
 
     private TipoDocumentoDominio TipoGuardado(GrupoTipoDocumento? grupo = GrupoTipoDocumento.FormacionPrl)
     {
@@ -253,13 +253,13 @@ public class PlantillaRequisitosHandlersTests
         var resultados = new[]
         {
             (Result)await Anadir(alcance).Handle(new AnadirRequisitoAPlantillaCommand(plantilla.Id, TipoGuardado().Id, null, Basicos), CancellationToken.None),
-            await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, alcance, _unitOfWork).Handle(
+            await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, alcance, _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { BloqueaAcceso = false }), CancellationToken.None),
-            await new RetirarRequisitoPlantillaCommandHandler(_plantillas, alcance, _unitOfWork).Handle(
+            await new RetirarRequisitoPlantillaCommandHandler(_plantillas, alcance, _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new RetirarRequisitoPlantillaCommand(plantilla.Id, requisito.Id), CancellationToken.None),
-            await new RetirarPlantillaRequisitosCommandHandler(_plantillas, alcance, _unitOfWork).Handle(
+            await new RetirarPlantillaRequisitosCommandHandler(_plantillas, alcance, _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new RetirarPlantillaRequisitosCommand(plantilla.Id), CancellationToken.None),
-            await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, alcance, _unitOfWork).Handle(
+            await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, alcance, _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new CrearRequisitoPropioCommand(plantilla.Id, "Permiso de trabajo propio", AmbitoAplicacion.Trabajador, null, null, Basicos),
                 CancellationToken.None),
         };
@@ -344,7 +344,7 @@ public class PlantillaRequisitosHandlersTests
         var requisito = plantilla.AnadirRequisito(TipoGuardado(), requisitoBase, ConBase);
         requisitoBase.Retirar();
 
-        var resultado = await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork).Handle(
+        var resultado = await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
             new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, ConBase with { Criterio = "Criterio nuevo" }, plantilla.Version),
             CancellationToken.None);
 
@@ -360,12 +360,12 @@ public class PlantillaRequisitosHandlersTests
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
         var requisito = plantilla.AnadirRequisito(TipoGuardado(), null, Basicos);
 
-        (await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork).Handle(
+        (await new EditarRequisitoPlantillaCommandHandler(_plantillas, _tipos, _catalogo, Acotado(), _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new EditarRequisitoPlantillaCommand(plantilla.Id, requisito.Id, Basicos with { BloqueaAcceso = false }), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
         requisito.BloqueaAcceso.Should().BeFalse();
 
-        (await new RetirarRequisitoPlantillaCommandHandler(_plantillas, Acotado(), _unitOfWork).Handle(
+        (await new RetirarRequisitoPlantillaCommandHandler(_plantillas, Acotado(), _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
                 new RetirarRequisitoPlantillaCommand(plantilla.Id, requisito.Id), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
         requisito.Activo.Should().BeFalse();
@@ -379,7 +379,7 @@ public class PlantillaRequisitosHandlersTests
     {
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
 
-        var resultado = await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Acotado(), _unitOfWork).Handle(
+        var resultado = await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Acotado(), _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
             new CrearRequisitoPropioCommand(plantilla.Id, "Permiso de trabajo en caliente", AmbitoAplicacion.Trabajador,
                 ["Permiso de soldadura"], "Lo pide el Centro", Basicos with { Origen = OrigenRequisito.LegalN1 }),
             CancellationToken.None);
@@ -400,7 +400,7 @@ public class PlantillaRequisitosHandlersTests
     {
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaExigenciasDe(_cliente.Id));
 
-        var resultado = await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Acotado(), _unitOfWork).Handle(
+        var resultado = await new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Acotado(), _unitOfWork, new AutorizacionInboundQuePermite()).Handle(
             new CrearRequisitoPropioCommand(plantilla.Id, "Curso interno del Cliente empresarial", AmbitoAplicacion.Trabajador, null, null, Basicos),
             CancellationToken.None);
 
@@ -413,7 +413,7 @@ public class PlantillaRequisitosHandlersTests
     {
         var plantilla = PlantillaDe(PlantillaRequisitos.ParaCentro(_centro.Id));
         var existente = TipoGuardado();
-        var handler = new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Total(), _unitOfWork);
+        var handler = new CrearRequisitoPropioCommandHandler(_plantillas, _tipos, Total(), _unitOfWork, new AutorizacionInboundQuePermite());
 
         (await handler.Handle(new CrearRequisitoPropioCommand(plantilla.Id, existente.Nombre, AmbitoAplicacion.Trabajador, null, null, Basicos),
                 CancellationToken.None))
@@ -439,11 +439,11 @@ public class PlantillaRequisitosHandlersTests
         PlantillaDe(PlantillaRequisitos.ParaExigenciasDe(_otroCliente.Id));
         var contexto = new PlantillasRequisitosQueryContextFalso(_plantillas);
 
-        var acotado = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Acotado())
+        var acotado = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Acotado(), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerPlantillasRequisitosQuery(), CancellationToken.None);
-        var total = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Total())
+        var total = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Total(), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerPlantillasRequisitosQuery(), CancellationToken.None);
-        var portal = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Portal())
+        var portal = await new ObtenerPlantillasRequisitosQueryHandler(contexto, Portal(), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerPlantillasRequisitosQuery(), CancellationToken.None);
 
         acotado.Elementos.Select(p => p.Id).Should().BeEquivalentTo([porActividad.Id, deCentro.Id, exigencias.Id]);
@@ -460,11 +460,11 @@ public class PlantillaRequisitosHandlersTests
         propia.AnadirRequisito(TipoGuardado(), null, Basicos);
         var contexto = new PlantillasRequisitosQueryContextFalso(_plantillas);
 
-        (await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Acotado()).Handle(new(ajena.Id), CancellationToken.None))
+        (await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Acotado(), new AutorizacionInboundQuePermite()).Handle(new(ajena.Id), CancellationToken.None))
             .Should().BeNull();
-        (await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Portal()).Handle(new(propia.Id), CancellationToken.None))
+        (await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Portal(), new AutorizacionInboundQuePermite()).Handle(new(propia.Id), CancellationToken.None))
             .Should().BeNull();
-        var detalle = await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Acotado()).Handle(new(propia.Id), CancellationToken.None);
+        var detalle = await new ObtenerPlantillaRequisitosPorIdQueryHandler(contexto, Acotado(), new AutorizacionInboundQuePermite()).Handle(new(propia.Id), CancellationToken.None);
         detalle!.ReferenciaId.Should().Be(_centro.Id);
         detalle.Requisitos.Should().ContainSingle();
     }
@@ -481,9 +481,9 @@ public class PlantillaRequisitosHandlersTests
         var basePendiente = new RequisitoBase("rnt-pendiente", "RNT pendiente", "Fundamento", NivelExigencia.N1, pendienteRevisionLegal: true);
         _catalogo.Requisitos.AddRange([baseActivo, basePendiente]);
 
-        var sugerencias = await new BuscarRequisitosParecidosQueryHandler(tipos, _catalogo, Acotado())
+        var sugerencias = await new BuscarRequisitosParecidosQueryHandler(tipos, _catalogo, Acotado(), new AutorizacionInboundQuePermite())
             .Handle(new BuscarRequisitosParecidosQuery("rnt"), CancellationToken.None);
-        var paraElPortal = await new BuscarRequisitosParecidosQueryHandler(tipos, _catalogo, Portal())
+        var paraElPortal = await new BuscarRequisitosParecidosQueryHandler(tipos, _catalogo, Portal(), new AutorizacionInboundQuePermite())
             .Handle(new BuscarRequisitosParecidosQuery("rnt"), CancellationToken.None);
 
         sugerencias.Select(s => s.Id).Should().Contain([conAlias.Id, baseActivo.Id]).And.NotContain([otro.Id]);

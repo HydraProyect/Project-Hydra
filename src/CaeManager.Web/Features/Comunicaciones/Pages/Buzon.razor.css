@@ -10,6 +10,43 @@
     margin: 0;
 }
 
+.buzon-aviso-hueco {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    padding: 14px var(--space-4);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-info-50);
+    color: var(--color-text);
+}
+
+.buzon-aviso-hueco-icono {
+    display: inline-flex;
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--color-text-muted);
+}
+
+.buzon-aviso-hueco-textos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.buzon-aviso-hueco-titulo {
+    font-weight: 600;
+}
+
+.buzon-aviso-hueco-detalle {
+    color: var(--color-text-muted);
+}
+
+.buzon-aviso-hueco ::deep .boton {
+    flex-shrink: 0;
+}
 .buzon-layout {
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);

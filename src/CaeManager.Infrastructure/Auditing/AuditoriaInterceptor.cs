@@ -155,6 +155,13 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CredencialConexionPlataformaCae)] = [nameof(CredencialConexionPlataformaCae.SecretoApi)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
+        // La contraseña del zip, protegida con Data Protection hasta que el fichero está cifrado, y la clave del
+        // fichero en el almacén de exportaciones: ninguna de las dos se copia a la auditoría (#2008).
+        [typeof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta)] =
+        [
+            nameof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta.ContrasenaProtegida),
+            nameof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta.UbicacionFichero),
+        ],
 
         // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
         // SoporteSinLecturaDeCredenciales, SoporteSinColumnasSecretasRestantes,
