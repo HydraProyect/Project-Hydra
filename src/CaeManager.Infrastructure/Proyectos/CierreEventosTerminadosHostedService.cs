@@ -17,7 +17,9 @@ namespace CaeManager.Infrastructure.Proyectos;
 /// avisos. Cada evento terminado se cierra con <see cref="Proyecto.CerrarEventoTerminado"/>, que fija
 /// <c>FechaCierreReal</c> = <c>FechaFinPrevista</c> (el día en que terminó, no el del pase). Las obras no se tocan.
 /// Sus participantes vigentes (<see cref="ProyectoTecnico"/> sin <c>FechaBaja</c>) se dan de baja con
-/// <c>FechaBaja</c> = <c>FechaFinPrevista</c> (o su alta, si entraron después), igual que la siembra: un evento terminado
+/// <c>FechaBaja</c> = <c>FechaFinPrevista</c> (o su alta, si entraron después) y el motivo
+/// <see cref="MotivoBajaProyectoTecnico.FinDelEvento"/>, que Proyectos muestra para no confundirla con una desasignación
+/// a mano (D-4, #2005, decisión del 2026-11-15), igual que la siembra: un evento terminado
 /// no sigue mostrando «N técnicos activos» (decisión de la coordinadora, 2026-10-16, en línea con «sin ruido»). Al
 /// reabrir no se reactivan solos: se vuelven a asignar.
 ///
@@ -151,7 +153,9 @@ public class CierreEventosTerminadosHostedService(
         foreach (var participante in participantes)
         {
             var fin = finPorEvento[participante.ProyectoId];
-            participante.DarDeBaja(fin < participante.FechaAlta ? participante.FechaAlta : fin);
+            // D-4 (#2005): la baja sigue siendo automática, pero con su motivo, para que Proyectos la distinga de una
+            // desasignación hecha a mano; el autor que queda en la auditoría es el Sistema (EstablecerSistema, arriba).
+            participante.DarDeBaja(fin < participante.FechaAlta ? participante.FechaAlta : fin, MotivoBajaProyectoTecnico.FinDelEvento);
         }
 
         await dbContext.SaveChangesAsync(stoppingToken);

@@ -23,7 +23,7 @@ namespace CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEn
 [AreaDelEncargo("Documentos")]
 public record CambiarEstadoAcreditacionEnCentroCommand(
     Guid CentroId, Guid AcreditacionId, EstadoAcreditacion Estado, DateOnly Fecha, string? Motivo, string? Nota)
-    : ICommand<CambioEstadoAnotadoDto>;
+    : ICommand<CambioEstadoAnotadoDto>, ICambiaEstadoDeAcreditacion;
 
 /// <summary>El cambio anotado y la versión de la acreditación justo después: lo que el «Deshacer» del aviso tiene que devolver.</summary>
 public record CambioEstadoAnotadoDto(Guid CambioId, Guid Version);
@@ -34,7 +34,7 @@ public record CambioEstadoAnotadoDto(Guid CambioId, Guid Version);
 /// haya vuelto al mismo estado (A → B → A), no se deshace (concurrencia optimista, como RestaurarAnotacionAcreditacionCommand).
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record DeshacerCambioEstadoAcreditacionCommand(Guid CentroId, Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand;
+public record DeshacerCambioEstadoAcreditacionCommand(Guid CentroId, Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class CambiarEstadoAcreditacionEnCentroCommandValidator : AbstractValidator<CambiarEstadoAcreditacionEnCentroCommand>
 {
