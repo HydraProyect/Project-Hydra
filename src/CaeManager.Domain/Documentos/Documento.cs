@@ -104,7 +104,8 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl,
         string? comentarios,
-        Guid? idReservado)
+        Guid? idReservado,
+        AutorVersionDocumento autor)
     {
         if (idReservado == Guid.Empty)
             throw new ArgumentException("El Id reservado no puede estar vacío.", nameof(idReservado));
@@ -137,6 +138,8 @@ public class Documento : EntidadBase
         CorregirVigencia(fechaEmision, vigencia);
         ArchivoUrl = archivoUrl;
         Comentarios = comentarios;
+        SubidoPorUsuarioId = autor.UsuarioId;
+        SubidoPorActorRealUsuarioId = autor.ActorRealUsuarioId;
     }
 
     public static Documento DeTrabajador(
@@ -146,12 +149,13 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null,
-        Guid? idReservado = null)
+        Guid? idReservado = null,
+        AutorVersionDocumento autor = default)
     {
         if (trabajadorId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un trabajador.", nameof(trabajadorId));
 
-        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     public static Documento DeCliente(
@@ -161,12 +165,13 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null,
-        Guid? idReservado = null)
+        Guid? idReservado = null,
+        AutorVersionDocumento autor = default)
     {
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un cliente.", nameof(clienteId));
 
-        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     public static Documento DeEmpresa(
@@ -176,12 +181,13 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null,
-        Guid? idReservado = null)
+        Guid? idReservado = null,
+        AutorVersionDocumento autor = default)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     public static Documento DeVehiculo(
@@ -191,12 +197,13 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null,
-        Guid? idReservado = null)
+        Guid? idReservado = null,
+        AutorVersionDocumento autor = default)
     {
         if (vehiculoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un vehículo.", nameof(vehiculoId));
 
-        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     public static Documento DeProyecto(
@@ -206,12 +213,13 @@ public class Documento : EntidadBase
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null,
-        Guid? idReservado = null)
+        Guid? idReservado = null,
+        AutorVersionDocumento autor = default)
     {
         if (proyectoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un proyecto.", nameof(proyectoId));
 
-        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     /// <summary>
@@ -254,20 +262,24 @@ public class Documento : EntidadBase
     public MotivoSustitucionDocumento? MotivoSustitucion { get; private set; }
 
     /// <summary>
-    /// Usuario que subió esta versión del documento (cada versión es una fila de Documentos), o null si no se
-    /// sabe: las filas anteriores a la columna y las que todavía no rellena ningún escritor. Sigue el reparto de
-    /// <c>RegistroAuditoria</c>: el usuario efectivo, que en una impersonación es el Usuario simulado.
-    /// Sin FK a AspNetUsers: el usuario puede pertenecer a otro Tenant (un Gestor CAE de un Operador CAE externo)
-    /// y la cuenta se anonimiza, así que el identificador se conserva como dato y no como referencia.
+    /// Usuario que subió esta versión del documento (cada versión es una fila de Documentos), o null si no hay
+    /// persona detrás: las filas anteriores a la columna, los seeders y los procesos de sistema (D-12.1: sin autor,
+    /// se pueden validar). Sigue el reparto de <c>RegistroAuditoria</c>: el usuario efectivo, que en una
+    /// impersonación es el Usuario simulado. Sin FK a AspNetUsers: el usuario puede pertenecer a otro Tenant (un
+    /// Gestor CAE de un Operador CAE externo) y la cuenta se anonimiza, así que el identificador se conserva como dato
+    /// y no como referencia.
     /// </summary>
-    /// <remarks>Preparación de D-12 (nadie valida en Inbound una versión que subió él mismo). En esta fase solo
-    /// existe la columna: ningún método la asigna todavía.</remarks>
+    /// <remarks>D-12 (nadie valida una versión que subió él mismo). Solo lo asigna el nacimiento de la versión, con el
+    /// <see cref="AutorVersionDocumento"/> que recibe: las factorías y <see cref="NuevoDelMismoTitular"/>. Nada lo
+    /// cambia después, ni siquiera <see cref="AdjuntarArchivo"/> (la firma en campo reescribe el archivo de la misma
+    /// versión, y su firmante queda en <c>FirmaEnCampoDocumento</c>).</remarks>
     public Guid? SubidoPorUsuarioId { get; private set; }
 
     /// <summary>
-    /// Actor real que subió esta versión, o null si no se sabe. Se separa de <see cref="SubidoPorUsuarioId"/>
-    /// para que una subida hecha en impersonación no confunda al Actor real con el Usuario simulado. Mismas reglas
-    /// que <see cref="SubidoPorUsuarioId"/>: sin FK y sin escritor todavía.
+    /// Actor real que subió esta versión, o null si no hay persona detrás. Se separa de
+    /// <see cref="SubidoPorUsuarioId"/> para que una subida hecha en impersonación no confunda al Actor real con el
+    /// Usuario simulado; fuera de una impersonación los dos valen lo mismo. Mismas reglas que
+    /// <see cref="SubidoPorUsuarioId"/>: sin FK y asignado solo al nacer la versión.
     /// </summary>
     public Guid? SubidoPorActorRealUsuarioId { get; private set; }
 
@@ -339,13 +351,23 @@ public class Documento : EntidadBase
     /// sustituye (eso lo hace <see cref="SustituirPor"/>, con el nuevo ya persistible) y no copia el archivo, la
     /// vigencia ni los comentarios: son los del documento que llega. Un sustituido no genera sustituto: la unidad
     /// viva ya tiene el suyo.
+    ///
+    /// <para>
+    /// <paramref name="autor"/> es quien sube la versión nueva, no el de la anterior (D-12). Una versión con autor no
+    /// se renueva por una sin autor (lanza): la versión nueva caería en D-12.1 y la podría validar cualquiera,
+    /// también quien la subió.
+    /// </para>
     /// </summary>
     public Documento NuevoDelMismoTitular(
-        DateOnly fechaEmision, VigenciaDocumento vigencia, string? archivoUrl, string? comentarios, Guid? idReservado = null)
+        DateOnly fechaEmision, VigenciaDocumento vigencia, string? archivoUrl, string? comentarios,
+        AutorVersionDocumento autor, Guid? idReservado = null)
     {
         ExigirNoSustituido(nameof(NuevoDelMismoTitular));
+        if (SubidoPorUsuarioId is not null && !autor.EsConocido)
+            throw new InvalidOperationException(
+                "La versión que se renueva tiene autor: la versión nueva no puede quedarse sin autor (D-12).");
         var p = Propietarios;
-        return new Documento(p[0], p[1], p[2], p[3], p[4], TipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
+        return new Documento(p[0], p[1], p[2], p[3], p[4], TipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado, autor);
     }
 
     private void ExigirNoSustituido(string operacion)

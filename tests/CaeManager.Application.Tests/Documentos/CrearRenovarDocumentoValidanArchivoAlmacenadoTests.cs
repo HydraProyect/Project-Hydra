@@ -23,7 +23,7 @@ namespace CaeManager.Application.Tests.Documentos;
 public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
 {
     private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
-    private static readonly byte[] PdfValido = "%PDF-1.4\n%%EOF"u8.ToArray();
+    internal static readonly byte[] PdfValido = "%PDF-1.4\n%%EOF"u8.ToArray();
     private static readonly byte[] Ejecutable = [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00];
 
     [Fact]
@@ -146,7 +146,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
             new PublisherFalso(), new AlcanceDatosServiceFalso(trabajadorIdsVisibles: []), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
-            mundo.GestionAutomatica());
+            mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
         var resultado = await handler.Handle(NuevoCrear(trabajador.Id, tipo.Id, "tenant/ajeno.pdf"), CancellationToken.None);
 
@@ -167,7 +167,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(empresaIdsParaGestion: []),
             new ProyectosQueryContextFalso(), new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(),
             mundo.Acreditaciones, mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica());
+            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
         var resultado = await handler.Handle(NuevoRenovar(documento.Id, "tenant/ajeno.pdf"), CancellationToken.None);
 
@@ -215,14 +215,14 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         documento.Id.Should().Be(idOriginal);
     }
 
-    private static CrearDocumentoCommand NuevoCrear(Guid trabajadorId, Guid tipoId, string clave) =>
+    internal static CrearDocumentoCommand NuevoCrear(Guid trabajadorId, Guid tipoId, string clave) =>
         new(trabajadorId, null, null, null, null, tipoId, Hoy, null, clave, null);
 
-    private static RenovarDocumentoCommand NuevoRenovar(Guid documentoId, string? clave) =>
+    internal static RenovarDocumentoCommand NuevoRenovar(Guid documentoId, string? clave) =>
         new(documentoId, Hoy, null, clave, null, NoCaduca: true);
 
-    private static (CrearDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
-        Domain.Trabajadores.Trabajador Trabajador, TipoDocumento Tipo) PrepararCrear()
+    internal static (CrearDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
+        Domain.Trabajadores.Trabajador Trabajador, TipoDocumento Tipo) PrepararCrear(ActorAuditoria? actor = null)
     {
         var mundo = new MundoAcreditaciones();
         var trabajador = mundo.Trabajador();
@@ -234,12 +234,12 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
             new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
-            mundo.GestionAutomatica());
+            mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso(actor));
         return (handler, documentos, almacen, trabajador, tipo);
     }
 
-    private static (RenovarDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
-        Documento Documento) PrepararRenovar()
+    internal static (RenovarDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
+        Documento Documento) PrepararRenovar(ActorAuditoria? actor = null)
     {
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Certificado");
@@ -251,7 +251,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
             mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica());
+            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso(actor));
         return (handler, documentos, almacen, documento);
     }
 

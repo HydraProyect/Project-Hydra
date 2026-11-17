@@ -102,7 +102,7 @@ public class CarteraRevocadaBajoElCandadoTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), empresas, unitOfWork,
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            alcance, new VerificadorArchivoAlmacenadoPermisivo(), serializacion, mundo.GestionAutomatica(), alcance);
+            alcance, new VerificadorArchivoAlmacenadoPermisivo(), serializacion, mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso(), alcance);
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(null, null, empresa.Id, null, null, tipo.Id, Hoy, null, null, null),
@@ -129,7 +129,7 @@ public class CarteraRevocadaBajoElCandadoTests
             documentos, mundo.TiposDocumentoContexto, alcance,
             new ProyectosQueryContextFalso(), new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(),
             mundo.Acreditaciones, mundo.Servicio(), serializacion, new PublisherFalso(), unitOfWork,
-            new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica(), alcance);
+            new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso(), alcance);
 
         var resultado = await handler.Handle(
             new RenovarDocumentoCommand(documento.Id, Hoy, null, "tenant/renovado.pdf", null, NoCaduca: true), CancellationToken.None);

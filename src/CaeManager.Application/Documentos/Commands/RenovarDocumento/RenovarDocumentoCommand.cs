@@ -74,6 +74,7 @@ public class RenovarDocumentoCommandHandler(
     IPublisher publisher, IUnitOfWork unitOfWork,
     IVerificadorArchivoAlmacenado verificadorArchivo,
     INacimientoGestionAutomaticaService gestionAutomatica,
+    IActorAuditoria actorAuditoria,
     // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
     // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
     IInvalidadorAlcance? invalidadorAlcance = null)
@@ -213,7 +214,11 @@ public class RenovarDocumentoCommandHandler(
         Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
         VigenciaDocumento vigencia, CancellationToken cancellationToken)
     {
-        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado);
+        // D-12: la versión nueva es de quien la sube ahora, no de quien subió la anterior. Corregir fechas en el mismo
+        // registro no crea versión y no cambia su autor.
+        var autor = await AutorDeLaSubida.ResolverAsync(actorAuditoria);
+        var nuevo = anterior.NuevoDelMismoTitular(
+            request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios, autor, request.DocumentoIdReservado);
 
         repositorio.Agregar(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);

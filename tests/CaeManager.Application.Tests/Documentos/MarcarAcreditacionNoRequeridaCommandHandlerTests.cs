@@ -145,7 +145,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         if (yaNoRequerida) escenario.Acreditacion.MarcarNoRequerida();
         var estadoAntes = escenario.Acreditacion.Estado;
         var nuevo = escenario.Documento.NuevoDelMismoTitular(
-            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, AutorVersionDocumento.Desconocido, null);
         escenario.Documento.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
 
         var resultado = await escenario.Handler().Handle(
@@ -164,7 +164,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         // sesión solo aparece al releer de la base (CambioEnLaBase lo ve solo la lectura «…Actualizado», como EF).
         var escenario = Escenario.Nuevo();
         var nuevo = escenario.Documento.NuevoDelMismoTitular(
-            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, AutorVersionDocumento.Desconocido, null);
         escenario.Documentos.CambioEnLaBase = d =>
         {
             if (DocumentoOperativo.Es(d))
@@ -187,7 +187,7 @@ public class MarcarAcreditacionNoRequeridaCommandHandlerTests
         // final con la fila bloqueada, respondía éxito con la marca sobre el historial.
         var escenario = Escenario.Nuevo();
         var nuevo = escenario.Documento.NuevoDelMismoTitular(
-            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, null);
+            new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "tenant/renovado.pdf", null, AutorVersionDocumento.Desconocido, null);
         var guardaVioOperativo = false;
         escenario.Documentos.AntesDeBloquear = d =>
         {

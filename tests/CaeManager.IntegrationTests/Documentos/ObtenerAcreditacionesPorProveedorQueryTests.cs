@@ -82,7 +82,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
                 AltaAcreditacionesDePrueba.Con(contexto),
                 new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.IntegrationTests.SerializacionAltasSinBloqueo(),
-                AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
+                AltaAcreditacionesDePrueba.GestionAutomatica(contexto), new ActorAuditoriaFijoFalso());
 
             var resultado = await handler.Handle(
                 new CrearDocumentoCommand(
@@ -392,7 +392,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
                 AltaAcreditacionesDePrueba.Con(contexto),
                 new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.IntegrationTests.SerializacionAltasSinBloqueo(),
-                AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
+                AltaAcreditacionesDePrueba.GestionAutomatica(contexto), new ActorAuditoriaFijoFalso());
 
             await handlerCrear.Handle(
                 new CrearDocumentoCommand(

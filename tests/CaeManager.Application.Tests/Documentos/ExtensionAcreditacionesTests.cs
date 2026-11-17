@@ -36,7 +36,7 @@ public class ExtensionAcreditacionesTests
         documentos.ListaRechazosAcreditacionDocumentoPlataforma.AddRange(acreditacion.HistorialRechazos);
         if (renovada)
         {
-            var nuevo = documento.NuevoDelMismoTitular(new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "corregido.pdf", null);
+            var nuevo = documento.NuevoDelMismoTitular(new DateOnly(2026, 2, 1), VigenciaDocumento.NoCaduca, "corregido.pdf", null, AutorVersionDocumento.Desconocido);
             documento.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
             documentos.ListaDocumentos.Add(nuevo);
             documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(nuevo.Id, canal.Id));
