@@ -16,8 +16,8 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 /// El puerto de validación sobre el backend de la demo mínima (DECISION_LOG 2026-11-17, opción b): la cola sale de
 /// <see cref="ObtenerColaValidacionInboundQuery"/>, y Validar y Rechazar, uno a uno, de
 /// <see cref="RegistrarEvidenciaInboundCommand"/> (Rechazar, con su rechazo inicial en el mismo guardado). La autoridad la
-/// decide Application en cada llamada; este servicio solo traduce. Validar y Rechazar solo registran con
-/// <see cref="OpcionesValidacionInbound.Habilitado"/>; apagada, responden «no disponible» y la cola se sigue viendo. Lo demás sigue «no disponible»: Marcar incompleto y
+/// decide Application en cada llamada; este servicio solo traduce. La cola, el documento, Validar y Rechazar
+/// solo funcionan con <see cref="OpcionesValidacionInbound.Habilitado"/>; apagada, todo responde «no disponible» y no se lee nada. Lo demás sigue «no disponible»: Marcar incompleto y
 /// Deshacer (B-22), el lote (B-27), la lectura con IA y su propuesta (B-24, B-26), las páginas y la descarga del original.
 ///
 /// <para>
@@ -53,6 +53,10 @@ public sealed class ServicioValidacionInboundConBackend(
 
     public async Task<RespuestaValidacion<ColaValidacion>> ObtenerColaAsync(CancellationToken cancellationToken = default)
     {
+        // Apagada, ni se lee: cada listado deja traza en el Tenant de la Empresa contratista, y sin veredicto posible esa
+        // lectura entre Tenants no tendría para qué.
+        if (!opciones.Value.Habilitado)
+            return RespuestaValidacion<ColaValidacion>.NoDisponible;
         var pendientes = await mediator.Send(new ObtenerColaValidacionInboundQuery(), cancellationToken);
         _filas = pendientes.ToDictionary(p => IdDeFila(p.ContratoAccesoId, p.DocumentoOrigenId));
         var documentos = _filas.Select(f => AFila(f.Key, f.Value)).ToList();
@@ -62,6 +66,8 @@ public sealed class ServicioValidacionInboundConBackend(
 
     public async Task<RespuestaValidacion<DocumentoAValidar>> ObtenerDocumentoAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (!opciones.Value.Habilitado)
+            return RespuestaValidacion<DocumentoAValidar>.NoDisponible;
         if (!_filas.ContainsKey(id))
             await ObtenerColaAsync(cancellationToken);
         return _filas.TryGetValue(id, out var fila)

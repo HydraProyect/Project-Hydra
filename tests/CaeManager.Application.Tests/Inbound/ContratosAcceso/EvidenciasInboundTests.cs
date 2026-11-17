@@ -526,6 +526,28 @@ public class EvidenciasInboundTests
     }
 
     [Fact]
+    public async Task La_cola_empareja_con_el_tipo_no_archivado_de_Id_menor_entre_los_del_mismo_nombre()
+    {
+        static TipoDocumento Formacion() => new("Formación PRL", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            AmbitoAplicacion.Trabajador, sensibilidad: SensibilidadDocumental.DatosPersonales);
+        var otroActivo = Formacion();
+        var activos = new[] { _tipoFormacion, otroActivo };
+        // El archivado tiene el Id menor de los tres: si el filtro de archivados faltara, ganaría él.
+        var archivado = Formacion();
+        typeof(CaeManager.Domain.Common.Entity).GetProperty(nameof(archivado.Id))!.SetValue(archivado, Guid.Empty);
+        archivado.Archivar(sustituto: null);
+        _tipos.ListaTiposDocumento.AddRange([otroActivo, archivado]);
+        _lector.Documentos.Clear();
+        var documento = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "Formación PRL" };
+        _lector.Documentos.Add(documento);
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Single().TipoDocumentoId.Should().Be(activos.Min(t => t.Id),
+            "el archivado no lleva evidencias, y entre dos activos con el mismo nombre la elección es estable");
+    }
+
+    [Fact]
     public async Task La_cola_no_vuelve_a_listar_un_Documento_ya_validado_ni_uno_ya_rechazado()
     {
         var rechazado = Guid.NewGuid();

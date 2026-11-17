@@ -72,21 +72,24 @@ public class ValidacionInboundConBackendTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_la_opcion_apagada_la_cola_se_ve_y_Validar_y_Rechazar_no_estan_disponibles()
+    public async Task Con_la_opcion_apagada_no_se_lee_nada_y_Validar_y_Rechazar_no_estan_disponibles()
     {
         _opciones.Habilitado = false;
         var servicio = Services.GetRequiredService<IServicioValidacionInbound>();
+        var id = ServicioValidacionInboundConBackend.IdDeFila(Contrato, DocA);
 
         var cola = await servicio.ObtenerColaAsync();
-        var id = cola.Valor!.Documentos[0].Id;
-        var documento = (await servicio.ObtenerDocumentoAsync(id)).Valor!;
-        var validar = await servicio.ValidarAsync(new SolicitudValidar(id, documento.Emision, documento.Vencimiento, ConfirmadoConErrores: true, []));
+        var documento = await servicio.ObtenerDocumentoAsync(id);
+        var validar = await servicio.ValidarAsync(new SolicitudValidar(id, null, null, ConfirmadoConErrores: true, []));
         var rechazar = await servicio.RechazarAsync(new SolicitudRechazar(id, "Otro", "Falta la firma."));
 
-        cola.Valor.Documentos.Should().HaveCount(2);
+        cola.Should().Be(RespuestaValidacion<ColaValidacion>.NoDisponible);
+        documento.Should().Be(RespuestaValidacion<DocumentoAValidar>.NoDisponible);
         validar.Should().Be(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
         rechazar.Should().Be(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
+        _mediador.Consultas.Should().Be(0, "apagada, la lectura Inbound no deja trazas en los Tenants de las Empresas contratistas");
         _mediador.Comandos.Should().BeEmpty();
+        Render<DocumentosPorValidar>().Markup.Should().Contain("La cola de validación no está disponible");
     }
 
     private sealed class EntornoFalso(string nombre) : IHostEnvironment
@@ -241,13 +244,20 @@ public class ValidacionInboundConBackendTests : BunitContext
     {
         public List<DocumentoPendienteInboundDto> Cola { get; } = [];
         public List<RegistrarEvidenciaInboundCommand> Comandos { get; } = [];
+        public int Consultas { get; private set; }
+
+        private List<DocumentoPendienteInboundDto> Consultar()
+        {
+            Consultas++;
+            return Cola.ToList();
+        }
         public Result<Guid> Respuesta { get; set; } = Result.Exito(Guid.NewGuid());
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object respuesta = request switch
             {
-                ObtenerColaValidacionInboundQuery => Cola.ToList(),
+                ObtenerColaValidacionInboundQuery => Consultar(),
                 RegistrarEvidenciaInboundCommand comando => Registrar(comando),
                 _ => throw new NotSupportedException(request.GetType().Name),
             };
