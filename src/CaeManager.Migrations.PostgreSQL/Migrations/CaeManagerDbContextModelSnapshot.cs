@@ -7442,6 +7442,66 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("VersionesEstadoTenant", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Exportacion.SolicitudExportacionCompleta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CaducaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContrasenaProtegida")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("DisponibleEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("FinalizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("IniciadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MotivoFallo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("SolicitadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SolicitadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long?>("TamanoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UbicacionFichero")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SolicitudesExportacionCompleta_TenantId_Viva")
+                        .HasFilter("\"Estado\" IN ('Pendiente', 'EnCurso')");
+
+                    b.HasIndex("TenantId", "Estado", "SolicitadaEnUtc");
+
+                    b.ToTable("SolicitudesExportacionCompleta", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Facturacion.CobroLiquidacionOperadorCae", b =>
                 {
                     b.Property<Guid>("Id")

@@ -567,6 +567,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// </summary>
     private static readonly Dictionary<string, string> CaracteristicasSinCartera = new()
     {
+        ["Exportacion"] =
+            "exportación completa del Tenant en autoservicio (#2008, D-8): la pide y la descarga solo el Administrador " +
+            "del Tenant propietario, sin contexto cruzado ni Encargo, y abarca el Tenant entero por definición. Una " +
+            "Asignación de Cartera no recorta nada aquí: quien opera por cartera no llega a este comando",
         ["ApiKeys"] =
             "claves de API de una delegación de soporte: plano de Plataforma, solo desde el Tenant de la consultora " +
             "delegada; no escribe filas de una cartera",
