@@ -26,6 +26,7 @@ using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Importacion;
+using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
@@ -1642,6 +1643,10 @@ app.MapAcreditacionesPendientesEndpoints();
 app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
+// Inbound (demo P6): el archivo de un Documento del Tenant TEC desde la validación del Gestor CAE del Tenant TCE. Fuera del
+// grupo del Núcleo a propósito: es de Inbound y lo decide ObtenerArchivoParaValidarInboundQuery (ValidarInbound, cartera y
+// autorización de lectura del Tenant TEC).
+app.MapArchivoValidacionInboundEndpoints();
 nucleoYFacturacion.MapVistaVocabularioPreviewEndpoints();
 nucleoYFacturacion.MapVistaDemoEndpoints();
 nucleoYFacturacion.MapConectarMicrosoft365Endpoints();

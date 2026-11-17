@@ -140,13 +140,13 @@ public class GestionAutomaticaEnLosActosTests
         new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), _guardado,
         new ColaQueAcepta(), new CurrentUserServiceFalso(), _mundo.Servicio(), new PublisherFalso(),
         new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(),
-        new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(), _mundo.GestionAutomatica());
+        new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(), _mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
     private RenovarDocumentoCommandHandler Renovar() => new(
         _documentos, _mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
         new ColaQueAcepta(), new CurrentUserServiceFalso(), _mundo.Acreditaciones, _mundo.Servicio(),
         new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(),
-        _guardado, new VerificadorArchivoAlmacenadoPermisivo(), _mundo.GestionAutomatica());
+        _guardado, new VerificadorArchivoAlmacenadoPermisivo(), _mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
     private static CrearDocumentoCommand NuevoCrear(Guid trabajadorId, Guid tipoId, string? archivo) =>
         new(trabajadorId, null, null, null, null, tipoId, Hoy, null, archivo, null);

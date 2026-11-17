@@ -139,7 +139,8 @@ internal sealed class EscenarioImportacion
     }
 
     public EjecutarImportacionCommandHandler Handler(
-        string? rol = "Administrador", IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null) => new(
+        string? rol = "Administrador", IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null,
+        ActorAuditoria? actor = null) => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
@@ -154,7 +155,7 @@ internal sealed class EscenarioImportacion
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
             TiposDocumentoContexto, AcreditacionRepositorio),
         alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(),
-        Serializacion, Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia(), invalidador);
+        Serializacion, Limite ?? CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia(), new ActorAuditoriaFijoFalso(actor), invalidador);
 
     /// <summary>Límite de D-P11; sin asignar, el de un Tenant sin Producto Contratado P.</summary>
     public CaeManager.Application.Empresas.ILimiteEmpresaPropia? Limite { get; set; }

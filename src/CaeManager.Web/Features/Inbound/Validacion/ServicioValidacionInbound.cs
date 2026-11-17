@@ -54,13 +54,16 @@ public sealed class ColaEnCursoValidacion
 /// sin mirar su nombre (DECISION_LOG 2026-11-17, entradas de los commits 2757bac y cc7e68e: «solo con la variable»; la
 /// opción de arrancar staging como entorno «Staging» quedó sin efecto). Apagado, todo responde «no disponible» y no se lee
 /// nada.
+/// También abre la descarga del original del Tenant TEC desde la validación (<see cref="ArchivoValidacionInboundEndpoints"/>,
+/// demo P6): apagado, esa ruta responde 404 sin leer nada, porque cada apertura deja traza en el Tenant TEC.
 /// <para>
 /// HUECO DECLARADO: la guarda de Development se quitó sin que se cumplan las dos condiciones que pedía. D-12 (quien subió
-/// un documento no puede validarlo) no se aplica: <c>Documento.SubidoPorUsuarioId</c> existe, pero ningún método lo asigna
-/// ni nadie lo compara. B-22 (el veredicto previo a la copia) no ha entrado: un Rechazar registra la evidencia y copia el
-/// binario al Tenant TCE en el mismo guardado (<c>RegistrarEvidenciaInboundCommand</c>, DN-12 (a)), y esa copia no se
-/// borra. Producción usa la misma imagen y queda protegida solo porque allí nunca se pone la clave: es una consecuencia
-/// aceptada por Chris en 2757bac, no una propiedad del código.
+/// un documento no puede validarlo) no se aplica: desde la #2348 cada versión nace con su autor
+/// (<c>Documento.SubidoPorUsuarioId</c>), pero la validación Inbound no lo compara. B-22 (el veredicto previo a la copia) no
+/// ha entrado: un Rechazar registra la evidencia y copia el binario al Tenant TCE en el mismo guardado
+/// (<c>RegistrarEvidenciaInboundCommand</c>, DN-12 (a)), y esa copia no se borra. Producción usa la misma imagen y queda
+/// protegida solo porque allí nunca se pone la clave: es una consecuencia aceptada por Chris en 2757bac, no una propiedad
+/// del código.
 /// </para>
 /// </summary>
 public sealed class OpcionesValidacionInbound
