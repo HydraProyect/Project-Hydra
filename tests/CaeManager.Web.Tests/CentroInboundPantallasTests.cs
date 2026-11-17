@@ -155,7 +155,8 @@ public class CentroInboundPantallasTests : BunitContext
     // la continuación; esa no era la causa del fallo de #2330 (ver FichaNoEncontradaAsync).
     private static readonly TimeSpan Plazo = TimeSpan.FromSeconds(5);
 
-    // Cargada solo cubre la carga de la pantalla: mira Markup, que bUnit reescribe en cada render, y nunca el árbol del DOM.
+    // Cargada solo cubre la carga de la pantalla: mira Markup, que bUnit reescribe en cada render que cambia el marcado, y
+    // nunca el árbol del DOM.
     // Cuando la ficha no encuentra el Centro, FichaNoEncontrada hace todavía su propia lectura asíncrona: ese estado se espera
     // aparte, con FichaNoEncontradaAsync.
     private static async Task<IRenderedComponent<T>> CargadaAsync<T>(IRenderedComponent<T> cut) where T : IComponent
@@ -166,8 +167,8 @@ public class CentroInboundPantallasTests : BunitContext
 
     // Causa de #2330. Tras CargadaAsync, la ficha no encontrada todavía tiene renders pendientes: el de FichaNoEncontrada al
     // terminar su lectura («volviendo» → «vacio») y el de EnlaceProfundoOtraEmpresa. bUnit 2.11.3 guarda el DOM analizado en
-    // una caché sin sincronizar (RenderedComponent.Nodes: latestRenderNodes ??= Parse(Markup)); cada render la vacía y luego
-    // escribe el Markup nuevo. Un FindAll desde el hilo del test lee el Markup viejo, lo analiza y guarda el resultado; si el
+    // una caché sin sincronizar (RenderedComponent.Nodes: latestRenderNodes ??= Parse(Markup)); cada render que cambia el
+    // marcado la vacía y luego escribe el Markup nuevo. Un FindAll desde el hilo del test lee el Markup viejo, lo analiza y guarda el resultado; si el
     // render de «vacio» cae entre esa lectura y esa escritura, la caché se queda con el DOM de «volviendo» y ningún render
     // posterior la vacía (el de EnlaceProfundoOtraEmpresa no cambia el marcado). Toda comprobación siguiente lee ese DOM viejo:
     // «Check count: 1», la colección vacía y el plazo agotado, por largo que sea. Por eso, mientras quede un render pendiente,
@@ -466,7 +467,13 @@ public class CentroInboundPantallasTests : BunitContext
                 }
             }) { IsBackground = true };
             _hilo.Start();
-            tomado.Wait(Plazo).Should().BeTrue("el hilo auxiliar tiene que tomar el cerrojo del analizador");
+            if (!tomado.Wait(Plazo))
+            {
+                // Sin Dispose: si el hilo llegara a tomar el cerrojo más tarde no lo soltaría nunca, y el Dispose del
+                // analizador (que también lo toma) colgaría la ejecución en vez de dar un rojo.
+                _soltar.Set();
+                throw new InvalidOperationException("El hilo auxiliar no tomó el cerrojo del analizador de bUnit a tiempo.");
+            }
         }
 
         public void Dispose()
