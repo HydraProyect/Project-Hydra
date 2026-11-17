@@ -291,7 +291,13 @@ public class Microsoft365GraphClient(
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
-                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+            {
+                // 401/403 con el token delegado: Microsoft no concedió los permisos que pide TALVEG. El alta lo explica aparte
+                // (se clasifica por estado HTTP, nunca por el texto que devuelva Microsoft).
+                return Result.Fallo<string>(respuesta.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
+                    ? Error.Crear(CodigosErrorMicrosoft365.SinPermisosDelegados, "Microsoft no concedió los permisos necesarios.")
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+            }
 
             var perfil = await respuesta.Content.ReadFromJsonAsync<PerfilGraph>(cancellationToken);
             var buzon = perfil?.Mail ?? perfil?.UserPrincipalName;
@@ -333,6 +339,15 @@ public class Microsoft365GraphClient(
             // 403/404: el buzón está fuera del ámbito de RBAC for Applications que el administrador de
             // Exchange asignó a la aplicación en ese directorio, o la dirección no existe. Graph no
             // distingue los dos casos de forma fiable, así que el mensaje los nombra a la vez.
+            // La cuenta propia de quien consiente que Exchange Online no reconoce (404 MailboxNotEnabledForRESTAPI) se distingue
+            // por el código de Graph, no por su texto: el alta la explica aparte y el resto de llamadores la tratan como sin acceso.
+            if (!buzon.EsCompartido && respuesta.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                CodigoErrorGraph.Extraer(cuerpoError) == "MailboxNotEnabledForRESTAPI")
+            {
+                return Result.Fallo<string>(Error.Crear(
+                    CodigosErrorMicrosoft365.SinBuzonExchange, "Esta cuenta de Microsoft no tiene buzón de Exchange Online."));
+            }
+
             return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
                 ? Result.Fallo<string>(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",
