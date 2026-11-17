@@ -61,6 +61,7 @@
   <data name="NavClientes" xml:space="preserve"><value>Clients</value></data>
   <data name="NavBuzonPersonal" xml:space="preserve"><value>La meva bústia personal</value></data>
   <data name="VerTabla" xml:space="preserve"><value>Taula</value></data>
+  <data name="VerComoLista" xml:space="preserve"><value>Veure com a llista</value></data>
   <data name="Cargando" xml:space="preserve"><value>Carregant…</value></data>
   <data name="AlDia" xml:space="preserve"><value>Al dia</value></data>
   <data name="ErrorAbrirConversacion" xml:space="preserve"><value>No hem pogut obrir la conversa</value></data>

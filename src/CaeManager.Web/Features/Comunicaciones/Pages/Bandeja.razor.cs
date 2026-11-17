@@ -243,6 +243,23 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// <summary>Título del encabezado de la lista (E9): el filtro rápido activo, como hasta ahora.</summary>
     private string TituloLista =>
         TextosLista[_soloAsignadasAMi ? "Mias" : _soloSinAsignar ? "SinAsignar" : _soloEsperandoCliente ? "EsperandoCliente" : "Todas"].Value;
+
+    /// <summary>La tabla de conversaciones es un modo secundario (maqueta 2026-11-01): solo se ve si se ha pedido con «Tabla».</summary>
+    private bool _modoTabla;
+
+    /// <summary>
+    /// Modo de la rejilla: con una conversación abierta, el hilo; sin ella, por defecto la lista de conversaciones (filtros, lista y centro
+    /// vacío) y, solo si se ha pedido «Tabla» o se mira el historial de Reclamaciones, la tabla.
+    /// </summary>
+    private string ModoDeRejilla =>
+        _vista != "clientes" ? "personal"
+        : _conversacionSeleccionadaId is not null ? "hilo"
+        : _modoTabla || MostrandoHistorial ? "tabla"
+        : "lista";
+
+    /// <summary>La lista de conversaciones va junto a los filtros salvo en el modo tabla (y con el historial, que ocupa el centro).</summary>
+    private bool MostrarListaLateral => _conversacionSeleccionadaId is not null || !(_modoTabla || MostrandoHistorial);
+
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
@@ -972,7 +989,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private bool _notaInternaActiva;
 
-    private async Task VolverABandejaAsync()
+    private Task VolverABandejaAsync() => CerrarConversacionAbiertaAsync();
+
+    private async Task CerrarConversacionAbiertaAsync()
     {
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
         DescartarConversacionAbierta();
@@ -984,6 +1003,21 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _errorAdjuntos = null;
         NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
     }
+
+    /// <summary>«Tabla» (encabezado de la lista): con una conversación abierta la cierra primero (con la confirmación de abandono) y abre la tabla.</summary>
+    private async Task VerTablaAsync()
+    {
+        if (_conversacionSeleccionadaId is not null)
+        {
+            await CerrarConversacionAbiertaAsync();
+            if (_conversacionSeleccionadaId is not null) return; // «Seguir editando»: nada cambia
+        }
+
+        _modoTabla = true;
+    }
+
+    /// <summary>«Ver como lista» (encabezado de la tabla): vuelve al modo por defecto.</summary>
+    private void VerComoLista() => _modoTabla = false;
 
     private async Task SeleccionarConversacionAsync(Guid id)
     {

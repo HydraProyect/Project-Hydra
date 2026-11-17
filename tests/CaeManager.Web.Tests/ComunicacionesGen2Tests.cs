@@ -95,7 +95,7 @@ namespace CaeManager.Web.Tests;
 /// <c>/comunicaciones/buzon</c>, que es otra pantalla.
 /// </para>
 /// </summary>
-public class ComunicacionesGen2Tests : BunitContext
+public partial class ComunicacionesGen2Tests : BunitContext
 {
     /// <summary><see cref="Drawer"/> y <see cref="Modal"/> importan dialogo-foco.js; el medidor de tiempo, su propio módulo.</summary>
     public ComunicacionesGen2Tests()
@@ -416,6 +416,10 @@ public class ComunicacionesGen2Tests : BunitContext
             .Single(f => f.QuerySelector(".bandeja-fila-asunto")!.TextContent.Trim() == asunto))
             .ClickAsync(new MouseEventArgs());
     }
+
+    /// <summary>La tabla es un modo secundario: se abre con «Tabla» en la cabecera de la lista.</summary>
+    private static Task AbrirTablaAsync(IRenderedComponent<Bandeja> cut) =>
+        cut.Find(".bandeja-lista .bandeja-lis-cab .bandeja-mini").ClickAsync(new MouseEventArgs());
 
     private static IElement Boton(IRenderedComponent<Bandeja> cut, string selector, string texto) =>
         cut.FindAll(selector).Single(b => b.TextContent.Trim() == texto);
@@ -1544,7 +1548,8 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
         var (cut, _) = Renderizar(escenario);
         AsuntosVisibles(cut).Should().Equal("Documentos", "RNT", "Rechazo");
-        cut.FindAll(".bandeja-fila").Should().BeEmpty();
+        cut.FindAll(".tabla-conversaciones").Should().BeEmpty("la lista es el modo por defecto de la bandeja; la tabla es el modo secundario");
+        cut.FindAll(".bandeja-lista .bandeja-fila").Should().HaveCount(3);
         await SeleccionarFila(cut, "Documentos");
         AsuntosVisibles(cut).Should().Equal("Documentos", "RNT", "Rechazo");
         cut.FindAll(".bandeja-grupo-cabecera").Should().BeEmpty();
@@ -1571,9 +1576,9 @@ public class ComunicacionesGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
 
-        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No quedan conversaciones");
+        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("No quedan conversaciones");
         cut.Markup.Should().NotContain("Sin resultados");
-        cut.FindAll(".bandeja-centro .estado-vacio button").Should().BeEmpty(
+        cut.FindAll(".bandeja-lista .estado-vacio button").Should().BeEmpty(
             "sin filtros puestos no hay ningún filtro que quitar");
     }
 
@@ -1587,10 +1592,10 @@ public class ComunicacionesGen2Tests : BunitContext
 
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.Resuelta,
             "el filtro de la URL tiene que llegar al servidor, no quedarse pintado en el select");
-        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim()
+        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim()
             .Should().Be("Sin resultados");
 
-        await Boton(cut, ".bandeja-centro .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".bandeja-lista .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().NotContain("estado=", "un filtro quitado no puede seguir en la URL que se comparte");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().BeNull();
@@ -1601,13 +1606,13 @@ public class ComunicacionesGen2Tests : BunitContext
     public void Sin_conversaciones_ni_filtros_la_bandeja_dice_Al_dia()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.Find(".bandeja-centro .bandeja-al-dia").TextContent.Trim().Should().Be("Al día");
+        cut.Find(".bandeja-lista .bandeja-al-dia").TextContent.Trim().Should().Be("Al día");
 
         // Maqueta (`.vacio`, E14): el distintivo y el estado vacío van en un mismo bloque y sin icono.
-        var bloque = cut.Find(".bandeja-centro .bandeja-vacio-bloque");
+        var bloque = cut.Find(".bandeja-lista .bandeja-vacio-bloque");
         bloque.QuerySelector(".bandeja-al-dia").Should().NotBeNull();
         bloque.QuerySelector(".estado-vacio").Should().NotBeNull();
-        cut.FindAll(".bandeja-centro .estado-vacio-icono").Should().BeEmpty("el vacío de la maqueta no lleva icono");
+        cut.FindAll(".bandeja-lista .estado-vacio-icono").Should().BeEmpty("el vacío de la maqueta no lleva icono");
     }
 
     [Fact]
@@ -1615,7 +1620,7 @@ public class ComunicacionesGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario(), "comunicaciones?estado=Resuelta");
         cut.FindAll(".bandeja-al-dia").Should().BeEmpty("un vacío por filtro no es estar al día");
-        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("Sin resultados");
+        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("Sin resultados");
     }
 
     [Fact]
@@ -1626,7 +1631,7 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Interceptar = p => p is ObtenerConversacionesQuery ? pendiente.Task : null;
         var (cut, _) = Renderizar(escenario);
 
-        var texto = cut.Find(".bandeja-centro .bandeja-cargando-texto");
+        var texto = cut.Find(".bandeja-lista .bandeja-cargando-texto");
         texto.TextContent.Trim().Should().Be("Cargando…");
         texto.GetAttribute("role").Should().Be("status", "sin role=status la carga no se anuncia a un lector de pantalla");
     }
@@ -1642,9 +1647,9 @@ public class ComunicacionesGen2Tests : BunitContext
             : null;
         var (cut, _) = Renderizar(escenario);
 
-        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos cargar la lista");
+        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("No pudimos cargar la lista");
         falla = false;
-        await Boton(cut, ".bandeja-centro .estado-vacio button", "Reintentar").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".bandeja-lista .estado-vacio button", "Reintentar").ClickAsync(new MouseEventArgs());
 
         AsuntosVisibles(cut).Should().Equal(["Documentación pendiente"]);
     }
@@ -3901,7 +3906,8 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Conversaciones.Add(conversacion);
         var (cut, _) = Renderizar(escenario);
 
-        // E13: en la tabla el estado es texto plano (sin pastilla), pero sigue en castellano.
+        // E13: en la tabla el estado es texto plano (sin pastilla), pero sigue en castellano. La tabla es el modo secundario: se abre con «Tabla».
+        await AbrirTablaAsync(cut);
         var estadoFila = cut.Find(".tabla-conversaciones .tabla-estado");
         estadoFila.TextContent.Trim().Should().Be(texto, "el nombre del enum («EsperandoRespuestaExterna») no se enseña al Gestor CAE");
         cut.FindAll(".tabla-conversaciones [data-pieza='pastilla']").Should().BeEmpty();
@@ -5034,6 +5040,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
         var (cut, _) = Renderizar(escenario);
+        await AbrirTablaAsync(cut);
         cut.FindAll(".tabla-conversaciones [role=columnheader]").Select(e => e.TextContent.Trim())
             .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente empresarial", "Estado", "Asignada a", "Plazo");
         await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
@@ -5050,11 +5057,12 @@ public class ComunicacionesGen2Tests : BunitContext
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
         var (cut, mediador) = Renderizar(escenario, "comunicaciones?busqueda=Documentos");
-        await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
+        await SeleccionarFila(cut, "Documentos");
         cut.FindAll(".bandeja-modo-hilo").Should().ContainSingle();
         await cut.Find(".bandeja-volver").ClickAsync(new MouseEventArgs());
-        cut.FindAll(".bandeja-modo-tabla").Should().ContainSingle();
-        cut.FindAll(".tabla-conversaciones-asunto button").Should().ContainSingle();
+        cut.FindAll(".bandeja-modo-lista").Should().ContainSingle("sin conversación abierta la bandeja vuelve a su modo por defecto, la lista");
+        cut.FindAll(".bandeja-lista .bandeja-fila").Should().ContainSingle();
+        cut.FindAll(".tabla-conversaciones").Should().BeEmpty();
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().Contain("busqueda=Documentos").And.NotContain("conversacion=");
         mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();

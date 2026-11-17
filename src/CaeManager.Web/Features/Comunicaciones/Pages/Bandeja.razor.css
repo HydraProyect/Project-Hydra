@@ -1294,3 +1294,43 @@ a.bandeja-documento-citado-nombre:hover {
         min-height: 60vh;
     }
 }
+
+/* Modo lista (maqueta 2026-11-01, PR-1): sin conversación abierta la lista de conversaciones está a la vista junto a los filtros, como en el
+   hilo (304 px, 344 desde 1600 y 380 desde 1760) y el centro muestra «Ninguna conversación abierta». La tabla es el modo secundario. */
+.bandeja-modo-lista {
+    --bandeja-ancho-lista: 304px;
+    gap: 0;
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+}
+
+.bandeja-modo-lista .bandeja-columna {
+    border-radius: 0;
+}
+
+.bandeja-modo-lista .bandeja-divisor {
+    display: none;
+}
+
+@media (min-width: 1600px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 344px;
+    }
+}
+
+@media (min-width: 1760px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 380px;
+    }
+}
+
+@media (max-width: 1099px) {
+    .bandeja-modo-lista {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .bandeja-modo-lista .bandeja-filtros {
+        min-height: 60vh;
+    }
+}
