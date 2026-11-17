@@ -269,6 +269,7 @@ public class CaeManagerDbContext(
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();
+    public DbSet<CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia> ArchivosPendientesDeReferencia => Set<CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia>();
     IQueryable<Documento> IDocumentosQueryContext.Documentos => Documentos;
     public DbSet<Asignacion> Asignaciones => Set<Asignacion>();
     IQueryable<Asignacion> IAsignacionesQueryContext.Asignaciones => Asignaciones;

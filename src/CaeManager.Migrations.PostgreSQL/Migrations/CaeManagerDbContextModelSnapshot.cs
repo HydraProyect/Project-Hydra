@@ -401,6 +401,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("UsosApiDiarios", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Archivos.ArchivoPendienteDeReferencia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Clave")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("GuardadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Clave")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "GuardadoEnUtc");
+
+                    b.ToTable("ArchivosPendientesDeReferencia", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
                 {
                     b.Property<Guid>("Id")
