@@ -18,7 +18,10 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public static class CriterioDePapel
 {
-    /// <summary>¿Abre este papel lo que no es de Inbound (páginas, alcance y comandos de Outbound y del Núcleo)?</summary>
+    /// <summary>
+    /// ¿Abre este papel lo que no es de Inbound (páginas y alcance de Outbound, y los comandos que no son de Inbound, también
+    /// los del Núcleo)? Las páginas y endpoints del Núcleo no lo usan (ver el resumen de la clase).
+    /// </summary>
     public static bool AdmiteLoQueNoEsInbound(PapelActivo papel) =>
         papel is not (PapelActivo.Inbound or PapelActivo.OperacionQueYaNoAutoriza);
 }

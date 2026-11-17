@@ -37,6 +37,9 @@ public sealed class AbiertaConPapelInboundAttribute : Attribute
 /// debe pintarse en el origen). Lo que impide operar o leer con esa selección no cambia: la guarda de comandos la
 /// niega, <c>RolEfectivoDelWorkspaceMiddleware</c> retira el rol, el alcance de datos de Outbound queda vacío y, dentro
 /// de un circuito ya vivo, la revalida <c>RevalidacionCircuitoActivoHandler</c>; es lo mismo que había antes de O-1 (b).
+/// Riesgo residual aceptado: el papel y la revalidación son dos consultas; si entre ambas la misma Asignación de
+/// Operación volviera a autorizar como Inbound, la selección se conservaría y un endpoint mínimo del grupo correría una
+/// vez sin este cierre (una página se vuelve a evaluar en <c>AuthorizeRouteView</c>, y la guarda de comandos sigue).
 /// </para>
 ///
 /// <para>
