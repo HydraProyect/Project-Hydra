@@ -80,7 +80,9 @@ public static class ClienteActivoEndpoints
         //
         // El papel lo elige la persona (DN-21, punto 1; B-02b): con servicio=Inbound solo cuenta la vía de Operación
         // Inbound, que se ampara en la línea Inbound vigente del Tenant TCE y no en una DelegacionTenant; sin servicio, o
-        // con Outbound, la de Outbound, como antes. Nunca se cae de una a otra: pedir Inbound sin operación Inbound no
+        // con Outbound, la de Outbound, como antes. El último papel recordado (D-4) no entra aquí: lo pone el selector en
+        // el formulario, y los formularios sin servicio (Mi trabajo, Visión de cartera, enlaces a una ficha) siguen
+        // abriendo Outbound, que es la línea de lo que enlazan. Nunca se cae de una a otra: pedir Inbound sin operación Inbound no
         // abre el Tenant por Outbound ni por la vía heredada (que solo es de Outbound). El servicio del form solo elige
         // qué predicado se pide; el papel de cada petición sale después de la operación revalidada del token.
         var pideInbound = servicio == ServicioCae.Inbound;
@@ -126,6 +128,12 @@ public static class ClienteActivoEndpoints
                 httpContext, dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
             // Preferencia de interfaz («Recientes» del selector), solo tras la autorización de arriba.
             RecientesSelectorTenant.Registrar(httpContext, usuarioId.Value, tenantId);
+            // Último papel por Tenant (D-4), también solo tras la autorización: el de la operación que se acaba de
+            // embeber. La vía heredada no tiene papel de Operación y no cambia lo recordado.
+            if (asignacionOperacionId is not null)
+                PapelRecordadoSelectorTenant.Registrar(
+                    httpContext, dataProtectionProvider, usuarioId.Value, tenantId,
+                    pideInbound ? ServicioCae.Inbound : ServicioCae.Outbound);
         }
 
         // Cambiar de empresa descarta los pendientes calculados para este usuario.

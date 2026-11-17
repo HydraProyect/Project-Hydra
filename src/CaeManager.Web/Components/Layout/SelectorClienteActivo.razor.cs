@@ -51,8 +51,24 @@ public partial class SelectorClienteActivo
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private CaeManager.Web.Components.DesignSystem.ToastService Toasts { get; set; } = default!;
 
+    [Inject] private IServiceProvider ProveedorServicios { get; set; } = default!;
+
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
+
+    /// <summary>
+    /// Lo que se pinta: una entrada por Asignación de Operación para el Gestor CAE (D-4, con <c>Servicio</c>), o la lista
+    /// de siempre para cualquier otro perfil. <see cref="_clientes"/> sigue decidiendo la visibilidad y los pendientes.
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> _entradas = [];
+
+    /// <summary>La entrada activa (Tenant y papel) que enseña el disparador.</summary>
     private ClienteAutorizadoDto? _activo;
+
+    /// <summary>El activo de la lista por Tenant, el de las reglas de visibilidad de siempre.</summary>
+    private ClienteAutorizadoDto? _activoBase;
+
+    private IReadOnlyDictionary<Guid, CaeManager.Domain.Operaciones.ServicioCae> _papelesRecordados =
+        new Dictionary<Guid, CaeManager.Domain.Operaciones.ServicioCae>();
     private ClienteAutorizadoDto? _origen;
     private ElementReference _buscador;
     private bool _enfocarBuscador;
@@ -94,7 +110,35 @@ public partial class SelectorClienteActivo
     /// </summary>
     private string IdsFijables => _clientes is null
         ? string.Empty
-        : string.Join(",", _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId));
+        : string.Join(",", _entradas.Where(c => !c.EsOrigen).Select(c => c.TenantId).Distinct());
+
+    /// <summary>
+    /// Decisión 1 sobre la lista por Tenant y, además (D-4), siempre que haya una entrada Inbound: el selector es el único
+    /// sitio donde se elige ese papel.
+    /// </summary>
+    private bool Visible => _activo is not null && _activoBase is not null
+        && (ClientesAutorizados.SelectorVisible(_clientes!, _activoBase)
+            || _entradas.Any(e => e.Servicio == CaeManager.Domain.Operaciones.ServicioCae.Inbound));
+
+    /// <summary>Activa la entrada del Tenant y el papel en curso; una entrada sin papel lo es por el Tenant.</summary>
+    private bool EsActiva(ClienteAutorizadoDto entrada) =>
+        entrada.TenantId == _activo!.TenantId && (entrada.Servicio is null || entrada.Servicio == _activo.Servicio);
+
+    private string TextoPapel(CaeManager.Domain.Operaciones.ServicioCae papel) =>
+        Textos[papel == CaeManager.Domain.Operaciones.ServicioCae.Inbound ? "SelectorTenantPapelInbound" : "SelectorTenantPapelOutbound"].Value;
+
+    /// <summary>
+    /// La entrada de un Tenant en Fijadas y Recientes (que van por Tenant): la del último papel elegido para él si sigue
+    /// entre las autorizadas (D-4) y, si no, la primera. El papel recordado es una preferencia: se recorta a lo autorizado.
+    /// </summary>
+    private ClienteAutorizadoDto? EntradaPreferida(Guid tenantId)
+    {
+        var delTenant = _entradas.Where(e => !e.EsOrigen && e.TenantId == tenantId).ToList();
+        return (_papelesRecordados.TryGetValue(tenantId, out var recordado)
+                   ? delTenant.FirstOrDefault(e => e.Servicio == recordado)
+                   : null)
+               ?? delTenant.FirstOrDefault();
+    }
 
     /// <summary>
     /// Las fijadas tal como se pintan: en el orden en que se fijaron, solo las que siguen en la cartera
@@ -109,12 +153,19 @@ public partial class SelectorClienteActivo
     private IReadOnlyList<ClienteAutorizadoDto> FijadasAutorizadas => _clientes is null
         ? []
         : _fijadas
-            .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
+            .Select(EntradaPreferida)
             .OfType<ClienteAutorizadoDto>()
-            .Where(c => !c.EsOrigen)
             .ToList();
 
     private string IdsFijadas => string.Join(",", FijadasAutorizadas.Select(c => c.TenantId));
+
+    /// <summary>
+    /// «tenantId:servicio» de las fijadas con papel (D-4): el que preselecciona <see cref="EntradaPreferida"/>, para que
+    /// Alt+1…5 envíe el mismo papel que la fila de la fijada. Ya recortado a lo autorizado; el POST lo revalida.
+    /// </summary>
+    private string ServiciosFijadas => string.Join(",", FijadasAutorizadas
+        .Where(c => c.Servicio is not null)
+        .Select(c => $"{c.TenantId}:{c.Servicio}"));
 
     /// <summary>Hay una sección encima de la lista principal: entonces esta va sin rótulo visible.</summary>
     private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
@@ -127,6 +178,9 @@ public partial class SelectorClienteActivo
         : Textos["SelectorTenantAyudaBuscar"].Value;
 
     private bool EsFijada(ClienteAutorizadoDto cliente) => _fijadas.Contains(cliente.TenantId);
+
+    /// <summary>La entrada ya se pinta en Fijadas o Recientes (la otra entrada del mismo Tenant sigue en la lista).</summary>
+    private bool YaArriba(ClienteAutorizadoDto entrada) => Fijadas.Contains(entrada) || Recientes.Contains(entrada);
 
     /// <summary>Tope de espera del contador: pasado, el selector sigue sin contador (nunca bloquea).</summary>
     public static readonly TimeSpan EsperaMaximaPendientes = TimeSpan.FromSeconds(10);
@@ -143,9 +197,9 @@ public partial class SelectorClienteActivo
     /// <see cref="UmbralBusqueda"/> Tenants o más; por debajo, su texto es siempre vacío.
     /// </summary>
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
-        ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c) && !EsFijada(c))
+        ? _entradas.Where(c => !c.EsOrigen && !YaArriba(c))
             .OrderBy(c => c.Nombre, StringComparer.CurrentCulture)
-        : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
+        : _entradas.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
                 c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0)
             .OrderBy(c => c.Nombre, StringComparer.CurrentCulture);
 
@@ -171,14 +225,15 @@ public partial class SelectorClienteActivo
     private IReadOnlyList<ClienteAutorizadoDto> Recientes => _clientes is null || !string.IsNullOrWhiteSpace(_busqueda)
         ? []
         : _recientesIds
-            .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
+            .Select(EntradaPreferida)
             .OfType<ClienteAutorizadoDto>()
-            .Where(c => !c.EsOrigen && c.TenantId != _activo?.TenantId && !EsFijada(c))
+            .Where(c => c.TenantId != _activo?.TenantId && !EsFijada(c))
             .Take(RecientesSelectorTenant.Maximo)
             .ToList();
 
     private int? Pendientes(ClienteAutorizadoDto cliente) =>
-        !cliente.EsOrigen && _pendientes is not null && _pendientes.TryGetValue(cliente.TenantId, out var n) && n > 0 ? n : null;
+        // Los pendientes son los de Mi trabajo, que es de Outbound: una entrada Inbound no los lleva.
+        !cliente.EsOrigen && cliente.Servicio != CaeManager.Domain.Operaciones.ServicioCae.Inbound && _pendientes is not null && _pendientes.TryGetValue(cliente.TenantId, out var n) && n > 0 ? n : null;
 
     /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
     private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
@@ -424,21 +479,79 @@ public partial class SelectorClienteActivo
             return;
         }
 
-        _activo = ClientesAutorizados.Activo(_clientes, tenantSeleccionado);
+        _activoBase = ClientesAutorizados.Activo(_clientes, tenantSeleccionado);
         _origen = _clientes.FirstOrDefault(c => c.EsOrigen);
-        _totalCartera = ClientesAutorizados.TotalCartera(_clientes);
+        _entradas = _clientes;
 
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
 
+        PapelActivo papel = PapelActivo.SinPapel;
         try
         {
             _usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
             if (_usuarioId is { } usuario)
                 _recientesIds = LectorRecientes.Leer(usuario);
+
+            // Selector de papel (D-4): solo el Gestor CAE tiene entradas por Asignación de Operación; para el resto la
+            // consulta devolvería la misma lista y no se pide.
+            if (await CurrentUserService.ObtenerPerfilQueDecideAlcanceAsync()
+                == CaeManager.Application.Tenants.TenantsBeneficiariosAutorizados.RolAcotadoPorCartera)
+            {
+                _entradas = ConPapeles(_clientes, await Mediator.Send(new ObtenerClientesAutorizadosQuery { PorPapel = true }));
+                papel = await CurrentUserService.ObtenerPapelActivoAsync();
+                if (_usuarioId is { } dueno && ProveedorServicios.GetService<ILectorPapelRecordadoSelectorTenant>() is { } lector)
+                    _papelesRecordados = lector.Leer(dueno);
+            }
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
-            // Sin usuario no hay recientes ni contador; el selector sigue funcionando.
+            // Sin usuario no hay recientes ni contador; el selector sigue funcionando con la lista por Tenant.
         }
+
+        _activo = EntradaActiva(tenantSeleccionado, papel) ?? _activoBase;
+        _totalCartera = _entradas.Where(c => !c.EsOrigen).Select(c => c.TenantId).Distinct().Count();
+    }
+
+    /// <summary>
+    /// La lista del marco (por Tenant, la que comparten menú y migas y la que viaja del prerenderizado al circuito) con
+    /// el papel de cada Asignación de Operación: cada Tenant del marco se sustituye por sus entradas con papel, con el
+    /// nombre y el logo del marco, y se añaden al final, en orden, los Tenants que solo alcanza la vía Inbound. Un Tenant
+    /// del marco sin entradas con papel (vía heredada, o lista por papel vacía tras una desconexión) queda como estaba.
+    /// </summary>
+    internal static IReadOnlyList<ClienteAutorizadoDto> ConPapeles(
+        IReadOnlyList<ClienteAutorizadoDto> marco, IReadOnlyList<ClienteAutorizadoDto> porPapel)
+    {
+        var resultado = new List<ClienteAutorizadoDto>();
+        foreach (var cliente in marco)
+        {
+            var papeles = cliente.EsOrigen
+                ? []
+                : porPapel.Where(p => !p.EsOrigen && p.TenantId == cliente.TenantId && p.Servicio is not null).ToList();
+            if (papeles.Count == 0) resultado.Add(cliente);
+            else resultado.AddRange(papeles.Select(p => cliente with { Servicio = p.Servicio }));
+        }
+
+        var delMarco = marco.Select(c => c.TenantId).ToHashSet();
+        resultado.AddRange(porPapel.Where(p => !p.EsOrigen && p.Servicio is not null && !delMarco.Contains(p.TenantId)));
+        return resultado;
+    }
+
+    /// <summary>
+    /// La entrada del Tenant seleccionado con el papel que resolvió el servidor para esta petición
+    /// (<see cref="ICurrentUserService.ObtenerPapelActivoAsync"/>, nunca el cliente) o, si no hay entrada con papel para
+    /// él, la entrada sin papel (vía heredada). Sin ninguna, el activo por Tenant de siempre.
+    /// </summary>
+    private ClienteAutorizadoDto? EntradaActiva(Guid? seleccionado, PapelActivo papel)
+    {
+        if (seleccionado is null) return null;
+        CaeManager.Domain.Operaciones.ServicioCae? servicio = papel switch
+        {
+            PapelActivo.Outbound => CaeManager.Domain.Operaciones.ServicioCae.Outbound,
+            PapelActivo.Inbound => CaeManager.Domain.Operaciones.ServicioCae.Inbound,
+            _ => null,
+        };
+        var delTenant = _entradas.Where(e => !e.EsOrigen && e.TenantId == seleccionado).ToList();
+        return delTenant.FirstOrDefault(e => servicio is not null && e.Servicio == servicio)
+               ?? delTenant.FirstOrDefault(e => e.Servicio is null);
     }
 }

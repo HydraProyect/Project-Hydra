@@ -81,6 +81,15 @@ export function registrarAtajos() {
         const campo = formulario.querySelector('input[name="tenantId"]');
         if (!campo) return;
         campo.value = destino;
+        // El papel de esa fijada (D-4), si lo tiene: el mismo que enviaría su fila. Sin papel, el campo no viaja.
+        const campoServicio = formulario.querySelector('input[name="servicio"]');
+        if (campoServicio) {
+            const par = (raiz.getAttribute('data-fijadas-servicios') ?? '').split(',')
+                .map((p) => p.split(':'))
+                .find((p) => p[0] === destino && (p[1] === 'Outbound' || p[1] === 'Inbound'));
+            campoServicio.value = par ? par[1] : '';
+            campoServicio.disabled = !par;
+        }
         formulario.requestSubmit();
     };
 

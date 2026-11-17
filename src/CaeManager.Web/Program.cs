@@ -302,6 +302,7 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyE
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
+builder.Services.AddScoped<CaeManager.Web.Services.ILectorPapelRecordadoSelectorTenant, CaeManager.Web.Services.LectorPapelRecordadoSelectorTenant>();
 // Contexto del marco (pieza 1.3): un despacho por ámbito, compartido por los componentes del marco. Scoped (petición o
 // circuito), nunca singleton, y también como IMemoPorContexto, la MISMA instancia, para que cada Command lo descarte.
 builder.Services.AddScoped<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>();
