@@ -145,7 +145,7 @@
         {
             <details class="nav-grupo-detalle" data-grupo="@grupo.Id" data-abierto-defecto="@(grupo.AbiertoPorDefecto ? "true" : "false")" open="@grupo.AbiertoPorDefecto">
                 <summary class="nav-grupo-titulo" aria-expanded="@(grupo.AbiertoPorDefecto ? "true" : "false")">
-                    <span class="nav-grupo-rotulo">@grupo.Titulo</span>
+                    <span class="nav-grupo-rotulo">@grupo.TituloEn(Textos)</span>
                     <span class="nav-grupo-extremo">
                         <span class="nav-grupo-punto" aria-hidden="true"></span>
                         <span class="nav-solo-lector">@Textos["MenuGrupoContieneActual"]</span>
@@ -201,8 +201,8 @@
     private IReadOnlyDictionary<string, LineaMenu> _rotulosDeLinea = new Dictionary<string, LineaMenu>();
 
     // «Inbound · Tenant TCE» y no «Tenant TEC»: la línea Inbound solo está visible con el Producto Contratado Inbound vigente
-    // del Tenant (ILineaInboundVigente), que es el del Tenant TCE. El Tenant TEC participante no tiene Producto Contratado ni
-    // marcador todavía (falta EP-4/B-03), así que hoy no se puede distinguir; cuando exista, aquí se elige entre los dos rótulos.
+    // del Tenant (ILineaInboundVigente), que es el del Tenant TCE. El Tenant TEC participante no tiene Producto Contratado de
+    // Inbound: su menú es el grupo «inbound-tec», sin línea (SinLinea), que se abre por IEsTenantTecInbound y nunca lleva este rótulo.
     private string RotuloDeLinea(LineaMenu linea) => linea == LineaMenu.Inbound ? Textos["MenuLineaInboundTce"].Value : Textos["MenuLineaOutbound"].Value;
 
     private string RotuloDe(SubopcionMenuLateral sub) =>
@@ -247,6 +247,21 @@
             }
         }
 
+        // Gate del grupo «Mis Clientes» (Tenant TEC, D6): al menos una autorización de lectura documental concedida
+        // por el Tenant activo (IEsTenantTecInbound). Independiente de la línea Inbound; misma forma y mismo fallo cerrado.
+        var esTenantTecInbound = false;
+        if (Servicios.GetService<IEsTenantTecInbound>() is { } tenantTec)
+        {
+            try
+            {
+                esTenantTecInbound = await tenantTec.EsAsync();
+            }
+            catch (Exception)
+            {
+                esTenantTecInbound = false;
+            }
+        }
+
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             marco.EsAdministradorPlataforma, marco.PerfilVocabulario, VariosTenants: marco.ClientesAutorizados.Count > 1,
@@ -254,7 +269,8 @@
             RotulosPrimeraPersona: marco.RotulosPrimeraPersona,
             HerramientasPdfDisponibles: herramientasPdfDisponibles,
             MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios),
-            LineaInboundVigente: lineaInboundVigente);
+            LineaInboundVigente: lineaInboundVigente,
+            EsTenantTecInbound: esTenantTecInbound);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

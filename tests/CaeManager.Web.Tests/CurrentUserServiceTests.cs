@@ -315,6 +315,91 @@ public class CurrentUserServiceTests
         (await servicio2.ObtenerPapelActivoAsync()).Should().Be(esperado);
     }
 
+    /// <summary>
+    /// La consulta del papel de una operación seleccionada pasa por la <see cref="PuertaAccesoDatos"/> del scope: en un
+    /// circuito de Blazor la leen a la vez el panel del asistente del layout, el hub de Configuración y el handler de las
+    /// páginas de Outbound, sobre el mismo DbContext. Sin la puerta, la segunda consulta en vuelo lanzaba «A second
+    /// operation was started on this context instance» y el límite de errores retiraba el componente (CI de la PR #2318:
+    /// VegaPanelE2ETests y EncargoAdministracionE2ETests). SQLite completa sus lecturas de forma síncrona, así que sin
+    /// la puerta el papel ya está resuelto mientras otra operación la tiene; con ella, espera, y al soltarla se resuelve
+    /// con el mismo valor (Inbound: la denegación por papel no cambia).
+    /// </summary>
+    [Fact]
+    public async Task El_papel_de_una_operacion_seleccionada_espera_a_la_puerta_de_acceso_a_datos_del_scope()
+    {
+        var tenantOrigen = Guid.NewGuid();
+        var tenantTce = Guid.NewGuid();
+        var ahora = DateTime.UtcNow;
+        await using var db = await ClienteActivoEndpointsAutorizacionTests.CrearContexto();
+        var operacion = CaeManager.Domain.Operaciones.AsignacionOperacion.Externa(tenantTce, tenantOrigen,
+            CaeManager.Domain.Operaciones.ServicioCae.Inbound, CaeManager.Domain.Operaciones.AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        db.Add(operacion);
+        db.TenantsConLineaInbound.Add(tenantTce);
+        await db.SaveChangesAsync();
+
+        var puerta = new PuertaAccesoDatos();
+        var operaciones = new OperacionesQueAnotanElAcceso(db);
+        var servicios = new ServiceCollection()
+            .AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(operaciones)
+            .AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(db)
+            .AddSingleton(puerta)
+            .BuildServiceProvider();
+        var usuario = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, UsuarioIdDeEjemplo.ToString()),
+            new Claim(ClaimTypes.Role, "Administrador"),
+            new Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()),
+        ], "prueba"));
+        var servicio = new CurrentUserService(
+            new AuthenticationStateProviderFalso(usuario), new HttpContextAccessorFalso(null),
+            new SeleccionConOperacionFalsa(tenantTce, operacion.Id), servicios);
+
+        // Otra operación del mismo scope (otro componente del circuito) tiene la puerta.
+        var dentro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var otraOperacion = Task.Run(() => puerta.EjecutarAsync(async () =>
+        {
+            dentro.SetResult();
+            await soltar.Task;
+        }));
+        await dentro.Task;
+
+        var papel = servicio.ObtenerPapelActivoAsync();
+        await Task.WhenAny(papel, Task.Delay(TimeSpan.FromMilliseconds(500)));
+        // Se mide el acceso al catálogo, no solo que el método no termine: consultar fuera de la puerta y esperarla
+        // después también dejaría el método sin terminar, con la consulta ya hecha sobre el DbContext ajeno.
+        operaciones.Accesos.Should().Be(0,
+            "la consulta del papel no puede tocar el DbContext mientras otra operación del scope tiene la puerta");
+        papel.IsCompleted.Should().BeFalse();
+
+        soltar.SetResult();
+        await otraOperacion;
+        (await papel).Should().Be(PapelActivo.Inbound);
+        operaciones.Accesos.Should().BePositive("control positivo: el instrumento ve la consulta cuando la puerta queda libre");
+    }
+
+    /// <summary>Cuenta cada acceso a los catálogos de operaciones; delega en el contexto real.</summary>
+    private sealed class OperacionesQueAnotanElAcceso(CaeManager.Application.Operaciones.IOperacionesQueryContext real)
+        : CaeManager.Application.Operaciones.IOperacionesQueryContext
+    {
+        private int _accesos;
+        public int Accesos => Volatile.Read(ref _accesos);
+
+        private T Anotar<T>(T valor)
+        {
+            Interlocked.Increment(ref _accesos);
+            return valor;
+        }
+
+        public IQueryable<CaeManager.Domain.Operaciones.AsignacionOperacion> AsignacionesOperacion => Anotar(real.AsignacionesOperacion);
+        public IQueryable<CaeManager.Domain.Operaciones.AsignacionCartera> AsignacionesCartera => Anotar(real.AsignacionesCartera);
+        public IQueryable<Guid> TenantsSuspendidosIds => Anotar(real.TenantsSuspendidosIds);
+        public IQueryable<CaeManager.Domain.Tenants.DelegacionTenant> DelegacionesTenant => Anotar(real.DelegacionesTenant);
+        public IQueryable<CaeManager.Domain.Operaciones.AsignacionOperacion> OperacionesInboundAmparadas =>
+            Anotar(real.OperacionesInboundAmparadas);
+    }
+
     /// <summary>Selección de un Tenant con la Asignación de Operación del token.</summary>
     private sealed class SeleccionConOperacionFalsa(Guid tenantId, Guid asignacionOperacionId) : IClienteActivoSeleccionado
     {

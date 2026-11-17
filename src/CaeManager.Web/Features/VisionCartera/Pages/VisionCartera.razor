@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Application.Dashboard.Queries
 
 <LimiteDeErrores Pagina="this">

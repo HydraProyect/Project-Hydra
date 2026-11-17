@@ -63,7 +63,8 @@ public class IncorporacionCarteraCommandsTests
             _directorio.Desactivar(_gestor);
         return new(usuario, _catalogo, _repositorio, _directorio,
             _notificaciones, _tenants, _unitOfWork, NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance,
-            new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
+            new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
+            _bloqueo);
     }
 
     private RechazarSolicitudIncorporacionCarteraCommandHandler Rechazar(CurrentUserServicePorAmbito usuario) =>
@@ -364,6 +365,25 @@ public class IncorporacionCarteraCommandsTests
         resultado.Error.Codigo.Should().Be("SolicitudCartera.SolicitanteNoDisponible");
         solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Anulada);
         solicitud.MotivoAnulacion.Should().Be(MotivoAnulacionSolicitudCartera.SolicitanteNoDisponible);
+        _catalogo.TenantsAlIncorporar.Should().BeEmpty();
+    }
+
+    // Revisión de la PR A de la baja de un Gestor CAE: una desactivación del solicitante que se
+    // confirma mientras la aceptación espera el candado compartido no puede dejarle una Asignación
+    // de Cartera vigente. El candado se toma sobre el solicitante antes de comprobar que sigue
+    // activo; sin él, la comprobación vería la cuenta activa y se concedería la cartera.
+    [Fact]
+    public async Task Una_desactivacion_confirmada_mientras_se_espera_el_candado_anula_la_solicitud_sin_cartera()
+    {
+        var solicitud = Pendiente();
+        _bloqueo.AlTomarElCompartido = () => _directorio.Desactivar(_gestor);
+
+        var resultado = await Aceptar(Como(_coordinador, "CoordinadorCae"))
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        _bloqueo.Compartidos.Should().Equal(_gestor);
+        resultado.Error.Codigo.Should().Be("SolicitudCartera.SolicitanteNoDisponible");
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Anulada);
         _catalogo.TenantsAlIncorporar.Should().BeEmpty();
     }
 

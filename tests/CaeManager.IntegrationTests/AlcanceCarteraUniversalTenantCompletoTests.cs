@@ -230,8 +230,10 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     [Fact]
     public async Task Coordinador_sigue_heredando_la_cartera_universal_de_un_Gestor_desactivado()
     {
-        // Decisión del propietario, opción C (2026-09-24): desactivar a un Gestor CAE no cierra sus
-        // Asignaciones de Cartera y su Coordinador CAE las sigue heredando, por continuidad del servicio.
+        // Desactivar a un Gestor CAE retira sus Asignaciones de Cartera externas de Tenants beneficiarios
+        // (decisión del 2026-11-14), pero conserva la interna de la operación raíz (decisión del
+        // 2026-11-16), que es la que siembra este test; su Coordinador CAE la sigue heredando, por
+        // continuidad del servicio.
         var e = await SembrarAsync(_tenant, "A");
         var coordinador = Guid.NewGuid();
         var gestor = Guid.NewGuid();

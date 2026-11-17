@@ -29,6 +29,7 @@ public class HandlersInboundDeniegaSinCapacidadTests
         ["AutorizacionesLectura.Commands.RetirarTrabajadorAutorizacion.RetirarTrabajadorAutorizacionCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Commands.RevocarAutorizacionLectura.RevocarAutorizacionLecturaCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura.ObtenerAutorizacionesLecturaQueryHandler"] = CapacidadInbound.ParticipanteTec,
+        ["AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQueryHandler"] = CapacidadInbound.ParticipanteTec,
         ["ContratosAcceso.AptosHoy.ObtenerAptosHoyDelCentroQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.Commands.ActualizarContratoAcceso.ActualizarContratoAccesoCommandHandler"] = CapacidadInbound.GestionarInbound,
         ["ContratosAcceso.Commands.CancelarContratoAcceso.CancelarContratoAccesoCommandHandler"] = CapacidadInbound.GestionarInbound,
@@ -122,6 +123,9 @@ public class HandlersInboundDeniegaSinCapacidadTests
             return resultado.EsFallido && resultado.Error.Codigo == AutorizacionInboundErrores.SinCapacidad.Codigo;
         if (respuesta is null)
             return true;
+        // Query de interfaz que responde un booleano (p. ej. el gate del menú del Tenant TEC): la denegación es false.
+        if (respuesta is bool permitido)
+            return !permitido;
         if (respuesta is System.Collections.IEnumerable lista)
             return !lista.Cast<object>().Any();
         // ResultadoPaginado<T>: sin elementos y con total cero.
