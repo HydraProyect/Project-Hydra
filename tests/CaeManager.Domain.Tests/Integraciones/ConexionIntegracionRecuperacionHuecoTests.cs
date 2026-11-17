@@ -113,6 +113,26 @@ public class ConexionIntegracionRecuperacionHuecoTests
         conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_atasco_que_reinicia_el_segundo_borra_el_desempate_y_el_que_no_lo_conserva(bool reiniciarSegundo)
+    {
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        var segundo = ConexionIntegracion.SegundoDe(Ahora.AddHours(-2));
+        conexion.AvanzarRecuperacionHueco(segundo, hayMas: true);
+        conexion.AvanzarRecuperacionHuecoEnSegundo("AAMkAG-id-03", hayMas: true);
+
+        conexion.RegistrarAtascoRecuperacionHueco(reiniciarSegundo).Should().BeTrue();
+
+        conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(segundo);
+        conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+        conexion.RecuperacionHuecoCursorId.Should().Be(reiniciarSegundo ? null : "AAMkAG-id-03");
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue("lo recorrido por Id ya se encoló: el veto se queda");
+        conexion.RegistrarAtascoRecuperacionHueco(reiniciarSegundo).Should().BeFalse("ya detenida y sin desempate que borrar");
+    }
+
     [Fact]
     public void Anular_la_recuperacion_borra_el_indicador_y_el_desempate()
     {

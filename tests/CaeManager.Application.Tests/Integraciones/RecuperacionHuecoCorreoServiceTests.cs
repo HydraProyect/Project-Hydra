@@ -452,6 +452,85 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
     }
 
+    /// <summary>
+    /// Issue #2263, revisión puente (ronda 2): un Id que el recorrido por Id no devolvió y queda por debajo del desempate
+    /// guardado no puede darse por recorrido en la pasada siguiente. El atasco de la comprobación vuelve el segundo a su
+    /// principio, así que la pasada siguiente lo recorre entero, lo comprueba otra vez y vuelve a atascar.
+    /// </summary>
+    [Fact]
+    public async Task Un_id_sin_ver_por_debajo_del_desempate_atasca_tambien_en_la_pasada_siguiente()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        var delSegundo = DelSegundo(segundo, 5);
+        MensajeRecibidoGraphDto[] porFecha = [delSegundo[1], delSegundo[2], delSegundo[3], delSegundo[4]];
+        escenario.Pagina(hayMas: true, porFecha);
+        escenario.Pagina(hayMas: true, porFecha);
+        // El recorrido por Id no devuelve s02, que queda por debajo del desempate s03 de su primera página.
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[1], delSegundo[3]], HayMas: true)));
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[4]], HayMas: false)));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+        escenario.Conexion.RecuperacionHuecoCursorId.Should().BeNull("el segundo vuelve a su principio");
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+
+        escenario.Pagina(hayMas: true, porFecha);
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[1], delSegundo[3]], HayMas: true)));
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[4]], HayMas: false)));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Atascada);
+        escenario.Graph.ListadosEnSegundoPedidos.Select(l => l.DespuesDeId).Should().Equal(
+            [null, "s03", null, "s03"], "la pasada siguiente recorre el segundo desde su principio");
+        escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(segundo);
+        escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+        escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeFalse();
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca);
+    }
+
+    /// <summary>
+    /// Issue #2263, revisión puente (ronda 2): al retomar de la fila, la comprobación por fecha cuenta como recorrido solo
+    /// lo que no es posterior al desempate con el que la pasada empezó; un Id posterior que el recorrido no devuelve atasca.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Al_retomar_por_id_la_comprobacion_por_fecha_da_por_recorrido_solo_lo_que_no_pasa_del_desempate(bool conUnoSinVer)
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        var segundo = ConexionIntegracion.SegundoDe(escenario.Marca.AddMinutes(10));
+        var delSegundo = DelSegundo(segundo, 4);
+        MensajeRecibidoGraphDto[] porFecha = [delSegundo[1], delSegundo[3]];
+        escenario.Pagina(hayMas: true, porFecha);
+        escenario.Pagina(hayMas: true, porFecha);
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[1]], HayMas: true)));
+        escenario.Graph.PaginasEnSegundo.Add(Result.Fallo<PaginaMensajesRecibidosGraphDto>(
+            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "fallo simulado")));
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.Interrumpida);
+        escenario.Conexion.RecuperacionHuecoCursorId.Should().Be("s01", "control: la pasada siguiente retoma de la fila");
+
+        // Al retomar: s01 es el desempate (ya recorrido), s03 lo devuelve el recorrido y s02, si está, no.
+        escenario.Graph.PaginasEnSegundo.Add(Result.Exito(new PaginaMensajesRecibidosGraphDto([delSegundo[3]], HayMas: false)));
+        escenario.Pagina(hayMas: true, conUnoSinVer ? [delSegundo[1], delSegundo[2], delSegundo[3]] : porFecha);
+
+        var resultado = await escenario.PasadaAsync();
+
+        if (conUnoSinVer)
+        {
+            resultado.Should().Be(ResultadoRecuperacionHueco.Atascada);
+            escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().Be(segundo);
+            escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+            escenario.Conexion.RecuperacionHuecoCursorId.Should().BeNull();
+        }
+        else
+        {
+            resultado.Should().Be(ResultadoRecuperacionHueco.PendienteIngesta);
+            escenario.Conexion.RecuperacionHuecoAtascadaEnUtc.Should().BeNull();
+            escenario.Conexion.RecuperacionHuecoCursorUtc.Should().Be(segundo.AddSeconds(1));
+            escenario.Conexion.RecuperacionHuecoListadoCompleto.Should().BeTrue();
+        }
+    }
+
     /// <summary>Control del anterior: el mismo segundo, visto entero por Id, se da por leído y el listado sigue.</summary>
     [Fact]
     public async Task Un_recorrido_por_id_que_ve_todo_lo_que_vio_el_listado_por_fecha_pasa_al_segundo_siguiente()

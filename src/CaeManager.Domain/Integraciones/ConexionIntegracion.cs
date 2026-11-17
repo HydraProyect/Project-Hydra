@@ -546,9 +546,15 @@ public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
     /// Una página con más detrás no sale del segundo del cursor y ese segundo no se puede recorrer por Id: pedirla otra
     /// vez desde él devolvería la misma. No se encola nada, el cursor no avanza y el listado no termina; queda registrado
     /// en qué segundo está detenida (<see cref="RecuperacionHuecoAtascadaEnUtc"/>).
+    /// <para>
+    /// Con <paramref name="reiniciarSegundo"/> (issue #2263), además, el recorrido por Id de ese segundo vuelve a su
+    /// principio: el cursor se queda en el segundo y el desempate se borra. Es para cuando el recorrido terminó el segundo
+    /// sin ver lo que el listado por fecha ve: lo que daba por recorrido antes del desempate ya no es de fiar, y la pasada
+    /// siguiente tiene que recorrer el segundo entero, no retomarlo, para volver a comprobarlo.
+    /// </para>
     /// </summary>
-    /// <returns>true si hay algo que guardar (no estaba ya detenida en ese segundo).</returns>
-    public bool RegistrarAtascoRecuperacionHueco()
+    /// <returns>true si hay algo que guardar (no estaba ya detenida en ese segundo, o se borró el desempate).</returns>
+    public bool RegistrarAtascoRecuperacionHueco(bool reiniciarSegundo = false)
     {
         if (RecuperacionHuecoCursorUtc is not { } cursor)
             throw new InvalidOperationException("No hay ninguna recuperación del hueco en curso.");
@@ -556,8 +562,16 @@ public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
             throw new InvalidOperationException("El listado de la recuperación del hueco ya terminó.");
 
         var segundo = SegundoDe(cursor);
+        var cambia = false;
+        if (reiniciarSegundo && (RecuperacionHuecoCursorDesempate is not null || cursor != segundo))
+        {
+            RecuperacionHuecoCursorUtc = segundo;
+            RecuperacionHuecoCursorDesempate = null;
+            cambia = true;
+        }
+
         if (RecuperacionHuecoAtascadaEnUtc == segundo)
-            return false;
+            return cambia;
 
         RecuperacionHuecoAtascadaEnUtc = segundo;
         return true;

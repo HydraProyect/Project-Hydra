@@ -308,7 +308,11 @@ public class RecuperacionHuecoCorreoService(
                 // Última página del segundo: antes de dar el segundo por leído y pasar al siguiente, el recorrido por Id
                 // tiene que haber visto lo que el listado por fecha ve de ese segundo. Si no (Graph guardaría la recepción
                 // con más precisión de la que devuelve, y eq el segundo no encontraría lo que ge sí), avanzar saltaría
-                // correo: falla cerrado, sin guardar la página.
+                // correo: falla cerrado, sin guardar la página, y el segundo vuelve a su principio para que la pasada
+                // siguiente lo recorra entero y lo compruebe otra vez, en vez de dar por visto lo anterior al desempate.
+                // Límite declarado: la comprobación es por muestra, la primera página ge del segundo (como mucho 1000
+                // Ids), y lo anterior al desempate con el que la pasada retomó el segundo cuenta como recorrido. Lo que
+                // escape a la muestra lo cubre el veto: la marca no se limpia tras un recorrido por Id.
                 if (!leida.HayMas)
                 {
                     if (vistosPorFecha is null)
@@ -343,7 +347,7 @@ public class RecuperacionHuecoCorreoService(
                         logger.LogWarning(
                             "La recuperación del hueco de {ConexionId} está detenida en {Segundo}: el recorrido por Id no vio {SinVer} mensajes de ese segundo que el listado por fecha sí ve. No se encola, el cursor no avanza y la marca se queda.",
                             conexionId, segundoDelCursor, sinVer);
-                        return await RegistrarAtascoAsync(conexionId, recuperacion, cancellationToken);
+                        return await RegistrarAtascoAsync(conexionId, recuperacion, cancellationToken, reiniciarSegundo: true);
                     }
                 }
 
@@ -509,7 +513,8 @@ public class RecuperacionHuecoCorreoService(
     /// Bajo el cerrojo: guarda el segundo en que la recuperación está detenida, sin encolar nada ni mover el cursor. Si la
     /// fila ya no tiene la recuperación que se estaba siguiendo, no se guarda nada.
     /// </summary>
-    private async Task<Listado> RegistrarAtascoAsync(Guid conexionId, EstadoRecuperacion esperada, CancellationToken cancellationToken)
+    private async Task<Listado> RegistrarAtascoAsync(
+        Guid conexionId, EstadoRecuperacion esperada, CancellationToken cancellationToken, bool reiniciarSegundo = false)
     {
         Listado? listado = null;
         var ejecutado = await cerrojo.IntentarEjecutarAsync(conexionId, async ct =>
@@ -521,7 +526,7 @@ public class RecuperacionHuecoCorreoService(
                 return;
             }
 
-            if (conexion.RegistrarAtascoRecuperacionHueco())
+            if (conexion.RegistrarAtascoRecuperacionHueco(reiniciarSegundo))
                 await unitOfWork.SaveChangesAsync(CancellationToken.None);
             listado = new Listado(ResultadoRecuperacionHueco.Atascada);
         }, cancellationToken);
