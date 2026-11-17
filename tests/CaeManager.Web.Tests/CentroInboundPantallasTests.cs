@@ -465,7 +465,10 @@ public class CentroInboundPantallasTests : BunitContext
                     tomado.Set();
                     _soltar.Wait();
                 }
-            }) { IsBackground = true };
+            })
+            {
+                IsBackground = true,
+            };
             _hilo.Start();
             if (!tomado.Wait(Plazo))
             {
