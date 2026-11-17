@@ -60,6 +60,45 @@ public class ConexionIntegracionReconocerAvisoHuecoTests
     }
 
     [Fact]
+    public void Reconocer_a_mitad_de_un_segundo_recorrido_por_Id_limpia_las_dos_columnas_del_cursor_compuesto()
+    {
+        // Issue #2263: el desempate y el indicador del recorrido por Id son de la recuperación anulada; si se quedaran, una
+        // recuperación posterior heredaría el veto que no deja limpiar su marca.
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        var segundo = ConexionIntegracion.SegundoDe(Ahora.AddHours(-2));
+        conexion.AvanzarRecuperacionHueco(segundo, hayMas: true);
+        conexion.AvanzarRecuperacionHuecoEnSegundo("AAMkAG-id-07", hayMas: true);
+        conexion.RecuperacionHuecoCursorId.Should().Be("AAMkAG-id-07", "control: el desempate vale");
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue("control: el segundo se recorrió por Id");
+
+        conexion.ReconocerAvisoHueco().Should().BeTrue();
+
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.RecuperacionHuecoCursorId.Should().BeNull();
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Una_recuperacion_recorrida_por_Id_y_terminada_tambien_se_reconoce_y_no_deja_el_veto()
+    {
+        // El veto del recorrido por Id no deja limpiar la marca sola: Confirmar es la única salida, como con la truncada.
+        var conexion = ConMarca(Ahora.AddHours(-3));
+        conexion.IniciarRecuperacionHueco(Ahora);
+        conexion.AvanzarRecuperacionHueco(ConexionIntegracion.SegundoDe(Ahora.AddHours(-2)), hayMas: true);
+        conexion.AvanzarRecuperacionHuecoEnSegundo(null, hayMas: false);
+        conexion.AvanzarRecuperacionHueco(null, hayMas: false);
+        conexion.CompletarRecuperacionHueco().Should().BeFalse("control: recorrida por Id, la marca se queda");
+
+        conexion.ReconocerAvisoHueco().Should().BeTrue();
+
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.RecuperacionHuecoRecorridaPorId.Should().BeFalse();
+        conexion.RecuperacionHuecoCursorDesempate.Should().BeNull();
+        conexion.RecuperacionHuecoEnCurso.Should().BeFalse();
+    }
+
+    [Fact]
     public void Sin_marca_no_hay_nada_que_reconocer_ni_que_auditar()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");

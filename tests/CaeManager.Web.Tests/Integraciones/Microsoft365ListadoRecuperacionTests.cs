@@ -88,6 +88,69 @@ public class Microsoft365ListadoRecuperacionTests
         Microsoft365GraphClient.TamanoPaginaRecuperacion.Should().Be(1000, "el máximo de Graph para messages");
     }
 
+    private static readonly DateTime Segundo = new(2026, 11, 15, 10, 0, 0, DateTimeKind.Utc);
+
+    private static string PaginaDe(params (string Id, string Recibido)[] mensajes) =>
+        "{\"value\":[" + string.Join(",", mensajes.Select(m => $"{{\"id\":\"{m.Id}\",\"receivedDateTime\":\"{m.Recibido}\"}}")) + "]}";
+
+    /// <summary>Issue #2263: el recorrido por Id de un segundo pide eq el segundo y id gt el desempate, en orden de Id.</summary>
+    [Fact]
+    public async Task El_recorrido_por_id_filtra_el_segundo_exacto_y_los_ids_posteriores_en_orden_de_id()
+    {
+        var manejador = new Respuesta(HttpStatusCode.OK, "{\"value\":[]}");
+        var cliente = Cliente(manejador);
+
+        await cliente.ListarRecibidosEnSegundoAsync("token", Compartido, Segundo, null, CancellationToken.None);
+        await cliente.ListarRecibidosEnSegundoAsync("token", Compartido, Segundo, "AAMk+/='x", CancellationToken.None);
+
+        var primera = Uri.UnescapeDataString(manejador.Pedidas[0].ToString());
+        primera.Should().StartWith("https://graph.microsoft.com/v1.0/users/cae@operador.test/mailFolders('Inbox')/messages?")
+            .And.Contain("$filter=receivedDateTime eq 2026-11-15T10:00:00Z and id gt ''&",
+                "las dos propiedades del $orderby también en el $filter, o Graph responde InefficientFilter")
+            .And.Contain("$orderby=receivedDateTime asc,id asc")
+            .And.Contain($"$top={Microsoft365GraphClient.TamanoPaginaRecuperacion}")
+            .And.NotContain("$skip");
+        Uri.UnescapeDataString(manejador.Pedidas[1].ToString())
+            .Should().Contain("$filter=receivedDateTime eq 2026-11-15T10:00:00Z and id gt 'AAMk+/=''x'&", "la comilla del Id se dobla");
+        manejador.Pedidas[1].AbsoluteUri.Should().Contain("AAMk%2B%2F%3D", "el Id va escapado en la URL");
+    }
+
+    [Fact]
+    public async Task El_recorrido_por_id_no_admite_un_segundo_con_fraccion()
+    {
+        var cliente = Cliente(new Respuesta(HttpStatusCode.OK, "{\"value\":[]}"));
+
+        var pedir = () => cliente.ListarRecibidosEnSegundoAsync("token", Compartido, Segundo.AddMilliseconds(1), null, CancellationToken.None);
+
+        await pedir.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public void Una_pagina_del_segundo_en_orden_de_id_es_legible()
+    {
+        var pagina = Microsoft365GraphClient.LeerPaginaRecibidosEnSegundo(
+            PaginaDe(("b", "2026-11-15T10:00:00Z"), ("c", "2026-11-15T10:00:00Z")), Segundo, "a");
+
+        pagina!.Mensajes.Select(m => m.MensajeExternoId).Should().Equal("b", "c");
+    }
+
+    /// <summary>
+    /// Avanzar el desempate al último Id de la página solo es seguro si Graph aplicó el filtro y el orden pedidos con la
+    /// misma comparación que el desempate: si no, la página es ilegible y la recuperación falla cerrado.
+    /// </summary>
+    [Theory]
+    [InlineData("b", "2026-11-15T10:00:01Z", "c", "2026-11-15T10:00:00Z", null)]
+    [InlineData("b", "2026-11-15T09:59:59Z", "c", "2026-11-15T10:00:00Z", null)]
+    [InlineData("c", "2026-11-15T10:00:00Z", "b", "2026-11-15T10:00:00Z", null)]
+    [InlineData("b", "2026-11-15T10:00:00Z", "b", "2026-11-15T10:00:00Z", null)]
+    [InlineData("a", "2026-11-15T10:00:00Z", "B", "2026-11-15T10:00:00Z", null)]
+    [InlineData("a", "2026-11-15T10:00:00Z", "b", "2026-11-15T10:00:00Z", "a")]
+    [InlineData("b", "2026-11-15T10:00:00Z", "c|d", "2026-11-15T10:00:00Z", "a")]
+    public void Una_pagina_del_segundo_fuera_del_filtro_o_del_orden_es_ilegible(
+        string primero, string recibidoPrimero, string segundo, string recibidoSegundo, string? despuesDe) =>
+        Microsoft365GraphClient.LeerPaginaRecibidosEnSegundo(
+            PaginaDe((primero, recibidoPrimero), (segundo, recibidoSegundo)), Segundo, despuesDe).Should().BeNull();
+
     [Fact]
     public async Task La_continuacion_de_una_pagina_nunca_se_pide()
     {

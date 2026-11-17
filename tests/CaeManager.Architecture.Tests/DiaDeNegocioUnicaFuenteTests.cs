@@ -76,6 +76,8 @@ public class DiaDeNegocioUnicaFuenteTests
         ["src/CaeManager.Application/Comunicaciones/Deteccion/IRelevanciaCaeService.cs"] = 1,
         // Nombre de fichero de un adjunto de WhatsApp sin nombre: identificador técnico.
         ["src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
+        // Segundo del cursor en el $filter de Graph (receivedDateTime eq ...Z) del recorrido por Id: formato máquina, zona explícita.
+        ["src/CaeManager.Infrastructure/Integraciones/Microsoft365GraphClient.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra demo, con sufijo Z: zona explícita.
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra administrativa del piloto Outbound, con sufijo Z: zona explícita.

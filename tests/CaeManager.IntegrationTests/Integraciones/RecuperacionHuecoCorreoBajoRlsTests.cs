@@ -185,31 +185,33 @@ public class RecuperacionHuecoCorreoBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Issue #2263, expandir y contraer: las columnas del cursor compuesto persisten bajo RLS y, releída la fila, el veto
-    /// del recorrido por Id conserva la marca. Aquí ningún camino las escribe con valor (lo hará la entrega que recorre por
-    /// Id), así que se ponen por reflexión.
+    /// Issue #2263: el desempate del cursor compuesto persiste y, releído de PostgreSQL (que guarda microsegundos), sigue
+    /// valiendo: el cursor del recorrido por Id es un segundo exacto y vuelve igual.
     /// </summary>
     [Fact]
-    public async Task El_indicador_de_recorrido_por_id_persiste_y_releido_no_deja_limpiar_la_marca()
+    public async Task El_desempate_del_cursor_compuesto_persiste_y_vale_al_releerlo()
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        var segundo = ConexionIntegracion.SegundoDe(_marca.AddMinutes(10));
         await using (var runtime = CrearRuntime())
         {
             var conexion = await runtime.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonPropio);
             conexion.IniciarRecuperacionHueco(DateTime.UtcNow);
-            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoRecorridaPorId))!
-                .SetValue(conexion, true);
-            typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoCursorDesempate))!
-                .SetValue(conexion, "desempate-de-la-otra-ranura");
+            conexion.AvanzarRecuperacionHueco(segundo.AddTicks(1234567), hayMas: true);
+            conexion.AvanzarRecuperacionHuecoEnSegundo("AAMkAG-id-03", hayMas: true);
             await runtime.SaveChangesAsync();
         }
 
         await using var relectura = CrearRuntime();
-        var leida = await relectura.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonPropio);
+        var leida = await new ConexionIntegracionRepository(relectura).ObtenerActualPorIdAsync(_buzonPropio);
+        leida!.RecuperacionHuecoCursorUtc.Should().Be(segundo);
+        leida.RecuperacionHuecoCursorId.Should().Be("AAMkAG-id-03");
         leida.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
-        leida.RecuperacionHuecoCursorDesempate.Should().Be("desempate-de-la-otra-ranura");
+
+        // Releída la fila, el veto del recorrido por Id conserva la marca al terminar el listado.
+        leida.AvanzarRecuperacionHuecoEnSegundo(null, hayMas: false);
+        leida.RecuperacionHuecoCursorDesempate.Should().BeNull("el segundo está leído entero");
         leida.AvanzarRecuperacionHueco(null, hayMas: false);
-        leida.RecuperacionHuecoCursorDesempate.Should().BeNull("avanzar por fecha no arrastra el desempate");
         leida.CompletarRecuperacionHueco().Should().BeFalse();
         leida.HuecoPendienteDesdeUtc.Should().NotBeNull("el aviso de posible correo no recuperado se queda");
     }
