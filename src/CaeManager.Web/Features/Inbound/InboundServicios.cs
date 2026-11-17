@@ -3,6 +3,7 @@ using CaeManager.Web.Features.Inbound.CentroInbound;
 using CaeManager.Web.Features.Inbound.Configuracion;
 using CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios;
 using CaeManager.Web.Features.Inbound.InformacionDelCentro;
+using CaeManager.Web.Features.Inbound.Plantillas.Servicios;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Features.Inbound;
@@ -23,6 +24,8 @@ public static class InboundServicios
         servicios.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroNoDisponible>();
         servicios.AddScoped<IInformacionDelCentro, InformacionDelCentroNoDisponible>();
         servicios.AddScoped<ResolutorContratosAcceso>();
+        servicios.AddScoped<IUsoDePlantillasRequisitos, UsoDePlantillasRequisitosNoDisponible>();
+        servicios.AddScoped<ResolutorPlantillasRequisitos>();
         servicios.AddScoped<IServicioNoAplica, ServicioNoAplicaSinBackend>();
         servicios.AddScoped<IServicioReglasAviso, ServicioReglasAvisoSinBackend>();
         servicios.AddScoped<IServicioGobiernoInbound, ServicioGobiernoInboundSinBackend>();

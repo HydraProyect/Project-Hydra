@@ -319,6 +319,8 @@ public static class CatalogoMenuLateral
             ClaveRotulo: "MenuInboundValidacion"),
         new("inbound-informacion-centro", "inbound", "inbound/informacion-centro", "tipos-documento", "MenuInboundInformacionCentro",
             ClaveRotulo: "MenuInboundInformacionCentro"),
+        new("inbound-plantillas", "inbound-config", "inbound/plantillas", "editar", "MenuInboundPlantillas",
+            ClaveRotulo: "MenuInboundPlantillas"),
         // Reglas de aviso (pantalla 18, CA-19): la gestiona el Gestor CAE y quien lo coordina.
         // shortcut: sin backend, cablear cuando entre B-31 (motor de reglas de aviso con las de serie).
         new("inbound-reglas-aviso", "inbound-config", "inbound/reglas-aviso", "correo", "MenuInboundReglasAviso",

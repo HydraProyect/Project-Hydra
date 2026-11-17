@@ -908,6 +908,9 @@
   <data name="MenuInboundInformacionCentro" xml:space="preserve">
     <value>Información del Centro</value>
   </data>
+  <data name="MenuInboundPlantillas" xml:space="preserve">
+    <value>Plantillas de requisitos</value>
+  </data>
   <data name="MenuInboundReglasAviso" xml:space="preserve">
     <value>Reglas de aviso</value>
   </data>
