@@ -298,7 +298,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
                     new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(almacen)), almacen,
                     new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto,
-                    NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
+                    NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance, new AutorizacionInboundQuePermite())
                 .Handle(new(_contrato.Id, _formacion, _tipoFormacionX, null), CancellationToken.None);
             otra.Error.Should().Be(EvidenciaInboundErrores.YaRegistrada);
         }
@@ -443,7 +443,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         await using (var contexto = Contexto(_lector.Id, _usuarioLector))
         {
             var (repositorio, contratos, alcance, usuario) = (new EvidenciaInboundRepository(contexto), contexto, Alcance(), Usuario());
-            (await new RechazarEvidenciaInboundCommandHandler(repositorio, contratos, alcance, usuario, contexto, TimeProvider.System)
+            (await new RechazarEvidenciaInboundCommandHandler(repositorio, contratos, alcance, usuario, contexto, TimeProvider.System, new AutorizacionInboundQuePermite())
                     .Handle(new(evidencia, CausaRechazoAcreditacion.DatosErroneos, "El nombre no coincide"), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -453,7 +453,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             var guardada = await contexto.EvidenciasInbound.SingleAsync(e => e.Id == evidencia);
             (guardada.Estado, guardada.CausaRechazo, guardada.MotivoRechazo, guardada.RechazadaPorUsuarioId)
                 .Should().Be((EstadoAcreditacion.Rechazada, CausaRechazoAcreditacion.DatosErroneos, "El nombre no coincide", _usuarioLector));
-            (await new ValidarEvidenciaInboundCommandHandler(new EvidenciaInboundRepository(contexto), contexto, Alcance(), Usuario(), contexto, TimeProvider.System)
+            (await new ValidarEvidenciaInboundCommandHandler(new EvidenciaInboundRepository(contexto), contexto, Alcance(), Usuario(), contexto, TimeProvider.System, new AutorizacionInboundQuePermite())
                     .Handle(new(evidencia), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -487,7 +487,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
 
             (await contexto.EvidenciasInbound.Select(e => e.Id).ToListAsync()).Should().BeEquivalentTo([noMedica],
                 "las copias son del Tenant del Cliente empresarial y la revocación no las toca");
-            var porContrato = await new ObtenerEvidenciasInboundQueryHandler(contexto, contexto, contexto, Alcance(), Usuario())
+            var porContrato = await new ObtenerEvidenciasInboundQueryHandler(contexto, contexto, contexto, Alcance(), Usuario(), new AutorizacionInboundQuePermite())
                 .Handle(new(_contrato.Id), CancellationToken.None);
             porContrato.Should().ContainSingle("y se siguen consultando sin leer el otro Tenant");
         }
@@ -497,7 +497,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             var otra = await new RegistrarEvidenciaInboundCommandHandler(
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
                     new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(Almacen(_lector.Id))),
-                    Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
+                    Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance, new AutorizacionInboundQuePermite())
                 .Handle(new(_contrato.Id, _aptitudMarcada, _tipoAptitudX, ConclusionAptitud.Apto), CancellationToken.None);
             otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna evidencia nueva");
         }
@@ -510,7 +510,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         var resultado = await new RegistrarEvidenciaInboundCommandHandler(
                 contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
                 new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(almacen)), almacen,
-                new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
+                new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance, new AutorizacionInboundQuePermite())
             .Handle(new(_contrato.Id, documento, tipo, conclusion), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue(resultado.EsExitoso ? null : resultado.Error.Mensaje);
         return resultado.Valor;

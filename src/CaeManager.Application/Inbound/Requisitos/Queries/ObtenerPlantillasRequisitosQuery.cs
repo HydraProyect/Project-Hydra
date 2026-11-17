@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Inbound.Requisitos;
@@ -15,7 +16,7 @@ public record ObtenerPlantillasRequisitosQuery(
     TipoPlantillaRequisitos? Tipo = null, bool IncluirRetiradas = false, int Pagina = 1, int TamanoPagina = 25)
     : IRequest<ResultadoPaginado<PlantillaRequisitosResumenDto>>;
 
-public class ObtenerPlantillasRequisitosQueryHandler(IPlantillasRequisitosQueryContext contexto, IAlcanceDatosService alcanceDatos)
+public class ObtenerPlantillasRequisitosQueryHandler(IPlantillasRequisitosQueryContext contexto, IAlcanceDatosService alcanceDatos, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerPlantillasRequisitosQuery, ResultadoPaginado<PlantillaRequisitosResumenDto>>
 {
     public const int TamanoPaginaMaximo = 100;
@@ -23,6 +24,9 @@ public class ObtenerPlantillasRequisitosQueryHandler(IPlantillasRequisitosQueryC
     public async Task<ResultadoPaginado<PlantillaRequisitosResumenDto>> Handle(
         ObtenerPlantillasRequisitosQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return new ResultadoPaginado<PlantillaRequisitosResumenDto>([], 0, Math.Max(1, request.Pagina), request.TamanoPagina);
+
         var pagina = Math.Max(1, request.Pagina);
         var tamano = Math.Clamp(request.TamanoPagina, 1, TamanoPaginaMaximo);
 
