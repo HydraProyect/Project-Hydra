@@ -76,7 +76,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
-            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"),
+            new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(
@@ -115,7 +115,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], conexionesIntegracionAjenas: [conexionPersonalId]),
-            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
+            new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionPersonalId), CancellationToken.None);
@@ -124,28 +124,53 @@ public class VisibilidadTriageTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_gestor_con_cartera_acotada_si_ve_la_cola_de_triage()
+    public async Task Un_gestor_con_ambito_acotado_no_ve_la_cola_de_triage_ni_en_la_lista_ni_en_el_detalle()
+    {
+        // D-6 b, A-16: el triaje no tiene cartera que lo acote, así que solo lo ve quien alcanza el Tenant entero
+        // (IAlcanceDatosService.TriajeVisibleAsync). Un Gestor CAE bajo una Asignación de Operación acotada ve lo de
+        // su Cliente y nada de la cola, y la lista y el detalle deciden igual.
+        var conversaciones = await ListarComo("GestorCae");
+
+        conversaciones.Should().ContainSingle().Which.ClienteId.Should().Be(_clientePropio);
+        (await DetalleSinClienteComo(triajeVisible: false)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_gestor_que_alcanza_el_Tenant_entero_si_ve_la_cola_de_triage_en_la_lista_y_en_el_detalle()
     {
         // Contrapeso imprescindible: si el triaje deja de verse para los roles
-        // de gestión, nadie puede triar y el módulo se queda sin su función
-        // principal (§ 12.4).
-        var conversaciones = await ListarComo("GestorCae");
+        // de gestión con el Tenant entero, nadie puede triar y el módulo se queda
+        // sin su función principal (§ 12.4).
+        var conversaciones = await ListarComo("GestorCae", triajeVisible: true);
 
         conversaciones.Should().HaveCount(2);
         conversaciones.Should().Contain(c => c.ClienteId == null);
+        (await DetalleSinClienteComo(triajeVisible: true)).Should().NotBeNull();
     }
 
-    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol)
+    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, bool? triajeVisible = null)
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
             contexto,
             contexto,
             contexto,
-            new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
+            new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], triajeVisible: triajeVisible),
             new CurrentUserServiceFalso(rol: rol));
 
         return (await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None)).Elementos;
+    }
+
+    private async Task<ConversacionDetalleDto?> DetalleSinClienteComo(bool triajeVisible)
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerConversacionPorIdQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], triajeVisible: triajeVisible),
+            new GanssSanitizadorHtmlService(),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
+
+        return await handler.Handle(new ObtenerConversacionPorIdQuery(_conversacionSinCliente), CancellationToken.None);
     }
 
     private CaeManagerDbContext CrearContexto()

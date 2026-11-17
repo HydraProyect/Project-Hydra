@@ -150,22 +150,25 @@ public class AlcanceEscrituraConversacionTests
         conversacion.Mensajes.Should().ContainSingle();
     }
 
-    [Fact]
-    public async Task La_cola_de_triage_sigue_siendo_escribible_pese_a_la_cartera()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task La_cola_de_triage_la_escribe_solo_quien_ve_el_triaje(bool triajeVisible)
     {
-        // Una conversación sin cliente resuelto no pertenece a ninguna
-        // cartera: acotarla por cartera dejaría el triaje sin nadie que lo
-        // pudiera hacer (ver ClienteOpcionalVisibleAsync).
+        // Una conversación sin cliente resuelto no pertenece a ninguna cartera: la decide
+        // IAlcanceDatosService.TriajeVisibleAsync (D-6 b, R-3a). Con el Tenant entero (Gestor CAE con cartera
+        // universal) se puede triar; con un ámbito acotado, no (A-16).
         var conversacion = new Conversacion("Correo sin remitente reconocido");
         var repositorio = new ConversacionRepositorioFalso();
         repositorio.Agregar(conversacion);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = CrearHandlerResponder(repositorio, AlcanceSinElClienteAjeno(), unitOfWork, permitirRemitenteSimulado: true);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()], triajeVisible: triajeVisible);
+        var handler = CrearHandlerResponder(repositorio, alcance, unitOfWork, permitirRemitenteSimulado: true);
 
         var resultado = await handler.Handle(
             new ResponderConversacionCommand(conversacion.Id, "<p>Pido datos</p>"), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue();
+        resultado.EsExitoso.Should().Be(triajeVisible);
     }
 
     private static (Conversacion, ConversacionRepositorioFalso, UnitOfWorkFalso) Preparar()

@@ -253,6 +253,42 @@ public class AlcanceDatosService(
         await ObtenerAlcanceDeCarteraAsync(cancellationToken) is { SinRestriccion: true } or { TenantEntero: true };
 
     /// <summary>
+    /// Lista blanca de la rama de triaje de <see cref="TriajeVisibleAsync"/> fuera del acceso total: los roles de gestión
+    /// de Comunicaciones. Cerrada: un rol nuevo queda fuera hasta que alguien lo decida. Es el mismo conjunto que
+    /// <c>RolesComunicaciones.Gestion</c> (Web), <c>AccesoATriage.Roles</c> y la puerta de lectura de
+    /// <c>AccesoAlertaCritica</c> (Application); <c>RolesDeTriajeParidadTests</c> fija que no se separen.
+    /// </summary>
+    public static readonly IReadOnlySet<string> RolesQueVenTriaje = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta
+    };
+
+    /// <summary>
+    /// La cola de triaje de Comunicaciones (D-6 b, R-3a; contrato en <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>).
+    /// <list type="number">
+    /// <item>Con acceso total en el Tenant, sí. Es el acceso total EFECTIVO: el real
+    /// (<see cref="TieneAccesoTotalRealAsync"/>, que ata la Sesión Privilegiada a su Tenant objetivo) salvo que la lente de
+    /// demo Gestor lo retire; con la lente, decide la regla de abajo con la cartera de ese Gestor, igual que para un
+    /// Gestor CAE real. La lente solo estrecha.</item>
+    /// <item>Con una Sesión Privilegiada sin acceso total aquí (otro Tenant u otra capacidad), no, tenga el rol que tenga.</item>
+    /// <item>Fuera de eso, solo un rol efectivo de <see cref="RolesQueVenTriaje"/> con un ámbito efectivo del Tenant entero
+    /// (<see cref="AlcanzaElTenantEnteroAsync"/>): un ámbito acotado (cartera ∩ operación, ADR-011) o ninguno no ve un
+    /// hilo que no tiene cartera que lo acote. Rol nulo o desconocido, no.</item>
+    /// </list>
+    /// Se pregunta antes el rol que la cartera, así que un rol que no puede ver triaje no lee la base.
+    /// </summary>
+    public async Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default)
+    {
+        if (await TieneAccesoTotalAsync(cancellationToken)) return true;
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return false;
+
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || !RolesQueVenTriaje.Contains(rol)) return false;
+
+        return await AlcanzaElTenantEnteroAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// El rol con el que se calcula el alcance de datos: el rol efectivo, salvo cuando la sesión
     /// está limitada a Consulta por login local. Entonces el alcance sigue siendo el del rol real
     /// (decisión Chris 2026-10-20: la restricción nunca amplía el alcance) y Consulta solo quita

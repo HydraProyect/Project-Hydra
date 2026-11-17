@@ -21,9 +21,18 @@ public static class AlcanceDatosServiceExtensions
     public static async Task<bool> ClienteVisibleAsync(
         this IAlcanceDatosService alcance, Guid clienteId, CancellationToken cancellationToken = default)
     {
-        var ids = await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var ids = await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken);
         return ids is null || ids.Contains(clienteId);
     }
+
+    /// <summary>
+    /// La cartera de Clientes empresariales visible (<c>null</c> = sin restricción), con su nombre canónico. Es la misma
+    /// lista que <see cref="IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync"/>; los consumidores nuevos la piden por
+    /// aquí para no extender el identificador legacy (<c>ClienteIdNoSeExtiendeTests</c>).
+    /// </summary>
+    public static Task<IReadOnlyList<Guid>?> ClientesEmpresarialesVisiblesAsync(
+        this IAlcanceDatosService alcance, CancellationToken cancellationToken = default) =>
+        alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
     /// <summary>
     /// Alcance sobre una entidad cuyo cliente es opcional: una
@@ -83,7 +92,7 @@ public static class AlcanceDatosServiceExtensions
         this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> clientesEmpresariales, CancellationToken cancellationToken = default)
     {
         if (clientesEmpresariales.Count == 0) return true;
-        var ids = await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var ids = await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken);
         return ids is null || clientesEmpresariales.All(ids.Contains);
     }
 
@@ -142,7 +151,12 @@ public static class AlcanceDatosServiceExtensions
     /// Alcance completo de una <c>Conversacion</c> existente: la cartera de
     /// su ancla —Cliente (<paramref name="clienteId"/>) o Empresa contraparte
     /// (<paramref name="empresaId"/>), excluyentes entre sí; sin ninguna de
-    /// las dos es triage compartido, vía <see cref="ClienteOpcionalVisibleAsync"/>—
+    /// las dos es la cola de triaje, que solo ve quien cumple
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>— con la misma
+    /// regla que la lista de la bandeja (<see cref="VisibilidadConversacion"/>).
+    /// No pasa por <see cref="ClienteOpcionalVisibleAsync"/>, que no conoce el
+    /// rol y sirve a macros y buzones, donde «sin cliente» sigue siendo
+    /// compartido en el Tenant (D-6 b, R-3a).
     /// Y, si el hilo está atado a un buzón personal de un gestor
     /// (<c>ConexionIntegracion.GestorPropietarioId</c>), que sea el propio
     /// dueño. Sin esto, un hilo de un buzón personal ajeno —que también tiene
@@ -162,14 +176,12 @@ public static class AlcanceDatosServiceExtensions
         if (conexionIntegracionId is { } conexionId && !await alcance.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
             return false;
 
-        // Alcance de GESTIÓN, no de lectura: un hilo con una contratista es un
-        // artefacto interno, y la cartera de Empresas de un usuario de portal
-        // sale de su propio Cliente (ver ObtenerEmpresaIdsParaGestionAsync).
-        // Con EmpresaVisibleAsync aquí, un contacto de una empresa cliente
-        // descargaba los adjuntos de esos hilos conociendo el Guid.
-        if (empresaId is { } id)
-            return await alcance.EmpresaParaGestionVisibleAsync(id, cancellationToken);
-
-        return await alcance.ClienteOpcionalVisibleAsync(clienteId, cancellationToken);
+        // Ancla Empresa por alcance de GESTIÓN, no de lectura: un hilo con una
+        // contratista es un artefacto interno, y la cartera de Empresas de un
+        // usuario de portal sale de su propio Cliente (ver
+        // ObtenerEmpresaIdsParaGestionAsync). Con EmpresaVisibleAsync, un
+        // contacto de una empresa cliente descargaba los adjuntos de esos hilos
+        // conociendo el Guid. La regla entera vive en VisibilidadConversacion.
+        return await VisibilidadConversacion.PermiteAsync(alcance, clienteId, empresaId, cancellationToken);
     }
 }

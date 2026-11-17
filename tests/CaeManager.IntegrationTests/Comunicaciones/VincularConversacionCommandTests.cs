@@ -23,7 +23,6 @@ public class VincularConversacionCommandTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly AlcanceDatosServiceFalso _alcanceDatos = new();
-    private readonly CurrentUserServiceFalso _currentUser = new(rol: "GestorCae");
 
     public async Task InitializeAsync()
     {
@@ -62,7 +61,7 @@ public class VincularConversacionCommandTests : IAsyncLifetime
         await using (var lectura = CrearContexto())
         {
             var handlerQuery = new ObtenerConversacionPorIdQueryHandler(
-                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+                lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
                 new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
             var detalle = await handlerQuery.Handle(new ObtenerConversacionPorIdQuery(conversacionWhatsAppId), CancellationToken.None);

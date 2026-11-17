@@ -26,7 +26,6 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly AlcanceDatosServiceFalso _alcanceDatos = new();
-    private readonly CurrentUserServiceFalso _currentUser = new(rol: "GestorCae");
 
     public async Task InitializeAsync()
     {
@@ -216,7 +215,7 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
     {
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);

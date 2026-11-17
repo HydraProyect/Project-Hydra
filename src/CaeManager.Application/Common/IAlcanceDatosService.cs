@@ -67,6 +67,30 @@ public interface IAlcanceDatosService
     Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
         TieneAccesoTotalAsync(cancellationToken);
 
+    /// <summary>
+    /// ¿Ve quien mira, en el Tenant actual, la cola de triaje de Comunicaciones (una <c>Conversacion</c> sin
+    /// <c>ClienteId</c> ni <c>EmpresaId</c>)? Es la única puerta de la rama de triaje de
+    /// <see cref="VisibilidadConversacion"/>, que usan la lista, el detalle y todo consumidor de
+    /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync"/>.
+    ///
+    /// <para>
+    /// Verdadero con acceso total en el Tenant (que ya ata la Sesión Privilegiada a su Tenant objetivo). Fuera del
+    /// acceso total, solo si el rol efectivo es un rol de gestión de Comunicaciones (Administrador, Dirección CAE,
+    /// Coordinador CAE, Gestor CAE o Consulta) <b>y</b> el ámbito efectivo es el Tenant entero
+    /// (<see cref="AlcanzaElTenantEnteroAsync"/>). Un rol nulo o desconocido, el rol Cliente, una Sesión Privilegiada
+    /// sin acceso total o un ámbito efectivo acotado (cartera ∩ operación, ADR-011) no ven triaje: falla cerrado. Un
+    /// hilo sin ancla no tiene cartera que lo acote, así que solo lo ve quien alcanza el Tenant entero.
+    /// </para>
+    ///
+    /// <para>
+    /// La implementación real y su lista de roles viven en Infrastructure; un test de paridad fija que esa lista,
+    /// <c>RolesComunicaciones.Gestion</c> y <see cref="CaeManager.Application.Comunicaciones.AccesoATriage.Roles"/> no
+    /// se separen. La implementación por defecto, para los dobles de prueba, se queda en el acceso total: falla cerrado.
+    /// </para>
+    /// </summary>
+    Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default) =>
+        TieneAccesoTotalAsync(cancellationToken);
+
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

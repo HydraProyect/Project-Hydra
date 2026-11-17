@@ -20,11 +20,20 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? empresaIdsParaGestion = null,
     IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
     IReadOnlyList<Guid>? centroIdsParaGestion = null,
-    bool ladoDeGestion = true) : IAlcanceDatosService
+    bool ladoDeGestion = true,
+    bool? triajeVisible = null) : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(
         clienteIds is null && centroIds is null && empresaIds is null &&
         subcontrataIds is null && trabajadorIds is null && vehiculoIds is null);
+
+    /// <summary>
+    /// Por defecto igual que el acceso total (falla cerrado, como la implementación por defecto de la interfaz): con una
+    /// cartera de lista, sin cola de triaje. El test que simule un ámbito del Tenant entero sin acceso total pasa
+    /// <paramref name="triajeVisible"/> en true.
+    /// </summary>
+    public async Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default) =>
+        triajeVisible ?? await TieneAccesoTotalAsync(cancellationToken);
 
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(clienteIds);

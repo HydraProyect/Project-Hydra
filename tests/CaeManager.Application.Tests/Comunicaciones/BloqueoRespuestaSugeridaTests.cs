@@ -1023,6 +1023,8 @@ public class BloqueoRespuestaSugeridaTests
             ["total"] = new AlcanceDatosServiceFalso(),
             ["cartera"] = new AlcanceDatosServiceFalso(
                 tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera]),
+            ["cartera con triaje"] = new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera], triajeVisible: true),
             ["vacia"] = new AlcanceDatosServiceFalso(tieneAccesoTotal: false),
             ["buzon no visible"] = new AlcanceDatosServiceFalso(conexionIntegracionVisible: false)
         };
@@ -1039,8 +1041,11 @@ public class BloqueoRespuestaSugeridaTests
             (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().BeEquivalentTo(esperados, nombre);
         }
 
-        // Control de que la comparación no es vacía: con cartera entran el Cliente visible, el hilo sin ancla y la Empresa en cartera.
+        // Control de que la comparación no es vacía: con cartera acotada entran el Cliente visible y la Empresa en cartera, y
+        // el hilo sin ancla solo si además se ve la cola de triaje (D-6 b, R-3a: IAlcanceDatosService.TriajeVisibleAsync).
         (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera"])).Should()
+            .BeEquivalentTo([hilos[0].Id, hilos[3].Id]);
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera con triaje"])).Should()
             .BeEquivalentTo([hilos[0].Id, hilos[2].Id, hilos[3].Id]);
         (await HilosQueEntranEnLaConsulta(conexion, alcances["buzon no visible"])).Should().BeEmpty();
     }
