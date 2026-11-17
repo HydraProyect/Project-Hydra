@@ -140,7 +140,12 @@ public static class ComunicacionesDemoCompletaSeeder
             return;
         }
 
-        var gestores = (await userManager.GetUsersInRoleAsync(Roles.GestorCae)).OrderBy(g => g.Email).ToList();
+        // Solo los Gestores CAE del Tenant propietario de la demo: GetUsersInRoleAsync devuelve todas las cuentas que la RLS deja ver
+        // (también las de un Operador CAE externo con asignación), y esas no son «el Gestor CAE de la demo».
+        var tenantDeLaDemo = AmbitoTenantExplicito.TenantIdActual;
+        var gestores = (await userManager.GetUsersInRoleAsync(Roles.GestorCae))
+            .Where(g => tenantDeLaDemo is null || g.TenantId == tenantDeLaDemo)
+            .OrderBy(g => g.Email).ToList();
         await SembrarEnTenantActualAsync(dbContext, gestores, almacen, logger, cancellationToken);
     }
 
@@ -201,9 +206,15 @@ public static class ComunicacionesDemoCompletaSeeder
                 }
 
                 if (hilo.ReclamacionEnviada && empresa is not null && contexto.DocumentoIds.Count > 0)
-                    dbContext.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
-                        empresa.Id, gestorDeLaDemo.Id, EmailDe(empresa), conversacion.Mensajes.Min(m => m.FechaUtc),
-                        contexto.DocumentoIds, conversacion.Id));
+                {
+                    var fechaEnvio = conversacion.Mensajes.Min(m => m.FechaUtc);
+                    var reclamacion = ReclamacionDocumental.ParaCliente(
+                        empresa.Id, gestorDeLaDemo.Id, EmailDe(empresa), fechaEnvio, contexto.DocumentoIds, conversacion.Id);
+                    dbContext.ReclamacionesDocumentales.Add(reclamacion);
+                    // La entrada del timeline que en producción registra el manejador del envío (como en DatosPruebaSeeder).
+                    dbContext.EventosConversacion.Add(new EventoConversacion(
+                        conversacion.Id, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, fechaEnvio));
+                }
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -212,7 +223,17 @@ public static class ComunicacionesDemoCompletaSeeder
         {
             if (almacen is not null)
                 foreach (var clave in claveSubida)
-                    await almacen.EliminarAsync(clave, CancellationToken.None);
+                {
+                    try
+                    {
+                        await almacen.EliminarAsync(clave, CancellationToken.None);
+                    }
+                    catch (Exception limpieza)
+                    {
+                        // La limpieza no debe esconder el error original de la siembra.
+                        logger.LogWarning(limpieza, "No se pudo borrar del almacén {Clave} tras el fallo de la siembra.", clave);
+                    }
+                }
             throw;
         }
 
@@ -221,7 +242,8 @@ public static class ComunicacionesDemoCompletaSeeder
             pendientes.Count, Hilos.Length);
     }
 
-    private sealed record Conexiones(Guid Compartido, Guid Personal, Guid WhatsApp);
+    /// <param name="Personal">null si el Gestor CAE de la demo ya tiene otro buzón personal: los hilos personales van al compartido.</param>
+    private sealed record Conexiones(Guid Compartido, Guid? Personal, Guid WhatsApp);
 
     private sealed record Referencias(Guid? TrabajadorId, Guid? TipoDocumentoId, IReadOnlyList<Guid> DocumentoIds, Guid? DocumentoId);
 
@@ -246,7 +268,12 @@ public static class ComunicacionesDemoCompletaSeeder
         {
             var existente = await dbContext.ConexionesIntegracion.FirstOrDefaultAsync(c => c.BuzonEmail == direccion, cancellationToken);
             if (existente is not null)
+            {
+                // Una dirección propia de esta siembra nunca debe quedar habilitada (por ejemplo, si alguien pulsó Reactivar).
+                if (existente.Estado != EstadoConexionIntegracion.Deshabilitada)
+                    existente.Deshabilitar();
                 return existente;
+            }
 
             var nueva = crear();
             nueva.Deshabilitar();
@@ -261,13 +288,21 @@ public static class ComunicacionesDemoCompletaSeeder
             buzon.FijarResponsable(gestorTitular.Id);
             return buzon;
         });
-        var personal = await AsegurarAsync(BuzonPersonalEmail, () => new ConexionIntegracion(
-            BuzonPersonalEmail, "Buzón personal de Prueba GestorCae 1 (demo)", null, ProveedorIntegracion.Microsoft365, gestorTitular.Id));
+        // Hay un único buzón personal por Gestor CAE (índice único): si el de la demo ya tiene otro (el de la otra siembra, o uno
+        // conectado a mano), no se crea un segundo —tumbaría el arranque— ni se cuelgan conversaciones de un buzón que no es
+        // nuestro: los hilos «personales» van entonces al buzón compartido.
+        var personalExistente = await dbContext.ConexionesIntegracion
+            .Where(c => c.GestorPropietarioId == gestorTitular.Id && c.BuzonEmail != BuzonPersonalEmail)
+            .AnyAsync(cancellationToken);
+        var personal = personalExistente
+            ? null
+            : await AsegurarAsync(BuzonPersonalEmail, () => new ConexionIntegracion(
+                BuzonPersonalEmail, "Buzón personal de Prueba GestorCae 1 (demo)", null, ProveedorIntegracion.Microsoft365, gestorTitular.Id));
         var whatsApp = await AsegurarAsync(LineaWhatsAppNumero, () => new ConexionIntegracion(
             LineaWhatsAppNumero, "Línea WhatsApp de demo (sin conectar)", null, ProveedorIntegracion.WhatsApp));
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new Conexiones(compartido.Id, personal.Id, whatsApp.Id);
+        return new Conexiones(compartido.Id, personal?.Id, whatsApp.Id);
     }
 
     private static async Task<Conversacion> ConstruirAsync(
@@ -278,7 +313,8 @@ public static class ComunicacionesDemoCompletaSeeder
         var posicion = Array.IndexOf(Hilos, hilo);
         var esWhatsApp = hilo.Canal == CanalConversacion.WhatsApp;
         var interlocutor = esWhatsApp ? TelefonoDe(hilo) : empresa is null ? $"contacto@dominio-desconocido.{DominioContactos}" : EmailDe(empresa);
-        var propio = esWhatsApp ? LineaWhatsAppNumero : hilo.Buzon == Buzon.Personal ? BuzonPersonalEmail : BuzonCompartidoEmail;
+        var enPersonal = hilo.Buzon == Buzon.Personal && conexiones.Personal is not null;
+        var propio = esWhatsApp ? LineaWhatsAppNumero : enPersonal ? BuzonPersonalEmail : BuzonCompartidoEmail;
         var etiquetas = hilo.Prioridad == PrioridadConversacion.Normal ? null : "urgente";
 
         var conversacion = esWhatsApp
@@ -327,7 +363,7 @@ public static class ComunicacionesDemoCompletaSeeder
             ConGestor(conversacion, hilo, gestorDeLaDemo, otroGestor);
             conversacion.AgregarParticipante(interlocutor, RolParticipante.De, TipoParticipanteOrigen.UsuarioCliente);
             conversacion.AgregarParticipante(propio, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
-            conversacion.AsociarConexion(hilo.Buzon == Buzon.Personal ? conexiones.Personal : conexiones.Compartido, $"demo-comunicaciones-{posicion:D2}");
+            conversacion.AsociarConexion(enPersonal ? conexiones.Personal!.Value : conexiones.Compartido, $"demo-comunicaciones-{posicion:D2}");
         }
 
         if (hilo.Prioridad != PrioridadConversacion.Normal)
@@ -365,32 +401,33 @@ public static class ComunicacionesDemoCompletaSeeder
         Mensaje mensaje, Reparto reparto, ApplicationUser gestor, Referencias referencias, IFileStorageService? almacen,
         List<string> claveSubida, DateTime ahora, CancellationToken cancellationToken)
     {
-        if (reparto == Reparto.PdfDivisible)
+        var (nombre, tipoContenido) = reparto switch
         {
-            var paginas = Enumerable.Range(1, 6).Select(i => $"Expediente escaneado · página {i} de 6 · demo").ToList();
-            var bytes = ComunicacionesDemoPdf.Generar(paginas);
-            var clave = $"adjuntos-demo/{NombrePdfDivisible}";
-            if (almacen is not null)
-            {
-                using var flujo = new MemoryStream(bytes, writable: false);
-                clave = await almacen.GuardarAsync(flujo, NombrePdfDivisible, cancellationToken);
-                claveSubida.Add(clave);
-            }
+            Reparto.PdfDivisible => (NombrePdfDivisible, "application/pdf"),
+            Reparto.ListoParaAsignar => ("epis-firmadas.jpg", "image/jpeg"),
+            Reparto.SinDestino => ("documento-sin-identificar.pdf", "application/pdf"),
+            Reparto.Asignado => ("apto-medico.pdf", "application/pdf"),
+            Reparto.Rechazado => ("seguro-caducado.pdf", "application/pdf"),
+            Reparto.Descartado => ("firma-del-correo.png", "image/png"),
+            _ => ("contrato-subcontrata.pdf", "application/pdf"),
+        };
 
-            mensaje.AgregarAdjunto(NombrePdfDivisible, "application/pdf", bytes.Length, clave);
-            return;
+        // Cada adjunto tiene su contenido en el almacén (mínimo pero real): asignarlo o descargarlo desde la pantalla no falla. Sin
+        // almacén (un test que no lo pasa) queda solo la referencia.
+        var contenido = reparto == Reparto.PdfDivisible
+            ? ComunicacionesDemoPdf.Generar(Enumerable.Range(1, 6).Select(i => $"Expediente escaneado · página {i} de 6 · demo").ToList())
+            : ContenidoMinimo(nombre);
+        var clave = $"adjuntos-demo/{nombre}";
+        if (almacen is not null)
+        {
+            using var flujo = new MemoryStream(contenido, writable: false);
+            clave = await almacen.GuardarAsync(flujo, nombre, cancellationToken);
+            claveSubida.Add(clave);
         }
 
-        var (nombre, tipoContenido, tamano) = reparto switch
-        {
-            Reparto.ListoParaAsignar => ("epis-firmadas.jpg", "image/jpeg", 812_040L),
-            Reparto.SinDestino => ("documento-sin-identificar.pdf", "application/pdf", 245_760L),
-            Reparto.Asignado => ("apto-medico.pdf", "application/pdf", 310_000L),
-            Reparto.Rechazado => ("seguro-caducado.pdf", "application/pdf", 188_000L),
-            Reparto.Descartado => ("firma-del-correo.png", "image/png", 4_096L),
-            _ => ("contrato-subcontrata.pdf", "application/pdf", 520_000L),
-        };
-        var adjunto = mensaje.AgregarAdjunto(nombre, tipoContenido, tamano, $"adjuntos-demo/{nombre}");
+        var adjunto = mensaje.AgregarAdjunto(nombre, tipoContenido, contenido.Length, clave);
+        if (reparto == Reparto.PdfDivisible)
+            return;
 
         switch (reparto)
         {
@@ -438,6 +475,20 @@ public static class ComunicacionesDemoCompletaSeeder
 
         return mejor;
     }
+
+    private const string JpegMinimoBase64 =
+        "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+
+    private const string PngMinimoBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+    /// <summary>Un archivo válido y mínimo del tipo que dice su nombre: un PDF de una página, un JPEG o un PNG de un píxel.</summary>
+    private static byte[] ContenidoMinimo(string nombre) => Path.GetExtension(nombre).ToLowerInvariant() switch
+    {
+        ".jpg" => Convert.FromBase64String(JpegMinimoBase64),
+        ".png" => Convert.FromBase64String(PngMinimoBase64),
+        _ => ComunicacionesDemoPdf.Generar([$"{nombre} · documento de demostración"]),
+    };
 
     /// <summary>El teléfono del contacto de un hilo de WhatsApp: propio de la siembra y distinto por hilo (es su marca de idempotencia).</summary>
     private static string TelefonoDe(Hilo hilo) => $"+3460022200{Array.IndexOf(Hilos, hilo) % 10}";

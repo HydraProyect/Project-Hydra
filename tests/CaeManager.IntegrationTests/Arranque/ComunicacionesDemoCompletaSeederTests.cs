@@ -38,8 +38,79 @@ public class ComunicacionesDemoCompletaSeederTests
         int CredencialesDeEsasConexiones,
         int ConversacionesAjenas);
 
+    /// <summary>
+    /// Fija la guarda propia de la clase: sobre una base ya sembrada a la que le «faltan» todas las conversaciones (se les cambia la
+    /// marca de idempotencia), la llamada con <c>DatosPrueba:Activo</c> apagado no añade nada y no toca el almacén; la misma llamada
+    /// con la guarda encendida sí las repone (control positivo: lo único que la impedía era la guarda).
+    /// </summary>
     [Fact]
-    public async Task Con_la_guarda_apagada_no_siembra_nada_ni_toca_el_almacen()
+    public async Task Con_la_guarda_apagada_no_repone_lo_que_falta_y_con_ella_encendida_si()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        await SembrarDemoAsync(arnes, new AlmacenDeSiembraInboundEnMemoria());
+        var sembrado = (await LeerConjuntoAsync(arnes))!;
+        await QuitarLaMarcaDeLoSembradoAsync(arnes, sembrado.TenantId, renombrarBuzonPersonal: false);
+        var antes = await ContarAsync(arnes, sembrado.TenantId);
+
+        var apagada = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DatosPrueba:Activo"] = "false" }).Build();
+        var almacenApagado = new AlmacenDeSiembraInboundEnMemoria();
+        await SembrarComunicacionesAsync(arnes, sembrado.TenantId, apagada, almacenApagado);
+
+        (await ContarAsync(arnes, sembrado.TenantId)).Should().Be(antes, "con la guarda apagada no se añade ni una conversación, buzón o nota");
+        almacenApagado.Llamadas.Should().Be(0, "ni siquiera se guarda el PDF de la demo");
+
+        var almacenEncendido = new AlmacenDeSiembraInboundEnMemoria();
+        await SembrarComunicacionesAsync(arnes, sembrado.TenantId, null, almacenEncendido);
+        var despues = await ContarAsync(arnes, sembrado.TenantId);
+        despues.Conversaciones.Should().Be(antes.Conversaciones + 16, "control positivo: encendida, repone las 16");
+        almacenEncendido.Llamadas.Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// El Gestor CAE de la demo ya tiene otro buzón personal (índice único por Gestor): la siembra no inserta un segundo —tumbaría el
+    /// arranque—, no cuelga conversaciones de un buzón ajeno y sí repone las conversaciones.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_Gestor_ya_tiene_otro_buzon_personal_no_crea_un_segundo_y_completa_las_conversaciones()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        await SembrarDemoAsync(arnes, new AlmacenDeSiembraInboundEnMemoria());
+        var sembrado = (await LeerConjuntoAsync(arnes))!;
+        var personal = sembrado.Conexiones.Single(c => c.GestorPropietarioId != null && !c.EsBuzonCompartido);
+        await QuitarLaMarcaDeLoSembradoAsync(arnes, sembrado.TenantId, renombrarBuzonPersonal: true);
+        var antes = await ContarAsync(arnes, sembrado.TenantId);
+
+        await SembrarComunicacionesAsync(arnes, sembrado.TenantId, null, new AlmacenDeSiembraInboundEnMemoria());
+
+        using var ambito = arnes.Servicios.CreateScope();
+        var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(sembrado.TenantId))
+        {
+            (await db.ConexionesIntegracion.CountAsync(c => c.GestorPropietarioId == personal.GestorPropietarioId))
+                .Should().Be(1, "un solo buzón personal por Gestor CAE");
+            (await db.Conversaciones.CountAsync(c => c.ConexionIntegracionId == personal.Id && c.HiloExternoId != null
+                && c.HiloExternoId.StartsWith(MarcaCorreo))).Should().Be(0, "no se cuelgan hilos de un buzón que no es de la siembra");
+        }
+
+        (await ContarAsync(arnes, sembrado.TenantId)).Conversaciones.Should().Be(antes.Conversaciones + 16);
+    }
+
+    [Fact]
+    public async Task Cada_adjunto_sembrado_tiene_su_contenido_en_el_almacen_para_poder_asignarlo_o_descargarlo()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        var almacen = new AlmacenDeSiembraInboundEnMemoria();
+        await SembrarDemoAsync(arnes, almacen);
+
+        var c = (await LeerConjuntoAsync(arnes))!;
+
+        c.Adjuntos.Should().HaveCount(7);
+        c.Adjuntos.Should().OnlyContain(a => almacen.Archivos.ContainsKey(a.ArchivoUrl), "ninguno apunta a un archivo inexistente");
+        c.Adjuntos.Should().OnlyContain(a => a.TamanoBytes == almacen.Archivos[a.ArchivoUrl].Length);
+    }
+
+    [Fact]
+    public async Task Con_la_guarda_apagada_la_siembra_de_la_demo_no_deja_nada_de_esta_siembra()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         var almacen = new AlmacenDeSiembraInboundEnMemoria();
@@ -173,6 +244,57 @@ public class ComunicacionesDemoCompletaSeederTests
         segundo.Reclamaciones.Should().Be(primero.Reclamaciones);
         segundo.ConversacionesAjenas.Should().Be(primero.ConversacionesAjenas);
         segundoAlmacen.Llamadas.Should().Be(0, "no hay nada pendiente, así que tampoco se vuelve a guardar el PDF");
+    }
+
+    private sealed record Cuenta(int Conversaciones, int Conexiones, int Notas, int Reclamaciones);
+
+    private static async Task<Cuenta> ContarAsync(ArnesDeArranqueRuntime arnes, Guid tenantId)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            return new Cuenta(
+                await db.Conversaciones.CountAsync(), await db.ConexionesIntegracion.CountAsync(),
+                await db.NotasInternasConversacion.CountAsync(), await db.ReclamacionesDocumentales.CountAsync());
+        }
+    }
+
+    /// <summary>
+    /// Deja la base como si a la siembra le faltaran todas las conversaciones: cambia su marca de idempotencia (asunto y teléfono) y
+    /// el hilo externo, para que la siguiente pasada las vea pendientes sin chocar con los índices únicos. Opcionalmente, cambia la
+    /// dirección del buzón personal, que pasa a ser «otro» buzón personal del mismo Gestor CAE.
+    /// </summary>
+    private static async Task QuitarLaMarcaDeLoSembradoAsync(ArnesDeArranqueRuntime arnes, Guid tenantId, bool renombrarBuzonPersonal)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            await db.Conversaciones.Where(c => c.HiloExternoId != null && c.HiloExternoId.StartsWith(MarcaCorreo))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(c => c.HiloExternoId, c => "viejo-" + c.HiloExternoId)
+                    .SetProperty(c => c.Asunto, c => "Viejo · " + c.Asunto));
+            await db.Conversaciones.Where(c => c.TelefonoContacto != null && c.TelefonoContacto.StartsWith(MarcaWhatsApp))
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.TelefonoContacto, c => c.TelefonoContacto!.Replace("+34600", "+34611")));
+            if (renombrarBuzonPersonal)
+                await db.ConexionesIntegracion.Where(c => c.BuzonEmail == "gestor.uno.demo@buzon-simulado.example")
+                    .ExecuteUpdateAsync(s => s.SetProperty(c => c.BuzonEmail, "buzon.conectado.a.mano@dominio-ajeno.example"));
+        }
+    }
+
+    /// <summary>La siembra de Comunicaciones, llamada directa dentro del ámbito del Tenant de la demo; sin configuración, la de la base.</summary>
+    private static async Task SembrarComunicacionesAsync(
+        ArnesDeArranqueRuntime arnes, Guid tenantId, IConfiguration? configuracion, AlmacenDeSiembraInboundEnMemoria almacen)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            await ComunicacionesDemoCompletaSeeder.SeedAsync(
+                sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(), almacen,
+                configuracion ?? sp.GetRequiredService<IConfiguration>(), NullLogger.Instance);
+        }
     }
 
     private static async Task SembrarDemoAsync(ArnesDeArranqueRuntime arnes, AlmacenDeSiembraInboundEnMemoria almacen)
