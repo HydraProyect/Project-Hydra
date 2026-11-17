@@ -66,7 +66,8 @@ public interface IRegistroSesionesUsuario
 /// con su Tenant, así que funciona también desde un Delegated Workspace. Quien revoca desde una
 /// petición con una Sesión Privilegiada seleccionada tiene que resolver este servicio en un ámbito
 /// sin esa selección (ver <c>CierreSesionEnServidor</c>): con ella, la conexión adopta el rol de solo
-/// lectura de soporte.
+/// lectura de soporte y, si el Tenant de la cuenta no es el de la sesión, se queda sin Tenant
+/// (guarda del interceptor de RLS, issue #2351).
 /// </para>
 ///
 /// <para>
