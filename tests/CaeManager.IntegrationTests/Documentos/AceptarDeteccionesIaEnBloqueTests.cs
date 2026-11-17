@@ -194,7 +194,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
     {
         using var reloj = RelojDePrueba.FijarEn(_instante);
         var historial = Documento.DeTrabajador(_visible.Id, _tipoAutomatico.Id, DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.NoCaduca);
-        var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null);
+        var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null, AutorVersionDocumento.Desconocido);
         _dbContext.Documentos.AddRange(historial, vigente);
         historial.SustituirPor(vigente, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         var revision = RevisionIaDocumento.Crear(historial.Id, 96, "Apto médico", DiaDeNegocio.Hoy(), null, true, "Confianza baja");

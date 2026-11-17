@@ -53,7 +53,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
             new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
-            mundo.GestionAutomatica());
+            mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -91,7 +91,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
             mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-            new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
+            new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
         var resultado = await handler.Handle(
             new RenovarDocumentoCommand(documento.Id, Hoy, null, conArchivoNuevo ? "blob://renovado.pdf" : null, null, NoCaduca: true),

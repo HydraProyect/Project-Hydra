@@ -167,6 +167,8 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 
         servicios.AddSingleton<ICurrentUserService>(currentUser);
         servicios.AddSingleton<ITenantActual>(tenantActual);
+        // D-12: la importación firma cada versión que crea con la identidad de auditoría; en producción la da Program.cs.
+        servicios.AddSingleton<IActorAuditoria>(new ActorAuditoriaFijoFalso(ActorAuditoria.Normal(_admin)));
         // La sesión de Aprovisionamiento tiene autoridad Total de carga masiva: AmbitoCargaMasiva no consulta el alcance.
         // El handler lo pide por constructor, así que se registra un doble que no restringe nada.
         servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());

@@ -124,6 +124,7 @@ public class EjecutarImportacionCommandHandler(
     IAlcanceDatosService alcanceDatos,
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     ILimiteEmpresaPropia limiteEmpresaPropia,
+    IActorAuditoria actorAuditoria,
     IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
@@ -177,6 +178,10 @@ public class EjecutarImportacionCommandHandler(
         operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
 
         var hoy = DiaDeNegocio.Hoy();
+
+        // D-12: quien confirma la importación es quien sube los documentos que crea (sin archivo, pero cada uno es una
+        // versión). Se resuelve una vez para todas las filas.
+        var autor = await AutorDeLaSubida.ResolverAsync(actorAuditoria);
 
         // F3c (2026-08-28): leía la tabla legacy Clientes, congelada desde
         // F3b — un Cliente creado tras el freeze no se reconocía al importar y
@@ -516,7 +521,7 @@ public class EjecutarImportacionCommandHandler(
                 var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
                     tipoDocumento!.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
                     fila.FechaEmision, fechaVencimientoManual: null, noCaducaConfirmado: false);
-                var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia);
+                var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia, autor: autor);
                 documentoRepositorio.Agregar(documento);
                 documentosNuevos.Add(documento);
                 documentosCreados++;

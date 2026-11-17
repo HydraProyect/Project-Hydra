@@ -37,6 +37,13 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
     private const string PruebaDeDescargas = "tests/CaeManager.IntegrationTests/Tenants/DescargasConIdDeOtroTenantBajoRuntimeTests.cs";
     private const string PruebaDelLogo = "tests/CaeManager.IntegrationTests/Tenants/LogoTenantEndpointBajoRlsTests.cs";
 
+    /// <summary>
+    /// El original del Tenant TEC pedido desde la validación Inbound lleva dos Ids (contrato y Documento) y una lectura entre
+    /// Tenants autorizada: lo recorre su prueba bajo <c>cae_app_runtime</c>, desde otro Tenant TCE y con un contrato que no
+    /// existe, en vez de la del Administrador de su propio Tenant.
+    /// </summary>
+    private const string PruebaDeLaValidacionInbound = "tests/CaeManager.IntegrationTests/Inbound/AutorizacionesLectura/EvidenciasInboundBajoRuntimeTests.cs";
+
     /// <summary>Ruta → prueba de integración que la recorre con el Id de otro Tenant.</summary>
     private static readonly Dictionary<string, string> RutasPorId = new()
     {
@@ -51,6 +58,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["/empresas/{id:guid}/sello/archivo"] = PruebaDeDescargas,
         ["/extension/acreditaciones/{id:guid}/archivo"] = PruebaDeDescargas,
         ["/tenants/{id:guid}/logo"] = PruebaDelLogo,
+        ["/inbound/validacion/contratos/{contratoAccesoId:guid}/documentos/{documentoId:guid}/archivo"] = PruebaDeLaValidacionInbound,
     };
 
     /// <summary>Ruta con Id en un fichero que sirve binarios, pero que no sirve ninguno → dónde se prueba entre Tenants.</summary>
@@ -75,6 +83,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["src/CaeManager.Web/Features/Documentos/FirmasGuardadasEndpoints.cs"] = (2, "por Id: sello de la Empresa; /mi-firma/archivo es la del usuario actual, sin Id"),
         ["src/CaeManager.Web/Features/Tenants/LogoTenantEndpoints.cs"] = (1, "por Id: logo del Tenant"),
         ["src/CaeManager.Web/Features/Extension/EntregaArchivoExtensionEndpoints.cs"] = (1, "por Id: archivo de una Acreditación pendiente, con ticket"),
+        ["src/CaeManager.Web/Features/Inbound/Validacion/ArchivoValidacionInboundEndpoints.cs"] = (1, "por Id: original del Tenant TEC desde la validación Inbound (contrato y Documento en la ruta)"),
         ["src/CaeManager.Web/Features/Asignaciones/AsignacionesEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Centros/CentrosEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Clientes/ClientesEndpoints.cs"] = (3, "sin Id: exportación y dos plantillas"),
