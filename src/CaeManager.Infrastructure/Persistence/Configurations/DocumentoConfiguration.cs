@@ -58,6 +58,12 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
 
         builder.Property(d => d.MotivoSustitucion).HasConversion<int?>();
 
+        // Autor de la versión (preparación de D-12): dos uuid que admiten nulo, sin FK a AspNetUsers a propósito.
+        // El usuario puede ser de otro Tenant (un Gestor CAE de un Operador CAE externo) y su cuenta se anonimiza;
+        // una FK obligaría a borrar en cascada o a bloquear la anonimización. Las filas anteriores quedan en null.
+        builder.Property(d => d.SubidoPorUsuarioId).IsRequired(false);
+        builder.Property(d => d.SubidoPorActorRealUsuarioId).IsRequired(false);
+
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);
 
