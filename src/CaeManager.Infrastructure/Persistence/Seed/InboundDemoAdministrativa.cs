@@ -86,7 +86,10 @@ public static class InboundDemoAdministrativa
     public sealed record CuentaSembrada(string Email, string Rol, string NombreTenant, bool ContrasenaEntregada);
 
     /// <summary>Lo que quien lanza el modo puede ver y registrar: ningún dato secreto.</summary>
-    /// <param name="Escribio">Si quedaba algo por sembrar al empezar.</param>
+    /// <param name="Escribio">
+    /// Si quedaba algo por sembrar al empezar: un Tenant pendiente o una cuenta del lote por crear. HUECO declarado: un PDF
+    /// de prueba que falte en un lote completo se vuelve a adjuntar sin que esto lo cuente.
+    /// </param>
     /// <param name="Medido">Una línea por Tenant con lo medido, para la salida.</param>
     /// <param name="Discrepancias">Lo medido que no es lo que el lote declara. Vacía si cuadra.</param>
     public sealed record Resultado(
@@ -166,11 +169,13 @@ public static class InboundDemoAdministrativa
         {
             validacion();
         }
+        // Sin la excepción original como causa: es un rechazo previsto y Motivo lo imprime tal cual; con la causa dentro,
+        // lo trataría como un fallo y volvería a mostrar la clave del otro modo.
         catch (InvalidOperationException ex)
         {
             throw new InvalidOperationException(ex.Message
                 .Replace(SiembraDemoDireccionAdministrativa.ClaveDominioCorreo, ClaveDominioCorreo, StringComparison.Ordinal)
-                .Replace(SiembraDemoDireccionAdministrativa.ClaveDirectorioCredenciales, ClaveDirectorioCredenciales, StringComparison.Ordinal), ex);
+                .Replace(SiembraDemoDireccionAdministrativa.ClaveDirectorioCredenciales, ClaveDirectorioCredenciales, StringComparison.Ordinal));
         }
     }
 
@@ -277,7 +282,7 @@ public static class InboundDemoAdministrativa
             "Demo Inbound sembrada en {Entorno} por la vía administrativa: {Tenants} Tenants, {Cuentas} cuentas ({Nuevas} nuevas), {Discrepancias} discrepancias.",
             entorno.EnvironmentName, tenants.Count, cuentasSembradas.Count, cuentasSembradas.Count(c => c.ContrasenaEntregada), discrepancias.Count);
 
-        return new Resultado(pendientes.Count > 0, tenants, cuentasSembradas, rutaFichero, medido, discrepancias);
+        return new Resultado(pendientes.Count > 0 || correosNuevos.Count > 0, tenants, cuentasSembradas, rutaFichero, medido, discrepancias);
     }
 
     private static IReadOnlyList<(string Email, string Rol, string NombreTenant)> CuentasConSuTenant(CuentasInboundDemo cuentas) =>

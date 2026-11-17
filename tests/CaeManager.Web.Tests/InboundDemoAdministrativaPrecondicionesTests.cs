@@ -87,9 +87,13 @@ public class InboundDemoAdministrativaPrecondicionesTests
     [InlineData("sin-punto")]
     public void Un_dominio_de_la_siembra_local_o_mal_formado_se_niega_con_la_clave_de_este_modo(string dominio)
     {
-        Validar(Configuracion(), Bien with { DominioCorreo = dominio })
+        var rechazo = Validar(Configuracion(), Bien with { DominioCorreo = dominio })
             .Should().Throw<InvalidOperationException>()
-            .Where(ex => ex.Message.Contains("InboundDemo:DominioCorreo") && !ex.Message.Contains("DemoDireccion"));
+            .Where(ex => ex.Message.Contains("InboundDemo:DominioCorreo") && !ex.Message.Contains("DemoDireccion")).Which;
+
+        // Lo que el modo imprime al salir con 1: un rechazo previsto, con su mensaje tal cual y sin la clave del otro modo.
+        InboundDemoAdministrativa.MensajeDeInterrupcion(rechazo).Should()
+            .Contain(rechazo.Message).And.NotContain("DemoDireccion").And.NotContain("Causa:");
     }
 
     [Theory]

@@ -143,6 +143,8 @@ public class InboundDemoAdministrativaTests(InboundDemoAdministrativaFixture fix
             var nombres = InboundDemoSeeder.NombresTenants.ToList();
             var ids = await b.Tenants.Where(t => nombres.Contains(t.Nombre)).Select(t => t.Id).ToListAsync();
             ids.Should().HaveCount(4, "control positivo: el instrumento ve los Tenants del lote");
+            (await b.TiposDocumento.IgnoreQueryFilters().CountAsync(t => ids.Contains(t.TenantId))).Should().BePositive(
+                "control positivo: el instrumento ve el catálogo de esos Tenants, así que un cero de salud es una ausencia");
             return await b.TiposDocumento.IgnoreQueryFilters()
                 .CountAsync(t => ids.Contains(t.TenantId) && t.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud);
         });
@@ -166,6 +168,30 @@ public class InboundDemoAdministrativaTests(InboundDemoAdministrativaFixture fix
             json.RootElement.GetProperty("cuentas").EnumerateArray()
                 .Should().OnlyContain(c => c.GetProperty("contrasena").ValueKind == JsonValueKind.Null);
             Arnes.Correo.Intentos.Should().BeEmpty();
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    /// <summary>La fecha solo se exige si queda algo por sembrar: con el lote entero, una fecha ya pasada no lo niega.</summary>
+    [Fact]
+    public async Task Con_el_lote_entero_una_fecha_pasada_no_se_niega_y_no_escribe()
+    {
+        var directorio = Directory.CreateTempSubdirectory("inbound-demo-credenciales-").FullName;
+        try
+        {
+            var hoy = DiaDeNegocio.Hoy();
+            InboundDemoAdministrativa.MotivoFechaNoUtilizable(hoy.AddDays(-1), hoy).Should().NotBeNull(
+                "control: con algo pendiente, esta fecha se negaría");
+
+            var repeticion = await InboundDemoAdministrativaFixture.SembrarEnAsync(
+                Arnes, InboundDemoAdministrativaFixture.Opciones(directorio) with { FechaDemostracion = hoy.AddDays(-1) },
+                new LoggerDeCaptura(), hoy);
+
+            repeticion.Escribio.Should().BeFalse();
+            repeticion.Discrepancias.Should().BeEmpty();
         }
         finally
         {
@@ -268,6 +294,50 @@ public class InboundDemoAdministrativaNegativasTests
     }
 
     [Fact]
+    public async Task Un_Tenant_del_lote_con_tipos_de_documento_de_salud_se_niega_sin_escribir()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var tce = await CrearTenantAsync(arnes, InboundDemoSeeder.NombreTenantTce, conMarcador: true);
+
+        // Otra versión (la de Development): el catálogo entero, con los tipos que revelan salud (D7).
+        await arnes.EnTenantAsync(tce, async (db, _) =>
+        {
+            db.TiposDocumento.AddRange(TipoDocumentoSeedData.CrearCopiasParaTenant());
+            return await db.SaveChangesAsync();
+        });
+        var deSalud = await arnes.ComoBootstrapAsync(b => b.TiposDocumento.IgnoreQueryFilters()
+            .CountAsync(t => t.TenantId == tce && t.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud));
+        deSalud.Should().BePositive("control positivo: el Tenant del lote tiene tipos de documento de salud");
+
+        await SeNiegaSinEscribirAsync(
+            arnes, "*datos de otra versión*",
+            antes => antes["Tenants del lote"].Should().Be(1, "control: el Tenant TCE existe y los tres TEC están pendientes"));
+    }
+
+    [Fact]
+    public async Task Un_Tenant_del_lote_con_sus_cuentas_en_otro_dominio_se_niega_sin_escribir()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var tce = await CrearTenantAsync(arnes, InboundDemoSeeder.NombreTenantTce, conMarcador: true);
+        var deOtroDominio = InboundDemoAdministrativa.CuentasDe("otro-dominio.es").AdministradorTce;
+
+        using (var ambito = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(tce))
+        {
+            var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = new ApplicationUser { UserName = deOtroDominio, Email = deOtroDominio, NombreCompleto = deOtroDominio, TenantId = tce };
+            (await userManager.CreateAsync(cuenta)).Succeeded.Should().BeTrue("control: la cuenta de la primera ejecución se crea");
+        }
+
+        (await arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters().CountAsync(u => u.Email == deOtroDominio && u.TenantId == tce)))
+            .Should().Be(1, "control positivo: el Tenant TCE tiene su Administrador del lote en otro dominio");
+
+        await SeNiegaSinEscribirAsync(
+            arnes, "*en un dominio distinto*",
+            antes => antes["Cuentas del lote"].Should().Be(0, "control: ninguna cuenta del lote en el dominio de esta ejecución"));
+    }
+
+    [Fact]
     public async Task Sin_la_linea_Inbound_la_autoverificacion_da_la_discrepancia_e_Informar_devuelve_1()
     {
         await using var arnes = await ArnesPilotoOutbound.CrearAsync();
@@ -308,6 +378,13 @@ public class InboundDemoAdministrativaNegativasTests
             codigo.Should().Be(1, "un lote que no cuadra termina el modo con 1");
             errores.ToString().Should().Contain("Autoverificación FALLIDA").And.Contain("línea Inbound vigente");
             salida.ToString().Should().NotContain("el lote es el que la siembra declara");
+
+            // Hallazgo 5 de la ronda 1: el Tenant TCE sin su línea cuenta como pendiente, así que repetir la orden la contrata.
+            var reanudacion = await InboundDemoAdministrativaFixture.SembrarEnAsync(
+                arnes, InboundDemoAdministrativaFixture.Opciones(directorio), NullLogger.Instance);
+            reanudacion.Escribio.Should().BeTrue("faltaba la línea Inbound del Tenant TCE");
+            reanudacion.Discrepancias.Should().BeEmpty("la repetición vuelve a contratar la línea y el lote cuadra");
+            reanudacion.Cuentas.Should().OnlyContain(c => !c.ContrasenaEntregada, "las cuentas ya existían");
         }
         finally
         {
