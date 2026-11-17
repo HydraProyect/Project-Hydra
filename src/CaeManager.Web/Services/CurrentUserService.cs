@@ -414,9 +414,22 @@ public class CurrentUserService(
         if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is not { } asignacionOperacionId)
             return PapelActivo.SinPapel;
 
-        return await TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync(
+        Task<CaeManager.Domain.Operaciones.ServicioCae?> Consultar() =>
+            TenantsBeneficiariosAutorizados.ServicioQueAutorizaLaOperacionAsync(
                 Operaciones(), Tenants(), usuarioId.Value, tenantOrigenId.Value, tenantSeleccionado, asignacionOperacionId,
-                PerfilQueDecideAlcance(usuario), DateTime.UtcNow, CancellationToken.None) switch
+                PerfilQueDecideAlcance(usuario), DateTime.UtcNow, CancellationToken.None);
+
+        // Por la PuertaAccesoDatos del scope: el papel lo leen componentes de Blazor fuera de MediatR (el panel del
+        // asistente del layout, el hub de Configuración, el handler de las páginas de Outbound) a la vez que el resto del
+        // layout y de la página, sobre el mismo DbContext del circuito. Sin la puerta, la segunda consulta en vuelo lanza
+        // «A second operation was started on this context instance» y el límite de errores retira el componente (los E2E
+        // de Vega y del Encargo de administración de la PR #2318). Reentrante: dentro de un despacho de MediatR
+        // (GuardaPorServicioBehavior, AlcanceDatosService) no se espera a sí misma. Un proveedor sin puerta (composiciones
+        // de prueba hechas a mano sobre un único flujo) no tiene concurrencia que serializar.
+        var puerta = serviceProvider.GetService<PuertaAccesoDatos>();
+        var servicio = puerta is null ? await Consultar() : await puerta.EjecutarAsync(Consultar);
+
+        return servicio switch
         {
             CaeManager.Domain.Operaciones.ServicioCae.Outbound => PapelActivo.Outbound,
             CaeManager.Domain.Operaciones.ServicioCae.Inbound => PapelActivo.Inbound,

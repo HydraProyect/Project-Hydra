@@ -3,6 +3,7 @@
    corría dos veces en cada visita. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @using CaeManager.Application.Common
 @using CaeManager.Web.Features.AsistenteIa.Recursos

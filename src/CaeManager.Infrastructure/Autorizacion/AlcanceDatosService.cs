@@ -127,6 +127,8 @@ public class AlcanceDatosService(
     /// ninguno, para que el papel Inbound no abra los lectores de Outbound del Tenant TCE (B-03);</item>
     /// <item>cualquier otro papel: Outbound, como antes.</item>
     /// </list>
+    /// Fuera del caso Inbound dentro de una petición de Inbound, el alcance de Outbound lo decide el mismo criterio que las
+    /// páginas de Outbound y la guarda de comandos (<see cref="CriterioDePapel"/>), sin repetirlo aquí.
     /// </summary>
     private async Task<ServicioCae?> ServicioDeAlcanceAsync()
     {
@@ -134,12 +136,10 @@ public class AlcanceDatosService(
         var generacion = _generacion;
         if (_servicioDeAlcance.TryGetValue(tenant, out var cacheado)) return cacheado;
 
-        ServicioCae? servicio = await currentUserService.ObtenerPapelActivoAsync() switch
-        {
-            PapelActivo.OperacionQueYaNoAutoriza => null,
-            PapelActivo.Inbound => AmbitoPeticionInbound.Activo ? ServicioCae.Inbound : null,
-            _ => ServicioCae.Outbound,
-        };
+        var papel = await currentUserService.ObtenerPapelActivoAsync();
+        ServicioCae? servicio = papel == PapelActivo.Inbound && AmbitoPeticionInbound.Activo
+            ? ServicioCae.Inbound
+            : CriterioDePapel.AdmiteLoQueNoEsInbound(papel) ? ServicioCae.Outbound : null;
 
         Memoizar(_servicioDeAlcance, tenant, generacion, servicio);
         return servicio;
@@ -352,6 +352,11 @@ public class AlcanceDatosService(
             // alcanzan el Tenant TCE entero, como en Outbound (decisión de Chris del 2026-11-16 para B-03): la vía de
             // Operación Inbound solo les da papel con una operación del Tenant entero. Fuera de una petición de Inbound, o con
             // una operación que ya no autoriza, nadie (fallo cerrado): el papel Inbound no abre los lectores de Outbound.
+            // Solo cierra lo que pasa por este servicio. Las páginas de Outbound (las del módulo Outbound del registro de
+            // ADR-013) las cierra por papel, con el mismo CriterioDePapel, PaginaDeOutboundPorPapelAuthorizationHandler,
+            // aunque se autoricen solo por rol. Las del Núcleo y de Facturación que se autorizan solo por rol (Auditoría,
+            // Usuarios, Configuración, Facturación) siguen abiertas al rol de origen con papel Inbound: decidir qué ve ahí
+            // el papel Inbound queda pendiente.
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
                           && !await PapelSinAlcanceDeDatosAsync();
         }

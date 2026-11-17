@@ -1,14 +1,15 @@
-using CaeManager.Domain.Common;
-using CaeManager.Web.Services;
 using CaeManager.Application.Common;
-using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
+using CaeManager.Application.Visitas;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Visitas.Recursos;
+using CaeManager.Web.Services.Autorizacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.Extensions.Localization;
@@ -56,9 +57,9 @@ public static class VisitasEndpoints
 
     public static IEndpointRouteBuilder MapVisitasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/visitas/{id:guid}/paquete-documental.zip", ServirPaqueteAsync);
+        endpoints.MapGet("/visitas/{id:guid}/paquete-documental.zip", ServirPaqueteAsync).DeOutbound();
 
-        endpoints.MapGet("/visitas/exportar.xlsx", ExportarAsync).SoloRolesDelListado();
+        endpoints.MapGet("/visitas/exportar.xlsx", ExportarAsync).SoloRolesDelListado().DeOutbound();
 
         return endpoints;
     }
