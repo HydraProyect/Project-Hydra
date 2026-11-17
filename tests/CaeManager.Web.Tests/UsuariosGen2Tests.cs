@@ -372,7 +372,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<string, EmpresaPorCifDto> EmpresasPorCif { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>
         /// Lo que respondería Application en este Context Workspace: vacío en

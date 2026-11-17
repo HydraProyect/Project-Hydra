@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
@@ -11,7 +12,7 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.AsignarT
 /// <summary>Añade Trabajadores a una autorización sin revocar. Los que ya estaban asignados se ignoran.</summary>
 [AreaDelEncargo("AutorizacionesLectura")]
 public record AsignarTrabajadoresAutorizacionCommand(Guid AutorizacionId, IReadOnlyList<Guid> TrabajadorIds, Guid Version = default)
-    : ICommand, IComandoInbound;
+    : ICommand;
 
 public class AsignarTrabajadoresAutorizacionCommandValidator : AbstractValidator<AsignarTrabajadoresAutorizacionCommand>
 {
@@ -27,11 +28,14 @@ public class AsignarTrabajadoresAutorizacionCommandHandler(
     IAutorizacionLecturaRepository repositorio,
     ITrabajadoresQueryContext trabajadoresContext,
     ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<AsignarTrabajadoresAutorizacionCommand, Result>
 {
     public async Task<Result> Handle(AsignarTrabajadoresAutorizacionCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ParticipanteTec, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await AutorizacionLecturaAutoridad.EsAdministradorAsync(currentUserService))
             return Result.Fallo(AutorizacionLecturaAutoridad.SoloAdministrador);
 

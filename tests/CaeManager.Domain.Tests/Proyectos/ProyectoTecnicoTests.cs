@@ -70,5 +70,33 @@ public class ProyectoTecnicoTests
 
         proyectoTecnico.EstaActivo.Should().BeTrue();
         proyectoTecnico.FechaBaja.Should().BeNull();
+        proyectoTecnico.MotivoBaja.Should().BeNull("un participante activo no tiene motivo de baja");
+    }
+
+    /// <summary>D-4 (#2005): la baja guarda su motivo; sin indicarlo, es una desasignación a mano.</summary>
+    [Theory]
+    [InlineData(null, MotivoBajaProyectoTecnico.Desasignado)]
+    [InlineData(MotivoBajaProyectoTecnico.FinDelEvento, MotivoBajaProyectoTecnico.FinDelEvento)]
+    public void DarDeBaja_guarda_su_motivo(MotivoBajaProyectoTecnico? indicado, MotivoBajaProyectoTecnico esperado)
+    {
+        var proyectoTecnico = new ProyectoTecnico(ProyectoIdValido, TrabajadorIdValido, new DateOnly(2026, 8, 1));
+
+        if (indicado is { } motivo)
+            proyectoTecnico.DarDeBaja(new DateOnly(2026, 9, 1), motivo);
+        else
+            proyectoTecnico.DarDeBaja(new DateOnly(2026, 9, 1));
+
+        proyectoTecnico.MotivoBaja.Should().Be(esperado);
+    }
+
+    [Fact]
+    public void DarDeBaja_rechaza_un_motivo_desconocido()
+    {
+        var proyectoTecnico = new ProyectoTecnico(ProyectoIdValido, TrabajadorIdValido, new DateOnly(2026, 8, 1));
+
+        var accion = () => proyectoTecnico.DarDeBaja(new DateOnly(2026, 9, 1), (MotivoBajaProyectoTecnico)99);
+
+        accion.Should().Throw<ArgumentOutOfRangeException>();
+        proyectoTecnico.EstaActivo.Should().BeTrue();
     }
 }

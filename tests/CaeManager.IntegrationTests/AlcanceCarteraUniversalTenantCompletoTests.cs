@@ -116,10 +116,14 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         IReadOnlyList<Guid>? Subcontratas, IReadOnlyList<Guid>? SubcontratasGestion,
         IReadOnlyList<Guid>? Trabajadores, IReadOnlyList<Guid>? Vehiculos);
 
-    private async Task<Alcance> MedirAsync(Guid usuarioId, string? rol, Guid tenant, Guid? gestorDeLente = null)
+    /// <param name="tenantOrigen">Tenant de origen de la sesión; por defecto el que se opera.</param>
+    /// <param name="porOperacion">El rol se resolvió por la Asignación de Operación de un Tenant beneficiario (lo pasa al doble).</param>
+    private async Task<Alcance> MedirAsync(Guid usuarioId, string? rol, Guid tenant, Guid? gestorDeLente = null,
+        Guid? tenantOrigen = null, bool porOperacion = false)
     {
         await using var contexto = CrearContexto(tenant);
-        var s = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: tenant),
+        var s = new AlcanceDatosService(contexto,
+            new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: tenantOrigen ?? tenant, porOperacion: porOperacion),
             new TenantActualAmbiental { TenantId = tenant }, new SesionPrivilegiadaAusente(),
             gestorDeLente is { } g ? new LenteGestorFija(g) : null);
         return new Alcance(
@@ -265,6 +269,28 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         await OtorgarCarteraAsync(_tenant, Guid.NewGuid(), AmbitoAsignacion.Universal);
 
         NoDebeAlcanzarNada(await MedirAsync(coordinador, "CoordinadorCae", _tenant));
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-10-20 (<c>AlcanceDatosService</c>, rama <c>OperaPorAsignacionDeOperacionAsync</c>): en
+    /// un Tenant beneficiario que opera por la Asignación de Operación de su Operador CAE externo, el Coordinador CAE
+    /// alcanza el Tenant entero sin Asignación de Cartera, y el Gestor CAE no. Es la condición que pide la confirmación del
+    /// aviso del hueco de correo (<c>ReconocerAvisoHuecoCommand</c>, issue #2124): sin esta prueba, que el Coordinador CAE
+    /// por Asignación de Operación confirme sin cartera propia solo lo decía el comentario. Ninguno de los dos tiene
+    /// cartera: el Tenant de origen es otro y no se otorga ninguna.
+    /// </summary>
+    [Theory]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("GestorCae", false)]
+    public async Task Por_Asignacion_de_Operacion_sin_cartera_el_Coordinador_alcanza_el_Tenant_entero_y_el_Gestor_no(
+        string rol, bool alcanzaElTenantEntero)
+    {
+        await SembrarAsync(_tenant, "A");
+
+        var a = await MedirAsync(Guid.NewGuid(), rol, _tenant, tenantOrigen: _otroTenant, porOperacion: true);
+
+        a.TenantEntero.Should().Be(alcanzaElTenantEntero);
+        a.AccesoTotal.Should().BeFalse("la vía de Operación da el Tenant entero por cartera universal, no el acceso total");
     }
 
     [Fact]

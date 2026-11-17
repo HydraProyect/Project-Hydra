@@ -15,6 +15,7 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
         builder.Property(v => v.Notas).HasMaxLength(Visita.LongitudMaximaNotas);
         builder.Property(v => v.MotivoCancelacion).HasMaxLength(Visita.LongitudMaximaMotivo);
         builder.Property(v => v.MotivoReactivacion).HasMaxLength(Visita.LongitudMaximaMotivo);
+        builder.Property(v => v.MotivoReaperturaExpediente).HasMaxLength(Visita.LongitudMaximaMotivo);
         builder.Property(v => v.ContactoNombre).HasMaxLength(Visita.LongitudMaximaContactoNombre);
         builder.Property(v => v.ContactoTelefono).HasMaxLength(Visita.LongitudMaximaContactoTelefono);
         builder.Property(v => v.ContactoCorreo).HasMaxLength(Visita.LongitudMaximaContactoCorreo);

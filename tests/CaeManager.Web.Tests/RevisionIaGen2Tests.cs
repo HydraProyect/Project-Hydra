@@ -25,7 +25,7 @@ public partial class RevisionIaGen2Tests : BunitContext
     private sealed class MediadorFalso : IMediator
     {
         public IReadOnlyList<RevisionIaDocumentoDto> Revisiones { get; set; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
         public Func<object, Task?>? Retener { get; set; }
         public Func<AplicarDeteccionIaDocumentoCommand, Result>? AlAplicar { get; set; }

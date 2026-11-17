@@ -44,7 +44,7 @@ public class CentroWorkspacePanelCanalSegundoFactorTests : BunitContext
     private sealed class MediatorFalso(CentroDetalleDto detalle) : IMediator
     {
         public bool SinDobleFactor { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

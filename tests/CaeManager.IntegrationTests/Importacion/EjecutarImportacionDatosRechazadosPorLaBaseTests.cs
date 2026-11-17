@@ -27,7 +27,8 @@ namespace CaeManager.IntegrationTests.Importacion;
 /// <c>ArgumentException</c> lo detiene) y solo revienta al confirmar, dentro
 /// del único <c>SaveChangesAsync</c> del handler
 /// (<c>OperacionImportacionRepository.GuardarSiOperacionNuevaAsync</c>), que
-/// solo atrapa la violación de unicidad de <c>OperacionImportacion</c> — el
+/// solo atrapa la violación de unicidad de <c>OperacionImportacion</c>, u otra
+/// violación de unicidad cuando la operación ya está guardada (#1992) — el
 /// resto de <c>DbUpdateException</c> se propaga y aborta la transacción
 /// entera, arrastrando con ella cualquier otra fila válida del mismo
 /// archivo. No es un fallo de dominio (no lanza <c>ArgumentException</c>) ni

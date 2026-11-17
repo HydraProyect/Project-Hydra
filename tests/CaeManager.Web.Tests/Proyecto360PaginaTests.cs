@@ -492,6 +492,25 @@ public partial class Proyecto360PaginaTests : BunitContext
 
     // ------------------------------------------------------------------ técnicos
 
+    /// <summary>
+    /// D-4 (#2005, decisión del 2026-11-15): la baja que hace el Sistema al cerrar un evento terminado sigue siendo
+    /// automática, pero Proyectos dice que fue por el fin del evento. El control es Duarte, dada de baja a mano: solo la fecha.
+    /// </summary>
+    [Fact]
+    public void La_baja_por_fin_del_evento_dice_su_motivo_y_la_manual_solo_la_fecha()
+    {
+        _mediador.TecnicosAdicionales.Add(new TecnicoProyectoDto(Guid.NewGuid(), Guid.NewGuid(), "Iglesias, Marta",
+            new DateOnly(2026, 6, 1), new DateOnly(2026, 7, 15), EstaActivo: false, MotivoBajaProyectoTecnico.FinDelEvento));
+
+        var cut = Renderizar(AbiertoId);
+
+        var filas = cut.FindAll("[data-pieza=fila]");
+        filas.Single(f => f.TextContent.Contains("Iglesias, Marta")).TextContent
+            .Should().Contain("baja 15/07/2026 por fin del evento");
+        filas.Single(f => f.TextContent.Contains("Duarte, Ana")).TextContent
+            .Should().Contain("baja 31/07/2026").And.NotContain("fin del evento");
+    }
+
     [Fact]
     public void Tecnicos_activos_primero_y_los_de_baja_en_su_grupo()
     {

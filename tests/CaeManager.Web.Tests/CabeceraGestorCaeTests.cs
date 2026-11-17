@@ -525,7 +525,7 @@ public class CabeceraGestorCaeTests : BunitContext
 /// <summary>Mediador de un solo responder, para componentes que lanzan una o dos consultas.</summary>
 internal sealed class MediadorPorFuncion(Func<object, object?> responder) : IMediator
 {
-    public List<object> Enviadas { get; } = [];
+    public ListaSegura<object> Enviadas { get; } = [];
 
     public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {

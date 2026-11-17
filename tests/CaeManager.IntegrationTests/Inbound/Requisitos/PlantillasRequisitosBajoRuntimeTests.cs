@@ -222,7 +222,7 @@ public class PlantillasRequisitosBajoRuntimeTests : IAsyncLifetime
         await using (var contexto = Contexto(_propietario.Id, _administrador))
         {
             var handler = new RetirarPlantillaRequisitosCommandHandler(
-                new PlantillaRequisitosRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
+                new PlantillaRequisitosRepository(contexto), new AlcanceDatosServiceFalso(), contexto, new AutorizacionInboundQuePermite());
 
             var resultado = await handler.Handle(new RetirarPlantillaRequisitosCommand(_plantillaAjena, Guid.NewGuid()), default);
 

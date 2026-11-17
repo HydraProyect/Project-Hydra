@@ -443,6 +443,159 @@ public class NavMenuCaracterizacionTests
             .Should().Be(esperada, $"línea Inbound «{linea}»");
     }
 
+    // Rótulos separadores de línea (D-2): «Outbound» e «Inbound · Tenant TCE» solo cuando el menú enseña las dos líneas.
+    private static IRenderedComponent<NavMenu> PintarConLineaInbound(bool inboundVigente, string rol = Roles.Administrador)
+    {
+        var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
+        ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(rol);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(Options.Create(new ComunicacionesOptions { Activo = false }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
+            new Combinacion(rol, null, false, false, PerfilVocabularioTenant.Consultora, 1)));
+        ctx.Services.AddSingleton<ILineaInboundVigente>(new LineaInboundDePrueba(inboundVigente ? "vigente" : "no-vigente"));
+        return ctx.Render<NavMenu>();
+    }
+
+    [Fact]
+    public void Con_solo_la_linea_Outbound_el_menu_no_lleva_rotulos_de_linea()
+    {
+        var cut = PintarConLineaInbound(inboundVigente: false);
+
+        cut.FindAll(".nav-linea-rotulo").Should().BeEmpty("con una sola línea visible el menú queda como siempre");
+        cut.FindAll("[data-grupo]").Select(g => g.GetAttribute("data-grupo")).Should().Contain(["negocio", "operacion", "control"])
+            .And.NotContain("inbound");
+    }
+
+    [Fact]
+    public void Con_Outbound_e_Inbound_aparecen_los_dos_rotulos_cada_uno_antes_de_su_tramo()
+    {
+        var cut = PintarConLineaInbound(inboundVigente: true);
+
+        var rotulos = cut.FindAll(".nav-linea-rotulo");
+        rotulos.Select(r => r.GetAttribute("data-linea")).Should().Equal("outbound", "inbound");
+
+        var outbound = cut.Find(".nav-linea-rotulo[data-linea=outbound]");
+        outbound.PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("dashboards", "Inicio queda arriba, común a las dos líneas");
+        outbound.NextElementSibling!.GetAttribute("data-grupo").Should().Be("negocio");
+
+        var inbound = cut.Find(".nav-linea-rotulo[data-linea=inbound]");
+        inbound.PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("control", "Inbound abre justo tras el último grupo de Outbound");
+        inbound.NextElementSibling!.GetAttribute("data-grupo").Should().Be("inbound");
+        var cierre = cut.Find("[data-grupo=administracion]").PreviousElementSibling!;
+        cierre.LocalName.Should().Be("hr", "Administración queda fuera del tramo de Inbound, cerrado por una regla sin texto");
+        cierre.ClassList.Should().Contain("nav-linea-fin");
+        cierre.PreviousElementSibling!.GetAttribute("data-grupo").Should().Be("inbound-config");
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Outbound", "Inbound · Tenant TCE")]
+    [InlineData("ca-ES", "Outbound", "Inbound · Tenant TCE")]
+    public void Los_rotulos_de_linea_llevan_el_texto_correcto_en_cada_idioma(string cultura, string outbound, string inbound)
+    {
+        var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = PintarConLineaInbound(inboundVigente: true);
+
+            cut.Find(".nav-linea-rotulo[data-linea=outbound]").TextContent.Trim().Should().Be(outbound);
+            cut.Find(".nav-linea-rotulo[data-linea=inbound]").TextContent.Trim().Should().Be(inbound);
+
+            // Con valores iguales al neutral, ResourceManager caería a él si faltara la clave en ca-ES: se comprueba que está en su
+            // propio recurso. es-ES es el neutral (no hay .es-ES.resx) y lo cubre la aserción de arriba.
+            if (cultura == "ca-ES")
+            {
+                var recurso = new System.Resources.ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes))
+                    .GetResourceSet(System.Globalization.CultureInfo.GetCultureInfo(cultura), createIfNotExists: true, tryParents: false);
+                recurso.Should().NotBeNull($"existe el recurso {cultura}");
+                recurso!.GetString("MenuLineaOutbound").Should().Be(outbound);
+                recurso.GetString("MenuLineaInboundTce").Should().Be(inbound);
+            }
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = anterior;
+        }
+    }
+
+    [Fact]
+    public void El_rotulo_de_linea_es_un_encabezado_sin_enlace_ni_foco()
+    {
+        var cut = PintarConLineaInbound(inboundVigente: true);
+
+        foreach (var rotulo in cut.FindAll(".nav-linea-rotulo"))
+        {
+            rotulo.LocalName.Should().Be("h2", "un lector de pantalla lo anuncia como encabezado de cada tramo");
+            rotulo.QuerySelectorAll("a, button, input, [tabindex]").Should().BeEmpty();
+            rotulo.HasAttribute("tabindex").Should().BeFalse();
+            rotulo.Closest("a, summary, button").Should().BeNull("no es clicable");
+        }
+    }
+
+    private static CatalogoMenuLateral.GrupoVisible Grupo(string id, LineaMenu linea, int enlaces = 1) =>
+        new(new GrupoMenuLateral(id, id, true, _ => true, linea),
+            Enumerable.Range(0, enlaces).Select(i => new EnlaceMenuLateral($"{id}-{i}", id, id, "x", id)).ToList());
+
+    [Fact]
+    public void RotulosDeLinea_con_una_sola_linea_con_enlaces_no_rotula_nada()
+    {
+        CatalogoMenuLateral.RotulosDeLinea([Grupo("dashboards", LineaMenu.SinLinea), Grupo("negocio", LineaMenu.Outbound),
+            Grupo("control", LineaMenu.Outbound), Grupo("administracion", LineaMenu.SinLinea)]).Should().BeEmpty();
+        CatalogoMenuLateral.RotulosDeLinea([Grupo("negocio", LineaMenu.Outbound), Grupo("inbound", LineaMenu.Inbound, enlaces: 0)])
+            .Should().BeEmpty("un grupo sin enlaces no se pinta y no cuenta como línea visible");
+    }
+
+    [Fact]
+    public void RotulosDeLinea_rotula_cada_cambio_de_linea_aunque_el_orden_guardado_las_intercale()
+    {
+        var rotulos = CatalogoMenuLateral.RotulosDeLinea([
+            Grupo("negocio", LineaMenu.Outbound), Grupo("administracion", LineaMenu.SinLinea), Grupo("operacion", LineaMenu.Outbound),
+            Grupo("inbound", LineaMenu.Inbound), Grupo("control", LineaMenu.Outbound)]);
+
+        // Administración, en medio de un tramo, lo cierra (SinLinea) y Operación reabre Outbound.
+        rotulos.Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
+        {
+            ["negocio"] = LineaMenu.Outbound,
+            ["administracion"] = LineaMenu.SinLinea,
+            ["operacion"] = LineaMenu.Outbound,
+            ["inbound"] = LineaMenu.Inbound,
+            ["control"] = LineaMenu.Outbound,
+        });
+    }
+
+    [Fact]
+    public void RotulosDeLinea_cierra_el_tramo_con_el_primer_grupo_sin_linea_y_no_con_los_siguientes()
+    {
+        CatalogoMenuLateral.RotulosDeLinea([
+            Grupo("dashboards", LineaMenu.SinLinea), Grupo("negocio", LineaMenu.Outbound), Grupo("inbound", LineaMenu.Inbound),
+            Grupo("administracion", LineaMenu.SinLinea), Grupo("plataforma", LineaMenu.SinLinea)])
+            .Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
+            {
+                ["negocio"] = LineaMenu.Outbound,
+                ["inbound"] = LineaMenu.Inbound,
+                ["administracion"] = LineaMenu.SinLinea,
+            }, "Dashboards, antes de todo tramo, no lleva nada; Plataforma sigue al cierre de Administración");
+    }
+
+    [Fact]
+    public void El_catalogo_asigna_su_linea_a_cada_grupo()
+    {
+        CatalogoMenuLateral.Grupos.ToDictionary(g => g.Id, g => g.Linea).Should().BeEquivalentTo(new Dictionary<string, LineaMenu>
+        {
+            ["dashboards"] = LineaMenu.SinLinea,
+            ["negocio"] = LineaMenu.Outbound,
+            ["operacion"] = LineaMenu.Outbound,
+            ["control"] = LineaMenu.Outbound,
+            ["inbound"] = LineaMenu.Inbound,
+            ["inbound-config"] = LineaMenu.Inbound,
+            ["administracion"] = LineaMenu.SinLinea,
+            ["plataforma"] = LineaMenu.SinLinea,
+        });
+    }
+
     private sealed class LineaInboundDePrueba(string linea) : ILineaInboundVigente
     {
         public Task<bool> EstaVigenteAsync(CancellationToken cancellationToken = default) => linea switch

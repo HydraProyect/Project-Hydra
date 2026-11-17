@@ -89,7 +89,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         public Dictionary<Guid, HashSet<EstadoDocumento>> EstadosPresentes { get; } = [];
 
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Centros por Cliente empresarial, para la ventana de contexto del recuento de la fila.</summary>
         public Dictionary<Guid, List<CentroDeClienteDto>> CentrosPorCliente { get; } = [];

@@ -45,6 +45,12 @@ public static class ConectarMicrosoft365Endpoints
             if (usuarioId is null)
                 return Results.Unauthorized();
 
+            // RequireRole mira el rol del claim de sesión; el Command exige el efectivo, que dentro de un Workspace
+            // operativo derivado puede ser otro. Se comprueba aquí también para no pedir un consentimiento en
+            // Microsoft que el Command rechazaría: la frontera sigue siendo el handler.
+            if (await currentUser.ObtenerRolEfectivoAsync() != Roles.Administrador)
+                return Results.LocalRedirect(RedireccionSoloAdministrador);
+
             // Vacío = el buzón propio de quien va a consentir. Con dirección, un compartido: se
             // valida la forma aquí y el acceso real en el callback, con el token ya canjeado.
             string? compartido = null;
@@ -158,7 +164,15 @@ public static class ConectarMicrosoft365Endpoints
                 ? "/integraciones?error=ya-conectado"
                 : resultado.Error.Codigo == ConectarBuzonMicrosoft365CommandHandler.CodigoAltaCompartidaEnPausa
                     ? "/integraciones?error=compartidos-en-pausa"
-                    : "/integraciones?error=suscripcion";
+                    : resultado.Error.Codigo == ConectarBuzonMicrosoft365CommandHandler.CodigoSoloAdministrador
+                        ? RedireccionSoloAdministrador
+                        : "/integraciones?error=suscripcion";
+
+    /// <summary>
+    /// Sin rol efectivo Administrador no se conecta nada; no es un fallo de las notificaciones, así que no vuelve con
+    /// «suscripcion» (que invita a repetir). Conexiones aún no tiene texto propio para este código y muestra el genérico.
+    /// </summary>
+    public const string RedireccionSoloAdministrador = "/integraciones?error=solo-administrador";
 
     /// <summary>
     /// Dirección de buzón bien formada (solo la dirección, sin nombre visible) o null. Pública para poder

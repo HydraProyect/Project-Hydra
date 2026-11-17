@@ -12,7 +12,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
 
 /// <summary>"Marcar rechazado…" del drill-down por plataforma (mockup Documentos TALVEG: causa tipificada + detalle libre) — ver MarcarAcreditacionSubidaCommand, mismo motivo.</summary>
 [AreaDelEncargo("Documentos")]
-public record MarcarAcreditacionRechazadaCommand(Guid AcreditacionId, CausaRechazoAcreditacion Causa, string MotivoLiteral) : ICommand;
+public record MarcarAcreditacionRechazadaCommand(Guid AcreditacionId, CausaRechazoAcreditacion Causa, string MotivoLiteral) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class MarcarAcreditacionRechazadaCommandValidator : AbstractValidator<MarcarAcreditacionRechazadaCommand>
 {
