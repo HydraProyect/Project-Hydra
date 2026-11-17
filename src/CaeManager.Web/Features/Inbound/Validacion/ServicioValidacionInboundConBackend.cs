@@ -3,7 +3,11 @@ using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerColaValidacionInbound;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Inbound.EvidenciasInbound;
+using FluentValidation;
 using MediatR;
+using CaeManager.Web.Features.Inbound.Validacion.Recursos;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Inbound.Validacion;
@@ -23,10 +27,14 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 /// recuerdo no da autoridad: el Command vuelve a decidirla con el contrato y el Documento.
 /// </para>
 /// </summary>
-public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptions<OpcionesValidacionInbound> opciones)
+public sealed class ServicioValidacionInboundConBackend(
+    ISender mediator, IOptions<OpcionesValidacionInbound> opciones, IStringLocalizer<TextosValidacionInbound> textos)
     : IServicioValidacionInbound
 {
     private const string RolEmpresaContratista = "Empresa contratista";
+
+    /// <summary>La del motivo literal de la evidencia: más largo, el Command lo rechazaría.</summary>
+    public const int LongitudMaximaExplicacion = EvidenciaInbound.LongitudMaximaMotivoRechazo;
 
     // Mismo orden y mismos textos que la lista de motivos de la pantalla de validación.
     private static readonly IReadOnlyDictionary<string, CausaRechazoAcreditacion> Causas =
@@ -58,7 +66,7 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
             await ObtenerColaAsync(cancellationToken);
         return _filas.TryGetValue(id, out var fila)
             ? RespuestaValidacion<DocumentoAValidar>.Correcta(ADocumento(id, fila))
-            : RespuestaValidacion<DocumentoAValidar>.Rechazada("No encontramos este documento entre tus pendientes.");
+            : RespuestaValidacion<DocumentoAValidar>.Rechazada(textos["NoEncontrado"]);
     }
 
     public async Task<RespuestaValidacion<VeredictoRegistrado>> ValidarAsync(SolicitudValidar solicitud, CancellationToken cancellationToken = default)
@@ -71,9 +79,9 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
         // silencio con otras fechas que las que ve el Gestor CAE sería engañoso.
         if (solicitud.Emision != fila.FechaEmision || solicitud.Vencimiento != fila.FechaVencimiento)
             return RespuestaValidacion<VeredictoRegistrado>.Rechazada(
-                "Corregir las fechas al validar no está disponible todavía: deja las del documento original.");
+                textos["FechasNoDisponibles"]);
         if (solicitud.DestinosAdicionales.Count > 0)
-            return RespuestaValidacion<VeredictoRegistrado>.Rechazada("Validar para otros Centros no está disponible todavía.");
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(textos["DestinosNoDisponibles"]);
 
         return await RegistrarAsync(fila, solicitud.Id, rechazo: null, VeredictoValidacion.Validado, cancellationToken);
     }
@@ -85,9 +93,12 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
         if (!_filas.TryGetValue(solicitud.Id, out var fila))
             return NoEncontrado();
         if (!Causas.TryGetValue(solicitud.Motivo, out var causa))
-            return RespuestaValidacion<VeredictoRegistrado>.Rechazada("Elige un motivo de la lista.");
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(textos["EligeMotivo"]);
         if (string.IsNullOrWhiteSpace(solicitud.Explicacion))
-            return RespuestaValidacion<VeredictoRegistrado>.Rechazada("Explica qué tiene que corregir la Empresa contratista.");
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(textos["ExplicaCorreccion"]);
+        if (solicitud.Explicacion.Trim().Length > LongitudMaximaExplicacion)
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(
+                textos["ExplicacionLarga", LongitudMaximaExplicacion]);
 
         return await RegistrarAsync(
             fila, solicitud.Id, new RechazoInicialEvidenciaInbound(causa, solicitud.Explicacion.Trim()), VeredictoValidacion.Rechazado,
@@ -125,14 +136,23 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
     {
         if (fila.TipoDocumentoId is not { } tipoId)
             return RespuestaValidacion<VeredictoRegistrado>.Rechazada(
-                $"«{fila.TipoDocumentoNombre}» no está en tu catálogo de tipos de documento: no se puede registrar el veredicto todavía.");
+                textos["TipoFueraDeCatalogo", fila.TipoDocumentoNombre]);
         if (fila.SoloConclusionAptitud)
             return RespuestaValidacion<VeredictoRegistrado>.Rechazada(
-                "Un certificado de aptitud se registra con su conclusión, que esta pantalla todavía no recoge.");
+                textos["AptitudConConclusion"]);
 
-        Result<Guid> resultado = await mediator.Send(
-            new RegistrarEvidenciaInboundCommand(fila.ContratoAccesoId, fila.DocumentoOrigenId, tipoId, Conclusion: null, rechazo),
-            cancellationToken);
+        Result<Guid> resultado;
+        try
+        {
+            resultado = await mediator.Send(
+                new RegistrarEvidenciaInboundCommand(fila.ContratoAccesoId, fila.DocumentoOrigenId, tipoId, Conclusion: null, rechazo),
+                cancellationToken);
+        }
+        catch (ValidationException ex)
+        {
+            // La validación del Command (ValidationBehavior) se dice en la pantalla, no cae al límite de errores.
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage)));
+        }
         if (resultado.EsFallido)
             return RespuestaValidacion<VeredictoRegistrado>.Rechazada(resultado.Error.Mensaje);
 
@@ -141,8 +161,8 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
         return RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(resultado.Valor, veredicto, Deshacible: false));
     }
 
-    private static RespuestaValidacion<VeredictoRegistrado> NoEncontrado() =>
-        RespuestaValidacion<VeredictoRegistrado>.Rechazada("No encontramos este documento entre tus pendientes.");
+    private RespuestaValidacion<VeredictoRegistrado> NoEncontrado() =>
+        RespuestaValidacion<VeredictoRegistrado>.Rechazada(textos["NoEncontrado"]);
 
     private static EntidadValidable Entidad(DocumentoPendienteInboundDto fila) =>
         fila.TrabajadorId is null ? EntidadValidable.Empresa : EntidadValidable.Trabajador;
@@ -155,24 +175,24 @@ public sealed class ServicioValidacionInboundConBackend(ISender mediator, IOptio
         new(id, fila.TipoDocumentoNombre, Entidad(fila), fila.Titular, fila.Identificador ?? "—", fila.EmpresaContratista,
             RolEmpresaContratista, [fila.Centro], Subido(fila), ResultadoLectura.SinDetectar, DatosAfectados: 0);
 
-    private static DocumentoAValidar ADocumento(Guid id, DocumentoPendienteInboundDto fila) =>
+    private DocumentoAValidar ADocumento(Guid id, DocumentoPendienteInboundDto fila) =>
         new(id, fila.TipoDocumentoNombre, Entidad(fila), fila.Titular, fila.Identificador ?? "—", fila.EmpresaContratista,
             RolEmpresaContratista, fila.CifEmpresaContratista ?? "—", [fila.Centro], Subido(fila),
             Origen: "Empresa contratista", Requisito: fila.TipoDocumentoNombre, NombreArchivo: fila.TipoDocumentoNombre,
             UrlDescarga: string.Empty, Paginas: [], DatosAVerificar: DatosDeLaFicha(fila), Chequeos: [], new CriterioAceptacion(string.Empty, []),
             fila.FechaEmision, fila.FechaVencimiento, VigenciaMeses: null, Vigencia(fila.FechaVencimiento), Anteriores: [],
-            Destinos: [], Propuesta: null, NotaSinPropuesta: "La lectura con IA no está disponible todavía: revisa el documento tú.",
+            Destinos: [], Propuesta: null, NotaSinPropuesta: textos["SinPropuesta"],
             MotivoRechazoSugerido: string.Empty, FaltaSugerida: string.Empty, ExplicacionSugerida: string.Empty, Propio: false);
 
     // Sin lectura con IA solo se conoce el lado de la ficha: el titular y su identificador, para que el Gestor CAE sepa de
     // quién es el documento. El lado del documento queda «No detectado», que es lo que hay.
-    private static IReadOnlyList<DatoAVerificar> DatosDeLaFicha(DocumentoPendienteInboundDto fila)
+    private IReadOnlyList<DatoAVerificar> DatosDeLaFicha(DocumentoPendienteInboundDto fila)
     {
-        const string nota = "Sin lectura con IA: compáralo tú con el documento.";
-        var titular = new DatoAVerificar("titular", fila.TrabajadorId is null ? "Empresa" : "Trabajador", fila.Titular,
+        string nota = textos["NotaSinLectura"];
+        var titular = new DatoAVerificar("titular", fila.TrabajadorId is null ? textos["EtiquetaEmpresa"] : textos["EtiquetaTrabajador"], fila.Titular,
             ValorDocumento: null, ResultadoLectura.SinDetectar, nota, Pagina: null);
         return fila.Identificador is { } identificador
-            ? [titular, new DatoAVerificar("identificador", fila.TrabajadorId is null ? "CIF" : "DNI o NIE", identificador,
+            ? [titular, new DatoAVerificar("identificador", fila.TrabajadorId is null ? textos["EtiquetaCif"] : textos["EtiquetaDniNie"], identificador,
                 ValorDocumento: null, ResultadoLectura.SinDetectar, nota, Pagina: null)]
             : [titular];
     }

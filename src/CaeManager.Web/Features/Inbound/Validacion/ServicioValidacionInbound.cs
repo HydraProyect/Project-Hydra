@@ -34,45 +34,6 @@ public interface IServicioValidacionInbound
 }
 
 /// <summary>
-/// Implementación vacía: todo «no disponible». La pantalla lo muestra como tal y no pinta ningún dato.
-/// </summary>
-public sealed class ServicioValidacionInboundSinBackend : IServicioValidacionInbound
-{
-    // shortcut: sin backend, cablear cuando entre B-21 (cola paginada por cartera e índice de pendientes).
-    public Task<RespuestaValidacion<ColaValidacion>> ObtenerColaAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<ColaValidacion>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entren B-22 (documento y veredicto previo), B-24 (veredicto del sistema) y
-    // B-26 (propuesta de la IA con su registro).
-    public Task<RespuestaValidacion<DocumentoAValidar>> ObtenerDocumentoAsync(Guid id, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<DocumentoAValidar>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-22 (veredicto previo a la copia, con Deshacer de 10 s).
-    public Task<RespuestaValidacion<VeredictoRegistrado>> ValidarAsync(SolicitudValidar solicitud, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-22 (veredicto previo a la copia, con Deshacer de 10 s).
-    public Task<RespuestaValidacion<VeredictoRegistrado>> RechazarAsync(SolicitudRechazar solicitud, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-22 (veredicto previo a la copia, con Deshacer de 10 s).
-    public Task<RespuestaValidacion<VeredictoRegistrado>> MarcarIncompletoAsync(SolicitudMarcarIncompleto solicitud, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-22 (Deshacer de 10 s con efectos diferidos).
-    public Task<RespuestaValidacion<VeredictoRegistrado>> DeshacerAsync(Guid veredictoId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<VeredictoRegistrado>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-27 (lote con muestreo, R-2).
-    public Task<RespuestaValidacion<LoteRegistrado>> ValidarLoteAsync(IReadOnlyList<Guid> documentoIds, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
-
-    // shortcut: sin backend, cablear cuando entre B-27 (lote con muestreo, R-2) sobre el Deshacer de B-22.
-    public Task<RespuestaValidacion<LoteRegistrado>> DeshacerLoteAsync(Guid loteId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(RespuestaValidacion<LoteRegistrado>.NoDisponible);
-}
-
-/// <summary>
 /// La cola que el Gestor CAE tiene abierta: los documentos que dejó la lista tras filtrar y agrupar, en el orden en que los
 /// ve. «Empezar a validar» y abrir una fila la rellenan; la pantalla de validación la recorre con Anterior y Siguiente.
 /// Vive en el circuito del usuario y no guarda ningún dato del documento, solo identificadores.
@@ -89,8 +50,10 @@ public sealed class ColaEnCursoValidacion
 }
 
 /// <summary>
-/// Si Validar y Rechazar de Inbound registran veredictos. Apagado por defecto: hasta que entre D-12 (quien subió un documento
-/// no puede validarlo), solo se enciende en Development, con <c>Inbound__Validacion__Habilitado</c> en el perfil de arranque.
+/// Si Validar y Rechazar de Inbound registran veredictos. Apagado por defecto y solo encendible en Development, con
+/// <c>Inbound__Validacion__Habilitado</c> en el perfil de arranque. Quitar la guarda de Development pide las DOS cosas:
+/// D-12 (quien subió un documento no puede validarlo) y B-22 (el veredicto previo a la copia: hoy un Rechazar también copia
+/// el binario al Tenant TCE, DN-12 (a), y esa copia no se borra).
 /// Fuera de Development queda apagado aunque la clave diga lo contrario. Apagado, la cola se ve y Validar y Rechazar responden
 /// «no disponible».
 /// </summary>

@@ -171,8 +171,8 @@ public sealed record VeredictoRegistrado(Guid VeredictoId, VeredictoValidacion V
 public sealed record LoteRegistrado(Guid LoteId, int Documentos, int ParaRevision);
 
 /// <summary>
-/// Respuesta del servicio. «No disponible» no es un error: es la pantalla sin backend, que no pinta datos ni inventa
-/// ninguno. <see cref="Mensaje"/> lleva el motivo cuando el servidor rechaza una petición.
+/// Respuesta del servicio. «No disponible» no es un error: es la acción sin backend (o apagada por su opción), que no
+/// pinta datos ni inventa ninguno. <see cref="Mensaje"/> lleva el motivo cuando el servidor rechaza una petición.
 /// </summary>
 public sealed record RespuestaValidacion<T>(bool Disponible, T? Valor, string? Mensaje = null)
 {

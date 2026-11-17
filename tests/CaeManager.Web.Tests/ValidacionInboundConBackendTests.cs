@@ -193,6 +193,24 @@ public class ValidacionInboundConBackendTests : BunitContext
     }
 
     [Fact]
+    public void Una_validacion_del_Command_se_dice_en_la_pantalla_y_el_documento_sigue_pendiente()
+    {
+        _mediador.Excepcion = new FluentValidation.ValidationException(
+            [new FluentValidation.Results.ValidationFailure("Rechazo.Motivo", "Indica el motivo del rechazo.")]);
+        var cut = Detalle(DocA);
+
+        Pulsar(cut, "Rechazar");
+        cut.Find("#vd-explicacion-rechazo").GetAttribute("maxlength").Should().Be("1000", "el límite del motivo literal");
+        cut.Find("textarea").Input("Falta la firma.");
+        Pulsar(cut, "Rechazar");
+
+        _mediador.Comandos.Should().ContainSingle();
+        Services.GetRequiredService<ToastService>().Mensajes.Select(m => m.Mensaje)
+            .Should().Contain("Indica el motivo del rechazo.", "no cae al límite de errores de la página");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
     public void Un_tipo_que_el_catalogo_del_Tenant_TCE_no_tiene_no_llega_al_backend()
     {
         _mediador.Cola.Clear();
@@ -236,10 +254,12 @@ public class ValidacionInboundConBackendTests : BunitContext
             return Task.FromResult((TResponse)respuesta);
         }
 
+        public Exception? Excepcion { get; set; }
+
         private Result<Guid> Registrar(RegistrarEvidenciaInboundCommand comando)
         {
             Comandos.Add(comando);
-            return Respuesta;
+            return Excepcion is { } excepcion ? throw excepcion : Respuesta;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)

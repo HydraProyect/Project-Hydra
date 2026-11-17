@@ -430,6 +430,20 @@ public class EvidenciasInboundTests
     }
 
     [Fact]
+    public async Task Rechazar_un_certificado_de_solo_conclusion_tambien_lo_registra_ya_rechazado()
+    {
+        var documento = Guid.NewGuid();
+        _lector.Documentos.Add(Documento(documento, soloConclusion: true));
+        var comando = Comando(_tipoAptitud, ConclusionAptitud.Apto, documento)
+            with { Rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, "No se lee la conclusión.") };
+
+        (await Registrar().Handle(comando, CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        _repositorio.EstadosAlAgregar.Should().Equal([EstadoAcreditacion.Rechazada], "la rama médica aplica el mismo rechazo inicial");
+        _orden.Where(o => o == "SaveChanges").Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task Un_Rechazar_no_deja_rastro_de_Validado_en_auditoria_ni_en_eventos()
     {
         // La auditoría de la entidad la escribe AuditoriaInterceptor al guardar: una fila «Creado» con los valores que la
@@ -492,11 +506,16 @@ public class EvidenciasInboundTests
         var conTipo = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "formación prl " };
         var sinTipo = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "Tipo que el Tenant TCE no tiene" };
         var deEmpresa = Documento(Guid.NewGuid(), soloConclusion: false, deTrabajador: false) with { TipoDocumentoNombre = "Formación PRL" };
-        _lector.Documentos.AddRange([conTipo, sinTipo, deEmpresa]);
+        var tipoMedico = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "Certificado de aptitud" };
+        _lector.Documentos.AddRange([conTipo, sinTipo, deEmpresa, tipoMedico]);
 
         var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
 
-        cola.Select(c => c.DocumentoOrigenId).Should().BeEquivalentTo([conTipo.DocumentoId, sinTipo.DocumentoId, deEmpresa.DocumentoId]);
+        cola.Select(c => c.DocumentoOrigenId).Should().BeEquivalentTo(
+            [conTipo.DocumentoId, sinTipo.DocumentoId, deEmpresa.DocumentoId, tipoMedico.DocumentoId]);
+        cola.Single(c => c.DocumentoOrigenId == tipoMedico.DocumentoId).SoloConclusionAptitud.Should().BeTrue(
+            "si el tipo del Tenant TCE es de solo conclusión, el Command la pediría: la pantalla no debe ofrecer Validar sin ella");
+        cola.Where(c => c.DocumentoOrigenId != tipoMedico.DocumentoId).Should().OnlyContain(c => !c.SoloConclusionAptitud);
         cola.Should().OnlyContain(c => c.ContratoAccesoId == _contrato.Id && c.Centro == "Planta Zaragoza Norte"
                                        && c.EmpresaContratista == "Contratista de prueba");
         cola.Single(c => c.DocumentoOrigenId == conTipo.DocumentoId).Should().Match<DocumentoPendienteInboundDto>(
@@ -531,6 +550,32 @@ public class EvidenciasInboundTests
         _lector.Llamadas.Should().BeEmpty("sin autoridad no se lista ni se deja traza en el Tenant de la Empresa contratista");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task La_cola_decide_la_autoridad_contrato_a_contrato_y_no_lee_el_contrato_de_un_Cliente_empresarial_fuera_de_cartera(
+        bool elAjenoVaPrimero)
+    {
+        // Mismo Tenant TCE, otro Cliente empresarial que la Asignación de Cartera no cubre: la función SQL no mira la cartera,
+        // así que solo esta comprobación, en cada contrato, separa a los dos. Se prueba en los dos órdenes.
+        var otroCliente = Guid.NewGuid();
+        var centroAjeno = new Centro(otroCliente, otroCliente, nombre: "Almacén ajeno", codigoCentro: "AJ-1",
+            direccion: "Calle de prueba, 2", contacto: null, contratoVigenteHasta: null);
+        _centros.ListaCentros.Add(centroAjeno);
+        var ajeno = ContratoAcceso.Crear(otroCliente, centroAjeno.Id, _empresas.ListaEmpresas[0].Id, new DateOnly(2026, 3, 1), null, null);
+        ajeno.VincularTenantContratista(_tenantContratista);
+        if (elAjenoVaPrimero)
+            _contratos.ListaContratos.Insert(0, ajeno);
+        else
+            _contratos.ListaContratos.Add(ajeno);
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Should().NotBeEmpty().And.OnlyContain(c => c.ContratoAccesoId == _contrato.Id);
+        _lector.ContratosLeidos.Should().NotContain(ajeno.Id, "el contrato fuera de cartera no se lee ni deja traza")
+            .And.Contain(_contrato.Id, "el de la cartera sí, esté antes o después");
+    }
+
     [Fact]
     public async Task La_cola_sin_autorizacion_vigente_hoy_no_lista_los_Documentos()
     {
@@ -545,6 +590,7 @@ public class EvidenciasInboundTests
     private sealed class LectorFalso(List<string> orden) : ILectorDocumentosInbound
     {
         public List<string> Llamadas { get; } = [];
+        public List<Guid> ContratosLeidos { get; } = [];
         public List<DocumentoInboundDto> Documentos { get; } = [];
         public string? Referencia { get; set; }
         public Guid TenantPropietario { get; set; }
@@ -564,12 +610,14 @@ public class EvidenciasInboundTests
         public Task<AutorizacionInboundDto?> AutorizacionDelContratoAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default)
         {
             Apuntar("Autorizacion");
+            ContratosLeidos.Add(contratoAccesoId);
             return Task.FromResult(Autorizacion);
         }
 
         public Task<IReadOnlyList<DocumentoInboundDto>> DocumentosAutorizadosAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default)
         {
             Apuntar("Documentos");
+            ContratosLeidos.Add(contratoAccesoId);
             return Task.FromResult<IReadOnlyList<DocumentoInboundDto>>(Documentos.ToList());
         }
 

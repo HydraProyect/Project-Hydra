@@ -24,7 +24,8 @@ public record ObtenerColaValidacionInboundQuery : IRequest<IReadOnlyList<Documen
 
 /// <summary>Un Documento original pendiente de veredicto en un contrato de acceso, sin referencia de archivo.</summary>
 /// <param name="TipoDocumentoId">
-/// El tipo del catálogo del Tenant TCE con el mismo nombre que el del original, el que lleva su evidencia. Null si el catálogo
+/// El tipo del catálogo del Tenant TCE con el mismo nombre que el del original (sin espacios de los bordes ni distinguir
+/// mayúsculas; con dos así, el de Id menor), el que lleva su evidencia. Null si el catálogo
 /// no tiene ninguno: la correspondencia completa de tipos es de B-21, y sin tipo no hay veredicto.
 /// </param>
 /// <param name="TrabajadorId">Null en un Documento de la Empresa propia del Tenant de la Empresa contratista.</param>
@@ -65,10 +66,10 @@ public class ObtenerColaValidacionInboundQueryHandler(
 
         var tipos = (await tiposContext.TiposDocumento
                 .Where(t => !t.Archivado)
-                .Select(t => new { t.Id, t.Nombre })
+                .Select(t => new { t.Id, t.Nombre, t.SoloConclusionAptitud })
                 .ToListAsync(cancellationToken))
             .GroupBy(t => t.Nombre.Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.MinBy(t => t.Id)!, StringComparer.OrdinalIgnoreCase);
 
         var cola = new List<DocumentoPendienteInboundDto>();
         foreach (var contrato in contratos)
@@ -101,11 +102,12 @@ public class ObtenerColaValidacionInboundQueryHandler(
             foreach (var documento in documentos.Where(d => !conVeredicto.Contains(d.DocumentoId)))
             {
                 var deTrabajador = documento.TrabajadorId is not null;
+                var tipo = tipos.GetValueOrDefault(documento.TipoDocumentoNombre.Trim());
                 cola.Add(new DocumentoPendienteInboundDto(
                     contrato.Id,
                     documento.DocumentoId,
                     documento.TipoDocumentoNombre,
-                    tipos.TryGetValue(documento.TipoDocumentoNombre.Trim(), out var tipoId) ? tipoId : null,
+                    tipo?.Id,
                     documento.TrabajadorId,
                     deTrabajador
                         ? $"{documento.TrabajadorNombre} {documento.TrabajadorApellidos}".Trim()
@@ -117,7 +119,8 @@ public class ObtenerColaValidacionInboundQueryHandler(
                     documento.FechaEmision,
                     documento.FechaVencimiento,
                     documento.EstadoVigencia,
-                    documento.SoloConclusionAptitud));
+                    // Basta con que lo sea el original o el tipo del Tenant TCE: el Command pediría la conclusión.
+                    documento.SoloConclusionAptitud || tipo?.SoloConclusionAptitud == true));
             }
         }
 
