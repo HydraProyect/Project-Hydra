@@ -343,9 +343,11 @@ CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExten
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 // Validación Inbound (Documentos por validar y Validación): cola real, y Validar y Rechazar uno a uno solo con
-// Inbound:Validacion:Habilitado en Development (OpcionesValidacionInbound); lo demás, «no disponible» hasta B-22/B-24/B-26/B-27.
+// Inbound:Validacion:Habilitado=true, en cualquier entorno (OpcionesValidacionInbound; DECISION_LOG 2026-11-17, 2757bac y
+// cc7e68e). Producción queda cerrada solo porque allí no se pone la clave: hueco declarado hasta D-12 y B-22.
+// Lo demás, «no disponible» hasta B-22/B-24/B-26/B-27.
 CaeManager.Web.Features.Inbound.Validacion.ValidacionInboundServiceCollectionExtensions.AddValidacionInbound(
-    builder.Services, builder.Configuration, builder.Environment);
+    builder.Services, builder.Configuration);
 // Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
 CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();

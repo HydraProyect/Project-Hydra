@@ -51,21 +51,34 @@ public class ValidacionInboundConBackendTests : BunitContext
     public void La_opcion_de_Validar_viene_apagada_por_defecto() =>
         new OpcionesValidacionInbound().Habilitado.Should().BeFalse();
 
+    /// <summary>
+    /// Solo la clave enciende la validación, en cualquier entorno (DECISION_LOG 2026-11-17, 2757bac y cc7e68e). El entorno
+    /// se da por las dos vías por las que el host real lo expone, el contenedor (<see cref="IHostEnvironment"/>) y la clave
+    /// <c>environment</c> de la configuración, para que una guarda que vuelva a leerlo por cualquiera de ellas haga fallar
+    /// las filas de Production y Staging. Que Program.cs no lo filtre lo fija ValidacionInboundRegistradaEnProgramTests.
+    /// </summary>
     [Theory]
+    [InlineData("Production", "true", true)]
+    [InlineData("Staging", "true", true)]
     [InlineData("Development", "true", true)]
-    [InlineData("Development", null, false)]
+    [InlineData("Production", "false", false)]
+    [InlineData("Staging", "false", false)]
     [InlineData("Development", "false", false)]
-    [InlineData("Production", "true", false)]
-    [InlineData("Staging", "true", false)]
-    public void La_opcion_solo_se_enciende_en_Development_con_su_clave(string entorno, string? valor, bool esperado)
+    [InlineData("Production", null, false)]
+    [InlineData("Staging", null, false)]
+    [InlineData("Development", null, false)]
+    public void La_opcion_la_enciende_solo_su_clave_en_cualquier_entorno(string entorno, string? valor, bool esperado)
     {
         var configuracion = new ConfigurationBuilder()
-            .AddInMemoryCollection(valor is null ? [] : [new("Inbound:Validacion:Habilitado", valor)])
+            .AddInMemoryCollection(valor is null
+                ? [new(HostDefaults.EnvironmentKey, entorno)]
+                : [new(HostDefaults.EnvironmentKey, entorno), new("Inbound:Validacion:Habilitado", valor)])
             .Build();
         var servicios = new ServiceCollection();
         servicios.AddSingleton<ISender>(_mediador);
+        servicios.AddSingleton<IHostEnvironment>(new EntornoFalso(entorno));
 
-        servicios.AddValidacionInbound(configuracion, new EntornoFalso(entorno));
+        servicios.AddValidacionInbound(configuracion);
 
         servicios.BuildServiceProvider().GetRequiredService<IOptions<OpcionesValidacionInbound>>().Value.Habilitado
             .Should().Be(esperado);
