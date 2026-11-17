@@ -194,7 +194,9 @@ public class SubirDocumentoRequerimientoTecCommandHandler(
         return (efectivo.Id, efectivo.Version);
     }
 
-    // D-12: cuando las factorías de Documento reciban el autor de la subida, se pasa en estos dos únicos puntos.
+    // D-12: el autor de la versión no se pasa aquí. Lo resuelven CrearDocumentoCommandHandler y
+    // RenovarDocumentoCommandHandler con AutorDeLaSubida desde la identidad de auditoría; un parámetro de autor en estos
+    // comandos duplicaría esa regla única y dejaría que quien los envía eligiera el autor.
     private static CrearDocumentoCommand Alta(Guid tipoId, SubirDocumentoRequerimientoTecCommand request) =>
         // Posicional a propósito: el Cliente empresarial, el vehículo y el proyecto van vacíos, y nombrar el argumento del
         // Cliente empresarial sumaría una ubicación al trinquete de ClienteIdNoSeExtiendeTests.

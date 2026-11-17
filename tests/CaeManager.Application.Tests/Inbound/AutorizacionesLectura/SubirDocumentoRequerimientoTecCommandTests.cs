@@ -105,11 +105,12 @@ public class SubirDocumentoRequerimientoTecCommandTests
             throw new NotSupportedException();
     }
 
-    private RequisitoTecDto Requisito(string tipo, string entidad = "Trabajador", Guid? contrato = null, string ambito = "GeneralTec")
+    private RequisitoTecDto Requisito(
+        string tipo, string entidad = "Trabajador", Guid? contrato = null, string ambito = "GeneralTec", int tiposContratacion = 7)
     {
         var requisito = new RequisitoTecDto(contrato ?? _contrato, "Logística Delta Sur", Guid.NewGuid(), "Planta Zaragoza Norte",
             "Logística Delta Sur S.A.", Guid.NewGuid(), Guid.NewGuid(), tipo, entidad, "Certificado vigente", "Fija", 12, 0, true, ambito,
-            "DeCentro", "Todos", 7);
+            "DeCentro", "Todos", tiposContratacion);
         _requisitos.Add(requisito);
         return requisito;
     }
@@ -235,6 +236,22 @@ public class SubirDocumentoRequerimientoTecCommandTests
         var (handler, mediador, _) = Montar();
 
         var resultado = await handler.Handle(Subida(requisito, _noAsignado.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado.Codigo);
+        mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_asignado_cuya_contratacion_no_entra_en_la_mascara_del_requisito_se_rechaza_sin_escribir()
+    {
+        // La subida hereda la máscara de contratación de la Query (#2342): un requisito solo de Extranjero no se pide a un
+        // Trabajador por cuenta ajena, aunque esté asignado al contrato de acceso.
+        var requisito = Requisito("Formación en altura", tiposContratacion: (int)TiposContratacion.Extranjero);
+        Autorizar(trabajadores: _asignado);
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado.Codigo);
