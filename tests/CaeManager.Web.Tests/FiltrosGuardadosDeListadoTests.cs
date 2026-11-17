@@ -58,7 +58,7 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
 
     private sealed class MediatorDeFiltros : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public Result<Guid>? ResultadoGuardar { get; set; }
         public bool FallaLaLectura { get; set; }

@@ -74,6 +74,26 @@ public class ApplicationServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void La_reevaluacion_del_expediente_va_dentro_de_la_serializacion_y_por_fuera_de_la_restauracion_y_la_autorizacion()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+
+        var behaviors = servicios
+            .Where(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType)
+            .ToList();
+
+        var reevaluacion = behaviors.IndexOf(typeof(CaeManager.Application.Visitas.Antelacion.ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<,>));
+        reevaluacion.Should().BeGreaterThan(behaviors.IndexOf(typeof(SerializacionAccesoDatosBehavior<,>)),
+            "usa el DbContext del scope: tiene que correr con la puerta de acceso a datos tomada");
+        reevaluacion.Should().BeLessThan(behaviors.IndexOf(typeof(RestauracionCambiosDeComandoBehavior<,>)),
+            "solo actúa sobre una orden que ya terminó bien, después de su restauración en caso de fallo");
+        reevaluacion.Should().BeLessThan(behaviors.IndexOf(typeof(AutorizacionEscrituraBehavior<,>)),
+            "una orden que la autorización rechaza no llega a guardar y no debe reevaluar nada");
+    }
+
+    [Fact]
     public void El_behavior_de_invalidacion_del_alcance_va_por_fuera_de_la_autorizacion_de_escritura()
     {
         var servicios = new ServiceCollection();

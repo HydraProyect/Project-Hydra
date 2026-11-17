@@ -5,6 +5,7 @@ using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Gestiones.Recursos;
+using CaeManager.Web.Services.Autorizacion;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.Extensions.Localization;
@@ -16,7 +17,7 @@ public static class GestionesEndpoints
 {
     public static IEndpointRouteBuilder MapGestionesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/gestiones/exportar.xlsx", ExportarAsync).SoloRolesDelListado();
+        endpoints.MapGet("/gestiones/exportar.xlsx", ExportarAsync).SoloRolesDelListado().DeOutbound();
 
         return endpoints;
     }

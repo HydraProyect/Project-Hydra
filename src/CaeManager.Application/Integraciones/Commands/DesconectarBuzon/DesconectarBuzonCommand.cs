@@ -23,6 +23,10 @@ public class DesconectarBuzonCommandValidator : AbstractValidator<DesconectarBuz
 /// <summary>
 /// Deshabilita una conexión, libera su reclamación del buzón y borra su suscripción de Graph.
 /// <para>
+/// Solo el Administrador desconecta, y el rol efectivo se mira aquí, antes de leer nada, y no solo en la página: la
+/// pantalla no es una frontera de autorización (como <see cref="FijarResponsableBuzon.FijarResponsableBuzonCommandHandler"/>).
+/// </para>
+/// <para>
 /// En Microsoft 365 todo corre dentro de <see cref="ICerrojoVerificacionBuzon"/>, el mismo cerrojo por conexión de
 /// Reactivar y de la verificación de identidad (ciclo diario y reintento): sin él, Reactivar podía entrar entre el
 /// guardado de la Deshabilitada y el DELETE de Graph, renovar la suscripción y dejar la conexión Habilitada, y después
@@ -51,6 +55,7 @@ public class DesconectarBuzonCommandHandler(
     ISuscripcionWebhookRepository suscripcionRepositorio,
     IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IUnitOfWork unitOfWork,
@@ -63,6 +68,14 @@ public class DesconectarBuzonCommandHandler(
 {
     /// <summary>El mismo código que devuelve Reactivar con el cerrojo ocupado.</summary>
     public const string CodigoVerificacionEnCurso = ReactivarConexion.ReactivarConexionCommandHandler.CodigoVerificacionEnCurso;
+
+    private const string RolAdministrador = "Administrador";
+
+    /// <summary>
+    /// El mismo código que <see cref="FijarResponsableBuzon.FijarResponsableBuzonCommandHandler"/>: lo usan también
+    /// Reactivar, Reparar y Conectar.
+    /// </summary>
+    public const string CodigoSoloAdministrador = "Integraciones.Buzon.SoloAdministrador";
 
     /// <summary>Guardados de la marca del hueco ante colisiones de concurrencia seguidas, contando el primero.</summary>
     public const int IntentosGuardadoMarca = 3;
@@ -78,6 +91,10 @@ public class DesconectarBuzonCommandHandler(
 
     public async Task<Result> Handle(DesconectarBuzonCommand request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() != RolAdministrador)
+            return Result.Fallo(Error.Crear(
+                CodigoSoloAdministrador, "Solo el Administrador puede desconectar un buzón."));
+
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
         if (conexion is null || !await VisibleAsync(conexion, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));

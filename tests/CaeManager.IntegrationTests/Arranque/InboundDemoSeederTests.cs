@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
+using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,49 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Arranque;
 
 /// <summary>
+/// El almacén de la siembra Inbound en memoria. Exige un Tenant resuelto para guardar y cuelga cada clave de su carpeta, como
+/// <c>DiskFileStorageService</c> (que aquí no se monta): la siembra guarda dentro del ámbito del Tenant TEC, no fuera. Cuenta
+/// las llamadas para probar que una siembra inerte o rechazada no toca el almacén.
+/// </summary>
+internal sealed class AlmacenDeSiembraInboundEnMemoria : IFileStorageService
+{
+    private readonly Dictionary<string, byte[]> _archivos = [];
+
+    public int Llamadas { get; private set; }
+
+    public IReadOnlyDictionary<string, byte[]> Archivos => _archivos;
+
+    /// <summary>Corre justo después de escribir un fichero: un test lo usa para hacer fallar el guardado de la fila que sigue.</summary>
+    public Action? AlGuardar { get; set; }
+
+    public async Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+    {
+        Llamadas++;
+        var tenantId = AmbitoTenantExplicito.TenantIdActual
+            ?? throw new InvalidOperationException("No se puede guardar un archivo sin un tenant resuelto.");
+        using var memoria = new MemoryStream();
+        await contenido.CopyToAsync(memoria, cancellationToken);
+        var clave = $"{tenantId:N}/{Guid.NewGuid():N}{Path.GetExtension(nombreArchivoOriginal)}";
+        _archivos[clave] = memoria.ToArray();
+        AlGuardar?.Invoke();
+        return clave;
+    }
+
+    public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)
+    {
+        Llamadas++;
+        return Task.FromResult<Stream>(new MemoryStream(_archivos[identificador]));
+    }
+
+    public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
+    {
+        Llamadas++;
+        _archivos.Remove(identificador);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
 /// <b>La siembra Inbound de Development deja lo que declara, en el Tenant que lo posee, y una segunda pasada no escribe
 /// nada.</b> Corre sobre PostgreSQL real con el <see cref="CaeManagerDbContext"/> como cae_app_runtime (RLS efectiva), igual
 /// que el arranque fuera de la base local; cada recuento se lee dentro del ámbito del Tenant propietario de la fila, así que
@@ -27,6 +71,7 @@ public sealed class InboundDemoSeederFixture : IAsyncLifetime
 {
     internal ArnesDeArranqueRuntime Arnes { get; private set; } = null!;
     internal IConfiguration Configuracion { get; private set; } = null!;
+    internal AlmacenDeSiembraInboundEnMemoria Almacen { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -45,7 +90,7 @@ public sealed class InboundDemoSeederFixture : IAsyncLifetime
         var sp = ambito.ServiceProvider;
         await InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
-            sp.GetRequiredService<IUserStore<ApplicationUser>>(), Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), Almacen, Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
 
         // Como en Program.cs: la línea Inbound, con el contexto de bootstrap y después de la siembra que crea su Tenant.
         await using var bootstrap = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
@@ -230,6 +275,74 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
         (await SellosAsync()).Should().BeEquivalentTo(sellosAntes);
     }
 
+    /// <summary>
+    /// Cada Documento del Tenant TEC Montajes Moncayo (los tres de Empresa y los seis de Trabajador) lleva un PDF de prueba
+    /// en la carpeta de su Tenant, con el texto de la constante: el de la aptitud médica, solo la conclusión.
+    /// </summary>
+    [Fact]
+    public async Task Cada_Documento_del_Tenant_TEC_Moncayo_lleva_un_PDF_de_prueba_en_su_carpeta()
+    {
+        var moncayoId = (await IdsAsync(InboundDemoSeeder.NombreTenantMoncayo)).Single();
+        var documentos = await EnTenantAsync(InboundDemoSeeder.NombreTenantMoncayo, async db =>
+        {
+            var tipos = await db.TiposDocumento.ToDictionaryAsync(t => t.Id, t => t.Nombre);
+            return (await db.Documentos.ToListAsync()).Select(d => (d.ArchivoUrl, Tipo: tipos[d.TipoDocumentoId])).ToList();
+        });
+
+        documentos.Should().HaveCount(9, "control: se miran los nueve Documentos sembrados, no un conjunto vacío");
+        documentos.Should().OnlyContain(d => d.ArchivoUrl != null, "MEDIDO: ningún Documento de Moncayo nace sin archivo");
+        documentos.Select(d => d.ArchivoUrl!).Should().OnlyHaveUniqueItems("cada Documento tiene su propio fichero");
+
+        foreach (var (clave, tipo) in documentos.Select(d => (d.ArchivoUrl!, d.Tipo)))
+        {
+            clave.Should().StartWith($"{moncayoId:N}/", "el fichero se guarda en la carpeta del Tenant propietario");
+            clave.Should().EndWith(".pdf");
+
+            var bytes = fixture.Almacen.Archivos[clave];
+            Encoding.Latin1.GetString(bytes, 0, 5).Should().Be("%PDF-");
+            var texto = tipo == "Certificado de aptitud médica" ? InboundDemoPdf.TextoDeAptitud : InboundDemoPdf.TextoGeneral;
+            Encoding.Latin1.GetString(bytes).Should().Contain($"({texto}) Tj");
+        }
+
+        documentos.Count(d => fixture.Almacen.Archivos[d.ArchivoUrl!].AsSpan().SequenceEqual(InboundDemoPdf.Generar(InboundDemoPdf.TextoDeAptitud)))
+            .Should().Be(2, "los dos certificados de aptitud médica sembrados solo dicen «Apto»");
+    }
+
+    [Fact]
+    public async Task Los_Tenants_TEC_sin_autorizacion_de_lectura_no_llevan_archivos()
+    {
+        foreach (var otro in new[] { InboundDemoSeeder.NombreTenantRibera, InboundDemoSeeder.NombreTenantSomontano })
+            (await EnTenantAsync(otro, db => db.Documentos.CountAsync(d => d.ArchivoUrl != null))).Should().Be(0, otro);
+
+        var moncayoId = (await IdsAsync(InboundDemoSeeder.NombreTenantMoncayo)).Single();
+        fixture.Almacen.Archivos.Keys.Should().OnlyContain(k => k.StartsWith($"{moncayoId:N}/"), "ningún fichero cae en otra carpeta");
+    }
+
+    /// <summary>La siembra sigue sin crear Evidencias: las crea la validación en directo del Gestor CAE.</summary>
+    [Fact]
+    public async Task La_siembra_no_crea_Evidencias_Inbound()
+    {
+        (await ContarAsync())["EvidenciasInbound"].Should().Be(0);
+    }
+
+    /// <summary>Una segunda pasada ni escribe un fichero más ni cambia la clave de ninguno.</summary>
+    [Fact]
+    public async Task Una_segunda_siembra_no_duplica_archivos()
+    {
+        var clavesAntes = fixture.Almacen.Archivos.Keys.Order().ToList();
+        var referenciasAntes = await EnTenantAsync(InboundDemoSeeder.NombreTenantMoncayo, db =>
+            db.Documentos.Select(d => d.ArchivoUrl!).OrderBy(c => c).ToListAsync());
+        var llamadasAntes = fixture.Almacen.Llamadas;
+
+        await fixture.SembrarAsync();
+
+        fixture.Almacen.Archivos.Keys.Order().Should().Equal(clavesAntes);
+        fixture.Almacen.Llamadas.Should().Be(llamadasAntes, "una segunda pasada no toca el almacén");
+        (await EnTenantAsync(InboundDemoSeeder.NombreTenantMoncayo, db =>
+            db.Documentos.Select(d => d.ArchivoUrl!).OrderBy(c => c).ToListAsync())).Should().Equal(referenciasAntes);
+        clavesAntes.Should().HaveCount(9);
+    }
+
     private async Task<Dictionary<Guid, string>> SellosAsync()
     {
         await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
@@ -258,6 +371,7 @@ public class InboundDemoSeederTests(InboundDemoSeederFixture fixture) : IClassFi
             ["Centros"] = await bootstrap.Centros.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["Trabajadores"] = await bootstrap.Trabajadores.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["Documentos"] = await bootstrap.Documentos.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
+            ["EvidenciasInbound"] = await bootstrap.EvidenciasInbound.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["ContratosAcceso"] = await bootstrap.ContratosAcceso.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["HistorialVigencia"] = await bootstrap.HistorialVigenciaContratos.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
             ["Plantillas"] = await bootstrap.PlantillasRequisitos.IgnoreQueryFilters().CountAsync(e => tenants.Contains(e.TenantId)),
@@ -334,7 +448,8 @@ public sealed class InboundDemoSeederMarcadorTests : IAsyncLifetime
 
         var siembra = () => InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
-            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), new AlmacenDeSiembraInboundEnMemoria(), _configuracion,
+            EntornoDePrueba.Desarrollo, NullLogger.Instance);
         await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*sin el marcador de datos de demo*");
 
         await using var lectura = sp.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
@@ -370,13 +485,134 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
 
     public Task DisposeAsync() => _arnes.DisposeAsync().AsTask();
 
-    private async Task SembrarAsync()
+    private readonly AlmacenDeSiembraInboundEnMemoria _almacen = new();
+
+    private async Task SembrarAsync(CancellationToken cancellationToken = default)
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
         await InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
-            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _almacen, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance,
+            cancellationToken);
+    }
+
+    private async Task<Guid> IdDeMoncayoAsync()
+    {
+        await using var bootstrap = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        return await bootstrap.Tenants.Where(t => t.Nombre == InboundDemoSeeder.NombreTenantMoncayo).Select(t => t.Id).SingleAsync();
+    }
+
+    /// <summary>
+    /// Si el guardado de la fila falla (aquí, una cancelación justo después de escribir el fichero), el fichero recién
+    /// escrito se retira: no queda huérfano en la carpeta del Tenant TEC y el Documento sigue sin archivo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_falla_el_fichero_recien_escrito_se_retira()
+    {
+        await SembrarAsync();
+        var moncayoId = await IdDeMoncayoAsync();
+
+        Guid sinArchivo;
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                sinArchivo = await db.Documentos.Select(d => d.Id).FirstAsync();
+                await db.Documentos.Where(d => d.Id == sinArchivo).ExecuteUpdateAsync(s => s.SetProperty(d => d.ArchivoUrl, (string?)null));
+            }
+        }
+
+        var clavesAntes = _almacen.Archivos.Keys.ToHashSet();
+        using var cts = new CancellationTokenSource();
+        _almacen.AlGuardar = cts.Cancel;
+
+        var sembrar = () => SembrarAsync(cts.Token);
+        await sembrar.Should().ThrowAsync<OperationCanceledException>();
+
+        _almacen.AlGuardar = null;
+        _almacen.Archivos.Keys.Should().BeEquivalentTo(clavesAntes, "el fichero que se escribió antes del fallo se retiró");
+
+        using var ambito2 = _arnes.Servicios.CreateScope();
+        var db2 = ambito2.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(moncayoId))
+            (await db2.Documentos.Where(d => d.Id == sinArchivo).Select(d => d.ArchivoUrl).SingleAsync()).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Regla declarada: «sin archivo» es «sin el PDF de prueba», salvo en un Documento anonimizado, cuyo archivo se retiró
+    /// a propósito y no se repone.
+    /// </summary>
+    [Fact]
+    public async Task Un_Documento_anonimizado_no_recupera_archivo()
+    {
+        await SembrarAsync();
+        var moncayoId = await IdDeMoncayoAsync();
+
+        Guid anonimizado;
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                var documento = await db.Documentos.FirstAsync();
+                anonimizado = documento.Id;
+                documento.Anonimizar(DateTime.UtcNow);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var ficherosAntes = _almacen.Archivos.Count;
+        await SembrarAsync();
+
+        using var ambito2 = _arnes.Servicios.CreateScope();
+        var db2 = ambito2.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(moncayoId))
+            (await db2.Documentos.Where(d => d.Id == anonimizado).Select(d => d.ArchivoUrl).SingleAsync()).Should().BeNull("un Documento anonimizado no recibe el PDF de prueba");
+        _almacen.Archivos.Should().HaveCount(ficherosAntes, "no se escribe ningún fichero nuevo");
+    }
+
+    /// <summary>
+    /// Un Documento vivo de Montajes Moncayo sin archivo (una base sembrada antes de este paso) recibe el suyo en la siguiente
+    /// pasada, y los que ya lo tienen, ni su clave ni su fichero cambian.
+    /// </summary>
+    [Fact]
+    public async Task Un_Documento_sin_archivo_recibe_su_PDF_y_los_demas_no_se_tocan()
+    {
+        await SembrarAsync();
+
+        Guid moncayoId;
+        await using (var bootstrap = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
+            moncayoId = await bootstrap.Tenants.Where(t => t.Nombre == InboundDemoSeeder.NombreTenantMoncayo).Select(t => t.Id).SingleAsync();
+
+        async Task<Dictionary<Guid, string?>> ReferenciasAsync()
+        {
+            using var ambito = _arnes.Servicios.CreateScope();
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+                return await db.Documentos.ToDictionaryAsync(d => d.Id, d => d.ArchivoUrl);
+        }
+
+        var antes = await ReferenciasAsync();
+        antes.Should().HaveCount(9).And.OnlyContain(r => r.Value != null);
+        var sinArchivo = antes.Keys.First();
+
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+                await db.Documentos.Where(d => d.Id == sinArchivo).ExecuteUpdateAsync(s => s.SetProperty(d => d.ArchivoUrl, (string?)null));
+        }
+
+        var ficherosAntes = _almacen.Archivos.Count;
+        await SembrarAsync();
+
+        var despues = await ReferenciasAsync();
+        despues[sinArchivo].Should().NotBeNullOrEmpty().And.NotBe(antes[sinArchivo], "recibe un fichero nuevo, el viejo ya no cuelga de ningún Documento");
+        foreach (var (id, clave) in antes.Where(r => r.Key != sinArchivo))
+            despues[id].Should().Be(clave, "un Documento que ya tenía archivo no se toca");
+        _almacen.Archivos.Should().HaveCount(ficherosAntes + 1, "un solo fichero nuevo");
     }
 
     [Fact]
@@ -420,7 +656,7 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
             }
         }
 
-        var resembrar = SembrarAsync;
+        var resembrar = () => SembrarAsync();
         await resembrar.Should().NotThrowAsync();
 
         // Después, el revisor corrige los DNI de los Trabajadores del Tenant TEC (los de la siembra quedan libres en el índice
@@ -484,7 +720,7 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
             }
         }
 
-        var sembrar = SembrarAsync;
+        var sembrar = () => SembrarAsync();
         await sembrar.Should().NotThrowAsync();
 
         using (var ambito = _arnes.Servicios.CreateScope())
@@ -540,10 +776,37 @@ public class InboundDemoSeederArranqueTests
             [InboundDemoSeeder.ClaveConfiguracion] = "true"
         }).Build();
 
+        var almacen = new AlmacenDeSiembraInboundEnMemoria();
         var siembra = () => InboundDemoSeeder.SeedAsync(
-            dbContext: null!, userManager: null!, userStore: null!, configuracion, new EntornoDePrueba("Staging"), NullLogger.Instance);
+            dbContext: null!, userManager: null!, userStore: null!, almacen, configuracion, new EntornoDePrueba("Staging"), NullLogger.Instance);
 
         await siembra.Should().ThrowAsync<InvalidOperationException>().WithMessage("*solo puede activarse en Development*");
+        almacen.Llamadas.Should().Be(0, "ni un fichero antes de rechazar el entorno");
+    }
+
+    /// <summary>
+    /// Los PDF de prueba solo existen con las dos claves: sin <c>DatosPrueba:Activo</c> o sin la clave Inbound la siembra es
+    /// inerte y no toca el almacén, en cualquier entorno.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", false, true)]
+    [InlineData("Production", true, false)]
+    [InlineData("Development", false, true)]
+    [InlineData("Development", true, false)]
+    public async Task Sin_las_dos_claves_la_siembra_es_inerte_y_no_toca_el_almacen(string entorno, bool datosPrueba, bool inbound)
+    {
+        var configuracion = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DatosPrueba:Activo"] = datosPrueba.ToString(),
+            [InboundDemoSeeder.ClaveConfiguracion] = inbound.ToString()
+        }).Build();
+
+        var almacen = new AlmacenDeSiembraInboundEnMemoria();
+        var siembra = () => InboundDemoSeeder.SeedAsync(
+            dbContext: null!, userManager: null!, userStore: null!, almacen, configuracion, new EntornoDePrueba(entorno), NullLogger.Instance);
+
+        await siembra.Should().NotThrowAsync();
+        almacen.Llamadas.Should().Be(0);
     }
 
     [Theory]

@@ -1141,7 +1141,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         var partes = new List<string>();
         partes.Add(Textos["MetaAltaFecha", tecnico.FechaAlta]);
         if (tecnico.FechaBaja is { } baja)
-            partes.Add(Textos["MetaBajaFecha", baja]);
+            partes.Add(Textos[ProyectoDetalle.ClaveMetaBaja(tecnico.MotivoBaja), baja]);
         return string.Join(" · ", partes);
     }
 

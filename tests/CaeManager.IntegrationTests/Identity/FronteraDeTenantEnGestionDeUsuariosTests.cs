@@ -270,7 +270,14 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
             Activo: true, EsOperadorDelegado: true, PendienteActivacion: false, Alcance: null!);
 
-        await InvocarToleraRecargaSinRendererAsync(pagina, "CambiarActivacionAsync", filaDelegada);
+        // Los mismos argumentos que manda el diálogo de desactivar al confirmar «A nadie por ahora»
+        // (ConfirmarDesactivacionAsync): sin destino, SinDestinoConfirmado y los errores de decisión de
+        // cartera devueltos al llamante. Es la decisión de cartera que, sobre un Gestor CAE del Tenant
+        // propio, sí desactivaría la cuenta; así lo único que puede impedirlo aquí es la frontera entre
+        // Tenants, no la falta de una decisión de cartera.
+        await InvocarToleraRecargaSinRendererAsync(
+            pagina, "CambiarActivacionAsync", filaDelegada,
+            /* gestorCaeDestinoId */ null, /* sinDestinoConfirmado */ true, /* erroresDeDecisionALlamante */ true);
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var usuarioTrasElAtaque = await userManager.FindByIdAsync(_usuarioAjenoDelegado.ToString());
@@ -392,7 +399,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(sp.GetRequiredService<CaeManagerDbContext>(), administrador),
                 sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>(),
                 new CaeManager.Infrastructure.Persistence.AdministradoresDelTenant(
-                    sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<DirectorioUsuariosTenant>()))
+                    sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<DirectorioUsuariosTenant>()),
+                new AvisoSinGestorCaeAnotado())
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -713,7 +721,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                     cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio,
-                    new OtroAdministradorSiempre()).Handle(c, cancellationToken),
+                    new OtroAdministradorSiempre(), new AvisoSinGestorCaeAnotado()).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
                     cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre(), new SinBloqueoCartera()).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),

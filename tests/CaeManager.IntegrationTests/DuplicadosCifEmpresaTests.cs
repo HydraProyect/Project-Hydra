@@ -98,6 +98,56 @@ public class DuplicadosCifEmpresaTests : IAsyncLifetime
         (await new EmpresaRepository(sinTenant).ObtenerDuplicadaPorCifAsync("B12345674")).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Identidades_incluyen_bajas_cierran_por_Tenant_propietario_y_responden_como_las_consultas_unitarias()
+    {
+        // #1991: la lectura única de la plantilla maestra contra la base real, con su collation, frente a las consultas
+        // por fila a las que sustituye.
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            var ajena = new Empresa("Ajena Ficticia, S.L.", "B00000000");
+            ajena.MarcarComoEliminado(Guid.NewGuid());
+            contexto.Empresas.Add(ajena);
+            await contexto.SaveChangesAsync();
+        }
+        Empresa activa, baja, sinCif;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            activa = new Empresa("Industrias Ficticias, S.L.", "B12345674");
+            baja = new Empresa("Distribuciones Ficticias, S.A.", "A58818501");
+            baja.MarcarComoEliminado(Guid.NewGuid());
+            sinCif = new Empresa("Sin Cif Ficticia, S.L.");
+            contexto.Empresas.AddRange(activa, baja, sinCif);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var repo = new EmpresaRepository(contexto);
+            var identidades = await repo.ListarIdentidadesIncluyendoBajasAsync();
+            identidades.Should().BeEquivalentTo(
+            [
+                new IdentidadEmpresa(activa.Id, "B12345674", "Industrias Ficticias, S.L.", false),
+                new IdentidadEmpresa(baja.Id, "A58818501", "Distribuciones Ficticias, S.A.", true),
+                new IdentidadEmpresa(sinCif.Id, null, "Sin Cif Ficticia, S.L.", false),
+            ]);
+
+            var catalogo = await CatalogoIdentidadesEmpresa.CargarAsync(repo, default);
+            foreach (var excluir in new Guid?[] { null, activa.Id, baja.Id })
+            {
+                foreach (var cif in new[] { "B12345674", " b12345674 ", "a58818501", "B00000000", "B99999999" })
+                    (catalogo.DuplicadaPorCif(cif, excluir)?.Id).Should().Be((await repo.ObtenerDuplicadaPorCifAsync(cif, excluir))?.Id, $"CIF «{cif}»");
+                foreach (var razon in new[] { "  Industrias Ficticias, S.L. ", "industrias ficticias, s.l.", "Distribuciones Ficticias, S.A.", "Ajena Ficticia, S.L.", "Nadie, S.L." })
+                    catalogo.ComprobarRazonSocial(razon, excluir).Should().BeEquivalentTo(
+                        await DuplicadosEmpresa.ComprobarRazonSocialAsync(repo, razon, excluir), $"razón social «{razon}»");
+            }
+            catalogo.DuplicadaPorCif("a58818501")!.EstaEliminado.Should().BeTrue();
+        }
+
+        await using var sinTenant = CrearContexto(null);
+        (await new EmpresaRepository(sinTenant).ListarIdentidadesIncluyendoBajasAsync()).Should().BeEmpty();
+    }
+
     private CaeManagerDbContext CrearContexto(Guid? tenant)
     {
         var actual = new TenantActualAmbiental { TenantId = tenant };

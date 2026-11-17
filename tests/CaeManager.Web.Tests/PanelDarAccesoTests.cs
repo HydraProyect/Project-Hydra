@@ -744,7 +744,7 @@ public class PanelDarAccesoTests : BunitContext
 
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public IReadOnlyList<CarterasDeOperacion> Operaciones { get; set; } = [];
 
         /// <summary>Las propuestas que quien mira envió y siguen sin responder.</summary>

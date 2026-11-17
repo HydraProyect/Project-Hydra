@@ -17,7 +17,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionPendiente
 /// comprobación de cartera del Gestor CAE. Una Rechazada no vuelve a pendiente sin versión nueva (ver la entidad).
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record MarcarAcreditacionPendienteDeSubirCommand(Guid AcreditacionId) : ICommand;
+public record MarcarAcreditacionPendienteDeSubirCommand(Guid AcreditacionId) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class MarcarAcreditacionPendienteDeSubirCommandValidator : AbstractValidator<MarcarAcreditacionPendienteDeSubirCommand>
 {

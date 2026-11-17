@@ -1,0 +1,60 @@
+@using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion
+@using CaeManager.Web.Features.Integraciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConexiones> Textos
+
+@*
+    El diálogo «Dar por revisado el aviso» (issue #2124), uno solo para Conexiones y Buzón: los dos párrafos de la maqueta,
+    con el buzón en negrita, y Cancelar y Confirmar en el pie. Solo pinta: quién puede confirmar, enviar
+    ReconocerAvisoHuecoCommand y recargar es de cada página. Se abre con una conexión que tenga el aviso y se cierra al
+    poner Conexion a null. Mientras se confirma no se cierra por fuera ni con Cancelar.
+*@
+<Modal Visible="Conexion is not null" VisibleChanged="CerrarAsync"
+       Titulo="@Textos["ModalConfirmarAvisoHuecoTitulo"]" CerrarAlHacerClicFuera="!Confirmando" Bloqueante="Confirmando">
+    <ChildContent>
+        @if (Conexion is { CorreoNoRecuperadoDesdeUtc: { } marca } conexion)
+        {
+            var (antes, despues) = PartirPorElBuzon(marca);
+            <div class="modal-confirmar-aviso-hueco" data-testid="modal-confirmar-aviso-hueco">
+                <p>@antes<strong>@conexion.BuzonEmail</strong>@despues</p>
+                <p>@Textos["ModalConfirmarAvisoHuecoConsecuencia"]</p>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Confirmando" OnClick="() => CerrarAsync(false)">@Textos["AccionCancelarAvisoHueco"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="Confirmando" OnClick="OnConfirmar" data-testid="confirmar-aviso-hueco">
+            @Textos["AccionConfirmarAvisoHueco"]
+        </Boton>
+    </Pie>
+</Modal>
+
+@code {
+    /// <summary>Marca que no aparece en un texto traducido: separa el buzón para pintarlo en negrita sin MarkupString.</summary>
+    private const string Hueco = "\u0001";
+
+    /// <summary>La conexión cuyo aviso se confirma; null, el diálogo cerrado.</summary>
+    [Parameter] public ConexionIntegracionListaDto? Conexion { get; set; }
+
+    /// <summary>La página está enviando el comando: el diálogo no se cierra y Confirmar muestra que carga.</summary>
+    [Parameter] public bool Confirmando { get; set; }
+
+    /// <summary>Cancelar, la X o el fondo: la página pone <see cref="Conexion"/> a null.</summary>
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    [Parameter] public EventCallback OnConfirmar { get; set; }
+
+    private Task CerrarAsync(bool visible) =>
+        visible || Confirmando ? Task.CompletedTask : OnCancelar.InvokeAsync();
+
+    /// <summary>
+    /// El primer párrafo con el buzón fuera: el texto se formatea con una marca en su lugar y se parte por ella. El buzón lo
+    /// escapa Blazor como cualquier texto. Si una traducción no lo nombra, sale el párrafo entero y el buzón detrás.
+    /// </summary>
+    private (string Antes, string Despues) PartirPorElBuzon(DateTime marcaUtc)
+    {
+        var texto = Textos["ModalConfirmarAvisoHuecoTexto", Hueco, marcaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")].Value;
+        var posicion = texto.IndexOf(Hueco, StringComparison.Ordinal);
+        return posicion < 0 ? (texto + " ", string.Empty) : (texto[..posicion], texto[(posicion + Hueco.Length)..]);
+    }
+}

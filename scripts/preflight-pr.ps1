@@ -18,6 +18,19 @@
     de cuatro proyectos; cualquier otra ruta (y en particular Integration o E2E) lanza una excepcion.
     (La compilacion de la solucion SI compila esos proyectos, como el CI; compilar no es ejecutar.)
 
+    Plaza de compilacion (solo en la maquina de desarrollo, nunca en CI): si existe el modulo
+    %USERPROFILE%\.claude\scripts\PlazaCompilacion.ps1 (o el que diga HYDRA_PLAZA_COMPILACION) y no hay CI
+    (GITHUB_ACTIONS=true o CI), los pasos 1 a 4 se hacen con una de las 4 plazas de la maquina (mutex
+    Global\HydraCompilacion-1..4) y con -maxcpucount:4 en restore, build y test. Los procesos van en prioridad
+    BelowNormal solo si HYDRA_BLD_PRIORIDAD_BAJA=1 (transicion: mientras haya ramas con el preflight antiguo,
+    que corre en Normal, BelowNormal dejaria sin CPU a quien lo usa; por defecto, Normal). Imprime
+    PLAZA-COMPILACION n/4, o ESPERANDO-PLAZA-COMPILACION mientras espera. Si no hay plaza libre, el arbol esta
+    limpio, HEAD esta empujado y la Dell tiene plaza, la compilacion con -warnaserror se hace alli con
+    bld -SoloDell mientras se espera; restauracion, formato y tests esperan siempre plaza local. Si la Dell
+    falla al compilar (error de codigo en HEAD), el preflight falla; si su resultado no vale (infraestructura
+    de la Dell), se compila aqui.
+    Sin el modulo, o en CI, el preflight se comporta exactamente como antes.
+
     Gobernanza del cuerpo (-CuerpoPr <fichero>): reimplementa en PowerShell, sin llamar a bash, las reglas
     de scripts/verificar-gobernanza-pr.sh, que sigue siendo la AUTORIDAD (lo ejecuta el CI):
       - existe una seccion "## Revision Codex" (o una de las tres variantes que acepta el .sh) con contenido real;
@@ -260,6 +273,33 @@ Get-ChildItem -LiteralPath $raizLogs -ErrorAction SilentlyContinue |
 $resultados = New-Object System.Collections.ArrayList
 $avisos = New-Object System.Collections.ArrayList
 
+# Plaza de compilacion de maquina (solo en la maquina de desarrollo). El modulo vive fuera del repositorio
+# (%USERPROFILE%\.claude\scripts\PlazaCompilacion.ps1; HYDRA_PLAZA_COMPILACION lo sustituye). Con el modulo:
+# como mucho 4 preflights o bld compilando a la vez en la maquina, cada uno con -maxcpucount:4. Sin el modulo,
+# o en CI, todo sigue como antes.
+# Prioridad BelowNormal de los procesos de compilacion y test: solo con HYDRA_BLD_PRIORIDAD_BAJA=1, la misma
+# variable que usa bld (Invoke-ParallelBuild.ps1). Transicion (2026-11-17): mientras queden ramas con el
+# preflight antiguo, que corre en Normal, BelowNormal deja sin CPU a quien lo usa (medido: pasos ficticios de
+# 18 s a 60 s); por defecto, Normal. Las plazas y -maxcpucount:4 van siempre.
+$enCi = ($env:GITHUB_ACTIONS -eq 'true') -or (-not [string]::IsNullOrEmpty($env:CI) -and $env:CI -notin @('false', '0'))
+$modoPlaza = $false
+$plaza = $null
+$remoto = $null
+$dellFalla = $false
+$moduloPlazas = ''
+if (-not $enCi) {
+    $moduloPlazas = $env:HYDRA_PLAZA_COMPILACION
+    if ([string]::IsNullOrEmpty($moduloPlazas) -and $env:USERPROFILE) {
+        $moduloPlazas = Join-Path $env:USERPROFILE '.claude\scripts\PlazaCompilacion.ps1'
+    }
+    if ($moduloPlazas -and (Test-Path -LiteralPath $moduloPlazas -PathType Leaf)) {
+        try { . $moduloPlazas; $modoPlaza = $true }
+        catch { [void]$avisos.Add("no se pudo cargar $moduloPlazas ($($_.Exception.Message)): se compila sin plaza.") }
+    }
+}
+$mcpu = if ($modoPlaza) { ' -maxcpucount:4' } else { '' }
+$prioridadBaja = $modoPlaza -and ($env:HYDRA_BLD_PRIORIDAD_BAJA -eq '1')
+
 function Write-Resumen([int]$Codigo, [string]$Causa) {
     Write-Host "`n=== Resumen preflight-pr ==="
     $resultados | ForEach-Object { '{0,-40} {1,-10} {2,6} s' -f $_.Paso, $_.Estado, $_.Segundos } | Write-Host
@@ -271,6 +311,12 @@ function Write-Resumen([int]$Codigo, [string]$Causa) {
 }
 
 function Stop-Con([string]$Causa) {
+    if ($plaza) { Exit-PlazaCompilacion $plaza }
+    # Un fallo local con la compilacion de la Dell aun en marcha: se corta bld (y su arbol de procesos) para
+    # que no retenga una plaza de la Dell hasta acabar.
+    if ($remoto -and $remoto.Proc -and -not $remoto.Proc.HasExited) {
+        & taskkill.exe /T /F /PID $remoto.Proc.Id 2>$null | Out-Null
+    }
     Write-Resumen 1 $Causa
     exit 1
 }
@@ -289,7 +335,8 @@ function Invoke-Paso([string]$Nombre, [string]$Comando, [string]$Pista = '', [sw
     $psi.Arguments = "/d /s /c `"$Comando > `"$log`" 2>&1`""
     $psi.UseShellExecute = $false
     $psi.WorkingDirectory = $raiz
-    $proc = [Diagnostics.Process]::Start($psi)
+    # Con HYDRA_BLD_PRIORIDAD_BAJA=1: el proceso (y cmd -> dotnet -> nodos MSBuild y testhost) nace en BelowNormal.
+    $proc = if ($prioridadBaja) { Start-ProcesoPrioridadBaja $psi } else { [Diagnostics.Process]::Start($psi) }
     $proc.WaitForExit()
     $codigo = $proc.ExitCode
     $proc.Dispose()
@@ -341,26 +388,151 @@ else {
     else { Write-Host 'OK  La rama contiene el ultimo origin/main.' -ForegroundColor Green }
 }
 
-# 1-2. Restaurar y compilar toda la solucion (compila tambien Integration y E2E, sin ejecutarlos).
-Invoke-Paso 'Restaurar dependencias' 'dotnet restore CaeManager.slnx'
-Invoke-Paso 'Compilar (warnings como errores)' 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeReuse:false' `
-    'Corrige el primer error de compilacion; el CI usa -warnaserror: un warning tambien tumba.'
+$nombreCompilar = 'Compilar (warnings como errores)'
+$pistaCompilar = 'Corrige el primer error de compilacion; el CI usa -warnaserror: un warning tambien tumba.'
+$ordenCompilar = 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeReuse:false'
 
-# 3. Formato, exactamente como el job "Verificar formato".
-if ($Corregir) {
-    Invoke-Paso 'Formato: aplicar (dotnet format)' 'dotnet format CaeManager.slnx --no-restore'
-    [void]$avisos.Add('-Corregir ha aplicado el formato: hay cambios sin commitear, revisalos con git diff y anadelos al commit.')
+function Start-CompilacionEnDell {
+    # Salto a la Dell cuando no hay plaza local: SOLO la compilacion con warnings como errores, con
+    # `bld -SoloDell` (el Dell compila origin/<rama>, por eso exige el arbol limpio y HEAD empujado).
+    # Devuelve un objeto con Motivo no vacio si no es viable; entonces se espera plaza local para todo.
+    $bld = Join-Path (Split-Path -Parent $moduloPlazas) 'bld.ps1'
+    if (-not (Test-Path -LiteralPath $bld -PathType Leaf)) { return [pscustomobject]@{ Motivo = "no existe $bld" } }
+    $rama = (git symbolic-ref --quiet --short HEAD 2>$null)
+    if (-not $rama) { return [pscustomobject]@{ Motivo = 'HEAD no esta en una rama' } }
+    if (@(git status --porcelain 2>$null).Count -gt 0) { return [pscustomobject]@{ Motivo = 'hay cambios sin commitear (la Dell compila lo empujado)' } }
+    $head = (git rev-parse HEAD 2>$null)
+    $lr = (git ls-remote origin "refs/heads/$rama" 2>$null)
+    $remota = if ($lr) { ("$lr" -split '\s+')[0] } else { '' }
+    if ($remota -ne $head) { return [pscustomobject]@{ Motivo = "origin/$rama no es HEAD (empuja la rama)" } }
+    if (-not (Test-DellAlcanzable)) { return [pscustomobject]@{ Motivo = 'la Dell no responde por ssh' } }
+    $pd = Enter-PlazaCompilacion -Plazas 0 -PrefijoAlternativo $script:PlazaPrefijoDell -PlazasAlternativas 2 -NoEsperar -Silencioso
+    if (-not $pd) { return [pscustomobject]@{ Motivo = 'las 2 plazas de la Dell estan ocupadas' } }
+    Exit-PlazaCompilacion $pd   # la toma bld en su propio proceso
+    $ordenFile = Join-Path $logs 'orden-dell.txt'
+    # Restaurar aparte y compilar con --no-restore, como el CI (con restauracion implicita, -warnaserror
+    # convertiria tambien en error los avisos NU de NuGet).
+    $orden = "dotnet restore CaeManager.slnx; if (`$LASTEXITCODE -eq 0) { $ordenCompilar }"
+    [IO.File]::WriteAllText($ordenFile, $orden, (New-Object Text.UTF8Encoding($false)))
+    $log = Join-Path $logs 'Compilar-en-la-Dell.log'
+    $psi = New-Object Diagnostics.ProcessStartInfo
+    $psi.FileName = 'cmd.exe'
+    $psi.Arguments = "/d /s /c `"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$bld`" -Branch `"$rama`" -SoloDell -CommandFile `"$ordenFile`" -RepoRoot `"$raiz`" > `"$log`" 2>&1`""
+    $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = $raiz
+    Write-Host ">>> $nombreCompilar en la Dell ($rama @ $($head.Substring(0, 9))), en segundo plano" -ForegroundColor Cyan
+    $proc = if ($prioridadBaja) { Start-ProcesoPrioridadBaja $psi } else { [Diagnostics.Process]::Start($psi) }
+    return [pscustomobject]@{ Motivo = ''; Proc = $proc; Log = $log; Sha = $head; Reloj = [Diagnostics.Stopwatch]::StartNew() }
 }
-Invoke-Paso 'Formato (verify-no-changes)' 'dotnet format CaeManager.slnx --no-restore --verify-no-changes' `
-    'Ejecuta de nuevo con -Corregir para aplicar el formato, revisa el diff y commitea.'
 
-# 4. Tests unitarios (lista cerrada; ver Assert-ProyectoDeTestPermitido).
-foreach ($par in @(
-        @('Tests de Domain', 'tests/CaeManager.Domain.Tests'),
-        @('Tests de Application', 'tests/CaeManager.Application.Tests'),
-        @('Tests de Architecture (ratchets)', 'tests/CaeManager.Architecture.Tests'),
-        @('Tests de Web (bUnit)', 'tests/CaeManager.Web.Tests'))) {
-    Invoke-Paso $par[0] ("dotnet test {0} --no-restore -nodeReuse:false" -f $par[1]) -EsTest
+function Get-ResultadoDell($Remoto) {
+    # 'pasa' | 'falla' (error real de compilacion en la Dell, en HEAD) | 'invalido' (infraestructura: no cuenta,
+    # se compila en local). Lee la salida de bld.ps1 (Format-List Branch, Dest, Sha, ExitCode, Seconds).
+    $Remoto.Proc.WaitForExit()
+    $texto = if (Test-Path -LiteralPath $Remoto.Log) { [IO.File]::ReadAllText($Remoto.Log) } else { '' }
+    $dest = if ($texto -match '(?m)^\s*Dest\s*:\s*(\S+)') { $Matches[1] } else { '' }
+    $sha = if ($texto -match '(?m)^\s*Sha\s*:\s*([0-9a-f]{40})') { $Matches[1] } else { '' }
+    $cod = if ($texto -match '(?m)^\s*ExitCode\s*:\s*(-?\d+)') { [int]$Matches[1] } else { $null }
+    if ($dest -ne 'dell' -or $sha -ne $Remoto.Sha -or $null -eq $cod) {
+        return "invalido (destino '$dest', SHA '$sha', codigo '$cod')"
+    }
+    # El arbol pudo cambiar durante la espera: el veredicto de la Dell solo vale para el HEAD limpio que compilo.
+    if ((git rev-parse HEAD 2>$null) -ne $Remoto.Sha -or @(git status --porcelain 2>$null).Count -gt 0) {
+        return 'invalido (HEAD o el arbol de trabajo cambiaron durante la espera)'
+    }
+    if ($cod -eq 0) { return 'pasa' }
+    # Solo un error de codigo (compilador o analizador) es un fallo de la rama. Los de NuGet, MSBuild o disco
+    # (NU1301, MSB3027...) son de la Dell: no valen y se compila en local, que dara el veredicto real.
+    # CS2012 y CS0016 (no se puede escribir la salida: bloqueo o disco de la Dell) tampoco son de la rama.
+    $deCodigo = [regex]::Matches($texto, '(?<![\w])error (CS|CA|IDE|RZ|BL|SYSLIB|ASP|xUnit|NU)(\d+)') |
+        Where-Object { $c = $_.Groups[1].Value + $_.Groups[2].Value; ($c -cnotin @('CS2012', 'CS0016')) -and ($_.Groups[1].Value -cne 'NU' -or $c -cin @('NU1605', 'NU1608')) }
+    if (@($deCodigo).Count -gt 0) { return 'falla' }
+    return "invalido (codigo $cod sin error de compilacion de la rama)"
+}
+
+function Close-CompilacionEnDell($Remoto) {
+    # Veredicto del paso de compilacion hecho en la Dell. 'falla' corta como un fallo local; 'invalido' compila
+    # aqui (con la plaza ya tomada) ANTES de los tests: compilar despues con -warnaserror no veria los warnings
+    # de los proyectos que los tests ya hubieran dejado al dia. (La compilacion incremental del worktree
+    # reutilizado de la Dell tiene el mismo limite que la local de siempre: un warning en un proyecto que ya
+    # estaba al dia no se vuelve a emitir.)
+    # Si la espera ya se corto por un 'falla', ese es el veredicto: reevaluarlo podria dar 'invalido' (el arbol
+    # cambio en el intervalo) y compilar aqui sin plaza y antes de restaurar.
+    $r = if ($script:dellFalla) { 'falla' } else { Get-ResultadoDell $Remoto }
+    $seg = [int]$Remoto.Reloj.Elapsed.TotalSeconds
+    $paso = "$nombreCompilar [Dell]"
+    if ($r -eq 'pasa') {
+        [void]$resultados.Add([pscustomobject]@{ Paso = $paso; Estado = 'PASA'; Segundos = $seg })
+        Write-Host "OK  $paso ($seg s; log: $($Remoto.Log))" -ForegroundColor Green
+        return
+    }
+    if ($r -eq 'falla') {
+        [void]$resultados.Add([pscustomobject]@{ Paso = $paso; Estado = 'FALLA'; Segundos = $seg })
+        Write-Host "--- $paso : FALLA" -ForegroundColor Red
+        Write-Host "    log completo: $($Remoto.Log)"
+        Get-Content -LiteralPath $Remoto.Log | Select-String -Pattern 'error|Failed|Con error' |
+            ForEach-Object { $_.Line.Trim() } | Select-Object -Unique -First 25 | ForEach-Object { Write-Host "    $_" }
+        Write-Host "    $pistaCompilar" -ForegroundColor Yellow
+        Stop-Con "$paso (en la Dell)"
+    }
+    [void]$avisos.Add("la compilacion en la Dell no vale ($r; log: $($Remoto.Log)): se ha compilado en local.")
+    Write-Host "AVISO: la compilacion en la Dell no vale ($r); se compila en local." -ForegroundColor Yellow
+    Invoke-Paso $nombreCompilar ($ordenCompilar + $mcpu) $pistaCompilar
+}
+
+# Plaza local: sin espera si hay una libre; si no, la compilacion con -warnaserror salta a la Dell (si se
+# puede) y lo demas espera la primera plaza local que se libere. Un fallo en la Dell corta la espera.
+$remoto = $null
+if ($modoPlaza) {
+    try {
+        $plaza = Enter-PlazaCompilacion -NoEsperar
+        if (-not $plaza) {
+            $remoto = Start-CompilacionEnDell
+            if ($remoto.Motivo) {
+                Write-Host "Sin salto a la Dell: $($remoto.Motivo)." -ForegroundColor Yellow
+                $remoto = $null
+            }
+            $cancelar = {
+                if ($remoto -and $remoto.Proc.HasExited -and (Get-ResultadoDell $remoto) -eq 'falla') { $script:dellFalla = $true }
+                $script:dellFalla
+            }
+            $plaza = Enter-PlazaCompilacion -Cancelar $cancelar
+            if (-not $plaza -and $remoto) { Close-CompilacionEnDell $remoto }
+        }
+    }
+    catch {
+        [void]$avisos.Add("no se pudo tomar plaza de compilacion ($($_.Exception.Message)): se compila sin plaza.")
+        Write-Host "AVISO: no se pudo tomar plaza de compilacion: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+try {
+    # 1-2. Restaurar y compilar toda la solucion (compila tambien Integration y E2E, sin ejecutarlos).
+    Invoke-Paso 'Restaurar dependencias' ('dotnet restore CaeManager.slnx' + $mcpu)
+    if (-not $remoto) { Invoke-Paso $nombreCompilar ($ordenCompilar + $mcpu) $pistaCompilar }
+
+    # 3. Formato, exactamente como el job "Verificar formato" (dotnet format no admite -maxcpucount).
+    if ($Corregir) {
+        Invoke-Paso 'Formato: aplicar (dotnet format)' 'dotnet format CaeManager.slnx --no-restore'
+        [void]$avisos.Add('-Corregir ha aplicado el formato: hay cambios sin commitear, revisalos con git diff y anadelos al commit.')
+    }
+    Invoke-Paso 'Formato (verify-no-changes)' 'dotnet format CaeManager.slnx --no-restore --verify-no-changes' `
+        'Ejecuta de nuevo con -Corregir para aplicar el formato, revisa el diff y commitea.'
+
+    # Compilacion hecha en la Dell: su veredicto antes de los tests (ver Close-CompilacionEnDell).
+    if ($remoto) { Close-CompilacionEnDell $remoto }
+
+    # 4. Tests unitarios (lista cerrada; ver Assert-ProyectoDeTestPermitido).
+    foreach ($par in @(
+            @('Tests de Domain', 'tests/CaeManager.Domain.Tests'),
+            @('Tests de Application', 'tests/CaeManager.Application.Tests'),
+            @('Tests de Architecture (ratchets)', 'tests/CaeManager.Architecture.Tests'),
+            @('Tests de Web (bUnit)', 'tests/CaeManager.Web.Tests'))) {
+        Invoke-Paso $par[0] (("dotnet test {0} --no-restore -nodeReuse:false" -f $par[1]) + $mcpu) -EsTest
+    }
+}
+finally {
+    if ($plaza) { Exit-PlazaCompilacion $plaza; $plaza = $null }
 }
 
 # 5. Gobernanza del cuerpo de la PR.

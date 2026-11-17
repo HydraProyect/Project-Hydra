@@ -4,6 +4,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.CuadroDireccion.Recursos;
+using CaeManager.Web.Services.Autorizacion;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.Extensions.Localization;
@@ -28,7 +29,7 @@ public static class CuadroDireccionEndpoints
         // documentos de identidad (DNI y pasaportes) de un mes entero, y que la lectura de acceso total del Actor de
         // Plataforma TALVEG incluya exportarlo no está decidido. La consulta vuelve a exigir AutorizacionCuadroDireccion,
         // que es la regla, para que ninguna otra puerta la salte.
-        endpoints.MapGet(RutaExtranjerosDelMes, ExportarExtranjerosDelMesAsync)
+        endpoints.MapGet(RutaExtranjerosDelMes, ExportarExtranjerosDelMesAsync).DeOutbound()
             .RequireAuthorization(politica => politica.RequireRole(Roles.DireccionCae, Roles.CoordinadorCae, Roles.Administrador));
 
         return endpoints;

@@ -42,7 +42,7 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtensi
 /// </para>
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record ConfirmarSubidaDesdeExtensionCommand(Guid AcreditacionId, string? DominioPortal = null) : ICommand<CambioEstadoAnotadoDto>;
+public record ConfirmarSubidaDesdeExtensionCommand(Guid AcreditacionId, string? DominioPortal = null) : ICommand<CambioEstadoAnotadoDto>, ICambiaEstadoDeAcreditacion;
 
 /// <summary>
 /// «Deshacer» del aviso que sigue a «Lo he enviado» en la extensión: devuelve el estado anterior que guardó el cambio.
@@ -51,7 +51,7 @@ public record ConfirmarSubidaDesdeExtensionCommand(Guid AcreditacionId, string? 
 /// devolvió la confirmación).
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record DeshacerSubidaDesdeExtensionCommand(Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand;
+public record DeshacerSubidaDesdeExtensionCommand(Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class ConfirmarSubidaDesdeExtensionCommandValidator : AbstractValidator<ConfirmarSubidaDesdeExtensionCommand>
 {

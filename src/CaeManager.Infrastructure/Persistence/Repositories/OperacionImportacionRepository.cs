@@ -18,22 +18,38 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
 
     public async Task<bool> GuardarSiOperacionNuevaAsync(CancellationToken cancellationToken = default)
     {
+        // Las operaciones que este guardado marca, leídas antes de guardar: tras el fallo se vuelve a preguntar por ellas.
+        var operacionesPendientes = dbContext.ChangeTracker.Entries<OperacionImportacion>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => e.Entity.OperacionId)
+            .Distinct()
+            .ToList();
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
-        // Comprobar el nombre de la restricción (mismo patrón que
-        // ExpiracionAsignacionesHostedService.GuardarODejarComoEstabaAsync) y no
-        // cualquier 23505: una violación de unicidad distinta (un CIF repetido,
-        // un DNI repetido) es un error real del plan, no la carrera de
-        // idempotencia, y debe propagarse tal cual en vez de disfrazarse de
-        // "ya ejecutada".
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+        // Una violación de unicidad es «ya ejecutada» en dos casos (#1992):
+        // - la del propio índice de la operación (mismo patrón que
+        //   ExpiracionAsignacionesHostedService.GuardarODejarComoEstabaAsync);
+        // - la de otro índice (un CIF, una razón social, un DNI) cuando, releída
+        //   tras el fallo, la operación ya está guardada: es la perdedora de dos
+        //   confirmaciones simultáneas del mismo plan, y PostgreSQL ha detectado
+        //   antes la fila repetida que la ganadora acaba de crear que la marca
+        //   repetida (las Empresas se insertan antes que las marcas).
+        // Si la operación no está guardada, la otra violación es un error real del
+        // plan y se propaga tal cual en vez de disfrazarse de «ya ejecutada».
+        //
+        // El DbContext traduce la violación de los índices de CIF y de razón social
+        // de Empresa a DatoEmpresaDuplicadoException, con la DbUpdateException como
+        // interna (CaeManagerDbContext.GuardarTraduciendoAsync): esa violación, la
+        // de la carrera real cuando el plan crea Empresas, no llega aquí como
+        // DbUpdateException. Por eso se busca la violación en la cadena de internas,
+        // y lo que se propaga es la excepción tal como la lanzó el DbContext.
+        catch (Exception ex) when (ViolacionDeUnicidad(ex) is { } pg)
         {
-            SqlState: "23505"
-        } pg && pg.ConstraintName == IndiceUnicoOperacion)
-        {
+            if (pg.ConstraintName != IndiceUnicoOperacion && !await OperacionYaGuardadaAsync(operacionesPendientes, cancellationToken))
+                throw;
             // Un SaveChangesAsync fallido NO revierte el estado Added de las
             // entidades en memoria — solo la transacción de la base de datos. Sin
             // este Clear(), el resto del plan (Empresa/Trabajador/Documento/
@@ -41,6 +57,43 @@ public class OperacionImportacionRepository(CaeManagerDbContext dbContext) : IOp
             // guardar en el siguiente SaveChangesAsync del mismo contexto
             // compartido, aunque nada de eso llegó a persistirse aquí.
             dbContext.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// La violación de unicidad (23505) de un guardado fallido, tanto si llega como la DbUpdateException de EF como si el
+    /// DbContext la ha traducido a una excepción de dominio que la conserva como interna. Solo cuenta una PostgresException
+    /// que sea la interna directa de una DbUpdateException: la forma en que EF informa del rechazo de la base.
+    /// </summary>
+    private static PostgresException? ViolacionDeUnicidad(Exception ex)
+    {
+        for (var actual = ex; actual is not null; actual = actual.InnerException)
+        {
+            if (actual is DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg })
+                return pg;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Si alguna de <paramref name="operacionIds"/> ya está guardada. Dentro de la transacción del llamador, EF ha
+    /// vuelto al punto de guardado del lote fallido, así que la lectura es posible; si aun así falla, se responde que
+    /// no y el llamador recibe la violación original, como antes de esta relectura.
+    /// </summary>
+    private async Task<bool> OperacionYaGuardadaAsync(IReadOnlyCollection<Guid> operacionIds, CancellationToken cancellationToken)
+    {
+        if (operacionIds.Count == 0)
+            return false;
+        try
+        {
+            return await dbContext.OperacionesImportacion.AnyAsync(o => operacionIds.Contains(o.OperacionId), cancellationToken);
+        }
+        // Cualquier fallo de la relectura, también el RetryLimitExceededException de la estrategia de reintentos cuando no
+        // hay transacción explícita: el llamador recibe la violación original, no el fallo de la comprobación. Solo la
+        // cancelación pedida se propaga como tal.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
             return false;
         }
     }

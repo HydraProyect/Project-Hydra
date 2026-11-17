@@ -51,7 +51,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
         public bool GuardadoEnConflicto { get; set; }
         public bool ConflictoDeVersion { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

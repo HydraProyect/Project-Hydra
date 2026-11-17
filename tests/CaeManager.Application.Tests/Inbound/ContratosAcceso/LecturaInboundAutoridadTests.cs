@@ -37,7 +37,7 @@ public class LecturaInboundAutoridadTests
         new(tieneAccesoTotal: false, clienteIdsVisibles: clienteVisible is { } id ? [id] : []);
 
     private ObtenerDocumentosInboundQueryHandler Documentos(string? rol, AlcanceDatosServiceFalso alcance) =>
-        new(_contratos, alcance, new UsuarioConRol(rol), _lector);
+        new(_contratos, alcance, new UsuarioConRol(rol), _lector, new AutorizacionInboundQuePermite());
 
     [Theory]
     [InlineData("Administrador")]
@@ -119,9 +119,9 @@ public class LecturaInboundAutoridadTests
         var fueraDeCartera = Alcance(Guid.NewGuid());
         var documento = Guid.NewGuid();
 
-        (await new ObtenerAutorizacionInboundQueryHandler(_contratos, fueraDeCartera, new UsuarioConRol("GestorCae"), _lector)
+        (await new ObtenerAutorizacionInboundQueryHandler(_contratos, fueraDeCartera, new UsuarioConRol("GestorCae"), _lector, new AutorizacionInboundQuePermite())
             .Handle(new ObtenerAutorizacionInboundQuery(_contrato.Id), CancellationToken.None)).Should().BeNull();
-        (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("Consulta"), _lector, _originales)
+        (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("Consulta"), _lector, _originales, new AutorizacionInboundQuePermite())
             .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None)).Should().BeNull();
         _lector.Llamadas.Should().BeEmpty();
         _originales.Aperturas.Should().BeEmpty();
@@ -130,9 +130,9 @@ public class LecturaInboundAutoridadTests
         // con la carpeta (y la clave) del Tenant de la Empresa contratista del contrato, nunca su referencia.
         _lector.Referencia = $"{_tenantContratista:N}/original.pdf";
         _originales.Archivos[(_tenantContratista, _lector.Referencia)] = [1, 2, 3];
-        (await new ObtenerAutorizacionInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector)
+        (await new ObtenerAutorizacionInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, new AutorizacionInboundQuePermite())
             .Handle(new ObtenerAutorizacionInboundQuery(_contrato.Id), CancellationToken.None)).Should().NotBeNull();
-        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales)
+        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales, new AutorizacionInboundQuePermite())
             .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None);
         abierto!.Contenido.Should().Equal(1, 2, 3);
         abierto.TipoMime.Should().Be("application/pdf");
@@ -157,7 +157,7 @@ public class LecturaInboundAutoridadTests
         };
         _originales.Archivos[(_tenantContratista, _lector.Referencia)] = [1];
 
-        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales)
+        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales, new AutorizacionInboundQuePermite())
             .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, Guid.NewGuid()), CancellationToken.None);
 
         abierto.Should().BeNull(caso);

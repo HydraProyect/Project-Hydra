@@ -95,9 +95,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. «Descartar la propuesta» de Retención salió de esta lista el
         // 2026-10-03 porque su Motivo es obligatorio, y «Desactivar usuario» salió el mismo día (decisión de Chris: debe preguntar antes
-        // de descartar lo elegido): el Gestor CAE de destino del traspaso ya no existe desde D-7, el diálogo no tiene ningún campo y por
-        // eso no lleva HayCambios; si vuelve a tener uno, el primer test de esta clase lo obliga a pasarlo y entonces su «Volver» tiene
-        // que pasar por SolicitarCierreAsync, sin excepción.
+        // de descartar lo elegido). Desde 2026-11-17 el diálogo de desactivar es un ModalFormulario del kit (el compilador obliga su
+        // HayCambios) con un selector de a quién pasa la cartera del Gestor CAE (decisión de Chris del 2026-11-14), y «Volver» es el
+        // «Cancelar» del kit: sale por SolicitarCierreAsync, sin excepción.
     };
 
     // -------------------------------------------------------------------------------------------

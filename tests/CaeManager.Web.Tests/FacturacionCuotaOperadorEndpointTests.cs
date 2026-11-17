@@ -264,7 +264,7 @@ public class FacturacionCuotaOperadorEndpointTests
 
     private sealed class MediadorDeCuota(Escenario escenario) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

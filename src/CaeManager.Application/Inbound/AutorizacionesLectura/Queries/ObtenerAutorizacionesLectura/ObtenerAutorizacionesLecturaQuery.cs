@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -44,12 +45,15 @@ public record AutorizacionLecturaDto(
 public record ObtenerAutorizacionesLecturaQuery : IRequest<IReadOnlyList<AutorizacionLecturaDto>>;
 
 public class ObtenerAutorizacionesLecturaQueryHandler(
-    IAutorizacionesLecturaQueryContext contexto, ICurrentUserService currentUserService)
+    IAutorizacionesLecturaQueryContext contexto, ICurrentUserService currentUserService, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerAutorizacionesLecturaQuery, IReadOnlyList<AutorizacionLecturaDto>>
 {
     public async Task<IReadOnlyList<AutorizacionLecturaDto>> Handle(
         ObtenerAutorizacionesLecturaQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ParticipanteTec, cancellationToken))
+            return [];
+
         if (!await AutorizacionLecturaAutoridad.EsAdministradorAsync(currentUserService))
             return [];
 

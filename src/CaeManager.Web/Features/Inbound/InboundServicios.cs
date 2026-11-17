@@ -3,6 +3,7 @@ using CaeManager.Web.Features.Inbound.CentroInbound;
 using CaeManager.Web.Features.Inbound.Configuracion;
 using CaeManager.Web.Features.Inbound.ContratosAcceso.Servicios;
 using CaeManager.Web.Features.Inbound.InformacionDelCentro;
+using CaeManager.Web.Features.Inbound.Plantillas.Servicios;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Features.Inbound;
@@ -18,11 +19,14 @@ public static class InboundServicios
     public static IServiceCollection Registrar(IServiceCollection servicios)
     {
         servicios.AddScoped<ILineaInboundVigente, LineaInboundVigenteDelProductoContratado>();
+        servicios.AddScoped<IEsTenantTecInbound, EsTenantTecPorAutorizacionConcedida>();
         servicios.AddScoped<IActividadDeContratoAcceso, ActividadDeContratoAccesoNoDisponible>();
         servicios.AddScoped<ISelectorEmpresasContratistas, SelectorEmpresasContratistasNoDisponible>();
         servicios.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroNoDisponible>();
         servicios.AddScoped<IInformacionDelCentro, InformacionDelCentroNoDisponible>();
         servicios.AddScoped<ResolutorContratosAcceso>();
+        servicios.AddScoped<IUsoDePlantillasRequisitos, UsoDePlantillasRequisitosNoDisponible>();
+        servicios.AddScoped<ResolutorPlantillasRequisitos>();
         servicios.AddScoped<IServicioNoAplica, ServicioNoAplicaSinBackend>();
         servicios.AddScoped<IServicioReglasAviso, ServicioReglasAvisoSinBackend>();
         servicios.AddScoped<IServicioGobiernoInbound, ServicioGobiernoInboundSinBackend>();

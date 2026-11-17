@@ -19,6 +19,9 @@ namespace CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 /// En Microsoft 365, antes de rehabilitar renueva la suscripción de Graph o la
 /// crea de nuevo si ya no existe (<see cref="SuscripcionAlRehabilitarService"/>):
 /// una conexión nunca vuelve a Habilitada sin suscripción vigente.
+///
+/// Solo el Administrador reactiva, y el rol efectivo se mira en el handler, antes de leer nada, y no solo en la
+/// página: la pantalla no es una frontera de autorización.
 /// </summary>
 [AreaDelEncargo("Integraciones")]
 public record ReactivarConexionCommand(Guid ConexionId) : ICommand;
@@ -35,6 +38,7 @@ public class ReactivarConexionCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     IReclamacionBuzonIntegracionRepository reclamacionRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     IUnitOfWork unitOfWork,
     AccesoGraphService accesoGraph,
@@ -47,6 +51,11 @@ public class ReactivarConexionCommandHandler(
 {
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
+            return Result.Fallo(Error.Crear(
+                DesconectarBuzon.DesconectarBuzonCommandHandler.CodigoSoloAdministrador,
+                "Solo el Administrador puede reactivar una conexión."));
+
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
         if (conexion is null || !await VisibleAsync(conexion, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));

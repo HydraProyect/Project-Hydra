@@ -485,31 +485,45 @@
     <p class="texto-ayuda-campo">@TextosUsuarios["CorregirCorreoAyuda"]</p>
 </ModalFormulario>
 
-@* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al
-   primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma
-   y, si es un Gestor CAE con la cartera del Tenant entero, se dice que sigue abierta y
-   la conserva su Coordinador CAE (decisión del 2026-09-24). No hay traspaso: la cartera
-   ya no se reparte por Cliente empresarial (D-7, 2026-10-02), así que el diálogo no tiene ningún
-   campo ni elección que perder: «Volver», la X y Escape cierran sin preguntar. Regla de Chris
-   (2026-10-03): si algún día vuelve a haber una elección (p. ej. un Gestor CAE de destino), el
-   Modal pasa HayCambios y el pie llama a SolicitarCierreAsync; DrawerYModalConCamposPreguntanAlDescartarTests
-   lo exige en cuanto aparezca un campo. *@
-<Modal Visible="@(_usuarioADesactivar is not null)"
-       VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
-       Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
-       CerrarAlHacerClicFuera="!_desactivando">
-    <ChildContent>
-        <p>@TextosUsuarios["DesactivarMensaje"]</p>
-        @if (_carteraADesactivar is { EsUniversal: true })
+@* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al primer clic y no decía nada de la cartera
+   del Gestor CAE. Ahora se confirma. ModalFormulario del kit con «Desactivar» como acción destructiva y «Volver» como
+   «Cancelar». La Asignación de Cartera interna (la de toda la operación de la propia organización) se conserva y la sigue
+   heredando su Coordinador CAE (decisión del 2026-09-24, O-1 del 2026-11-16). Si el Gestor CAE tiene además Tenants
+   beneficiarios enteros en su Asignación de Cartera, el mismo paso obliga a decidir (decisión de Chris del 2026-11-14,
+   «Baja de un Usuario frente a baja del Tenant»): un Gestor CAE de destino o «A nadie por ahora» (envía
+   SinDestinoConfirmado). Mientras no se elija, «Desactivar» queda deshabilitado con su motivo. Sin cartera no hay
+   pregunta ni campo, y «Volver», la X y Escape cierran sin preguntar; con la pregunta, el kit pregunta «¿Descartar
+   cambios?» una vez elegida una opción (regla de Chris del 2026-10-03). *@
+<ModalFormulario Visible="@(_usuarioADesactivar is not null)"
+                 VisibleChanged="@(v => { if (!v && !_desactivando) CerrarDesactivar(); })"
+                 Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
+                 HayCambios="() => HayCambiosEnDesactivar" Guardando="_desactivando" MensajeError="@_errorDesactivar"
+                 GuardarDestructivo="true" MotivoGuardarDeshabilitado="@MotivoDesactivarDeshabilitado"
+                 OnGuardar="ConfirmarDesactivacionAsync"
+                 TextoGuardar="@TextosUsuarios["DesactivarConfirmar"]" TextoCancelar="@TextosUsuarios["DesactivarVolver"]">
+    <p>@TextosUsuarios["DesactivarMensaje"]</p>
+    @if (_carteraADesactivar is { EsUniversal: true })
+    {
+        <p>@TextosUsuarios["DesactivarCarteraUniversal"]</p>
+    }
+    @if (_organizacionesADesactivar.Count > 0)
+    {
+        <p data-testid="desactivar-cartera-organizaciones">@TextosUsuarios["DesactivarCarteraOrganizaciones", string.Join(", ", _organizacionesADesactivar)]</p>
+        <CampoSelect Etiqueta="@TextosUsuarios["DesactivarDestinoEtiqueta"]" Valor="@_destinoDeCartera" Deshabilitado="_desactivando"
+                     ValorChanged="v => { _destinoDeCartera = v; _errorDesactivar = null; }">
+            <option value="">@TextosUsuarios["DesactivarDestinoSinElegir"]</option>
+            <option value="@ValorANadiePorAhora">@TextosUsuarios["DesactivarDestinoNadie"]</option>
+            @foreach (var gestor in _destinosDeCartera)
+            {
+                <option value="@gestor.Id">@gestor.NombreCompleto (@gestor.Email)</option>
+            }
+        </CampoSelect>
+        @if (_destinoDeCartera == ValorANadiePorAhora)
         {
-            <p>@TextosUsuarios["DesactivarCarteraUniversal"]</p>
+            <p class="texto-ayuda-campo" data-testid="desactivar-sin-destino-ayuda">@TextosUsuarios["DesactivarSinDestinoAyuda"]</p>
         }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desactivando" OnClick="() => _usuarioADesactivar = null">@TextosUsuarios["DesactivarVolver"]</Boton>
-        <Boton Variante="VarianteBoton.Destructivo" Cargando="_desactivando" OnClick="ConfirmarDesactivacionAsync">@TextosUsuarios["DesactivarConfirmar"]</Boton>
-    </Pie>
-</Modal>
+    }
+</ModalFormulario>
 
 @* Asignar empresas: Tenants beneficiarios enteros en la cartera de un Gestor CAE que ya
    existe. En pantalla, «empresa», nunca «tenant». El mockup de Usuarios aún no lo recoge. *@

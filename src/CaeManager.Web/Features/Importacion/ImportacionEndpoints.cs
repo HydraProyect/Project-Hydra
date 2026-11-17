@@ -1,6 +1,7 @@
 using CaeManager.Application.Importacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 
 namespace CaeManager.Web.Features.Importacion;
 
@@ -21,7 +22,8 @@ public static class ImportacionEndpoints
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 NombrePlantillaMaestra))
         .RequireAuthorization(policy => policy.RequireRole(Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae))
-        .ExcluidoDelEncargoDeAdministracion();
+        .ExcluidoDelEncargoDeAdministracion()
+        .DeOutbound();
 
         return endpoints;
     }
