@@ -9,7 +9,8 @@ namespace CaeManager.Application.Common;
 /// <para>
 /// Lo consume <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>, que falla cerrado: un
 /// <see cref="IComandoInbound"/> solo se ejecuta en el Tenant de origen o con papel <see cref="Inbound"/>, y con papel
-/// <see cref="Inbound"/> no se ejecuta ningún comando de escritura que no sea Inbound ni de autoservicio.
+/// <see cref="Inbound"/> no se ejecuta ningún comando de escritura que no sea Inbound ni de autoservicio. El mismo
+/// criterio (<see cref="CriterioDePapel"/>) cierra el alcance de datos de Outbound y las páginas de Outbound.
 /// </para>
 /// </summary>
 public enum PapelActivo

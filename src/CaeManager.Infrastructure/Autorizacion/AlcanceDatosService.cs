@@ -115,10 +115,10 @@ public class AlcanceDatosService(
     /// <summary>
     /// El papel con el que esta petición no tiene alcance de datos por este servicio: Inbound, hasta que B-03 calcule el de
     /// Inbound, y una selección cuya operación ya no autoriza, para que una caducidad entre resolver el rol y el papel no
-    /// conceda el alcance del rol.
+    /// conceda el alcance del rol. Es el mismo criterio que las páginas de Outbound (<see cref="CriterioDePapel"/>).
     /// </summary>
     private async Task<bool> PapelSinAlcanceDeDatosAsync() =>
-        await currentUserService.ObtenerPapelActivoAsync() is PapelActivo.Inbound or PapelActivo.OperacionQueYaNoAutoriza;
+        !CriterioDePapel.AdmiteLoQueNoEsInbound(await currentUserService.ObtenerPapelActivoAsync());
 
     /// <summary>
     /// Clave del Tenant actual, tras descartar su memoización si ya caducó. Es la cota de cuánto
@@ -315,8 +315,10 @@ public class AlcanceDatosService(
             // Con papel Inbound (B-02b, DN-21), ningún perfil tiene acceso total de datos por su rol en este servicio: el
             // de Administrador, Dirección CAE o Consulta abriría también los datos de Outbound del Tenant TCE. El alcance de
             // Inbound lo decide B-03 (IAutorizacionInbound); hasta entonces, fallo cerrado. Solo cierra lo que pasa por este
-            // servicio: las páginas que se autorizan únicamente por rol (Auditoría, Usuarios, Configuración, Facturación)
-            // siguen abiertas al rol de origen, y hay que cerrarlas por papel antes de activar el selector Inbound.
+            // servicio. Las páginas de Outbound (las del módulo Outbound del registro de ADR-013) las cierra por papel, con
+            // este mismo criterio, PaginaDeOutboundPorPapelAuthorizationHandler, aunque se autoricen solo por rol. Las del
+            // Núcleo y de Facturación que se autorizan solo por rol (Auditoría, Usuarios, Configuración, Facturación) siguen
+            // abiertas al rol de origen con papel Inbound: decidir qué ve ahí el papel Inbound queda pendiente.
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync())
                           && !await PapelSinAlcanceDeDatosAsync();
         }

@@ -5,6 +5,7 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @implements IAsyncDisposable
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Reportes.Recursos
 @using Microsoft.Extensions.Localization

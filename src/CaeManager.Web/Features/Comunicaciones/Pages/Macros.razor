@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @* Ver Bandeja.razor: mismo criterio de rol para todo el módulo. *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Application.Common
 @using CaeManager.Application.Comunicaciones.Commands.CrearMacro

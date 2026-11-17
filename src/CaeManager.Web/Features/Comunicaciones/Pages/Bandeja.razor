@@ -12,6 +12,7 @@
    rediseño): una sola bandeja para Correo y WhatsApp — /comunicaciones/chat
    ya no existe como pantalla aparte (principio § 10.2). *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
