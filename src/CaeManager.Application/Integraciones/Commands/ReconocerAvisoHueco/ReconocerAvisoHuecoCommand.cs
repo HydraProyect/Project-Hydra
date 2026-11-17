@@ -46,9 +46,10 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// <item>el Administrador del Operador CAE externo que opera ese Tenant beneficiario por Asignación de Operación, que
 /// llega con el rol efectivo Administrador (<c>RolEfectivoDelWorkspaceMiddleware</c>; decisión del 2026-10-20 en
 /// <see cref="Usuarios.RolesReservadosAlTenantDeOrigen"/>);</item>
-/// <item>el Gestor CAE que tiene el Tenant en su Asignación de Cartera. La cartera de un Gestor CAE es siempre el Tenant
-/// entero, así que la comprobación es <see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>, la misma que usan
-/// los comandos de Tenant con cartera.</item>
+/// <item>el Gestor CAE que tiene el Tenant en su Asignación de Cartera. El aviso es de un buzón del Tenant, no de un Cliente
+/// empresarial, así que se pide que la cartera alcance el Tenant entero (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>:
+/// acceso total o Asignación de Cartera de ámbito universal efectiva), la misma condición que piden los actos que valen
+/// para todo el Tenant. Una cartera acotada a Clientes empresariales no basta (límite (1), abajo).</item>
 /// </list>
 /// Cualquier otro rol (Coordinador CAE, Dirección CAE, Consulta, Cliente) y un Gestor CAE sin cartera en el Tenant
 /// reciben <see cref="CodigoSinPermiso"/>. La Propiedad la ponen el filtro de Tenant y la RLS: una conexión de otro Tenant

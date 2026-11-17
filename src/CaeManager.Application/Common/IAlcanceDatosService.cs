@@ -54,11 +54,13 @@ public interface IAlcanceDatosService
     /// Falso con una lista explícita de Clientes empresariales, con el rol Cliente o sin nada.
     ///
     /// <para>
-    /// No concede nada: es la condición para enseñar un agregado de Tenant (un recuento del Tenant entero,
-    /// sin filas) que no se puede recortar por las listas de este servicio, como las bajas del Cuadro de
-    /// dirección, que cuentan filas eliminadas que ya no están en ninguna lista. Quien no lo cumple no ve
-    /// ese agregado. La implementación por defecto, para los dobles de prueba, se queda en el acceso total:
-    /// falla cerrado.
+    /// No es una lista de filas visibles: es la condición para enseñar un agregado de Tenant (un recuento del
+    /// Tenant entero, sin filas) que no se puede recortar por las listas de este servicio, como las bajas del
+    /// Cuadro de dirección, que cuentan filas eliminadas que ya no están en ninguna lista; y también la que
+    /// piden los actos de escritura que valen para todo el Tenant y no se pueden acotar a una cartera
+    /// (reabrir un mes del Cuadro de dirección, las plantillas de requisitos por Actividad o por riesgo,
+    /// Confirmar el aviso del hueco de un buzón). Quien no lo cumple no ve ese agregado ni hace ese acto. La implementación por defecto, para los
+    /// dobles de prueba, se queda en el acceso total: falla cerrado.
     /// </para>
     /// </summary>
     Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
