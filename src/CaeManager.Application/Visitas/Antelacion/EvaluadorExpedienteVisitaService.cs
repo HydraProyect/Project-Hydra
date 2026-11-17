@@ -4,9 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
-using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,13 +13,19 @@ namespace CaeManager.Application.Visitas.Antelacion;
 
 public interface IEvaluadorExpedienteVisitaService
 {
-    /// <summary>Evalúa una Visita concreta y sella su expediente si ya está completo. Devuelve true si esta llamada fue la que selló.</summary>
+    /// <summary>
+    /// Evalúa una Visita concreta y sella su expediente si ya está completo. Devuelve true si esta llamada fue la que
+    /// selló <b>y lo guardó</b>. Lee la Visita con el repositorio sin recargarla (<c>ObtenerPorIdAsync</c>): así recibe
+    /// la instancia rastreada con los cambios en memoria de quien la llama, y su guardado los incluye. La reapertura
+    /// (<c>ReabrirExpedienteVisitaCommand</c>) depende de las dos cosas para ser atómica; no cambiar a
+    /// <c>ObtenerPorIdActualizadoAsync</c>, que revertiría la reapertura antes de evaluarla.
+    /// </summary>
     Task<bool> EvaluarAsync(Guid visitaId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reevalúa las visitas todavía sin sellar a las que afecta un Documento — las del
-    /// trabajador si es documentación de trabajador, o las de los centros de la empresa
-    /// si es documentación de empresa. Es el disparador natural al crear o renovar un
+    /// trabajador si es documentación de trabajador, o las de los Trabajadores de esa Empresa
+    /// si es documentación de empresa (la regla común mira la Empresa de cada participante). Es el disparador natural al crear o renovar un
     /// documento; los documentos de otros ámbitos (cliente, vehículo, proyecto) no
     /// intervienen en el expediente de una visita y se ignoran.
     /// </summary>
@@ -32,22 +36,26 @@ public interface IEvaluadorExpedienteVisitaService
 /// Decide cuándo el expediente documental de una Visita pasa a estar completo y
 /// congela ahí la matriz de antelación (<see cref="CalculadoraAntelacionVisita"/>).
 ///
-/// "Completo" significa que ningún documento <b>requerido</b> del Centro está
-/// <see cref="EstadoDocumento.Faltante"/> ni <see cref="EstadoDocumento.Vencido"/>,
-/// ni para la Empresa titular ni para ninguno de los Trabajadores de la visita.
-/// Se incluye Vencido a propósito: un apto médico caducado bloquea la entrada
-/// igual que uno que no existe, y llamar "completo" a ese expediente falsearía a
-/// favor del cliente el margen que tuvo el gestor.
+/// "Completo" significa que <b>ningún participante de la Visita está bloqueado en su Centro</b>, con la misma regla
+/// de bloqueo que el resto de superficies (D-4, decisión del 2026-11-15 sobre la #2005): solo cuentan los requisitos
+/// que el Centro marca con <c>BloqueaAcceso</c>, con la vigencia propia y la tolerancia del Centro, y un documento
+/// de Empresa ausente o que ya no vale bloquea a todos los participantes de esa Empresa
+/// (<see cref="ReglaBloqueoDeAcceso"/>, <see cref="IEvaluacionDeAccesoDelTenant.EvaluarTrabajadoresEnCentroAsync"/>).
+/// Hasta esa decisión el expediente tenía una regla propia —todo documento requerido, sin tolerancia y con los
+/// documentos de la Empresa del Centro— que podía dar por incompleto a quien el Centro deja entrar, o al revés.
 ///
 /// El sello es de un solo sentido: si después se añade un trabajador y vuelve a
 /// faltar papel, no se retira (ver <see cref="Visita.MarcarExpedienteCompleto"/>).
+/// La única vía que lo retira es la reapertura expresa del Gestor CAE con el Centro en su
+/// Asignación de Cartera (D-4, decisión del 2026-11-15: <c>ReabrirExpedienteVisitaCommand</c>),
+/// que vuelve a llamar a este evaluador al momento.
 /// </summary>
 public class EvaluadorExpedienteVisitaService(
     IVisitasQueryContext visitasContext,
     ICentrosQueryContext centrosContext,
     IDocumentosQueryContext documentosContext,
-    ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
+    IEvaluacionDeAccesoDelTenant evaluacionDeAcceso,
     IConfiguracionQueryContext configuracionContext,
     IVisitaRepository visitaRepository,
     IUnitOfWork unitOfWork,
@@ -65,9 +73,8 @@ public class EvaluadorExpedienteVisitaService(
             return false;
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
 
-        if (!await ExpedienteCompletoAsync(visita, hoy, cancellationToken))
+        if (!await ExpedienteCompletoAsync(visita, cancellationToken))
             return false;
 
         var ahora = DateTime.UtcNow;
@@ -103,7 +110,8 @@ public class EvaluadorExpedienteVisitaService(
         var hoy = DiaDeNegocio.Hoy();
 
         // Solo las que todavía tienen algo que sellar: con solicitud de origen, sin sello
-        // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse.
+        // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse
+        // (tampoco una reabierta: la reapertura solo se admite antes de que empiece).
         var pendientes = visitasContext.Visitas
             .Where(v => v.FechaHoraSolicitudUtc != null && v.FechaHoraExpedienteCompletoUtc == null && !v.EstaCancelada && v.FechaFin >= hoy);
 
@@ -119,14 +127,18 @@ public class EvaluadorExpedienteVisitaService(
         }
         else if (propietario.EmpresaId is { } empresaId)
         {
-            var centroIds = await centrosContext.Centros
-                .Where(c => c.EmpresaId == empresaId)
-                .Select(c => c.Id)
+            // D-4: la regla común evalúa los documentos de la Empresa de cada participante (EmpresaId o, sin ella,
+            // SubcontrataId), no los de la Empresa del Centro. Las Visitas afectadas son las de los Trabajadores de
+            // esa Empresa, aunque el Centro sea de otra (una Subcontrata en el Centro de su contratista).
+            var trabajadorIds = await trabajadoresContext.Trabajadores
+                .Where(t => t.EmpresaId == empresaId || (t.EmpresaId == null && t.SubcontrataId == empresaId))
+                .Select(t => t.Id)
                 .ToListAsync(cancellationToken);
 
-            visitaIds = await pendientes
-                .Where(v => centroIds.Contains(v.CentroId))
-                .Select(v => v.Id)
+            visitaIds = await visitasContext.VisitasTrabajadores
+                .Where(vt => trabajadorIds.Contains(vt.TrabajadorId))
+                .Join(pendientes, vt => vt.VisitaId, v => v.Id, (vt, v) => v.Id)
+                .Distinct()
                 .ToListAsync(cancellationToken);
         }
         else
@@ -138,107 +150,41 @@ public class EvaluadorExpedienteVisitaService(
             await EvaluarAsync(visitaId, cancellationToken);
     }
 
-    private async Task<bool> ExpedienteCompletoAsync(
-        Visita visita, DateOnly hoy, CancellationToken cancellationToken)
+    private async Task<bool> ExpedienteCompletoAsync(Visita visita, CancellationToken cancellationToken)
     {
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
-            .Select(c => new { c.EmpresaId, c.GestionCae })
+            .Select(c => new { c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (centro is null) return false;
 
-        // P1-X2: un Centro sin gestión CAE no exige documentos — el expediente
-        // no tiene nada que reunir y está completo en cuanto sabe quién va. Una
-        // visita sin participantes sigue incompleta, igual que con gestión CAE:
-        // el sello es irreversible y no se recalcula al añadir Trabajadores.
-        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
-            return await visitasContext.VisitasTrabajadores.AnyAsync(vt => vt.VisitaId == visita.Id, cancellationToken);
-
-        Guid? empresaId = centro.EmpresaId;
-
-        var tipos = await tiposDocumentoContext.TiposDocumento
-            // Un tipo archivado ya no se exige (como en EvaluacionDeAccesoPorCentroService): no admite documentos nuevos.
-            .Where(t => (t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador) && !t.Archivado)
-            .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
-            .ToListAsync(cancellationToken);
-
-        var filasDelCentro = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tc.CentroId == visita.CentroId)
-            .ToListAsync(cancellationToken))
-            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
-
-        var tiposRequeridosEmpresa = tipos
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
-                     && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento))
-            .Select(t => t.Id)
-            .ToList();
-
-        var documentosEmpresa = await documentosContext.Documentos.Operativos()
-            .Where(d => d.EmpresaId == empresaId)
-            .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
-            .ToListAsync(cancellationToken);
-
-        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia)), hoy))
-            return false;
-
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visita.Id)
             .Select(vt => vt.TrabajadorId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
         // Una visita sin trabajadores todavía no es un expediente que se pueda dar por
         // completo — es una visita a medio dar de alta.
         if (trabajadorIds.Count == 0) return false;
 
-        var documentosTrabajadores = await documentosContext.Documentos.Operativos()
-            .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
-            .ToListAsync(cancellationToken);
+        // Un participante que ya no se resuelve (Trabajador eliminado) no se puede evaluar: la regla común lo
+        // omitiría y el sello, que solo retira una reapertura expresa, quedaría puesto sin mirarlo. Sin todos evaluados, no se sella.
+        var resueltos = await trabajadoresContext.Trabajadores
+            .CountAsync(t => trabajadorIds.Contains(t.Id), cancellationToken);
+        if (resueltos < trabajadorIds.Count) return false;
 
-        var tipoContratacionPorTrabajador = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => t.TipoContratacion, cancellationToken);
+        // P1-X2: un Centro sin gestión CAE no exige documentos — el expediente no tiene nada que reunir y está
+        // completo en cuanto sabe quién va. Va después de las dos comprobaciones anteriores (Codex r2, #2266): una
+        // visita sin participantes, o con uno eliminado, sigue incompleta también aquí.
+        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
+            return true;
 
-        foreach (var trabajadorId in trabajadorIds)
-        {
-            // La serie documental de cada tipo se filtra por el tipo de contratación de quien va a la visita.
-            var tipoContratacion = tipoContratacionPorTrabajador.GetValueOrDefault(trabajadorId, TipoContratacion.CuentaAjena);
-            var tiposRequeridosTrabajador = tipos
-                .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
-                         && ResolucionTipoDocumentoCentro.Aplica(
-                             filasDelCentro, t.Id, visita.CentroId, t.CuentaParaCumplimiento, t.TiposContratacionDeSerie, tipoContratacion))
-                .Select(t => t.Id)
-                .ToList();
-
-            var suyos = documentosTrabajadores
-                .Where(d => d.TrabajadorId == trabajadorId)
-                .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia));
-
-            if (!TiposCubiertos(tiposRequeridosTrabajador, suyos, hoy))
-                return false;
-        }
-
-        return true;
-    }
-
-    private static bool TiposCubiertos(
-        IReadOnlyCollection<Guid> tiposRequeridos,
-        IEnumerable<(Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, bool EsRenuncia)> documentos,
-        DateOnly hoy)
-    {
-        if (tiposRequeridos.Count == 0) return true;
-
-        var tiposVigentes = documentos
-            // Solo Vencido (y la ausencia) dejan un tipo sin cubrir: un documento
-            // sin vigencia confirmada existe y cuenta como papel entregado, que es
-            // lo que mide el sello de antelación.
-            // Un documento en renuncia (catálogo del 2026-10-17) tampoco cubre: no acredita, igual que en el resto de
-            // superficies (DocumentoEfectivo.ValidoHoy es la definición única).
-            .Where(d => DocumentoEfectivo.ValidoHoy(d.EstadoVigencia, d.FechaVencimiento, hoy, d.EsRenuncia))
-            .Select(d => d.TipoDocumentoId)
-            .ToHashSet();
-
-        return tiposRequeridos.All(tiposVigentes.Contains);
+        // D-4 (#2005, decisión del 2026-11-15): la misma regla de bloqueo que el resto de superficies, sin copia propia.
+        // Completo = ningún requisito bloqueante del Centro (BloqueaAcceso, con su vigencia propia y su tolerancia)
+        // bloquea a ningún participante, ni por un documento suyo ni por uno de su Empresa.
+        var requisitos = await evaluacionDeAcceso.EvaluarTrabajadoresEnCentroAsync(visita.CentroId, trabajadorIds, cancellationToken);
+        return !requisitos.Any(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion));
     }
 }

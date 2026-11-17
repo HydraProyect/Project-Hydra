@@ -80,6 +80,14 @@ public class RegistroAuditoria : EntidadConTenant
     /// <inheritdoc cref="AccionRenovado"/>
     public const string AccionCondicionesFijadas = "CondicionesFijadas";
 
+    /// <summary>
+    /// Acción de la <b>confirmación del aviso de posible correo no recuperado</b> de un buzón de Microsoft 365 (issue
+    /// #2124): un usuario autorizado da el aviso por revisado y la marca del hueco se limpia sin recuperar el correo. La
+    /// escribe el interceptor a petición de la conexión, vía <see cref="IAccionAuditoriaPropia"/>, con el Actor real, el
+    /// Usuario simulado si lo hay y la fecha; <see cref="DatosAntes"/> lleva la marca reconocida.
+    /// </summary>
+    public const string AccionHuecoReconocido = "HuecoReconocido";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

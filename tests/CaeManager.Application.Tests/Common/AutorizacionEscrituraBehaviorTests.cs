@@ -261,6 +261,37 @@ public class AutorizacionEscrituraBehaviorTests
         resultado.Error.Codigo.Should().Be("Autorizacion.ComandoFueraDelAprovisionamiento");
     }
 
+    /// <summary>
+    /// D-4 (#2005, contrato del 2026-11-15): Soporte TALVEG no reabre el expediente de una Visita. Bajo cualquier
+    /// Sesión Privilegiada, también impersonando a un Gestor CAE, la reapertura se deniega antes del handler: el camino
+    /// de escritura de la impersonación (ADR-011 § 4bis.2) no existe todavía.
+    /// </summary>
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    public async Task Bajo_sesion_privilegiada_no_se_reabre_el_expediente_de_una_visita(CapacidadPrivilegio capacidad)
+    {
+        var tenant = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommand, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad, tenant)), new TenantActualFalso(tenant));
+        var siguienteFueLlamado = false;
+
+        var resultado = await behavior.Handle(
+            new CaeManager.Application.Visitas.Commands.ReabrirExpedienteVisita.ReabrirExpedienteVisitaCommand(Guid.NewGuid(), Guid.NewGuid(), "motivo"),
+            _ =>
+            {
+                siguienteFueLlamado = true;
+                return Task.FromResult(Result.Exito());
+            }, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        siguienteFueLlamado.Should().BeFalse();
+    }
+
     // ── Plano 3: sesiones privilegiadas de plataforma ──────────────────────
 
     [Theory]

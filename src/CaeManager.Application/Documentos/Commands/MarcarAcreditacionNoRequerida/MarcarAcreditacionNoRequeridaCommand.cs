@@ -49,7 +49,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionNoRequeri
 /// </para>
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand;
+public record MarcarAcreditacionNoRequeridaCommand(Guid AcreditacionId, Guid VersionEsperada) : ICommand, ICambiaEstadoDeAcreditacion;
 
 public class MarcarAcreditacionNoRequeridaCommandValidator : AbstractValidator<MarcarAcreditacionNoRequeridaCommand>
 {
