@@ -37,16 +37,16 @@ public sealed class ServicioValidacionInboundConBackend(
     public const int LongitudMaximaExplicacion = EvidenciaInbound.LongitudMaximaMotivoRechazo;
 
     // Mismo orden y mismos textos que la lista de motivos de la pantalla de validación.
-    private static readonly IReadOnlyDictionary<string, CausaRechazoAcreditacion> Causas =
-        new Dictionary<string, CausaRechazoAcreditacion>
+    private static readonly IReadOnlyDictionary<string, CausaRechazoEvidenciaInbound> Causas =
+        new Dictionary<string, CausaRechazoEvidenciaInbound>
         {
-            ["Documento ilegible"] = CausaRechazoAcreditacion.Ilegible,
-            ["Documento equivocado"] = CausaRechazoAcreditacion.DocumentoEquivocado,
-            ["Datos erróneos"] = CausaRechazoAcreditacion.DatosErroneos,
-            ["Fuera de vigencia"] = CausaRechazoAcreditacion.CaducadoAlPresentar,
-            ["Firma o sello ausente"] = CausaRechazoAcreditacion.FaltaFirmaOSello,
-            ["Formato no admitido"] = CausaRechazoAcreditacion.FormatoNoAdmitido,
-            ["Otro"] = CausaRechazoAcreditacion.Otro,
+            ["Documento ilegible"] = CausaRechazoEvidenciaInbound.Ilegible,
+            ["Documento equivocado"] = CausaRechazoEvidenciaInbound.DocumentoEquivocado,
+            ["Datos erróneos"] = CausaRechazoEvidenciaInbound.DatosErroneos,
+            ["Fuera de vigencia"] = CausaRechazoEvidenciaInbound.CaducadoAlPresentar,
+            ["Firma o sello ausente"] = CausaRechazoEvidenciaInbound.FaltaFirmaOSello,
+            ["Formato no admitido"] = CausaRechazoEvidenciaInbound.FormatoNoAdmitido,
+            ["Otro"] = CausaRechazoEvidenciaInbound.Otro,
         };
 
     private Dictionary<Guid, DocumentoPendienteInboundDto> _filas = [];

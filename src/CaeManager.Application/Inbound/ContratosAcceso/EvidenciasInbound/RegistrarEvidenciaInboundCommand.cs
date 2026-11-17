@@ -31,7 +31,7 @@ public record RegistrarEvidenciaInboundCommand(
     RechazoInicialEvidenciaInbound? Rechazo = null) : ICommand<Guid>, IComandoInbound;
 
 /// <summary>Causa tipificada y motivo literal de un rechazo, los dos obligatorios, como en <see cref="RechazarEvidenciaInboundCommand"/>.</summary>
-public record RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion Causa, string Motivo);
+public record RechazoInicialEvidenciaInbound(CausaRechazoEvidenciaInbound Causa, string Motivo);
 
 public class RegistrarEvidenciaInboundCommandValidator : AbstractValidator<RegistrarEvidenciaInboundCommand>
 {

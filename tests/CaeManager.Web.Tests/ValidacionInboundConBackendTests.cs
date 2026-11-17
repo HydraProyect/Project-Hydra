@@ -174,7 +174,7 @@ public class ValidacionInboundConBackendTests : BunitContext
         Pulsar(cut, "Rechazar");
 
         var comando = _mediador.Comandos.Should().ContainSingle().Subject;
-        comando.Rechazo.Should().Be(new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.CaducadoAlPresentar, "La fecha de emisión es de 2019."));
+        comando.Rechazo.Should().Be(new RechazoInicialEvidenciaInbound(CausaRechazoEvidenciaInbound.CaducadoAlPresentar, "La fecha de emisión es de 2019."));
         cut.Markup.Should().NotContain("Deshacer (");
     }
 

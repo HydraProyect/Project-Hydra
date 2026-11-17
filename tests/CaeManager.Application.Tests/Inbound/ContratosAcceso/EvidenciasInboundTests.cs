@@ -414,7 +414,7 @@ public class EvidenciasInboundTests
     // --- Demo mínima (DECISION_LOG 2026-11-17, opción b): Rechazar con rechazo inicial y la cola de validación ---
 
     private RegistrarEvidenciaInboundCommand ComandoRechazo(string motivo = "La fecha de emisión no se lee.", Guid? documento = null) =>
-        Comando(documento: documento) with { Rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, motivo) };
+        Comando(documento: documento) with { Rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoEvidenciaInbound.Ilegible, motivo) };
 
     [Fact]
     public async Task Rechazar_registra_la_evidencia_ya_rechazada_en_el_unico_guardado()
@@ -434,7 +434,7 @@ public class EvidenciasInboundTests
     {
         var documento = Guid.NewGuid();
         _lector.Documentos.Add(Documento(documento, soloConclusion: true));
-        var rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, "No se lee la conclusión.");
+        var rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoEvidenciaInbound.Ilegible, "No se lee la conclusión.");
         var comando = Comando(_tipoAptitud, ConclusionAptitud.Apto, documento) with { Rechazo = rechazo };
 
         (await Registrar().Handle(comando, CancellationToken.None)).EsExitoso.Should().BeTrue();

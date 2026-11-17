@@ -40,8 +40,7 @@ public class ModulosRegistradosTests(ITestOutputHelper salida)
         { "CaeManager.Domain.Documentos.Documento", Modulo.Nucleo },
         { "CaeManager.Domain.Documentos.TipoDocumento", Modulo.Nucleo },
         { "CaeManager.Domain.Documentos.EstadoAcreditacion", Modulo.Outbound },
-        // Del Núcleo, compartida por Outbound y la evidencia Inbound (ADR-013 § 4.3).
-        { "CaeManager.Domain.Documentos.CausaRechazoAcreditacion", Modulo.Nucleo },
+        { "CaeManager.Domain.Documentos.CausaRechazoAcreditacion", Modulo.Outbound },
         { "CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso", Modulo.Inbound },
         { "CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound", Modulo.Inbound },
         { "CaeManager.Domain.Facturacion.TarifaCliente", Modulo.Facturacion },
