@@ -50,7 +50,8 @@ public sealed class LineaOutboundGestionPropiaDemoSeederFixture : IAsyncLifetime
             Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
         await InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
-            sp.GetRequiredService<IUserStore<ApplicationUser>>(), Configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), new AlmacenDeSiembraInboundEnMemoria(), Configuracion,
+            EntornoDePrueba.Desarrollo, NullLogger.Instance);
         await SembrarLineasAsync();
     }
 
