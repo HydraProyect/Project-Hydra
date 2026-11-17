@@ -1634,7 +1634,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// igual y no había forma de saber si la orden se había ejecutado.
     /// </para>
     /// </summary>
-    private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista)
+    private async Task CambiarActivacionAsync(UsuarioListaDto usuarioLista, Guid? gestorCaeDestinoId = null)
     {
         if (usuarioLista.Id == _usuarioActualId)
         {
@@ -1653,7 +1653,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // Application (P1-I2). Desactivar rota además el security stamp en
             // la misma escritura (ApplicationUser.Desactivar).
             var resultado = await Mediator.Send(
-                new CambiarActivacionUsuarioCommand(usuarioLista.Id, Activar: !usuarioLista.Activo), token);
+                new CambiarActivacionUsuarioCommand(usuarioLista.Id, Activar: !usuarioLista.Activo, gestorCaeDestinoId), token);
 
             if (resultado.EsFallido)
             {
@@ -1902,12 +1902,24 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private UsuarioListaDto? _usuarioADesactivar;
     private CarteraDeUsuario? _carteraADesactivar;
     private bool _desactivando;
+    private Modal? _modalDesactivar;
+
+    /// <summary>Los Tenants beneficiarios enteros de la cartera del Gestor CAE a desactivar, por nombre.</summary>
+    private IReadOnlyList<string> _empresasADesactivar = [];
+
+    /// <summary>A quién se puede reasignar esa cartera: los demás Gestores CAE activos de la organización.</summary>
+    private IReadOnlyList<UsuarioListaDto> _destinosDeCartera = [];
+
+    /// <summary>El Gestor CAE elegido como destino; <c>null</c> = nadie (las empresas quedan sin Gestor CAE).</summary>
+    private string? _destinoDeCartera;
 
     /// <summary>
-    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera en el momento (no
-    /// la de la última carga de la lista): si es el Tenant entero (cartera universal, la única que
-    /// existe desde D-7), el diálogo dice que la conserva su Coordinador CAE. No hay traspaso de
-    /// cartera: la cartera no se reparte Cliente empresarial a Cliente empresarial.
+    /// Abre la confirmación de desactivar. A un Gestor CAE se le leen en el momento (no las de la
+    /// última carga de la lista) la cartera interna del Tenant activo, que el diálogo dice que
+    /// conserva su Coordinador CAE, y sus Tenants beneficiarios enteros
+    /// (<see cref="ObtenerCarteraDeGestorCaeQuery"/>): si tiene alguno, el mismo paso pregunta a qué
+    /// Gestor CAE pasan (decisión de Chris del 2026-11-14). Ofrecer destinos es comodidad: quién vale
+    /// como destino lo decide <see cref="CambiarActivacionUsuarioCommand"/> al confirmar.
     /// </summary>
     private async Task PedirDesactivacionAsync(UsuarioListaDto usuarioLista)
     {
@@ -1918,6 +1930,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
 
         _carteraADesactivar = null;
+        _empresasADesactivar = [];
+        _destinosDeCartera = [];
+        _destinoDeCartera = null;
 
         if (usuarioLista.Rol == Roles.GestorCae && !usuarioLista.EsOperadorDelegado)
         {
@@ -1926,6 +1941,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 var carteras = await ObtenerCarterasVigentesAsync(_ciclo.Token);
                 if (carteras.TryGetValue(usuarioLista.Id, out var cartera))
                     _carteraADesactivar = cartera;
+
+                var empresas = await Mediator.Send(new ObtenerCarteraDeGestorCaeQuery(usuarioLista.Id), _ciclo.Token);
+                _empresasADesactivar = empresas.Where(e => e.EnCartera).Select(e => e.Nombre).ToList();
+                if (_empresasADesactivar.Count > 0)
+                    _destinosDeCartera = _usuarios
+                        .Where(u => u.Id != usuarioLista.Id && u.Rol == Roles.GestorCae && u.Activo
+                                    && !u.PendienteActivacion && !u.EsOperadorDelegado)
+                        .OrderBy(u => u.NombreCompleto)
+                        .ToList();
             }
             catch (OperationCanceledException)
             {
@@ -1937,8 +1961,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     }
 
     /// <summary>
-    /// Desactiva la cuenta. La cartera sigue abierta y la hereda su Coordinador CAE (decisión del
-    /// 2026-09-24).
+    /// Desactiva la cuenta y, a un Gestor CAE con Tenants beneficiarios en su cartera, se la pasa al
+    /// destino elegido o, sin destino, la retira (sus empresas quedan sin Gestor CAE y se avisa a los
+    /// Administradores). La cartera interna sigue abierta y la hereda su Coordinador CAE (decisión
+    /// del 2026-09-24).
     /// </summary>
     private async Task ConfirmarDesactivacionAsync()
     {
@@ -1948,8 +1974,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _desactivando = true;
         try
         {
+            var destino = _empresasADesactivar.Count > 0 && Guid.TryParse(_destinoDeCartera, out var elegido)
+                ? elegido
+                : (Guid?)null;
             _usuarioADesactivar = null;
-            await CambiarActivacionAsync(usuario);
+            await CambiarActivacionAsync(usuario, destino);
         }
         catch (OperationCanceledException)
         {
