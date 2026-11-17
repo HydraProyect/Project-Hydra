@@ -119,7 +119,7 @@
     <value>Hi ha canvis que encara no s'han desat. Si tanques, es perden.</value>
   </data>
   <data name="AccionConfirmar" xml:space="preserve">
-    <value>Confirmar</value>
+    <value>Confirma</value>
   </data>
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar els canvis</value>

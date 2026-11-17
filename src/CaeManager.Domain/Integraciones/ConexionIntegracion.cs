@@ -604,6 +604,22 @@ public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
     }
 
     /// <summary>
+    /// El aviso del hueco está en el estado en que <see cref="ReconocerAvisoHueco"/> lo reconoce: con marca
+    /// (<see cref="HuecoPendienteDesdeUtc"/>), Habilitada y sin <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>.
+    /// </summary>
+    public bool AvisoHuecoReconocible =>
+        EsAvisoHuecoReconocible(HuecoPendienteDesdeUtc, Estado, MarcaHuecoPorRegistrarDesdeUtc is not null);
+
+    /// <summary>
+    /// La misma regla que <see cref="AvisoHuecoReconocible"/> sobre los valores sueltos: la única condición de estado de
+    /// Confirmar. La usan la conexión (<see cref="ReconocerAvisoHueco"/>), el comando que la relee bajo cerrojo y la
+    /// proyección del listado (<c>ConexionIntegracionListaDto.AvisoHuecoReconocible</c>), que no tiene la entidad.
+    /// </summary>
+    public static bool EsAvisoHuecoReconocible(
+        DateTime? huecoPendienteDesdeUtc, EstadoConexionIntegracion estado, bool hayMarcaHuecoPorRegistrar) =>
+        huecoPendienteDesdeUtc is not null && estado == EstadoConexionIntegracion.Habilitada && !hayMarcaHuecoPorRegistrar;
+
+    /// <summary>
     /// La acción Confirmar de Conexiones (issue #2124): un usuario autorizado da por revisado el aviso de posible correo no
     /// recuperado. Limpia <see cref="HuecoPendienteDesdeUtc"/> y anula la recuperación en curso, así que una pasada de la
     /// recuperación que la hubiera leído antes ya no coincide con la conexión y no escribe nada. Solo con la conexión
@@ -613,12 +629,13 @@ public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
     /// <see cref="RegistroAuditoria.AccionHuecoReconocido"/>, con la marca reconocida entre los valores de antes.
     /// </summary>
     /// <returns>true si había marca y se limpió; false si no había nada que reconocer (nada que guardar).</returns>
+    /// <exception cref="InvalidOperationException">Hay marca pero la conexión no es <see cref="AvisoHuecoReconocible"/>.</exception>
     public bool ReconocerAvisoHueco()
     {
         if (HuecoPendienteDesdeUtc is null)
             return false;
 
-        if (Estado != EstadoConexionIntegracion.Habilitada || MarcaHuecoPorRegistrarDesdeUtc is not null)
+        if (!AvisoHuecoReconocible)
             throw new InvalidOperationException(
                 "Solo se reconoce el aviso del hueco de una conexión Habilitada y sin marca del hueco por registrar.");
 

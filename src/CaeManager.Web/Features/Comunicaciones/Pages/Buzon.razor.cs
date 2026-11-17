@@ -35,7 +35,12 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
 
-    /// <summary>Los textos del aviso del hueco y de su Confirmar: los mismos que en Conexiones, sin copiarlos.</summary>
+    /// <summary>
+    /// Los textos del aviso del hueco y del diálogo de Confirmar salen de <c>TextosConexiones</c>, los mismos que en Conexiones,
+    /// sin copiarlos. El rótulo del botón Confirmar de esta página no: sale de <c>TextosComunes.AccionConfirmar</c> (abajo),
+    /// mientras que Conexiones y <c>ModalConfirmarAvisoHueco</c> usan <c>TextosConexiones.AccionConfirmarAvisoHueco</c>. El
+    /// verbo es el mismo en las dos fuentes (en los dos idiomas), pero hay que cambiarlo en los dos sitios.
+    /// </summary>
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Integraciones.Recursos.TextosConexiones> TextosAviso { get; set; } = default!;
 
     // El rótulo del botón Confirmar sale de TextosComunes: la regla de Architecture exige que el texto de un disparador de escritura viva en un .resx del módulo (Comunicaciones) o en TextosComunes.
