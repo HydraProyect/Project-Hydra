@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Comercial;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -116,6 +117,21 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
     }
 
     [Fact]
+    public async Task El_Tenant_Beta_no_tiene_delegacion_de_Operador_CAE_externo_ni_Asignacion_de_Operacion_externa_y_Alfa_si()
+    {
+        // La guarda de gestión propia del seeder lee estas dos tablas dentro del ámbito del propio Tenant. Beta no tiene ninguna
+        // (por eso la guarda lo deja pasar) y Alfa, Tenant propietario con gestión externa, tiene las dos: sin ese control, un
+        // cero de Beta no distinguiría «no hay nada» de «la RLS no deja ver nada desde este contexto».
+        var beta = (await IdsAsync(CoberturaPantallasSeeder.NombreTenantBeta)).Single();
+        var alfa = (await IdsAsync(CoberturaPantallasSeeder.NombreTenantAlfa)).Single();
+
+        (await TieneGestionExternaAsync(alfa)).Should().Be((true, true),
+            "Alfa tiene una delegación activa de su Operador CAE externo y una Asignación de Operación externa, y la lectura las ve");
+        (await TieneGestionExternaAsync(beta)).Should().Be((false, false),
+            "Beta gestiona su CAE con su propio personal: sin delegación de Operador CAE externo ni Asignación de Operación externa");
+    }
+
+    [Fact]
     public async Task Una_segunda_siembra_no_duplica_ninguna_linea()
     {
         await fixture.SembrarLineasAsync();
@@ -136,6 +152,21 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
             return await contexto.ProductosContratados.ToListAsync();
     }
 
+    /// <summary>Las dos lecturas de la guarda de gestión propia, con el contexto de tráfico y dentro del ámbito del Tenant.</summary>
+    private async Task<(bool Delegacion, bool Operacion)> TieneGestionExternaAsync(Guid tenantId)
+    {
+        using var ambito = fixture.Arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            var delegacion = await contexto.DelegacionesTenant.AnyAsync(
+                d => d.TenantClienteId == tenantId && d.Proposito == PropositoDelegacion.OperadorExterno && d.Activa);
+            var operacion = await contexto.AsignacionesOperacion.AnyAsync(
+                o => !o.EsRaiz && o.PropietarioTenantId == tenantId && o.Servicio == ServicioCae.Outbound);
+            return (delegacion, operacion);
+        }
+    }
+
     private async Task<List<Guid>> IdsAsync(string nombre)
     {
         await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
@@ -151,7 +182,8 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
 
 /// <summary>
 /// <b>Lo que acota la línea P cuando el Tenant no es suyo</b>, en una base aparte: un Tenant que se llama como el Tenant Beta
-/// pero no lleva el marcador de datos de demo no recibe nada (podría ser real), el que sí lo lleva la recibe, y fuera de
+/// pero no lleva el marcador de datos de demo no recibe nada (podría ser real), el que sí lo lleva la recibe, uno de la lista
+/// que resulta ser Operador CAE externo o tener una delegación activa de Operador CAE externo no la recibe, y fuera de
 /// Development no escribe aunque <c>DatosPrueba:Activo</c> esté activo.
 /// </summary>
 public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLifetime
@@ -201,6 +233,65 @@ public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLif
         await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
         await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
         (await LineasPAsync(ajeno.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_Tenant_de_la_lista_habilitado_como_Operador_CAE_externo_no_recibe_la_linea()
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var operador = new Tenant(CoberturaPantallasSeeder.NombreTenantBeta, PerfilVocabularioTenant.Consultora);
+        operador.HabilitarComoOperadorCaeExterno();
+        operador.MarcarDatosDemoCompletados();
+        using (AmbitoTenantExplicito.Establecer(operador.Id))
+        {
+            bootstrap.Tenants.Add(operador);
+            await bootstrap.SaveChangesAsync();
+        }
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+
+        (await LineasPAsync(operador.Id)).Should().Be(0, "un Operador CAE externo no gestiona su CAE con su propio personal");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_de_la_lista_con_delegacion_activa_de_Operador_CAE_externo_no_recibe_la_linea_y_sin_ella_si()
+    {
+        using var ambito = _arnes.Servicios.CreateScope();
+        await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var propietario = new Tenant(CoberturaPantallasSeeder.NombreTenantBeta, PerfilVocabularioTenant.ClienteDirecto);
+        propietario.MarcarDatosDemoCompletados();
+        var operador = new Tenant("Operador CAE externo de la prueba de la línea P", PerfilVocabularioTenant.Consultora);
+        operador.HabilitarComoOperadorCaeExterno();
+        foreach (var tenant in new[] { propietario, operador })
+            using (AmbitoTenantExplicito.Establecer(tenant.Id))
+            {
+                bootstrap.Tenants.Add(tenant);
+                await bootstrap.SaveChangesAsync();
+            }
+
+        var delegacion = new DelegacionTenant(operador.Id, propietario.Id);
+        using (AmbitoTenantExplicito.Establecer(operador.Id))
+        {
+            bootstrap.DelegacionesTenant.Add(delegacion);
+            await bootstrap.SaveChangesAsync();
+        }
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        (await LineasPAsync(propietario.Id)).Should().Be(0, "con un Operador CAE externo activo, el Tenant propietario tiene gestión externa");
+
+        // Control del instrumento: la misma siembra sobre el mismo Tenant, con la delegación revocada, sí escribe; el cero de
+        // arriba lo causó la guarda y no otra cosa.
+        using (AmbitoTenantExplicito.Establecer(operador.Id))
+        {
+            delegacion.Desactivar();
+            await bootstrap.SaveChangesAsync();
+        }
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+        (await LineasPAsync(propietario.Id)).Should().Be(1);
     }
 
     [Theory]

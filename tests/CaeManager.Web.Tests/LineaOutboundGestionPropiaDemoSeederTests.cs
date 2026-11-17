@@ -56,6 +56,33 @@ public class LineaOutboundGestionPropiaDemoSeederTests
     }
 
     [Fact]
+    public void Sin_ninguna_contradiccion_no_hay_motivo_para_omitir_el_Tenant()
+    {
+        // Control del instrumento: las cuatro pruebas de abajo pasarían también si la función devolviera siempre un motivo.
+        LineaOutboundGestionPropiaDemoSeeder.MotivoParaOmitir(
+            esPlataforma: false, puedeActuarComoOperadorCaeExterno: false, tieneDelegacionDeOperadorCaeExternoActiva: false,
+            tieneAsignacionDeOperacionExterna: false).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true, false, false, false, "plataforma")]
+    [InlineData(false, true, false, false, "Operador CAE externo")]
+    [InlineData(false, false, true, false, "delegación activa")]
+    [InlineData(false, false, false, true, "Asignación de Operación")]
+    public void Cada_guarda_de_gestion_propia_omite_el_Tenant_por_su_propio_motivo(
+        bool esPlataforma, bool operadorExterno, bool delegacion, bool operacion, string fragmentoDelMotivo)
+    {
+        LineaOutboundGestionPropiaDemoSeeder.MotivoParaOmitir(esPlataforma, operadorExterno, delegacion, operacion)
+            .Should().NotBeNull().And.Contain(fragmentoDelMotivo);
+    }
+
+    [Fact]
+    public void Un_Tenant_que_incumple_varias_guardas_se_omite_igualmente()
+    {
+        LineaOutboundGestionPropiaDemoSeeder.MotivoParaOmitir(true, true, true, true).Should().NotBeNull();
+    }
+
+    [Fact]
     public void Solo_el_Tenant_Beta_de_la_cobertura_la_recibe()
     {
         LineaOutboundGestionPropiaDemoSeeder.NombresTenantsDeGestionPropia
@@ -68,7 +95,7 @@ public class LineaOutboundGestionPropiaDemoSeederTests
         var excluidos = new Dictionary<string, IEnumerable<string>>
         {
             ["Tenant de plataforma"] = [TenantSeedData.NombrePorDefecto],
-            ["DelegacionDemoSeeder (Operador CAE externo y clientes delegantes)"] =
+            ["DelegacionDemoSeeder (Operador CAE externo y Tenants propietarios con gestión externa)"] =
             [
                 DelegacionDemoSeeder.NombreTenantConsultora, DelegacionDemoSeeder.NombreTenantRefrielectric,
                 DelegacionDemoSeeder.NombreTenantClienteDemo, DelegacionDemoSeeder.NombreTenantClienteDemo2,
