@@ -61,6 +61,7 @@
   <data name="NavClientes" xml:space="preserve"><value>Clientes</value></data>
   <data name="NavBuzonPersonal" xml:space="preserve"><value>Mi buzón personal</value></data>
   <data name="VerTabla" xml:space="preserve"><value>Tabla</value></data>
+  <data name="VerComoLista" xml:space="preserve"><value>Ver como lista</value></data>
   <data name="Cargando" xml:space="preserve"><value>Cargando…</value></data>
   <data name="AlDia" xml:space="preserve"><value>Al día</value></data>
   <data name="ErrorAbrirConversacion" xml:space="preserve"><value>No pudimos abrir la conversación</value></data>

@@ -912,17 +912,20 @@ public class ReactivarConexionCommandHandlerTests
     /// <summary>
     /// 403/404 es definitivo, con la misma clasificación que el ciclo: una Habilitada (la pantalla aún mostraba ConError,
     /// pero el ciclo ya la había rehabilitado) pasa a ConError con el motivo del ciclo y la marca del hueco. No se pide
-    /// «inténtalo de nuevo».
+    /// «inténtalo de nuevo». El buzón sin Exchange Online (404 MailboxNotEnabledForRESTAPI) es la variante concreta de
+    /// «sin acceso»: también es definitivo y no puede tratarse como un transitorio que se reintenta sin marcar el error.
     /// </summary>
-    [Fact]
-    public async Task Sin_acceso_al_buzon_una_habilitada_pasa_a_ConError_con_el_motivo_del_ciclo_y_la_marca()
+    [Theory]
+    [InlineData(CodigosErrorMicrosoft365.SinAccesoBuzon)]
+    [InlineData(CodigosErrorMicrosoft365.SinBuzonExchange)]
+    public async Task Sin_acceso_al_buzon_una_habilitada_pasa_a_ConError_con_el_motivo_del_ciclo_y_la_marca(string codigoGraph)
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
         conexion.FijarIdentidadBuzon("inbox-x");
         conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
-        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "403") };
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(codigoGraph, "403") };
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
 

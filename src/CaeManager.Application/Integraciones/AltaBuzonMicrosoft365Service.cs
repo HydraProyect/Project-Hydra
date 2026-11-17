@@ -31,12 +31,18 @@ public class AltaBuzonMicrosoft365Service(IMicrosoft365GraphClient graphClient)
     /// <summary>El directorio no da token de aplicación o el compartido está fuera de su ámbito de Exchange.</summary>
     public const string ErrorSinAccesoCompartido = "AltaBuzon.SinAccesoCompartido";
 
+    /// <summary>Microsoft respondió 401/403 al leer el perfil con el token delegado: no concedió los permisos pedidos.</summary>
+    public const string ErrorSinPermisos = "AltaBuzon.SinPermisos";
+
+    /// <summary>La cuenta de Microsoft no tiene buzón de Exchange Online (404 <c>MailboxNotEnabledForRESTAPI</c>).</summary>
+    public const string ErrorSinBuzonExchange = "AltaBuzon.SinBuzonExchange";
+
     public async Task<Result<BuzonMicrosoft365Preparado>> PrepararAsync(
         TokensGraphDto tokensDelegados, string? buzonCompartido, CancellationToken cancellationToken)
     {
         var propio = await graphClient.ObtenerBuzonEmailAsync(tokensDelegados.AccessToken, cancellationToken);
         if (propio.EsFallido)
-            return Fallo(ErrorAutenticacion);
+            return Fallo(propio.Error.Codigo == CodigosErrorMicrosoft365.SinPermisosDelegados ? ErrorSinPermisos : ErrorAutenticacion);
 
         var esCompartido = buzonCompartido is not null &&
             !string.Equals(buzonCompartido, propio.Valor, StringComparison.OrdinalIgnoreCase);
@@ -46,7 +52,7 @@ public class AltaBuzonMicrosoft365Service(IMicrosoft365GraphClient graphClient)
             var identidadPropia = await graphClient.ObtenerIdentidadBuzonAsync(
                 tokensDelegados.AccessToken, new BuzonGraph(propio.Valor, EsCompartido: false), cancellationToken);
             return identidadPropia.EsFallido
-                ? Fallo(ErrorAutenticacion)
+                ? Fallo(identidadPropia.Error.Codigo == CodigosErrorMicrosoft365.SinBuzonExchange ? ErrorSinBuzonExchange : ErrorAutenticacion)
                 : Result.Exito(new BuzonMicrosoft365Preparado(
                     propio.Valor, tokensDelegados.AccessToken, tokensDelegados.RefreshToken, null, identidadPropia.Valor));
         }
@@ -65,7 +71,7 @@ public class AltaBuzonMicrosoft365Service(IMicrosoft365GraphClient graphClient)
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(
             tokenAplicacion.Valor.AccessToken, new BuzonGraph(buzonCompartido!, EsCompartido: true), cancellationToken);
         if (identidad.EsFallido)
-            return Fallo(identidad.Error.Codigo == CodigosErrorMicrosoft365.SinAccesoBuzon ? ErrorSinAccesoCompartido : ErrorAutenticacion);
+            return Fallo(CodigosErrorMicrosoft365.EsSinAccesoBuzon(identidad.Error) ? ErrorSinAccesoCompartido : ErrorAutenticacion);
 
         return Result.Exito(new BuzonMicrosoft365Preparado(
             buzonCompartido!, tokenAplicacion.Valor.AccessToken, null, directorio, identidad.Valor));

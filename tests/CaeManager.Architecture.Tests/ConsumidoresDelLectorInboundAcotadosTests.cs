@@ -37,6 +37,9 @@ public class ConsumidoresDelLectorInboundAcotadosTests
         // Demo mínima (DECISION_LOG 2026-11-17, opción b): la cola de validación lista los Documentos autorizados de cada
         // contrato después de LecturaInboundAutoridad sobre ese contrato, igual que ObtenerDocumentosInboundQueryHandler.
         typeof(ObtenerColaValidacionInboundQueryHandler),
+        // Demo Inbound P6: el archivo pedido desde la cola de validación. Pide ValidarInbound y LeerInbound y luego abre con
+        // la misma apertura que ObtenerArchivoInboundQueryHandler, que decide la cartera con LecturaInboundAutoridad.
+        typeof(ObtenerArchivoParaValidarInboundQueryHandler),
     ];
 
     /// <summary>
@@ -48,6 +51,7 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     private static readonly Type[] ConsumidoresAutorizadosDelAlmacenDeOriginales =
     [
         typeof(ObtenerArchivoInboundQueryHandler),
+        typeof(ObtenerArchivoParaValidarInboundQueryHandler),
         typeof(RegistrarEvidenciaInboundCommandHandler),
         typeof(OriginalesInbound),
     ];
@@ -131,6 +135,42 @@ public class ConsumidoresDelLectorInboundAcotadosTests
                 typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
             ],
             "el lector entre Tenants sin la cartera solo lo piden los handlers que la deciden antes");
+    }
+
+    /// <summary>
+    /// La lectura inversa X-2 (<c>app_inbound_tec_requerimientos()</c>) da al Tenant TEC requisitos de otros Tenants. Solo la
+    /// pide <see cref="CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler"/>,
+    /// que decide antes la capacidad ParticipanteTec y el alcance de datos y solo enseña sujetos asignados (D8), y la subida
+    /// a un requerimiento (demo P2), que pide la misma capacidad antes de leer y revalida el sujeto contra esa Query.
+    /// </summary>
+    [Fact]
+    public void Solo_ObtenerRequerimientosTec_y_la_subida_piden_la_lectura_inversa_X2()
+    {
+        NombranEnIl(typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec))
+            .Select(Exterior).Distinct().Should().BeEquivalentTo(
+            [
+                typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQueryHandler),
+                typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDocumentoRequerimientoTec.SubirDocumentoRequerimientoTecCommandHandler),
+                typeof(CaeManager.Infrastructure.Inbound.Autorizacion.LectorRequerimientosTecEnBase),
+                typeof(CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions),
+            ],
+            "otro consumidor leería los requisitos de los Tenants TCE sin la capacidad ni el filtro de sujetos asignados");
+    }
+
+    /// <summary>P-4: nada de lo que lee el Tenant TEC lleva la identidad de un Gestor CAE ni de ningún usuario.</summary>
+    [Fact]
+    public void Los_DTO_de_la_lectura_inversa_no_llevan_identidad_de_persona_del_Tenant_TCE()
+    {
+        Type[] dtos =
+        [
+            typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.RequisitoTecDto),
+            typeof(CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.RequerimientoTecDto),
+        ];
+
+        dtos.SelectMany(t => t.GetProperties()).Select(p => p.Name)
+            .Should().HaveCountGreaterThan(20, "control positivo: la reflexión ve las propiedades")
+            .And.NotContain(n => n.Contains("Gestor") || n.Contains("Usuario") || n.Contains("Email") || n.Contains("Correo")
+                                 || n.Contains("Ejecutivo") || n.Contains("Subido"));
     }
 
     [Fact]

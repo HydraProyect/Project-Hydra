@@ -721,6 +721,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        // Lectura inversa X-2 (demo Inbound, P1): los requisitos que los Tenants TCE piden al Tenant TEC del contexto firmado.
+        services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec, LectorRequerimientosTecEnBase>();
         services.AddScoped<CaeManager.Domain.Inbound.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         // ADR-013, mecanismo 10 (K-17): Inbound aporta sus claves de archivo a los barridos del Núcleo. La declaración de

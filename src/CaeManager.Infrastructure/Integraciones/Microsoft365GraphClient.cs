@@ -33,8 +33,13 @@ public class Microsoft365GraphClient(
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     // Solo el buzón propio de quien consiente. Los buzones compartidos no van por aquí: usan el
     // token de aplicación del directorio (ObtenerTokenAplicacionAsync), acotado en Exchange.
-    internal const string ScopesDelegados =
+    // Refresco: la lista que ya tenían las conexiones guardadas. Con refresh_token el scope debe ser un subconjunto
+    // de lo concedido, así que no se le añade User.Read, que solo hace falta en el alta (/me).
+    internal const string ScopesRefresco =
         "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+
+    // Autorización y canje: ObtenerBuzonEmailAsync lee /me?$select=mail,userPrincipalName y Graph responde 403 sin User.Read.
+    internal const string ScopesDelegados = ScopesRefresco + " https://graph.microsoft.com/User.Read";
 
     private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
 
@@ -86,7 +91,7 @@ public class Microsoft365GraphClient(
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = refreshToken,
-            ["scope"] = ScopesDelegados,
+            ["scope"] = ScopesRefresco,
         };
 
         var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);
@@ -286,7 +291,13 @@ public class Microsoft365GraphClient(
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
-                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+            {
+                // 401/403 con el token delegado: Microsoft no concedió los permisos que pide TALVEG. El alta lo explica aparte
+                // (se clasifica por estado HTTP, nunca por el texto que devuelva Microsoft).
+                return Result.Fallo<string>(respuesta.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden
+                    ? Error.Crear(CodigosErrorMicrosoft365.SinPermisosDelegados, "Microsoft no concedió los permisos necesarios.")
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+            }
 
             var perfil = await respuesta.Content.ReadFromJsonAsync<PerfilGraph>(cancellationToken);
             var buzon = perfil?.Mail ?? perfil?.UserPrincipalName;
@@ -328,6 +339,15 @@ public class Microsoft365GraphClient(
             // 403/404: el buzón está fuera del ámbito de RBAC for Applications que el administrador de
             // Exchange asignó a la aplicación en ese directorio, o la dirección no existe. Graph no
             // distingue los dos casos de forma fiable, así que el mensaje los nombra a la vez.
+            // La cuenta propia de quien consiente que Exchange Online no reconoce (404 MailboxNotEnabledForRESTAPI) se distingue
+            // por el código de Graph, no por su texto: el alta la explica aparte y el resto de llamadores la tratan como sin acceso.
+            if (!buzon.EsCompartido && respuesta.StatusCode == System.Net.HttpStatusCode.NotFound &&
+                CodigoErrorGraph.Extraer(cuerpoError) == "MailboxNotEnabledForRESTAPI")
+            {
+                return Result.Fallo<string>(Error.Crear(
+                    CodigosErrorMicrosoft365.SinBuzonExchange, "Esta cuenta de Microsoft no tiene buzón de Exchange Online."));
+            }
+
             return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
                 ? Result.Fallo<string>(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",

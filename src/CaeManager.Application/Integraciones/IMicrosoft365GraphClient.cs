@@ -312,6 +312,19 @@ public static class CodigosErrorMicrosoft365
     /// <summary>El buzón está fuera del alcance del token (403/404 en su Bandeja de entrada).</summary>
     public const string SinAccesoBuzon = "Integraciones.Microsoft365.SinAccesoBuzon";
 
+    /// <summary>
+    /// Graph respondió 404 con <c>MailboxNotEnabledForRESTAPI</c> al abrir el buzón propio de quien consiente: la cuenta
+    /// existe pero no tiene buzón de Exchange Online (licencia sin correo o cuenta solo de administración). Es un
+    /// <see cref="SinAccesoBuzon"/> más concreto (<see cref="EsSinAccesoBuzon"/> reúne los dos) que el alta explica aparte.
+    /// </summary>
+    public const string SinBuzonExchange = "Integraciones.Microsoft365.SinBuzonExchange";
+
+    /// <summary>Graph respondió 401 o 403 al leer el perfil (<c>/me</c>) con el token delegado: faltan permisos por conceder.</summary>
+    public const string SinPermisosDelegados = "Integraciones.Microsoft365.SinPermisosDelegados";
+
+    /// <summary>El buzón está fuera del alcance del token, con o sin la precisión de <see cref="SinBuzonExchange"/>.</summary>
+    public static bool EsSinAccesoBuzon(Error error) => error.Codigo is SinAccesoBuzon or SinBuzonExchange;
+
     /// <summary>Graph rechazó con 403 la creación de un borrador: al token le falta Mail.ReadWrite sobre ese buzón.</summary>
     public const string SinPermisoEscritura = "Integraciones.Microsoft365.SinPermisoEscritura";
 

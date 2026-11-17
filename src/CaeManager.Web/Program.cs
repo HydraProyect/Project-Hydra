@@ -26,6 +26,7 @@ using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Importacion;
+using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
@@ -345,9 +346,11 @@ CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExten
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 // Validación Inbound (Documentos por validar y Validación): cola real, y Validar y Rechazar uno a uno solo con
-// Inbound:Validacion:Habilitado en Development (OpcionesValidacionInbound); lo demás, «no disponible» hasta B-22/B-24/B-26/B-27.
+// Inbound:Validacion:Habilitado=true, en cualquier entorno (OpcionesValidacionInbound; DECISION_LOG 2026-11-17, 2757bac y
+// cc7e68e). Producción queda cerrada solo porque allí no se pone la clave: hueco declarado hasta D-12 y B-22.
+// Lo demás, «no disponible» hasta B-22/B-24/B-26/B-27.
 CaeManager.Web.Features.Inbound.Validacion.ValidacionInboundServiceCollectionExtensions.AddValidacionInbound(
-    builder.Services, builder.Configuration, builder.Environment);
+    builder.Services, builder.Configuration);
 // Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
 CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();
@@ -1371,7 +1374,9 @@ using (var scope = app.Services.CreateScope())
         // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
         // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
         // nuevo y establece su propio AmbitoTenantExplicito internamente.
-        await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await DelegacionDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore, app.Configuration, app.Environment, logger,
+            almacen: scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>());
 
         // Matriz de estados de la demo a dirección — inerte salvo que
         // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
@@ -1643,6 +1648,10 @@ app.MapAcreditacionesPendientesEndpoints();
 app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
+// Inbound (demo P6): el archivo de un Documento del Tenant TEC desde la validación del Gestor CAE del Tenant TCE. Fuera del
+// grupo del Núcleo a propósito: es de Inbound y lo decide ObtenerArchivoParaValidarInboundQuery (ValidarInbound, cartera y
+// autorización de lectura del Tenant TEC).
+app.MapArchivoValidacionInboundEndpoints();
 nucleoYFacturacion.MapVistaVocabularioPreviewEndpoints();
 nucleoYFacturacion.MapVistaDemoEndpoints();
 nucleoYFacturacion.MapConectarMicrosoft365Endpoints();

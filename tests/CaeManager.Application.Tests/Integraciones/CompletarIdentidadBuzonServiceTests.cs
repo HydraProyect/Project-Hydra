@@ -400,13 +400,18 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.UnitOfWork.VecesGuardado.Should().Be(1, "la programación se guarda antes de llamar a Microsoft");
     }
 
-    /// <summary>403/404: Microsoft dice que el buzón no se puede abrir. Es definitivo y la conexión deja de operar.</summary>
-    [Fact]
-    public async Task Sin_acceso_al_buzon_pasa_a_ConError()
+    /// <summary>
+    /// 403/404: Microsoft dice que el buzón no se puede abrir. Es definitivo y la conexión deja de operar. El buzón sin
+    /// Exchange Online (404 MailboxNotEnabledForRESTAPI) es la variante concreta y sigue el mismo camino.
+    /// </summary>
+    [Theory]
+    [InlineData(CodigosErrorMicrosoft365.SinAccesoBuzon)]
+    [InlineData(CodigosErrorMicrosoft365.SinBuzonExchange)]
+    public async Task Sin_acceso_al_buzon_pasa_a_ConError(string codigoGraph)
     {
         var escenario = new Escenario();
         var conexion = escenario.AgregarVerificada("cae@operador.test", "inbox-cae", TimeSpan.FromHours(20));
-        escenario.Graph.ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "403");
+        escenario.Graph.ErrorIdentidadBuzon = Error.Crear(codigoGraph, "403");
 
         var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
 

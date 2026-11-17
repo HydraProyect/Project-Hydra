@@ -259,7 +259,7 @@ public class CandadoEmpresaPropiaTests : IAsyncLifetime
         new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
         contexto, contexto, contexto, contexto, contexto, contexto,
         new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(),
-        new SerializacionAltasSinBloqueo(), Limite(contexto, tenantId));
+        new SerializacionAltasSinBloqueo(), Limite(contexto, tenantId), new ActorAuditoriaFijoFalso());
 
     /// <summary>
     /// En cada SaveChanges del contexto al que se añade, antes de enviarlo: ¿tiene la sesión de PostgreSQL de ese contexto

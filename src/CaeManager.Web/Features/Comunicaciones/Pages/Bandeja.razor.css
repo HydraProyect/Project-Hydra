@@ -455,7 +455,9 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    /* Relleno de la fila de la maqueta (`.fila`, 2026-11-01): 8 arriba y abajo, 12 a la derecha. Por la izquierda, 8 (la maqueta pone 4 tras una
+       columna de 36 px con la casilla de lote, que aquí no existe: va el avatar). */
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
     border-top: var(--border-default);
     border-left: 3px solid transparent;
     cursor: pointer;
@@ -1289,6 +1291,46 @@ a.bandeja-documento-citado-nombre:hover {
     }
 
     .bandeja-modo-hilo .bandeja-filtros {
+        min-height: 60vh;
+    }
+}
+
+/* Modo lista (maqueta 2026-11-01, PR-1): sin conversación abierta la lista de conversaciones está a la vista junto a los filtros, como en el
+   hilo (304 px, 344 desde 1600 y 380 desde 1760) y el centro muestra «Ninguna conversación abierta». La tabla es el modo secundario. */
+.bandeja-modo-lista {
+    --bandeja-ancho-lista: 304px;
+    gap: 0;
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+}
+
+.bandeja-modo-lista .bandeja-columna {
+    border-radius: 0;
+}
+
+.bandeja-modo-lista .bandeja-divisor {
+    display: none;
+}
+
+@media (min-width: 1600px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 344px;
+    }
+}
+
+@media (min-width: 1760px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 380px;
+    }
+}
+
+@media (max-width: 1099px) {
+    .bandeja-modo-lista {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .bandeja-modo-lista .bandeja-filtros {
         min-height: 60vh;
     }
 }

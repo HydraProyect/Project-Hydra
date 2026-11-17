@@ -131,6 +131,7 @@ public class ComunicacionesHojaDeEstilosTests
         var css = Leer(Bandeja);
         Regla(css, @"\.bandeja-modo-tabla").Should().Contain("--bandeja-ancho-lista: 240px");
         Regla(css, @"\.bandeja-modo-hilo").Should().Contain("--bandeja-ancho-lista: 304px");
+        Regla(css, @"\.bandeja-modo-lista").Should().Contain("--bandeja-ancho-lista: 304px", "la lista sin hilo abierto mide lo que la del hilo");
         Regla(css, @"\.bandeja-modo-hilo:has\(\.bandeja-cliente\)").Should().Contain("344px");
     }
 

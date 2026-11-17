@@ -39,6 +39,11 @@ Inbound.AutorizacionesLectura.Queries.ObtenerAutorizacionesLectura :: ObtenerAut
 # (vigente y sin revocar) y devuelve un booleano para la interfaz, nunca una fila; la autorizacion no tiene cartera. En lugar de la
 # cartera decide la capacidad ParticipanteTec de IAutorizacionInbound (Administrador del Tenant TEC), que la Query llama primero.
 Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida :: TieneAutorizacionLecturaConcedidaQueryHandler[Inbound.AutorizacionesLectura.Queries.TieneAutorizacionLecturaConcedida.TieneAutorizacionLecturaConcedidaQuery] = 1
+# Requerimientos del Tenant TEC (demo Inbound P1): lee Trabajadores, la Empresa propia y Documentos propios para cruzarlos con lo
+# que piden los Tenant TCE. Solo para la capacidad ParticipanteTec y el rol Administrador (AutorizacionLecturaAutoridad), cuyo
+# alcance de datos es el Tenant entero; como el resto de AutorizacionesLectura, no recorta por cartera. Si la autoridad se abre a
+# otro rol, la Query tiene que recortar por IAlcanceDatosService y esta línea sale.
+Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec :: ObtenerRequerimientosTecQueryHandler[Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ObtenerRequerimientosTecQuery] = 1
 Bandeja.Queries.ObtenerBandejaAgrupada :: ObtenerBandejaAgrupadaQueryHandler[Bandeja.Queries.ObtenerBandejaAgrupada.ObtenerBandejaAgrupadaQuery] = 1
 Bandeja.Queries.ObtenerBandejaGestor :: ObtenerBandejaGestorQueryHandler[Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery] = 1
 BusquedaGlobal.Queries.ObtenerRecientes :: ObtenerRecientesQueryHandler[BusquedaGlobal.Queries.ObtenerRecientes.ObtenerRecientesQuery] = 1

@@ -3,6 +3,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Contactos;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Gestiones;
 using CaeManager.Application.Empresas;
@@ -50,6 +51,7 @@ public class GenerarDocumentoIndividualCommandHandler(
     IUnitOfWork unitOfWork,
     INacimientoGestionAutomaticaService gestionAutomatica,
     ILogger<GenerarDocumentoIndividualCommandHandler> logger,
+    IActorAuditoria actorAuditoria,
     // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
     // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
     IInvalidadorAlcance? invalidadorAlcance = null)
@@ -199,11 +201,13 @@ public class GenerarDocumentoIndividualCommandHandler(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             fechaEmision, fechaVencimientoManual: null, noCaducaConfirmado: false);
 
+        // D-12: quien genera el documento desde la plantilla es quien sube esta versión.
+        var autor = await AutorDeLaSubida.ResolverAsync(actorAuditoria);
         var documento = plantilla.AmbitoAplicacion switch
         {
-            AmbitoAplicacion.Trabajador => Documento.DeTrabajador(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl),
-            AmbitoAplicacion.Cliente => Documento.DeCliente(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl),
-            _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl)
+            AmbitoAplicacion.Trabajador => Documento.DeTrabajador(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl, autor: autor),
+            AmbitoAplicacion.Cliente => Documento.DeCliente(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl, autor: autor),
+            _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl, autor: autor)
         };
 
         var datosUtilizadosJson = JsonSerializer.Serialize(

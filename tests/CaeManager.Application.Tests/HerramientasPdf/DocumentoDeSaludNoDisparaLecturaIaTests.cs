@@ -59,7 +59,7 @@ public class DocumentoDeSaludNoDisparaLecturaIaTests
             new ProyectosQueryContextFalso(), empresas, new UnitOfWorkFalso(),
             _cola, new CurrentUserServiceFalso(), _mundo.Servicio(), new PublisherFalso(),
             new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
-            _mundo.GestionAutomatica());
+            _mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
         var creado = await handler.Handle(comando, CancellationToken.None);
         creado.EsExitoso.Should().BeTrue(creado.Error.Mensaje);

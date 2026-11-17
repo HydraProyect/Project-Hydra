@@ -15,6 +15,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Integraciones.Pages;
@@ -25,6 +26,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Reflection;
 
 namespace CaeManager.Web.Tests;
@@ -35,7 +37,16 @@ public class ConexionesGen2Tests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization(); // el modal de línea es ModalFormulario, que localiza sus textos comunes
+        Services.AddSingleton<IOptions<Microsoft365GraphOptions>>(Options.Create(Opciones));
     }
+
+    /// <summary>La configuración de Microsoft 365 de la página: con URL pública (se puede conectar) salvo que el test la vacíe.</summary>
+    private Microsoft365GraphOptions Opciones { get; } = new()
+    {
+        ClientId = "cliente-secreto-de-prueba",
+        ClientSecret = "valor-secreto-de-prueba",
+        UrlPublicaBase = "https://app.talveg.test",
+    };
 
     private sealed class MediadorFalso : IMediator
     {
@@ -164,20 +175,145 @@ public class ConexionesGen2Tests : BunitContext
     [InlineData("solicitud", TonoToast.Error, "No pudimos completar la conexión.")]
     [InlineData("ya-conectado", TonoToast.Error, "Ese buzón ya está conectado")]
     [InlineData("sin-acceso-compartido", TonoToast.Error, "TALVEG no puede abrir ese buzón compartido.")]
+    // Cada fallo del callback tiene su código cerrado y su texto: solo «configuracion» y «url-publica» hablan de configuración.
+    [InlineData("configuracion", TonoToast.Error, "La conexión con Microsoft 365 está a medias en este entorno")]
+    [InlineData("url-publica", TonoToast.Error, "La conexión con Microsoft 365 no está disponible en este entorno")]
+    [InlineData("canje-tokens", TonoToast.Error, "Microsoft no aceptó la autorización para conectar el buzón.")]
+    [InlineData("permisos-microsoft", TonoToast.Error, "Microsoft no concedió los permisos necesarios. Vuelve a conectar y acepta los permisos, o pide a tu administrador de Microsoft 365 que los conceda.")]
+    [InlineData("sin-buzon-exchange", TonoToast.Error, "Esta cuenta de Microsoft no tiene buzón de Exchange Online (licencia sin correo o cuenta solo de administración). Conecta una cuenta con correo de Outlook.")]
+    [InlineData("error-microsoft", TonoToast.Error, "Microsoft canceló la conexión o devolvió un error.")]
+    [InlineData("solo-administrador", TonoToast.Error, "Solo el Administrador puede conectar un buzón de Microsoft 365.")]
     public void El_resultado_del_callback_de_Microsoft_sale_con_su_tono(string codigo, TonoToast tono, string texto)
+    {
+        var aviso = RenderizarConError(codigo);
+
+        aviso.Tono.Should().Be(tono);
+        aviso.Mensaje.Should().StartWith(texto);
+    }
+
+    private ToastMensaje RenderizarConError(string codigo)
     {
         Services.AddScoped<IMediator>(_ => new MediadorFalso());
         Services.AddScoped<ToastService>();
         Services.AddScoped(_ => Directorio());
         // [SupplyParameterFromQuery]: se llega navegando, igual que desde el callback.
         Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
-            .NavigateTo("integraciones?error=" + codigo);
+            .NavigateTo("integraciones?error=" + Uri.EscapeDataString(codigo));
 
         Render<Conexiones>();
 
-        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
-        aviso.Tono.Should().Be(tono);
-        aviso.Mensaje.Should().StartWith(texto);
+        return Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
+    }
+
+    /// <summary>
+    /// El código de «?error=» es cerrado: uno desconocido, o escrito a mano en la barra de direcciones (un texto del proveedor, un
+    /// guion, una URL), cae en el mensaje genérico y no se refleja en ningún sitio.
+    /// </summary>
+    [Theory]
+    [InlineData("<script>alert(1)</script>")]
+    [InlineData("https://sitio-ajeno.example/entra")]
+    [InlineData("invalid_scope: AADSTS70011 The provided value for the input parameter 'scope' is not valid")]
+    [InlineData("CONFIGURACION")]
+    [InlineData("cancelado ")]
+    public void Un_codigo_desconocido_cae_en_el_mensaje_generico_sin_reflejar_la_query(string codigo)
+    {
+        var aviso = RenderizarConError(codigo);
+
+        aviso.Tono.Should().Be(TonoToast.Error);
+        aviso.Mensaje.Should().Be("No pudimos completar la conexión.");
+        aviso.Mensaje.Should().NotContain("script").And.NotContain("sitio-ajeno").And.NotContain("AADSTS");
+    }
+
+    /// <summary>
+    /// Cada código que declara <c>ConectarMicrosoft365Endpoints</c> (leído por reflexión, así una constante nueva entra sola) tiene
+    /// su texto propio en Conexiones; solo «solicitud» cae a propósito en el genérico (state caducado o de otra cuenta).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CodigosDelEndpoint))]
+    public void Cada_codigo_que_declara_el_endpoint_tiene_su_texto_en_Conexiones(string codigo)
+    {
+        var aviso = RenderizarConError(codigo);
+
+        if (codigo == "solicitud")
+            aviso.Mensaje.Should().Be("No pudimos completar la conexión.");
+        else
+            aviso.Mensaje.Should().NotBe("No pudimos completar la conexión.", $"«{codigo}» necesita su propio texto");
+    }
+
+    public static TheoryData<string> CodigosDelEndpoint()
+    {
+        const string raiz = "/integraciones?error=";
+        var codigos = typeof(CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string) && f.Name.StartsWith("Redireccion", StringComparison.Ordinal))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .Where(r => r.StartsWith(raiz, StringComparison.Ordinal))
+            .Select(r => r[raiz.Length..]);
+        var datos = new TheoryData<string>();
+        foreach (var codigo in codigos) datos.Add(codigo);
+        return datos;
+    }
+
+    /// <summary>Cada motivo del callback tiene su texto en catalán, distinto del genérico y sin valores de configuración.</summary>
+    [Theory]
+    [InlineData("autenticacion", "No hem pogut autenticar amb Microsoft.")]
+    [InlineData("configuracion", "La connexió amb Microsoft 365 està a mitges en aquest entorn")]
+    [InlineData("url-publica", "La connexió amb Microsoft 365 encara no està disponible en aquest entorn.")]
+    [InlineData("canje-tokens", "Microsoft no ha acceptat l'autorització per connectar la bústia.")]
+    [InlineData("permisos-microsoft", "Microsoft no ha concedit els permisos necessaris.")]
+    [InlineData("sin-buzon-exchange", "Aquest compte de Microsoft no té bústia d'Exchange Online")]
+    [InlineData("error-microsoft", "Microsoft ha cancel·lat la connexió o ha retornat un error.")]
+    [InlineData("solo-administrador", "Només l'Administrador pot connectar una bústia de Microsoft 365.")]
+    public void Cada_motivo_del_callback_tiene_su_texto_en_catalan(string codigo, string texto)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo("ca-ES");
+
+            var aviso = RenderizarConError(codigo);
+
+            aviso.Mensaje.Should().StartWith(texto);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    /// <summary>
+    /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth: la página no ofrece ni el
+    /// enlace ni los campos del propietario y lo explica, sin enseñar valores de configuración.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Sin_URL_publica_no_se_ofrece_conectar_y_el_aviso_no_enseña_la_configuracion(string? urlPublica)
+    {
+        Opciones.UrlPublicaBase = urlPublica;
+
+        var cut = Renderizar();
+
+        cut.FindAll("a.enlace-conectar-microsoft").Should().BeEmpty();
+        cut.FindAll(".acciones-conexion-buzon").Should().BeEmpty();
+        var aviso = cut.Find("[data-testid=aviso-conexion-no-disponible]");
+        aviso.GetAttribute("role").Should().Be("status");
+        aviso.TextContent.Should().Contain("Soporte TALVEG");
+        cut.Markup.Should().NotContain("cliente-secreto-de-prueba").And.NotContain("valor-secreto-de-prueba")
+            .And.NotContain("Integraciones:Microsoft365").And.NotContain("UrlPublicaBase");
+    }
+
+    [Fact]
+    public void Con_URL_publica_se_ofrece_conectar_y_no_hay_aviso()
+    {
+        var cut = Renderizar();
+
+        var enlace = cut.Find("a.enlace-conectar-microsoft");
+        enlace.GetAttribute("href").Should().StartWith("/integraciones/conectar-microsoft365");
+        enlace.GetAttribute("data-enhance-nav").Should().Be("false",
+            "página completa: la navegación mejorada seguiría el 302 a Microsoft con un fetch que la CSP bloquea");
+        cut.FindAll("[data-testid=aviso-conexion-no-disponible]").Should().BeEmpty();
     }
 
     private static Task InvocarAsync(Conexiones instancia, string nombre, params object?[] argumentos) =>
@@ -222,11 +358,19 @@ public class ConexionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public void El_enlace_de_Microsoft_sale_por_navegacion_completa_porque_redirige_fuera_del_sitio()
+    {
+        // La navegación mejorada de Blazor haría fetch al endpoint, que responde 302 a login.microsoftonline.com,
+        // y la CSP (connect-src 'self') bloquearía el seguimiento: la barra cambiaría y la página no.
+        Renderizar().Find("a.enlace-conectar-microsoft").GetAttribute("data-enhance-nav").Should().Be("false");
+    }
+
+    [Fact]
     public void La_cabecera_tiene_subtitulo_corto_pie_y_conserva_el_explorador_tecnico_y_el_enlace_de_conexion()
     {
         var cut = Renderizar();
 
-        // E31 queda pendiente: «Añadir buzón» en la cabecera arrancaría la conexión sin ver el propietario elegido más abajo.
+        // «Añadir buzón» (E31) vive en Buzones, con su cajón de propietario; en Conexiones el enlace sigue junto a los selectores.
         var conectar = cut.Find("a.enlace-conectar-microsoft");
         conectar.TextContent.Trim().Should().Contain("Conectar buzón de Microsoft 365");
         conectar.Closest(".acciones-conexion-buzon").Should().NotBeNull("el enlace sigue junto a los selectores de propietario");

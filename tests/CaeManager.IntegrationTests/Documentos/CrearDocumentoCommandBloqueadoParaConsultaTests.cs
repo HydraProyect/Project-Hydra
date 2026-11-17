@@ -133,8 +133,12 @@ public class CrearDocumentoCommandBloqueadoParaConsultaTests : IAsyncLifetime
         servicios.AddLogging();
         servicios.AddApplication();
 
-        servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), rol));
+        var usuarioId = Guid.NewGuid();
+        servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(usuarioId, rol));
         servicios.AddSingleton<ITenantActual>(_tenantActual);
+        // D-12: Crear firma la versión con la identidad de auditoría; en producción la da Program.cs.
+        servicios.AddSingleton<CaeManager.Application.Common.IActorAuditoria>(
+            new ActorAuditoriaFijoFalso(CaeManager.Application.Common.ActorAuditoria.Normal(usuarioId)));
         // La clave ficticia del comando pasa por la comprobación de firma del contenido (ASVS V12): el almacenamiento devuelve un PDF válido.
         servicios.AddSingleton<IFileStorageService, AlmacenamientoConPdfMinimoFalso>();
 

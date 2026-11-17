@@ -55,7 +55,27 @@
         <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">@TextosLista["NuevoCorreo"]</Boton></SoloConEscritura>
     </header>
 
-    <div class="bandeja-layout @(_vista != "clientes" ? "bandeja-modo-personal" : _conversacionSeleccionadaId is null ? "bandeja-modo-tabla" : "bandeja-modo-hilo")">
+    @{
+        // «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
+        // El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. Lo usan la lista y la tabla.
+        RenderFragment vacioLista = @<div class="bandeja-vacio-bloque">
+            @if (!HayFiltrosActivos)
+            {
+                <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
+            }
+            <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
+                         Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
+                <Accion>
+                    @if (HayFiltrosActivos)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
+                    }
+                </Accion>
+            </EstadoVacio>
+        </div>;
+    }
+
+    <div class="bandeja-layout bandeja-modo-@ModoDeRejilla">
         <aside class="bandeja-columna bandeja-filtros">
             @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
@@ -189,16 +209,18 @@
                 </div>
 
                 <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
-                @if (_conversacionSeleccionadaId is not null)
+                @* La lista de conversaciones está siempre a la vista (maqueta, PR-1): con o sin conversación abierta; solo desaparece
+                   en el modo tabla (y con el historial de Reclamaciones, que ocupa el centro). *@
+                @if (MostrarListaLateral)
                 {
                     <div class="bandeja-lista">
-                        @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que vuelve a la vista de tabla. *@
+                        @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que abre la bandeja en tabla. *@
                         <div class="bandeja-lis-cab">
                             <div class="bandeja-lis-cab-t">
                                 <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
                                 <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
                             </div>
-                            <button type="button" class="bandeja-mini" @onclick="VolverABandejaAsync">@TextosLista["VerTabla"]</button>
+                            <button type="button" class="bandeja-mini" @onclick="VerTablaAsync">@TextosLista["VerTabla"]</button>
                         </div>
                         @if (_errorCargaLista)
                         {
@@ -210,6 +232,10 @@
                         {
                             <EstadoCargando Filas="6" />
                             <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                        }
+                        else if (_conversaciones.Count == 0)
+                        {
+                            @vacioLista
                         }
                         else
                         {
@@ -283,14 +309,15 @@
                    Su cabecera (título y línea explicativa) la pinta el propio componente. *@
                 <HistorialReclamaciones OnVerHilo="SeleccionarConversacionAsync" />
             }
-            else if (_conversacionSeleccionadaId is null && _vista == "clientes")
+            else if (_conversacionSeleccionadaId is null && _vista == "clientes" && _modoTabla)
             {
-                @* Encabezado de la lista (maqueta, E9): título y recuento; el buscador vive en la cabecera de la página (E3). *@
+                @* Modo tabla (maqueta, E9): «Tabla» en el encabezado de la lista lo abre y «Ver como lista» vuelve a la lista; el buscador vive en la cabecera de la página (E3). *@
                 <div class="bandeja-lis-cab bandeja-tabla-cabecera">
                     <div class="bandeja-lis-cab-t">
                         <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
                         <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
                     </div>
+                    <button type="button" class="bandeja-mini" @onclick="VerComoLista">@TextosLista["VerComoLista"]</button>
                 </div>
                 @if (_errorCargaLista)
                 {
@@ -314,23 +341,7 @@
                 }
                 else
                 {
-                    @* «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
-                       El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. *@
-                    <div class="bandeja-vacio-bloque">
-                        @if (!HayFiltrosActivos)
-                        {
-                            <div class="bandeja-al-dia"><Badge Tono="TonoBadge.Exito">@TextosLista["AlDia"]</Badge></div>
-                        }
-                        <EstadoVacio SinIcono="true" Titulo="@(HayFiltrosActivos ? TextosLista["SinResultados"] : TextosLista["SinConversaciones"])"
-                                     Descripcion="@(HayFiltrosActivos ? TextosLista["SinResultadosAyuda"] : TextosLista["SinConversacionesAyuda"])">
-                            <Accion>
-                                @if (HayFiltrosActivos)
-                                {
-                                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@TextosLista["QuitarFiltros"]</Boton>
-                                }
-                            </Accion>
-                        </EstadoVacio>
-                    </div>
+                    @vacioLista
                 }
             }
             else if (_conversacionSeleccionadaId is null)

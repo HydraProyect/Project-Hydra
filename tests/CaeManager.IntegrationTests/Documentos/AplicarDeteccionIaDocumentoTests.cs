@@ -111,7 +111,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     {
         var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var historial = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
-        var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null);
+        var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null, AutorVersionDocumento.Desconocido);
         _dbContext.Documentos.AddRange(historial, vigente);
         historial.SustituirPor(vigente, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
 

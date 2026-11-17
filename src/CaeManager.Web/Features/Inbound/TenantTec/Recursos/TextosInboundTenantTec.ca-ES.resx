@@ -255,6 +255,12 @@
   <data name="MasTarde" xml:space="preserve">
     <value>Més tard</value>
   </data>
+  <data name="NivelCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="NivelClienteEmpresarial" xml:space="preserve">
+    <value>Exigències del Client</value>
+  </data>
   <data name="QlAutorizacionTitulo" xml:space="preserve">
     <value>Autorització única de reutilització</value>
   </data>
@@ -492,6 +498,9 @@
   <data name="SbCentro" xml:space="preserve">
     <value>Centre</value>
   </data>
+  <data name="SbCheckEmisionMal" xml:space="preserve">
+    <value>La data d&apos;emissió no pot ser futura.</value>
+  </data>
   <data name="SbCheckEspera" xml:space="preserve">
     <value>Tria un arxiu per comprovar-lo.</value>
   </data>
@@ -502,7 +511,7 @@
     <value>Venciment: {0}.</value>
   </data>
   <data name="SbCheckFormatoMal" xml:space="preserve">
-    <value>Format no admès: {0}. Puja un PDF, un Word o una foto (JPG, PNG, HEIC).</value>
+    <value>Format no admès: {0}. Puja un PDF, un Word (.docx) o una foto (JPG, PNG).</value>
   </data>
   <data name="SbCheckFormatoOk" xml:space="preserve">
     <value>Format admès: {0}.</value>
@@ -532,7 +541,7 @@
     <value>No s&apos;ha pogut pujar el document. Torna-ho a provar.</value>
   </data>
   <data name="SbFormatos" xml:space="preserve">
-    <value>PDF, Word o foto (JPG, PNG, HEIC), fins a 10 MB.</value>
+    <value>PDF, Word (.docx) o foto (JPG, PNG), fins a 10 MB.</value>
   </data>
   <data name="SbHechoTitulo" xml:space="preserve">
     <value>Document pujat</value>

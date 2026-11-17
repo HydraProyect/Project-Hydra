@@ -153,4 +153,40 @@
   <data name="ErrorResponsable" xml:space="preserve">
     <value>No pudimos cambiar el responsable.</value>
   </data>
+  <data name="AnadirBuzon" xml:space="preserve">
+    <value>Añadir buzón</value>
+  </data>
+  <data name="AvisoConexionNoDisponible" xml:space="preserve">
+    <value>La conexión con Microsoft 365 no está disponible en este entorno todavía. Avisa a Soporte TALVEG para que la active.</value>
+  </data>
+  <data name="FranjaErrorBuzon" xml:space="preserve">
+    <value>El buzón {0} tiene un error</value>
+  </data>
+  <data name="Reconectar" xml:space="preserve">
+    <value>Reconectar</value>
+  </data>
+  <data name="ToastReconectado" xml:space="preserve">
+    <value>Conexión de {0} reactivada.</value>
+  </data>
+  <data name="ErrorReconectar" xml:space="preserve">
+    <value>No pudimos reconectar el buzón. Inténtalo de nuevo.</value>
+  </data>
+  <data name="CajonTitulo" xml:space="preserve">
+    <value>Añadir buzón</value>
+  </data>
+  <data name="CajonContinuar" xml:space="preserve">
+    <value>Continuar en Microsoft</value>
+  </data>
+  <data name="CajonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="CajonIntro" xml:space="preserve">
+    <value>Elige de quién es el buzón antes de conectarlo. Después iniciarás sesión en Microsoft y aceptarás los permisos.</value>
+  </data>
+  <data name="CajonAyudaCompartido" xml:space="preserve">
+    <value>Para un buzón compartido, escribe su dirección; el administrador de Exchange de tu organización debe haber autorizado antes a TALVEG sobre ese buzón. Sin elegir nada, se conecta tu propio buzón.</value>
+  </data>
+  <data name="CajonErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar las Empresas sin rol CAE ni los Gestores CAE. Puedes seguir con un buzón de la organización propia o compartido.</value>
+  </data>
 </root>
