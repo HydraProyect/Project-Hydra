@@ -212,6 +212,33 @@ public class ObtenerClientesAutorizadosPorPapelTests
         ClientesAutorizados.Activo(sinOpcion, e.Sur.Id)!.EsOrigen.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Para_el_Tenant_activo_alcanzado_solo_por_Inbound_como_unico_externo_el_selector_es_visible()
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        Inbound(e, e.Sur);
+        await e.Db.SaveChangesAsync();
+
+        var lista = await PedirParaTenantActivo(e, e.Sur, PapelActivo.Inbound);
+
+        lista.Select(c => c.TenantId).Should().Equal(e.Origen.Id, e.Sur.Id);
+        ClientesAutorizados.SelectorVisible(lista, ClientesAutorizados.Activo(lista, e.Sur.Id)).Should()
+            .BeTrue("sin otro Tenant gestionado, la entrada Inbound es la que hace visible el selector (D-4)");
+    }
+
+    [Fact]
+    public async Task Para_el_Tenant_activo_no_basta_una_Asignacion_de_Operacion_Inbound_sobre_otro_Tenant()
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        Inbound(e, e.Norte);
+        await e.Db.SaveChangesAsync();
+
+        (await PedirParaTenantActivo(e, e.Sur, PapelActivo.Inbound)).Should().NotContain(c => c.TenantId == e.Sur.Id,
+            "solo se añade el Tenant activo si una Asignación de Operación Inbound lo alcanza a él");
+    }
+
     [Theory]
     [InlineData(PapelActivo.Outbound)]
     [InlineData(PapelActivo.SinPapel)]

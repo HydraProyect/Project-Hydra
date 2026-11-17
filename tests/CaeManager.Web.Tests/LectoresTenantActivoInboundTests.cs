@@ -66,6 +66,16 @@ public class LectoresTenantActivoInboundTests
     }
 
     [Fact]
+    public async Task Con_el_Tenant_alcanzado_solo_por_Inbound_como_unico_externo_la_cabecera_lo_pinta()
+    {
+        // Caso puro de D-4: sin otro Tenant gestionado, solo la entrada Inbound hace visible el selector.
+        var mediador = new Mediador([Propio], [Propio, SurInbound]);
+
+        (await ContextoEmpresaActiva.ResolverAsync(mediador, new TenantActualFijo(Sur)))
+            .Should().Be(new ContextoEmpresaActiva(SurInbound, false));
+    }
+
+    [Fact]
     public async Task Con_una_entrada_Outbound_la_cabecera_no_cambia()
     {
         IReadOnlyList<ClienteAutorizadoDto> porTenant = [Propio, NorteOutbound, EsteOutbound];
@@ -82,6 +92,8 @@ public class LectoresTenantActivoInboundTests
     /// Ficheros de la interfaz que resuelven el Tenant activo con <see cref="ClientesAutorizados.Activo"/>,
     /// <see cref="ClientesAutorizados.PideElegirEmpresa"/> o <see cref="ClientesAutorizados.SinEmpresaSeleccionada"/>.
     /// El selector de la cabecera queda fuera: compone su propia lista con <see cref="ObtenerClientesAutorizadosQuery.PorPapel"/>.
+    /// Límite del instrumento: compara texto por fichero y solo en <c>src/CaeManager.Web</c>; no ve un lector que resuelva el
+    /// Tenant activo a mano ni uno que mezcle en el mismo fichero la lista para el Tenant activo con otra lista.
     /// </summary>
     private static readonly string[] Lectores =
     [
