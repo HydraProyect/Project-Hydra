@@ -136,11 +136,22 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// cada una se evalúa por separado y basta que una bloquee y falle. (6) Un requisito que toma el vencimiento del documento y
 /// una evidencia sin fecha no se da por vigente. (7) Una evidencia médica que transcribe «No apto» no acredita el requisito y,
 /// mientras esté Aceptada y vigente (su vencimiento, sin tolerancia; sin fecha que la caduque, se da por vigente), bloquea
-/// siempre, aunque haya otra evidencia mejor del mismo tipo (decisión del 2026-11-17, P3 punto 2); caducada, deja de bloquear.
-/// Solo se evalúa si el Centro o el Cliente empresarial tienen ese tipo como requisito que bloquea. (8) Cada evidencia es de un
+/// siempre, aunque haya otra evidencia mejor del mismo tipo (decisión del 2026-11-17, P3 punto 2); caducada, deja de bloquear,
+/// pero con él Aceptado, vigente o caducado, solo acredita un apto emitido después de la emisión del «No apto» (el anterior o
+/// el emitido el mismo día no revive). Esta última regla, la lectura de los «No apto» de todos los contratos del Centro y la
+/// proyección restringida de abajo son una lectura que falla cerrado de la regla de Chris «un No apto vigente bloquea
+/// siempre, con independencia de otras evidencias», decidida por la subcoordinadora de Inbound el 2026-11-17 tras la
+/// revisión de la PR #2329; si Chris la entiende de otro modo, se corrige aquí. Solo se evalúa si el Centro o el Cliente
+/// empresarial tienen ese tipo como requisito que bloquea. (7 bis) El «No apto» se lee de las evidencias del mismo Trabajador
+/// (<c>TrabajadorOrigenId</c>) en todos los contratos de acceso del Centro, sea cual sea su estado (Suspendido, Finalizado,
+/// Cancelado o no vigente hoy), con el mismo contexto y la misma RLS del Tenant del Cliente empresarial y solo de los contratos
+/// que el actor ve; de esos contratos no sale ninguna fila ni ninguna acreditación positiva, y el Trabajador sin ninguna
+/// evidencia en un contrato que cuenta sigue sin aparecer (hueco 1). Un «No apto» de un contrato que la Asignación de Cartera
+/// del actor no deja ver no se lee (no se cambia la autorización). (8) Cada evidencia es de un
 /// contrato: un Trabajador en dos contratos se evalúa en cada uno y sale una sola vez, con el estado menos favorable de todos
 /// ellos (decisión del 2026-11-17, P3 punto 4); la fila cita el contrato y la Empresa contratista que dan ese estado y lleva en
-/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas. (9) En una fila Apto de la proyección completa, el próximo vencimiento
+/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas (solo las de los contratos que cuentan); en la proyección
+    /// restringida la fila cita, en cambio, el contrato y la Empresa del contrato más reciente que cuenta. (9) En una fila Apto de la proyección completa, el próximo vencimiento
 /// puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
 /// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
 /// </para>
@@ -191,6 +202,29 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             .Where(e => contratoIds.Contains(e.ContratoAccesoId))
             .ToListAsync(cancellationToken);
 
+        // Decisión del 2026-11-17 (P3, revisión del revisor-puente, punto 2): un «No apto» se lee también de los contratos del
+        // Centro que no cuentan (Suspendido, Finalizado, Cancelado, no vigente hoy...), con el mismo contexto, el mismo Tenant y
+        // la misma RLS, y solo de los que el actor ve. De ellos no sale ninguna fila ni ninguna acreditación positiva.
+        var candidatoIds = candidatos.Select(c => c.Id).ToList();
+        var noCuentan = await contratosContext.ContratosAcceso
+            .Where(c => c.CentroId == centroId && !candidatoIds.Contains(c.Id))
+            .ToListAsync(cancellationToken);
+        var otrosIds = new List<Guid>();
+        foreach (var contrato in noCuentan)
+        {
+            if (await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
+                otrosIds.Add(contrato.Id);
+        }
+
+        var evidenciasDeOtros = otrosIds.Count == 0
+            ? []
+            : await evidenciasContext.EvidenciasInbound
+                .Where(e => otrosIds.Contains(e.ContratoAccesoId) && e.SoloConclusionAptitud && e.TrabajadorOrigenId != null)
+                .ToListAsync(cancellationToken);
+        var noAptosPorTrabajador = evidencias.Concat(evidenciasDeOtros)
+            .Where(e => e.TrabajadorOrigenId is not null && EsNoApto(e) && EvidenciasInboundProyeccion.EstaAceptada(e))
+            .ToLookup(e => e.TrabajadorOrigenId!.Value);
+
         var requisitos = await RequisitosQueBloqueanAsync(centroId, contratos, cancellationToken);
         var tipoIds = requisitos.Select(r => r.TipoDocumentoId).Distinct().ToList();
         var tipos = tipoIds.Count == 0
@@ -210,6 +244,8 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
 
         var filas = new Dictionary<Guid, AptoHoyDto>();
         var empresasPorTrabajador = new Dictionary<Guid, List<Guid>>();
+        // Los contratos van del más reciente al más antiguo: el primero en el que sale un Trabajador es el más reciente que cuenta.
+        var masRecientePorTrabajador = new Dictionary<Guid, ContratoAcceso>();
         foreach (var contrato in contratos)
         {
             var delContrato = evidencias.Where(e => e.ContratoAccesoId == contrato.Id).ToList();
@@ -221,8 +257,10 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             foreach (var porTrabajador in delContrato.Where(e => e.TrabajadorOrigenId is not null).GroupBy(e => e.TrabajadorOrigenId!.Value))
             {
                 var propias = porTrabajador.ToList();
+                // Solo los «No apto» Aceptados de los demás contratos del Centro se suman a lo propio; nunca una acreditación positiva.
+                var ajenas = noAptosPorTrabajador[porTrabajador.Key].Where(e => e.ContratoAccesoId != contrato.Id);
                 var evaluadas = evaluadasEmpresa.Concat(
-                    Evaluar(exigidosTrabajador, propias, hoy, SujetoDelRequisitoInbound.Trabajador)).ToList();
+                    Evaluar(exigidosTrabajador, propias.Concat(ajenas).ToList(), hoy, SujetoDelRequisitoInbound.Trabajador)).ToList();
                 var identidad = propias.OrderByDescending(e => e.ValidadaEnUtc).ThenBy(e => e.Id).First();
                 var fila = Resumir(porTrabajador.Key, identidad, contrato, evaluadas, hoy);
 
@@ -234,23 +272,28 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
                     empresasPorTrabajador[porTrabajador.Key] = empresas = [];
                 if (!empresas.Contains(contrato.EmpresaContratistaId))
                     empresas.Add(contrato.EmpresaContratistaId);
+                masRecientePorTrabajador.TryAdd(porTrabajador.Key, contrato);
             }
         }
 
         // La restricción va antes de ordenar: el orden no puede delatar un «en tolerancia» que la proyección restringida oculta.
         return filas
             .Select(par => par.Value with { EmpresasContratistaIds = empresasPorTrabajador[par.Key] })
-            .Select(f => completa ? f : Restringida(f))
+            .Select(f => completa ? f : Restringida(f, masRecientePorTrabajador[f.TrabajadorId]))
             .OrderByDescending(f => f.Estado).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.TrabajadorId)
             .ToList();
     }
 
     /// <summary>
     /// La proyección para quien no tiene <see cref="CapacidadInbound.ValidarInbound"/>: nombre, DNI parcial, Empresa contratista
-    /// y apto o no apto. Sin tipo de contrato, requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10).
+    /// y apto o no apto. Sin tipo de contrato, requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10). La fila
+    /// cita el contrato y la Empresa contratista del contrato más reciente que cuenta, no los del estado menos favorable: citar
+    /// estos delataría en qué contrato está el «en tolerancia» o el motivo (decisión del 2026-11-17, P3, punto 5).
     /// </summary>
-    private static AptoHoyDto Restringida(AptoHoyDto fila) => fila with
+    private static AptoHoyDto Restringida(AptoHoyDto fila, ContratoAcceso masReciente) => fila with
     {
+        ContratoAccesoId = masReciente.Id,
+        EmpresaContratistaId = masReciente.EmpresaContratistaId,
         DocumentoIdentidad = DniParcialAptosHoy.Enmascarar(fila.DocumentoIdentidad),
         TipoContrato = null,
         ProyeccionCompleta = false,
@@ -337,6 +380,16 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
         if (lista.Any(e => EsNoAptoVigente(exigido, e, hoy)))
             return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.NoAcreditado, null);
 
+        // Lectura que falla cerrado de la misma regla (decisión del 2026-11-17, P3, revisión, punto 1): con un «No apto»
+        // Aceptado, vigente o ya caducado, solo acredita un apto emitido después de él. Un apto anterior, o emitido el mismo día,
+        // no revive cuando el «No apto» caduca. La vigencia del «No apto» no cambia (D4, sin tolerancia).
+        var noAptos = lista.Where(EsNoApto).ToList();
+        if (noAptos.Count > 0)
+        {
+            var corte = noAptos.Max(e => e.FechaEmision);
+            lista = lista.Where(e => EsNoApto(e) || e.FechaEmision > corte).ToList();
+        }
+
         var resultados = lista.Select(e => Valorar(exigido, e, hoy)).ToList();
 
         return resultados
@@ -397,8 +450,11 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     /// (el requisito no la fija y el documento no la trae) se da por vigente: falla cerrado.
     /// </summary>
     private static bool EsNoAptoVigente(Exigido exigido, EvidenciaInbound evidencia, DateOnly hoy) =>
-        evidencia.SoloConclusionAptitud && evidencia.ConclusionAptitud == ConclusionAptitud.NoApto
+        EsNoApto(evidencia)
         && (VencimientoDe(exigido.Requisito, evidencia) is not { } dia || hoy.DayNumber <= dia.DayNumber);
+
+    private static bool EsNoApto(EvidenciaInbound evidencia) =>
+        evidencia.SoloConclusionAptitud && evidencia.ConclusionAptitud == ConclusionAptitud.NoApto;
 
     private static DateOnly? MasTemprana(DateOnly? a, DateOnly? b) =>
         a is null ? b : b is null ? a : a < b ? a : b;

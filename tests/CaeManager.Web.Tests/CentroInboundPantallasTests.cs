@@ -323,6 +323,29 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public async Task Aptos_hoy_ordena_por_estado_despues_por_la_Empresa_de_la_fila_y_al_final_por_nombre()
+    {
+        // La Empresa de la fila de la proyección restringida es la del contrato más reciente (P3, revisión, punto 5): la pantalla ordena
+        // por esa Empresa, no por la del estado menos favorable.
+        Preparar(aptos:
+        [
+            Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Montajes Moncayo S.L."),
+            Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+            Apto("Iván Bescós Lacasa", EstadoAptitudHoy.NoApto, "Seguro de responsabilidad civil", empresa: "Montajes Moncayo S.L."),
+            Apto("Sonia Ferrer Lahoz", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+        ], contratos: Contrato());
+
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas.Should().HaveCount(4);
+        filas[0].Should().Contain("Iván Bescós Lacasa", "primero lo que no deja entrar");
+        filas[1].Should().Contain("Pilar Sanjuán Aznar", "dentro de los aptos, la Empresa Instalaciones Cinca va antes que Montajes Moncayo");
+        filas[2].Should().Contain("Sonia Ferrer Lahoz");
+        filas[3].Should().Contain("Javier Lasheras Pueyo");
+    }
+
+    [Fact]
     public void El_modelo_de_Aptos_hoy_no_tiene_ninguna_propiedad_de_motivo_medico()
     {
         var propiedades = typeof(TrabajadorAptoHoy).GetProperties().Select(p => p.Name).ToList();
