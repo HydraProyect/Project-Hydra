@@ -233,7 +233,8 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
 
     /// <summary>P-6, control positivo. Una Sesión Privilegiada sobre Ebro, por el interceptor y el <see cref="TenantActual"/>
     /// reales, adopta <c>cae_app_soporte</c>, lee solo Ebro y no escribe: 42501 en INSERT, UPDATE y DELETE, y el catálogo
-    /// confirma que es por privilegio y no por política. Falsación: <c>GRANT INSERT</c> (o UPDATE, o DELETE) a
+    /// confirma que es por privilegio, de tabla o de columna, y no por política. El INSERT es una copia válida de Ebro:
+    /// con privilegio entraría. Falsación: <c>GRANT INSERT</c> (o UPDATE, de tabla o por columna, o DELETE) a
     /// <c>cae_app_soporte</c> sobre <c>Conversaciones</c> o <c>Mensajes</c>.</summary>
     [Fact]
     public async Task P6_una_Sesion_Privilegiada_sobre_un_Tenant_lee_solo_ese_Tenant_y_no_escribe()
@@ -245,10 +246,12 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
 
         foreach (var tabla in new[] { "Conversaciones", "Mensajes" })
         {
-            foreach (var orden in new[] { "INSERT INTO \"{0}\" (\"Id\") VALUES (@id)", "UPDATE \"{0}\" SET \"TenantId\" = \"TenantId\" WHERE \"Id\" = @id", "DELETE FROM \"{0}\" WHERE \"Id\" = @id" })
+            await DebeRechazarAsync(() => contexto.Database.ExecuteSqlRawAsync(SqlCopia(tabla),
+                new NpgsqlParameter("nuevo", Guid.NewGuid()), new NpgsqlParameter("tenant", _ebro), new NpgsqlParameter("origen", _filas[_ebro][tabla])), null);
+            foreach (var orden in new[] { "UPDATE \"{0}\" SET \"TenantId\" = \"TenantId\" WHERE \"Id\" = @id", "DELETE FROM \"{0}\" WHERE \"Id\" = @id" })
                 await DebeRechazarAsync(() => contexto.Database.ExecuteSqlRawAsync(string.Format(orden, tabla), new NpgsqlParameter("id", _filas[_ebro][tabla])), null);
             (await contexto.Database.SqlQueryRaw<bool>("""
-                SELECT has_table_privilege(current_user, {0}, 'INSERT') OR has_table_privilege(current_user, {0}, 'UPDATE')
+                SELECT has_any_column_privilege(current_user, {0}, 'INSERT') OR has_any_column_privilege(current_user, {0}, 'UPDATE')
                     OR has_table_privilege(current_user, {0}, 'DELETE') AS "Value"
                 """, $"public.\"{tabla}\"").ToListAsync()).Should().Equal([false], $"{tabla}: el rechazo es por privilegio");
         }
@@ -412,10 +415,13 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>Inserta una copia de la fila <paramref name="origen"/> con Id nuevo y el Tenant indicado.</summary>
-    private static Task<int> CopiarAsync(NpgsqlConnection conexion, string tabla, Guid origen, Guid tenant) => EjecutarAsync(conexion, $"""
+    private static Task<int> CopiarAsync(NpgsqlConnection conexion, string tabla, Guid origen, Guid tenant) =>
+        EjecutarAsync(conexion, SqlCopia(tabla), ("nuevo", Guid.NewGuid()), ("tenant", tenant), ("origen", origen));
+
+    private static string SqlCopia(string tabla) => $"""
         INSERT INTO "{tabla}" SELECT (jsonb_populate_record(NULL::"{tabla}", to_jsonb(f) || jsonb_build_object('Id', @nuevo, 'TenantId', @tenant))).*
           FROM "{tabla}" f WHERE f."Id" = @origen
-        """, ("nuevo", Guid.NewGuid()), ("tenant", tenant), ("origen", origen));
+        """;
 
     /// <summary>42501; <paramref name="motivo"/> solo para los RAISE propios, cuyo texto no depende de <c>lc_messages</c>.</summary>
     private static async Task DebeRechazarAsync(Func<Task> accion, string? motivo)
