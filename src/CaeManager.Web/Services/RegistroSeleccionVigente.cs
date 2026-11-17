@@ -28,6 +28,15 @@ namespace CaeManager.Web.Services;
 /// aviso del backplane de SignalR): un registro vacío, tras un arranque, no rechaza nada porque ningún circuito
 /// anterior al arranque sigue vivo. Una entrada caduca con la vigencia del token.
 /// </para>
+///
+/// <para>
+/// <b>Gana la última escritura, a propósito.</b> Dos cambios casi simultáneos desde dos pestañas dejan aquí el que
+/// el servidor registró último, y en el navegador la cookie de la respuesta que llegó última; pueden no coincidir. Un
+/// compare-and-set no lo arregla, porque la carrera es con el orden de llegada de las respuestas, que el servidor no
+/// ve. Lo cierra la adopción al abrir circuito (<see cref="ClienteActivoSeleccionado.AdoptarComoVigente"/>): la
+/// pestaña que recarga pinta con la cookie que el navegador tiene de verdad, y esa pasa a ser la vigente. El peor caso
+/// es pedir recargar una vez de más, nunca escribir con una selección que no es la del navegador.
+/// </para>
 /// </summary>
 public sealed class RegistroSeleccionVigente
 {

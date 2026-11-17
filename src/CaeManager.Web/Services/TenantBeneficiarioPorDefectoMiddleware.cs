@@ -138,8 +138,16 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
             is not { } asignacionOperacionId)
             return null;
 
-        CookieDeContextoTenant.EmitirSeleccion(
-            contexto, dataProtectionProvider, usuarioId, porDefecto.TenantId, asignacionOperacionId);
+        // Auditada como la del selector, con su propio origen y antes de la cookie (D-6 b, R-2): si no queda
+        // registrada, la excepción la recoge InvokeAsync y la petición sigue en el Tenant de origen.
+        var token = ClienteActivoSeleccionado.Proteger(
+            dataProtectionProvider, usuarioId, porDefecto.TenantId, asignacionOperacionId);
+        if (contexto.RequestServices?.GetService<CaeManager.Application.Auditoria.IRegistroCambioContexto>() is { } registro)
+            await registro.RegistrarCambioAsync(
+                porDefecto.TenantId, asignacionOperacionId,
+                CaeManager.Application.Auditoria.RegistroCambioContextoService.OrigenPorDefecto,
+                CookieDeContextoTenant.VersionDe(token), cancelacion);
+        CookieDeContextoTenant.EmitirSeleccion(contexto, token);
 
         // Saneada: una ruta pedida como «//otro-sitio» no puede volverse una
         // redirección fuera de la aplicación.

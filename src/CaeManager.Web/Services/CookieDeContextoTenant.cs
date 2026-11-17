@@ -51,24 +51,38 @@ public static class CookieDeContextoTenant
     /// </summary>
     public static void EmitirSeleccion(
         HttpContext httpContext, IDataProtectionProvider dataProtectionProvider,
-        Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId)
+        Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId) =>
+        EmitirSeleccion(
+            httpContext, ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId));
+
+    /// <summary>
+    /// Emite un token ya protegido con <see cref="ClienteActivoSeleccionado.Proteger"/>: el que se auditó antes, con
+    /// su versión de selección (D-6 b, R-2). Mismas condiciones que la otra sobrecarga.
+    /// </summary>
+    public static void EmitirSeleccion(HttpContext httpContext, string token)
     {
-        var token = ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId);
         httpContext.Response.Cookies.Append(NombreSeleccion, token, Opciones(httpContext));
         httpContext.Response.Cookies.Delete(NombreOrigenElegido);
-        RegistrarVigente(httpContext, RegistroSeleccionVigente.Huella(token));
+        RegistrarSeleccionVigente(httpContext, token);
     }
 
     /// <summary>
-    /// La selección recién emitida pasa a ser la vigente de esta sesión de navegador: desde aquí, un circuito de
-    /// otra pestaña que pintó con la anterior no puede escribir (guarda de pestaña obsoleta, D-6 b, R-2).
+    /// La selección que deja esta respuesta —<paramref name="tokenEmitido"/>, o ninguna si la cookie se borra— pasa a
+    /// ser la vigente de esta sesión de navegador: desde aquí, un circuito de otra pestaña que pintó con la anterior no
+    /// puede escribir (guarda de pestaña obsoleta, D-6 b, R-2). Todo camino que escriba o borre la cookie de contexto
+    /// la llama, también los que no pasan por este tipo (la sesión de soporte y la revalidación del middleware): si no,
+    /// la petición siguiente, con la cookie nueva, se rechazaría a sí misma hasta que un circuito la adoptara.
     /// </summary>
-    private static void RegistrarVigente(HttpContext httpContext, string version)
+    public static void RegistrarSeleccionVigente(HttpContext httpContext, string? tokenEmitido)
     {
         if (httpContext.RequestServices?.GetService(typeof(RegistroSeleccionVigente)) is RegistroSeleccionVigente registro
             && RegistroSeleccionVigente.ClaveDe(httpContext.User) is { } clave)
-            registro.Registrar(clave, version);
+            registro.Registrar(clave, VersionDe(tokenEmitido));
     }
+
+    /// <summary>La versión de selección de un token emitido, o <see cref="RegistroSeleccionVigente.VersionOrigen"/> sin él.</summary>
+    public static string VersionDe(string? tokenEmitido) =>
+        tokenEmitido is null ? RegistroSeleccionVigente.VersionOrigen : RegistroSeleccionVigente.Huella(tokenEmitido);
 
     /// <summary>
     /// Vuelta al Tenant de origen: basta con borrar la selección, no hace falta
@@ -79,7 +93,7 @@ public static class CookieDeContextoTenant
     {
         httpContext.Response.Cookies.Delete(NombreSeleccion);
         httpContext.Response.Cookies.Append(NombreOrigenElegido, usuarioId.ToString("N"), Opciones(httpContext));
-        RegistrarVigente(httpContext, RegistroSeleccionVigente.VersionOrigen);
+        RegistrarSeleccionVigente(httpContext, tokenEmitido: null);
     }
 
     public static bool OrigenElegido(HttpRequest peticion, Guid usuarioId) =>

@@ -14,9 +14,10 @@ public interface IRegistroCambioContexto
     /// <summary>
     /// El cambio de contexto a <paramref name="tenantDestinoId"/>, ya autorizado, en el <c>RegistroAuditoria</c>
     /// de ese Tenant y solo en él. Se llama antes de emitir la cookie: si no queda registrado, no hay cambio.
+    /// <paramref name="versionSeleccion"/> es la de la cookie que se va a emitir (la huella del token, o «origen»).
     /// </summary>
     Task RegistrarCambioAsync(
-        Guid tenantDestinoId, Guid tenantOrigenActorId, Guid? asignacionOperacionId, string origen,
+        Guid tenantDestinoId, Guid? asignacionOperacionId, string origen, string versionSeleccion,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -38,21 +39,27 @@ public class RegistroCambioContextoService(
     /// <summary>Origen del cambio hecho con el selector de la cabecera (propuesta § 5.5, «Cambio manual con éxito»).</summary>
     public const string OrigenSelector = "Selector";
 
+    /// <summary>
+    /// Origen de la selección que fija <c>TenantBeneficiarioPorDefectoMiddleware</c> sin que la persona elija nada.
+    /// </summary>
+    public const string OrigenPorDefecto = "PorDefecto";
+
     public async Task RegistrarCambioAsync(
-        Guid tenantDestinoId, Guid tenantOrigenActorId, Guid? asignacionOperacionId, string origen,
+        Guid tenantDestinoId, Guid? asignacionOperacionId, string origen, string versionSeleccion,
         CancellationToken cancellationToken)
     {
+        // El actor se resuelve fuera del ámbito explícito: el ámbito solo cubre el INSERT de abajo.
         var actor = await actorAuditoria.ObtenerAsync();
 
-        // Solo el Tenant de destino, y sin el Tenant seleccionado antes: diría a los auditores de esta Empresa
-        // gestionada para qué otras trabaja esa persona (propuesta § 5.5). El Tenant de origen del actor sí consta:
-        // es su Operador CAE, el mismo que ya nombra la Asignación de Operación.
+        // Lo que guarda la propuesta § 5.5: origen y versión de selección, con la Asignación de Operación en la vía.
+        // Solo el Tenant de destino, sin el Tenant seleccionado antes ni el de origen del actor: dirían a los auditores
+        // de esta Empresa gestionada para qué otras trabaja esa persona.
         var registro = new RegistroAuditoria(
             EntidadTipo,
             tenantDestinoId,
             RegistroAuditoria.AccionCambioDeContexto,
             datosAntes: null,
-            datosDespues: JsonSerializer.Serialize(new { origen, tenantOrigenActor = tenantOrigenActorId }),
+            datosDespues: JsonSerializer.Serialize(new { origen, versionSeleccion }),
             // Mismo criterio dual que RegistroExportacionService: quien figura como autor (el simulado en una
             // impersonación) y quien estaba de verdad detrás del teclado, por separado.
             usuarioId: actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId,

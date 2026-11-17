@@ -198,8 +198,8 @@ public class ClienteActivoEndpointsAutorizacionTests
     }
 
     /// <summary>
-    /// D-6 b, R-2: el cambio con éxito queda auditado en el Tenant de destino, con el Tenant de origen del actor y la
-    /// operación de la selección nueva, antes de emitir la cookie; un rechazo no lo registra.
+    /// D-6 b, R-2: el cambio con éxito queda auditado en el Tenant de destino, con la operación y la versión de la
+    /// selección nueva (la de la cookie que se emite), antes de emitir la cookie; un rechazo no lo registra.
     /// </summary>
     [Fact]
     public async Task El_cambio_con_exito_queda_auditado_en_el_destino_y_el_rechazo_no()
@@ -209,14 +209,48 @@ public class ClienteActivoEndpointsAutorizacionTests
         db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
         await db.SaveChangesAsync();
         var registro = new RegistroCambioFalso();
+        var aDestino = Contexto();
 
-        await CambiarAuditado(Destino, Contexto(), db, registro);
+        await CambiarAuditado(Destino, aDestino, db, registro);
         await CambiarAuditado(Origen, Contexto(), db, registro);
         await CambiarAuditado(Guid.NewGuid(), Contexto(), db, registro);
 
+        var cookie = aDestino.Response.Headers.SetCookie
+            .Single(c => c!.StartsWith(ClienteActivoSeleccionado.NombreCookie + "=", StringComparison.Ordinal))!;
+        var token = Uri.UnescapeDataString(cookie.Split(';')[0][(ClienteActivoSeleccionado.NombreCookie.Length + 1)..]);
         registro.Cambios.Should().Equal(
-            (Destino, Origen, (Guid?)null, RegistroCambioContextoService.OrigenSelector),
-            (Origen, Origen, (Guid?)null, RegistroCambioContextoService.OrigenSelector));
+            (Destino, (Guid?)null, RegistroCambioContextoService.OrigenSelector, RegistroSeleccionVigente.Huella(token)),
+            (Origen, (Guid?)null, RegistroCambioContextoService.OrigenSelector, RegistroSeleccionVigente.VersionOrigen));
+    }
+
+    /// <summary>
+    /// D-6 b, R-2 (A-23): con una Sesión Privilegiada activa el selector responde 403 y no cambia nada, ni siquiera
+    /// para volver al origen; la salida del Tenant visitado es /cuenta/soporte/salir.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_Sesion_Privilegiada_el_selector_no_cambia_el_contexto(bool alOrigen)
+    {
+        await using var db = await CrearContexto();
+        var http = Contexto();
+        var registro = new RegistroCambioFalso();
+
+        var resultado = await ClienteActivoEndpoints.CambiarAsync(
+            alOrigen ? Origen : Destino, "/", http, db, new UsuarioActual("GestorCae"), db, _protector, default,
+            registroCambioContexto: registro,
+            clienteActivoSeleccionado: new SeleccionConSesionPrivilegiada());
+
+        resultado.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>();
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+        registro.Cambios.Should().BeEmpty();
+    }
+
+    private sealed class SeleccionConSesionPrivilegiada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => Destino;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada { get; } = Guid.NewGuid();
     }
 
     [Fact]
@@ -254,13 +288,13 @@ public class ClienteActivoEndpointsAutorizacionTests
     {
         public bool Lanzar { get; init; }
 
-        public List<(Guid Destino, Guid Origen, Guid? Operacion, string Desde)> Cambios { get; } = [];
+        public List<(Guid Destino, Guid? Operacion, string Desde, string Version)> Cambios { get; } = [];
 
-        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid tenantOrigenActorId, Guid? asignacionOperacionId,
-            string origen, CancellationToken cancellationToken)
+        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid? asignacionOperacionId, string origen,
+            string versionSeleccion, CancellationToken cancellationToken)
         {
             if (Lanzar) throw new InvalidOperationException("Auditoría fallida de prueba.");
-            Cambios.Add((tenantDestinoId, tenantOrigenActorId, asignacionOperacionId, origen));
+            Cambios.Add((tenantDestinoId, asignacionOperacionId, origen, versionSeleccion));
             return Task.CompletedTask;
         }
 

@@ -27,11 +27,12 @@ public class RegistroCambioContextoServiceTests
     public async Task El_cambio_se_guarda_en_el_ambito_del_Tenant_de_destino_con_la_operacion_de_la_seleccion_nueva()
     {
         await Servicio(new ActorAuditoria(ActorReal, null, TipoViaAcceso.Normal, null))
-            .RegistrarCambioAsync(Destino, Origen, Operacion, RegistroCambioContextoService.OrigenSelector, default);
+            .RegistrarCambioAsync(Destino, Operacion, RegistroCambioContextoService.OrigenSelector, "v1", default);
 
         var (registro, ambito) = _repositorio.Guardados.Single();
         ambito.Should().Be(Destino, "el cambio se registra en el Tenant de destino y solo en él");
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull("el ámbito explícito no sobrevive a la llamada");
+        _ambitoAlResolverActor.Should().BeNull("el ámbito solo cubre el INSERT, no la resolución del actor");
         registro.Accion.Should().Be(RegistroAuditoria.AccionCambioDeContexto);
         registro.EntidadTipo.Should().Be(RegistroCambioContextoService.EntidadTipo);
         registro.EntidadId.Should().Be(Destino);
@@ -41,17 +42,17 @@ public class RegistroCambioContextoServiceTests
         registro.ViaAccesoId.Should().Be(Operacion);
 
         using var datos = JsonDocument.Parse(registro.DatosDespues!);
-        datos.RootElement.EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(["origen", "tenantOrigenActor"],
-            "el registro no nombra el Tenant seleccionado antes: diría para qué otras Empresas gestionadas trabaja");
+        datos.RootElement.EnumerateObject().Select(p => p.Name).Should().BeEquivalentTo(["origen", "versionSeleccion"],
+            "ni el Tenant seleccionado antes ni el de origen del actor: dirían para qué otras Empresas gestionadas trabaja");
         datos.RootElement.GetProperty("origen").GetString().Should().Be(RegistroCambioContextoService.OrigenSelector);
-        datos.RootElement.GetProperty("tenantOrigenActor").GetGuid().Should().Be(Origen);
+        datos.RootElement.GetProperty("versionSeleccion").GetString().Should().Be("v1");
     }
 
     [Fact]
     public async Task Con_Usuario_simulado_el_autor_y_el_Actor_real_quedan_separados()
     {
         await Servicio(new ActorAuditoria(ActorReal, Simulado, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()))
-            .RegistrarCambioAsync(Destino, Origen, Operacion, RegistroCambioContextoService.OrigenSelector, default);
+            .RegistrarCambioAsync(Destino, Operacion, RegistroCambioContextoService.OrigenSelector, "v1", default);
 
         var registro = _repositorio.Guardados.Single().Registro;
         registro.UsuarioId.Should().Be(Simulado);
@@ -62,7 +63,7 @@ public class RegistroCambioContextoServiceTests
     public async Task La_vuelta_al_origen_o_la_via_heredada_registran_via_normal_sin_operacion()
     {
         await Servicio(new ActorAuditoria(ActorReal, null, TipoViaAcceso.OperacionDelegada, Operacion))
-            .RegistrarCambioAsync(Origen, Origen, null, RegistroCambioContextoService.OrigenSelector, default);
+            .RegistrarCambioAsync(Origen, null, RegistroCambioContextoService.OrigenPorDefecto, "origen", default);
 
         var (registro, ambito) = _repositorio.Guardados.Single();
         ambito.Should().Be(Origen);
@@ -76,9 +77,10 @@ public class RegistroCambioContextoServiceTests
         _repositorio.Lanzar = true;
 
         var registrar = () => Servicio(new ActorAuditoria(ActorReal, null, TipoViaAcceso.Normal, null))
-            .RegistrarCambioAsync(Destino, Origen, Operacion, RegistroCambioContextoService.OrigenSelector, default);
+            .RegistrarCambioAsync(Destino, Operacion, RegistroCambioContextoService.OrigenSelector, "v1", default);
 
         await registrar.Should().ThrowAsync<InvalidOperationException>();
+        AmbitoTenantExplicito.TenantIdActual.Should().BeNull("el ámbito se cierra también cuando el INSERT falla");
     }
 
     [Fact]
@@ -111,12 +113,20 @@ public class RegistroCambioContextoServiceTests
         await registrar.Should().NotThrowAsync();
     }
 
-    private RegistroCambioContextoService Servicio(ActorAuditoria actor) =>
-        new(new ActorFijo(actor), _repositorio, NullLogger<RegistroCambioContextoService>.Instance);
+    private Guid? _ambitoAlResolverActor = Guid.Empty;
 
-    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    private RegistroCambioContextoService Servicio(ActorAuditoria actor) =>
+        new(new ActorFijo(actor, ambito => _ambitoAlResolverActor = ambito), _repositorio,
+            NullLogger<RegistroCambioContextoService>.Instance);
+
+    private sealed class ActorFijo(ActorAuditoria actor, Action<Guid?> alResolver) : IActorAuditoria
     {
-        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public Task<ActorAuditoria> ObtenerAsync()
+        {
+            alResolver(AmbitoTenantExplicito.TenantIdActual);
+            return Task.FromResult(actor);
+        }
+
         public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 

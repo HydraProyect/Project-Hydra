@@ -140,6 +140,8 @@ public static class SesionSoporteEndpoints
             SameSite = SameSiteMode.Lax,
             MaxAge = ClienteActivoSeleccionado.Vigencia,
         });
+        // Como cualquier emisión de la cookie de contexto: pasa a ser la selección vigente (D-6 b, R-2).
+        CookieDeContextoTenant.RegistrarSeleccionVigente(httpContext, token);
 
         // A la raíz, no a returnUrl: la pantalla desde la que se abre es de
         // plataforma y no existe dentro del tenant visitado. Y bajo sesión
@@ -191,6 +193,9 @@ public static class SesionSoporteEndpoints
             return Results.Forbid();
 
         httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+        // La vuelta al origen es la selección vigente desde aquí: el POST de cierre llega sin cookie y, sin esto, la
+        // guarda de pestaña obsoleta lo rechazaría si ningún circuito la hubiera adoptado antes (D-6 b, R-2).
+        CookieDeContextoTenant.RegistrarSeleccionVigente(httpContext, tokenEmitido: null);
 
         return Results.LocalRedirect($"/configuracion/plataforma?sesionParaCerrar={sesionId}");
     }

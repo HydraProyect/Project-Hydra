@@ -110,8 +110,8 @@ public class GuardaPestanaObsoletaBehaviorTests
     {
         public List<(string Comando, SeleccionNoVigente Motivo)> Rechazos { get; } = [];
 
-        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid tenantOrigenActorId, Guid? asignacionOperacionId,
-            string origen, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid? asignacionOperacionId, string origen,
+            string versionSeleccion, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task RegistrarRechazoAsync(string comando, SeleccionNoVigente motivo, CancellationToken cancellationToken)
         {

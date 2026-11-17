@@ -63,13 +63,21 @@ public static class ClienteActivoEndpoints
         IContadorPendientesSelectorTenant? contadorPendientes = null,
         CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
         ServicioCae? servicio = null,
-        IRegistroCambioContexto? registroCambioContexto = null)
+        IRegistroCambioContexto? registroCambioContexto = null,
+        IClienteActivoSeleccionado? clienteActivoSeleccionado = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
 
         if (usuarioId is null || tenantOrigenId is null)
             return Results.Unauthorized();
+
+        // Con una Sesión Privilegiada activa el selector no cambia nada, ni siquiera vuelve al origen: fallo cerrado
+        // (D-6 b, R-2; A-23). La entrada y la salida del Tenant visitado van por SesionSoporteEndpoints, que las deja
+        // en RegistroActividadSoporte; por aquí serían una salida del plano 3 sin cerrar la sesión.
+        if ((clienteActivoSeleccionado ?? httpContext.RequestServices?.GetService<IClienteActivoSeleccionado>())
+            ?.SesionPrivilegiadaIdSeleccionada is not null)
+            return Results.Forbid();
 
         var ahora = DateTime.UtcNow;
 
@@ -126,19 +134,21 @@ public static class ClienteActivoEndpoints
         }
 
         // Cambio de contexto con éxito, auditado en el Tenant de destino y solo en él (D-6 b, R-2; propuesta § 5.5),
-        // antes de emitir la cookie: si no queda registrado, la excepción corta aquí y el contexto no cambia. Emitir la
-        // cookie deja además obsoleta la selección de las demás pestañas (CookieDeContextoTenant, guarda de R-2).
+        // antes de emitir la cookie: si no queda registrado, la excepción corta aquí y el contexto no cambia. Con la
+        // versión de la cookie que se emite después, que además deja obsoleta la selección de las demás pestañas.
+        var token = tenantId == tenantOrigenId.Value
+            ? null
+            : ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
         if (registroCambioContexto is not null)
             await registroCambioContexto.RegistrarCambioAsync(
-                tenantId, tenantOrigenId.Value, asignacionOperacionId, RegistroCambioContextoService.OrigenSelector,
-                cancellationToken);
+                tenantId, asignacionOperacionId, RegistroCambioContextoService.OrigenSelector,
+                CookieDeContextoTenant.VersionDe(token), cancellationToken);
 
-        if (tenantId == tenantOrigenId.Value)
+        if (token is null)
             CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);
         else
         {
-            CookieDeContextoTenant.EmitirSeleccion(
-                httpContext, dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
+            CookieDeContextoTenant.EmitirSeleccion(httpContext, token);
             // Preferencia de interfaz («Recientes» del selector), solo tras la autorización de arriba.
             RecientesSelectorTenant.Registrar(httpContext, usuarioId.Value, tenantId);
         }

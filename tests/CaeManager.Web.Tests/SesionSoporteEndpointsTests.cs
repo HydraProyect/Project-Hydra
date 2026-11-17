@@ -262,6 +262,57 @@ public class SesionSoporteEndpointsTests
         mediator.Enviados.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// D-6 b, R-2: el POST de cierre llega sin cookie, con la vuelta al origen como selección. Salir la deja como
+    /// vigente; si no, el registro conservaría la del Tenant visitado (la adoptó el circuito tras abrir) y la guarda de
+    /// pestaña obsoleta rechazaría el cierre, con la Sesión Privilegiada abierta.
+    /// </summary>
+    [Fact]
+    public async Task Tras_salir_la_guarda_de_pestana_obsoleta_no_rechaza_el_cierre()
+    {
+        var protector = new EphemeralDataProtectionProvider();
+        var registro = new RegistroSeleccionVigente();
+        var principal = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, Usuario.ToString()),
+             new System.Security.Claims.Claim(CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.ClaimSid, "s")],
+            "Prueba"));
+        var tokenVisitado = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantObjetivo, asignacionOperacionId: null, sesionPrivilegiadaId: Sesion);
+        registro.Registrar(RegistroSeleccionVigente.ClaveDe(principal)!, RegistroSeleccionVigente.Huella(tokenVisitado));
+
+        await InvocarSalir(
+            new DefaultHttpContext
+            {
+                User = principal,
+                RequestServices = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+                    .AddSingleton(registro).BuildServiceProvider(),
+            },
+            new ClienteActivoSeleccionadoFalso(sesionPrivilegiadaIdSeleccionada: Sesion));
+
+        var peticionCierre = new ClienteActivoSeleccionado(
+            new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } }, protector);
+        var ejecutado = false;
+        var resultado = await new GuardaPestanaObsoletaBehavior<CerrarSesionPrivilegiadaCommand, Result>(
+                new GuardaSeleccionVigente(peticionCierre, registro), new RegistroCambioQueNoSeUsa())
+            .Handle(new CerrarSesionPrivilegiadaCommand(Sesion), _ =>
+            {
+                ejecutado = true;
+                return Task.FromResult(Result.Exito());
+            }, default);
+
+        ejecutado.Should().BeTrue("el cierre de la Sesión Privilegiada no es una escritura de una pestaña obsoleta");
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    private sealed class RegistroCambioQueNoSeUsa : CaeManager.Application.Auditoria.IRegistroCambioContexto
+    {
+        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid? asignacionOperacionId, string origen,
+            string versionSeleccion, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task RegistrarRechazoAsync(string comando, SeleccionNoVigente motivo, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
     private static Task<IResult> InvocarSalir(
