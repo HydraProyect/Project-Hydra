@@ -54,11 +54,13 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// <item>el Coordinador CAE, con la misma comprobación que el Gestor CAE (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>).
 /// En su Tenant de origen la cumple con la Asignación de Cartera universal de un Gestor CAE a su cargo; cuando opera el
 /// Tenant beneficiario por la Asignación de Operación de su Operador CAE externo, la cumple sin cartera propia, porque esa
-/// vía le da alcance universal (decisión del 2026-10-20, <c>AlcanceDatosService</c>). Un Gestor CAE por esa misma vía
-/// necesita su Asignación de Cartera.</item>
+/// vía le da alcance universal (decisión del 2026-10-20, <c>AlcanceDatosService.cs</c> líneas 412-421, rama
+/// <c>OperaPorAsignacionDeOperacionAsync</c>). Un Gestor CAE por esa misma vía necesita su Asignación de Cartera.</item>
 /// </list>
-/// Cualquier otro rol (Dirección CAE, Consulta, Cliente) y un Gestor CAE o un Coordinador CAE sin cartera en el Tenant
-/// reciben <see cref="CodigoSinPermiso"/>. La Propiedad la ponen el filtro de Tenant y la RLS: una conexión de otro Tenant
+/// Cualquier otro rol (Dirección CAE, Consulta, Cliente) y un Gestor CAE o un Coordinador CAE que no alcancen el Tenant
+/// entero reciben <see cref="CodigoSinPermiso"/>. No alcanzarlo es no tener acceso total ni una Asignación de Cartera
+/// universal efectiva; el Coordinador CAE que opera el Tenant beneficiario por Asignación de Operación lo alcanza sin
+/// cartera propia (viñeta anterior), así que no entra en este rechazo. La Propiedad la ponen el filtro de Tenant y la RLS: una conexión de otro Tenant
 /// no se lee y sale como no encontrada, igual que una que el alcance no deja ver (por la cartera del Cliente empresarial
 /// o, en un buzón personal, por no ser de quien actúa). Soporte TALVEG en Sesión Privilegiada no llega aquí:
 /// <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/> la rechaza antes por ser de solo lectura.
@@ -76,8 +78,12 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// <para>
 /// <b>Límites declarados.</b> (1) Un Gestor CAE cuya Asignación de Cartera cuelga de una Asignación de Operación acotada a
 /// un Cliente empresarial no alcanza el Tenant entero y recibe <see cref="CodigoSinPermiso"/>: se rechaza de más, nunca de
-/// menos. El Coordinador CAE que entra por Asignación de Operación recibe hoy el alcance universal sin que se mire si esa
-/// Asignación está acotada; no hay ningún productor de Asignaciones acotadas, y si lo hay, este límite se revisa. (2) Confirmar no exige que la suscripción de Graph siga viva: si ya expiró, la renovación diaria vuelve a fijar
+/// menos. El Coordinador CAE que entra por Asignación de Operación recibe el alcance universal por la decisión del
+/// 2026-10-20 (<c>AlcanceDatosService.cs</c> líneas 412-421, rama <c>OperaPorAsignacionDeOperacionAsync</c>). Riesgo
+/// conocido: esa vía no mira si la Asignación de Operación está acotada a un Cliente empresarial, así que con una acotada
+/// confirmaría de más. Hoy ningún productor las crea acotadas (<c>AsignacionesOperativasWriter.cs</c> líneas 193-195 crea
+/// la Asignación de Operación externa con <c>AmbitoAsignacion.Universal</c>); el primero que lo haga debe revisar este
+/// límite y la rama de <c>AlcanceDatosService</c>. (2) Confirmar no exige que la suscripción de Graph siga viva: si ya expiró, la renovación diaria vuelve a fijar
 /// la marca (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>) y el aviso reaparece, porque la
 /// pérdida es real. (3) El buzón personal de un Gestor CAE solo lo ve su dueño, así que no se confirma desde
 /// Conexiones, que es solo de Administrador: lo confirma su dueño desde Buzón, si tiene el Tenant en su cartera.

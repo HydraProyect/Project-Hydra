@@ -20,7 +20,7 @@
 # hizo que ObtenerSubcontratasParaSelectorQuery pase a llamar a la comprobacion y la entrada quedo OBSOLETA; no es un cambio de esta PR.) (Formato anterior: Caracteristica :: Handler[Peticion], con nombres simples; el conjunto
 # de 113 entradas es el mismo.) #2009 (D-6) anade dos, ObtenerAceptacionesContractualesPendientesQueryHandler y
 # ObtenerTextoDocumentoContractualQueryHandler, con su comentario encima: 114 entradas. #2124 (opción B) añade
-# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 115 entradas.
+# PuedeReconocerAvisoHuecoQuery, con su comentario encima: 117 entradas (116 en origin/main 6d0e857ce, contadas el 2026-11-17).
 ApiKeys.Queries.ObtenerClavesApi :: ObtenerClavesApiQueryHandler[ApiKeys.Queries.ObtenerClavesApi.ObtenerClavesApiQuery] = 1
 ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion :: ObtenerClavesApiDeMiOrganizacionQueryHandler[ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion.ObtenerClavesApiDeMiOrganizacionQuery] = 1
 Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion :: ObtenerTrabajadoresVisitaSinAsignacionQueryHandler[Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion.ObtenerTrabajadoresVisitaSinAsignacionQuery] = 1

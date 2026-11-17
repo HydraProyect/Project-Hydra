@@ -38,6 +38,9 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     /// <summary>Los textos del aviso del hueco y de su Confirmar: los mismos que en Conexiones, sin copiarlos.</summary>
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Integraciones.Recursos.TextosConexiones> TextosAviso { get; set; } = default!;
 
+    // El rótulo del botón Confirmar sale de TextosComunes: la regla de Architecture exige que el texto de un disparador de escritura viva en un .resx del módulo (Comunicaciones) o en TextosComunes.
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
     private bool _cargandoConexiones = true;
