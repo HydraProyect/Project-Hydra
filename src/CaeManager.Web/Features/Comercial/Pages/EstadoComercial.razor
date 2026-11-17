@@ -124,11 +124,13 @@
         </div>
 
         @* Lo decide GateComercialTenantBehavior: bloquea los comandos de un
-           tenant en SoloLectura o Suspendida y deja pasar el resto. Si el gate
-           cambia, esta frase cambia con él. *@
+           tenant en SoloLectura o Suspendida y deja pasar el resto, salvo los
+           que llevan la exención por impago (IComandoDePortabilidadDelTenantPropietario
+           e IComandoDeDerechosDelInteresado). Si el gate cambia, esta frase cambia con él. *@
         <p class="estado-comercial-nota">
             «Sin suscripción» es un estado neutro y, como «Activa» y «Aviso de impago», no restringe nada: el tenant
-            sigue pudiendo escribir. Solo «Solo lectura» y «Suspendida» bloquean sus escrituras.
+            sigue pudiendo escribir. Solo «Solo lectura» y «Suspendida» bloquean sus escrituras, salvo la exportación
+            completa de sus datos y las solicitudes de derechos del interesado.
             @Textos["EstadoComercialNotaAcceso"]
         </p>
     }
