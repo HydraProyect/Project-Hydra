@@ -792,6 +792,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
+        // Aptos hoy del Centro: cruza las evidencias con los requisitos que bloquean (plantillas del Centro y exigencias del
+        // Cliente empresarial) y con el nombre y la tolerancia efectiva (R-6) del tipo de documento. Todo es del Tenant del
+        // Cliente empresarial; no lee nada de otro Tenant.
+        ("ContratosAcceso.ObtenerAptosHoyDelCentroQueryHandler", "IPlantillasRequisitosQueryContext"),
+        ("ContratosAcceso.ObtenerAptosHoyDelCentroQueryHandler", "ITiposDocumentoQueryContext"),
         // Plantillas de requisitos del Tenant TCE (B-14): un requisito se acredita con un Tipo de documento del catálogo
         // propio y puede adoptar un requisito del catálogo base; el alta comprueba que la Actividad, el riesgo, el Centro o
         // la Empresa Cliente empresarial existen, solo por su Id. El requisito propio crea su Tipo de documento.

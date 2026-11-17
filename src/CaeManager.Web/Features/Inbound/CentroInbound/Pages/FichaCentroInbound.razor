@@ -1,7 +1,8 @@
 @page "/inbound/centros/{CentroId:guid}"
 @* Tarjeta 14 · Centro (Inbound), vista del Gestor CAE del Tenant TCE. Sigue la línea de Centro 360: cabecera, indicadores y pestañas.
-   Cableado: ficha del Centro (ObtenerCentroPorIdQuery) y Empresas contratistas con su contrato (B-05). Aptos hoy (B-28) e Información
-   del Centro (B-29) van tras su puerto, sin datos mientras no hay backend. Requisitos del Centro depende de B-15. Las pestañas
+   Cableado: ficha del Centro (ObtenerCentroPorIdQuery), Empresas contratistas con su contrato (B-05) y Aptos hoy
+   (ObtenerAptosHoyDelCentroQuery, por su puerto). Información del Centro (B-29) va tras su puerto, sin datos mientras no hay
+   backend. Requisitos del Centro depende de B-15. Las pestañas
    Concurrencia, Coordinación e Incidencias no entran en esta pantalla. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
@@ -36,7 +37,7 @@
     }
     else
     {
-        @* Sin «Exportar a Excel» de la maqueta: no hay endpoint hasta B-28. *@
+        @* Sin «Exportar a Excel» de la maqueta: no hay endpoint de exportación. *@
         <CabeceraIdentidad Titulo="@_centro.Nombre" Kicker="Inbound">
             <Datos>
                 <div class="inbound-datos-contrato" data-pieza="datos-centro">
@@ -57,7 +58,7 @@
                 <span class="inbound-kpi-etiqueta">Aptos hoy</span>
                 @if (_aptos is null)
                 {
-                    @* shortcut: sin backend, cablear cuando entre B-28 (aptitud materializada). *@
+                    @* Sin dato cuando la lectura de Aptos hoy no está disponible (el puerto devuelve null). *@
                     <span class="inbound-kpi-valor" title="@SinDatoTitulo">@SinDato</span>
                     <span class="inbound-secundario">Todavía no disponible</span>
                 }
@@ -147,7 +148,7 @@
                     <FranjaEstado Opciones="_opcionesAptitud" Valor="@_estadoAptos" ValorChanged="CambiarEstadoAptos" Recuentos="RecuentosAptos"
                                   EtiquetaAccesible="Filtrar por estado de hoy" />
                 </section>
-                @* Sin «Imprimir»: la impresión para la portería deja traza (D-30) y es B-28. *@
+                @* Sin «Imprimir»: la impresión para la portería deja traza (D-30) y no entra en esta pieza. *@
                 @if (AptosVisibles.Count == 0)
                 {
                     <EstadoVacio NombreIcono="vacio" Titulo="Ningún Trabajador coincide con los filtros"

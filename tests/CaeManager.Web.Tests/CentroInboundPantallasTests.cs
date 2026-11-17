@@ -233,6 +233,28 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public void Aptos_hoy_con_datos_enseña_sus_cuatro_columnas_la_nota_los_filtros_y_el_detalle_de_fechas()
+    {
+        Preparar(aptos:
+        [
+            Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.NoApto, "Certificado de aptitud"),
+            Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+        ], contratos: Contrato());
+
+        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var panel = cut.Find("[data-pieza=aptos-hoy]");
+        panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Trabajador", "Empresa contratista", "Hoy", "Lo que bloquea o vence");
+        panel.QuerySelector("[role=note]")!.TextContent.Should().Contain("Consulta informativa del día; no registra entradas");
+        panel.QuerySelector("input[placeholder='Filtrar: Trabajador o DNI']").Should().NotBeNull();
+        panel.TextContent.Should().Contain("Todos").And.Contain("En tolerancia").And.Contain("No aptos");
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas[0].Should().Contain("Montajes Moncayo S.L.").And.Contain("Vencido el 30/10/26");
+        filas[1].Should().Contain("Instalaciones Cinca S.L.").And.Contain("Siguiente vencimiento: 02/03/27");
+    }
+
+    [Fact]
     public void El_modelo_de_Aptos_hoy_no_tiene_ninguna_propiedad_de_motivo_medico()
     {
         var propiedades = typeof(TrabajadorAptoHoy).GetProperties().Select(p => p.Name).ToList();

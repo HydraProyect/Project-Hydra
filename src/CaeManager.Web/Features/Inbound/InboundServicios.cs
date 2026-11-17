@@ -21,7 +21,7 @@ public static class InboundServicios
         servicios.AddScoped<ILineaInboundVigente, LineaInboundVigenteDelProductoContratado>();
         servicios.AddScoped<IActividadDeContratoAcceso, ActividadDeContratoAccesoNoDisponible>();
         servicios.AddScoped<ISelectorEmpresasContratistas, SelectorEmpresasContratistasNoDisponible>();
-        servicios.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroNoDisponible>();
+        servicios.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroConBackend>();
         servicios.AddScoped<IInformacionDelCentro, InformacionDelCentroNoDisponible>();
         servicios.AddScoped<ResolutorContratosAcceso>();
         servicios.AddScoped<IUsoDePlantillasRequisitos, UsoDePlantillasRequisitosNoDisponible>();

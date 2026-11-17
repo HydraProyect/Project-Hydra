@@ -18,18 +18,10 @@ public sealed record TrabajadorAptoHoy(
     EstadoAptitudHoy Estado, string? RequisitoQueBloquea, string? Detalle);
 
 /// <summary>
-/// Puerto de la pestaña «Aptos hoy» del Centro (Q-24). Devuelve null cuando la lectura no está disponible: la pantalla lo
-/// dice y no pinta ningún dato.
+/// Puerto de la pestaña «Aptos hoy» del Centro (Q-24). Lo implementa <see cref="AptosHoyDelCentroConBackend"/>. Devuelve null
+/// cuando la lectura no está disponible: la pantalla lo dice y no pinta ningún dato.
 /// </summary>
 public interface IAptosHoyDelCentro
 {
     Task<IReadOnlyList<TrabajadorAptoHoy>?> ObtenerAsync(Guid centroId, CancellationToken cancellationToken = default);
-}
-
-/// <summary>Implementación vacía mientras no exista la aptitud materializada de B-28.</summary>
-public sealed class AptosHoyDelCentroNoDisponible : IAptosHoyDelCentro
-{
-    // shortcut: sin backend, cablear cuando entre B-28 (aptitud materializada, Aptos hoy completa y restringida, papel de portería).
-    public Task<IReadOnlyList<TrabajadorAptoHoy>?> ObtenerAsync(Guid centroId, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<TrabajadorAptoHoy>?>(null);
 }

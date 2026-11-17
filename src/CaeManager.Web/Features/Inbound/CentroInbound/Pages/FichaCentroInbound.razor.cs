@@ -12,7 +12,7 @@ namespace CaeManager.Web.Features.Inbound.CentroInbound.Pages;
 /// <summary>
 /// Centro de Inbound (tarjeta 14), vista del Gestor CAE del Tenant TCE. Lee la ficha con <see cref="ObtenerCentroPorIdQuery"/> (que
 /// devuelve null si el Centro no es visible) y los contratos de acceso del Centro con <see cref="ObtenerContratosAccesoQuery"/>; Aptos
-/// hoy e Información del Centro van por sus puertos. La autoridad es la de las Queries; la pantalla no escribe nada.
+/// hoy (<c>ObtenerAptosHoyDelCentroQuery</c>) e Información del Centro van por sus puertos. La autoridad es la de las Queries; la pantalla no escribe nada.
 /// </summary>
 public partial class FichaCentroInbound
 {
