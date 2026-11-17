@@ -248,7 +248,7 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
         var usuario = new CurrentUserServiceFalso(_administrador, Roles.Administrador, tenantOrigenId: _propietario.Id);
         var tenant = new TenantActualAmbiental { TenantId = _propietario.Id };
         var alcance = new AlcanceDatosService(contexto, usuario, tenant, new SesionPrivilegiadaAusente());
-        var handler = new ObtenerContratosAccesoQueryHandler(contexto, alcance, new PoliticaNotaInterna(usuario, new SesionPrivilegiadaAusente(), tenant));
+        var handler = new ObtenerContratosAccesoQueryHandler(contexto, alcance, new PoliticaNotaInterna(usuario, new SesionPrivilegiadaAusente(), tenant), new AutorizacionInboundQuePermite());
 
         (await handler.Handle(new ObtenerContratosAccesoQuery(CentroId: _centro), CancellationToken.None))
             .Select(c => c.Id).Should().BeEquivalentTo([_contratoVigente, _contratoCaducado]);

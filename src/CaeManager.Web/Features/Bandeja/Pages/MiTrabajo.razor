@@ -3,6 +3,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Bandeja.Recursos
 @using CaeManager.Web.Features.IncorporacionCartera.Components

@@ -1,0 +1,122 @@
+@* Añadir una plantilla de requisitos (CrearPlantillaRequisitosCommand): nivel y referencia. Una referencia solo admite una plantilla
+   activa: las que ya tienen se ocultan, y el backend lo vuelve a comprobar. Los requisitos se añaden después, en Editar requisito. *@
+@using CaeManager.Application.Inbound.Requisitos.Commands.CrearPlantillaRequisitos
+@using CaeManager.Application.Inbound.Requisitos.Queries
+@using CaeManager.Domain.Inbound.Requisitos
+@using CaeManager.Web.Features.Inbound.Plantillas.Recursos
+@using CaeManager.Web.Features.Inbound.Plantillas.Servicios
+@using FluentValidation
+@using Microsoft.Extensions.Localization
+@inject MediatR.IMediator Mediator
+@inject IStringLocalizer<TextosPlantillasRequisitos> Textos
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["AltaTitulo"]" Subtitulo="@Textos["AltaSubtitulo"]"
+                  TextoGuardar="@Textos["BotonAnadir"]" TextoCancelar="@Textos["BotonCancelar"]" HayCambios="() => _referencia.Length > 0"
+                  Guardando="_guardando" MensajeError="@_mensajeError" OnGuardar="GuardarAsync">
+    <div class="campo">
+        <label>@Textos["AltaNivel"]</label>
+        <div class="lista-seleccion-multiple">
+            @foreach (var nivel in PlantillaRequisitosUi.Niveles)
+            {
+                <label class="campo-checkbox">
+                    <input type="radio" name="alta-nivel" checked="@(_nivel == nivel)" @onchange="() => CambiarNivel(nivel)" />
+                    @Textos[PlantillaRequisitosUi.ClaveNivel(nivel)]
+                </label>
+            }
+        </div>
+    </div>
+    <CampoSelect Etiqueta="@Textos[ClaveReferencia]" Valor="@_referencia" ValorChanged="v => { _referencia = v; _mensajeError = null; }">
+        <option value="">@Textos["AltaElige"]</option>
+        @foreach (var opcion in Opciones)
+        {
+            <option value="@opcion.Key">@opcion.Value</option>
+        }
+    </CampoSelect>
+    @if (Opciones.Count == 0)
+    {
+        <p class="inbound-secundario">@Textos["AltaSinReferencias"]</p>
+    }
+</DrawerFormulario>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public ReferenciasPlantillas Referencias { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<PlantillaRequisitosResumenDto> Existentes { get; set; } = [];
+
+    /// <summary>Se invoca con el Id de la plantilla creada; el padre recarga y avisa.</summary>
+    [Parameter] public EventCallback<Guid> OnCreada { get; set; }
+
+    private TipoPlantillaRequisitos _nivel = TipoPlantillaRequisitos.PorActividad;
+    private string _referencia = string.Empty;
+    private string? _mensajeError;
+    private bool _guardando;
+    private bool _eraVisible;
+
+    private string ClaveReferencia => _nivel switch
+    {
+        TipoPlantillaRequisitos.PorActividad => "AltaReferenciaActividad",
+        TipoPlantillaRequisitos.PorRiesgo => "AltaReferenciaRiesgo",
+        TipoPlantillaRequisitos.DeCentro => "AltaReferenciaCentro",
+        _ => "AltaReferenciaCliente",
+    };
+
+    private IReadOnlyList<KeyValuePair<Guid, string>> Opciones =>
+        Referencias.OpcionesDe(_nivel)
+            .Where(o => !Existentes.Any(p => p.Tipo == _nivel && p.ReferenciaId == o.Key))
+            .OrderBy(o => o.Value, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+    protected override void OnParametersSet()
+    {
+        if (Visible && !_eraVisible)
+        {
+            _nivel = TipoPlantillaRequisitos.PorActividad;
+            _referencia = string.Empty;
+            _mensajeError = null;
+        }
+        _eraVisible = Visible;
+    }
+
+    private void CambiarNivel(TipoPlantillaRequisitos nivel)
+    {
+        _nivel = nivel;
+        _referencia = string.Empty;
+        _mensajeError = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _mensajeError = null;
+        if (!Guid.TryParse(_referencia, out var referenciaId))
+        {
+            _mensajeError = Textos["AltaFaltaReferencia"];
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CrearPlantillaRequisitosCommand(_nivel, referenciaId));
+            if (!resultado.EsExitoso)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            await OnCreada.InvokeAsync(resultado.Valor);
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeError = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardar"].Value;
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ErrorGuardar"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

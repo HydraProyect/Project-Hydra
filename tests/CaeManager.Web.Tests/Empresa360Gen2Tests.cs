@@ -40,7 +40,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         public Result Credenciales { get; set; } = Result.Exito();
         public Func<object, Task?>? Retener { get; set; }
         public Func<object, Exception?>? Fallar { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
         public CredencialAccesoEmpresaSinContrasenaDto? CredencialGuardada { get; set; }
 

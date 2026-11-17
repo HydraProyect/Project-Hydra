@@ -42,7 +42,7 @@ public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
         public bool FallaCatalogo { get; set; }
         /// <summary>Si se fija, el alta de Oficio no responde hasta que el test complete esta tarea.</summary>
         public TaskCompletionSource<Result<Guid>>? GuardarOficioPendiente { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

@@ -4,6 +4,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Proyectos.Recursos;
+using CaeManager.Web.Services.Autorizacion;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.Extensions.Localization;
@@ -15,7 +16,7 @@ public static class ProyectosEndpoints
 {
     public static IEndpointRouteBuilder MapProyectosEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/proyectos/exportar.xlsx", ExportarAsync).SoloRolesDelListado();
+        endpoints.MapGet("/proyectos/exportar.xlsx", ExportarAsync).SoloRolesDelListado().DeOutbound();
 
         return endpoints;
     }

@@ -33,8 +33,10 @@ internal sealed class ActorDeVegaDePrueba(TipoViaAcceso via = TipoViaAcceso.Norm
     public ActorAuditoria? ObtenerSiYaEstaResuelto() => null;
 }
 
-internal sealed class UsuarioDeVegaDePrueba(Guid? tenantOrigenId = null) : ICurrentUserService
+internal sealed class UsuarioDeVegaDePrueba(Guid? tenantOrigenId = null, PapelActivo papel = PapelActivo.SinPapel)
+    : ICurrentUserService
 {
+    public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel);
     public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
     public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
     public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
@@ -203,6 +205,38 @@ public class AsistenteIaAgenteTests : BunitContext
     {
         panel.Find("textarea.asistente-textarea").Input(texto);
         panel.Find("button.asistente-boton-enviar").Click();
+    }
+
+    // ---- Papel: el asistente es de Outbound ----------------------------------------------------
+
+    [Theory]
+    [InlineData(PapelActivo.Inbound)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]
+    public void Con_un_papel_que_no_admite_Outbound_el_panel_del_asistente_no_se_pinta(PapelActivo papel)
+    {
+        Configurar(anthropic: true, agenteReal: false);
+        GuionDeEmpresa();
+        Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba(TenantB, papel));
+
+        var panel = Abrir();
+
+        panel.FindAll("textarea.asistente-textarea").Should().BeEmpty(
+            "el asistente es de Outbound (registro de ADR-013) y se niega con el mismo criterio que sus páginas");
+    }
+
+    [Theory]
+    [InlineData(PapelActivo.Outbound)]
+    [InlineData(PapelActivo.TenantDeOrigen)]
+    [InlineData(PapelActivo.SinPapel)]
+    public void Con_un_papel_que_admite_Outbound_el_panel_del_asistente_se_pinta(PapelActivo papel)
+    {
+        Configurar(anthropic: true, agenteReal: false);
+        GuionDeEmpresa();
+        Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba(TenantB, papel));
+
+        var panel = Abrir();
+
+        panel.FindAll("textarea.asistente-textarea").Should().ContainSingle("control positivo del test de arriba");
     }
 
     // ---- Disponibilidad: el doble de consultas --------------------------------------------------

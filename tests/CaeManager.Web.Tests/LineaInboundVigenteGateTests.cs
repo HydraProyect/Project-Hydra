@@ -130,7 +130,7 @@ public class LineaInboundVigenteGateTests
     /// <summary>Solo responde a <see cref="LineaInboundVigenteQuery"/>; cualquier otra petición es un error del test.</summary>
     private sealed class MediadorDeLaLinea(Func<CancellationToken, bool> respuesta) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

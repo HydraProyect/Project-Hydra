@@ -1,10 +1,14 @@
 @using CaeManager.Infrastructure.Identity
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JsRuntime
+@inject CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada Coordenada
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
-@if (_temaActual is not null)
+@* En una Sesión Privilegiada el interruptor no se ofrece: la conexión lleva cae_app_soporte, que no tiene UPDATE
+   sobre la cuenta, así que elegir no podría guardarse (IPreferenciasCuentaPropia devolvería NoPermitida). El tema
+   de la cuenta sigue aplicándose; solo se oculta el control. Se decide al pintar y no en OnInitializedAsync. *@
+@if (_temaActual is not null && !Coordenada.HaySeleccionada)
 {
     @* Interruptor de dos estados (claro/oscuro). El estado claro es la AUSENCIA
        de preferencia —sin data-theme ni cookie—, no una elección explícita:

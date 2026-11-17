@@ -52,7 +52,7 @@ public class CentrosAltaSelectoresClienteEmpresaTests : BunitContext
 
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public IReadOnlyList<ClienteSelectorDto> Clientes { get; set; } =
             [new(ClienteConUnaEmpresa, RazonClienteUno), new(ClienteConVariasEmpresas, RazonClienteVarias)];

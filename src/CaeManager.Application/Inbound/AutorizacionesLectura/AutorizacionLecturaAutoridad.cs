@@ -7,8 +7,10 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura;
 /// Quién concede, cambia, revoca y lee las autorizaciones de lectura documental del Tenant de la Empresa contratista.
 ///
 /// <para>
-/// <b>Solo rol efectivo Administrador en el Tenant activo</b>, y falla cerrado. DN-2 (quién concede) sigue abierta:
-/// esto no es «solo el Administrador miembro del Tenant propietario», porque el rol efectivo Administrador incluye
+/// <b>Solo rol efectivo Administrador en el Tenant activo</b>, y falla cerrado. Antes, los handlers pasan por la capacidad
+/// ParticipanteTec de <c>IAutorizacionInbound</c> (B-03), que aplica DN-2: el Administrador del Tenant TEC, en su propio
+/// Tenant o como Operador CAE externo que lo opera en Outbound, nunca con papel Inbound ni sin papel. Esto no es «solo el
+/// Administrador miembro del Tenant propietario», porque el rol efectivo Administrador incluye
 /// también a quien administra por encargo pleno y al Administrador de un Operador CAE externo con Asignación de
 /// Operación (ver abajo). Con encargo no pleno, el área entera queda fuera (<c>ActosExcluidosDelEncargo.AreasExcluidas</c>).
 /// Es el mismo mecanismo que los demás actos solo de Administrador
@@ -22,8 +24,8 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura;
 /// Workspace operativo derivado abierto por Asignación de Operación, para el Administrador del Operador CAE externo
 /// que opera el Tenant, porque su perfil de origen rige ahí con todos sus poderes (decisión del 2026-10-20, más amplia
 /// que la del encargo de administración pleno del 2026-10-15, con la que el Administrador del Operador CAE ya era
-/// Administrador pleno). Se acepta tal cual: es el criterio vigente del rol efectivo, y estrecharlo solo aquí sería una
-/// regla nueva que DN-2 tendría que decidir.
+/// Administrador pleno). Es lo que DN-2 decidió (decisión de Chris del 2026-11-16, B-03): el Administrador del propio
+/// Tenant TEC o el Operador CAE externo que lo opera en Outbound; ParticipanteTec lo aplica antes, por el papel.
 /// </para>
 ///
 /// <para>

@@ -111,7 +111,7 @@ public class Subcontrata360PaginaTests : BunitContext
         public SubcontrataDetalleDto? DetalleTrasGuardarNota { get; set; }
         public Exception? ExcepcionAlGuardarNota { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

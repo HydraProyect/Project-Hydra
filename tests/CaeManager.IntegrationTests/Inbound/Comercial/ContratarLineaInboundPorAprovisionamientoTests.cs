@@ -365,9 +365,14 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
                      // Hallazgo 4 de Codex (ronda 2): la vigencia empieza al contratar, con 5 minutos de margen.
                      (InsertInbound(_tce.Id, vigenteDesde: "now() - interval '1 day'"), "una vigencia empezada antes"),
                      (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '1 day'"), "una vigencia que empieza después"),
-                     // El par de límite fija el margen: con uno más ancho, estos dos entrarían.
+                     // El límite de atrás fija el margen: con uno más ancho, esta entraría.
                      (InsertInbound(_tce.Id, vigenteDesde: "now() - interval '6 minutes'"), "6 minutos antes, fuera del margen"),
-                     (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '6 minutes'"), "6 minutos después, fuera del margen"),
+                     // Issue #2259: el inicio nunca queda en el futuro, ni dentro del antiguo margen del reloj de la
+                     // aplicación. Una fila con el inicio futuro haría que el gate DN-7, que compara con clock_timestamp(),
+                     // diera valores distintos dentro de una misma consulta e incumpliera su promesa de STABLE.
+                     (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '6 minutes'"), "6 minutos después"),
+                     (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '4 minutes'"), "4 minutos después"),
+                     (InsertInbound(_tce.Id, vigenteDesde: "now() + interval '1 millisecond'"), "un milisegundo después"),
                  })
             (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, sql)).SqlState
                 .Should().Be(PostgresErrorCodes.InsufficientPrivilege, motivo);
@@ -376,10 +381,10 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id,
                 "RESET ROLE;" + InsertInbound(_tce.Id, linea: "OutboundGestionPropia")))
             .SqlState.Should().BeNull("control: la fila de otra línea es válida para la tabla");
-        // Y el margen del reloj de la aplicación entra en los dos sentidos: el rechazo de arriba no es de cualquier desfase.
-        foreach (var desfase in new[] { "now() - interval '4 minutes'", "now() + interval '4 minutes'" })
+        // Y el margen hacia atrás sigue entrando, hasta el propio now(): el rechazo de arriba no es de cualquier desfase.
+        foreach (var desfase in new[] { "now() - interval '4 minutes'", "now()" })
             (await SqlStateComoAsync("cae_app_aprovisionamiento", _tce.Id, InsertInbound(_tce.Id, vigenteDesde: desfase)))
-                .SqlState.Should().BeNull($"dentro del margen de 5 minutos: {desfase}");
+                .SqlState.Should().BeNull($"dentro del margen: {desfase}");
 
         // Ni lee ni cambia lo contratado: la baja (FinalizaLineaInboundPorAprovisionamiento) solo le concede leer las
         // columnas de su WHERE y actualizar Estado y VigenteHastaUtc, que prueba BajaYCorreccionLineaInboundPorAprovisionamientoTests.
@@ -510,6 +515,7 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         servicios.AddSingleton<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEncargosAdministracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IProductoContratadoRepository, ProductoContratadoRepository>();
+        servicios.AddSingleton<ITransaccionDeComando>(sp => new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()));
         servicios.AddSingleton<IActorAuditoria>(actorAuditoria);
 
         return servicios.BuildServiceProvider();

@@ -136,7 +136,7 @@
                 // pantallas de la sección y no se les inventa un rótulo.
                 var esFicha = Guid.TryParse(resto, out _);
                 var seccion = enlace.RotuloPara(contexto, Textos);
-                mejor = new Miga(grupo.Titulo,
+                mejor = new Miga(grupo.TituloEn(Textos),
                     esFicha
                         ? [new Nivel(seccion, "/" + rutaEnlace), new Nivel(Textos["CabeceraMigaFicha"], null)]
                         : [new Nivel(seccion, null)]);
@@ -166,12 +166,12 @@
 
         var esPrimera = seccion.Pestanas[0] == pestana;
         if (Guid.TryParse(resto, out _))
-            return new Miga(grupo.Titulo, esPrimera
+            return new Miga(grupo.TituloEn(Textos), esPrimera
                 ? [nivelSeccion, new Nivel(Textos["CabeceraMigaFicha"], null)]
                 : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], "/" + pestana.Ruta), new Nivel(Textos["CabeceraMigaFicha"], null)]);
 
         // En la primera pestaña la sección es la propia página actual.
-        return new Miga(grupo.Titulo, esPrimera
+        return new Miga(grupo.TituloEn(Textos), esPrimera
             ? [new Nivel(Textos[seccion.ClaveRotulo], null)]
             : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], null)]);
     }

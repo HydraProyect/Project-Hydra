@@ -193,12 +193,34 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         if (AnularAlIncorporar is { } motivo)
             return Task.FromResult(ResultadoIncorporacionCartera.Anulada(motivo));
 
+        // Como el real, si se pide: YaEnCartera cuando el usuario ya tiene algo vivo de ese Tenant (cartera
+        // entera, parcial o fila heredada, aquí YaEnCarteraPor), y la cartera nueva nace principal si la
+        // operación no tiene principal vivo.
+        if (IncorporacionDirectaComoLaReal
+            && (YaEnCarteraPor.Contains((usuarioId, propietarioTenantId))
+                || CarterasVivas.Any(c => c.OperadorTenantId == operadorTenantId && c.Cartera.UsuarioId == usuarioId
+                                          && c.Cartera.PropietarioTenantId == propietarioTenantId)))
+            return Task.FromResult(ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.YaEnCartera));
+
         var cartera = AsignacionCartera.Externa(
             Operaciones[asignacionOperacionId], usuarioId, "GestorCae", AmbitoAsignacion.Universal,
             DateTime.UtcNow, null, DateTime.UtcNow);
+        if (IncorporacionDirectaComoLaReal)
+        {
+            var hayPrincipal = CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal);
+            if (!hayPrincipal) cartera.DesignarPrincipal();
+            CarterasVivas.Add((operadorTenantId, new CarteraVivaDeOperacion(
+                asignacionOperacionId, propietarioTenantId, "Empresa", usuarioId, "GestorCae", !hayPrincipal, null)));
+        }
         CarterasVigentes.Add(cartera.Id);
         return Task.FromResult(new ResultadoIncorporacionCartera(cartera, Guid.NewGuid(), null));
     }
+
+    /// <summary>La incorporación sin solicitud responde como la real (YaEnCartera, nace principal) y la refleja en <see cref="CarterasVivas"/>.</summary>
+    public bool IncorporacionDirectaComoLaReal { get; set; }
+
+    /// <summary>Usuario y Tenant propietario con algo vivo que no es una cartera entera: parcial o fila heredada.</summary>
+    public HashSet<(Guid UsuarioId, Guid PropietarioTenantId)> YaEnCarteraPor { get; } = [];
 
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>

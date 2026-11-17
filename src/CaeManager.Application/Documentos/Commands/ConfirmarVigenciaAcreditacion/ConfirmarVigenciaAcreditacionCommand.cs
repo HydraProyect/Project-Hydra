@@ -28,7 +28,7 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditaci
 /// </para>
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
+public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>, ICambiaEstadoDeAcreditacion;
 
 public class ConfirmarVigenciaAcreditacionCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,

@@ -126,7 +126,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     private MediadorDelHub Registrar(
         bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false, bool porEncargo = false,
-        bool pleno = false)
+        bool pleno = false, CaeManager.Application.Common.PapelActivo papel = CaeManager.Application.Common.PapelActivo.SinPapel)
     {
         var mediador = new MediadorDelHub { EsAdministradorPlataforma = esAdministradorPlataforma };
         var autorizacion = AddAuthorization();
@@ -147,6 +147,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         if (conPermisoAccesosSensibles)
             autorizacion.SetPolicies(CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<CaeManager.Application.Common.ICurrentUserService>(_ => new UsuarioDeVegaDePrueba(papel: papel));
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<SeleccionarClienteLecturaIa>>(_ => NullLogger<SeleccionarClienteLecturaIa>.Instance);
         return mediador;
@@ -154,9 +155,9 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     private IRenderedComponent<Configuracion> RenderizarHub(
         string? entrada, bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false,
-        bool porEncargo = false, bool pleno = false)
+        bool porEncargo = false, bool pleno = false, CaeManager.Application.Common.PapelActivo papel = CaeManager.Application.Common.PapelActivo.SinPapel)
     {
-        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles, porEncargo, pleno);
+        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles, porEncargo, pleno, papel);
         return Render<Configuracion>(p => p.Add(x => x.EntradaRuta, entrada));
     }
 
@@ -217,6 +218,50 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub(entrada, porEncargo: true);
 
         Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params");
+    }
+
+    // ------------------------------------------- Papel (cierre de B-02b en las páginas de Outbound)
+
+    private static readonly string[] RutasDePanelesDeOutbound = ["/configuracion/macros", "/configuracion/importar"];
+
+    [Theory]
+    [InlineData(CaeManager.Application.Common.PapelActivo.Inbound)]
+    [InlineData(CaeManager.Application.Common.PapelActivo.OperacionQueYaNoAutoriza)]
+    public void Con_un_papel_que_no_admite_Outbound_el_hub_no_lista_los_paneles_de_Outbound(
+        CaeManager.Application.Common.PapelActivo papel)
+    {
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: true, papel: papel);
+
+        var rutas = Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href")).ToList();
+
+        rutas.Should().NotIntersectWith(RutasDePanelesDeOutbound,
+            "Macros e Importación son páginas de Outbound y, embebidas con DynamicComponent, no pasan por su handler");
+        rutas.Should().Contain(["/configuracion/tipos", "/configuracion/params"], "control positivo: el resto del hub sigue");
+    }
+
+    [Theory]
+    [InlineData("macros", CaeManager.Application.Common.PapelActivo.Inbound)]
+    [InlineData("importar", CaeManager.Application.Common.PapelActivo.Inbound)]
+    [InlineData("macros", CaeManager.Application.Common.PapelActivo.OperacionQueYaNoAutoriza)]
+    public void Con_un_papel_que_no_admite_Outbound_la_ruta_de_un_panel_de_Outbound_no_lo_abre(
+        string entrada, CaeManager.Application.Common.PapelActivo papel)
+    {
+        var cut = RenderizarHub(entrada, conPermisoAccesosSensibles: true, papel: papel);
+
+        Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params");
+    }
+
+    [Theory]
+    [InlineData(CaeManager.Application.Common.PapelActivo.Outbound)]
+    [InlineData(CaeManager.Application.Common.PapelActivo.TenantDeOrigen)]
+    [InlineData(CaeManager.Application.Common.PapelActivo.SinPapel)]
+    public void Con_un_papel_que_admite_Outbound_el_hub_si_lista_los_paneles_de_Outbound(
+        CaeManager.Application.Common.PapelActivo papel)
+    {
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: true, papel: papel);
+
+        Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href"))
+            .Should().Contain(RutasDePanelesDeOutbound, "control positivo de los tests de arriba");
     }
 
     /// <summary>

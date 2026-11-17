@@ -81,6 +81,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["DocumentosGenerados.DatosUtilizadosJson"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["DocumentosGenerados.HashSha256Impreso"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
         ["EnviosAvisoIncidenteSeguridad.Cuerpo"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG: la migración retira todo privilegio de la tabla (REVOKE ALL)."),
+        ["SolicitudesExportacionCompleta.ContrasenaProtegida"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG: la migración que crea la tabla no le concede nada (#2008); es la contraseña del zip protegida con Data Protection."),
         ["EventosWebhook.PayloadCrudo"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["EventosWebhook.PayloadRedactado"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
         ["ExtraccionesIaCache.ExtraccionJson"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),

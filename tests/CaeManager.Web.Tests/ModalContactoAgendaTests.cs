@@ -625,7 +625,7 @@ public sealed class ModalContactoAgendaTests : BunitContext
 
     private sealed class Mediador : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public string? FallaGuardarCon { get; set; }
         public IReadOnlyList<TipoDocumentoListaDto> Tipos { get; set; } = [];
 

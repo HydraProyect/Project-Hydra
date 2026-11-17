@@ -90,7 +90,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         /// <summary>Ids que el lote pide y no puede eliminar: vuelven como error y no entran en IdsEliminados.</summary>
         public HashSet<Guid> NoEliminables { get; } = [];
         private readonly List<Fila> _papelera = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>

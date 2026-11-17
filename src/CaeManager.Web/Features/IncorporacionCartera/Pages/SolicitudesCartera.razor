@@ -6,6 +6,7 @@
 @* Sin Roles a propósito: dentro de un Workspace operativo derivado el claim de rol es el de la
    cartera en ese Tenant propietario. Quién entra lo decide la Query con el rol de origen. *@
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos

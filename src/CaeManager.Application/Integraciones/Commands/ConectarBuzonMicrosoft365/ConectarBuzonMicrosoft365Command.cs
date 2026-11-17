@@ -34,6 +34,11 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// leída con el mismo token que lo abre: la reclamación global se hace sobre ella y no solo sobre la
 /// dirección, para que un alias del mismo buzón no pueda conectarse en otro Tenant.
 /// </para>
+/// <para>
+/// Solo el Administrador conecta, y el rol efectivo se mira en el handler, antes de leer nada: el endpoint del callback
+/// exige el rol del claim de sesión, que dentro de un Workspace operativo derivado no es el efectivo, y ninguna entrada es una
+/// frontera de autorización por sí sola.
+/// </para>
 /// </summary>
 [AreaDelEncargo("Integraciones")]
 public record ConectarBuzonMicrosoft365Command(
@@ -72,6 +77,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     IIntegracionesQueryContext queryContext,
     IEmpresaRepository empresaRepositorio,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
     IMicrosoft365GraphClient graphClient,
     ITenantActual tenantActual,
@@ -79,6 +85,9 @@ public class ConectarBuzonMicrosoft365CommandHandler(
     : IRequestHandler<ConectarBuzonMicrosoft365Command, Result<Guid>>
 {
     public const string CodigoBuzonYaConectado = "Integraciones.Microsoft365.BuzonYaConectado";
+
+    /// <summary>Sin rol efectivo Administrador: el mismo código que Desconectar, Reactivar, Reparar y Fijar responsable.</summary>
+    public const string CodigoSoloAdministrador = DesconectarBuzon.DesconectarBuzonCommandHandler.CodigoSoloAdministrador;
     public const string CodigoBuzonYaConectadoEnEstaOrganizacion = "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion";
 
     /// <summary>
@@ -91,6 +100,10 @@ public class ConectarBuzonMicrosoft365CommandHandler(
 
     public async Task<Result<Guid>> Handle(ConectarBuzonMicrosoft365Command request, CancellationToken cancellationToken)
     {
+        if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
+            return Result.Fallo<Guid>(Error.Crear(
+                CodigoSoloAdministrador, "Solo el Administrador puede conectar un buzón."));
+
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (request.ClienteId is { } clienteId)
         {

@@ -343,8 +343,10 @@ public partial class SelectorTema : IAsyncDisposable
     /// <c>ConcurrencyStamp</c>. Por eso este componente no guarda nada de la
     /// fila y <see cref="IPreferenciasCuentaPropia"/> la relee al escribir, con
     /// un reintento: no hay conflicto que fusionar, el tema elegido ahora mismo
-    /// siempre debe ganar. Una cuenta que ya no se ve o un segundo conflicto
-    /// llegan como resultado, no como excepción, y descartarlos perdería la
+    /// siempre debe ganar. Una cuenta que ya no se ve, un segundo conflicto o una
+    /// escritura que la base niega por permisos (<c>NoPermitida</c>; en una Sesión
+    /// Privilegiada el interruptor ni se pinta) llegan como resultado, no como
+    /// excepción, y descartarlos perdería la
     /// preferencia en silencio (mismo defecto mudo que el que arregló
     /// <see cref="OnAfterRenderAsync"/>, esta vez en el guardado y no en la
     /// aplicación).

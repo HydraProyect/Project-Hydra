@@ -30,7 +30,7 @@ public class CorreccionIncidenciaDocumentalTests : BunitContext
 {
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; init; } = [];
         public IReadOnlyList<EmpresaSelectorDto> Empresas { get; init; } = [];
 

@@ -228,6 +228,7 @@ public class Microsoft365BuzonCompartidoRutasTests
     [InlineData("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion", "/integraciones?error=ya-conectado")]
     [InlineData("Integraciones.Microsoft365.ErrorSuscripcion", "/integraciones?error=suscripcion")]
     [InlineData("Integraciones.Microsoft365.AltaCompartidaEnPausa", "/integraciones?error=compartidos-en-pausa")]
+    [InlineData("Integraciones.Buzon.SoloAdministrador", "/integraciones?error=solo-administrador")]
     public void Un_buzon_ya_conectado_vuelve_con_su_propio_aviso_y_no_con_el_de_suscripcion(string codigo, string esperada) =>
         CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints
             .RedireccionTrasConectar(CaeManager.Domain.Common.Result.Fallo<Guid>(CaeManager.Domain.Common.Error.Crear(codigo, "x")))

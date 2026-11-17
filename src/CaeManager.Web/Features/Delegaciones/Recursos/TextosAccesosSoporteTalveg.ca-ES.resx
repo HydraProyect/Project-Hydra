@@ -64,6 +64,18 @@
     <value>—</value>
   </data>
   <data name="ActividadLectura" xml:space="preserve">
-    <value>Va consultar</value>
+    <value>Petició</value>
+  </data>
+  <data name="ColumnaActividad" xml:space="preserve">
+    <value>Activitat</value>
+  </data>
+  <data name="VerActividad" xml:space="preserve">
+    <value>Veure l'activitat registrada</value>
+  </data>
+  <data name="ActividadVacia" xml:space="preserve">
+    <value>No hi ha activitat registrada en aquesta Sessió Privilegiada. Avui només deixen registre les peticions marcades per a això (les de l'Importador i la consulta del nom d'un compte); la resta del que Suport TALVEG consulti a la sessió no apareix aquí.</value>
+  </data>
+  <data name="ActividadAlcance" xml:space="preserve">
+    <value>Avui només deixen registre les peticions marcades per a això (les de l'Importador i la consulta del nom d'un compte); la resta del que Suport TALVEG consulti a la sessió no apareix aquí.</value>
   </data>
 </root>

@@ -66,8 +66,9 @@ public class ActividadUsuarioService(
     /// <summary>
     /// Un conflicto que sobrevive al reintento del puerto no invalida la ausencia ya
     /// leída: solo se queda sin registrar esta actividad, y otra escritura acaba de tocar
-    /// la cuenta. Se deja constancia en vez de descartarlo; cualquier otro fallo de la
-    /// escritura sigue subiendo hasta quien llama.
+    /// la cuenta. Tampoco tumba la petición una escritura que la base niega por permisos
+    /// (<c>NoPermitida</c>: <c>cae_app_soporte</c> en una Sesión Privilegiada no puede escribir la cuenta). Se deja
+    /// constancia en vez de descartarlo; cualquier otro fallo de la escritura sigue subiendo hasta quien llama.
     /// </summary>
     private async Task<(bool Ausente, DateTime? DesdeParaResumen)> ResolverAsync(CancellationToken cancellationToken)
     {

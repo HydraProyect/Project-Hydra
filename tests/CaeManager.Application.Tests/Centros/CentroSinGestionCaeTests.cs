@@ -154,9 +154,8 @@ public class CentroSinGestionCaeTests
         _visitas.ListaVisitas.AddRange([sinNadie, conAna]);
         _visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(conAna.Id, _ana.Id));
 
-        var evaluador = new EvaluadorExpedienteVisitaService(
-            _visitas, _centros, _documentos, _tipos, _trabajadores, _configuracion, repositorio, new UnitOfWorkFalso(),
-            NullLogger<EvaluadorExpedienteVisitaService>.Instance);
+        var evaluador = EvaluadorExpedienteDePrueba.Crear(
+            _visitas, _centros, _documentos, _tipos, _trabajadores, _configuracion, repositorio, _asignaciones);
 
         // El sello es irreversible: sin participantes no se puede dar por completo
         // (añadirlos después no recalcularía la antelación).
