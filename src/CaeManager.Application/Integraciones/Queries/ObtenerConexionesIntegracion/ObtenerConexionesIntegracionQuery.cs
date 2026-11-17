@@ -23,9 +23,10 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 
 /// <param name="CorreoNoRecuperadoDesdeUtc">
 /// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>: el aviso «posible correo no recuperado desde» esa fecha. El
-/// aviso dura mientras la marca exista, y solo la recuperación del hueco la limpia (<c>RecuperacionHuecoCorreoService</c>),
-/// tras leer el buzón completo desde ella e ingerir lo leído. Una marca anterior al tope de antigüedad de la recuperación
-/// no se limpia sola.
+/// aviso dura mientras la marca exista. La limpian la recuperación del hueco (<c>RecuperacionHuecoCorreoService</c>), tras
+/// leer el buzón completo desde ella e ingerir lo leído, y la acción Confirmar de Conexiones
+/// (<c>ReconocerAvisoHuecoCommand</c>), con la conexión Habilitada y sin marca por registrar. Una marca anterior al tope de
+/// antigüedad de la recuperación no se limpia sola: solo con Confirmar.
 /// </param>
 /// <param name="RecuperacionDetenidaEnUtc">
 /// <see cref="ConexionIntegracion.RecuperacionHuecoAtascadaEnUtc"/>: la recuperación del hueco no puede pasar de ese
