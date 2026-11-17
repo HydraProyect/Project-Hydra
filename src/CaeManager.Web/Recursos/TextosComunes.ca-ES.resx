@@ -779,6 +779,9 @@
   <data name="EstadoComercialNotaAcceso" xml:space="preserve">
     <value>La columna «Accés» és una altra cosa: «Suspès» és la suspensió per incident o seguretat.</value>
   </data>
+  <data name="EstadoComercialNotaExencionImpago" xml:space="preserve">
+    <value>excepte l'exportació completa de les seves dades i les sol·licituds de drets de l'interessat.</value>
+  </data>
   <data name="EstadoComercialTituloSuspender" xml:space="preserve">
     <value>Vols suspendre aquesta organització?</value>
   </data>
