@@ -764,6 +764,20 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             .Which.Tono.Should().Be(TonoToast.Error));
     }
 
+    /// <summary>
+    /// La tabla lleva <c>tabla-buzones</c>: es el gancho de Buzones.razor.css que, en móvil, la hace contenedor de tamaño
+    /// (<c>container-type: inline-size</c>) para acotar la franja de error con <c>100cqi</c> y que «Reconectar» no quede fuera de la
+    /// vista. El CSS no se prueba en bUnit; sin la clase la regla no se aplicaría.
+    /// </summary>
+    [Fact]
+    public void La_tabla_lleva_la_clase_que_acota_la_franja_de_error_en_movil()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado.")] });
+
+        cut.Find("table").ClassList.Should().Contain(["tabla-datos", "tabla-buzones"]);
+        cut.Find("table.tabla-buzones [data-testid=franja-error-buzon]").Should().NotBeNull();
+    }
+
     [Theory]
     [InlineData(Roles.GestorCae)]
     [InlineData(Roles.CoordinadorCae)]

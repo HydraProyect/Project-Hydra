@@ -104,6 +104,25 @@
 }
 .franja-error-texto { min-width: 0; overflow-wrap: anywhere; }
 
+/*
+  En movil (mismo corte que .tabla-datos en list-page.css) la tabla es display:block con overflow-x:auto y
+  su <td colspan> mide lo que la tabla entera (~946 px a 375): «Reconectar» quedaba fuera de la vista. La franja
+  se acota al ancho visible del contenedor de desplazamiento (100cqi de .tabla-buzones, que solo es contenedor
+  aqui, donde ya no es caja de tabla) y se ancla con sticky a la sangria izquierda de la celda para seguir a la
+  vista cuando se desplaza la tabla. white-space se restablece porque .tabla-datos td lo fija en nowrap.
+*/
+@media (max-width: 767px) {
+    .tabla-buzones { container-type: inline-size; }
+    .franja-error {
+        position: sticky;
+        left: var(--space-4);
+        box-sizing: border-box;
+        max-width: calc(100cqi - 2 * var(--space-4));
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+}
+
 .aviso-conexion-no-disponible {
     margin: 0;
     padding: var(--space-3) var(--space-4);
