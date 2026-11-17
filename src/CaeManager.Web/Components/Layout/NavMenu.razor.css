@@ -83,7 +83,7 @@
     color: var(--color-text-muted);
 }
 
-.nav-linea-rotulo + .nav-grupo-detalle {
+html:not([data-menu-compacto]) .nav-linea-rotulo + .nav-grupo-detalle {
     margin-top: 0;
 }
 
@@ -102,7 +102,7 @@
     background: var(--color-border);
 }
 
-.nav-linea-fin + .nav-grupo-detalle {
+html:not([data-menu-compacto]) .nav-linea-fin + .nav-grupo-detalle {
     margin-top: var(--space-2);
 }
 
@@ -527,7 +527,10 @@ html[data-menu-compacto] .barra-lateral .nav-item-texto {
     display: none;
 }
 
-html[data-menu-compacto] .barra-lateral .nav-grupo-detalle + .nav-grupo-detalle {
+/* Los rótulos y el cierre de línea se ocultan en compacto pero siguen en el DOM: la separación entre grupos también cuenta a través de ellos. */
+html[data-menu-compacto] .barra-lateral .nav-grupo-detalle + .nav-grupo-detalle,
+html[data-menu-compacto] .barra-lateral .nav-linea-rotulo + .nav-grupo-detalle,
+html[data-menu-compacto] .barra-lateral .nav-linea-fin + .nav-grupo-detalle {
     margin-top: var(--space-1);
     padding-top: var(--space-2);
     border-top: 1px solid var(--color-border);

@@ -504,12 +504,16 @@ public class NavMenuCaracterizacionTests
             cut.Find(".nav-linea-rotulo[data-linea=outbound]").TextContent.Trim().Should().Be(outbound);
             cut.Find(".nav-linea-rotulo[data-linea=inbound]").TextContent.Trim().Should().Be(inbound);
 
-            // Con valores iguales a es-ES, ResourceManager caería al neutral si faltara la clave: se comprueba que está en su recurso.
-            var recurso = new System.Resources.ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes))
-                .GetResourceSet(System.Globalization.CultureInfo.GetCultureInfo(cultura), createIfNotExists: true, tryParents: false);
-            recurso.Should().NotBeNull($"existe el recurso {cultura}");
-            recurso!.GetString("MenuLineaOutbound").Should().Be(outbound);
-            recurso.GetString("MenuLineaInboundTce").Should().Be(inbound);
+            // Con valores iguales al neutral, ResourceManager caería a él si faltara la clave en ca-ES: se comprueba que está en su
+            // propio recurso. es-ES es el neutral (no hay .es-ES.resx) y lo cubre la aserción de arriba.
+            if (cultura == "ca-ES")
+            {
+                var recurso = new System.Resources.ResourceManager(typeof(CaeManager.Web.Recursos.TextosComunes))
+                    .GetResourceSet(System.Globalization.CultureInfo.GetCultureInfo(cultura), createIfNotExists: true, tryParents: false);
+                recurso.Should().NotBeNull($"existe el recurso {cultura}");
+                recurso!.GetString("MenuLineaOutbound").Should().Be(outbound);
+                recurso.GetString("MenuLineaInboundTce").Should().Be(inbound);
+            }
         }
         finally
         {
