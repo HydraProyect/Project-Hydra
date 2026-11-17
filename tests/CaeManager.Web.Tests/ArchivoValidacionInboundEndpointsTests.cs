@@ -60,7 +60,9 @@ public class ArchivoValidacionInboundEndpointsTests
 
     /// <summary>
     /// Toda negativa de la query (sin ValidarInbound o LeerInbound, fuera de cartera, Documento no autorizado, revocado,
-    /// sustituido, de un tipo de salud sin marca o de otro Tenant TCE) llega aquí como null: un 404 que no se distingue.
+    /// sustituido, de un tipo de salud sin marca o de otro Tenant TCE) llega aquí como null: un 404 que no se distingue. Este
+    /// arnés no monta <c>UseStatusCodePagesWithReExecute</c>: en la aplicación, ese 404 lleva la página genérica de «no
+    /// encontrado», la misma para toda negativa; lo que se prueba aquí es que no sale ningún byte del archivo.
     /// </summary>
     [Fact]
     public async Task Una_negativa_de_la_query_es_un_404_sin_cuerpo_ni_cabeceras_de_archivo()
@@ -95,7 +97,10 @@ public class ArchivoValidacionInboundEndpointsTests
     [Fact]
     public void La_ruta_es_la_de_Inbound_y_solo_admite_la_cookie_de_sesion_y_los_roles_de_la_pantalla_de_validacion()
     {
-        var app = WebApplication.CreateBuilder().Build();
+        // Con ISender registrado, como en la aplicación: sin él, el enlace de parámetros lo tomaría por el cuerpo.
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<ISender>(new MediadorFalso(null));
+        var app = builder.Build();
         app.MapArchivoValidacionInboundEndpoints();
 
         var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>().Single();

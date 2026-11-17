@@ -16,7 +16,9 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 /// autorización de lectura del Tenant TEC concede, por <see cref="ObtenerArchivoParaValidarInboundQuery"/>.
 ///
 /// <para>
-/// Falla cerrado con 404 y sin cuerpo en todo lo que dependa del Documento: la validación apagada
+/// Falla cerrado con 404 en todo lo que dependa del Documento, sin un byte del archivo ni cabecera de descarga (en la
+/// aplicación, <c>UseStatusCodePagesWithReExecute</c> pinta la página genérica de «no encontrado», igual para toda negativa
+/// y para un Id que no existe, como en <c>/documentos/{id}/archivo</c>): la validación apagada
 /// (<see cref="OpcionesValidacionInbound"/>), sin <c>ValidarInbound</c> o <c>LeerInbound</c>, fuera de la Asignación de
 /// Cartera, o un Documento no autorizado, revocado, sustituido, de un tipo de salud sin marca o de un contrato de otro
 /// Tenant TCE: la respuesta no dice si existe. Cada apertura que da lectura deja su fila <c>Apertura</c> en
@@ -32,8 +34,14 @@ public static class ArchivoValidacionInboundEndpoints
     /// <summary>Los roles de la pantalla de validación (<c>ValidacionDocumento</c>); Application vuelve a decidir con el rol efectivo.</summary>
     public const string RolesQueValidan = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
 
+    /// <summary>
+    /// La ruta concreta, a partir de <see cref="Plantilla"/>: un único literal de ruta en el fichero, el que cataloga
+    /// <c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c>.
+    /// </summary>
     public static string Ruta(Guid contratoAccesoId, Guid documentoId) =>
-        $"/inbound/validacion/contratos/{contratoAccesoId}/documentos/{documentoId}/archivo";
+        Plantilla
+            .Replace("{contratoAccesoId:guid}", contratoAccesoId.ToString(), StringComparison.Ordinal)
+            .Replace("{documentoId:guid}", documentoId.ToString(), StringComparison.Ordinal);
 
     public static IEndpointRouteBuilder MapArchivoValidacionInboundEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -74,7 +82,8 @@ public static class ArchivoValidacionInboundEndpoints
         CabecerasArchivoSensible.ProhibirCache(contexto);
 
         // En línea y con nombre propio, como Outbound: el enlace «Descargar» lleva el atributo download y el navegador lo
-        // aplica sobre inline. El nombre no lleva nada del Tenant TEC (ni la referencia del almacén ni el titular).
+        // aplica sobre inline. El nombre no lleva nada del Tenant TEC: ni la referencia del almacén ni el Trabajador o la Empresa a la que se refiere
+        // el Documento.
         var disposicion = new ContentDispositionHeaderValue("inline");
         disposicion.SetHttpFileName("documento" + Extension(archivo.TipoMime));
         contexto.Response.Headers.ContentDisposition = disposicion.ToString();

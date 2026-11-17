@@ -60,7 +60,8 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// <para>
 /// Las rutas de esta lista son las de <c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c>: un endpoint
 /// nuevo que sirva binarios por Id hace fallar ese test de arquitectura hasta que se añade aquí. El logo del
-/// Tenant lo cubre <see cref="LogoTenantEndpointBajoRlsTests"/>; <c>/mi-firma/archivo</c> no recibe Id
+/// Tenant lo cubre <see cref="LogoTenantEndpointBajoRlsTests"/>; el original del Tenant TEC desde la validación Inbound, que
+/// lleva contrato y Documento, lo cubre <c>EvidenciasInboundBajoRuntimeTests</c>; <c>/mi-firma/archivo</c> no recibe Id
 /// (es la firma del usuario actual).
 /// </para>
 /// </summary>

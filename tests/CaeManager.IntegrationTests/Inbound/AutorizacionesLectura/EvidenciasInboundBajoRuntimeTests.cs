@@ -558,6 +558,80 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         (await AccesosEnElTenantPropietarioAsync()).Should().ContainSingle();
     }
 
+    /// <summary>
+    /// La ruta de la validación Inbound, de punta a punta bajo runtime: el manejador real del endpoint sobre la query real.
+    /// Desde X sirve los bytes; desde Z (otro Tenant TCE), con el mismo contrato y Documento, responde lo mismo que con un
+    /// contrato que no existe: 404, sin un byte ni cabecera de descarga. Es la prueba entre Tenants que pide
+    /// <c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c> para esta ruta.
+    /// </summary>
+    [Fact]
+    public async Task La_ruta_de_la_validacion_no_sirve_ningun_byte_a_otro_Tenant_TCE_y_no_se_distingue_de_un_contrato_inexistente()
+    {
+        CaeManager.Web.Features.Inbound.Validacion.ArchivoValidacionInboundEndpoints.Plantilla
+            .Should().Be("/inbound/validacion/contratos/{contratoAccesoId:guid}/documentos/{documentoId:guid}/archivo");
+
+        var propia = await ServirLaRutaAsync(_lector.Id, _usuarioLector, Usuario(), _contrato.Id);
+        propia.Estado.Should().Be(200, "control positivo: la Gestora CAE del Tenant TCE X abre el original autorizado");
+        propia.Cuerpo.Should().Equal(ContenidoOriginal);
+
+        var usuarioDeZ = new CurrentUserServiceFalso(_usuarioOtro, Roles.GestorCae, tenantOrigenId: _otro.Id);
+        var ajena = await ServirLaRutaAsync(_otro.Id, _usuarioOtro, usuarioDeZ, _contrato.Id);
+        var inexistente = await ServirLaRutaAsync(_otro.Id, _usuarioOtro, usuarioDeZ, Guid.NewGuid());
+
+        ajena.Estado.Should().Be(404, "el contrato es de otro Tenant TCE");
+        ajena.Cuerpo.Should().BeEmpty("no sale ningún byte del original del Tenant TEC");
+        ajena.Cabeceras.Should().NotContainKey("Content-Disposition");
+        ajena.Estado.Should().Be(inexistente.Estado, "un contrato ajeno no se distingue de uno que no existe");
+        ajena.Cabeceras.Should().Equal(inexistente.Cabeceras, "ni por las cabeceras");
+
+        (await AccesosEnElTenantPropietarioAsync()).Should().ContainSingle("solo la apertura de X deja su fila Apertura");
+    }
+
+    private async Task<(int Estado, byte[] Cuerpo, Dictionary<string, string> Cabeceras)> ServirLaRutaAsync(
+        Guid tenantLector, Guid usuarioId, CurrentUserServiceFalso usuario, Guid contratoAccesoId)
+    {
+        await using var contexto = Contexto(tenantLector, usuarioId);
+        var mediador = new DespachoALaQuery(consulta => ArchivoParaValidar(contexto, Alcance(), usuario).Handle(consulta, CancellationToken.None));
+        var servicios = Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(
+            Microsoft.Extensions.DependencyInjection.LoggingServiceCollectionExtensions.AddLogging(
+                new Microsoft.Extensions.DependencyInjection.ServiceCollection()));
+        var http = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = servicios };
+        http.Response.Body = new MemoryStream();
+
+        var resultado = await CaeManager.Web.Features.Inbound.Validacion.ArchivoValidacionInboundEndpoints.ServirAsync(
+            contratoAccesoId, _formacion, http, mediador,
+            Options.Create(new CaeManager.Web.Features.Inbound.Validacion.OpcionesValidacionInbound { Habilitado = true }),
+            NullLoggerFactory.Instance, CancellationToken.None);
+        await resultado.ExecuteAsync(http);
+
+        return (http.Response.StatusCode, ((MemoryStream)http.Response.Body).ToArray(),
+            http.Response.Headers.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Lleva la query del endpoint al handler real; cualquier otra petición es un error del test.</summary>
+    private sealed class DespachoALaQuery(
+        Func<ObtenerArchivoParaValidarInboundQuery, Task<ContenidoArchivoInboundDto?>> despachar) : MediatR.ISender
+    {
+        public async Task<TResponse> Send<TResponse>(MediatR.IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is not ObtenerArchivoParaValidarInboundQuery consulta)
+                throw new InvalidOperationException($"Petición inesperada: {request.GetType().Name}.");
+            var abierto = await despachar(consulta);
+            return (TResponse)(object)abierto!;
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : MediatR.IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(MediatR.IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private ObtenerArchivoParaValidarInboundQueryHandler ArchivoParaValidar(
         CaeManagerDbContext contexto, AlcanceDatosServiceFalso alcance, CurrentUserServiceFalso usuario) =>
         new(contexto, alcance, usuario, new LectorDocumentosInboundEnBase(contexto),
