@@ -54,6 +54,17 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         (await AutorizarAsync(Con(Roles.GestorCae), http, new UsuarioConPapel(PapelActivo.Outbound))).Succeeded.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Un_endpoint_minimo_de_Outbound_se_niega_con_papel_Inbound_y_uno_sin_marca_no()
+    {
+        // Quien exporta un listado es quien lo ve: la exportación de una página de Outbound lleva .DeOutbound().
+        var marcado = PeticionA(EndpointDeOutbound.Instancia);
+
+        (await AutorizarAsync(Con(Roles.GestorCae), marcado, new UsuarioConPapel(PapelActivo.Inbound))).Succeeded.Should().BeFalse();
+        (await AutorizarAsync(Con(Roles.GestorCae), marcado, new UsuarioConPapel(PapelActivo.Outbound))).Succeeded.Should().BeTrue();
+        (await AutorizarAsync(Con(Roles.GestorCae), PeticionA(), new UsuarioConPapel(PapelActivo.Inbound))).Succeeded.Should().BeTrue();
+    }
+
     public static TheoryData<Type> PaginasSinMarca =>
     [
         typeof(Features.Usuarios.Pages.Usuarios),

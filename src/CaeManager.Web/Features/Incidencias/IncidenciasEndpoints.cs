@@ -3,6 +3,7 @@ using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Incidencias.Recursos;
+using CaeManager.Web.Services.Autorizacion;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public static class IncidenciasEndpoints
 {
     public static IEndpointRouteBuilder MapIncidenciasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/incidencias/exportar.xlsx", ExportarAsync)
+        endpoints.MapGet("/incidencias/exportar.xlsx", ExportarAsync).DeOutbound()
         // Mismos roles que /incidencias (Incidencias.razor), que excluye Cliente
         // — mismo patrón que /clientes/exportar.xlsx. Sin esto, restringir la
         // página dejaba este endpoint como vía de bypass para descargar el

@@ -59,7 +59,33 @@ public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(ICurrentUserSer
     {
         Microsoft.AspNetCore.Components.RouteData ruta => EsPaginaDeOutbound(ruta.PageType),
         HttpContext http when http.GetEndpoint() is { } endpoint =>
-            EsPaginaDeOutbound(endpoint.Metadata.GetMetadata<ComponentTypeMetadata>()?.Type),
+            endpoint.Metadata.GetMetadata<EndpointDeOutbound>() is not null
+            || EsPaginaDeOutbound(endpoint.Metadata.GetMetadata<ComponentTypeMetadata>()?.Type),
         _ => false,
     };
+}
+
+/// <summary>
+/// Marca de un endpoint mínimo de Outbound (la exportación o el archivo de una página de Outbound): quien exporta un
+/// listado es quien lo ve, así que se niega con el mismo papel que su página. Un endpoint no tiene tipo que marcar, así
+/// que lleva la marca en sus metadatos (patrón de <see cref="EndpointExcluidoDelEncargo"/>).
+///
+/// <para>
+/// No cubre un panel embebido con <c>DynamicComponent</c> (ahí no hay evaluación de autorización de la página): el hub
+/// de Configuración filtra él mismo sus paneles de Outbound por papel.
+/// </para>
+/// </summary>
+public sealed class EndpointDeOutbound
+{
+    public static readonly EndpointDeOutbound Instancia = new();
+
+    private EndpointDeOutbound() { }
+}
+
+public static class EndpointDeOutboundExtensions
+{
+    /// <summary>El endpoint es de Outbound: con papel Inbound recibe la denegación estándar aunque el rol cumpla.</summary>
+    public static TBuilder DeOutbound<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(EndpointDeOutbound.Instancia);
 }

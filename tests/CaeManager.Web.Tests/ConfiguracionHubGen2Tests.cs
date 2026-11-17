@@ -147,6 +147,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         if (conPermisoAccesosSensibles)
             autorizacion.SetPolicies(CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<CaeManager.Application.Common.ICurrentUserService>(_ => new UsuarioDeVegaDePrueba());
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<SeleccionarClienteLecturaIa>>(_ => NullLogger<SeleccionarClienteLecturaIa>.Instance);
         return mediador;
