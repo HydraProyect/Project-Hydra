@@ -1353,7 +1353,7 @@ using (var scope = app.Services.CreateScope())
 
         // Su línea Outbound de gestión propia (P), con el mismo rol y la misma razón: los Tenants de demostración que gestionan
         // su CAE con su propio personal (hoy el Tenant Beta de la cobertura) la llevan y ningún otro. Sin backfill en
-        // producción: un Tenant sin P es «Outbound heredado». Después de la cobertura, que crea ese Tenant; inerte fuera de
+        // producción: un Tenant sin el marcador de TEC participante y sin P es «Outbound heredado». Después de la cobertura, que crea ese Tenant; inerte fuera de
         // Development (ver LineaOutboundGestionPropiaDemoSeeder).
         await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
 

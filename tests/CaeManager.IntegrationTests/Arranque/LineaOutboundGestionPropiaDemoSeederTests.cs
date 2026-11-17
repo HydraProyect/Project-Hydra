@@ -119,9 +119,11 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
     [Fact]
     public async Task El_Tenant_Beta_no_tiene_delegacion_de_Operador_CAE_externo_ni_Asignacion_de_Operacion_externa_y_Alfa_si()
     {
-        // La guarda de gestión propia del seeder lee estas dos tablas dentro del ámbito del propio Tenant. Beta no tiene ninguna
-        // (por eso la guarda lo deja pasar) y Alfa, Tenant propietario con gestión externa, tiene las dos: sin ese control, un
-        // cero de Beta no distinguiría «no hay nada» de «la RLS no deja ver nada desde este contexto».
+        // Beta no tiene ninguna delegación ni operación externa (por eso la guarda lo deja pasar) y Alfa, Tenant propietario con
+        // gestión externa, tiene las dos: sin ese control, un cero de Beta no distinguiría «no hay nada» de «esta lectura no ve
+        // nada». Ojo con lo que prueba: es una copia del predicado de la guarda con cae_app_runtime, no las lecturas del seeder
+        // con el rol propietario; demuestra el estado de la base de Development, no que la guarda funcione (eso lo prueban
+        // los tests de la clase acotada, de abajo, que ejecutan el seeder).
         var beta = (await IdsAsync(CoberturaPantallasSeeder.NombreTenantBeta)).Single();
         var alfa = (await IdsAsync(CoberturaPantallasSeeder.NombreTenantAlfa)).Single();
 
@@ -152,7 +154,7 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
             return await contexto.ProductosContratados.ToListAsync();
     }
 
-    /// <summary>Las dos lecturas de la guarda de gestión propia, con el contexto de tráfico y dentro del ámbito del Tenant.</summary>
+    /// <summary>Copia del predicado de las dos lecturas de la guarda de gestión propia, con el contexto de tráfico y dentro del ámbito del Tenant.</summary>
     private async Task<(bool Delegacion, bool Operacion)> TieneGestionExternaAsync(Guid tenantId)
     {
         using var ambito = fixture.Arnes.Servicios.CreateScope();
@@ -162,7 +164,8 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
             var delegacion = await contexto.DelegacionesTenant.AnyAsync(
                 d => d.TenantClienteId == tenantId && d.Proposito == PropositoDelegacion.OperadorExterno && d.Activa);
             var operacion = await contexto.AsignacionesOperacion.AnyAsync(
-                o => !o.EsRaiz && o.PropietarioTenantId == tenantId && o.Servicio == ServicioCae.Outbound);
+                o => !o.EsRaiz && o.PropietarioTenantId == tenantId && o.OperadorTenantId != tenantId
+                     && o.Servicio == ServicioCae.Outbound);
             return (delegacion, operacion);
         }
     }
@@ -292,6 +295,38 @@ public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLif
 
         await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
         (await LineasPAsync(propietario.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_Tenant_de_la_lista_con_una_Asignacion_de_Operacion_externa_y_sin_delegacion_no_recibe_la_linea()
+    {
+        // Aísla la segunda lectura de la guarda: sin ninguna DelegacionTenant, solo la operación externa puede omitir al Tenant.
+        // Una mutación que quitara esa lectura (o su filtro) dejaría pasar la línea y haría fallar esta prueba.
+        using var ambito = _arnes.Servicios.CreateScope();
+        await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var propietario = new Tenant(CoberturaPantallasSeeder.NombreTenantBeta, PerfilVocabularioTenant.ClienteDirecto);
+        propietario.MarcarDatosDemoCompletados();
+        var operador = new Tenant("Operador CAE externo de la prueba de la línea P", PerfilVocabularioTenant.Consultora);
+        operador.HabilitarComoOperadorCaeExterno();
+        foreach (var tenant in new[] { propietario, operador })
+            using (AmbitoTenantExplicito.Establecer(tenant.Id))
+            {
+                bootstrap.Tenants.Add(tenant);
+                await bootstrap.SaveChangesAsync();
+            }
+
+        var ahora = DateTime.UtcNow;
+        using (AmbitoTenantExplicito.Establecer(propietario.Id))
+        {
+            bootstrap.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                propietario.Id, operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora));
+            await bootstrap.SaveChangesAsync();
+        }
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+
+        (await LineasPAsync(propietario.Id)).Should().Be(0, "una Asignación de Operación externa es gestión externa, aunque no haya delegación");
     }
 
     [Theory]

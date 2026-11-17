@@ -17,7 +17,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 ///
 /// <para>
 /// <b>Para qué.</b> Sin backfill en producción (DECISION_LOG 2026-11-17, opción (c), decisión de Chris), un Tenant sin
-/// línea P es «Outbound heredado». Inbound (EP-4) tratará a un Tenant TEC participante sin P vigente como «sin Outbound»: por
+/// el marcador de TEC participante y sin línea P es «Outbound heredado». Inbound (EP-4) tratará a un Tenant TEC participante sin P vigente como «sin Outbound»: por
 /// eso los Tenants de demostración de gestión propia tienen que llevarla, y los demás no.
 /// </para>
 ///
@@ -117,15 +117,17 @@ public static class LineaOutboundGestionPropiaDemoSeeder
 
             using (AmbitoTenantExplicito.Establecer(tenant.Id))
             {
-                // Las dos lecturas de la guarda, sobre las filas del propio Tenant propietario: DelegacionesTenant tiene RLS por
-                // sus dos extremos y las Asignaciones de Operación las ve su Tenant propietario (ver HistoriaDelParEnSiembra).
+                // Las dos lecturas de la guarda, filtradas a mano por el propio Tenant propietario y dentro de su ámbito (como
+                // HistoriaDelParEnSiembra). Estas dos tablas tienen RLS sin FORCE, así que el rol propietario no la aplica y el
+                // ámbito no cambia el resultado: no hay falso negativo por RLS (el propietario ve más filas, no menos).
                 // Una delegación solo cuenta si está activa; una operación externa cuenta aunque esté cerrada, porque ya hubo
                 // gestión externa.
                 var tieneOperadorExterno = await dbContextBootstrap.DelegacionesTenant.AnyAsync(
                     d => d.TenantClienteId == tenant.Id && d.Proposito == PropositoDelegacion.OperadorExterno && d.Activa,
                     cancellationToken);
                 var tieneOperacionExterna = await dbContextBootstrap.AsignacionesOperacion.AnyAsync(
-                    o => !o.EsRaiz && o.PropietarioTenantId == tenant.Id && o.Servicio == ServicioCae.Outbound, cancellationToken);
+                    o => !o.EsRaiz && o.PropietarioTenantId == tenant.Id && o.OperadorTenantId != tenant.Id
+                         && o.Servicio == ServicioCae.Outbound, cancellationToken);
 
                 var motivo = MotivoParaOmitir(
                     tenant.EsPlataforma, tenant.PuedeActuarComoOperadorCaeExterno, tieneOperadorExterno, tieneOperacionExterna);
