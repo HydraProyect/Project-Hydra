@@ -41,7 +41,7 @@ public class AutorizacionLecturaHandlersTests
     private static CurrentUserServiceFalso Usuario(string? rol) => new(Guid.NewGuid(), rol);
 
     private ConcederAutorizacionLecturaCommandHandler Conceder(string? rol, Guid? tenantActual = null) =>
-        new(_repositorio, _trabajadores, Usuario(rol), new TenantActualFijo(tenantActual ?? _tenantPropio), TimeProvider.System, _unitOfWork);
+        new(_repositorio, _trabajadores, Usuario(rol), new TenantActualFijo(tenantActual ?? _tenantPropio), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite());
 
     private ConcederAutorizacionLecturaCommand ComandoConceder(params Guid[] trabajadorIds) =>
         new(_tenantDestinatario, _contrato, true, Desde, null, trabajadorIds);
@@ -147,13 +147,13 @@ public class AutorizacionLecturaHandlersTests
         var autorizacion = Existente(trabajadorIds: [_trabajador.Id]);
         var version = autorizacion.Version;
 
-        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(rol), _unitOfWork)
+        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(rol), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new AsignarTrabajadoresAutorizacionCommand(autorizacion.Id, [_otroTrabajador.Id]), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.SoloAdministrador.Codigo);
-        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(rol), _unitOfWork)
+        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(rol), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new RetirarTrabajadorAutorizacionCommand(autorizacion.Id, _trabajador.Id, version), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.SoloAdministrador.Codigo);
-        (await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(rol), TimeProvider.System, _unitOfWork)
+        (await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(rol), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new RevocarAutorizacionLecturaCommand(autorizacion.Id, version), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.SoloAdministrador.Codigo);
 
@@ -168,11 +168,11 @@ public class AutorizacionLecturaHandlersTests
     {
         var inexistente = Guid.NewGuid(); // también la de otro Tenant: RLS la oculta igual
 
-        var asignar = await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork)
+        var asignar = await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new AsignarTrabajadoresAutorizacionCommand(inexistente, [_trabajador.Id]), CancellationToken.None);
-        var retirar = await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork)
+        var retirar = await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new RetirarTrabajadorAutorizacionCommand(inexistente, _trabajador.Id), CancellationToken.None);
-        var revocar = await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork)
+        var revocar = await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new RevocarAutorizacionLecturaCommand(inexistente), CancellationToken.None);
 
         foreach (var resultado in new[] { asignar, retirar, revocar })
@@ -189,13 +189,13 @@ public class AutorizacionLecturaHandlersTests
         var autorizacion = Existente(revocada: true, trabajadorIds: [_trabajador.Id]);
         var version = autorizacion.Version;
 
-        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork)
+        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new AsignarTrabajadoresAutorizacionCommand(autorizacion.Id, [_otroTrabajador.Id], version), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.Revocada.Codigo);
-        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork)
+        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new RetirarTrabajadorAutorizacionCommand(autorizacion.Id, _trabajador.Id, version), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.Revocada.Codigo);
-        (await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork)
+        (await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new RevocarAutorizacionLecturaCommand(autorizacion.Id, version), CancellationToken.None))
             .Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.Revocada.Codigo);
 
@@ -208,7 +208,7 @@ public class AutorizacionLecturaHandlersTests
     {
         var autorizacion = Existente();
 
-        var resultado = await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork)
+        var resultado = await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new AsignarTrabajadoresAutorizacionCommand(autorizacion.Id, [_trabajador.Id, Guid.NewGuid()]), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.TrabajadorNoEncontrado.Codigo);
@@ -221,12 +221,12 @@ public class AutorizacionLecturaHandlersTests
     {
         var autorizacion = Existente(trabajadorIds: [_trabajador.Id]);
 
-        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork)
+        (await new AsignarTrabajadoresAutorizacionCommandHandler(_repositorio, _trabajadores, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new AsignarTrabajadoresAutorizacionCommand(autorizacion.Id, [_trabajador.Id, _otroTrabajador.Id]), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
         _repositorio.Trabajadores.Select(t => t.TrabajadorId).Should().BeEquivalentTo([_trabajador.Id, _otroTrabajador.Id]);
 
-        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork)
+        (await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
                 .Handle(new RetirarTrabajadorAutorizacionCommand(autorizacion.Id, _trabajador.Id, autorizacion.Version), CancellationToken.None))
             .EsExitoso.Should().BeTrue();
         _repositorio.Trabajadores.Select(t => t.TrabajadorId).Should().Equal(_otroTrabajador.Id);
@@ -238,7 +238,7 @@ public class AutorizacionLecturaHandlersTests
     {
         var autorizacion = Existente(trabajadorIds: [_trabajador.Id]);
 
-        var resultado = await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork)
+        var resultado = await new RetirarTrabajadorAutorizacionCommandHandler(_repositorio, Usuario(Administrador), _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new RetirarTrabajadorAutorizacionCommand(autorizacion.Id, _otroTrabajador.Id, autorizacion.Version), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.TrabajadorNoEncontrado.Codigo);
@@ -252,7 +252,7 @@ public class AutorizacionLecturaHandlersTests
         var usuario = Guid.NewGuid();
 
         var resultado = await new RevocarAutorizacionLecturaCommandHandler(
-                _repositorio, new CurrentUserServiceFalso(usuario, Administrador), TimeProvider.System, _unitOfWork)
+                _repositorio, new CurrentUserServiceFalso(usuario, Administrador), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new RevocarAutorizacionLecturaCommand(autorizacion.Id, autorizacion.Version), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -266,7 +266,7 @@ public class AutorizacionLecturaHandlersTests
     {
         var autorizacion = Existente();
 
-        var resultado = await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork)
+        var resultado = await new RevocarAutorizacionLecturaCommandHandler(_repositorio, Usuario(Administrador), TimeProvider.System, _unitOfWork, new AutorizacionInboundQuePermite())
             .Handle(new RevocarAutorizacionLecturaCommand(autorizacion.Id, Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeFalse();
@@ -282,7 +282,7 @@ public class AutorizacionLecturaHandlersTests
     {
         Existente(trabajadorIds: [_trabajador.Id]);
 
-        var lista = await new ObtenerAutorizacionesLecturaQueryHandler(new AutorizacionesLecturaQueryContextFalso(_repositorio), Usuario(rol))
+        var lista = await new ObtenerAutorizacionesLecturaQueryHandler(new AutorizacionesLecturaQueryContextFalso(_repositorio), Usuario(rol), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerAutorizacionesLecturaQuery(), CancellationToken.None);
 
         lista.Should().BeEmpty();
@@ -294,7 +294,7 @@ public class AutorizacionLecturaHandlersTests
         var vigente = Existente(trabajadorIds: [_trabajador.Id, _otroTrabajador.Id]);
         var revocada = Existente(revocada: true);
 
-        var lista = await new ObtenerAutorizacionesLecturaQueryHandler(new AutorizacionesLecturaQueryContextFalso(_repositorio), Usuario(Administrador))
+        var lista = await new ObtenerAutorizacionesLecturaQueryHandler(new AutorizacionesLecturaQueryContextFalso(_repositorio), Usuario(Administrador), new AutorizacionInboundQuePermite())
             .Handle(new ObtenerAutorizacionesLecturaQuery(), CancellationToken.None);
 
         lista.Should().HaveCount(2);

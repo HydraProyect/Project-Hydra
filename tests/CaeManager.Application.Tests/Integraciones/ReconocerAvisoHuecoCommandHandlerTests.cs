@@ -15,8 +15,8 @@ using Xunit;
 namespace CaeManager.Application.Tests.Integraciones;
 
 /// <summary>
-/// Issue #2124, acción Confirmar de Conexiones: quién puede dar por revisado el aviso «posible correo no recuperado» (los
-/// tres perfiles de la decisión de Chris del 2026-11-16), en qué estado, y que la recuperación del hueco que estuviera en
+/// Issue #2124, acción Confirmar de Conexiones y de Buzón: quién puede dar por revisado el aviso «posible correo no
+/// recuperado» (los perfiles de las decisiones de Chris del 2026-11-16 y del 2026-11-17), en qué estado, y que la recuperación del hueco que estuviera en
 /// curso no reescriba nada después.
 /// </summary>
 public class ReconocerAvisoHuecoCommandHandlerTests
@@ -50,13 +50,15 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     /// <summary>
     /// (a) Administrador del Tenant propietario y (b) Administrador del Operador CAE externo por Asignación de Operación:
     /// los dos llegan al handler con el rol efectivo Administrador. (c) Gestor CAE con el Tenant en su Asignación de
-    /// Cartera: alcanza el Tenant entero sin acceso total.
+    /// Cartera: alcanza el Tenant entero sin acceso total. (d) Coordinador CAE con la misma condición de cartera (decisión
+    /// de Chris del 2026-11-17).
     /// </summary>
     public static TheoryData<string, string, bool, bool?> PerfilesAutorizados => new()
     {
         { "Administrador del Tenant propietario", "Administrador", true, null },
         { "Administrador del Operador CAE externo", "Administrador", true, null },
         { "Gestor CAE con el Tenant en su cartera", "GestorCae", false, true },
+        { "Coordinador CAE con el Tenant en su cartera", "CoordinadorCae", false, true },
     };
 
     [Theory]
@@ -83,12 +85,12 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     }
 
     /// <summary>
-    /// Un Gestor CAE fuera de cartera (sin Asignación de Cartera sobre el Tenant) y cualquier otro rol reciben el rechazo y
-    /// la marca se queda. Con una sola de las dos condiciones del Gestor CAE (rol o cartera), el rechazo se mantiene.
+    /// Un Gestor CAE o un Coordinador CAE fuera de cartera (sin Asignación de Cartera sobre el Tenant) y cualquier otro rol
+    /// reciben el rechazo y la marca se queda. Con una sola de las dos condiciones (rol o cartera), el rechazo se mantiene.
     /// </summary>
     [Theory]
     [InlineData("GestorCae", false)]
-    [InlineData("CoordinadorCae", true)]
+    [InlineData("CoordinadorCae", false)]
     [InlineData("DireccionCae", true)]
     [InlineData("Consulta", true)]
     [InlineData("Cliente", false)]
@@ -109,9 +111,48 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Buzón (issue #2124, opción B) pregunta <see cref="PuedeReconocerAvisoHuecoQuery"/> para enseñar Confirmar: tiene que
+    /// responder lo mismo que el comando decide por quién actúa, en cada combinación de rol y cartera. Sí con los cuatro
+    /// perfiles autorizados; no con un Gestor CAE o un Coordinador CAE fuera de cartera (el acceso total no cuenta: decide
+    /// la cartera), con Dirección CAE o Consulta aunque alcancen el Tenant entero y con cualquier otro rol.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true, true, true)]
+    [InlineData("Administrador", false, false, true)]
+    [InlineData("GestorCae", false, true, true)]
+    [InlineData("GestorCae", false, false, false)]
+    [InlineData("GestorCae", true, false, false)]
+    [InlineData("CoordinadorCae", false, true, true)]
+    [InlineData("CoordinadorCae", false, false, false)]
+    [InlineData("CoordinadorCae", true, false, false)]
+    [InlineData("DireccionCae", true, true, false)]
+    [InlineData("Consulta", true, true, false)]
+    [InlineData("Cliente", false, false, false)]
+    [InlineData(null, true, true, false)]
+    public async Task La_pregunta_de_Buzon_responde_lo_mismo_que_decide_el_comando(
+        string? rol, bool accesoTotal, bool alcanzaElTenantEntero, bool esperado)
+    {
+        var (conexion, conexiones, marca) = ConMarca();
+        var alcance = new Alcance(accesoTotal, alcanzaElTenantEntero);
+
+        var puede = await Handler(conexiones, new UnitOfWorkFalso(), rol, alcance)
+            .Handle(new PuedeReconocerAvisoHuecoQuery(), CancellationToken.None);
+        var resultado = await Handler(conexiones, new UnitOfWorkFalso(), rol, alcance)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        puede.Should().Be(esperado);
+        resultado.EsExitoso.Should().Be(esperado, "el comando acepta exactamente a quien la pregunta dice que sí");
+        if (!esperado)
+            resultado.Error.Codigo.Should().Be(ReconocerAvisoHuecoCommandHandler.CodigoSinPermiso);
+    }
+
     /// <summary>Alcance de un Gestor CAE: <paramref name="alcanzaElTenantEntero"/> simula su Asignación de Cartera universal sin acceso total.</summary>
-    private sealed class Alcance(bool tieneAccesoTotal, bool alcanzaElTenantEntero, IReadOnlyList<Guid>? clienteIdsVisibles = null)
-        : AlcanceDatosServiceFalso(tieneAccesoTotal: tieneAccesoTotal, clienteIdsVisibles: clienteIdsVisibles), IAlcanceDatosService
+    private sealed class Alcance(
+        bool tieneAccesoTotal, bool alcanzaElTenantEntero, IReadOnlyList<Guid>? clienteIdsVisibles = null,
+        IReadOnlyList<Guid>? conexionesIntegracionAjenas = null)
+        : AlcanceDatosServiceFalso(tieneAccesoTotal: tieneAccesoTotal, clienteIdsVisibles: clienteIdsVisibles,
+            conexionesIntegracionAjenas: conexionesIntegracionAjenas), IAlcanceDatosService
     {
         public Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) => Task.FromResult(alcanzaElTenantEntero);
     }
@@ -287,6 +328,106 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         resultado.Error.Codigo.Should().Be(ReconocerAvisoHuecoCommandHandler.CodigoAvisoCambiado);
         descarte.Veces.Should().Be(1);
         unitOfWork.TokensDeGuardado.Should().ContainSingle("un solo intento: reintentar reconocería una pérdida que nadie ha visto");
+    }
+
+    /// <summary>
+    /// Mutación (a): el buzón personal de otro Gestor CAE se rechaza antes de pedir el cerrojo. Con el cerrojo ocupado, sin
+    /// esa comprobación saldría «inténtalo de nuevo», que confirma que la conexión existe.
+    /// </summary>
+    [Fact]
+    public async Task Un_buzon_personal_ajeno_no_se_encuentra_ni_pide_el_cerrojo_aunque_este_ocupado()
+    {
+        var conexion = new ConexionIntegracion("gestora@operador.test", "Buzón de otra Gestora CAE", gestorPropietarioId: Guid.NewGuid()).Verificada();
+        var marca = DateTime.UtcNow.AddHours(-3);
+        conexion.RegistrarNotificacionDescartada(marca + ConexionIntegracion.RetrasoMaximoNotificacion).Should().BeTrue("control");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        cerrojo.Ocupadas.Add(conexion.Id);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new Alcance(false, true, conexionesIntegracionAjenas: [conexion.Id]);
+
+        var resultado = await Handler(conexiones, unitOfWork, "GestorCae", alcance, cerrojo)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        cerrojo.Pedidos.Should().BeEmpty("se corta antes de pedir el cerrojo");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marca);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Mutación (b): la visibilidad se vuelve a comprobar con la conexión releída bajo el cerrojo. Si deja de verse entre la
+    /// carga y el cerrojo, no se reconoce.
+    /// </summary>
+    [Fact]
+    public async Task Una_conexion_que_deja_de_verse_al_tomar_el_cerrojo_no_se_reconoce()
+    {
+        var (conexion, conexiones, marca) = ConMarca();
+        var alcance = new AlcanceQueSeEstrecha();
+        var cerrojo = new CerrojoVerificacionBuzonFalso { AlTomar = _ => alcance.Oculta = true };
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var resultado = await Handler(conexiones, unitOfWork, alcance: alcance, cerrojo: cerrojo)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        cerrojo.Pedidos.Should().ContainSingle("control: la primera comprobación la dejó pasar");
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marca);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Mutación (c): un fallo al guardar que no es de concurrencia también descarta lo rastreado, y se propaga.</summary>
+    [Fact]
+    public async Task Un_fallo_al_guardar_que_no_es_de_concurrencia_descarta_lo_rastreado_y_se_propaga()
+    {
+        var (conexion, conexiones, marca) = ConMarca();
+        var fallo = new InvalidOperationException("la base no responde");
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = fallo };
+        var descarte = new DescarteContado();
+
+        var accion = () => Handler(conexiones, unitOfWork, descarte: descarte)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        (await accion.Should().ThrowAsync<InvalidOperationException>()).Which.Should().BeSameAs(fallo);
+        descarte.Veces.Should().Be(1, "lo rastreado no puede quedarse para el siguiente guardado del circuito");
+    }
+
+    /// <summary>
+    /// Mutación (d): sin marca es éxito aunque la conexión ya no esté Habilitada. Quien confirmó vio un aviso que ya no
+    /// existe; decirle «no reconocible» lo mandaría a revisar un hueco que nadie tiene abierto.
+    /// </summary>
+    [Fact]
+    public async Task Sin_marca_y_Deshabilitada_devuelve_exito_sin_guardar()
+    {
+        var (conexion, conexiones, marca) = ConMarca();
+        conexiones.SimularRastreo = true;
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        ConexionIntegracion? enBase = null;
+        cerrojo.AlTomar = id => enBase = conexiones.SustituirEnBase(id, c =>
+        {
+            c.MarcarIdentidadVerificada(DateTime.UtcNow);
+            c.Deshabilitar();
+        });
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var resultado = await Handler(conexiones, unitOfWork, cerrojo: cerrojo)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        enBase!.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada, "control");
+        enBase.HuecoPendienteDesdeUtc.Should().BeNull("control: la base no tiene marca");
+        enBase.MarcaHuecoPorRegistrarDesdeUtc.Should().BeNull("control");
+        resultado.EsExitoso.Should().BeTrue();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Alcance que deja de ver la conexión cuando <see cref="Oculta"/> pasa a true (al tomar el cerrojo).</summary>
+    private sealed class AlcanceQueSeEstrecha : AlcanceDatosServiceFalso, IAlcanceDatosService
+    {
+        public bool Oculta { get; set; }
+
+        public new Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(!Oculta);
     }
 
     [Fact]
