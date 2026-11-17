@@ -402,7 +402,7 @@ function Start-CompilacionEnDell {
     $log = Join-Path $logs 'Compilar-en-la-Dell.log'
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = 'cmd.exe'
-    $psi.Arguments = "/d /s /c `"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$bld`" -Branch `"$rama`" -Remote -CommandFile `"$ordenFile`" -RepoRoot `"$raiz`" > `"$log`" 2>&1`""
+    $psi.Arguments = "/d /s /c `"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$bld`" -Branch `"$rama`" -SoloDell -CommandFile `"$ordenFile`" -RepoRoot `"$raiz`" > `"$log`" 2>&1`""
     $psi.UseShellExecute = $false
     $psi.WorkingDirectory = $raiz
     Write-Host ">>> $nombreCompilar en la Dell ($rama @ $($head.Substring(0, 9))), en segundo plano" -ForegroundColor Cyan
@@ -421,15 +421,23 @@ function Get-ResultadoDell($Remoto) {
     if ($dest -ne 'dell' -or $sha -ne $Remoto.Sha -or $null -eq $cod) {
         return "invalido (destino '$dest', SHA '$sha', codigo '$cod')"
     }
+    # El arbol pudo cambiar durante la espera: el veredicto de la Dell solo vale para el HEAD limpio que compilo.
+    if ((git rev-parse HEAD 2>$null) -ne $Remoto.Sha -or @(git status --porcelain 2>$null).Count -gt 0) {
+        return 'invalido (HEAD o el arbol de trabajo cambiaron durante la espera)'
+    }
     if ($cod -eq 0) { return 'pasa' }
-    if ($texto -match '(?i)error [A-Z]{2,}\d+|Build FAILED|Compilaci.n con errores|error : ') { return 'falla' }
-    return "invalido (codigo $cod sin error de compilacion)"
+    # Solo un error de codigo (compilador o analizador) es un fallo de la rama. Los de NuGet, MSBuild o disco
+    # (NU1301, MSB3027...) son de la Dell: no valen y se compila en local, que dara el veredicto real.
+    if ($texto -cmatch 'error (CS|CA|IDE|RZ|BL|SYSLIB|ASP|xUnit|NU1605|NU1608)\d*') { return 'falla' }
+    return "invalido (codigo $cod sin error de compilacion de la rama)"
 }
 
 function Close-CompilacionEnDell($Remoto) {
     # Veredicto del paso de compilacion hecho en la Dell. 'falla' corta como un fallo local; 'invalido' compila
     # aqui (con la plaza ya tomada) ANTES de los tests: compilar despues con -warnaserror no veria los warnings
-    # de los proyectos que los tests ya hubieran dejado al dia.
+    # de los proyectos que los tests ya hubieran dejado al dia. (La compilacion incremental del worktree
+    # reutilizado de la Dell tiene el mismo limite que la local de siempre: un warning en un proyecto que ya
+    # estaba al dia no se vuelve a emitir.)
     $r = Get-ResultadoDell $Remoto
     $seg = [int]$Remoto.Reloj.Elapsed.TotalSeconds
     $paso = "$nombreCompilar [Dell]"
