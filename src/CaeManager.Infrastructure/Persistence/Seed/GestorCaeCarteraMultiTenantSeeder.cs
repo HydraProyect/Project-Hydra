@@ -87,6 +87,12 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// <summary>Días hasta el vencimiento del documento «a punto de vencer»: dentro del umbral ámbar (30) y fuera del rojo (15).</summary>
     private const int DiasProximo = 27;
 
+    /// <summary>
+    /// Días hasta la Visita sembrada: dentro de la ventana de aviso (48 h por defecto, dos días) y a más
+    /// de uno, para que siga «por empezar» aunque la medianoche de Madrid caiga durante el recorrido.
+    /// </summary>
+    private const int DiasHastaVisitaProxima = 2;
+
     /// <param name="Empleador">Empresa propia del Tenant, o la Subcontrata si <paramref name="EmpleadorEsSubcontrata"/>.</param>
     private sealed record RamaE2E(
         string NombreTenant, bool EnCartera, string Cliente, string Empleador, string Centro, string CodigoCentro,
@@ -331,8 +337,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
         dbContext.Documentos.AddRange(formacion, aptitud);
         dbContext.AcreditacionesDocumentoPlataforma.AddRange(acreditacionRechazada, acreditacionVencida);
 
-        // Mañana: dentro de las 48 h de aviso por defecto, así que entra en la cola como «Visita próxima».
-        var visita = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(1), notas: null, OrigenVisita.Plataforma);
+        // Pasado mañana: el último día dentro de las 48 h de aviso por defecto, así que entra en la cola
+        // como «Visita próxima» (Urgente). No mañana: la siembra fija el día una vez, al arrancar la
+        // fixture, y la cola se lee después con el día de negocio de ese momento. Si entre las dos cae
+        // la medianoche de Madrid, la Visita de mañana empieza «hoy», pasa a En curso y sale de la cola
+        // (SoloPorEmpezar), y el E2E falla sin defecto (#2146). A dos días aguanta esa medianoche:
+        // queda a uno, Crítica, y sigue siendo «Visita próxima».
+        var visita = new Visita(centro.Id, hoy.AddDays(DiasHastaVisitaProxima), hoy.AddDays(DiasHastaVisitaProxima),
+            notas: null, OrigenVisita.Plataforma);
         dbContext.Visitas.Add(visita);
         dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajador.Id));
 
