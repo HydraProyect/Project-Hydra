@@ -222,6 +222,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorRequerimientosTecEnBase.cs",
             """.SqlQuery<FilaRequisito>($"SELECT * FROM app_inbound_tec_requerimientos()")""")] = 1,
 
+        // Lectura inversa X-2 de la demo Inbound (P0b): app_inbound_tec_veredictos() de la migración AnadeLecturaVeredictosTec.
+        // Las evidencias son del Tenant TCE y RLS las oculta, como debe, a la conexión del Tenant TEC; la función toma el Tenant
+        // TEC del contexto firmado, exige el gate D10 y no devuelve ninguna identidad de Gestor CAE. Sin parámetros.
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorVeredictosTecEnBase.cs",
+            """var filas = await dbContext.Database.SqlQuery<FilaVeredicto>($"SELECT * FROM app_inbound_tec_veredictos()").ToListAsync(cancellationToken);""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
