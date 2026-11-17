@@ -21,11 +21,14 @@
     Plaza de compilacion (solo en la maquina de desarrollo, nunca en CI): si existe el modulo
     %USERPROFILE%\.claude\scripts\PlazaCompilacion.ps1 (o el que diga HYDRA_PLAZA_COMPILACION) y no hay CI
     (GITHUB_ACTIONS=true o CI), los pasos 1 a 4 se hacen con una de las 4 plazas de la maquina (mutex
-    Global\HydraCompilacion-1..4), con -maxcpucount:4 en restore, build y test y con los procesos en prioridad
-    BelowNormal. Imprime PLAZA-COMPILACION n/4, o ESPERANDO-PLAZA-COMPILACION mientras espera. Si no hay plaza
-    libre, el arbol esta limpio, HEAD esta empujado y la Dell tiene plaza, la compilacion con -warnaserror se
-    hace alli con bld -Remote mientras se espera; restauracion, formato y tests esperan siempre plaza local. Si
-    la Dell falla al compilar, el preflight falla; si su resultado no vale (infraestructura), se compila aqui.
+    Global\HydraCompilacion-1..4) y con -maxcpucount:4 en restore, build y test. Los procesos van en prioridad
+    BelowNormal solo si HYDRA_BLD_PRIORIDAD_BAJA=1 (transicion: mientras haya ramas con el preflight antiguo,
+    que corre en Normal, BelowNormal dejaria sin CPU a quien lo usa; por defecto, Normal). Imprime
+    PLAZA-COMPILACION n/4, o ESPERANDO-PLAZA-COMPILACION mientras espera. Si no hay plaza libre, el arbol esta
+    limpio, HEAD esta empujado y la Dell tiene plaza, la compilacion con -warnaserror se hace alli con
+    bld -SoloDell mientras se espera; restauracion, formato y tests esperan siempre plaza local. Si la Dell
+    falla al compilar (error de codigo en HEAD), el preflight falla; si su resultado no vale (infraestructura
+    de la Dell), se compila aqui.
     Sin el modulo, o en CI, el preflight se comporta exactamente como antes.
 
     Gobernanza del cuerpo (-CuerpoPr <fichero>): reimplementa en PowerShell, sin llamar a bash, las reglas
@@ -272,8 +275,12 @@ $avisos = New-Object System.Collections.ArrayList
 
 # Plaza de compilacion de maquina (solo en la maquina de desarrollo). El modulo vive fuera del repositorio
 # (%USERPROFILE%\.claude\scripts\PlazaCompilacion.ps1; HYDRA_PLAZA_COMPILACION lo sustituye). Con el modulo:
-# como mucho 4 preflights o bld compilando a la vez en la maquina, cada uno con -maxcpucount:4 y sus procesos
-# de compilacion y test en prioridad BelowNormal. Sin el modulo, o en CI, todo sigue como antes.
+# como mucho 4 preflights o bld compilando a la vez en la maquina, cada uno con -maxcpucount:4. Sin el modulo,
+# o en CI, todo sigue como antes.
+# Prioridad BelowNormal de los procesos de compilacion y test: solo con HYDRA_BLD_PRIORIDAD_BAJA=1, la misma
+# variable que usa bld (Invoke-ParallelBuild.ps1). Transicion (2026-11-17): mientras queden ramas con el
+# preflight antiguo, que corre en Normal, BelowNormal deja sin CPU a quien lo usa (medido: pasos ficticios de
+# 18 s a 60 s); por defecto, Normal. Las plazas y -maxcpucount:4 van siempre.
 $enCi = ($env:GITHUB_ACTIONS -eq 'true') -or (-not [string]::IsNullOrEmpty($env:CI) -and $env:CI -notin @('false', '0'))
 $modoPlaza = $false
 $plaza = $null
@@ -289,6 +296,7 @@ if (-not $enCi) {
     }
 }
 $mcpu = if ($modoPlaza) { ' -maxcpucount:4' } else { '' }
+$prioridadBaja = $modoPlaza -and ($env:HYDRA_BLD_PRIORIDAD_BAJA -eq '1')
 
 function Write-Resumen([int]$Codigo, [string]$Causa) {
     Write-Host "`n=== Resumen preflight-pr ==="
@@ -320,8 +328,8 @@ function Invoke-Paso([string]$Nombre, [string]$Comando, [string]$Pista = '', [sw
     $psi.Arguments = "/d /s /c `"$Comando > `"$log`" 2>&1`""
     $psi.UseShellExecute = $false
     $psi.WorkingDirectory = $raiz
-    # Con plaza: el proceso (y cmd -> dotnet -> nodos MSBuild y testhost) nace en BelowNormal.
-    $proc = if ($modoPlaza) { Start-ProcesoPrioridadBaja $psi } else { [Diagnostics.Process]::Start($psi) }
+    # Con HYDRA_BLD_PRIORIDAD_BAJA=1: el proceso (y cmd -> dotnet -> nodos MSBuild y testhost) nace en BelowNormal.
+    $proc = if ($prioridadBaja) { Start-ProcesoPrioridadBaja $psi } else { [Diagnostics.Process]::Start($psi) }
     $proc.WaitForExit()
     $codigo = $proc.ExitCode
     $proc.Dispose()
@@ -406,7 +414,7 @@ function Start-CompilacionEnDell {
     $psi.UseShellExecute = $false
     $psi.WorkingDirectory = $raiz
     Write-Host ">>> $nombreCompilar en la Dell ($rama @ $($head.Substring(0, 9))), en segundo plano" -ForegroundColor Cyan
-    $proc = Start-ProcesoPrioridadBaja $psi
+    $proc = if ($prioridadBaja) { Start-ProcesoPrioridadBaja $psi } else { [Diagnostics.Process]::Start($psi) }
     return [pscustomobject]@{ Motivo = ''; Proc = $proc; Log = $log; Sha = $head; Reloj = [Diagnostics.Stopwatch]::StartNew() }
 }
 
