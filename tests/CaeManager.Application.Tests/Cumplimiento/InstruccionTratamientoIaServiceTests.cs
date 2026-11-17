@@ -18,7 +18,7 @@ public class InstruccionTratamientoIaServiceTests
     public async Task Sin_ninguna_fila_para_el_tenant_no_esta_habilitada()
     {
         var repositorio = new InstruccionTratamientoIaTenantPropietarioRepositoryFalso();
-        var servicio = new InstruccionTratamientoIaService(repositorio);
+        var servicio = new InstruccionTratamientoIaService(repositorio, new SubencargadoRepositoryFalso());
 
         (await servicio.EstaHabilitadaAsync(Guid.NewGuid())).Should().BeFalse();
     }
@@ -31,7 +31,7 @@ public class InstruccionTratamientoIaServiceTests
         var fila = new InstruccionTratamientoIaTenantPropietario(
             "v1", "v1", DateTime.UtcNow, OrigenInstruccionTratamientoIa.AltaManualPlataforma, Guid.NewGuid());
         repositorio.Agregar(fila);
-        var servicio = new InstruccionTratamientoIaService(repositorio);
+        var servicio = new InstruccionTratamientoIaService(repositorio, new SubencargadoRepositoryFalso());
 
         (await servicio.EstaHabilitadaAsync(fila.TenantId)).Should().BeTrue();
     }
@@ -44,7 +44,7 @@ public class InstruccionTratamientoIaServiceTests
             "v1", "v1", DateTime.UtcNow.AddDays(-30), OrigenInstruccionTratamientoIa.AltaManualPlataforma, Guid.NewGuid());
         fila.Revocar("Fin de contrato", DateTime.UtcNow);
         repositorio.Agregar(fila);
-        var servicio = new InstruccionTratamientoIaService(repositorio);
+        var servicio = new InstruccionTratamientoIaService(repositorio, new SubencargadoRepositoryFalso());
 
         (await servicio.EstaHabilitadaAsync(fila.TenantId)).Should().BeFalse();
     }
