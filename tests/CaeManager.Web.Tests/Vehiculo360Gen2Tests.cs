@@ -39,7 +39,7 @@ public partial class Vehiculo360Gen2Tests : BunitContext
         public Result Edicion { get; set; } = Result.Exito();
         public Func<object, Task?>? Retener { get; set; }
         public Func<object, Exception?>? Fallar { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)

@@ -60,7 +60,7 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
         public bool GuardadoLanza { get; set; }
         public Result Confirmacion { get; set; } = Result.Exito();
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla.</summary>

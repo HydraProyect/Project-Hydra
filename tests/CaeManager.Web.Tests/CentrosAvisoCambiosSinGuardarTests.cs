@@ -47,7 +47,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
 
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>
         /// Si está puesta, la segunda carga de Empresas del selector (la acotada al Cliente que

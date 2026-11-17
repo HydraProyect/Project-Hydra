@@ -50,7 +50,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
 
         public required IReadOnlyList<VehiculoListaDto> Vehiculos { get; init; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<object>? ListaRetenida { get; init; }
 

@@ -135,7 +135,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         /// <summary>El catálogo de Delegaciones y Oficios de la Empresa; <c>null</c> = la consulta falla.</summary>
         public CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto? CatalogoEmpresa { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];

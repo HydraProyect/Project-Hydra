@@ -247,7 +247,7 @@ public class DocumentosEndpointsRevisionIaTests
     /// <summary>Contesta la consulta de la revisión y la del Documento; anota todo lo que se le pide.</summary>
     private sealed class MediadorFalso(RevisionIaParaVisorDto? revision, DocumentoDetalleDto? documento) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

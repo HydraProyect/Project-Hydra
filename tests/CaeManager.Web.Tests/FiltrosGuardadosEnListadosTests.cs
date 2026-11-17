@@ -92,7 +92,7 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
     /// <summary>Responde a las consultas de los siete listados con listas vacías y apunta todo lo que se le envía.</summary>
     private sealed class MediatorDeListado : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
         /// <summary>Los Centros de la lista (por defecto, ninguno), con su resumen por grupo como la consulta real.</summary>
