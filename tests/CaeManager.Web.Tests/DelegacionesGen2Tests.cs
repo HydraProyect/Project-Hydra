@@ -427,29 +427,46 @@ public partial class DelegacionesGen2Tests : BunitContext
     /// #2016 (revisión): la RLS de <c>RegistrosActividadSoporte</c> solo entrega la traza al Administrador del Tenant
     /// propietario y a la plataforma de la visita; a cualquier otra cuenta le devuelve una lista vacía, y la pantalla
     /// diría «Sin actividad registrada» aunque la traza exista. El botón no se pinta a quien no la puede ver.
+    /// Se parte en tres casos con un único <c>Renderizar</c> cada uno: <c>Renderizar</c> registra servicios en el
+    /// contexto bUnit y no admite una segunda llamada tras resolver el primero, y así un render previo tampoco
+    /// puede prestar estado al control positivo (cada <c>[Fact]</c> corre en su propia instancia de la clase, de modo
+    /// que <c>_configurarMediador</c> no se filtra de un caso a otro).
     /// Falsación: pintar el botón sin condición (<c>PuedeVerActividadRegistrada</c> a <c>true</c>) hace caer el primer
-    /// aserto.
+    /// caso (la cuenta sin rol); los otros dos son los controles positivos que impiden ocultarlo siempre.
     /// </summary>
     [Fact]
-    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_solo_se_ofrece_a_quien_la_base_le_entrega()
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_no_se_ofrece_a_una_cuenta_sin_rol_del_Tenant_propietario()
     {
-        var delegacionDelCliente = Delegacion(soporte: true, activa: true, somosLaConsultora: false);
-
-        var (cuentaSinRol, _, _) = Renderizar(esAdministradorPlataforma: false, delegacionDelCliente);
+        var (cuentaSinRol, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: false));
 
         cuentaSinRol.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Ver actividad registrada",
             "una cuenta del Tenant propietario sin rol Administrador recibiría una lista vacía de la RLS");
+    }
 
+    /// <summary>Control positivo de #2016: el Administrador del Tenant propietario sí lee la traza.</summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_se_ofrece_al_Administrador_del_Tenant_propietario()
+    {
         _configurarMediador = m => m.TenantPropietarioAutorizante = TenantPropietarioRefrielectric;
-        var (administrador, _, _) = Renderizar(esAdministradorPlataforma: false, delegacionDelCliente);
+
+        var (administrador, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: false));
+
         administrador.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
             "control positivo: el Administrador del Tenant propietario sí la lee");
+    }
 
-        var (plataforma, _, _) = Renderizar(esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: true));
+    /// <summary>Control positivo de #2016: la plataforma de la visita lee la traza desde su Tenant.</summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_se_ofrece_a_la_plataforma_de_la_visita()
+    {
+        var (plataforma, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: true));
+
         plataforma.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
             "control positivo: la plataforma de la visita la lee desde su Tenant");
     }
-
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
     /// exige ser Administrador del Tenant propietario, desde su casa (decisión SEG-7 del
