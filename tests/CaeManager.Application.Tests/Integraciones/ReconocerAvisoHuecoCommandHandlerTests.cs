@@ -109,6 +109,40 @@ public class ReconocerAvisoHuecoCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Buzón (issue #2124, opción B) pregunta <see cref="PuedeReconocerAvisoHuecoQuery"/> para enseñar Confirmar: tiene que
+    /// responder lo mismo que el comando decide por quién actúa, en cada combinación de rol y cartera. Sí con los tres
+    /// perfiles autorizados; no con un Gestor CAE fuera de cartera (con o sin acceso total no cuenta: decide el rol), con
+    /// el Coordinador CAE aunque alcance el Tenant entero y con cualquier otro rol.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true, true, true)]
+    [InlineData("Administrador", false, false, true)]
+    [InlineData("GestorCae", false, true, true)]
+    [InlineData("GestorCae", false, false, false)]
+    [InlineData("GestorCae", true, false, false)]
+    [InlineData("CoordinadorCae", false, true, false)]
+    [InlineData("DireccionCae", true, true, false)]
+    [InlineData("Consulta", true, true, false)]
+    [InlineData("Cliente", false, false, false)]
+    [InlineData(null, true, true, false)]
+    public async Task La_pregunta_de_Buzon_responde_lo_mismo_que_decide_el_comando(
+        string? rol, bool accesoTotal, bool alcanzaElTenantEntero, bool esperado)
+    {
+        var (conexion, conexiones, marca) = ConMarca();
+        var alcance = new Alcance(accesoTotal, alcanzaElTenantEntero);
+
+        var puede = await Handler(conexiones, new UnitOfWorkFalso(), rol, alcance)
+            .Handle(new PuedeReconocerAvisoHuecoQuery(), CancellationToken.None);
+        var resultado = await Handler(conexiones, new UnitOfWorkFalso(), rol, alcance)
+            .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
+
+        puede.Should().Be(esperado);
+        (resultado.EsExitoso).Should().Be(esperado, "el comando acepta exactamente a quien la pregunta dice que sí");
+        if (!esperado)
+            resultado.Error.Codigo.Should().Be(ReconocerAvisoHuecoCommandHandler.CodigoSinPermiso);
+    }
+
     /// <summary>Alcance de un Gestor CAE: <paramref name="alcanzaElTenantEntero"/> simula su Asignación de Cartera universal sin acceso total.</summary>
     private sealed class Alcance(bool tieneAccesoTotal, bool alcanzaElTenantEntero, IReadOnlyList<Guid>? clienteIdsVisibles = null)
         : AlcanceDatosServiceFalso(tieneAccesoTotal: tieneAccesoTotal, clienteIdsVisibles: clienteIdsVisibles), IAlcanceDatosService

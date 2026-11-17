@@ -556,6 +556,7 @@ ProponerPlanAsistenteQuery	AsistenteIa
 ProponerPlanDeTareaAsistenteCommand	AsistenteIa
 PuedeInicializarPlataformaQuery	Plataforma
 PuedeReactivarQuery	Tenants
+PuedeReconocerAvisoHuecoQuery	Integraciones
 PuedeRevocarQuery	Tenants
 QuitarMarcaDocumentacionGestionadaCommand	Visitas
 QuitarRequisitoEventoCommand	Proyectos

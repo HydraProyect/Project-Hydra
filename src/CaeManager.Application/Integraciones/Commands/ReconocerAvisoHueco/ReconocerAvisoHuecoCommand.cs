@@ -19,6 +19,16 @@ namespace CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 [AreaDelEncargo("Integraciones")]
 public record ReconocerAvisoHuecoCommand(Guid ConexionId, DateTime MarcaVistaUtc) : ICommand;
 
+/// <summary>
+/// ¿Ofrece la pantalla Confirmar a quien mira? La pregunta de Buzón (issue #2124, opción B), que no es solo de
+/// Administrador: el Gestor CAE con el Tenant en su Asignación de Cartera también confirma. Comparte handler con el comando
+/// a propósito, para que el mismo <see cref="ReconocerAvisoHuecoCommandHandler.PuedeReconocerAsync"/> decida en los dos
+/// (como <c>PuedeReactivarQuery</c>). Solo responde por quién actúa: el estado de cada conexión (con aviso, Habilitada, sin
+/// marca por registrar) lo lee la página del listado que ya ve, y el comando lo vuelve a comprobar todo.
+/// </summary>
+[AreaDelEncargo("Integraciones")]
+public record PuedeReconocerAvisoHuecoQuery : IRequest<bool>;
+
 public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAvisoHuecoCommand>
 {
     public ReconocerAvisoHuecoCommandValidator()
@@ -61,8 +71,13 @@ public class ReconocerAvisoHuecoCommandValidator : AbstractValidator<ReconocerAv
 /// un Cliente empresarial no alcanza el Tenant entero y recibe <see cref="CodigoSinPermiso"/>: se rechaza de más, nunca de
 /// menos. (2) Confirmar no exige que la suscripción de Graph siga viva: si ya expiró, la renovación diaria vuelve a fijar
 /// la marca (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>) y el aviso reaparece, porque la
-/// pérdida es real. (3) El buzón personal de un Gestor CAE solo lo ve su dueño, así que hoy nadie lo confirma desde
-/// Conexiones, que es solo de Administrador.
+/// pérdida es real. (3) El buzón personal de un Gestor CAE solo lo ve su dueño, así que no se confirma desde
+/// Conexiones, que es solo de Administrador: lo confirma su dueño desde Buzón, si tiene el Tenant en su cartera.
+/// </para>
+/// <para>
+/// <b>Dónde se ofrece.</b> Conexiones (Administrador) y Buzón (<c>/comunicaciones/buzon</c>, issue #2124, opción B), que
+/// pregunta <see cref="PuedeReconocerAvisoHuecoQuery"/> y solo enseña el aviso de las conexiones que ya lista. La página
+/// es una comodidad: la frontera es este handler.
 /// </para>
 /// </summary>
 public class ReconocerAvisoHuecoCommandHandler(
@@ -72,7 +87,8 @@ public class ReconocerAvisoHuecoCommandHandler(
     ICerrojoVerificacionBuzon cerrojo,
     IUnitOfWork unitOfWork,
     IDescarteCambiosPendientes descarteCambios)
-    : IRequestHandler<ReconocerAvisoHuecoCommand, Result>
+    : IRequestHandler<ReconocerAvisoHuecoCommand, Result>,
+      IRequestHandler<PuedeReconocerAvisoHuecoQuery, bool>
 {
     /// <summary>Quien actúa no es ninguno de los tres perfiles que pueden confirmar el aviso.</summary>
     public const string CodigoSinPermiso = "ConexionIntegracion.ReconocerAvisoSinPermiso";
@@ -103,7 +119,11 @@ public class ReconocerAvisoHuecoCommandHandler(
         return resultado!;
     }
 
-    private async Task<bool> PuedeReconocerAsync(CancellationToken cancellationToken) =>
+    public Task<bool> Handle(PuedeReconocerAvisoHuecoQuery request, CancellationToken cancellationToken) =>
+        PuedeReconocerAsync(cancellationToken);
+
+    /// <summary>La regla de quién confirma, una sola vez para el comando y para <see cref="PuedeReconocerAvisoHuecoQuery"/>.</summary>
+    internal async Task<bool> PuedeReconocerAsync(CancellationToken cancellationToken) =>
         await usuarioActual.ObtenerRolEfectivoAsync() switch
         {
             "Administrador" => true,
