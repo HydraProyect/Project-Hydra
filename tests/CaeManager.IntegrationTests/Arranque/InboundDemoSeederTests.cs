@@ -31,6 +31,9 @@ internal sealed class AlmacenDeSiembraInboundEnMemoria : IFileStorageService
 
     public IReadOnlyDictionary<string, byte[]> Archivos => _archivos;
 
+    /// <summary>Corre justo después de escribir un fichero: un test lo usa para hacer fallar el guardado de la fila que sigue.</summary>
+    public Action? AlGuardar { get; set; }
+
     public async Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
     {
         Llamadas++;
@@ -40,6 +43,7 @@ internal sealed class AlmacenDeSiembraInboundEnMemoria : IFileStorageService
         await contenido.CopyToAsync(memoria, cancellationToken);
         var clave = $"{tenantId:N}/{Guid.NewGuid():N}{Path.GetExtension(nombreArchivoOriginal)}";
         _archivos[clave] = memoria.ToArray();
+        AlGuardar?.Invoke();
         return clave;
     }
 
@@ -483,13 +487,90 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
 
     private readonly AlmacenDeSiembraInboundEnMemoria _almacen = new();
 
-    private async Task SembrarAsync()
+    private async Task SembrarAsync(CancellationToken cancellationToken = default)
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
         await InboundDemoSeeder.SeedAsync(
             sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<UserManager<ApplicationUser>>(),
-            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _almacen, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+            sp.GetRequiredService<IUserStore<ApplicationUser>>(), _almacen, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance,
+            cancellationToken);
+    }
+
+    private async Task<Guid> IdDeMoncayoAsync()
+    {
+        await using var bootstrap = _arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+        return await bootstrap.Tenants.Where(t => t.Nombre == InboundDemoSeeder.NombreTenantMoncayo).Select(t => t.Id).SingleAsync();
+    }
+
+    /// <summary>
+    /// Si el guardado de la fila falla (aquí, una cancelación justo después de escribir el fichero), el fichero recién
+    /// escrito se retira: no queda huérfano en la carpeta del Tenant TEC y el Documento sigue sin archivo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_falla_el_fichero_recien_escrito_se_retira()
+    {
+        await SembrarAsync();
+        var moncayoId = await IdDeMoncayoAsync();
+
+        Guid sinArchivo;
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                sinArchivo = await db.Documentos.Select(d => d.Id).FirstAsync();
+                await db.Documentos.Where(d => d.Id == sinArchivo).ExecuteUpdateAsync(s => s.SetProperty(d => d.ArchivoUrl, (string?)null));
+            }
+        }
+
+        var clavesAntes = _almacen.Archivos.Keys.ToHashSet();
+        using var cts = new CancellationTokenSource();
+        _almacen.AlGuardar = cts.Cancel;
+
+        var sembrar = () => SembrarAsync(cts.Token);
+        await sembrar.Should().ThrowAsync<OperationCanceledException>();
+
+        _almacen.AlGuardar = null;
+        _almacen.Archivos.Keys.Should().BeEquivalentTo(clavesAntes, "el fichero que se escribió antes del fallo se retiró");
+
+        using var ambito2 = _arnes.Servicios.CreateScope();
+        var db2 = ambito2.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(moncayoId))
+            (await db2.Documentos.Where(d => d.Id == sinArchivo).Select(d => d.ArchivoUrl).SingleAsync()).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Regla declarada: «sin archivo» es «sin el PDF de prueba», salvo en un Documento anonimizado, cuyo archivo se retiró
+    /// a propósito y no se repone.
+    /// </summary>
+    [Fact]
+    public async Task Un_Documento_anonimizado_no_recupera_archivo()
+    {
+        await SembrarAsync();
+        var moncayoId = await IdDeMoncayoAsync();
+
+        Guid anonimizado;
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(moncayoId))
+            {
+                var documento = await db.Documentos.FirstAsync();
+                anonimizado = documento.Id;
+                documento.Anonimizar(DateTime.UtcNow);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var ficherosAntes = _almacen.Archivos.Count;
+        await SembrarAsync();
+
+        using var ambito2 = _arnes.Servicios.CreateScope();
+        var db2 = ambito2.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(moncayoId))
+            (await db2.Documentos.Where(d => d.Id == anonimizado).Select(d => d.ArchivoUrl).SingleAsync()).Should().BeNull("un Documento anonimizado no recibe el PDF de prueba");
+        _almacen.Archivos.Should().HaveCount(ficherosAntes, "no se escribe ningún fichero nuevo");
     }
 
     /// <summary>
@@ -575,7 +656,7 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
             }
         }
 
-        var resembrar = SembrarAsync;
+        var resembrar = () => SembrarAsync();
         await resembrar.Should().NotThrowAsync();
 
         // Después, el revisor corrige los DNI de los Trabajadores del Tenant TEC (los de la siembra quedan libres en el índice
@@ -639,7 +720,7 @@ public sealed class InboundDemoSeederEdicionesTests : IAsyncLifetime
             }
         }
 
-        var sembrar = SembrarAsync;
+        var sembrar = () => SembrarAsync();
         await sembrar.Should().NotThrowAsync();
 
         using (var ambito = _arnes.Servicios.CreateScope())

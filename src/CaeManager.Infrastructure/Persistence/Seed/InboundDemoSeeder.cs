@@ -352,9 +352,16 @@ public static class InboundDemoSeeder
     /// base ya sembrada antes de este paso, que no entran en la siembra inicial del Tenant (ya cuenta como sembrado).
     ///
     /// <para>
+    /// Regla declarada: en este Tenant de demo, «sin archivo» significa «sin el PDF de prueba», también para un Documento que
+    /// alguien creó a mano sin archivo. Lo que sí se respeta es la supresión: un Documento anonimizado (su archivo se borró
+    /// por retención) no recupera uno, y los dados de baja y los sustituidos del historial (inmutable) tampoco se tocan.
+    /// </para>
+    ///
+    /// <para>
     /// Un Documento por guardado: si el guardado falla, el fichero recién escrito se retira (sin el token de la siembra, que
-    /// puede ser la causa) y no queda nada en el almacén sin fila que lo referencie. Los dados de baja, y los sustituidos del
-    /// historial (inmutable), no se tocan. No crea Evidencias: nacen de la validación del Gestor CAE.
+    /// puede ser la causa) y no queda nada en el almacén sin fila que lo referencie. No crea Evidencias: nacen de la
+    /// validación del Gestor CAE. La retirada de los Tenants de la demo (<see cref="RetiradaTenantDemoService"/>) no borra
+    /// los ficheros del almacén de un Tenant, como con cualquier Documento que se suba a mano en él.
     /// </para>
     /// </summary>
     private static async Task AdjuntarArchivosDePruebaAsync(
@@ -362,7 +369,7 @@ public static class InboundDemoSeeder
     {
         var sinArchivo = await db.Documentos
             .Operativos()
-            .Where(d => d.TenantId == tenantId && d.ArchivoUrl == null)
+            .Where(d => d.TenantId == tenantId && d.ArchivoUrl == null && d.AnonimizadoEnUtc == null)
             .ToListAsync(cancellationToken);
         if (sinArchivo.Count == 0)
             return;
