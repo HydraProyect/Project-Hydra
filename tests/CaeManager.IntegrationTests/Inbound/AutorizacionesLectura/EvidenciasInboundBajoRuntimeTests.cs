@@ -559,7 +559,9 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// La ruta de la validación Inbound, de punta a punta bajo runtime: el manejador real del endpoint sobre la query real.
+    /// La ruta de la validación Inbound bajo runtime: el manejador real del endpoint y el handler real de la query, con RLS,
+    /// filtro de Tenant y función de la base reales, pero sin el pipeline de MediatR ni la <c>AutorizacionInbound</c> real
+    /// (las capacidades y el rol los prueban los tests de Application; aquí, el aislamiento entre Tenants TCE).
     /// Desde X sirve los bytes; desde Z (otro Tenant TCE), con el mismo contrato y Documento, responde lo mismo que con un
     /// contrato que no existe: 404, sin un byte ni cabecera de descarga. Es la prueba entre Tenants que pide
     /// <c>EndpointsQueSirvenBinariosEstanCatalogadosTests</c> para esta ruta.
