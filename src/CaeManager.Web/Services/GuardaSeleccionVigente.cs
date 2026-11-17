@@ -8,7 +8,7 @@ namespace CaeManager.Web.Services;
 /// (<see cref="RegistroSeleccionVigente"/>), y rechaza también el ámbito cuya selección se retiró después de pintar.
 ///
 /// <para>
-/// Medido en el código (UNKNOWN de la propuesta § 5.4 y del D-6 b § 4.4): un circuito de Blazor Server no ve nunca la
+/// Inferido por lectura del código, sin medir en navegador (UNKNOWN de la propuesta § 5.4 y del D-6 b § 4.4): un circuito de Blazor Server no ve nunca la
 /// cookie nueva. Memoiza la selección con el <c>HttpContext</c> de su negociación
 /// (<c>RevalidacionCircuitoActivoHandler.SembrarSeleccionMientrasHayHttpContext</c>) y conserva ese Tenant hasta que
 /// se cierra; la cookie nueva solo la lee un circuito nuevo, tras recargar. Por eso la guarda compara el Tenant del

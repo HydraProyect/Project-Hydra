@@ -51,8 +51,9 @@ public class RegistroAuditoria : EntidadConTenant
     /// <summary>
     /// Acción del <b>comando rechazado por pestaña obsoleta</b> (D-6 b, R-2): la selección con la que pintó la
     /// pestaña ya no era la vigente. <see cref="DatosDespues"/> lleva el comando y el motivo, nunca su contenido.
+    /// El valor cabe en la columna <c>Accion</c> (varchar(20)).
     /// </summary>
-    public const string AccionComandoRechazadoPorContextoObsoleto = "ComandoRechazadoPorContextoObsoleto";
+    public const string AccionComandoRechazadoPorContextoObsoleto = "ComandoObsoleto";
 
     /// <summary>
     /// Acción de la <b>emisión de un enlace de activación</b> para una cuenta que sigue

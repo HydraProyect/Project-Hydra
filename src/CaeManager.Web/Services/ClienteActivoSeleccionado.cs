@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
