@@ -251,11 +251,11 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// Modo de la rejilla: con una conversación abierta, el hilo; sin ella, por defecto la lista de conversaciones (filtros, lista y centro
     /// vacío) y, solo si se ha pedido «Tabla» o se mira el historial de Reclamaciones, la tabla.
     /// </summary>
-    private string ClaseModo =>
-        _vista != "clientes" ? "bandeja-modo-personal"
-        : _conversacionSeleccionadaId is not null ? "bandeja-modo-hilo"
-        : _modoTabla || MostrandoHistorial ? "bandeja-modo-tabla"
-        : "bandeja-modo-lista";
+    private string ModoDeRejilla =>
+        _vista != "clientes" ? "personal"
+        : _conversacionSeleccionadaId is not null ? "hilo"
+        : _modoTabla || MostrandoHistorial ? "tabla"
+        : "lista";
 
     /// <summary>La lista de conversaciones va junto a los filtros salvo en el modo tabla (y con el historial, que ocupa el centro).</summary>
     private bool MostrarListaLateral => _conversacionSeleccionadaId is not null || !(_modoTabla || MostrandoHistorial);
@@ -989,7 +989,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private bool _notaInternaActiva;
 
-    private async Task VolverABandejaAsync()
+    private Task VolverABandejaAsync() => CerrarConversacionAbiertaAsync();
+
+    private async Task CerrarConversacionAbiertaAsync()
     {
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
         DescartarConversacionAbierta();
@@ -1007,7 +1009,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         if (_conversacionSeleccionadaId is not null)
         {
-            await VolverABandejaAsync();
+            await CerrarConversacionAbiertaAsync();
             if (_conversacionSeleccionadaId is not null) return; // «Seguir editando»: nada cambia
         }
 
