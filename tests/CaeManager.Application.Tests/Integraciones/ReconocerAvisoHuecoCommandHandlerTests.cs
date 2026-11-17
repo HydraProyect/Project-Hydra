@@ -113,7 +113,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
 
     /// <summary>
     /// Buzón (issue #2124, opción B) pregunta <see cref="PuedeReconocerAvisoHuecoQuery"/> para enseñar Confirmar: tiene que
-    /// responder lo mismo que el comando decide por quién actúa, en cada combinación de rol y cartera. Sí con los tres
+    /// responder lo mismo que el comando decide por quién actúa, en cada combinación de rol y cartera. Sí con los cuatro
     /// perfiles autorizados; no con un Gestor CAE o un Coordinador CAE fuera de cartera (el acceso total no cuenta: decide
     /// la cartera), con Dirección CAE o Consulta aunque alcancen el Tenant entero y con cualquier otro rol.
     /// </summary>
