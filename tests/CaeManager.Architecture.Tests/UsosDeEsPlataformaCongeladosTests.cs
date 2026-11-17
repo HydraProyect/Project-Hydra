@@ -259,12 +259,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "en 0). Lo retira el bloque B junto con los dos comandos que lo llaman"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
-                ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia. " +
-                "AVISO: D-6 obliga a conservar la rama del cliente, y ESTE RATCHET NO LO COMPRUEBA — solo " +
-                "cuenta el flag. Si B rompiera únicamente esa rama, el conteo seguiría en 1 y esto pasaría en " +
-                "verde. Hoy la rama del cliente tiene cobertura CERO en los cinco proyectos de test, así que " +
-                "nada la protege; B debe añadir esa prueba y enlazarla desde aquí. No leas esta entrada como " +
-                "cobertura de la vía del cliente: no lo es"),
+                ":109 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
+                "reescribe el predicado por concesión propia. AVISO: D-6 obliga a conservar la rama del " +
+                "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del Tenant propietario visitado la cubren " +
+                "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
+                "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
+                "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =

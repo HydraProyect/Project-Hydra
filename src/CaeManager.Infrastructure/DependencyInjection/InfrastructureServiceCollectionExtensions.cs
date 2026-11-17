@@ -887,11 +887,12 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
         // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
-        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código. Y bloqueada mientras
+        // no exista la confirmación de un Gestor CAE para los Pendientes que crea (D-4, #2005): encenderla hace fallar el arranque.
         var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
         configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
             .Bind(opcionesConciliacionAcreditaciones);
-        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        if (Documentos.ConciliacionAcreditacionesEmpresaOptions.DebeRegistrarse(opcionesConciliacionAcreditaciones))
         {
             services.AddSingleton(opcionesConciliacionAcreditaciones);
             services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();

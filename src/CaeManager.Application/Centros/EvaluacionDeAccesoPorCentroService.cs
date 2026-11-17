@@ -51,8 +51,9 @@ public interface IEvaluacionDeAccesoPorCentroService
 }
 
 /// <summary>
-/// La misma evaluación que <see cref="IEvaluacionDeAccesoPorCentroService"/>, sin el alcance del usuario: la usa solo el
-/// estado materializado, que es dato del Tenant propietario y no de quien lo mira. RLS sigue acotando al Tenant de la
+/// La misma evaluación que <see cref="IEvaluacionDeAccesoPorCentroService"/>, sin el alcance del usuario: la usan solo el
+/// estado materializado y el sello del expediente de una Visita (<see cref="EvaluarTrabajadoresEnCentroAsync"/>), que son
+/// datos del Tenant propietario y no de quien los mira. RLS sigue acotando al Tenant de la
 /// conexión. Ninguna pantalla debe llamarla: una pantalla que la usara enseñaría lo que exigen Centros que el usuario no
 /// alcanza (lo congela <c>ReglasDeNegocioSinCopiasTests</c>).
 /// <para>
@@ -76,6 +77,22 @@ public interface IEvaluacionDeAccesoDelTenant
     /// </summary>
     Task<IReadOnlyList<CondicionDeRequisitoDelCentro>> CondicionesDeRequisitosAsync(
         IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// La misma evaluación para unos Trabajadores concretos en UN Centro, tengan o no una Asignación activa allí: los
+    /// requisitos bloqueantes del Centro (<c>BloqueaAcceso</c>, su vigencia propia y su tolerancia), los documentos del
+    /// Trabajador y de su Empresa, y el Pendiente en la plataforma. La usa el sello del expediente de una Visita
+    /// (<c>EvaluadorExpedienteVisitaService</c>, decisión del 2026-11-15 sobre la #2005), cuyos participantes son los de la
+    /// Visita y no las Asignaciones del Centro. Como el resto de esta interfaz, sin el alcance del usuario: el sello es un
+    /// dato del Tenant propietario.
+    /// <para>
+    /// El Pendiente en la plataforma de un documento de Trabajador solo cuenta si ese Trabajador tiene Asignación activa
+    /// en el Centro (<see cref="PendientesEnPlataformaDeCentros"/>, decisión del 2026-10-10): un participante de la Visita
+    /// sin Asignación no tiene Pendiente propio que lo bloquee.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<RequisitoEvaluado>> EvaluarTrabajadoresEnCentroAsync(
+        Guid centroId, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -153,11 +170,37 @@ public class EvaluacionDeAccesoPorCentroService(
             .Select(c => new { c.Id, Titular = c.ClienteId })
             .ToDictionaryAsync(c => c.Id, c => c.Titular, cancellationToken);
 
-    private async Task<EvaluacionDeAccesoPorCentro> EvaluarEnAlcanceAsync(
+    public async Task<IReadOnlyList<RequisitoEvaluado>> EvaluarTrabajadoresEnCentroAsync(
+        Guid centroId, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        if (trabajadorIds.Count == 0)
+            return [];
+
+        var hoy = DiaDeNegocio.Hoy();
+        var requisitos = await CargarRequisitosAsync([centroId], centroIdsVisibles: null, cancellationToken);
+        if (requisitos.Count == 0)
+            return [];
+
+        var trabajadores = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id))
+            .Select(t => new { t.Id, TrabajadorNombre = t.Nombre + " " + t.Apellidos, t.EmpresaId, t.SubcontrataId })
+            .ToListAsync(cancellationToken);
+
+        var participantes = trabajadores
+            .Select(t => new AsignacionEvaluada(centroId, t.Id, t.TrabajadorNombre, t.EmpresaId, t.EmpresaId ?? t.SubcontrataId))
+            .ToList();
+
+        return await EvaluarAsignacionesAsync(participantes, requisitos, hoy, cancellationToken);
+    }
+
+    /// <summary>
+    /// Los requisitos bloqueantes de los Centros en alcance, con su vigencia propia y su tolerancia resueltas: filas
+    /// incluidas y marcadas con <c>BloqueaAcceso</c>, de un Tipo sin archivar y de un ámbito que bloquea, en Centros con
+    /// gestión CAE. Vacía si no hay ninguno.
+    /// </summary>
+    private async Task<List<RequisitoBloqueanteDelCentro>> CargarRequisitosAsync(
         IReadOnlyCollection<Guid>? centroIds, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
-        var hoy = DiaDeNegocio.Hoy();
-
         bool EnAlcance(Guid centroId) =>
             (centroIdsVisibles is null || centroIdsVisibles.Contains(centroId))
             && (centroIds is null || centroIds.Contains(centroId));
@@ -174,7 +217,7 @@ public class EvaluacionDeAccesoPorCentroService(
             .ToList();
 
         if (filas.Count == 0)
-            return EvaluacionDeAccesoPorCentro.Vacia;
+            return [];
 
         var centrosDeFilas = filas.Select(f => f.CentroId).Distinct().ToList();
         var titularPorCentro = await TitularesDeCentrosAsync(centrosDeFilas, cancellationToken);
@@ -185,7 +228,7 @@ public class EvaluacionDeAccesoPorCentroService(
         filas = filas.Where(f => clientePorCentro.ContainsKey(f.CentroId)).ToList();
 
         if (filas.Count == 0)
-            return EvaluacionDeAccesoPorCentro.Vacia;
+            return [];
 
         // Tolerancia por defecto del Cliente empresarial titular de cada Centro, para los Tipos de las filas.
         var titulares = clientePorCentro.Values.Distinct().ToList();
@@ -196,7 +239,7 @@ public class EvaluacionDeAccesoPorCentroService(
             .ToListAsync(cancellationToken))
             .ToDictionary(t => (t.ClienteEmpresarialId, t.TipoDocumentoId), t => t.ToleranciaDias);
 
-        var requisitos = filas
+        return filas
             .Select(f => new RequisitoBloqueanteDelCentro(
                 f.CentroId, f.TipoDocumentoId, f.AmbitoAplicacion,
                 new CondicionesDeAccesoDelCentro(
@@ -205,17 +248,18 @@ public class EvaluacionDeAccesoPorCentroService(
                         f.ToleranciaDias,
                         toleranciasDeCliente.TryGetValue((clientePorCentro[f.CentroId], f.TipoDocumentoId), out var delCliente) ? delCliente : null))))
             .ToList();
+    }
+
+    private async Task<EvaluacionDeAccesoPorCentro> EvaluarEnAlcanceAsync(
+        IReadOnlyCollection<Guid>? centroIds, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+
+        var requisitos = await CargarRequisitosAsync(centroIds, centroIdsVisibles, cancellationToken);
+        if (requisitos.Count == 0)
+            return EvaluacionDeAccesoPorCentro.Vacia;
 
         var centrosConRequisitos = requisitos.Select(r => r.CentroId).Distinct().ToList();
-
-        // Pendiente en la plataforma (decisión 2026-10-10): solo se mira en los Centros con requisitos bloqueantes, porque
-        // solo bloquea un tipo que el Centro marca con BloqueaAcceso; el cruce con cada requisito lo hace
-        // CalculoBloqueoDeAccesoDeTrabajadores. Un Centro sin plataforma no devuelve ninguno.
-        var pendientes = (await PendientesEnPlataformaDeCentros.CargarAsync(
-                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext.Asignaciones,
-                centrosConRequisitos, hoy, cancellationToken))
-            .Select(p => new PendienteParaBloqueo(p.CentroId, p.TrabajadorId, p.EmpresaId, p.TipoDocumentoId, p.EstadoAcreditacion))
-            .ToList();
 
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
@@ -238,7 +282,34 @@ public class EvaluacionDeAccesoPorCentroService(
             .Select(a => new AsignacionEvaluada(a.CentroId, a.TrabajadorId, a.TrabajadorNombre, a.EmpresaId, a.EmpresaId ?? a.SubcontrataId))
             .ToList();
 
-        var trabajadorIds = asignaciones.Select(a => a.TrabajadorId).Distinct().ToList();
+        return new EvaluacionDeAccesoPorCentro(
+            asignacionesEvaluadas, await EvaluarAsignacionesAsync(asignacionesEvaluadas, requisitos, hoy, cancellationToken));
+    }
+
+    /// <summary>
+    /// Trae los documentos y el Pendiente en la plataforma de esos Trabajadores y de sus Empresas, y aplica
+    /// <see cref="CalculoBloqueoDeAccesoDeTrabajadores"/>: la parte común de la evaluación por Asignaciones y de la de
+    /// unos Trabajadores concretos.
+    /// </summary>
+    private async Task<IReadOnlyList<RequisitoEvaluado>> EvaluarAsignacionesAsync(
+        IReadOnlyList<AsignacionEvaluada> asignacionesEvaluadas, IReadOnlyList<RequisitoBloqueanteDelCentro> requisitos,
+        DateOnly hoy, CancellationToken cancellationToken)
+    {
+        if (asignacionesEvaluadas.Count == 0)
+            return [];
+
+        var centrosConRequisitos = requisitos.Select(r => r.CentroId).Distinct().ToList();
+
+        // Pendiente en la plataforma (decisión 2026-10-10): solo se mira en los Centros con requisitos bloqueantes, porque
+        // solo bloquea un tipo que el Centro marca con BloqueaAcceso; el cruce con cada requisito lo hace
+        // CalculoBloqueoDeAccesoDeTrabajadores. Un Centro sin plataforma no devuelve ninguno.
+        var pendientes = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext.Asignaciones,
+                centrosConRequisitos, hoy, cancellationToken))
+            .Select(p => new PendienteParaBloqueo(p.CentroId, p.TrabajadorId, p.EmpresaId, p.TipoDocumentoId, p.EstadoAcreditacion))
+            .ToList();
+
+        var trabajadorIds = asignacionesEvaluadas.Select(a => a.TrabajadorId).Distinct().ToList();
         var empresaIds = asignacionesEvaluadas
             .Where(a => a.EmpresaDelTrabajadorId is not null)
             .Select(a => a.EmpresaDelTrabajadorId!.Value)
@@ -288,6 +359,6 @@ public class EvaluacionDeAccesoPorCentroService(
             hoy,
             pendientes);
 
-        return new EvaluacionDeAccesoPorCentro(asignacionesEvaluadas, evaluados);
+        return evaluados;
     }
 }
