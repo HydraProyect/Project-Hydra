@@ -31,15 +31,18 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// <para>
 /// Escenario: tres Tenants propietarios ficticios, Construcciones Ebro, Montajes Norte y un Tenant de plataforma
 /// (<c>EsPlataforma</c>) con Delegación de Soporte sobre los otros dos. Cada uno tiene una fila en cada tabla de
-/// <see cref="Tablas"/>, sembrada como propietario. Las lecturas van por <c>cae_app_runtime</c> de login real y solo
-/// cuentan filas del escenario (la base puede traer otras). Cada negativo lleva su control positivo: la fila existe y
-/// el mismo camino ve la del Tenant del contexto, así que un cero es la política y no una fila ausente.
+/// <see cref="Tablas"/>, sembrada con el rol propietario de las tablas (sin RLS). Las lecturas van por
+/// <c>cae_app_runtime</c> de login real y solo cuentan filas del escenario (la base puede traer otras). Cada negativo
+/// lleva su control positivo: la fila existe y el mismo camino ve la del Tenant del contexto, así que un cero es la
+/// política y no una fila ausente. P-5 vive en <see cref="LineaBaseRlsComunicacionesPoolBajoRuntimeTests"/>.
 /// </para>
 ///
 /// <para>
 /// P-11 no tiene prueba nueva: <c>CoberturaRlsDelModeloTests</c> ya pone en rojo una RESTRICTIVE sin revisar en una
-/// tabla con <c>TenantId</c> (<c>conPoliticasDeMas</c>) y busca <c>OR</c> en las revisadas
-/// (<c>restrictivasQueNoDicenLoQueToca</c>). Las mutaciones las corre el CI, nunca en local.
+/// tabla del modelo con <c>TenantId</c> (<c>conPoliticasDeMas</c>) y busca <c>OR</c> en las revisadas
+/// (<c>restrictivasQueNoDicenLoQueToca</c>). Hueco: no mira tablas fuera del modelo EF; la que importa aquí,
+/// <c>ContadoresTicketConversacion</c>, la revisa P-8. Las falsaciones de cada prueba salen de leer el esquema y el
+/// código: no se han ejecutado.
 /// </para>
 /// </summary>
 public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
@@ -104,7 +107,7 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
             };
         }
 
-        // Barrera del escenario: cada fila existe para el propietario.
+        // Barrera del escenario: cada fila existe para el rol propietario de las tablas.
         await using var propietaria = await AbrirAsync(_cadena);
         foreach (var tabla in Tablas)
             (await IdsAsync(propietaria, tabla, TodasLasFilas(tabla))).Should().HaveCount(3, $"barrera: {tabla} tiene las tres filas");
@@ -129,17 +132,19 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     /// <summary>P-2. Falsación: el <c>WITH CHECK</c> de <c>aislamiento_tenant</c> a <c>true</c> deja insertar y mover
     /// filas a Montajes Norte. (Quitarlo sin más no basta: PostgreSQL usa el USING como WITH CHECK.) La inserción en
     /// <c>Conversaciones</c> la para antes el contador de tickets, cuya política también es por Tenant; por eso su
-    /// <c>WITH CHECK</c> propio se demuestra con el UPDATE.</summary>
+    /// <c>WITH CHECK</c> propio se demuestra con el UPDATE. El runtime tiene INSERT y UPDATE (barrera de catálogo), así
+    /// que el 42501 es de la RLS y no de un privilegio, sin depender del idioma del mensaje.</summary>
     [Fact]
     public async Task P2_con_el_contexto_de_un_Tenant_propietario_no_se_escribe_una_fila_de_otro()
     {
         await using var conexion = await AbrirComoRuntimeAsync(tenant: _ebro);
         foreach (var tabla in Tablas)
         {
+            (await EscalarAsync(conexion, "SELECT has_table_privilege(current_user, @t, 'INSERT') AND has_table_privilege(current_user, @t, 'UPDATE')",
+                ("t", $"public.\"{tabla}\""))).Should().Be(true, $"barrera: el runtime escribe en {tabla}");
             var propia = _filas[_ebro][tabla];
-            await DebeRechazarAsync(() => CopiarAsync(conexion, tabla, propia, _norte), "row-level security", tabla == "Conversaciones" ? null : tabla);
-            await DebeRechazarAsync(() => EjecutarAsync(conexion, $"""UPDATE "{tabla}" SET "TenantId" = @t WHERE "Id" = @id""", ("t", _norte), ("id", propia)),
-                "row-level security", tabla);
+            await DebeRechazarAsync(() => CopiarAsync(conexion, tabla, propia, _norte), null);
+            await DebeRechazarAsync(() => EjecutarAsync(conexion, $"""UPDATE "{tabla}" SET "TenantId" = @t WHERE "Id" = @id""", ("t", _norte), ("id", propia)), null);
 
             // Controles positivos: con su propio Tenant la copia pasa la RLS (entra, o la para después un índice
             // único, 23505), y el runtime ve y puede actualizar su fila.
@@ -189,7 +194,7 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
         {
             await FijarTokenAsync(conexion, token);
             foreach (var tabla in Tablas)
-                await DebeRechazarAsync(() => IdsAsync(conexion, tabla, TodasLasFilas(tabla)), motivo, null);
+                await DebeRechazarAsync(() => IdsAsync(conexion, tabla, TodasLasFilas(tabla)), motivo);
         }
 
         await FijarTokenAsync(conexion, valido);
@@ -201,8 +206,7 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     /// transacción. Falsación: <c>AlinearSiCambioAsync</c> que vuelva sin aplicar (o que no recalcule la sesión deseada)
     /// deja la conexión firmada con Ebro y la segunda lectura devuelve filas de Ebro; la cadena con
     /// <c>No Reset On Close</c> deja el contexto de Norte a la apertura siguiente. El TenantId sale de la columna.</summary>
-    [Fact]
-    public async Task P5_cambiar_de_Tenant_en_la_misma_conexion_no_deja_ver_el_anterior_y_el_pool_no_lo_hereda()
+    internal async Task P5Async()
     {
         var cadena = new NpgsqlConnectionStringBuilder(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadena))
         { ApplicationName = $"d6b-p5-{Guid.NewGuid():N}", MaxPoolSize = 1 }.ConnectionString;
@@ -228,8 +232,9 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>P-6, control positivo. Una Sesión Privilegiada sobre Ebro, por el interceptor y el <see cref="TenantActual"/>
-    /// reales, adopta <c>cae_app_soporte</c>, lee solo Ebro y no escribe. Falsación: <c>GRANT INSERT, UPDATE, DELETE</c>
-    /// a <c>cae_app_soporte</c> sobre <c>Conversaciones</c> o <c>Mensajes</c>.</summary>
+    /// reales, adopta <c>cae_app_soporte</c>, lee solo Ebro y no escribe: 42501 en INSERT, UPDATE y DELETE, y el catálogo
+    /// confirma que es por privilegio y no por política. Falsación: <c>GRANT INSERT</c> (o UPDATE, o DELETE) a
+    /// <c>cae_app_soporte</c> sobre <c>Conversaciones</c> o <c>Mensajes</c>.</summary>
     [Fact]
     public async Task P6_una_Sesion_Privilegiada_sobre_un_Tenant_lee_solo_ese_Tenant_y_no_escribe()
     {
@@ -239,9 +244,14 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
         (await TenantsLeidosAsync(contexto, legibles)).Should().Equal([_ebro]);
 
         foreach (var tabla in new[] { "Conversaciones", "Mensajes" })
-            foreach (var orden in new[] { "UPDATE \"{0}\" SET \"TenantId\" = \"TenantId\" WHERE \"Id\" = @id", "DELETE FROM \"{0}\" WHERE \"Id\" = @id" })
-                await DebeRechazarAsync(() => contexto.Database.ExecuteSqlRawAsync(string.Format(orden, tabla), new NpgsqlParameter("id", _filas[_ebro][tabla])),
-                    $"permission denied for table {tabla}", null);
+        {
+            foreach (var orden in new[] { "INSERT INTO \"{0}\" (\"Id\") VALUES (@id)", "UPDATE \"{0}\" SET \"TenantId\" = \"TenantId\" WHERE \"Id\" = @id", "DELETE FROM \"{0}\" WHERE \"Id\" = @id" })
+                await DebeRechazarAsync(() => contexto.Database.ExecuteSqlRawAsync(string.Format(orden, tabla), new NpgsqlParameter("id", _filas[_ebro][tabla])), null);
+            (await contexto.Database.SqlQueryRaw<bool>("""
+                SELECT has_table_privilege(current_user, {0}, 'INSERT') OR has_table_privilege(current_user, {0}, 'UPDATE')
+                    OR has_table_privilege(current_user, {0}, 'DELETE') AS "Value"
+                """, $"public.\"{tabla}\"").ToListAsync()).Should().Equal([false], $"{tabla}: el rechazo es por privilegio");
+        }
     }
 
     /// <summary>P-6, negativo real. Una Sesión Privilegiada sobre Ebro con un <see cref="AmbitoTenantExplicito"/> sobre
@@ -284,10 +294,12 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>P-8. Falsación: una segunda PERMISSIVE en una de las tablas, <c>OR true</c> en <c>aislamiento_tenant</c>
-    /// (que <c>MencionaElAislamiento</c> no detecta), limitarla a un comando o a un rol, o quitar FORCE.</summary>
+    /// (que <c>MencionaElAislamiento</c> no detecta), limitarla a un comando o a un rol, o quitar FORCE. Incluye
+    /// <c>ContadoresTicketConversacion</c>, fuera del modelo EF, cuya política es la que para el INSERT de P-2.</summary>
     [Fact]
     public async Task P8_cada_tabla_tiene_solo_aislamiento_tenant_permisiva_de_todas_las_ordenes_y_sin_disyuncion()
     {
+        string[] tablas = [.. Tablas, "ContadoresTicketConversacion"];
         await using var conexion = await AbrirAsync(_cadena);
         var filas = await LeerAsync(conexion, """
             SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity, p.polname, p.polpermissive, p.polcmd::text,
@@ -295,8 +307,8 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
                    ARRAY(SELECT CASE WHEN r = 0 THEN 'public' ELSE pg_get_userbyid(r)::text END FROM unnest(p.polroles) r)
               FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace LEFT JOIN pg_policy p ON p.polrelid = c.oid
              WHERE n.nspname = 'public' AND c.relname = ANY(@tablas)
-            """, ("tablas", Tablas));
-        filas.Select(f => (string)f[0]).Distinct().Should().BeEquivalentTo(Tablas, "control positivo: el catálogo ve las siete tablas");
+            """, ("tablas", tablas));
+        filas.Select(f => (string)f[0]).Distinct().Should().BeEquivalentTo(tablas, "control positivo: el catálogo ve todas las tablas");
 
         using var _ = new AssertionScope();
         foreach (var f in filas)
@@ -320,17 +332,20 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>P-9. Falsación: una función <c>SECURITY DEFINER</c> de prueba (EXECUTE a PUBLIC por defecto) que lea
-    /// <c>"Mensajes"</c>. El control positivo demuestra que el detector lee <c>prosrc</c>: encuentra las que leen
-    /// <c>"AspNetUsers"</c>. Lo que no observa: SQL dinámico que construya el nombre de la tabla.</summary>
+    /// <c>"Mensajes"</c>. El control positivo demuestra que el detector lee el cuerpo (<c>pg_get_functiondef</c>, que
+    /// cubre también los cuerpos SQL estándar): encuentra las que leen <c>"AspNetUsers"</c>. Lo que no observa: SQL
+    /// dinámico que construya el nombre de la tabla, y una función sin SECURITY DEFINER que lea estas tablas llamada
+    /// desde una que sí lo es (corre como el propietario de la llamante).</summary>
     [Fact]
     public async Task P9_ninguna_funcion_SECURITY_DEFINER_de_los_roles_de_trafico_lee_estas_tablas()
     {
         await using var conexion = await AbrirAsync(_cadena);
         var funciones = (await LeerAsync(conexion, """
-            SELECT p.oid::regprocedure::text, coalesce(p.prosrc, '')
+            SELECT p.oid::regprocedure::text, pg_get_functiondef(p.oid)
               FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-             WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-               AND (has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE') OR has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'))
+             WHERE p.prosecdef AND p.prokind IN ('f', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+               AND EXISTS (SELECT 1 FROM unnest(ARRAY['cae_app_runtime', 'cae_app_soporte', 'cae_app_aprovisionamiento']) r
+                            WHERE has_function_privilege(r, p.oid, 'EXECUTE'))
             """)).Select(f => (Nombre: (string)f[0], Cuerpo: (string)f[1])).ToList();
         IEnumerable<string> QueLeen(params string[] tablas) => funciones
             .Where(f => Regex.IsMatch(f.Cuerpo, $"[\"'](?:{string.Join('|', tablas)})[\"']")).Select(f => f.Nombre);
@@ -402,13 +417,13 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
           FROM "{tabla}" f WHERE f."Id" = @origen
         """, ("nuevo", Guid.NewGuid()), ("tenant", tenant), ("origen", origen));
 
-    private static async Task DebeRechazarAsync(Func<Task> accion, string motivo, string? tabla)
+    /// <summary>42501; <paramref name="motivo"/> solo para los RAISE propios, cuyo texto no depende de <c>lc_messages</c>.</summary>
+    private static async Task DebeRechazarAsync(Func<Task> accion, string? motivo)
     {
         var error = (await accion.Should().ThrowAsync<PostgresException>()).Which;
-        error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
-        error.MessageText.Should().Contain(motivo, "el rechazo tiene que ser por la comprobación esperada");
-        if (tabla is not null)
-            error.MessageText.Should().Contain($"\"{tabla}\"", "y de la política de esta tabla");
+        error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, error.MessageText);
+        if (motivo is not null)
+            error.MessageText.Should().Contain(motivo, "el rechazo tiene que ser por la comprobación esperada");
     }
 
     private static async Task<int> EjecutarAsync(NpgsqlConnection conexion, string sql, params (string, object)[] parametros)
@@ -497,4 +512,20 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     {
         public override DateTimeOffset GetUtcNow() => ahora;
     }
+}
+
+/// <summary>P-5 necesita que el pool devuelva el mismo backend, así que corre en
+/// <see cref="ColeccionPoolNpgsqlSinVaciadosConcurrentes"/> y reutiliza el escenario por composición, como
+/// <see cref="ContextoRlsFirmadoPoolTests"/>.</summary>
+[Collection(ColeccionPoolNpgsqlSinVaciadosConcurrentes.Nombre)]
+public sealed class LineaBaseRlsComunicacionesPoolBajoRuntimeTests : IAsyncLifetime
+{
+    private readonly LineaBaseRlsComunicacionesBajoRuntimeTests _clase = new();
+
+    public Task InitializeAsync() => _clase.InitializeAsync();
+
+    public Task DisposeAsync() => _clase.DisposeAsync();
+
+    [Fact]
+    public Task P5_cambiar_de_Tenant_en_la_misma_conexion_no_deja_ver_el_anterior_y_el_pool_no_lo_hereda() => _clase.P5Async();
 }
