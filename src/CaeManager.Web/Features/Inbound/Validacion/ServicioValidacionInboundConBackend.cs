@@ -17,7 +17,9 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 /// <see cref="ObtenerColaValidacionInboundQuery"/>, y Validar y Rechazar, uno a uno, de
 /// <see cref="RegistrarEvidenciaInboundCommand"/> (Rechazar, con su rechazo inicial en el mismo guardado). La autoridad la
 /// decide Application en cada llamada; este servicio solo traduce. La cola, el documento, Validar y Rechazar
-/// solo funcionan con <see cref="OpcionesValidacionInbound.Habilitado"/>; apagada, todo responde «no disponible» y no se lee nada. Lo demás sigue «no disponible»: Marcar incompleto y
+/// solo funcionan con <see cref="OpcionesValidacionInbound.Habilitado"/>, que enciende solo la clave
+/// <c>Inbound:Validacion:Habilitado=true</c> en cualquier entorno (DECISION_LOG 2026-11-17, 2757bac y cc7e68e); apagada, todo
+/// responde «no disponible» y no se lee nada. Lo demás sigue «no disponible»: Marcar incompleto y
 /// Deshacer (B-22), el lote (B-27), la lectura con IA y su propuesta (B-24, B-26), las páginas y la descarga del original.
 ///
 /// <para>

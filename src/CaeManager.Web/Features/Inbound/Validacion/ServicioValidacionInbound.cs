@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace CaeManager.Web.Features.Inbound.Validacion;
 
@@ -50,12 +49,19 @@ public sealed class ColaEnCursoValidacion
 }
 
 /// <summary>
-/// Si Validar y Rechazar de Inbound registran veredictos. Apagado por defecto y solo encendible en Development, con
-/// <c>Inbound__Validacion__Habilitado</c> en el perfil de arranque. Quitar la guarda de Development pide las DOS cosas:
-/// D-12 (quien subió un documento no puede validarlo) y B-22 (el veredicto previo a la copia: hoy un Rechazar también copia
-/// el binario al Tenant TCE, DN-12 (a), y esa copia no se borra).
-/// Fuera de Development queda apagado aunque la clave diga lo contrario. Apagado, la cola se ve y Validar y Rechazar responden
-/// «no disponible».
+/// Si la cola, el documento, Validar y Rechazar de Inbound funcionan. Apagado por defecto; lo enciende solo la clave
+/// <c>Inbound:Validacion:Habilitado=true</c> (<c>Inbound__Validacion__Habilitado</c> en el entorno), en cualquier entorno,
+/// sin mirar su nombre (DECISION_LOG 2026-11-17, entradas de los commits 2757bac y cc7e68e: «solo con la variable»; la
+/// opción de arrancar staging como entorno «Staging» quedó sin efecto). Apagado, todo responde «no disponible» y no se lee
+/// nada.
+/// <para>
+/// HUECO DECLARADO: la guarda de Development se quitó sin que se cumplan las dos condiciones que pedía. D-12 (quien subió
+/// un documento no puede validarlo) no se aplica: <c>Documento.SubidoPorUsuarioId</c> existe, pero ningún método lo asigna
+/// ni nadie lo compara. B-22 (el veredicto previo a la copia) no ha entrado: un Rechazar registra la evidencia y copia el
+/// binario al Tenant TCE en el mismo guardado (<c>RegistrarEvidenciaInboundCommand</c>, DN-12 (a)), y esa copia no se
+/// borra. Producción usa la misma imagen y queda protegida solo porque allí nunca se pone la clave: es una consecuencia
+/// aceptada por Chris en 2757bac, no una propiedad del código.
+/// </para>
 /// </summary>
 public sealed class OpcionesValidacionInbound
 {
@@ -71,10 +77,11 @@ public static class ValidacionInboundServiceCollectionExtensions
     /// detrás de <see cref="OpcionesValidacionInbound"/>. Lo demás sigue «no disponible» hasta B-21, B-22, B-24, B-26 y B-27.
     /// </summary>
     public static IServiceCollection AddValidacionInbound(
-        this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
+        this IServiceCollection services, IConfiguration configuration)
     {
-        var habilitado = entorno.IsDevelopment()
-            && configuration.GetValue<bool>($"{OpcionesValidacionInbound.Seccion}:{nameof(OpcionesValidacionInbound.Habilitado)}");
+        // Solo la clave, sin mirar el entorno (DECISION_LOG 2026-11-17, 2757bac y cc7e68e). Sin clave, false.
+        var habilitado = configuration.GetValue<bool>(
+            $"{OpcionesValidacionInbound.Seccion}:{nameof(OpcionesValidacionInbound.Habilitado)}");
         services.Configure<OpcionesValidacionInbound>(o => o.Habilitado = habilitado);
         services.AddScoped<IServicioValidacionInbound, ServicioValidacionInboundConBackend>();
         services.AddScoped<ColaEnCursoValidacion>();

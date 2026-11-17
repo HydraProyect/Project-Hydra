@@ -10,7 +10,8 @@
 <LimiteDeErrores Pagina="this">
 @* Tarjeta 8 de la maqueta de Inbound, «Validación»: el Gestor CAE del Tenant TCE decide sobre un documento. En la demo
    mínima (ServicioValidacionInboundConBackend) el documento sale de la cola real, sin páginas ni descarga, y Validar y
-   Rechazar registran la evidencia detrás de OpcionesValidacionInbound; la lectura previa y Deshacer son B-22, el veredicto
+   Rechazar registran la evidencia detrás de OpcionesValidacionInbound (solo la clave Inbound:Validacion:Habilitado=true,
+   en cualquier entorno: DECISION_LOG 2026-11-17, 2757bac y cc7e68e); la lectura previa y Deshacer son B-22, el veredicto
    del sistema B-24 y la propuesta de la IA B-26. Lo que el servicio no tiene lo dice como «no disponible». *@
 <PageTitle>Validación — @Marca.Nombre</PageTitle>
 <TituloDePaginaSinPrerender Titulo="@($"Validación — {Marca.Nombre}")" />
