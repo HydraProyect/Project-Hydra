@@ -881,6 +881,12 @@
   <data name="CampoFechaInstrucciones" xml:space="preserve">
     <value>Fletxes: canviar de dia. Re Pàg i Av Pàg: canviar de mes. Inici i Fi: principi o final de la setmana. Retorn: triar. Esc: tancar.</value>
   </data>
+  <data name="MenuLineaOutbound" xml:space="preserve">
+    <value>Outbound</value>
+  </data>
+  <data name="MenuLineaInboundTce" xml:space="preserve">
+    <value>Inbound · Tenant TCE</value>
+  </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contractes d&apos;accés</value>
   </data>

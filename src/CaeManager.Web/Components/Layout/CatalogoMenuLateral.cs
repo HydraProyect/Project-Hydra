@@ -45,15 +45,33 @@ public sealed record ContextoMenuLateral(
             .Any(Usuario.IsInRole);
 }
 
+/// <summary>
+/// La línea de producto a la que pertenece un grupo del menú, para el rótulo separador que aparece solo cuando el menú
+/// enseña las dos (D-2, interfaz Inbound/Outbound, 2026-11-16). Una agrupación visual: no es autoridad ni gate.
+/// </summary>
+public enum LineaMenu
+{
+    /// <summary>Grupo común a las dos líneas (Dashboards) o de administración de la plataforma: no lleva rótulo.</summary>
+    SinLinea,
+
+    /// <summary>Negocio, Operación y Control.</summary>
+    Outbound,
+
+    /// <summary>Inbound y su Configuración.</summary>
+    Inbound,
+}
+
 /// <summary>Un grupo del menú lateral (<c>&lt;details data-grupo="…"&gt;</c>).</summary>
 /// <param name="Id">Identificador estable: es el <c>data-grupo</c> que persiste menu-lateral.js y la clave del orden guardado.</param>
 /// <param name="AbiertoPorDefecto">Si nace abierto en el primer render (menu-lateral.js respeta lo que el usuario haya tocado).</param>
 /// <param name="Visible">Si el grupo existe para quien mira; sus enlaces solo pueden restringirlo más.</param>
+/// <param name="Linea">Línea de producto del grupo; decide dónde cae el rótulo separador (<see cref="CatalogoMenuLateral.RotulosDeLinea"/>).</param>
 public sealed record GrupoMenuLateral(
     string Id,
     string Titulo,
     bool AbiertoPorDefecto,
-    Func<ContextoMenuLateral, bool> Visible);
+    Func<ContextoMenuLateral, bool> Visible,
+    LineaMenu Linea = LineaMenu.SinLinea);
 
 /// <summary>Un enlace del menú lateral. Pertenece a un único grupo, el que fija el catálogo: un orden guardado no puede cambiarlo.</summary>
 /// <param name="Id">Identificador estable, clave del orden guardado; no cambia aunque cambie la ruta o el rótulo.</param>
@@ -195,28 +213,29 @@ public static class CatalogoMenuLateral
         // DDL-073 (cadena de titularidad, Documentos al final). Negocio, desde el 2026-10-18 en el
         // orden del marco de Design: Empresas, Subcontratas, Trabajadores, Clientes, Centros, Documentos,
         // Vehículos y Proyectos.
-        new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
+        new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones y Visitas, en ese orden;
         // Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control. Incidencias salió
         // el 2026-10-17 (entrega de Design) como pestaña de sección de Documentos y volvió en la PR8 (barra retirada).
-        new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
+        new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Control: Alertas, Calendario, Reportes y Facturación, y por el mandato del propietario del
         // 2026-09-29 cierra con Conectar extensión (Mi trabajo salió a Operación). Nace ABIERTO desde el
         // 2026-10-18: en el marco de Design (marco-talveg.js, DDL-083) solo Administración y Plataforma
         // llevan «closed»; el colapsado de Control venía del informe de consolidación de 2026-09-01.
-        new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
+        new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Inbound (plan de pantallas Inbound, § 1): la sección del Tenant beneficiario que recibe contratistas en sus Centros
         // (Contratos de acceso y Documentos por validar). Existe solo con la línea Inbound activa en el Producto Contratado
         // (ContextoMenuLateral.LineaInboundVigente) y con los roles del menú completo.
-        new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto)),
+        new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto),
+            Linea: LineaMenu.Inbound),
 
         // Configuración de Inbound (pantallas 18 y 20 del plan): los ajustes del Tenant TCE. Mismo gate que «Inbound» (línea vigente), pero
         // sin el rol Consulta: ninguna de sus páginas lo autoriza. «Reglas de aviso» hereda esta condición (un test la compara con el [Authorize] de su página); Gobierno añade la suya.
         new("inbound-config", "Configuración", AbiertoPorDefecto: true,
-            c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental)),
+            c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental), Linea: LineaMenu.Inbound),
 
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
         // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
@@ -483,6 +502,36 @@ public static class CatalogoMenuLateral
                 .Where(e => e.GrupoId == g.Id && (e.Condicion?.Invoke(contexto) ?? true))
                 .ToList()))
             .ToList();
+    }
+
+    /// <summary>
+    /// Los rótulos separadores de línea (D-2): para cada grupo que abre un tramo de su línea, la línea cuyo rótulo
+    /// («Outbound», «Inbound · Tenant TCE») se pinta justo antes. Solo hay rótulos cuando <paramref name="visibles"/>
+    /// enseña grupos con enlaces de las DOS líneas; con una sola el menú queda como si los rótulos no existieran.
+    /// Se rotula cada cambio de línea en el orden pintado (con el orden por defecto, un rótulo por línea; si el
+    /// orden guardado por el Actor de Plataforma TALVEG las intercala, el rótulo se repite en vez de mentir sobre
+    /// qué línea es cada grupo). El primer grupo sin línea (Administración, Plataforma) que sigue a un tramo con
+    /// rótulo lleva <see cref="LineaMenu.SinLinea"/>: no es un rótulo sino el cierre del tramo, para que no parezca
+    /// parte de Inbound. Los grupos sin línea previos a todo tramo (Dashboards) no llevan nada.
+    /// </summary>
+    /// <returns>Id del grupo → línea que lo precede con rótulo, o <see cref="LineaMenu.SinLinea"/> si lo que lo precede
+    /// es el cierre de un tramo. Vacío si no hay dos líneas.</returns>
+    public static IReadOnlyDictionary<string, LineaMenu> RotulosDeLinea(IReadOnlyList<GrupoVisible> visibles)
+    {
+        var pintados = visibles.Where(g => g.Enlaces.Count > 0).ToList();
+        var rotulos = new Dictionary<string, LineaMenu>();
+        if (pintados.Where(g => g.Grupo.Linea != LineaMenu.SinLinea).Select(g => g.Grupo.Linea).Distinct().Count() < 2)
+            return rotulos;
+
+        var anterior = LineaMenu.SinLinea;
+        foreach (var g in pintados)
+        {
+            if (g.Grupo.Linea != anterior)
+                rotulos[g.Grupo.Id] = g.Grupo.Linea;
+            anterior = g.Grupo.Linea;
+        }
+
+        return rotulos;
     }
 
     /// <summary>
