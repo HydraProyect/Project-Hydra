@@ -34,7 +34,7 @@
     <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
   </data>
   <data name="AvisoCorreoNoRecuperadoConfirmable" xml:space="preserve">
-    <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot o quan es dona per revisat amb Confirmar; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
+    <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot o quan es dona per revisat amb Confirma; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
   </data>
   <data name="AvisoRecuperacionDetenida" xml:space="preserve">
     <value>Recuperació aturada a {0}: massa correus en el mateix segon o pàgina parcial de Graph. El correu rebut des d'aquell moment pot no haver entrat a l'aplicació; revisa'l a la mateixa bústia de Microsoft 365.</value>
@@ -94,7 +94,7 @@
     <value>No vam poder registrar el buit. Torna-ho a provar.</value>
   </data>
   <data name="AccionConfirmarAvisoHueco" xml:space="preserve">
-    <value>Confirmar</value>
+    <value>Confirma</value>
   </data>
   <data name="ModalConfirmarAvisoHuecoTitulo" xml:space="preserve">
     <value>Donar l'avís per revisat</value>
