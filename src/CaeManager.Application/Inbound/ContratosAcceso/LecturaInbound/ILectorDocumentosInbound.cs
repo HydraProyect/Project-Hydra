@@ -28,7 +28,8 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 /// </para>
 ///
 /// <para>
-/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c>, <c>ObtenerColaValidacionInboundQueryHandler</c> y
+/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c> (el archivo pedido desde la cola de validación
+/// incluido, <c>ObtenerArchivoParaValidarInboundQueryHandler</c>), <c>ObtenerColaValidacionInboundQueryHandler</c> y
 /// <c>RegistrarEvidenciaInboundCommandHandler</c>, que deciden antes la cartera
 /// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
