@@ -15,8 +15,8 @@ using Xunit;
 namespace CaeManager.Application.Tests.Integraciones;
 
 /// <summary>
-/// Issue #2124, acción Confirmar de Conexiones: quién puede dar por revisado el aviso «posible correo no recuperado» (los
-/// tres perfiles de la decisión de Chris del 2026-11-16), en qué estado, y que la recuperación del hueco que estuviera en
+/// Issue #2124, acción Confirmar de Conexiones y de Buzón: quién puede dar por revisado el aviso «posible correo no
+/// recuperado» (los perfiles de las decisiones de Chris del 2026-11-16 y del 2026-11-17), en qué estado, y que la recuperación del hueco que estuviera en
 /// curso no reescriba nada después.
 /// </summary>
 public class ReconocerAvisoHuecoCommandHandlerTests
@@ -50,13 +50,15 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     /// <summary>
     /// (a) Administrador del Tenant propietario y (b) Administrador del Operador CAE externo por Asignación de Operación:
     /// los dos llegan al handler con el rol efectivo Administrador. (c) Gestor CAE con el Tenant en su Asignación de
-    /// Cartera: alcanza el Tenant entero sin acceso total.
+    /// Cartera: alcanza el Tenant entero sin acceso total. (d) Coordinador CAE con la misma condición de cartera (decisión
+    /// de Chris del 2026-11-17).
     /// </summary>
     public static TheoryData<string, string, bool, bool?> PerfilesAutorizados => new()
     {
         { "Administrador del Tenant propietario", "Administrador", true, null },
         { "Administrador del Operador CAE externo", "Administrador", true, null },
         { "Gestor CAE con el Tenant en su cartera", "GestorCae", false, true },
+        { "Coordinador CAE con el Tenant en su cartera", "CoordinadorCae", false, true },
     };
 
     [Theory]
@@ -83,12 +85,12 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     }
 
     /// <summary>
-    /// Un Gestor CAE fuera de cartera (sin Asignación de Cartera sobre el Tenant) y cualquier otro rol reciben el rechazo y
-    /// la marca se queda. Con una sola de las dos condiciones del Gestor CAE (rol o cartera), el rechazo se mantiene.
+    /// Un Gestor CAE o un Coordinador CAE fuera de cartera (sin Asignación de Cartera sobre el Tenant) y cualquier otro rol
+    /// reciben el rechazo y la marca se queda. Con una sola de las dos condiciones (rol o cartera), el rechazo se mantiene.
     /// </summary>
     [Theory]
     [InlineData("GestorCae", false)]
-    [InlineData("CoordinadorCae", true)]
+    [InlineData("CoordinadorCae", false)]
     [InlineData("DireccionCae", true)]
     [InlineData("Consulta", true)]
     [InlineData("Cliente", false)]
@@ -112,8 +114,8 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     /// <summary>
     /// Buzón (issue #2124, opción B) pregunta <see cref="PuedeReconocerAvisoHuecoQuery"/> para enseñar Confirmar: tiene que
     /// responder lo mismo que el comando decide por quién actúa, en cada combinación de rol y cartera. Sí con los tres
-    /// perfiles autorizados; no con un Gestor CAE fuera de cartera (con o sin acceso total no cuenta: decide el rol), con
-    /// el Coordinador CAE aunque alcance el Tenant entero y con cualquier otro rol.
+    /// perfiles autorizados; no con un Gestor CAE o un Coordinador CAE fuera de cartera (el acceso total no cuenta: decide
+    /// la cartera), con Dirección CAE o Consulta aunque alcancen el Tenant entero y con cualquier otro rol.
     /// </summary>
     [Theory]
     [InlineData("Administrador", true, true, true)]
@@ -121,7 +123,9 @@ public class ReconocerAvisoHuecoCommandHandlerTests
     [InlineData("GestorCae", false, true, true)]
     [InlineData("GestorCae", false, false, false)]
     [InlineData("GestorCae", true, false, false)]
-    [InlineData("CoordinadorCae", false, true, false)]
+    [InlineData("CoordinadorCae", false, true, true)]
+    [InlineData("CoordinadorCae", false, false, false)]
+    [InlineData("CoordinadorCae", true, false, false)]
     [InlineData("DireccionCae", true, true, false)]
     [InlineData("Consulta", true, true, false)]
     [InlineData("Cliente", false, false, false)]
@@ -138,7 +142,7 @@ public class ReconocerAvisoHuecoCommandHandlerTests
             .Handle(new ReconocerAvisoHuecoCommand(conexion.Id, marca), CancellationToken.None);
 
         puede.Should().Be(esperado);
-        (resultado.EsExitoso).Should().Be(esperado, "el comando acepta exactamente a quien la pregunta dice que sí");
+        resultado.EsExitoso.Should().Be(esperado, "el comando acepta exactamente a quien la pregunta dice que sí");
         if (!esperado)
             resultado.Error.Codigo.Should().Be(ReconocerAvisoHuecoCommandHandler.CodigoSinPermiso);
     }

@@ -120,7 +120,7 @@
                             }
                             @if (conexion.CorreoNoRecuperadoDesdeUtc is { } noRecuperadoDesde)
                             {
-                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperadoTitulo", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]. @Textos[PuedeConfirmarAvisoHueco(conexion) ? "AvisoCorreoNoRecuperadoConfirmable" : "AvisoCorreoNoRecuperado"]</span>
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@TextoAvisoCorreoNoRecuperado(conexion, noRecuperadoDesde)</span>
                             }
                             @if (conexion.RecuperacionDetenidaEnUtc is { } detenidaEn)
                             {

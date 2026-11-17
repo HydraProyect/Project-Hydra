@@ -24,7 +24,7 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 /// <param name="CorreoNoRecuperadoDesdeUtc">
 /// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>: el aviso «posible correo no recuperado desde» esa fecha. El
 /// aviso dura mientras la marca exista. La limpian la recuperación del hueco (<c>RecuperacionHuecoCorreoService</c>), tras
-/// leer el buzón completo desde ella e ingerir lo leído, y la acción Confirmar de Conexiones
+/// leer el buzón completo desde ella e ingerir lo leído, y la acción Confirmar de Conexiones y de Buzón
 /// (<c>ReconocerAvisoHuecoCommand</c>), con la conexión Habilitada y sin marca por registrar. Una marca anterior al tope de
 /// antigüedad de la recuperación no se limpia sola: solo con Confirmar.
 /// </param>
@@ -83,9 +83,9 @@ public class ObtenerConexionesIntegracionQueryHandler(
 
         var query =
             from conexion in integracionesContext.ConexionesIntegracion
-            // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
-            // la misma pantalla (ObtenerLineasWhatsAppQuery) y sin este filtro
-            // aparecían duplicadas como "buzón".
+                // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
+                // la misma pantalla (ObtenerLineasWhatsAppQuery) y sin este filtro
+                // aparecían duplicadas como "buzón".
             where conexion.Proveedor == ProveedorIntegracion.Microsoft365
             where clienteIdsVisibles == null || conexion.ClienteId == null || clienteIdsVisibles.Contains(conexion.ClienteId!.Value)
             where !request.SoloPropiasYGenerales || conexion.GestorPropietarioId == null || conexion.GestorPropietarioId == usuarioActualId

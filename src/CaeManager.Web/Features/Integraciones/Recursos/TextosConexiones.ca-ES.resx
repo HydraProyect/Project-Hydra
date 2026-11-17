@@ -27,6 +27,9 @@
   <data name="AvisoCorreoNoRecuperadoTitulo" xml:space="preserve">
     <value>Possible correu no recuperat des del {0}</value>
   </data>
+  <data name="AvisoCorreoNoRecuperadoEnLinea" xml:space="preserve">
+    <value>{0}. {1}</value>
+  </data>
   <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
     <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
   </data>

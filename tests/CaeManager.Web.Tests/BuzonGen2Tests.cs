@@ -586,19 +586,111 @@ public class BuzonGen2Tests : BunitContext
         BotonesConfirmar(cut).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Qué ve cada perfil con escritura, según lo que responde la pregunta (que fija ReconocerAvisoHuecoCommandHandlerTests
+    /// con la regla del comando): Administrador, y Gestor CAE o Coordinador CAE con el Tenant en su cartera, ven Confirmar;
+    /// el Gestor CAE y el Coordinador CAE fuera de cartera, el aviso sin botón (decisión de Chris del 2026-11-17 para el
+    /// Coordinador CAE).
+    /// </summary>
+    [Theory]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.Administrador, true)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.GestorCae, true)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.GestorCae, false)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae, true)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae, false)]
+    public async Task Cada_perfil_ve_Confirmar_solo_con_la_cartera_que_pide_el_comando(string rol, bool conCartera)
+    {
+        this.ConRolDeEscritura(rol);
+        var escenario = new Escenario { PuedeConfirmar = conCartera };
+        escenario.Conexiones.Add(ConAviso(ConexionAId, "CAE Norte"));
+        var (cut, mediador) = Renderizar(escenario);
+
+        await ElegirConexion(cut, ConexionAId);
+
+        mediador.Enviados.OfType<PuedeReconocerAvisoHuecoQuery>().Should().ContainSingle();
+        Aviso(cut).Should().NotBeNull("el aviso del buzón que ya ve sale siempre");
+        BotonesConfirmar(cut).Should().HaveCount(conCartera ? 1 : 0);
+        Aviso(cut)!.TextContent.Contains("con Confirmar").Should().Be(conCartera, "el texto nombra Confirmar solo si se ofrece");
+    }
+
     [Fact]
-    public async Task Un_rol_sin_escritura_no_ve_Confirmar_ni_Redactar()
+    public async Task Un_rol_sin_escritura_no_ve_Confirmar_ni_Redactar_ni_un_texto_que_lo_nombre()
     {
         this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
         var escenario = new Escenario { PuedeConfirmar = true };
         escenario.Conexiones.Add(ConAviso(ConexionAId, "CAE Norte"));
-        var (cut, _) = Renderizar(escenario);
+        var (cut, mediador) = Renderizar(escenario);
 
         await ElegirConexion(cut, ConexionAId);
 
-        Aviso(cut).Should().NotBeNull();
+        Aviso(cut)!.TextContent.Should().NotContain("Confirmar");
         BotonesConfirmar(cut).Should().BeEmpty();
+        mediador.Enviados.OfType<PuedeReconocerAvisoHuecoQuery>().Should().BeEmpty("sin escritura no hay nada que preguntar");
         cut.FindAll(".acciones-cabecera button").Select(b => b.TextContent.Trim()).Should().NotContain("Redactar");
+    }
+
+    /// <summary>La pregunta es accesoria: si falla, el selector, el aviso y las carpetas siguen, sin Confirmar.</summary>
+    [Fact]
+    public async Task Si_la_pregunta_falla_la_pagina_sigue_y_el_aviso_sale_sin_Confirmar()
+    {
+        var escenario = new Escenario
+        {
+            PuedeConfirmar = true,
+            Interceptar = (peticion, _) => peticion is PuedeReconocerAvisoHuecoQuery
+                ? Task.FromException<object?>(new InvalidOperationException("la base no responde")) : null,
+        };
+        escenario.Conexiones.Add(ConAviso(ConexionAId, "CAE Norte"));
+        escenario.Carpetas[ConexionAId] = [new("entrada", "Bandeja de entrada", null, 0, 1)];
+        var registro = new RegistroPrueba();
+        var (cut, mediador) = Renderizar(escenario, registro: registro);
+
+        await ElegirConexion(cut, ConexionAId);
+
+        mediador.Enviados.OfType<PuedeReconocerAvisoHuecoQuery>().Should().ContainSingle("control: se preguntó y falló");
+        cut.FindAll(".buzon-selector-conexion option").Should().HaveCount(2, "el selector se carga igual");
+        Aviso(cut)!.TextContent.Should().NotContain("Confirmar");
+        BotonesConfirmar(cut).Should().BeEmpty();
+        CarpetasVisibles(cut).Should().Equal(["Bandeja de entrada"]);
+        registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error);
+    }
+
+    /// <summary>
+    /// Mientras el comando está en vuelo: un segundo clic en Confirmar no lo envía otra vez, y ni Cancelar ni el fondo
+    /// cierran el diálogo.
+    /// </summary>
+    [Fact]
+    public async Task Durante_el_envio_un_segundo_Confirmar_no_reenvia_y_Cancelar_no_cierra()
+    {
+        var envio = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registrado = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var escenario = new Escenario
+        {
+            PuedeConfirmar = true,
+            Interceptar = (peticion, _) => peticion is ReconocerAvisoHuecoCommand ? RegistrarYRetener(registrado, envio) : null,
+        };
+        escenario.Conexiones.Add(ConAviso(ConexionAId, "CAE Norte"));
+        var (cut, mediador) = Renderizar(escenario);
+        await ElegirConexion(cut, ConexionAId);
+        await BotonesConfirmar(cut).Single().ClickAsync(new MouseEventArgs());
+
+        var primero = cut.Find("[data-testid=confirmar-aviso-hueco]").ClickAsync(new MouseEventArgs());
+        await registrado.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var segundo = cut.Find("[data-testid=confirmar-aviso-hueco]").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".modal-superposicion").ClickAsync(new MouseEventArgs());
+        // Boton y Modal ya ignoran esos clics mientras se carga; las guardas de la página se prueban llamando a sus
+        // callbacks directamente, como haría un clic que llegase igualmente.
+        var modal = cut.FindComponent<CaeManager.Web.Features.Integraciones.Components.ModalConfirmarAvisoHueco>().Instance;
+        var tercero = cut.InvokeAsync(() => modal.OnConfirmar.InvokeAsync());
+        await cut.InvokeAsync(() => modal.OnCancelar.InvokeAsync());
+
+        mediador.Enviados.OfType<ReconocerAvisoHuecoCommand>().Should().ContainSingle("el segundo clic no duplica el envío");
+        cut.FindAll("[data-testid=modal-confirmar-aviso-hueco]").Should().ContainSingle("mientras se confirma no se cierra");
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await Task.WhenAll(primero, segundo, tercero).WaitAsync(TimeSpan.FromSeconds(10));
+        mediador.Enviados.OfType<ReconocerAvisoHuecoCommand>().Should().ContainSingle();
+        cut.FindAll("[data-testid=modal-confirmar-aviso-hueco]").Should().BeEmpty("al terminar se cierra");
     }
 
     [Fact]

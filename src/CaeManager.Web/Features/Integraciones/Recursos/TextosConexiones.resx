@@ -27,6 +27,9 @@
   <data name="AvisoCorreoNoRecuperadoTitulo" xml:space="preserve">
     <value>Posible correo no recuperado desde el {0}</value>
   </data>
+  <data name="AvisoCorreoNoRecuperadoEnLinea" xml:space="preserve">
+    <value>{0}. {1}</value>
+  </data>
   <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
     <value>Mientras la conexión no funcionaba pudo llegar correo que aún no ha entrado en la aplicación. Mientras el buzón esté conectado y la ingesta de correo activada, se intenta recuperar cada pocos minutos, y este aviso desaparece cuando se ha recuperado todo; hasta entonces, revísalo en el propio buzón de Microsoft 365.</value>
   </data>
