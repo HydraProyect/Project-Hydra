@@ -511,7 +511,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
     [Fact]
     public void Editar_un_requisito_guardado_para_Extranjeros_devuelve_su_SePideA_sin_cambiarlo()
     {
-        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
         // La pantalla no lo enseña, pero tampoco puede reescribir el dato que la migración dejó intacto.
         var mediador = Preparar();
         ConEpi(mediador, DestinatarioRequisito.Extranjeros, TiposContratacion.Extranjero, ["NIE"]);
@@ -560,6 +560,103 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         var atributos = EdicionEnviada(cut, mediador).Atributos;
         atributos.SePideA.Should().Be(DestinatarioRequisito.Nacionales);
         atributos.Equivalencias.Should().BeEmpty();
+    }
+
+    // ------------------------------------------------------------ «Se pide a» de la Empresa contratista (decisión 2026-11-14, vigente)
+
+    private static readonly Guid TipoEmpresaId = Guid.Parse("cccccccc-0000-0000-0000-000000000007");
+    private static readonly Guid ReqEmpresaId = Guid.Parse("dddddddd-0000-0000-0000-000000000003");
+    private const string NombreTipoEmpresa = "Seguro de responsabilidad civil";
+
+    /// <summary>Añade al catálogo un tipo de ámbito Empresa, para que la plantilla pueda llevar un requisito de la Empresa contratista.</summary>
+    private static void ConTipoDeEmpresa(MediadorDePrueba mediador) =>
+        mediador.Tipos = [.. mediador.Tipos, Tipo(TipoEmpresaId, NombreTipoEmpresa, AmbitoAplicacion.Empresa)];
+
+    /// <summary>Añade a la plantilla un requisito de la Empresa contratista con el «Se pide a» dado.</summary>
+    private static void ConRequisitoDeEmpresa(MediadorDePrueba mediador, DestinatarioRequisito sePideA)
+    {
+        ConTipoDeEmpresa(mediador);
+        mediador.Detalle = mediador.Detalle! with
+        {
+            Requisitos =
+            [
+                .. mediador.Detalle.Requisitos,
+                Requisito(ReqEmpresaId, TipoEmpresaId, OrigenRequisito.PropioTenant, EntidadRequisito.Empresa) with { SePideA = sePideA },
+            ],
+        };
+    }
+
+    [Fact]
+    public void Un_requisito_nuevo_de_la_Empresa_contratista_con_Se_pide_a_Extranjeros_envia_SePideA_Extranjeros()
+    {
+        // Solo el Trabajador dejó de leer «Se pide a»: en la Empresa contratista decide el país de la propia Empresa.
+        var mediador = Preparar();
+        ConTipoDeEmpresa(mediador);
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
+        cut.FindAll("button[role='option']").First(b => b.TextContent.Contains(NombreTipoEmpresa)).Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Se añadirá"));
+        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").Should().HaveCount(3));
+
+        cut.FindAll("button[role='radio']").Single(b => b.TextContent.Trim() == "Extranjeros").Click();
+        // Blazor pinta un bool true como el atributo sin valor y omite el false.
+        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").Single(b => b.TextContent.Trim() == "Extranjeros")
+            .HasAttribute("aria-checked").Should().BeTrue());
+        Guardar(cut);
+
+        cut.WaitForAssertion(() => mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Should().ContainSingle());
+        var comando = mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single();
+        comando.TipoDocumentoId.Should().Be(TipoEmpresaId);
+        comando.Atributos.SePideA.Should().Be(DestinatarioRequisito.Extranjeros);
+    }
+
+    [Fact]
+    public void Editar_un_requisito_de_la_Empresa_contratista_guardado_para_Extranjeros_lo_enseña_y_lo_devuelve_sin_cambiarlo()
+    {
+        var mediador = Preparar();
+        ConRequisitoDeEmpresa(mediador, DestinatarioRequisito.Extranjeros);
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(NombreTipoEmpresa));
+
+        cut.Find($"button[aria-label='Editar requisito {NombreTipoEmpresa}']").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").Should().HaveCount(3));
+        cut.FindAll("button[role='radio']").Single(b => b.HasAttribute("aria-checked")).TextContent.Trim()
+            .Should().Be("Extranjeros", "el drawer parte del «Se pide a» guardado de la Empresa contratista");
+        Guardar(cut);
+
+        EdicionEnviada(cut, mediador).Atributos.SePideA.Should().Be(DestinatarioRequisito.Extranjeros);
+    }
+
+    [Fact]
+    public void En_el_listado_la_insignia_de_Se_pide_a_sale_solo_en_los_requisitos_de_la_Empresa_contratista()
+    {
+        var mediador = Preparar();
+        ConRequisitoDeEmpresa(mediador, DestinatarioRequisito.Extranjeros);
+        // Un Trabajador con el «Se pide a» antiguo sin borrar: ya no decide nada y no se enseña.
+        mediador.Detalle = mediador.Detalle! with
+        {
+            Requisitos =
+            [
+                mediador.Detalle!.Requisitos[0],
+                Requisito(ReqPropioId, TipoPropioId, OrigenRequisito.PropioTenant, EntidadRequisito.Trabajador) with
+                {
+                    SePideA = DestinatarioRequisito.Extranjeros,
+                },
+                mediador.Detalle.Requisitos[2],
+            ],
+        };
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(NombreTipoEmpresa));
+
+        string Insignias(Guid id) => cut.Find($"tr[data-requisito='{id}'] .rq-badges").TextContent;
+        Insignias(ReqEmpresaId).Should().Contain("Extranjeros");
+        Insignias(ReqPropioId).Should().NotContain("Extranjeros");
+        Insignias(ReqLegalId).Should().NotContain("Extranjeros");
     }
 
     [Fact]

@@ -7,8 +7,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <summary>
     /// El extranjero como modelo de contratación (decisión de Chris de 2026-11-17, DECISION_LOG): <c>TipoContratacion.Extranjero</c>
     /// = 3 y su bit <c>TiposContratacion.Extranjero</c> = 8, con lo que <c>TiposContratacion.Todos</c> pasa de 7 a 15. La máscara
-    /// es desde ahora el único criterio para pedir algo a un extranjero, y <c>RequisitosPlantilla."SePideA"</c> deja de leerse
-    /// (la columna se retira en otro incremento).
+    /// es desde ahora el único criterio para pedir algo a un Trabajador extranjero, y <c>RequisitosPlantilla."SePideA"</c> deja de
+    /// leerse en los requisitos de Trabajador (en los de Empresa contratista sigue vigente, ver más abajo).
     /// <para>
     /// Qué traduce. (1) <c>TiposDocumento."TiposContratacionDeSerie"</c>: donde era exactamente el Todos anterior (7) pasa a 15,
     /// para que el tipo se siga pidiendo de serie a todos, ahora también al Extranjero; cualquier otra máscara se queda como está.

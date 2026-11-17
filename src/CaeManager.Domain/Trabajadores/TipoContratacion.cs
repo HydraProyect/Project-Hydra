@@ -10,7 +10,8 @@ namespace CaeManager.Domain.Trabajadores;
 /// <see cref="Extranjero"/> (decisión de Chris de 2026-11-17, DECISION_LOG): el extranjero se identifica por el modelo de
 /// contratación, que es exclusivo. Un Trabajador extranjero es <see cref="Extranjero"/> en vez de por cuenta ajena o
 /// autónomo, así que de él no queda dicho cómo está contratado; un voluntario sigue siendo <see cref="Voluntario"/>. Es el
-/// único criterio con el que un requisito o un tipo de documento se pide a extranjeros (<see cref="TiposContratacion"/>).
+/// único criterio con el que un requisito de Trabajador o un tipo de documento se pide a Trabajadores extranjeros
+/// (<see cref="TiposContratacion"/>); a la Empresa contratista se le sigue pidiendo según su «Se pide a».
 /// No toca Facturación: el extranjero cobrable sigue saliendo del documento de identidad o de la marca a mano
 /// (<see cref="CriterioExtranjeroCobrable"/>), no de este valor.
 /// </para>

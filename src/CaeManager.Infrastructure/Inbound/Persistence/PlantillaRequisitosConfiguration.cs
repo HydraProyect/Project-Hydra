@@ -108,7 +108,7 @@ public class RequisitoPlantillaConfiguration : IEntityTypeConfiguration<Requisit
         builder.Property(r => r.Entidad).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.Origen).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.ModoVigencia).HasConversion<string>().HasMaxLength(30);
-        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
         builder.Property(r => r.SePideA).HasConversion<string>().HasMaxLength(30);
         builder.Property(r => r.AmbitoDocumento).HasConversion<string>().HasMaxLength(30);
         // Máscara de bits, entera como TipoDocumento.TiposContratacionDeSerie.

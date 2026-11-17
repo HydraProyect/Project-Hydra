@@ -8,8 +8,8 @@ namespace CaeManager.Domain.Trabajadores;
 /// <para>
 /// <see cref="Extranjero"/> (8) llegó el 2026-11-17 y <see cref="Todos"/> pasó de 7 a 15. La migración
 /// <c>TraduceExtranjeroAModeloDeContratacion</c> subió a 15 las máscaras guardadas que eran exactamente el 7 anterior y
-/// tradujo el «Se pide a» de los requisitos de plantilla a este bit: la máscara es el único criterio para pedir algo a un
-/// extranjero.
+/// tradujo el «Se pide a» de los requisitos de plantilla de Trabajador a este bit: la máscara es el único criterio para pedir
+/// algo a un Trabajador extranjero. En un requisito de Empresa contratista no hay máscara y sigue decidiendo «Se pide a».
 /// </para>
 /// </summary>
 [Flags]

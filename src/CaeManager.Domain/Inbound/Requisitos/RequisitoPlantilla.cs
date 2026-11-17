@@ -58,11 +58,12 @@ public sealed class RequisitoPlantilla : EntidadConTenant
     public string? Criterio { get; private set; }
 
     /// <summary>
-    /// Nacionalidad a la que se pedía el requisito antes del 2026-11-17. Ya no decide nada: a quién se pide lo dice solo
-    /// <see cref="TiposContratacion"/>, y a un extranjero se le pide con <see cref="TiposContratacion.Extranjero"/>. La
-    /// migración <c>TraduceExtranjeroAModeloDeContratacion</c> tradujo los valores guardados a la máscara.
+    /// Nacionalidad a la que se pide el requisito. En un requisito de Trabajador ya no decide nada desde el 2026-11-17: a quién
+    /// se pide lo dice solo <see cref="TiposContratacion"/>, y a un extranjero se le pide con
+    /// <see cref="TiposContratacion.Extranjero"/>; la migración <c>TraduceExtranjeroAModeloDeContratacion</c> tradujo los valores
+    /// guardados a la máscara. En uno de Empresa contratista sigue decidiendo (el país de la Empresa, decisión del 2026-11-14).
     /// </summary>
-    // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+    // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
     public DestinatarioRequisito SePideA { get; private set; }
 
     /// <summary>
@@ -169,7 +170,7 @@ public sealed class RequisitoPlantilla : EntidadConTenant
             throw new ArgumentException($"El criterio tiene como máximo {AtributosRequisito.LongitudMaximaCriterio} caracteres.", nameof(atributos.Criterio));
 
         var entidad = EntidadDe(tipo);
-        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
         // En un requisito de Trabajador se sigue validando y guardando porque es parte del contrato de los Commands
         // (AtributosRequisito), pero no decide a quién se pide. En uno de Empresa contratista sí se sigue leyendo: la decisión
         // del Extranjero solo trata del Trabajador, y la del 2026-11-14 (el país de la Empresa) sigue vigente.
