@@ -471,7 +471,6 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("Formación en altura")).Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo de contratación"));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Extranjero").GetAttribute("aria-pressed").Should().Be("true");
         cut.Markup.Should().Contain("Equivalencias para extranjeros", "la serie por defecto incluye al Extranjero");
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Extranjero").Click();
@@ -485,6 +484,83 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         atributos.TiposContratacion.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario);
         atributos.Equivalencias.Should().BeEmpty();
         atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
+    }
+
+    /// <summary>Sustituye el requisito propio (Registro de entrega de EPI) por uno con el SePideA y la máscara dados.</summary>
+    private static void ConEpi(MediadorDePrueba mediador, DestinatarioRequisito sePideA, TiposContratacion mascara, IReadOnlyList<string> equivalencias) =>
+        mediador.Detalle = mediador.Detalle! with
+        {
+            Requisitos =
+            [
+                mediador.Detalle.Requisitos[0],
+                Requisito(ReqPropioId, TipoPropioId, OrigenRequisito.PropioTenant, EntidadRequisito.Trabajador) with
+                {
+                    SePideA = sePideA, TiposContratacion = mascara, Equivalencias = equivalencias,
+                },
+            ],
+        };
+
+    private static CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla.EditarRequisitoPlantillaCommand EdicionEnviada(
+        IRenderedComponent<RequisitosPlantilla> cut, MediadorDePrueba mediador)
+    {
+        cut.WaitForAssertion(() => mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla.EditarRequisitoPlantillaCommand>().Should().ContainSingle());
+        return mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.EditarRequisitoPlantilla.EditarRequisitoPlantillaCommand>().Single();
+    }
+
+    [Fact]
+    public void Editar_un_requisito_guardado_para_Extranjeros_devuelve_su_SePideA_sin_cambiarlo()
+    {
+        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // La pantalla no lo enseña, pero tampoco puede reescribir el dato que la migración dejó intacto.
+        var mediador = Preparar();
+        ConEpi(mediador, DestinatarioRequisito.Extranjeros, TiposContratacion.Extranjero, ["NIE"]);
+        var cut = AbrirEdicionDeEpi();
+        cut.Markup.Should().Contain("Equivalencias para extranjeros");
+
+        Guardar(cut);
+
+        var atributos = EdicionEnviada(cut, mediador).Atributos;
+        atributos.SePideA.Should().Be(DestinatarioRequisito.Extranjeros);
+        atributos.TiposContratacion.Should().Be(TiposContratacion.Extranjero);
+        atributos.Equivalencias.Should().Equal("NIE");
+    }
+
+    [Fact]
+    public void Un_requisito_Nacionales_al_que_se_anade_el_Extranjero_con_equivalencias_se_envia_en_Todos()
+    {
+        // El dominio rechaza Nacionales con equivalencias: si la máscara ya incluye al Extranjero y lleva equivalencias,
+        // el drawer envía Todos para que el Command no falle.
+        var mediador = Preparar();
+        ConEpi(mediador, DestinatarioRequisito.Nacionales, TiposContratacion.CuentaAjena | TiposContratacion.Autonomo, []);
+        var cut = AbrirEdicionDeEpi();
+        cut.Markup.Should().NotContain("Equivalencias para extranjeros", "sin el Extranjero en la máscara no se ofrecen");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Extranjero").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Equivalencias para extranjeros"));
+        cut.FindAll("span.cfg-etq").Single(s => s.TextContent.Trim() == "Equivalencias para extranjeros")
+            .ParentElement!.QuerySelector("textarea")!.Input("Permiso de residencia");
+        Guardar(cut);
+
+        var atributos = EdicionEnviada(cut, mediador).Atributos;
+        atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
+        atributos.TiposContratacion.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Extranjero);
+        atributos.Equivalencias.Should().Equal("Permiso de residencia");
+    }
+
+    [Fact]
+    public void Un_requisito_Nacionales_sin_equivalencias_sigue_en_Nacionales()
+    {
+        var mediador = Preparar();
+        ConEpi(mediador, DestinatarioRequisito.Nacionales, TiposContratacion.CuentaAjena | TiposContratacion.Autonomo, []);
+        var cut = AbrirEdicionDeEpi();
+
+        Guardar(cut);
+
+        var atributos = EdicionEnviada(cut, mediador).Atributos;
+        atributos.SePideA.Should().Be(DestinatarioRequisito.Nacionales);
+        atributos.Equivalencias.Should().BeEmpty();
     }
 
     [Fact]

@@ -36,6 +36,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// traducido: un requisito o un tipo de documento que alguien acotó al Extranjero vuelve a pedirse a todos, y un Trabajador
     /// dado de alta como Extranjero conserva el 3, que la ranura anterior no conoce.
     /// </para>
+    /// <para>
+    /// NO es compatible con la ranura anterior mientras drena: su <c>TiposContratacion.Todos</c> vale 7 y normaliza con
+    /// <c>&amp; 7</c>. Guardar allí un tipo de documento de Trabajador que ya esté en 15 lo deja en 7 (deja de pedirse al
+    /// Extranjero sin aviso), editar un requisito con máscara 8 o 15 falla con «tipo de contratación conocido» y un requisito
+    /// de Empresa creado allí nace en 7. La ventana es la del relevo azul/verde; se acepta y se declara en la PR.
+    /// </para>
     /// </summary>
     public partial class TraduceExtranjeroAModeloDeContratacion : Migration
     {
