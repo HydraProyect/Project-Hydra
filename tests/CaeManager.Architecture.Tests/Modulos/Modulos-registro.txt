@@ -63,7 +63,8 @@ area Domain.Inbound                  = Inbound                  # § 4.7 y M1; I
 # los otros cinco son el mismo agregado de acreditación (su historial, su origen, su rechazo, su repositorio y su vigencia).
 excepcion Domain.Documentos.AcreditacionDocumentoPlataforma      = Outbound provisional  # § 3, M-3
 excepcion Domain.Documentos.EstadoAcreditacion                   = Outbound provisional  # § 3, M-3
-excepcion Domain.Documentos.CausaRechazoAcreditacion             = Outbound provisional  # § 3, M-3
+# Domain.Documentos.CausaRechazoAcreditacion sigue al área (Nucleo): ADR-013 § 4.3, sube al Núcleo lo que Inbound necesita
+# (demo mínima de validación Inbound, rama claude/inbound-validacion-demo). Compartido con Outbound: cualquier cambio del enum va por CONTRATO.
 excepcion Domain.Documentos.VigenciaEnPlataforma                 = Outbound provisional  # § 3, M-3
 excepcion Domain.Documentos.ReglaPendienteEnPlataforma           = Outbound provisional  # § 3, M-3
 excepcion Domain.Documentos.CambioEstadoAcreditacionPlataforma   = Outbound provisional  # M-3: historial de la acreditación

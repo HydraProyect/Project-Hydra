@@ -1,16 +1,9 @@
 # Aristas Inbound -> Outbound leídas del IL (ADR-013 § 4.1 regla 1 y § 4.3 test 2; DependenciasEntreModulosTests).
-# CERRADA: no admite altas. Hoy solo K-5 (EvidenciaInbound reutiliza EstadoAcreditacion y CausaRechazoAcreditacion, que el registro
+# CERRADA: no admite altas. Hoy solo K-5 (EvidenciaInbound reutiliza EstadoAcreditacion, que el registro
 # de módulos da a Outbound); se retira con B-22. Formato: tipo de origen :: Módulo: tipo de destino = 1. Solo baja.
-Application.Inbound.ContratosAcceso.EvidenciasInbound.EvidenciaInboundDto :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Application.Inbound.ContratosAcceso.EvidenciasInbound.EvidenciaInboundDto :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
-Application.Inbound.ContratosAcceso.EvidenciasInbound.EvidenciasInboundProyeccion :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Application.Inbound.ContratosAcceso.EvidenciasInbound.EvidenciasInboundProyeccion :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
-Application.Inbound.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommand :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
-Application.Inbound.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Application.Inbound.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
-Application.Inbound.ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandValidator :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Application.Inbound.ContratosAcceso.EvidenciasInbound.ValidarEvidenciaInboundCommandHandler :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
-Domain.Inbound.EvidenciasInbound.EvidenciaInbound :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Domain.Inbound.EvidenciasInbound.EvidenciaInbound :: Outbound: Domain.Documentos.EstadoAcreditacion = 1
-Infrastructure.Inbound.Persistence.EvidenciaInboundConfiguration :: Outbound: Domain.Documentos.CausaRechazoAcreditacion = 1
 Infrastructure.Inbound.Persistence.EvidenciaInboundConfiguration :: Outbound: Domain.Documentos.EstadoAcreditacion = 1

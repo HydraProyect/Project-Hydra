@@ -54,8 +54,6 @@ Application.Documentos.Queries.ObtenerValidacionOficialDocumento.ObtenerValidaci
 Application.Documentos.Queries.PrepararEntregaArchivoExtension.PrepararEntregaArchivoExtensionQueryHandler :: -> Outbound = 8
 Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService :: -> Outbound = 12
 Application.DocumentosIa.Common.ContrasteTextoDocumento :: -> Outbound = 1
-Application.DocumentosIa.ValidacionPrevia.ResultadoReglaPrevia :: -> Outbound = 1
-Application.DocumentosIa.ValidacionPrevia.ValidacionesDeterministasDocumento :: -> Outbound = 1
 Application.Empresas.Commands.EliminarEmpresas.EliminarEmpresasCommand :: -> Outbound = 1
 Application.Empresas.Commands.EliminarEmpresas.EliminarEmpresasCommandHandler :: -> Outbound = 1
 Application.Empresas.DuplicadosEmpresaBehavior :: -> Outbound = 4

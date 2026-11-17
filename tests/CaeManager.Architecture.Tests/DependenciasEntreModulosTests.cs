@@ -117,7 +117,8 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
             "quitar un par de una lista deja esa dirección sin vigilar; añadir uno exige decidirlo en el ADR, no aquí");
     }
 
-    private static readonly string[] DestinosDeK5 = ["Domain.Documentos.EstadoAcreditacion", "Domain.Documentos.CausaRechazoAcreditacion"];
+    // CausaRechazoAcreditacion ya no es destino Outbound: el registro la sube al Núcleo (ADR-013 § 4.3).
+    private static readonly string[] DestinosDeK5 = ["Domain.Documentos.EstadoAcreditacion"];
 
     /// <summary>
     /// «Cerrada» no es una promesa de la guía: el conjunto permitido está en código. Añadir a mano una línea nueva a
@@ -133,7 +134,7 @@ public class DependenciasEntreModulosTests(ITestOutputHelper salida)
             System.Text.RegularExpressions.Regex.IsMatch(linea.Lugar, @"\bEvidencias?Inbound").Should().BeTrue(
                 $"solo la evidencia Inbound reutiliza el estado de acreditación (K-5): «{linea.Lugar}» no es de ese grupo");
             DestinosDeK5.Select(d => $"Outbound: {d}").Should().Contain(linea.Simbolo,
-                "el único destino Outbound permitido es el estado de acreditación y su causa de rechazo (K-5, hasta B-22)");
+                "el único destino Outbound permitido es el estado de acreditación (K-5, hasta B-22); su causa de rechazo es del Núcleo");
         }
     }
 
