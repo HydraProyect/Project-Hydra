@@ -792,6 +792,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
+        // Cola de validación de la demo mínima (DECISION_LOG 2026-11-17, opción b): nombra el tipo del catálogo propio, la
+        // Empresa contratista local y el Centro de cada contrato, solo para pintar la fila.
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "IEmpresasQueryContext"),
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "ICentrosQueryContext"),
         // Plantillas de requisitos del Tenant TCE (B-14): un requisito se acredita con un Tipo de documento del catálogo
         // propio y puede adoptar un requisito del catálogo base; el alta comprueba que la Actividad, el riesgo, el Centro o
         // la Empresa Cliente empresarial existen, solo por su Id. El requisito propio crea su Tipo de documento.

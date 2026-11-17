@@ -1,11 +1,14 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace CaeManager.Web.Features.Inbound.Validacion;
 
 /// <summary>
-/// Puerto de las pantallas «Documentos por validar» y «Validación» (Tenant TCE). No hay backend fusionado: la cola es
-/// B-21; el veredicto con su Deshacer de 10 s, B-22; el veredicto del sistema, B-24; la propuesta de la IA, B-26, y el lote
-/// con muestreo, B-27. Cuando entren, se implementa este puerto sobre sus Commands y Queries y se cambia el registro; las
+/// Puerto de las pantallas «Documentos por validar» y «Validación» (Tenant TCE). En la demo mínima
+/// (<see cref="ServicioValidacionInboundConBackend"/>) tienen backend la cola, Validar y Rechazar uno a uno; siguen sin él
+/// el veredicto previo con su Deshacer de 10 s y Marcar incompleto (B-22), el veredicto del sistema (B-24), la propuesta de
+/// la IA (B-26) y el lote con muestreo (B-27). Cuando entren, se completa ese servicio sobre sus Commands y Queries; las
 /// pantallas no se tocan.
 /// </summary>
 public interface IServicioValidacionInbound
@@ -85,13 +88,32 @@ public sealed class ColaEnCursoValidacion
     public void Quitar(Guid id) => _ids = [.. _ids.Where(x => x != id)];
 }
 
+/// <summary>
+/// Si Validar y Rechazar de Inbound registran veredictos. Apagado por defecto: hasta que entre D-12 (quien subió un documento
+/// no puede validarlo), solo se enciende en Development, con <c>Inbound__Validacion__Habilitado</c> en el perfil de arranque.
+/// Fuera de Development queda apagado aunque la clave diga lo contrario. Apagado, la cola se ve y Validar y Rechazar responden
+/// «no disponible».
+/// </summary>
+public sealed class OpcionesValidacionInbound
+{
+    public const string Seccion = "Inbound:Validacion";
+
+    public bool Habilitado { get; set; }
+}
+
 public static class ValidacionInboundServiceCollectionExtensions
 {
-    /// <summary>Registra el puerto de la validación Inbound con su implementación vacía (sin backend).</summary>
-    public static IServiceCollection AddValidacionInbound(this IServiceCollection services)
+    /// <summary>
+    /// Registra el puerto de la validación Inbound sobre el backend de la demo mínima: cola, y Validar y Rechazar uno a uno
+    /// detrás de <see cref="OpcionesValidacionInbound"/>. Lo demás sigue «no disponible» hasta B-21, B-22, B-24, B-26 y B-27.
+    /// </summary>
+    public static IServiceCollection AddValidacionInbound(
+        this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
-        // shortcut: sin backend, cambiar por la implementación real cuando entren B-21, B-22, B-24, B-26 y B-27.
-        services.AddScoped<IServicioValidacionInbound, ServicioValidacionInboundSinBackend>();
+        var habilitado = entorno.IsDevelopment()
+            && configuration.GetValue<bool>($"{OpcionesValidacionInbound.Seccion}:{nameof(OpcionesValidacionInbound.Habilitado)}");
+        services.Configure<OpcionesValidacionInbound>(o => o.Habilitado = habilitado);
+        services.AddScoped<IServicioValidacionInbound, ServicioValidacionInboundConBackend>();
         services.AddScoped<ColaEnCursoValidacion>();
         return services;
     }

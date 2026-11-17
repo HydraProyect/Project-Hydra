@@ -3,7 +3,10 @@ using System.Transactions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerColaValidacionInbound;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Domain.Centros;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -12,6 +15,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Inbound.EvidenciasInbound;
 using FluentAssertions;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using Xunit;
 
@@ -42,6 +46,8 @@ public class EvidenciasInboundTests
     private readonly RegistroFalso _registro = new();
     private readonly UnidadDeTrabajoFalsa _unidad;
     private readonly ContratoAcceso _contrato;
+    private readonly CentrosQueryContextFalso _centros = new();
+    private readonly Centro _centro;
     private readonly TipoDocumento _tipoFormacion;
     private readonly TipoDocumento _tipoAptitud;
     private readonly Guid _documento = Guid.NewGuid();
@@ -56,7 +62,10 @@ public class EvidenciasInboundTests
 
         var empresa = new Empresa("Contratista de prueba", "B12345674");
         _empresas.ListaEmpresas.Add(empresa);
-        _contrato = ContratoAcceso.Crear(_cliente, Guid.NewGuid(), empresa.Id, new DateOnly(2026, 3, 1), null, null);
+        _centro = new Centro(_cliente, _cliente, nombre: "Planta Zaragoza Norte", codigoCentro: "ZGZ-N",
+            direccion: "Polígono de prueba, 1", contacto: null, contratoVigenteHasta: null);
+        _centros.ListaCentros.Add(_centro);
+        _contrato = ContratoAcceso.Crear(_cliente, _centro.Id, empresa.Id, new DateOnly(2026, 3, 1), null, null);
         _contrato.VincularTenantContratista(_tenantContratista);
         _contratos.ListaContratos.Add(_contrato);
 
@@ -402,6 +411,137 @@ public class EvidenciasInboundTests
         (await PorId("GestorCae", _cliente).Handle(new(evidencia.Id), CancellationToken.None))!.Id.Should().Be(evidencia.Id);
     }
 
+    // --- Demo mínima (DECISION_LOG 2026-11-17, opción b): Rechazar con rechazo inicial y la cola de validación ---
+
+    private RegistrarEvidenciaInboundCommand ComandoRechazo(string motivo = "La fecha de emisión no se lee.", Guid? documento = null) =>
+        Comando(documento: documento) with { Rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, motivo) };
+
+    [Fact]
+    public async Task Rechazar_registra_la_evidencia_ya_rechazada_en_el_unico_guardado()
+    {
+        var resultado = await Registrar().Handle(ComandoRechazo(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var evidencia = _repositorio.Agregadas.Should().ContainSingle().Subject;
+        (evidencia.Estado, evidencia.CausaRechazo, evidencia.MotivoRechazo)
+            .Should().Be((EstadoAcreditacion.Rechazada, CausaRechazoAcreditacion.Ilegible, "La fecha de emisión no se lee."));
+        evidencia.RechazadaPorUsuarioId.Should().NotBeNull();
+        _orden.Where(o => o == "SaveChanges").Should().ContainSingle("nunca se guarda Aceptada para rechazarla después");
+    }
+
+    [Fact]
+    public async Task Un_Rechazar_no_deja_rastro_de_Validado_en_auditoria_ni_en_eventos()
+    {
+        // La auditoría de la entidad la escribe AuditoriaInterceptor al guardar: una fila «Creado» con los valores que la
+        // entrada Added tiene en ese instante. Ni la entidad ni el handler emiten eventos ni avisos: nada se publica antes
+        // del guardado con el estado intermedio.
+        var estadosAlGuardar = new List<EstadoAcreditacion>();
+        _unidad.AlGuardar = () => estadosAlGuardar.AddRange(_repositorio.Agregadas.Select(e => e.Estado));
+
+        (await Registrar().Handle(ComandoRechazo(), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        _repositorio.EstadosAlAgregar.Should().Equal([EstadoAcreditacion.Rechazada], "llega al seguimiento de cambios ya rechazada");
+        estadosAlGuardar.Should().Equal([EstadoAcreditacion.Rechazada], "la única fila de auditoría lleva el estado Rechazada");
+        typeof(RegistrarEvidenciaInboundCommandHandler).GetConstructors().SelectMany(c => c.GetParameters())
+            .Select(p => p.ParameterType)
+            .Should().NotContain(t => typeof(IPublisher).IsAssignableFrom(t), "el handler no publica eventos ni avisos");
+        typeof(EvidenciaInbound).GetProperties().Select(p => p.PropertyType.Name)
+            .Should().NotContain(n => n.Contains("Evento") || n.Contains("Event"), "la entidad no acumula eventos de dominio");
+    }
+
+    [Theory]
+    [InlineData("GestorCae", false)]
+    [InlineData("Consulta", true)]
+    public async Task Rechazar_fuera_de_cartera_o_sin_rol_que_valida_responde_no_encontrado_sin_leer_el_otro_Tenant(string rol, bool clienteDeLaCartera)
+    {
+        var resultado = await Registrar(rol, clienteDeLaCartera ? _cliente : Guid.NewGuid()).Handle(ComandoRechazo(), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada);
+        _repositorio.Agregadas.Should().BeEmpty();
+        _lector.Llamadas.Should().BeEmpty("la autoridad se decide antes de tocar el lector, que deja traza en el Tenant de la Empresa contratista");
+    }
+
+    [Fact]
+    public async Task Rechazar_un_Documento_de_otro_Tenant_que_la_autorizacion_no_cubre_responde_no_encontrado()
+    {
+        var resultado = await Registrar().Handle(ComandoRechazo(documento: Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada);
+        _repositorio.Agregadas.Should().BeEmpty();
+        _almacen.Guardados.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rechazar_exige_motivo(string motivo)
+    {
+        new RegistrarEvidenciaInboundCommandValidator().Validate(ComandoRechazo(motivo))
+            .Errors.Should().ContainSingle().Which.ErrorMessage.Should().Be("Indica el motivo del rechazo.");
+        new RegistrarEvidenciaInboundCommandValidator().Validate(Comando()).IsValid.Should().BeTrue("Validar no lleva motivo");
+    }
+
+    private ObtenerColaValidacionInboundQueryHandler Cola(string? rol = "GestorCae", Guid? clienteVisible = null) =>
+        new(_contratos, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector,
+            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _tipos, _empresas, _centros);
+
+    [Fact]
+    public async Task La_cola_lista_los_Documentos_autorizados_sin_evidencia_y_el_tipo_del_catalogo_propio_por_su_nombre()
+    {
+        _lector.Documentos.Clear();
+        var conTipo = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "formación prl " };
+        var sinTipo = Documento(Guid.NewGuid(), soloConclusion: false) with { TipoDocumentoNombre = "Tipo que el Tenant TCE no tiene" };
+        var deEmpresa = Documento(Guid.NewGuid(), soloConclusion: false, deTrabajador: false) with { TipoDocumentoNombre = "Formación PRL" };
+        _lector.Documentos.AddRange([conTipo, sinTipo, deEmpresa]);
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Select(c => c.DocumentoOrigenId).Should().BeEquivalentTo([conTipo.DocumentoId, sinTipo.DocumentoId, deEmpresa.DocumentoId]);
+        cola.Should().OnlyContain(c => c.ContratoAccesoId == _contrato.Id && c.Centro == "Planta Zaragoza Norte"
+                                       && c.EmpresaContratista == "Contratista de prueba");
+        cola.Single(c => c.DocumentoOrigenId == conTipo.DocumentoId).Should().Match<DocumentoPendienteInboundDto>(
+            c => c.TipoDocumentoId == _tipoFormacion.Id && c.Titular == "Ana Pérez" && c.Identificador == "12345678Z");
+        cola.Single(c => c.DocumentoOrigenId == sinTipo.DocumentoId).TipoDocumentoId.Should().BeNull();
+        cola.Single(c => c.DocumentoOrigenId == deEmpresa.DocumentoId).Should().Match<DocumentoPendienteInboundDto>(
+            c => c.TrabajadorId == null && c.Titular == "Contratista de prueba" && c.Identificador == "B12345674");
+    }
+
+    [Fact]
+    public async Task La_cola_no_vuelve_a_listar_un_Documento_ya_validado_ni_uno_ya_rechazado()
+    {
+        var rechazado = Guid.NewGuid();
+        var pendiente = Guid.NewGuid();
+        _lector.Documentos.AddRange([Documento(rechazado, soloConclusion: false), Documento(pendiente, soloConclusion: false)]);
+        (await Registrar().Handle(Comando(), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        (await Registrar().Handle(ComandoRechazo(documento: rechazado), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Select(c => c.DocumentoOrigenId).Should().Equal(pendiente);
+    }
+
+    [Theory]
+    [InlineData("GestorCae", false)]
+    [InlineData("Consulta", true)]
+    public async Task La_cola_fuera_de_cartera_o_sin_rol_que_valida_esta_vacia_y_no_toca_el_lector(string rol, bool clienteDeLaCartera)
+    {
+        var cola = await Cola(rol, clienteDeLaCartera ? _cliente : Guid.NewGuid()).Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Should().BeEmpty();
+        _lector.Llamadas.Should().BeEmpty("sin autoridad no se lista ni se deja traza en el Tenant de la Empresa contratista");
+    }
+
+    [Fact]
+    public async Task La_cola_sin_autorizacion_vigente_hoy_no_lista_los_Documentos()
+    {
+        _lector.Autorizacion = _lector.Autorizacion! with { VigenteHoy = false, Revocada = true };
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Should().BeEmpty();
+        _lector.Llamadas.Should().Equal("Autorizacion");
+    }
+
     private sealed class LectorFalso(List<string> orden) : ILectorDocumentosInbound
     {
         public List<string> Llamadas { get; } = [];
@@ -483,8 +623,12 @@ public class EvidenciasInboundTests
     {
         public Exception? ExcepcionAlGuardar { get; set; }
 
+        /// <summary>Lo que el guardado vería en ese instante (el interceptor de auditoría serializa aquí cada fila Added).</summary>
+        public Action? AlGuardar { get; set; }
+
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            AlGuardar?.Invoke();
             orden.Add("SaveChanges");
             return ExcepcionAlGuardar is { } excepcion ? throw excepcion : Task.FromResult(1);
         }
@@ -494,10 +638,16 @@ public class EvidenciasInboundTests
     {
         public List<EvidenciaInbound> Agregadas { get; } = [];
 
+        public List<EstadoAcreditacion> EstadosAlAgregar { get; } = [];
+
         public Task<EvidenciaInbound?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(Agregadas.FirstOrDefault(e => e.Id == id));
 
-        public void Agregar(EvidenciaInbound evidencia) => Agregadas.Add(evidencia);
+        public void Agregar(EvidenciaInbound evidencia)
+        {
+            EstadosAlAgregar.Add(evidencia.Estado);
+            Agregadas.Add(evidencia);
+        }
     }
 
     private sealed class EvidenciasQueryContextFalso(List<EvidenciaInbound> evidencias) : IEvidenciasInboundQueryContext

@@ -5,7 +5,9 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Inbound.EvidenciasInbound;
+using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -17,9 +19,32 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 /// La conclusión transcrita del certificado de aptitud. Obligatoria si el tipo elegido o el del original es de «solo
 /// conclusión de aptitud»; prohibida en cualquier otro caso.
 /// </param>
+/// <param name="Rechazo">
+/// El veredicto del Gestor CAE es Rechazar: la evidencia se registra y se rechaza en el mismo guardado, con su causa
+/// tipificada y su motivo literal, y nunca queda Aceptada entre medias. Es la vía de la demo mínima (DECISION_LOG
+/// 2026-11-17, opción b) hasta que B-22 traiga el veredicto previo a la copia: mientras tanto, el rechazado también deja su
+/// copia en el Tenant del Cliente empresarial, como el validado.
+/// </param>
 [AreaDelEncargo("ContratosAcceso")]
 public record RegistrarEvidenciaInboundCommand(
-    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>, IComandoInbound;
+    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion,
+    RechazoInicialEvidenciaInbound? Rechazo = null) : ICommand<Guid>, IComandoInbound;
+
+/// <summary>Causa tipificada y motivo literal de un rechazo, los dos obligatorios, como en <see cref="RechazarEvidenciaInboundCommand"/>.</summary>
+public record RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion Causa, string Motivo);
+
+public class RegistrarEvidenciaInboundCommandValidator : AbstractValidator<RegistrarEvidenciaInboundCommand>
+{
+    public RegistrarEvidenciaInboundCommandValidator()
+    {
+        When(c => c.Rechazo is not null, () =>
+        {
+            RuleFor(c => c.Rechazo!.Causa).IsInEnum();
+            RuleFor(c => c.Rechazo!.Motivo).NotEmpty().WithMessage("Indica el motivo del rechazo.")
+                .MaximumLength(EvidenciaInbound.LongitudMaximaMotivoRechazo);
+        });
+    }
+}
 
 /// <summary>
 /// Registra la copia de evidencia validada de un Documento original del Tenant de la Empresa contratista (Inbound M1,
@@ -132,6 +157,7 @@ public class RegistrarEvidenciaInboundCommandHandler(
             var medica = EvidenciaInbound.Registrar(
                 procedencia, request.TipoDocumentoId, sujeto, original.FechaEmision, original.FechaVencimiento,
                 soloConclusionAptitud: true, request.Conclusion, archivo: null, usuarioId, reloj.GetUtcNow().UtcDateTime);
+            AplicarRechazo(medica, request.Rechazo, usuarioId);
             repositorio.Agregar(medica);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return Result.Exito(medica.Id);
@@ -171,6 +197,7 @@ public class RegistrarEvidenciaInboundCommandHandler(
                 procedencia, request.TipoDocumentoId, sujeto, original.FechaEmision, original.FechaVencimiento,
                 soloConclusionAptitud: false, conclusion: null, new EvidenciaInbound.ArchivoCopiado(copia, huella),
                 usuarioId, reloj.GetUtcNow().UtcDateTime);
+            AplicarRechazo(evidencia, request.Rechazo, usuarioId);
             repositorio.Agregar(evidencia);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return Result.Exito(evidencia.Id);
@@ -193,6 +220,13 @@ public class RegistrarEvidenciaInboundCommandHandler(
 
             throw;
         }
+    }
+
+    // Antes de Agregar y del único guardado: la evidencia rechazada nunca llega a la base como Aceptada.
+    private void AplicarRechazo(EvidenciaInbound evidencia, RechazoInicialEvidenciaInbound? rechazo, Guid usuarioId)
+    {
+        if (rechazo is not null)
+            evidencia.Rechazar(rechazo.Causa, rechazo.Motivo, usuarioId, reloj.GetUtcNow().UtcDateTime);
     }
 }
 

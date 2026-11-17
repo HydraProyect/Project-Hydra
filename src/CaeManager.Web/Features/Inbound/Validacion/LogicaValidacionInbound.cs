@@ -131,6 +131,8 @@ public static class LogicaValidacionInbound
     {
         ResultadoLectura.Correcto => "✓ Todo correcto",
         ResultadoLectura.ConError => "✕ " + (documento.DatosAfectados == 1 ? "1 dato con error" : documento.DatosAfectados + " datos con error"),
+        // Sin ningún dato leído, la lectura con IA no corrió: no hay «0 sin detectar», hay «sin lectura».
+        _ when documento.DatosAfectados == 0 => "! Sin lectura con IA",
         _ => "! " + documento.DatosAfectados + " sin detectar"
     };
 

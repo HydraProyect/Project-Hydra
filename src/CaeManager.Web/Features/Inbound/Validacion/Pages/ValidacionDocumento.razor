@@ -125,7 +125,10 @@
                         <button type="button" class="@("vd-chip" + (_pagina == numero ? " vd-chip-activo" : ""))" aria-pressed="@(_pagina == numero ? "true" : "false")"
                                 @onclick="() => _pagina = numero">Pág. @(numero + 1)</button>
                     }
-                    <a class="vd-descargar" href="@doc.UrlDescarga" download>Descargar</a>
+                    @if (!string.IsNullOrEmpty(doc.UrlDescarga))
+                    {
+                        <a class="vd-descargar" href="@doc.UrlDescarga" download>Descargar</a>
+                    }
                 </div>
                 @if (_anterior is { } anterior)
                 {
@@ -136,7 +139,9 @@
                 }
                 @if (PaginasVisibles.Count == 0)
                 {
-                    <p class="vd-mut vd-sin-paginas">El documento no se puede mostrar. Descárgalo para revisarlo.</p>
+                    <p class="vd-mut vd-sin-paginas">@(string.IsNullOrEmpty(doc.UrlDescarga)
+                        ? "El documento todavía no se puede mostrar ni descargar aquí."
+                        : "El documento no se puede mostrar. Descárgalo para revisarlo.")</p>
                 }
                 else
                 {
