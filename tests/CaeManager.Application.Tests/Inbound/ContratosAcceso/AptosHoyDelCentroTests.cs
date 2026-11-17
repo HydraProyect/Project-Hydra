@@ -893,10 +893,11 @@ public class AptosHoyDelCentroTests
     }
 
     [Fact]
-    public async Task Un_NoApto_de_un_contrato_que_cuenta_no_evalua_a_los_demas_contratos_y_la_fila_cita_el_que_lo_tiene()
+    public async Task Un_NoApto_de_un_contrato_que_cuenta_tambien_evalua_a_los_demas_contratos_y_la_fila_cita_el_que_lo_tiene()
     {
         // A (inicio 2026-06-01, Empresa X): todo al día y el apto vigente. B (_contrato, inicio 2026-01-01, Empresa Y): un
-        // «No apto» Aceptado y vigente. Gana B, que tiene su propio «No apto»: la fila no puede citar a A ni a su Empresa.
+        // «No apto» Aceptado y vigente. A sale NoApto por el «No apto» de B, pero gana B, que lo tiene entre sus propias
+        // evidencias: la fila no puede citar a A ni a su Empresa.
         var a = ContratoDesde(new DateOnly(2026, 6, 1));
         var t = Guid.NewGuid();
         Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: a);
@@ -910,6 +911,55 @@ public class AptosHoyDelCentroTests
         fila.ContratoAccesoId.Should().Be(_contrato.Id, "el «No apto» es de B");
         fila.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId);
         fila.Requisito.Should().Be(_aptitud.Nombre);
+        fila.EmpresasContratistaIds.Should().BeEquivalentTo([a.EmpresaContratistaId, _contrato.EmpresaContratistaId]);
+    }
+
+    [Fact]
+    public async Task Un_apto_anterior_a_un_No_apto_de_otro_contrato_que_cuenta_no_revive_y_la_fila_cita_el_contrato_del_No_apto()
+    {
+        // Fija 12, hoy 2026-11-17. A (reciente, Empresa X): formación al día y un apto del 2026-03-01. B (_contrato, antiguo,
+        // Empresa Y): formación al día, un «No apto» del 2026-09-01 que caduca el 2026-10-01 y un apto del 2026-10-15. B, por
+        // sí solo, es Apto; A acredita con un apto anterior al «No apto» de B, que no revive: el Trabajador es NoApto.
+        var a = ContratoDesde(new DateOnly(2026, 6, 1));
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 3, 1), conclusion: ConclusionAptitud.Apto, contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), new DateOnly(2026, 10, 1), conclusion: ConclusionAptitud.NoApto);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 10, 15), conclusion: ConclusionAptitud.Apto);
+
+        var completa = (await Consultar()).Should().ContainSingle().Subject;
+        var restringida = (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound))).Should().ContainSingle().Subject;
+
+        completa.Estado.Should().Be(EstadoAptitudInbound.NoApto, "el apto de A es anterior al «No apto» de B, aunque este ya caducó");
+        completa.Requisito.Should().Be(_aptitud.Nombre);
+        completa.Causa.Should().Be(CausaNoAptitudInbound.NoAcreditado);
+        completa.ContratoAccesoId.Should().Be(_contrato.Id, "B tiene el «No apto» que provoca el corte");
+        completa.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId);
+        completa.EmpresasContratistaIds.Should().BeEquivalentTo([a.EmpresaContratistaId, _contrato.EmpresaContratistaId]);
+        restringida.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        restringida.ContratoAccesoId.Should().Be(a.Id, "la proyección restringida cita siempre el contrato más reciente");
+        restringida.EmpresaContratistaId.Should().Be(a.EmpresaContratistaId);
+    }
+
+    [Fact]
+    public async Task Con_el_mismo_estado_gana_la_fila_cuyo_estado_procede_de_sus_propias_evidencias_y_no_de_un_No_apto_ajeno()
+    {
+        // El «No apto» vigente es de un contrato Suspendido: no se puede citar. A (reciente) sale NoApto solo por él; B
+        // (antiguo) también, pero por lo suyo (le falta la formación). Con el mismo estado gana B, no el más reciente.
+        var suspendido = ContratoQueNoCuenta("suspendido");
+        var a = ContratoDesde(new DateOnly(2026, 6, 1));
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto, contrato: a);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto); // B: sin formación
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 10, 1), conclusion: ConclusionAptitud.NoApto, contrato: suspendido);
+
+        var fila = (await Consultar()).Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        fila.ContratoAccesoId.Should().Be(_contrato.Id, "el estado de B procede de lo propio; el de A, del «No apto» ajeno");
+        fila.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId);
         fila.EmpresasContratistaIds.Should().BeEquivalentTo([a.EmpresaContratistaId, _contrato.EmpresaContratistaId]);
     }
 

@@ -143,17 +143,22 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// siempre, con independencia de otras evidencias», decidida por la subcoordinadora de Inbound el 2026-11-17 tras la
 /// revisión de la PR #2329; si Chris la entiende de otro modo, se corrige aquí. Solo se evalúa si el Centro o el Cliente
 /// empresarial tienen ese tipo como requisito que bloquea. (7 bis) El «No apto» se lee de las evidencias del mismo Trabajador
-/// (<c>TrabajadorOrigenId</c>) en todos los contratos de acceso del Centro, sea cual sea su estado (Suspendido, Finalizado,
-/// Cancelado o no vigente hoy), con el mismo contexto y la misma RLS del Tenant del Cliente empresarial y solo de los contratos
-/// que el actor ve; de esos contratos no sale ninguna fila ni ninguna acreditación positiva, y el Trabajador sin ninguna
-/// evidencia en un contrato que cuenta sigue sin aparecer (hueco 1). Un «No apto» de un contrato que la Asignación de Cartera
-/// del actor no deja ver no se lee (no se cambia la autorización). (8) Cada evidencia es de un
+/// (<c>TrabajadorOrigenId</c>) en todos los contratos de acceso del Centro que el actor ve, sea cual sea su estado (los que
+/// cuentan y los Suspendido, Finalizado, Cancelado o no vigentes hoy), con el mismo contexto y la misma RLS del Tenant del
+/// Cliente empresarial, y se suma como ajeno a cada contrato para el bloqueo y para el corte de la regla anterior: un «No apto»
+/// de un contrato que cuenta también evalúa a los demás contratos del Trabajador (si no, un apto anterior a ese «No apto»
+/// revivía en otro contrato). De los contratos que no cuentan no sale ninguna fila ni ninguna acreditación positiva, y el
+/// Trabajador sin ninguna evidencia en un contrato que cuenta sigue sin aparecer (hueco 1). Un «No apto» de un contrato que la
+/// Asignación de Cartera del actor no deja ver no se lee (no se cambia la autorización). (8) Cada evidencia es de un
 /// contrato: un Trabajador en dos contratos se evalúa en cada uno y sale una sola vez, con el estado menos favorable de todos
-/// ellos (decisión del 2026-11-17, P3 punto 4); la fila cita el contrato y la Empresa contratista que dan ese estado y lleva en
-/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas (solo las de los contratos que cuentan). El «No apto» de un
-/// contrato que cuenta evalúa solo su propio contrato (la selección del estado menos favorable ya hace que gane el que lo
-/// tiene); solo los «No apto» de los contratos que no cuentan (7 bis) se suman a cada contrato. En la proyección restringida
-/// la fila cita, en cambio, el contrato, la Empresa y la identidad (nombre y DNI parcial) del contrato más reciente que
+/// ellos (decisión del 2026-11-17, P3 punto 4); la fila lleva en <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus
+/// Empresas (solo las de los contratos que cuentan). Cita, además, el contrato y la Empresa contratista de donde sale el
+/// estado, con dos propiedades a la vez: (a) con el mismo estado en varios contratos gana la fila cuyo estado procede de las
+/// evidencias propias de su contrato (y no de un «No apto» ajeno) y, si no hay ninguna así o hay varias, la del contrato más
+/// reciente; (b) si el estado de la fila procede de un «No apto» de otro contrato, la proyección completa cita el contrato que
+/// lo tiene (el vigente que bloquea o, si es por el corte, el de emisión más reciente), con su Empresa e identidad, salvo que
+/// ese contrato no cuente (no tiene fila ni Empresa en el listado). En la proyección restringida la fila cita, en cambio, el
+/// contrato, la Empresa y la identidad (nombre y DNI parcial) del contrato más reciente que
 /// cuenta. (9) En una fila Apto de
 /// la proyección completa, el próximo vencimiento puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
 /// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
@@ -224,10 +229,11 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             : await evidenciasContext.EvidenciasInbound
                 .Where(e => otrosIds.Contains(e.ContratoAccesoId) && e.SoloConclusionAptitud && e.TrabajadorOrigenId != null)
                 .ToListAsync(cancellationToken);
-        // Solo los de los contratos que no cuentan se suman como ajenos: los «No apto» de los contratos que sí cuentan ya están en
-        // sus propias evidencias, y sumarlos a los demás contratos haría que un contrato salga NoApto por el «No apto» de otro y
-        // que la fila cite un contrato y una Empresa contratista que no lo tienen.
-        var noAptosDeContratosQueNoCuentan = evidenciasDeOtros
+        // Los «No apto» Aceptados de todos los contratos visibles del Centro, cuenten o no, se suman como ajenos a cada contrato
+        // (decisión del 2026-11-17, P3, ronda 7): sirven para el bloqueo y para el corte «solo acredita un apto posterior». Sin
+        // los de los contratos que cuentan, un apto anterior a un «No apto» revive en otro contrato. La cita de la fila no se
+        // decide aquí sino al escoger el contrato (desempate y origen ajeno, más abajo).
+        var noAptosDelCentro = evidencias.Concat(evidenciasDeOtros)
             .Where(e => e.TrabajadorOrigenId is not null && EsNoApto(e) && EvidenciasInboundProyeccion.EstaAceptada(e))
             .ToLookup(e => e.TrabajadorOrigenId!.Value);
 
@@ -248,7 +254,9 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             .OrderBy(x => x.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(x => x.Requisito.Id)
             .ToList();
 
-        var filas = new Dictionary<Guid, AptoHoyDto>();
+        var filas = new Dictionary<Guid, FilaInterna>();
+        var contratosPorId = contratos.ToDictionary(c => c.Id);
+        var identidades = new Dictionary<(Guid Trabajador, Guid Contrato), EvidenciaInbound>();
         var empresasPorTrabajador = new Dictionary<Guid, List<Guid>>();
         // Los contratos van del más reciente al más antiguo: el primero en el que sale un Trabajador es el más reciente que cuenta.
         // Junto con la identidad (nombre y documento) que trae su evidencia más reciente: la proyección restringida cita ese contrato.
@@ -264,16 +272,22 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             foreach (var porTrabajador in delContrato.Where(e => e.TrabajadorOrigenId is not null).GroupBy(e => e.TrabajadorOrigenId!.Value))
             {
                 var propias = porTrabajador.ToList();
-                // Solo los «No apto» Aceptados de los contratos que no cuentan se suman a lo propio; nunca una acreditación positiva.
-                var ajenas = noAptosDeContratosQueNoCuentan[porTrabajador.Key];
+                // Los «No apto» Aceptados de los demás contratos visibles del Centro (cuenten o no) se suman a lo propio; nunca una
+                // acreditación positiva. Los del propio contrato ya están en `propias`.
+                var ajenas = noAptosDelCentro[porTrabajador.Key].Where(e => e.ContratoAccesoId != contrato.Id).ToList();
                 var evaluadas = evaluadasEmpresa.Concat(
-                    Evaluar(exigidosTrabajador, propias.Concat(ajenas).ToList(), hoy, SujetoDelRequisitoInbound.Trabajador)).ToList();
+                    Evaluar(exigidosTrabajador, propias.Concat(ajenas).ToList(), hoy, SujetoDelRequisitoInbound.Trabajador,
+                        ajenas.Select(e => e.Id).ToHashSet())).ToList();
                 var identidad = propias.OrderByDescending(e => e.ValidadaEnUtc).ThenBy(e => e.Id).First();
+                identidades[(porTrabajador.Key, contrato.Id)] = identidad;
                 var fila = Resumir(porTrabajador.Key, identidad, contrato, evaluadas, hoy);
 
-                // Decisión del 2026-11-17 (P3, punto 4): con varios contratos en el Centro, el Trabajador toma el estado menos
-                // favorable de todos. Con el mismo estado se queda el primero (el contrato más reciente).
-                if (!filas.TryGetValue(porTrabajador.Key, out var previa) || fila.Estado > previa.Estado)
+                // Decisión del 2026-11-17 (P3, punto 4 y ronda 7): con varios contratos en el Centro, el Trabajador toma el estado
+                // menos favorable de todos. Con el mismo estado gana la fila cuyo estado procede de las evidencias propias de su
+                // contrato (no de un «No apto» ajeno); si no hay ninguna así, o hay varias, se queda la primera (la más reciente).
+                if (!filas.TryGetValue(porTrabajador.Key, out var previa)
+                    || fila.Dto.Estado > previa.Dto.Estado
+                    || (fila.Dto.Estado == previa.Dto.Estado && previa.ContratoOrigenAjenoId is not null && fila.ContratoOrigenAjenoId is null))
                     filas[porTrabajador.Key] = fila;
                 if (!empresasPorTrabajador.TryGetValue(porTrabajador.Key, out var empresas))
                     empresasPorTrabajador[porTrabajador.Key] = empresas = [];
@@ -285,10 +299,37 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
 
         // La restricción va antes de ordenar: el orden no puede delatar un «en tolerancia» que la proyección restringida oculta.
         return filas
-            .Select(par => par.Value with { EmpresasContratistaIds = empresasPorTrabajador[par.Key] })
-            .Select(f => completa ? f : Restringida(f, masRecientePorTrabajador[f.TrabajadorId].Contrato, masRecientePorTrabajador[f.TrabajadorId].Identidad))
+            .Select(par => (Fila: par.Value, Dto: par.Value.Dto with { EmpresasContratistaIds = empresasPorTrabajador[par.Key] }))
+            .Select(x => completa
+                ? CitarElContratoDelNoApto(x.Dto, x.Fila.ContratoOrigenAjenoId, contratosPorId, identidades)
+                : Restringida(x.Dto, masRecientePorTrabajador[x.Dto.TrabajadorId].Contrato, masRecientePorTrabajador[x.Dto.TrabajadorId].Identidad))
             .OrderByDescending(f => f.Estado).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.TrabajadorId)
             .ToList();
+    }
+
+    /// <summary>
+    /// Proyección completa: si el estado de la fila depende de un «No apto» de otro contrato (la fila salió de un contrato cuyas
+    /// evidencias propias no lo dan), cita el contrato, la Empresa contratista y la identidad del contrato que tiene ese «No apto»,
+    /// no el contrato que solo lo sufre. Si ese contrato no cuenta (Suspendido, Finalizado...) no se cita: no tiene fila ni
+    /// Empresa en el listado, y la fila se queda con el contrato que la produjo.
+    /// </summary>
+    private static AptoHoyDto CitarElContratoDelNoApto(
+        AptoHoyDto fila, Guid? contratoOrigenId, IReadOnlyDictionary<Guid, ContratoAcceso> contratos,
+        IReadOnlyDictionary<(Guid Trabajador, Guid Contrato), EvidenciaInbound> identidades)
+    {
+        if (contratoOrigenId is not { } origen
+            || !contratos.TryGetValue(origen, out var citado)
+            || !identidades.TryGetValue((fila.TrabajadorId, origen), out var identidad))
+            return fila;
+
+        return fila with
+        {
+            ContratoAccesoId = citado.Id,
+            EmpresaContratistaId = citado.EmpresaContratistaId,
+            TipoContrato = citado.Tipo,
+            Nombre = identidad.SujetoNombre,
+            DocumentoIdentidad = identidad.SujetoDocumentoIdentidad,
+        };
     }
 
     /// <summary>
@@ -334,7 +375,8 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
     }
 
     private static List<Evaluado> Evaluar(
-        IReadOnlyList<Exigido> exigidos, IReadOnlyList<EvidenciaInbound> delSujeto, DateOnly hoy, SujetoDelRequisitoInbound sujeto) =>
+        IReadOnlyList<Exigido> exigidos, IReadOnlyList<EvidenciaInbound> delSujeto, DateOnly hoy, SujetoDelRequisitoInbound sujeto,
+        IReadOnlySet<Guid>? ajenas = null) =>
         exigidos
             .Select(x =>
             {
@@ -346,11 +388,13 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
                 // el tipo del Tenant TCE.
                 var exigido = revelaSalud ? x with { ToleranciaDias = 0 } : x;
                 return new Evaluado(
-                    x.Nombre, sujeto, MejorDe(exigido, delTipo.Where(EvidenciasInboundProyeccion.EstaAceptada), hoy), revelaSalud);
+                    x.Nombre, sujeto,
+                    MejorDe(exigido, delTipo.Where(EvidenciasInboundProyeccion.EstaAceptada).ToList(), ajenas ?? new HashSet<Guid>(), hoy),
+                    revelaSalud);
             })
             .ToList();
 
-    private static AptoHoyDto Resumir(
+    private static FilaInterna Resumir(
         Guid trabajadorId, EvidenciaInbound identidad, ContratoAcceso contrato, IReadOnlyList<Evaluado> evaluadas, DateOnly hoy)
     {
         // Las evaluaciones de la Empresa contratista van primero en la lista: lo que deja fuera a todos (D3) se cita antes que
@@ -371,15 +415,47 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             : ocultaCausa ? CausaNoAptitudInbound.NoAcreditado : peor!.Resultado.Causa;
         var fecha = peor is null ? proximo : ocultaCausa ? null : peor.Resultado.Vencimiento;
 
-        return new AptoHoyDto(
-            trabajadorId, identidad.SujetoNombre, identidad.SujetoDocumentoIdentidad, contrato.Id, contrato.EmpresaContratistaId,
-            contrato.Tipo, estado,
-            peor?.Nombre, peor?.Sujeto, causa, fecha);
+        // El estado de la fila depende de un «No apto» ajeno solo si todo lo que lo fija lo cumple (si otro requisito, o la
+        // Empresa contratista, ya lo deja en ese estado por lo propio del contrato, procede de lo propio).
+        var origenAjeno = peor is not null && evaluadas.Where(e => e.Resultado.Estado == estado).All(e => e.Resultado.ContratoAjenoId is not null)
+            ? peor.Resultado.ContratoAjenoId
+            : null;
+
+        return new FilaInterna(
+            new AptoHoyDto(
+                trabajadorId, identidad.SujetoNombre, identidad.SujetoDocumentoIdentidad, contrato.Id, contrato.EmpresaContratistaId,
+                contrato.Tipo, estado,
+                peor?.Nombre, peor?.Sujeto, causa, fecha),
+            origenAjeno);
     }
 
-    private static Resultado MejorDe(Exigido exigido, IEnumerable<EvidenciaInbound> candidatas, DateOnly hoy)
+    /// <summary>
+    /// El mejor resultado de un requisito con las evidencias Aceptadas del sujeto, propias y «No apto» ajenos (<paramref name="ajenas"/>,
+    /// los ids de estos últimos). Si los ajenos cambian el estado respecto de evaluar solo lo propio, el resultado lleva el contrato
+    /// del «No apto» ajeno que lo provoca: el que bloquea y, si no hay, el de la emisión más reciente (el que fija el corte).
+    /// </summary>
+    private static Resultado MejorDe(
+        Exigido exigido, IReadOnlyList<EvidenciaInbound> candidatas, IReadOnlySet<Guid> ajenas, DateOnly hoy)
     {
-        var lista = candidatas.ToList();
+        var conAjenas = Calcular(exigido, candidatas, hoy);
+        var delTipoAjenas = candidatas.Where(e => ajenas.Contains(e.Id)).ToList();
+        if (delTipoAjenas.Count == 0)
+            return conAjenas;
+
+        var soloPropias = Calcular(exigido, candidatas.Where(e => !ajenas.Contains(e.Id)).ToList(), hoy);
+        if (soloPropias.Estado == conAjenas.Estado)
+            return conAjenas;
+
+        // El que bloquea (vigente) y, si ninguno bloquea, el que fija el corte (el de emisión más reciente); a igualdad, el de menor Id.
+        var bloqueantes = delTipoAjenas.Where(e => EsNoAptoVigente(exigido, e, hoy)).ToList();
+        var entre = bloqueantes.Count > 0 ? bloqueantes : delTipoAjenas;
+        var emisionMasReciente = entre.Max(e => e.FechaEmision);
+        var provoca = entre.Where(e => e.FechaEmision == emisionMasReciente).OrderBy(e => e.Id).First();
+        return conAjenas with { ContratoAjenoId = provoca.ContratoAccesoId };
+    }
+
+    private static Resultado Calcular(Exigido exigido, IReadOnlyList<EvidenciaInbound> lista, DateOnly hoy)
+    {
         if (lista.Count == 0)
             return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.SinDocumentoValidado, null);
 
@@ -470,7 +546,14 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
 
     private sealed record Exigido(RequisitoPlantilla Requisito, string Nombre, int ToleranciaDias, bool RevelaSalud);
 
-    private sealed record Resultado(EstadoAptitudInbound Estado, CausaNoAptitudInbound? Causa, DateOnly? Vencimiento);
+    private sealed record Resultado(
+        EstadoAptitudInbound Estado, CausaNoAptitudInbound? Causa, DateOnly? Vencimiento, Guid? ContratoAjenoId = null);
+
+    /// <summary>
+    /// La fila de un contrato, antes de escoger la del Trabajador. <paramref name="ContratoOrigenAjenoId"/> (dato privado de la
+    /// query, no sale en el DTO) es el contrato cuyo «No apto» ajeno provoca el estado de la fila; nulo si procede de lo propio.
+    /// </summary>
+    private sealed record FilaInterna(AptoHoyDto Dto, Guid? ContratoOrigenAjenoId);
 
     private sealed record Evaluado(string Nombre, SujetoDelRequisitoInbound Sujeto, Resultado Resultado, bool RevelaSalud);
 }
