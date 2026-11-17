@@ -729,6 +729,9 @@ public static class InfrastructureServiceCollectionExtensions
             [CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound.NombreDelModulo]));
         services.AddSingleton<CaeManager.Infrastructure.FileStorage.IContribucionReferenciasArchivo,
             CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        // Lectura inversa X-2 (demo Inbound, P0b): el veredicto de los Tenants TCE sobre los Documentos del Tenant TEC del
+        // contexto firmado. Sin consumidor todavía: la Query del Tenant TEC lo cablea en su PR.
+        services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.ILectorVeredictosTec, LectorVeredictosTecEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
