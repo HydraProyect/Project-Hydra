@@ -53,8 +53,9 @@ public class ValidacionInboundConBackendTests : BunitContext
 
     /// <summary>
     /// Solo la clave enciende la validación, en cualquier entorno (DECISION_LOG 2026-11-17, 2757bac y cc7e68e). El entorno
-    /// se registra en el contenedor para que una guarda que vuelva a leerlo desde ahí (una configuración de opciones con
-    /// <see cref="IHostEnvironment"/>) haga fallar las filas de Production y Staging.
+    /// se da por las dos vías por las que el host real lo expone, el contenedor (<see cref="IHostEnvironment"/>) y la clave
+    /// <c>environment</c> de la configuración, para que una guarda que vuelva a leerlo por cualquiera de ellas haga fallar
+    /// las filas de Production y Staging. Que Program.cs no lo filtre lo fija ValidacionInboundRegistradaEnProgramTests.
     /// </summary>
     [Theory]
     [InlineData("Production", "true", true)]
@@ -69,7 +70,9 @@ public class ValidacionInboundConBackendTests : BunitContext
     public void La_opcion_la_enciende_solo_su_clave_en_cualquier_entorno(string entorno, string? valor, bool esperado)
     {
         var configuracion = new ConfigurationBuilder()
-            .AddInMemoryCollection(valor is null ? [] : [new("Inbound:Validacion:Habilitado", valor)])
+            .AddInMemoryCollection(valor is null
+                ? [new(HostDefaults.EnvironmentKey, entorno)]
+                : [new(HostDefaults.EnvironmentKey, entorno), new("Inbound:Validacion:Habilitado", valor)])
             .Build();
         var servicios = new ServiceCollection();
         servicios.AddSingleton<ISender>(_mediador);
