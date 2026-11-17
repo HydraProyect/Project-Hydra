@@ -304,6 +304,7 @@ public class LocalizacionInfraestructuraTests
     [Theory]
     [InlineData(ResultadoEscrituraCuenta.Conflicto)]
     [InlineData(ResultadoEscrituraCuenta.CuentaNoVisible)]
+    [InlineData(ResultadoEscrituraCuenta.NoPermitida)]
     public async Task Si_la_cuenta_no_llega_a_guardarse_no_hay_cookie_ni_respuesta_de_exito(ResultadoEscrituraCuenta fallo)
     {
         var usuarioId = Guid.NewGuid();

@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -20,7 +21,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.VincularTenant
 /// </para>
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
-public record VincularTenantContratistaCommand(Guid ContratoAccesoId, Guid TenantContratistaId, Guid Version = default) : ICommand;
+public record VincularTenantContratistaCommand(Guid ContratoAccesoId, Guid TenantContratistaId, Guid Version = default) : ICommand, IComandoInbound;
 
 public class VincularTenantContratistaCommandValidator : AbstractValidator<VincularTenantContratistaCommand>
 {
@@ -33,13 +34,16 @@ public class VincularTenantContratistaCommandValidator : AbstractValidator<Vincu
 
 /// <summary>Misma autoridad que el resto de comandos del contrato de acceso (<see cref="ContratoAccesoAutorizacion"/>).</summary>
 public class VincularTenantContratistaCommandHandler(
-    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, ITenantActual tenantActual, IUnitOfWork unitOfWork)
+    IContratoAccesoRepository repositorio, IAlcanceDatosService alcanceDatos, ITenantActual tenantActual, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<VincularTenantContratistaCommand, Result>
 {
     private const string MensajePropio = "La organización de la Empresa contratista no puede ser tu propia organización.";
 
     public async Task<Result> Handle(VincularTenantContratistaCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var contrato = await repositorio.ObtenerPorIdAsync(request.ContratoAccesoId, cancellationToken);
         if (contrato is null || !await ContratoAccesoAutorizacion.VisibleAsync(contrato.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("ContratoAcceso.NoEncontrado", "El contrato de acceso no existe o no tienes acceso."));

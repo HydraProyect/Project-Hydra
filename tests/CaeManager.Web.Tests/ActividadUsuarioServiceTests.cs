@@ -106,6 +106,7 @@ public class ActividadUsuarioServiceTests
     [Theory]
     [InlineData(ResultadoEscrituraCuenta.Conflicto)]
     [InlineData(ResultadoEscrituraCuenta.CuentaNoVisible)]
+    [InlineData(ResultadoEscrituraCuenta.NoPermitida)]
     public async Task Una_actividad_que_no_llega_a_guardarse_deja_aviso_y_conserva_la_ausencia(ResultadoEscrituraCuenta fallo)
     {
         var ultimaActividad = DateTime.UtcNow.AddMinutes(-30);
@@ -145,8 +146,8 @@ public class ActividadUsuarioServiceTests
     }
 
     /// <summary>
-    /// Una escritura rechazada por la base no es un conflicto: bajo Sesión Privilegiada <c>cae_app_soporte</c> no
-    /// tiene <c>UPDATE</c>, y el fallo sigue llegando a <c>MainLayout</c> como hasta ahora.
+    /// Una excepción de la escritura que el puerto no traduce a resultado sube hasta quien llama (el 42501 de
+    /// <c>cae_app_soporte</c> ya no es una: llega como <c>NoPermitida</c>), y la siguiente llamada vuelve a intentarlo.
     /// </summary>
     [Fact]
     public async Task Un_rechazo_de_la_escritura_sube_y_la_siguiente_llamada_vuelve_a_intentarlo()

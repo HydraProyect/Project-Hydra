@@ -21,6 +21,10 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
         Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
             && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
 
+    public Task<IReadOnlyList<IdentidadEmpresa>> ListarIdentidadesIncluyendoBajasAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<IdentidadEmpresa>>(Empresas.Where(e => e.TenantId == TenantPropietarioId)
+            .Select(e => new IdentidadEmpresa(e.Id, e.Cif, e.RazonSocial, e.EstaEliminado)).ToList());
+
     public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
             && e.Cif == cif.Trim().ToUpperInvariant() && e.Id != excluirId));

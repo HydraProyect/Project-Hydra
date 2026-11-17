@@ -35,7 +35,7 @@ public class PlantillasListaGen2Tests : BunitContext
     {
         public List<PlantillaDocumentoListaDto> Almacen { get; } = [];
         public bool FallaCatalogo { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla.</summary>

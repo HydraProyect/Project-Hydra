@@ -70,6 +70,9 @@ on:
       - unlabeled
       - milestoned # REC-140: ni al asignar el milestone después de abrir la PR
       - demilestoned
+      - ready_for_review # 2026-11-16: el borrador temprano (abrir-pr-hydra) se abre
+      # antes de la revisión; al salir de borrador el check se recalcula aunque el
+      # cuerpo no se haya editado después.
       - edited # turno 2026-09-18 (T3): las secciones "Paso operativo en
       # servidores" y "Revisión Codex" viven en el CUERPO de la PR, no en sus
       # etiquetas — sin este disparador, rellenarlas tras abrir la PR (el

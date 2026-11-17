@@ -60,6 +60,8 @@ public class CabeceraRedisenadaTests : BunitContext
         Services.AddSingleton<AntiforgeryStateProvider>(new AntiforgeryFalso());
         Services.AddSingleton<ILogger<MenuUsuario>>(NullLogger<MenuUsuario>.Instance);
         Services.AddScoped<ContextoMarcoDelAmbito>();
+        // SelectorIdioma (dentro de MenuUsuario) consulta si hay una Sesión Privilegiada seleccionada.
+        Services.AddSingleton<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(false));
     }
 
     // ---- Iniciales del avatar ----
@@ -1144,7 +1146,7 @@ public class CabeceraRedisenadaTests : BunitContext
 
     private sealed class MediatorFalso(Func<object, object?> responder) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

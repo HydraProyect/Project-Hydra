@@ -352,6 +352,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "propietarioTenantId de cada empresa a asignar (de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync) o a retirar (de ObtenerCarteraUniversalAsync del propio Gestor CAE), ambos del Operador CAE de origen tras AutoridadSobreCarteraDeGestorCae, que además se repite dentro del candado. Nunca un Guid de la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "propietarioTenantId de cada Tenant beneficiario de ObtenerCarteraUniversalAsync del Gestor CAE desactivado, y de ObtenerOperacionesDondeEsPrincipalAsync, ambos del Operador CAE de origen de quien desactiva, solo cuando ese origen es el Tenant activo y tras AutoridadSobreCuentas y AutoridadSobreCarteraDeGestorCae bajo el candado exclusivo de la cuenta. Nunca un Guid de la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/AvisoDeCarteraSinGestorCae.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "operadorTenantId que le pasa CambiarActivacionUsuarioCommand: el Tenant de origen de quien desactiva, igual al Tenant activo y propietario de la cuenta desactivada; sella la notificación de sus Administradores como los avisos de apoyo de cartera"),
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, en sus dos llamadas (la autoridad sobre un Gestor CAE y, desde I4, ResolverActorAsync para revocar un apoyo): para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -387,6 +393,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los tenants desde el propio servicio"),
         ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del trabajo reclamado por SKIP LOCKED, nunca de un parámetro de petición"),
+        ["src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre los Tenants no de plataforma desde el propio servicio (exportación completa en autoservicio, #2008); dentro, cada solicitud se lee bajo RLS de ese Tenant y se reclama con SKIP LOCKED, nunca de un parámetro de petición"),
         ["src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario (2026-09-23: sin él, cae_app_runtime veía cero filas de AsignacionesOperacion/AsignacionesCartera)"),
         ["src/CaeManager.Infrastructure/Proyectos/CierreEventosTerminadosHostedService.cs"] =
@@ -476,6 +484,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "2 llamadas — el Tenant del Operador CAE externo y cada Tenant beneficiario, que la propia siembra aprovisiona o localiza por nombre (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "4 llamadas — el Tenant del Operador CAE externo de la cobertura (asignar a su equipo a la operación y vincular a sus Gestores CAE con su Coordinador CAE) y cada Tenant propietario (Alfa y Beta), todos aprovisionados o localizados por nombre por la propia siembra (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:Cobertura:Activo y rechazada fuera de Development"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "3 llamadas — el Tenant de cada cuenta sembrada al completar una cuenta cortada sin rol y darle el segundo factor de siembra, el Tenant TCE (su cartera, sus contratos de acceso y sus plantillas) y cada Tenant TEC (su documentación y sus autorizaciones de lectura), todos aprovisionados o localizados por nombre por la propia siembra (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:Inbound:Activo y rechazada fuera de Development"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/LineaInboundDemoSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "1 llamada — el Tenant TCE de la siembra Inbound, localizado por su nombre y exigido su marcador de demo, para sellar la única fila que escribe (su línea Inbound del Producto Contratado) con el contexto de bootstrap (DECISION_LOG 2026-11-16); inerte salvo DatosPrueba:Inbound:Activo y rechazada fuera de Development"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/LineaOutboundGestionPropiaDemoSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "1 llamada, dentro de un bucle — cada Tenant de demostración de gestión propia de su lista cerrada (hoy el Tenant Beta de la cobertura), localizado por su nombre y exigido su marcador de demo, para sellar la única fila que escribe (su línea Outbound de gestión propia del Producto Contratado) con el contexto de bootstrap, y para las dos lecturas de su guarda de gestión propia (delegación activa de Operador CAE externo y Asignación de Operación externa, sobre filas del propio Tenant), que van dentro de ese mismo ámbito; inerte salvo DatosPrueba:Activo e inerte fuera de Development"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "8 llamadas — el Tenant del Operador CAE externo del piloto (cuatro: las tarifas que aplica a cada Tenant propietario del piloto —plano Comercial; se leen y, solo si el Operador aún no tiene ninguna para ese Tenant, se registran—, vincular a los Gestores CAE con su Coordinadora CAE y sembrar el calendario laboral del equipo, el segundo factor de siembra de su Administrador —la misma llamada, sobre el Tenant de la propia cuenta, da el suyo al Administrador de T1 y lee el Cliente empresarial al que queda ligada la cuenta de Usuario de Cliente de T1— y la operación heredada) y cada Tenant propietario del piloto (tres: su Asignación de Operación con sus Asignaciones de Cartera —también la del Administrador del Operador CAE externo— y su Encargo de administración de la siembra de demostración, sus datos, y —solo lectura, cuando la fecha de la demostración queda fuera de margen— si su Empresa propia ya existe, para decidir si queda algo por sembrar), más una que comparten los siete: la instrucción de tratamiento de IA de cada uno, borrador de demostración (lee si ya tiene una vigente y, si no, la registra); los Ids los devuelve DelegacionDemoSeeder.AprovisionarTenantAsync al aprovisionar o localizar por nombre del catálogo, o salen de la tabla de Tenants por ese mismo nombre en la lectura, y la siembra se niega antes si uno de esos nombres lo ocupa un Tenant sin marcador de demo; inerte salvo DatosPrueba:PilotoOutbound:Activo y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] =
@@ -513,6 +527,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Cumplimiento/Queries/ObtenerHistoricoInstruccionTratamientoIaTenantPropietario/ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion,
                 "request.TenantPropietarioId, mismo criterio que Registrar — lectura cruzada, no solo escritura"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/AvisarCambioSubencargadoCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "cada Tenant propietario que devuelve ISubencargadoRepository.TenantsPropietariosAsync, tras " +
+                "AutorizacionSubencargados.ActorDePlataformaAsync confirmar AdminPlataforma global, 2FA y TOTP (#2010, D-7)"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/ActivarSubencargadoCommand.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion,
+                "cada Tenant propietario, mismo criterio que Avisar; solo lee si tiene aviso Enviado con plazo (#2010, D-7)"),
 
         // ── TENANT DE ORIGEN DEL USUARIO (Application) ──────────────────────────────
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] =
@@ -637,6 +658,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/LineaInboundDemoSeeder.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 8,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
@@ -648,6 +671,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] = 2,
+            ["src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,

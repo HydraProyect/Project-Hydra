@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
@@ -19,7 +20,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 /// </param>
 [AreaDelEncargo("ContratosAcceso")]
 public record RegistrarEvidenciaInboundCommand(
-    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>;
+    Guid ContratoAccesoId, Guid DocumentoOrigenId, Guid TipoDocumentoId, ConclusionAptitud? Conclusion) : ICommand<Guid>, IComandoInbound;
 
 /// <summary>
 /// Registra la copia de evidencia validada de un Documento original del Tenant de la Empresa contratista (Inbound M1,
@@ -54,11 +55,14 @@ public class RegistrarEvidenciaInboundCommandHandler(
     IUnitOfWork unitOfWork,
     TimeProvider reloj,
     IEvidenciasInboundQueryContext evidenciasContext,
-    ILogger<RegistrarEvidenciaInboundCommandHandler> logger)
+    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RegistrarEvidenciaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RegistrarEvidenciaInboundCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
             || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);

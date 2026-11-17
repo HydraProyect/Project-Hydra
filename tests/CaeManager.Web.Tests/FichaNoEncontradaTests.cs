@@ -42,7 +42,7 @@ public class FichaNoEncontradaTests : BunitContext
 
     private sealed class Mediador(Func<IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {

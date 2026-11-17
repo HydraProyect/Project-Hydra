@@ -31,7 +31,8 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
     ITenantsQueryContext tenants,
     IUnitOfWork unitOfWork,
     ILogger<AceptarSolicitudIncorporacionCarteraCommandHandler> logger,
-    ITransaccionDeComando transaccion)
+    ITransaccionDeComando transaccion,
+    CaeManager.Application.Clientes.IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<AceptarSolicitudIncorporacionCarteraCommand, Result>
 {
     public async Task<Result> Handle(AceptarSolicitudIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -71,6 +72,15 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
                     return Result.Fallo(ErroresSolicitudCartera.PropiaSolicitud);
 
                 var ahora = DateTime.UtcNow;
+
+                // Candado compartido sobre la cuenta del solicitante, antes de comprobar que sigue
+                // activa (revisión de la PR A de la baja de un Gestor CAE con reasignación de cartera):
+                // la desactivación toma el exclusivo y decide sobre la cartera que ve. Sin este
+                // candado, una desactivación confirmada entre la comprobación y el guardado no vería
+                // la cartera aún sin confirmar y dejaría a una cuenta desactivada con una Asignación
+                // de Cartera vigente sobre la que nadie ha decidido. Con él, o la desactivación espera
+                // a esta aceptación y la ve, o esta espera a la desactivación y anula la solicitud.
+                await bloqueoCartera.BloquearCompartidoAsync([solicitud.SolicitanteUsuarioId], ct);
 
                 // La solicitud pudo esperar días: quien la pidió puede haber dejado
                 // de ser Gestor CAE, o su cuenta estar desactivada. Aceptar a ciegas

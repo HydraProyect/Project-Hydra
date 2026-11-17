@@ -45,7 +45,7 @@ on:
       - reopened
       # Solo prueba el guion contra el código que trae la PR: no depende de
       # milestone, etiquetas ni del cuerpo, así que no necesita
-      # labeled/unlabeled/milestoned/demilestoned/edited — esos tipos solo
+      # labeled/unlabeled/milestoned/demilestoned/ready_for_review/edited — esos tipos solo
       # afectan a lo que evalúa gobernanza-pr.yml (pull_request_target, en
       # su propio fichero).
 

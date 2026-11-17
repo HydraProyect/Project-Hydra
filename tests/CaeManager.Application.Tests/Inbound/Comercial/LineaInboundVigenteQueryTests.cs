@@ -110,7 +110,8 @@ public class LineaInboundVigenteQueryTests
     [Fact]
     public async Task La_linea_Inbound_cuyo_inicio_no_ha_llegado_no_cuenta()
     {
-        // La política de INSERT admite un inicio hasta 5 minutos por delante del reloj de la base.
+        // Desde la issue #2259 la política de INSERT no admite un inicio posterior al now() de la base: esta fila solo la
+        // escriben el propietario de la base o un alta anterior a esa migración.
         Contratar(TenantActivo, desde: Ahora.AddMinutes(1));
 
         (await LeerAsync()).Should().BeFalse("el gate de la base exige VigenteDesdeUtc <= ahora");

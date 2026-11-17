@@ -114,11 +114,10 @@ public class ProponerPlanAsistenteQueryHandler(
 
     public async Task<Result<PlanPropuestoDto>> Handle(ProponerPlanAsistenteQuery request, CancellationToken cancellationToken)
     {
-        if (tenantActual.TenantId is not { } tenantPantalla || tenantPantalla == Guid.Empty
-            || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantPantalla, cancellationToken))
-            return Result.Fallo<PlanPropuestoDto>(Error.Crear(
-                "AsistenteIa.SinInstruccion",
-                "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
+        if (tenantActual.TenantId is not { } tenantPantalla || tenantPantalla == Guid.Empty)
+            return Result.Fallo<PlanPropuestoDto>(Error.Crear(ErrorIaNoHabilitada.Codigo, ErrorIaNoHabilitada.SinInstruccion));
+        if (!await instruccionTratamientoIa.EstaHabilitadaAsync(tenantPantalla, cancellationToken))
+            return Result.Fallo<PlanPropuestoDto>(await ErrorIaNoHabilitada.CrearAsync(instruccionTratamientoIa, tenantPantalla, cancellationToken));
 
         var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
         if (cartera.ErrorSiFalta() is { } sinInstruccion)

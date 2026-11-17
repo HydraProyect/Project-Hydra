@@ -72,6 +72,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // La guarda de siembra de cada Tenant TEC de la siembra Inbound de Development cuenta también las bajas: con el
+        // Tenant propietario explícito en el predicado y dentro de su AmbitoTenantExplicito (la RLS sigue aplicando).
+        [("src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs", "var yaSembrado = await dbContext.Trabajadores.IgnoreQueryFilters().AnyAsync(t => t.TenantId == tec.Id, cancellationToken) || await dbContext.Documentos.IgnoreQueryFilters().AnyAsync(d => d.TenantId == tec.Id, cancellationToken);")] = 1,
         // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
         // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
@@ -599,6 +602,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // #2010, D-7 (revisión Codex P2 de la PR #2274): la activación de un subencargado cierra las altas de Tenant
+        // propietario con LOCK TABLE en modo SHARE y lock_timeout local. Texto constante, sin parámetros; no lee ni escribe filas.
+        [("src/CaeManager.Infrastructure/Persistence/CerrojoAltasTenantPropietario.cs", "return dbContext.Database.ExecuteSqlRawAsync(\"SET LOCAL lock_timeout = '5s'; LOCK TABLE public.\\\"Tenants\\\" IN SHARE MODE\", cancellationToken);")] = 1,
+
         // Regla A-1 (revisión Codex de la PR #2074): mismo candado, por Tenant, para que el alta de un
         // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
         [("src/CaeManager.Infrastructure/Persistence/SerializacionAltasAcreditacionEmpresa.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
@@ -606,6 +613,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // D-P11 (revisión Codex r1 de la PR #2193, ALTO): mismo candado, por Tenant propietario, para que dos altas o
         // restauraciones concurrentes no dejen dos Empresas propias activas. Solo toma pg_advisory_xact_lock; no toca filas.
         [("src/CaeManager.Infrastructure/Persistence/CandadoEmpresaPropia.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2008 (D-8), una exportación completa cada 24 h por Tenant: mismo patrón de candado por Tenant propietario
+        // para que dos solicitudes concurrentes no pasen las dos la comprobación del límite. Solo toma
+        // pg_advisory_xact_lock con la clave interpolada como parámetro; no toca filas.
+        [("src/CaeManager.Infrastructure/Exportacion/CandadoExportacionCompleta.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2008: el servicio de fondo reclama la solicitud pendiente del Tenant en curso con FOR UPDATE SKIP LOCKED,
+        // como TrabajoAnalisisDocumentoRepository, para que dos réplicas no generen la misma exportación si la
+        // elección de líder se pierde a mitad. Corre bajo cae_app_runtime con el Tenant explícito: RLS acota la fila.
+        [("src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
 
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,

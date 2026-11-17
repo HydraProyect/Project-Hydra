@@ -1,3 +1,4 @@
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Integraciones;
@@ -26,7 +27,7 @@ namespace CaeManager.Domain.Integraciones;
 /// proveedor (Microsoft 365) no lo justifica todavía (YAGNI, ver el propio
 /// § 11 del documento: "no construir capacidades especulativas").
 /// </summary>
-public class ConexionIntegracion : EntidadBase
+public class ConexionIntegracion : EntidadBase, IAccionAuditoriaPropia
 {
     public const int LongitudMaximaBuzonEmail = 320;
     public const int LongitudMaximaNombre = 200;
@@ -127,8 +128,10 @@ public class ConexionIntegracion : EntidadBase
     /// La simple caducidad de la verificación no la fija: mientras la conexión está sin verificar su correo espera en la
     /// cola (Pendiente o Retenido) y no se pierde; si después se descarta, lo marca (a). Cada escritor solo la retrasa,
     /// nunca la adelanta. Mientras esté puesta, Conexiones avisa de posible correo no recuperado desde esa fecha. La lee
-    /// la recuperación del hueco (<c>RecuperacionHuecoCorreoService</c>, issue #2124), y solo ella la limpia
-    /// (<see cref="CompletarRecuperacionHueco"/>), tras una lectura completa y la ingesta de lo leído. Null: sin hueco.
+    /// la recuperación del hueco (<c>RecuperacionHuecoCorreoService</c>, issue #2124). La limpian dos caminos: la propia
+    /// recuperación (<see cref="CompletarRecuperacionHueco"/>), tras una lectura completa y la ingesta de lo leído, y la
+    /// acción Confirmar de Conexiones (<see cref="ReconocerAvisoHueco"/>), cuando un usuario autorizado da el aviso por
+    /// revisado, con fila de auditoría propia. Null: sin hueco.
     /// </summary>
     public DateTime? HuecoPendienteDesdeUtc { get; private set; }
 
@@ -136,8 +139,8 @@ public class ConexionIntegracion : EntidadBase
     /// Desde qué fecha de recepción lee el correo la recuperación del hueco en curso: la marca, o
     /// <see cref="AntiguedadMaximaRecuperacion"/> antes del inicio si la marca es más antigua. Null: ninguna recuperación en
     /// curso. Cualquier pérdida que se registre mientras tanto (los disparadores de <see cref="HuecoPendienteDesdeUtc"/>,
-    /// muevan o no la marca), Deshabilitar y Rehabilitar la anulan (<see cref="AnularRecuperacionHueco"/>): la siguiente
-    /// pasada empieza otra desde la marca de ese momento. Anularla modifica la fila, así que su guardado cambia la versión
+    /// muevan o no la marca), Deshabilitar, Rehabilitar y Confirmar el aviso (<see cref="ReconocerAvisoHueco"/>) la anulan
+    /// (<see cref="AnularRecuperacionHueco"/>): la siguiente pasada empieza otra desde la marca de ese momento, si la hay. Anularla modifica la fila, así que su guardado cambia la versión
     /// de la conexión y una limpieza que la hubiera leído antes ya no puede guardarse (concurrencia optimista).
     /// </summary>
     public DateTime? RecuperacionHuecoCubreDesdeUtc { get; private set; }
@@ -520,6 +523,41 @@ public class ConexionIntegracion : EntidadBase
         HuecoPendienteDesdeUtc = null;
         AnularRecuperacionHueco();
         return true;
+    }
+
+    /// <summary>
+    /// La acción Confirmar de Conexiones (issue #2124): un usuario autorizado da por revisado el aviso de posible correo no
+    /// recuperado. Limpia <see cref="HuecoPendienteDesdeUtc"/> y anula la recuperación en curso, así que una pasada de la
+    /// recuperación que la hubiera leído antes ya no coincide con la conexión y no escribe nada. Solo con la conexión
+    /// Habilitada y sin <see cref="MarcaHuecoPorRegistrarDesdeUtc"/>: con la conexión desconectada o en error, o con una
+    /// marca todavía por registrar, el hueco sigue abierto y reconocerlo dejaría correo perdido sin aviso. No toca nada
+    /// más; una pérdida posterior vuelve a fijar la marca por sus disparadores. La fila de auditoría sale como
+    /// <see cref="RegistroAuditoria.AccionHuecoReconocido"/>, con la marca reconocida entre los valores de antes.
+    /// </summary>
+    /// <returns>true si había marca y se limpió; false si no había nada que reconocer (nada que guardar).</returns>
+    public bool ReconocerAvisoHueco()
+    {
+        if (HuecoPendienteDesdeUtc is null)
+            return false;
+
+        if (Estado != EstadoConexionIntegracion.Habilitada || MarcaHuecoPorRegistrarDesdeUtc is not null)
+            throw new InvalidOperationException(
+                "Solo se reconoce el aviso del hueco de una conexión Habilitada y sin marca del hueco por registrar.");
+
+        HuecoPendienteDesdeUtc = null;
+        AnularRecuperacionHueco();
+        _accionAuditoria = RegistroAuditoria.AccionHuecoReconocido;
+        return true;
+    }
+
+    // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos (patrón de ContratoAcceso).
+    private string? _accionAuditoria;
+
+    string? IAccionAuditoriaPropia.ConsumirAccionAuditoria()
+    {
+        var accion = _accionAuditoria;
+        _accionAuditoria = null;
+        return accion;
     }
 
     /// <returns>true si había una recuperación en curso.</returns>

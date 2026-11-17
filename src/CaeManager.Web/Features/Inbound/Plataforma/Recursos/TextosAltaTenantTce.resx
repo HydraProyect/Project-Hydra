@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+    <data name="TituloPagina" xml:space="preserve">
+    <value>Alta del Tenant TCE</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Plataforma · Tenants</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Tenant del Cliente con Inbound, con su Producto Contratado y su Administrador</value>
+  </data>
+  <data name="AvisoActorTitulo" xml:space="preserve">
+    <value>Alta hecha por el Actor de Plataforma TALVEG.</value>
+  </data>
+  <data name="AvisoActorTexto" xml:space="preserve">
+    <value>El Actor de Plataforma TALVEG contrata el Producto Contratado del Tenant, pero no es Gestor CAE ni Operador CAE: no gestiona la operación de ese Tenant.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No pudimos comprobar la Sesión Privilegiada. No se ha ejecutado ninguna acción.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ImpersonacionTitulo" xml:space="preserve">
+    <value>No disponible durante una impersonación</value>
+  </data>
+  <data name="ImpersonacionTexto" xml:space="preserve">
+    <value>Con un Usuario simulado activo no se contrata ni se corrige la línea Inbound: el Actor real no actúa como el Usuario simulado. Sal de la impersonación para continuar.</value>
+  </data>
+  <data name="SinSesionTitulo" xml:space="preserve">
+    <value>Hace falta una Sesión Privilegiada de Aprovisionamiento</value>
+  </data>
+  <data name="SinSesionTexto" xml:space="preserve">
+    <value>El alta del Tenant TCE solo se hace dentro de una Sesión Privilegiada de Aprovisionamiento abierta sobre ese Tenant, que es el Tenant beneficiario del Producto Contratado.</value>
+  </data>
+  <data name="SinSesionEnlace" xml:space="preserve">
+    <value>Abrir una Sesión Privilegiada desde Organizaciones externas</value>
+  </data>
+  <data name="HechoTitulo" xml:space="preserve">
+    <value>{0} dado de alta</value>
+  </data>
+  <data name="HechoTexto" xml:space="preserve">
+    <value>Producto Contratado Inbound activo desde ahora para el Tenant beneficiario {0}. Pagador TALVEG: {1}. Tramo: {2}. Modalidad: {3}. No se ha enviado ninguna invitación.</value>
+  </data>
+  <data name="VolverPlataforma" xml:space="preserve">
+    <value>Volver a Administración global</value>
+  </data>
+  <data name="PasosEtiqueta" xml:space="preserve">
+    <value>Pasos del alta</value>
+  </data>
+  <data name="PasoTenant" xml:space="preserve">
+    <value>Tenant del Cliente</value>
+  </data>
+  <data name="PasoOperacion" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="PasoProducto" xml:space="preserve">
+    <value>Producto Contratado</value>
+  </data>
+  <data name="PasoAdministrador" xml:space="preserve">
+    <value>Administrador</value>
+  </data>
+  <data name="PasoResumen" xml:space="preserve">
+    <value>Resumen</value>
+  </data>
+  <data name="CampoTenantTce" xml:space="preserve">
+    <value>Tenant TCE</value>
+  </data>
+  <data name="CampoTenantTceAyuda" xml:space="preserve">
+    <value>Es el Tenant activo de la Sesión Privilegiada: el Cliente que recibe el servicio y el Tenant propietario de sus datos.</value>
+  </data>
+  <data name="Paso1NoDisponible" xml:space="preserve">
+    <value>El nombre, el CIF y la Empresa propia del Tenant todavía no se dan de alta en esta pantalla: el Tenant se crea antes desde Organizaciones externas y aquí se contrata su línea Inbound.</value>
+  </data>
+  <data name="OperacionLeyenda" xml:space="preserve">
+    <value>Quién opera el Tenant TCE</value>
+  </data>
+  <data name="OperacionExternoTitulo" xml:space="preserve">
+    <value>Lo opera un Operador CAE externo Inbound</value>
+  </data>
+  <data name="OperacionExternoAyuda" xml:space="preserve">
+    <value>Una organización externa gestiona el Tenant TCE con un encargo de administración pleno.</value>
+  </data>
+  <data name="OperacionPropioTitulo" xml:space="preserve">
+    <value>Sin Operador CAE externo: lo opera el propio Tenant</value>
+  </data>
+  <data name="OperacionPropioAyuda" xml:space="preserve">
+    <value>El Administrador del Tenant TCE hace la operación; no hay encargo.</value>
+  </data>
+  <data name="Paso2NoDisponible" xml:space="preserve">
+    <value>No disponible todavía: la Asignación de Operación Inbound se hará en esta pantalla más adelante. Hoy el alta no asigna ningún Operador CAE externo.</value>
+  </data>
+  <data name="ProductoNotaTitulo" xml:space="preserve">
+    <value>Producto Contratado: Inbound.</value>
+  </data>
+  <data name="ProductoNotaTexto" xml:space="preserve">
+    <value>El Pagador TALVEG es quien paga el Producto Contratado; no es por eso el Tenant propietario de los datos. Pagador TALVEG ≠ Tenant propietario.</value>
+  </data>
+  <data name="CampoPagador" xml:space="preserve">
+    <value>Pagador TALVEG: Customer de Stripe</value>
+  </data>
+  <data name="CampoPagadorAyuda" xml:space="preserve">
+    <value>El identificador del Customer que ya existe en Stripe. El alta no crea Customers ni llama a Stripe.</value>
+  </data>
+  <data name="CampoTramo" xml:space="preserve">
+    <value>Tramo</value>
+  </data>
+  <data name="CampoModalidad" xml:space="preserve">
+    <value>Modalidad</value>
+  </data>
+  <data name="TramoRango" xml:space="preserve">
+    <value>De {0} a {1} Trabajadores activos</value>
+  </data>
+  <data name="ModalidadMensual" xml:space="preserve">
+    <value>Mensual</value>
+  </data>
+  <data name="ModalidadAnual" xml:space="preserve">
+    <value>Anual</value>
+  </data>
+  <data name="CampoBeneficiario" xml:space="preserve">
+    <value>Tenant beneficiario</value>
+  </data>
+  <data name="CampoBeneficiarioAyuda" xml:space="preserve">
+    <value>Para quién está activo el Producto Contratado: el Tenant TCE que se da de alta.</value>
+  </data>
+  <data name="CampoVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="CampoVigenciaValor" xml:space="preserve">
+    <value>Desde que se da de alta</value>
+  </data>
+  <data name="CampoVigenciaAyuda" xml:space="preserve">
+    <value>La vigencia empieza al dar de alta y sigue hasta que se dé de baja la línea.</value>
+  </data>
+  <data name="Paso4NoDisponible" xml:space="preserve">
+    <value>No disponible todavía: el Administrador del Tenant TCE, primer Usuario del Tenant, se invitará desde esta pantalla más adelante. Hoy el alta no envía ningún correo.</value>
+  </data>
+  <data name="SeccionTenant" xml:space="preserve">
+    <value>Tenant del Cliente</value>
+  </data>
+  <data name="SeccionOperacion" xml:space="preserve">
+    <value>Operación</value>
+  </data>
+  <data name="SeccionProducto" xml:space="preserve">
+    <value>Producto Contratado</value>
+  </data>
+  <data name="SeccionAdministrador" xml:space="preserve">
+    <value>Administrador del Tenant TCE</value>
+  </data>
+  <data name="ResumenOperador" xml:space="preserve">
+    <value>Operador CAE externo Inbound</value>
+  </data>
+  <data name="ResumenAdministrador" xml:space="preserve">
+    <value>Administrador del Tenant TCE</value>
+  </data>
+  <data name="ResumenNoDisponible" xml:space="preserve">
+    <value>No disponible todavía</value>
+  </data>
+  <data name="ResumenProducto" xml:space="preserve">
+    <value>Producto</value>
+  </data>
+  <data name="Editar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="Atras" xml:space="preserve">
+    <value>Atrás</value>
+  </data>
+  <data name="Continuar" xml:space="preserve">
+    <value>Continuar</value>
+  </data>
+  <data name="DarDeAlta" xml:space="preserve">
+    <value>Dar de alta</value>
+  </data>
+  <data name="DarDeBaja" xml:space="preserve">
+    <value>Dar de baja</value>
+  </data>
+  <data name="Guardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="Cancelado" xml:space="preserve">
+    <value>Alta cancelada: no se ha creado ningún Producto Contratado.</value>
+  </data>
+  <data name="ErrorPagador" xml:space="preserve">
+    <value>Indica el Customer de Stripe del Pagador TALVEG: solo letras sin acentos, dígitos y guion bajo.</value>
+  </data>
+  <data name="YaContratadaPista" xml:space="preserve">
+    <value>Si hay que cambiar el Pagador, el tramo o la modalidad, edita la línea Inbound vigente más abajo.</value>
+  </data>
+  <data name="ErrorInesperado" xml:space="preserve">
+    <value>No sabemos si la acción se completó. Recarga la pantalla y comprueba la línea Inbound antes de volver a intentarlo.</value>
+  </data>
+  <data name="LineaTitulo" xml:space="preserve">
+    <value>Línea Inbound vigente</value>
+  </data>
+  <data name="LineaTexto" xml:space="preserve">
+    <value>Si este Tenant ya tiene la línea Inbound, puedes corregir el Pagador TALVEG, el tramo o la modalidad, o darla de baja. Si no la tiene, TALVEG te lo dirá al intentarlo.</value>
+  </data>
+  <data name="CorreccionNota" xml:space="preserve">
+    <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico.</value>
+  </data>
+  <data name="CorreccionHecha" xml:space="preserve">
+    <value>Línea Inbound corregida: el Producto Contratado nuevo está vigente desde ahora.</value>
+  </data>
+  <data name="BajaTitulo" xml:space="preserve">
+    <value>Dar de baja la línea Inbound</value>
+  </data>
+  <data name="BajaMensaje" xml:space="preserve">
+    <value>La línea Inbound de {0} deja de estar vigente desde ahora. El Producto Contratado queda en el histórico.</value>
+  </data>
+  <data name="BajaHecha" xml:space="preserve">
+    <value>Línea Inbound dada de baja: ya no está vigente.</value>
+  </data>
+  <data name="CampoPagadorEjemplo" xml:space="preserve">
+    <value>cus_…</value>
+  </data>
+  <data name="ElegirOpcion" xml:space="preserve">
+    <value>Elige una opción</value>
+  </data>
+  <data name="ErrorTramoModalidad" xml:space="preserve">
+    <value>Elige el tramo y la modalidad del Producto Contratado.</value>
+  </data>
+  <data name="ResumenProductoInbound" xml:space="preserve">
+    <value>Inbound</value>
+  </data>
+  <data name="TenantNoResueltoTitulo" xml:space="preserve">
+    <value>No encontramos el Tenant activo de la Sesión Privilegiada</value>
+  </data>
+  <data name="TenantNoResueltoTexto" xml:space="preserve">
+    <value>La Sesión Privilegiada de Aprovisionamiento está abierta, pero TALVEG no resuelve el Tenant activo: no coincide con el Tenant objetivo de la sesión o ya no existe. No se ofrece ninguna acción; cierra la sesión y ábrela sobre el Tenant correcto.</value>
+  </data>
+</root>

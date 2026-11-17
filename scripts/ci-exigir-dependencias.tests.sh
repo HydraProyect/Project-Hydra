@@ -205,6 +205,18 @@ contrato "la guarda de orden de migraciones corre en la PR y en la cola" 1 "$(gr
 contrato "el agregador prueba la guarda del modelo de migración" 1 "$(grep -cF 'run: python3 scripts/verificar-modelo-migracion.tests.py' <<< "$pasos_previos" || true)"
 contrato "la guarda del modelo compara los mismos árboles en la PR y en la cola" 1 "$(grep -cF 'python3 scripts/verificar-modelo-migracion.py "$base" HEAD' <<< "$pasos_previos" || true)"
 contrato "en la cola la guarda compara con lo que va delante (base_sha)" 1 "$(grep -cF 'BASE_COLA: ${{ github.event.merge_group.base_sha }}' <<< "$pasos_previos" || true)"
+# Copia temprana de las dos guardas en «Detectar migraciones EF olvidadas», antes de instalar .NET: si se borra o se
+# compara con otra base, el choque de migraciones vuelve a salir al final de la ruta larga y nada más avisa.
+# El job entero hasta el siguiente: en YAML un `if:` o un `needs:` también vale debajo de `steps:`.
+cabecera_temprana="$(sed -n '/^  migraciones-pendientes:$/,/^  [a-z]/p' <<< "$yml")"
+pasos_tempranos="$(sed -n '/^  migraciones-pendientes:$/,/^      - name: Instalar .NET SDK$/p' <<< "$yml")"
+contrato "el job temprano de migraciones no depende de nadie, no se salta ni se tolera en rojo (corre en todos los eventos)" 0 "$(grep -cE '^    (needs|if|continue-on-error):' <<< "$cabecera_temprana" || true)"
+contrato "el job temprano de migraciones llega hasta el siguiente job (rango no vacío)" 1 "$(grep -cxF '    name: Detectar migraciones EF olvidadas' <<< "$cabecera_temprana" || true)"
+contrato "ningún paso del job temprano se tolera en rojo" 0 "$(grep -cE '^        continue-on-error:' <<< "$cabecera_temprana" || true)"
+contrato "el job temprano ejecuta la guarda de orden contra HEAD antes de instalar .NET" 1 "$(grep -cF 'python3 scripts/verificar-orden-migraciones.py "$base" HEAD' <<< "$pasos_tempranos" || true)"
+contrato "el job temprano ejecuta la guarda del modelo contra HEAD antes de instalar .NET" 1 "$(grep -cF 'python3 scripts/verificar-modelo-migracion.py "$base" HEAD' <<< "$pasos_tempranos" || true)"
+contrato "la guarda temprana corre en la PR y en la cola" 1 "$(grep -FA1 -- "      - name: Comprobar el orden de las migraciones (temprano)" <<< "$pasos_tempranos" | grep -cxF "        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'" || true)"
+contrato "en la cola la guarda temprana compara con lo que va delante (base_sha)" 1 "$(grep -cF 'BASE_COLA: ${{ github.event.merge_group.base_sha }}' <<< "$pasos_tempranos" || true)"
 for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ needs.e2e-tests.result }}" "R_ALCANCE: \${{ needs.alcance.result }}" "ALCANCE_INTEGRACION: \${{ needs.alcance.outputs.integracion }}" "ALCANCE_E2E: \${{ needs.alcance.outputs.e2e }}" "EVENTO: \${{ github.event_name }}"; do
   contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"
 done

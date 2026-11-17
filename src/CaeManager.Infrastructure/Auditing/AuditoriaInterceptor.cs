@@ -106,6 +106,11 @@ namespace CaeManager.Infrastructure.Auditing;
 /// 13. El contacto de seguridad del Tenant beneficiario
 ///    (<see cref="CaeManager.Domain.Tenants.ContactoSeguridadTenant"/>): su nombre, su teléfono y
 ///    su correo, con el criterio del punto 10. Ver el comentario de esa entrada.
+/// 14. La solicitud de un derecho del interesado
+///    (<see cref="CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado"/>, #2002): el nombre del
+///    interesado, el Trabajador al que se refiere y los textos libres (descripción, motivo de prórroga,
+///    resultado, motivo de denegación).
+///    Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -155,6 +160,13 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CredencialConexionPlataformaCae)] = [nameof(CredencialConexionPlataformaCae.SecretoApi)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
+        // La contraseña del zip, protegida con Data Protection hasta que el fichero está cifrado, y la clave del
+        // fichero en el almacén de exportaciones: ninguna de las dos se copia a la auditoría (#2008).
+        [typeof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta)] =
+        [
+            nameof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta.ContrasenaProtegida),
+            nameof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta.UbicacionFichero),
+        ],
 
         // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
         // SoporteSinLecturaDeCredenciales, SoporteSinColumnasSecretasRestantes,
@@ -300,6 +312,21 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Telefono),
             nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Correo),
         ],
+        // Punto 14 del comentario de clase (#2002): la solicitud de un derecho del interesado. El rastro conserva
+        // el tipo de derecho, el canal, el estado, los plazos y quién dio cada paso y cuándo; nunca el nombre del
+        // interesado, el Trabajador al que se refiere ni lo que escribió quien registró, prorrogó, resolvió o
+        // denegó, que puede describir datos de salud, sindicales o de cualquier otra categoría. RegistrosAuditoria
+        // la lee cae_app_soporte: sin TrabajadorId, Soporte TALVEG sabe que hubo una solicitud de tal tipo en el
+        // Tenant, pero no de quién.
+        [typeof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado)] =
+        [
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.NombreInteresado),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.TrabajadorId),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.Descripcion),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.MotivoProrroga),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.Resultado),
+            nameof(CaeManager.Domain.DerechosInteresado.SolicitudDerechoInteresado.MotivoDenegacion),
+        ],
 
         // #2009: la IP de quien aceptó el contrato es evidencia, no historial. La tabla de aceptaciones no la deja leer
         // a cae_app_soporte; su «Creado» en RegistrosAuditoria, que Soporte TALVEG sí lee, tampoco la copia.
@@ -345,6 +372,22 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // RegistrarAsignacion solo renueva la Version (para que asignar y eliminar choquen): no es un cambio del catálogo.
         [typeof(DelegacionEmpresa)] = [nameof(DelegacionEmpresa.Version)],
         [typeof(OficioEmpresa)] = [nameof(OficioEmpresa.Version)],
+    };
+
+    /// <summary>
+    /// Grupos de propiedades que se auditan enteros: en un <c>Modified</c> en el que cambia cualquiera de ellas, el
+    /// registro lleva todas, aunque alguna conserve su valor. El sello del expediente de una Visita (D-4, #2005, Codex r3
+    /// de la #2266) es uno: al reabrirlo, el «antes» tiene que conservar el sello retirado completo, y la atribución
+    /// <c>SinUrgencia</c> de un sello no cambia al retirarlo (es también el valor sin sello), así que sin el grupo se
+    /// quedaría fuera del registro.
+    /// </summary>
+    private static readonly Dictionary<Type, string[]> GruposAuditadosJuntosPorTipo = new()
+    {
+        [typeof(Visita)] =
+        [
+            nameof(Visita.FechaHoraExpedienteCompletoUtc), nameof(Visita.AntelacionNominalHoras),
+            nameof(Visita.AntelacionEfectivaHoras), nameof(Visita.Tramo), nameof(Visita.Atribucion),
+        ],
     };
 
     /// <summary>
@@ -518,6 +561,16 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             var propiedades = entrada.State == EntityState.Modified
                 ? entrada.Properties.Where(p => p.IsModified).ToList()
                 : entrada.Properties.ToList();
+
+            // Ver GruposAuditadosJuntosPorTipo: si cambia una propiedad del grupo, entran todas.
+            if (entrada.State == EntityState.Modified
+                && GruposAuditadosJuntosPorTipo.GetValueOrDefault(entrada.Entity.GetType()) is { } grupo
+                && propiedades.Any(p => grupo.Contains(p.Metadata.Name)))
+            {
+                foreach (var nombre in grupo)
+                    if (!propiedades.Any(p => p.Metadata.Name == nombre))
+                        propiedades.Add(entrada.Property(nombre));
+            }
 
             // Ver PropiedadesSilenciosasPorTipo: un Modified cuyo ÚNICO
             // cambio sea un campo silenciado no genera fila. Solo aplica a

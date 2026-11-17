@@ -259,12 +259,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "en 0). Lo retira el bloque B junto con los dos comandos que lo llaman"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
-                ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia. " +
-                "AVISO: D-6 obliga a conservar la rama del cliente, y ESTE RATCHET NO LO COMPRUEBA — solo " +
-                "cuenta el flag. Si B rompiera únicamente esa rama, el conteo seguiría en 1 y esto pasaría en " +
-                "verde. Hoy la rama del cliente tiene cobertura CERO en los cinco proyectos de test, así que " +
-                "nada la protege; B debe añadir esa prueba y enlazarla desde aquí. No leas esta entrada como " +
-                "cobertura de la vía del cliente: no lo es"),
+                ":109 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
+                "reescribe el predicado por concesión propia. AVISO: D-6 obliga a conservar la rama del " +
+                "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del Tenant propietario visitado la cubren " +
+                "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
+                "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
+                "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
@@ -294,7 +294,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "tendría delta de comportamiento"),
         ["src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs"] =
             new(2, CategoriaUso.ReglaComercial,
-                ":137 (proyección) y :144 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
+                ":139 (proyección) y :146 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
                 "como RegistrarSuscripcionTenant rechaza suscribirlo: no concede nada. Defensa en profundidad, porque " +
                 "ReglaTenantObjetivoAjeno ya impide abrir la Sesión Privilegiada de Aprovisionamiento sobre la casa propia"),
         ["src/CaeManager.Application/Comercial/Queries/ObtenerEstadoComercialTenants/ObtenerEstadoComercialTenantsQuery.cs"] =
@@ -307,6 +307,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "plataforma — mismo criterio que RegistrarSuscripcionTenantCommand:69: TALVEG no se " +
                 "instruye tratamiento a sí misma. La autorización real es PuedeSobreTenantAsync, dos " +
                 "líneas antes"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/AutorizacionSubencargados.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "rechaza la objeción a un subencargado (#2010, D-7) desde el Tenant de Plataforma: solo objeta el " +
+                "Administrador de un Tenant propietario. Impide, no concede: la autoridad la da " +
+                "AutoridadSobreAceptacionContractual.EsAdministradorDelTenantPropietarioAsync"),
+        ["src/CaeManager.Infrastructure/Persistence/Repositories/SubencargadoRepository.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "excluye el Tenant de Plataforma de los Tenants propietarios a los que se avisa y cuyo aviso " +
+                "exige la activación de un subencargado (#2010, D-7); no concede nada"),
         ["src/CaeManager.Application/Comercial/Common/TenantComercialExtensions.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":15 define EsSuscribible = !EsPlataforma. Nuevo en la corrección de hallazgo Codex del " +
@@ -388,9 +397,20 @@ public class UsosDeEsPlataformaCongeladosTests
                 "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +
                 "listado ya autorizado por PuedeGlobalmenteAsync; no concede nada"),
         ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
-            new(2, CategoriaUso.Guarda,
+            new(4, CategoriaUso.Guarda,
                 "lee el flag del Tenant pedido y rechaza exportar el Tenant de plataforma TALVEG como si fuera un " +
-                "Tenant propietario. Solo impide; la autorización es la concesión AdminPlataforma vigente sobre ese Tenant"),
+                "Tenant propietario, en las dos vías: la de la CLI (autorizada por la concesión AdminPlataforma " +
+                "vigente sobre ese Tenant) y la del autoservicio (#2008, autorizada por AutoridadExportacionCompleta " +
+                "al solicitar). Solo impide; no concede nada"),
+        ["src/CaeManager.Application/Exportacion/AutoridadExportacionCompleta.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "la exportación completa en autoservicio (#2008, D-8) se rechaza en el Tenant de plataforma TALVEG, " +
+                "que no es un Tenant propietario de datos de cliente. Va después de exigir rol efectivo Administrador " +
+                "sin contexto cruzado y Administrador en la base: solo impide, no concede"),
+        ["src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "el servicio de fondo de la exportación en autoservicio (#2008) solo recorre los Tenants que no son " +
+                "el de plataforma: recorta el conjunto sobre el que trabaja, no concede nada a nadie"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +
@@ -415,6 +435,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":31 localiza el tenant de plataforma, :42 decide a quién aprovisionar. Los retira B: el " +
                 "seeder se elimina, porque ConcesionesSoloPorActoExplicitoTests ya nombra su " +
                 "pre-aprovisionamiento como el antipatrón a no repetir en el plano 3"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/LineaOutboundGestionPropiaDemoSeeder.cs"] =
+            new(2, CategoriaUso.Bootstrap,
+                "la guarda de gestión propia de la siembra de la línea P de Development: la proyección del Tenant de su lista " +
+                "cerrada lee EsPlataforma y la decisión lo usa para OMITIR el Tenant (fallo cerrado: un Tenant de plataforma no " +
+                "recibe la línea). No concede capacidad a nadie ni lo lee ninguna ruta de la aplicación; solo con " +
+                "DatosPrueba:Activo y en Development"),
 
         // ── PORTADOR ──────────────────────────────────────────────────────────────
         ["src/CaeManager.Domain/Tenants/Tenant.cs"] =

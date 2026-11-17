@@ -196,18 +196,28 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         ("ProductosContratados", "aprovisionamiento_solo_contrata_inbound_vigente", 'a',
             "cae_app_aprovisionamiento, que adoptan todos los comandos de aprovisionamiento, solo inserta lo que contrata " +
             "ContratarLineaInboundCommand: la línea Inbound, vigente, sin fin, no eliminada, del Tenant del contexto firmado " +
-            "y con la vigencia empezando al contratar",
+            "y con la vigencia empezando al contratar, nunca en el futuro (issue #2259)",
             ["\"Linea\"", "'Inbound'", "'Vigente'", "\"VigenteHastaUtc\"", "\"EstaEliminado\"", "\"VigenteDesdeUtc\"", "now()",
              "app_ctx_tenant_id()"], [], []),
         ("ProductosContratados", "aprovisionamiento_solo_finaliza_inbound_vigente", 'w',
             "cae_app_aprovisionamiento solo pasa a Finalizado la fila Inbound vigente y no eliminada del Tenant del contexto " +
-            "firmado, con el fin de vigencia en now() ± 5 minutos (DarDeBajaLineaInboundCommand y CorregirLineaInboundCommand)",
+            "firmado, con el fin de vigencia entre now() - 5 minutos y now(), nunca en el futuro (DarDeBajaLineaInboundCommand y " +
+            "CorregirLineaInboundCommand, issue #2259)",
             ["\"Linea\"", "'Inbound'", "\"EstaEliminado\"", "app_ctx_tenant_id()"],
             ["'Vigente'"], ["'Finalizado'", "\"VigenteHastaUtc\"", "now()"]),
         ("ProductosContratados", "aprovisionamiento_solo_lee_inbound", 'r',
             "de las columnas que el WHERE de la baja necesita, cae_app_aprovisionamiento solo ve las filas Inbound del Tenant " +
             "del contexto firmado",
             [], ["\"Linea\"", "'Inbound'", "app_ctx_tenant_id()"], []),
+        ("AvisosCambioSubencargado", "solo_el_actor_de_plataforma_avisa", 'a',
+            "el aviso de un subencargado nuevo (#2010, D-7) solo lo da de alta un Actor de Plataforma TALVEG con " +
+            "AdminPlataforma global vigente, a su propio nombre, y solo a nombre de un Administrador de su Tenant propietario",
+            ["app_es_admin_plataforma_global(", "app_ctx_usuario_id()", "\"AvisadoPorUsuarioId\"",
+             "app_es_administrador_del_tenant(", "\"UsuarioDestinatarioId\""], [], []),
+        ("ObjecionesSubencargado", "solo_el_administrador_objeta", 'a',
+            "la objeción a un subencargado (#2010, D-7) solo la registra el Administrador de ese Tenant propietario, " +
+            "a su propio nombre",
+            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "\"UsuarioId\""], [], []),
     ];
 
     /// <summary>

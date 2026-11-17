@@ -462,6 +462,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Inbound.Requisitos.IPlantillaRequisitosRepository, PlantillaRequisitosRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
@@ -506,9 +507,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionContractualTenantRepository, AceptacionContractualTenantRepository>();
         services.AddSingleton<CaeManager.Application.Cumplimiento.AceptacionContractual.ICatalogoDocumentosContractuales, CaeManager.Infrastructure.Cumplimiento.CatalogoDocumentosContractuales>();
         services.AddScoped<CaeManager.Domain.Cumplimiento.IInstruccionTratamientoIaTenantPropietarioRepository, InstruccionTratamientoIaTenantPropietarioRepository>();
+        services.AddScoped<CaeManager.Domain.Cumplimiento.Subencargados.ISubencargadoRepository, SubencargadoRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IContactoSeguridadTenantRepository, ContactoSeguridadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.Tenants.IConcesionCapacidadTenantRepository, ConcesionCapacidadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.DerechosInteresado.ISolicitudDerechoInteresadoRepository, SolicitudDerechoInteresadoRepository>();
+        // Capacidades del Tenant (decisión D-3 del 2026-11-15): quién resuelve derechos del interesado.
+        services.AddScoped<CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant,
+            CaeManager.Application.CapacidadesTenant.AutoridadCapacidadesTenant>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
         services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -567,6 +574,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddScoped<CaeManager.Application.Cumplimiento.Subencargados.ICerrojoAltasTenantPropietario, CerrojoAltasTenantPropietario>();
         services.AddSerializacionAltasAcreditacionEmpresa();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
@@ -851,6 +859,19 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Documentos.Verificacion.ITransaccionDocumentoBloqueado, TransaccionDocumentoBloqueado>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Exportación completa en autoservicio del Tenant propietario (#2008, D-8): la solicitud, su candado por
+        // Tenant, la contraseña protegida con Data Protection, el almacén de zips y la cola durable que los genera
+        // bajo la RLS de cada Tenant, con el patrón de la cola de análisis de arriba.
+        services.Configure<CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas>(
+            configuration.GetSection(CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Domain.Exportacion.ISolicitudExportacionCompletaRepository, SolicitudExportacionCompletaRepository>();
+        services.AddScoped<CaeManager.Application.Exportacion.ICandadoExportacionCompleta, CaeManager.Infrastructure.Exportacion.CandadoExportacionCompleta>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IProtectorContrasenaExportacion, CaeManager.Infrastructure.Exportacion.ProtectorContrasenaExportacion>();
+        services.AddSingleton<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IAlmacenExportacionesCompletas>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>());
+        services.AddHostedService<CaeManager.Infrastructure.Exportacion.GeneradorExportacionCompletaHostedService>();
+
         // Fase F: comprobación horaria y aviso agregado por destinatario (solo campana, sin correo en v1) de
         // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen
@@ -885,11 +906,12 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
         // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
-        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código. Y bloqueada mientras
+        // no exista la confirmación de un Gestor CAE para los Pendientes que crea (D-4, #2005): encenderla hace fallar el arranque.
         var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
         configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
             .Bind(opcionesConciliacionAcreditaciones);
-        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        if (Documentos.ConciliacionAcreditacionesEmpresaOptions.DebeRegistrarse(opcionesConciliacionAcreditaciones))
         {
             services.AddSingleton(opcionesConciliacionAcreditaciones);
             services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();

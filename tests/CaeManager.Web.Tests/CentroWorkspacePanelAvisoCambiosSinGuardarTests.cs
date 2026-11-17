@@ -56,7 +56,7 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     {
         public bool SinDobleFactor { get; set; }
         public IReadOnlyList<CanalGestionResumenDto> Canales { get; set; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public bool BorradorPrioridadFalla { get; set; }
         public TaskCompletionSource? PausaEnvioPrioridad { get; set; }
 

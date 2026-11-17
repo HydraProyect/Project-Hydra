@@ -66,6 +66,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> NoSonIdDeEntidad = new()
     {
+        // Sufijo del fichero temporal donde se escribe el zip de la exportación completa en autoservicio (#2008)
+        // antes de moverlo a su nombre final: solo evita que dos intentos pisen el mismo temporal.
+        ["src/CaeManager.Infrastructure/Exportacion/AlmacenExportacionesCompletasEnDisco.cs"] = 1,
         // Nombre del fichero .html que el remitente de correo de desarrollo del alta autónoma escribe en disco: solo
         // evita colisiones entre dos correos del mismo milisegundo.
         ["src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs"] = 1,
@@ -84,7 +87,10 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
         ["src/CaeManager.Domain/Empresas/PlataformaCaeClienteEmpresarial.cs"] = 1,
         ["src/CaeManager.Domain/Facturacion/CobroLiquidacionOperadorCae.cs"] = 1,
+        ["src/CaeManager.Domain/DerechosInteresado/SolicitudDerechoInteresado.cs"] = 1,
+        ["src/CaeManager.Domain/Tenants/ConcesionCapacidadTenant.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
+        ["src/CaeManager.Domain/Cumplimiento/Subencargados/Subencargado.cs"] = 1,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/PropuestaApoyoCartera.cs"] = 1,

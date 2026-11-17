@@ -93,7 +93,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         public Result Baja { get; set; } = Result.Exito();
         public Result<ResultadoEliminacionLoteDto> BajaLote { get; set; } = Result.Exito(new ResultadoEliminacionLoteDto(1, []));
         public Func<object, Task?>? Retener { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)

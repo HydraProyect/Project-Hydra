@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
@@ -21,8 +22,8 @@
         Genera un token para conectar la extensión de @Marca.Nombre en tu navegador y subir
         documentos a las plataformas CAE externas directamente desde aquí, sin descargarlos antes
         a tu disco. Lo normal es que la extensión se conecte sola en cuanto generas el token; si no
-        lo hace, aquí abajo te decimos por qué y cómo conectarla a mano. Dura 8 horas y no se
-        renueva solo.
+        lo hace, aquí abajo te decimos por qué y cómo conectarla a mano.
+        @Comunes["ExtensionVigenciaToken"]
     </p>
 
     @if (_token is null)

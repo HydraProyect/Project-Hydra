@@ -34,7 +34,8 @@ public class ReasignadorCarteraCliente(
     ICurrentUserService currentUserService,
     IAlcanceDatosService alcanceDatos,
     IDirectorioDestinosCartera directorioDestinos,
-    IBloqueoCarteraUsuario bloqueoCartera)
+    IBloqueoCarteraUsuario bloqueoCartera,
+    IInvalidadorAlcance? invalidadorAlcance = null)
 {
     public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente.");
 
@@ -58,6 +59,12 @@ public class ReasignadorCarteraCliente(
         // (IBloqueoCarteraUsuario). Exige estar dentro de una transacción.
         await bloqueoCartera.BloquearCompartidoAsync(
             new[] { gestorAnteriorId, nuevoGestorId }.OfType<Guid>().ToList(), cancellationToken);
+
+        // Quien tiene ese candado en exclusiva es justo quien cambia una Asignación de Cartera (IBloqueoCarteraUsuario):
+        // el alcance se vuelve a decidir después de esperarlo, sin el memoizado de antes de la espera (issue #2118).
+        invalidadorAlcance?.Invalidar();
+        if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
+            return Result.Fallo<bool>(ClienteNoEncontrado);
 
         if (nuevoGestorId is { } destinoId)
         {

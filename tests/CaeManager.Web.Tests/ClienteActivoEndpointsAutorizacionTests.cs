@@ -114,8 +114,87 @@ public class ClienteActivoEndpointsAutorizacionTests
         endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Should().Equal("POST");
     }
 
-    private Task<IResult> Cambiar(Guid tenant, HttpContext http, ContextoPrueba db) =>
-        ClienteActivoEndpoints.CambiarAsync(tenant, "/", http, db, new UsuarioActual(), db, _protector, default);
+    private Task<IResult> Cambiar(Guid tenant, HttpContext http, ContextoPrueba db, ServicioCae? servicio = null, string rol = "GestorCae") =>
+        ClienteActivoEndpoints.CambiarAsync(tenant, "/", http, db, new UsuarioActual(rol), db, _protector, default, servicio: servicio);
+
+    /// <summary>
+    /// B-02b (DN-21): con <c>servicio=Inbound</c> el POST solo pide la vía de Operación Inbound, amparada por la línea
+    /// Inbound vigente del Tenant TCE y sin DelegacionTenant; nunca cae a la vía de Outbound ni a la heredada.
+    /// </summary>
+    [Theory]
+    [InlineData("con-linea", "Administrador", true)]
+    [InlineData("con-linea-y-cartera", "GestorCae", true)]
+    [InlineData("con-linea", "GestorCae", false)]
+    [InlineData("sin-linea", "Administrador", false)]
+    [InlineData("cerrada", "Administrador", false)]
+    public async Task Con_servicio_Inbound_solo_abre_la_operacion_Inbound_amparada_por_la_linea(string caso, string rol, bool permitido)
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var inbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        if (caso == "cerrada") inbound.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
+        db.Add(inbound);
+        if (caso == "con-linea-y-cartera")
+            db.Add(AsignacionCartera.Externa(inbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        if (caso != "sin-linea") db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        var http = Contexto();
+        Comprobar(await Cambiar(Destino, http, db, ServicioCae.Inbound, rol), http, permitido, permitido ? inbound.Id : null);
+    }
+
+    [Fact]
+    public async Task Con_servicio_Inbound_no_cae_a_la_via_de_Outbound_ni_a_la_heredada()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        // Una operación Outbound amparada por su DelegacionTenant y una asignación heredada vigente sobre el mismo Tenant.
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        var outbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        outbound.FijarOrigen(delegacion);
+        db.AddRange(delegacion, outbound, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
+        db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        var http = Contexto();
+        Comprobar(await Cambiar(Destino, http, db, ServicioCae.Inbound, "Administrador"), http, false, null);
+
+        var control = Contexto();
+        Comprobar(await Cambiar(Destino, control, db, servicio: null, rol: "Administrador"), control, true, outbound.Id);
+    }
+
+    [Fact]
+    public async Task Sin_servicio_o_con_Outbound_una_operacion_Inbound_no_abre_el_Tenant()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        db.Add(AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora));
+        db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        foreach (var servicio in new ServicioCae?[] { null, ServicioCae.Outbound })
+        {
+            var http = Contexto();
+            Comprobar(await Cambiar(Destino, http, db, servicio, "Administrador"), http, false, null);
+        }
+    }
+
+    [Fact]
+    public async Task Un_servicio_no_definido_o_Inbound_sobre_el_propio_origen_es_una_peticion_invalida()
+    {
+        await using var db = await CrearContexto();
+
+        var indefinido = Contexto();
+        (await Cambiar(Destino, indefinido, db, (ServicioCae)99, "Administrador")).Should().BeOfType<BadRequest>();
+        indefinido.Response.Headers.SetCookie.Should().BeEmpty();
+
+        var origen = Contexto();
+        (await Cambiar(Origen, origen, db, ServicioCae.Inbound, "Administrador")).Should().BeOfType<BadRequest>();
+        origen.Response.Headers.SetCookie.Should().BeEmpty();
+    }
 
     private DefaultHttpContext Contexto()
     {
@@ -142,7 +221,7 @@ public class ClienteActivoEndpointsAutorizacionTests
         carga.SesionPrivilegiadaId.Should().BeNull();
     }
 
-    private static async Task<ContextoPrueba> CrearContexto()
+    internal static async Task<ContextoPrueba> CrearContexto()
     {
         var conexion = new SqliteConnection("Data Source=:memory:");
         await conexion.OpenAsync();
@@ -152,8 +231,12 @@ public class ClienteActivoEndpointsAutorizacionTests
     }
 
     // Solo las tablas que consulta el predicado; este instrumento no sustituye los tests PostgreSQL/RLS de CI.
-    private sealed class ContextoPrueba(DbContextOptions<ContextoPrueba> opciones) : DbContext(opciones), ITenantsQueryContext, IOperacionesQueryContext
+    internal sealed class ContextoPrueba(DbContextOptions<ContextoPrueba> opciones) : DbContext(opciones), ITenantsQueryContext, IOperacionesQueryContext
     {
+        /// <summary>Tenants con la línea Inbound vigente: el papel de <c>app_operacion_inbound_amparada</c> en PostgreSQL.</summary>
+        public List<Guid> TenantsConLineaInbound { get; } = [];
+        public IQueryable<AsignacionOperacion> OperacionesInboundAmparadas =>
+            Set<AsignacionOperacion>().Where(o => o.Servicio == ServicioCae.Inbound && TenantsConLineaInbound.Contains(o.PropietarioTenantId));
         public IQueryable<Tenant> Tenants => Set<Tenant>();
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw new NotSupportedException();
         public IQueryable<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
@@ -173,11 +256,11 @@ public class ClienteActivoEndpointsAutorizacionTests
         }
     }
 
-    private sealed class UsuarioActual : ICurrentUserService
+    private sealed class UsuarioActual(string rol = "GestorCae") : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Usuario);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Origen);
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
         public Task<string?> ObtenerRolOrigenAsync() => throw new NotSupportedException();
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
     }

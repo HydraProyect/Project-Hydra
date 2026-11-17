@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Inbound.AutorizacionesLectura;
@@ -23,11 +24,14 @@ public class RevocarAutorizacionLecturaCommandValidator : AbstractValidator<Revo
 }
 
 public class RevocarAutorizacionLecturaCommandHandler(
-    IAutorizacionLecturaRepository repositorio, ICurrentUserService currentUserService, TimeProvider reloj, IUnitOfWork unitOfWork)
+    IAutorizacionLecturaRepository repositorio, ICurrentUserService currentUserService, TimeProvider reloj, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RevocarAutorizacionLecturaCommand, Result>
 {
     public async Task<Result> Handle(RevocarAutorizacionLecturaCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ParticipanteTec, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await AutorizacionLecturaAutoridad.EsAdministradorAsync(currentUserService)
             || await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
             return Result.Fallo(AutorizacionLecturaAutoridad.SoloAdministrador);

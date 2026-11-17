@@ -55,17 +55,30 @@ public sealed class AsignacionHeredadaVigente
 /// </para>
 ///
 /// <para>
-/// La vía de Operación solo cuenta Asignaciones de Operación de <see cref="ServicioDelContexto"/>
-/// (Outbound): el contexto que se elige, se revalida y se autoriza aquí es el de Outbound. Una
+/// La vía de Operación de Outbound solo cuenta Asignaciones de Operación de <see cref="ServicioDelContexto"/>
+/// (Outbound): el contexto que se elige por defecto, y el de las etiquetas y el alcance, es el de Outbound. Una
 /// Asignación de Operación Inbound del mismo Operador CAE externo sobre el mismo Tenant beneficiario
-/// no cambia la operación elegida, no da entrada por sí sola y no amplía el alcance de datos. El filtro
+/// no cambia la operación elegida, no da entrada por esta vía y no amplía el alcance de Outbound. El filtro
 /// vive en las primitivas de las que parten el acceso, el alcance y sus etiquetas
 /// (<see cref="CarterasPorOperacionDeLaOrganizacion"/>, <see cref="OperacionesDelTenantEntero"/>,
 /// <see cref="AmbitosEfectivosDeCarteraAsync"/> y <see cref="OrigenGestionadoAsync"/>), y lo repiten las
 /// consultas de Infrastructure que no parten de ellas (<c>AlcanceDatosService.ObtenerCarteraAsync</c>,
 /// <c>DirectorioUsuariosTenant.ObtenerCarterasVigentesAsync</c>, <c>VistaDemoActual</c>): una Asignación de
 /// Operación o de Cartera de otro servicio no cuenta en ninguna. La vía heredada no distingue servicio porque
-/// <c>DelegacionTenant</c> no lo tiene: hueco declarado para el escritor de Inbound (B-02b, B-03).
+/// <c>DelegacionTenant</c> no lo tiene, y no se extiende a Inbound (decisión de la coordinadora del 2026-11-14,
+/// confirmada por Chris el 2026-11-16): es una vía de Outbound.
+/// </para>
+///
+/// <para>
+/// <b>Vía de Operación Inbound</b> (B-02b; DN-21; decisión de Chris del 2026-11-16, opción A): aparte, con sus propias
+/// primitivas (<see cref="OperacionesInboundQueAutorizan"/>), para que el papel lo elija la persona y no la fecha. Una
+/// Asignación de Operación Inbound externa se ampara sola, sin DelegacionTenant: vigente, no raíz, del Operador CAE de
+/// origen sobre otro Tenant, y con la línea Inbound del Producto Contratado de ese Tenant vigente
+/// (<see cref="IOperacionesQueryContext.OperacionesInboundAmparadas"/>). Se revoca cerrando la operación. Los mismos
+/// perfiles que en Outbound: sin cartera los de <see cref="RolesConAccesoPorOperacion"/> si la operación es del Tenant
+/// entero, y el Gestor CAE con su Asignación de Cartera vigente bajo ella. La selección por defecto, la lista del
+/// selector y las etiquetas siguen siendo de Outbound; la revalidación (<see cref="SigueAutorizadoPorOperacionAsync"/>)
+/// acepta una operación de cualquiera de los dos servicios, cada una por su propio predicado.
 /// </para>
 ///
 /// <para>
@@ -83,10 +96,10 @@ public sealed class AsignacionHeredadaVigente
 public static class TenantsBeneficiariosAutorizados
 {
     /// <summary>
-    /// El servicio del contexto que eligen, revalidan y autorizan <see cref="OperacionesQueAutorizan"/>,
-    /// <see cref="OperaElTenantEnteroAsync"/> y <see cref="OrigenGestionadoAsync"/>. Hoy solo hay
-    /// selector de Outbound; cuando exista el de Inbound, el servicio lo elegirá la persona y no la fecha
-    /// (DN-21, punto 1), y esta constante pasará a ser un parámetro.
+    /// El servicio de la vía de Operación por defecto: el que eligen, revalidan y autorizan
+    /// <see cref="OperacionesQueAutorizan"/>, <see cref="OperaElTenantEnteroAsync"/> y <see cref="OrigenGestionadoAsync"/>,
+    /// y el de las etiquetas y el alcance que parten de ellas. El papel Inbound tiene su propia vía
+    /// (<see cref="OperacionesInboundQueAutorizan"/>), que se elige explícitamente en el selector (DN-21, punto 1).
     /// </summary>
     public const ServicioCae ServicioDelContexto = ServicioCae.Outbound;
 
@@ -251,11 +264,18 @@ public static class TenantsBeneficiariosAutorizados
             && operacion.Servicio == ServicioDelContexto
             && operacion.Estado == EstadoAsignacion.Vigente
             && operacion.VigenciaDesde <= ahora
-            && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-            && operacion.AmbitoRelacionClienteId == null
-            && operacion.AmbitoCentroId == null
-            && operacion.AmbitoTrabajadorId == null
-            && operacion.AmbitoProyectoId == null);
+            && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta))
+            .Where(SinDimensionDeAmbito);
+
+    /// <summary>
+    /// Operación del Tenant entero: sin ninguna dimensión de ámbito. Una sola definición para la vía sin cartera de
+    /// Outbound (<see cref="OperacionesDelTenantEntero"/>) y de Inbound (<see cref="OperacionesInboundQueAutorizan"/>).
+    /// </summary>
+    private static readonly System.Linq.Expressions.Expression<Func<AsignacionOperacion, bool>> SinDimensionDeAmbito =
+        operacion => operacion.AmbitoRelacionClienteId == null
+                     && operacion.AmbitoCentroId == null
+                     && operacion.AmbitoTrabajadorId == null
+                     && operacion.AmbitoProyectoId == null;
 
     /// <summary>
     /// Las Asignaciones de Operación por las que este usuario puede abrir un Tenant
@@ -312,11 +332,113 @@ public static class TenantsBeneficiariosAutorizados
             .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>
+    /// Vía de Operación Inbound (B-02b; DN-21; decisión de Chris del 2026-11-16, opción A): las Asignaciones de Operación
+    /// Inbound por las que este usuario puede abrir un Tenant TCE con papel Inbound, según su perfil de origen, igual que
+    /// <see cref="OperacionesQueAutorizan"/> en Outbound:
+    /// <list type="bullet">
+    /// <item><see cref="RolesConAccesoPorOperacion"/>: las del Tenant entero de su organización, sin cartera.</item>
+    /// <item><see cref="RolAcotadoPorCartera"/>: solo aquellas bajo las que tiene Asignación de Cartera vigente.</item>
+    /// <item>Cualquier otro perfil, o ninguno: ninguna (fallo cerrado).</item>
+    /// </list>
+    /// Sin DelegacionTenant: la ampara la línea Inbound vigente del Tenant propietario
+    /// (<see cref="IOperacionesQueryContext.OperacionesInboundAmparadas"/>), y se revoca cerrando la operación. Tampoco
+    /// abre un Tenant en suspensión operativa ni se abre desde un Operador CAE suspendido (decisión D-3).
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> OperacionesInboundQueAutorizan(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen, DateTime ahora) =>
+        OperacionesInboundPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
+                                && !operaciones.TenantsSuspendidosIds.Contains(tenantOrigenId));
+
+    private static IQueryable<AsignacionOperacion> OperacionesInboundPorPerfil(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen, DateTime ahora)
+    {
+        var vigentes = OperacionesInboundVigentesDeLaOrganizacion(operaciones, tenantOrigenId, ahora);
+
+        if (rolDeOrigen is not null && RolesConAccesoPorOperacion.Contains(rolDeOrigen))
+            // Del Tenant entero: una operación acotada no se abre sin cartera, como en Outbound.
+            return vigentes.Where(SinDimensionDeAmbito);
+
+        if (rolDeOrigen == RolAcotadoPorCartera)
+            // La cartera, por el Servicio de su propia Asignación de Operación (ADR-013 § 4.6), y esa operación tiene que
+            // ser una de las vigentes y amparadas de arriba.
+            return from cartera in operaciones.AsignacionesCartera
+                   join operacion in operaciones.AsignacionesOperacion on cartera.AsignacionOperacionId equals operacion.Id
+                   where operacion.Servicio == ServicioCae.Inbound
+                         && cartera.UsuarioId == usuarioId
+                         && cartera.Estado == EstadoAsignacion.Vigente
+                         && cartera.VigenciaDesde <= ahora
+                         && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+                         && vigentes.Any(vigente => vigente.Id == operacion.Id)
+                   select operacion;
+
+        return vigentes.Where(_ => false);
+    }
+
+    /// <summary>
+    /// Las Asignaciones de Operación Inbound vigentes, externas y no raíz de la organización <paramref name="tenantOrigenId"/>
+    /// (su Operador CAE) sobre otro Tenant, amparadas por la línea Inbound vigente de ese Tenant.
+    /// </summary>
+    private static IQueryable<AsignacionOperacion> OperacionesInboundVigentesDeLaOrganizacion(
+        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
+        operaciones.OperacionesInboundAmparadas.Where(operacion =>
+            operacion.Servicio == ServicioCae.Inbound
+            && !operacion.EsRaiz
+            && operacion.OperadorTenantId == tenantOrigenId
+            && operacion.PropietarioTenantId != tenantOrigenId
+            && operacion.Estado == EstadoAsignacion.Vigente
+            && operacion.VigenciaDesde <= ahora
+            && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta));
+
+    /// <summary>
+    /// La Asignación de Operación Inbound por la que el usuario puede abrir <paramref name="tenantId"/> con papel
+    /// Inbound, o <c>null</c>. La elige la persona al pedir el papel Inbound (DN-21, punto 1): nunca la fecha frente a
+    /// una Outbound. Entre varias Inbound, determinista como <see cref="OperacionQueAutorizaAsync"/>.
+    /// </summary>
+    public static Task<Guid?> OperacionInboundQueAutorizaAsync(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
+        OperacionesInboundQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .Where(o => o.PropietarioTenantId == tenantId)
+            .OrderByDescending(o => o.VigenciaDesde)
+            .ThenBy(o => o.Id)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// El servicio por el que <paramref name="asignacionOperacionId"/> sigue autorizando <paramref name="tenantId"/> a
+    /// este usuario, cada uno por su propio predicado (<see cref="OperacionesQueAutorizan"/> para Outbound,
+    /// <see cref="OperacionesInboundQueAutorizan"/> para Inbound), o <c>null</c> si ya no lo autoriza ninguno. Es el
+    /// papel activo de la selección (<c>PapelActivo</c>): sale de la operación revalidada, nunca del cliente.
+    /// </summary>
+    public static async Task<ServicioCae?> ServicioQueAutorizaLaOperacionAsync(
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        Guid asignacionOperacionId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken)
+    {
+        if (await OperacionesQueAutorizan(operaciones, tenants, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+                .AnyAsync(o => o.Id == asignacionOperacionId && o.PropietarioTenantId == tenantId, cancellationToken))
+            return ServicioDelContexto;
+
+        if (await OperacionesInboundQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+                .AnyAsync(o => o.Id == asignacionOperacionId && o.PropietarioTenantId == tenantId, cancellationToken))
+            return ServicioCae.Inbound;
+
+        return null;
+    }
+
+    /// <summary>
     /// <b>El rol efectivo en un Tenant beneficiario delegado</b> por la vía de Operación
     /// (decisión Chris 2026-10-20): es el perfil del usuario en su Tenant de origen
     /// (<paramref name="rolDeOrigen"/>), con todos sus poderes —también los de Propiedad—,
     /// siempre que <paramref name="asignacionOperacionId"/> le siga autorizando ese Tenant
-    /// por <see cref="OperacionesQueAutorizan"/>. Si no, <c>null</c> (fallo cerrado).
+    /// por la vía de su servicio (<see cref="SigueAutorizadoPorOperacionAsync"/>: <see cref="OperacionesQueAutorizan"/>
+    /// en Outbound, <see cref="OperacionesInboundQueAutorizan"/> en Inbound). Si no, <c>null</c> (fallo cerrado). Con una
+    /// operación Inbound el rol solo trae alcance de datos dentro de una petición de Inbound (<c>AlcanceDatosService</c> con
+    /// <c>AmbitoPeticionInbound</c>, B-03). Las páginas de Outbound, aunque se autoricen solo por rol, no se abren con papel
+    /// Inbound: las niega <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> con el criterio de
+    /// <see cref="Common.CriterioDePapel"/> (cierre del hueco declarado de B-02b). Lo que sigue abriendo el rol sin mirar el
+    /// papel son las páginas del Núcleo y de Facturación que se autorizan solo por rol (Auditoría, Usuarios, Configuración,
+    /// Facturación), pendiente de decidir.
     ///
     /// <para>
     /// El rol guardado en la Asignación de Cartera ya no decide: la cartera solo da acceso
@@ -450,14 +572,16 @@ public static class TenantsBeneficiariosAutorizados
     /// Revalidación de una selección que nombra una Asignación de Operación
     /// concreta: la operación sigue autorizando <paramref name="tenantId"/> a este
     /// usuario por el mismo predicado que la concedió, incluida la coherencia
-    /// entre el Tenant y la operación del token.
+    /// entre el Tenant y la operación del token. Vale para los dos papeles
+    /// (<see cref="ServicioQueAutorizaLaOperacionAsync"/>): una Outbound por la vía de Outbound y una Inbound por la
+    /// suya, nunca una por el predicado de la otra.
     /// </summary>
-    public static Task<bool> SigueAutorizadoPorOperacionAsync(
+    public static async Task<bool> SigueAutorizadoPorOperacionAsync(
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
         Guid asignacionOperacionId, string? rolDeOrigen, DateTime ahora, CancellationToken cancellationToken) =>
-        OperacionesQueAutorizan(operaciones, tenants, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
-            .AnyAsync(o => o.Id == asignacionOperacionId && o.PropietarioTenantId == tenantId,
-                cancellationToken);
+        await ServicioQueAutorizaLaOperacionAsync(
+            operaciones, tenants, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, rolDeOrigen, ahora,
+            cancellationToken) is not null;
 
     /// <summary>La vía heredada autoriza <paramref name="tenantId"/> a este usuario.</summary>
     public static Task<bool> AutorizadoPorViaHeredadaAsync(

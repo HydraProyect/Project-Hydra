@@ -439,6 +439,21 @@
   ],
   "excepciones": [
     {
+      "id": "tenant-en-rotulo-de-linea-del-menu",
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Recursos/TextosComunes.resx",
+        "src/CaeManager.Web/Recursos/TextosComunes.ca-ES.resx"
+      ],
+      "claves": [
+        "MenuLineaInboundTce"
+      ],
+      "contexto": "rótulo de línea del menú lateral",
+      "motivo": "Decisión D-2 de Chris (2026-11-16, interfaz Inbound/Outbound § 1.1): el rótulo separador del menú dice literalmente «Inbound · Tenant TCE» (o «Tenant TEC») cuando se ven las dos líneas. TCE/TEC es el apellido que distingue a quien recibe contratistas de quien es recibido, y «Tenant beneficiario» no lo distingue. Solo esta clave; cualquier otro uso de «Tenant» a secas sigue prohibido."
+    },
+    {
       "id": "nombre-de-hoja-del-libro-de-importacion",
       "prohibidos": [
         "cliente-empresarial-en-pantalla"
@@ -510,6 +525,19 @@
       "claves": null,
       "contexto": "rótulos de la bandeja de Comunicaciones",
       "motivo": "La misma decisión del 2026-11-11 (E24) para el marcado de la página de la bandeja: el filtro, «Sin Cliente empresarial asignado», «Asignar Cliente empresarial…» y el panel «Contexto del Cliente empresarial». Un .razor no tiene claves, así que la excepción cubre el fichero entero."
+    },
+    {
+      "id": "tenant-en-alta-tenant-tce",
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.resx",
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.ca-ES.resx"
+      ],
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Pantalla de Plataforma (tarjeta 31, /plataforma/inbound/alta-tenant-tce, kicker «Plataforma · Tenants») que solo opera dentro de una Sesión Privilegiada de Aprovisionamiento: la abre un Actor de Plataforma TALVEG (plano 3), cuyo objeto de trabajo es el Tenant como tal (Tenant TCE, Tenant beneficiario del Producto Contratado). Mismo criterio que tenant-en-pagina-de-plataforma; el rótulo «Alta del Tenant TCE» es el de la maqueta AltaTenantTCE.dc.html."
     },
     {
       "id": "tenant-en-pagina-de-plataforma",

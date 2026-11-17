@@ -21,12 +21,17 @@ public class TokenSesionExtensionTests
 {
     private readonly IDataProtectionProvider _protector = new EphemeralDataProtectionProvider();
 
+    private static readonly MarcasSesionOrigen Marcas = new(
+        DateTimeOffset.FromUnixTimeSeconds(1_800_000_000), DateTimeOffset.FromUnixTimeSeconds(1_800_000_300), TimeSpan.FromMinutes(30));
+
+    private static readonly long Segundos = Marcas.Inicio.ToUnixTimeSeconds();
+
     [Fact]
     public void Un_token_emitido_se_lee_con_el_mismo_usuario_y_stamp()
     {
         var usuarioId = Guid.NewGuid();
         var sid = Guid.NewGuid();
-        var token = TokenSesionExtension.Proteger(_protector, usuarioId, "STAMPBASE32", sid);
+        var token = TokenSesionExtension.Proteger(_protector, usuarioId, "STAMPBASE32", sid, Marcas);
 
         var carga = TokenSesionExtension.Leer(_protector, token);
 
@@ -34,12 +39,13 @@ public class TokenSesionExtensionTests
         carga!.UsuarioId.Should().Be(usuarioId);
         carga.SecurityStamp.Should().Be("STAMPBASE32");
         carga.Sid.Should().Be(sid);
+        carga.Marcas.Should().Be(Marcas, "las marcas de la sesión de origen viajan tal cual, al segundo");
     }
 
     [Fact]
     public void Un_token_de_otro_proveedor_de_claves_no_se_lee()
     {
-        var token = TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "STAMP", Guid.NewGuid());
+        var token = TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "STAMP", Guid.NewGuid(), Marcas);
 
         // Otro proveedor efímero = otras claves, como tras rotarlas.
         TokenSesionExtension.Leer(new EphemeralDataProtectionProvider(), token).Should().BeNull();
@@ -55,7 +61,7 @@ public class TokenSesionExtensionTests
     public void Emitir_sin_security_stamp_no_esta_permitido()
     {
         // Sin stamp no habría con qué revocar el token después.
-        var emitir = () => TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "   ", Guid.NewGuid());
+        var emitir = () => TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "   ", Guid.NewGuid(), Marcas);
 
         emitir.Should().Throw<ArgumentException>();
     }
@@ -78,13 +84,13 @@ public class TokenSesionExtensionTests
         var protector = _protector.CreateProtector("CaeManager.Extension.Sesion.v1").ToTimeLimitedDataProtector();
         var token = protector.Protect($"{Guid.NewGuid():N}|STAMP", TimeSpan.FromHours(8));
         TokenSesionExtension.Leer(_protector, token).Should().BeNull();
-        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|STAMP|{Guid.Empty:N}").Should().BeNull();
+        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|STAMP|{Guid.Empty:N}|{Segundos}|{Segundos}|30").Should().BeNull();
     }
 
     [Fact]
     public void Una_carga_util_sin_stamp_se_rechaza()
     {
-        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|   |{Guid.NewGuid():N}").Should().BeNull();
+        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|   |{Guid.NewGuid():N}|{Segundos}|{Segundos}|30").Should().BeNull();
     }
 
     [Fact]
@@ -95,7 +101,46 @@ public class TokenSesionExtensionTests
         var usuarioId = Guid.NewGuid();
         var sid = Guid.NewGuid();
 
-        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}")
-            .Should().BeEquivalentTo(new CargaUtilTokenExtension(usuarioId, "STAMP", sid));
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}|{Segundos + 60}|30")
+            .Should().BeEquivalentTo(new CargaUtilTokenExtension(
+                usuarioId, "STAMP", sid, new MarcasSesionOrigen(Marcas.Inicio, Marcas.Inicio.AddSeconds(60), TimeSpan.FromMinutes(30))));
+    }
+
+    /// <summary>
+    /// Issue #1891: el token emitido antes de llevar las marcas de la sesión de origen no se admite, y una marca
+    /// ilegible tampoco. Sin ellas no habría con qué aplicar el tope ni la inactividad de esa sesión.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("-1")]
+    [InlineData("1e3")]
+    [InlineData(" 12")]
+    [InlineData("999999999999999999")]
+    public void Una_carga_util_sin_marcas_legibles_se_rechaza(string marca)
+    {
+        var usuarioId = Guid.NewGuid();
+        var sid = Guid.NewGuid();
+
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}").Should().BeNull("el formato anterior, sin marcas");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}").Should().BeNull("una sola marca");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}|{Segundos}").Should().BeNull("sin el plazo al emitir");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{marca}|{Segundos}|30").Should().BeNull("inicio ilegible");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}|{marca}|30").Should().BeNull("interacción ilegible");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}|{Segundos}|{marca}").Should().BeNull("plazo ilegible");
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}|{Segundos}|{Segundos}|30|30").Should().BeNull("una parte de más");
+    }
+
+    /// <summary>El plazo al emitir solo se admite dentro del rango del ajuste del Tenant, al leer y al emitir.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(481)]
+    public void Un_plazo_al_emitir_fuera_de_rango_no_se_admite(int minutos)
+    {
+        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|STAMP|{Guid.NewGuid():N}|{Segundos}|{Segundos}|{minutos}")
+            .Should().BeNull();
+        var emitir = () => TokenSesionExtension.Proteger(
+            _protector, Guid.NewGuid(), "STAMP", Guid.NewGuid(), Marcas with { PlazoInactividad = TimeSpan.FromMinutes(minutos) });
+        emitir.Should().Throw<ArgumentException>();
     }
 }

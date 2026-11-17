@@ -112,4 +112,12 @@ public interface ICurrentUserService
     /// implementación que no lo sepa falla en cerrado.
     /// </summary>
     Task<bool> SuperoTotpEnSesionAsync() => Task.FromResult(false);
+
+    /// <summary>
+    /// El papel con el que se opera el Tenant activo (<see cref="PapelActivo"/>, DN-21): el <c>Servicio</c> de la
+    /// Asignación de Operación seleccionada, revalidada en la base, o el Tenant de origen si no hay selección. Por
+    /// defecto <see cref="PapelActivo.SinPapel"/>: una implementación que no lo sepa falla en cerrado en
+    /// <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>.
+    /// </summary>
+    Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(PapelActivo.SinPapel);
 }

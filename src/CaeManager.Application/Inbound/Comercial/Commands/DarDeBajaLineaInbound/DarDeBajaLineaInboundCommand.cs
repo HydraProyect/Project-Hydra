@@ -24,8 +24,8 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.DarDeBajaLineaInboun
 /// <para>
 /// <b>Autorización</b>: <see cref="AutoridadSobreLaLineaInbound"/>, con su ventana de revocación declarada. Por ser
 /// <see cref="IComandoDeAprovisionamiento"/>, escribe como <c>cae_app_aprovisionamiento</c>, que solo puede pasar una
-/// fila de la línea Inbound vigente del Tenant del contexto firmado a Finalizado, con el fin en <c>now()</c> ± 5 minutos
-/// (política <c>aprovisionamiento_solo_finaliza_inbound_vigente</c>).
+/// fila de la línea Inbound vigente del Tenant del contexto firmado a Finalizado, con el fin entre <c>now()</c> - 5 minutos
+/// y <c>now()</c>, nunca en el futuro (política <c>aprovisionamiento_solo_finaliza_inbound_vigente</c>, issue #2259).
 /// </para>
 /// </summary>
 [AreaDelEncargo("Comercial")]

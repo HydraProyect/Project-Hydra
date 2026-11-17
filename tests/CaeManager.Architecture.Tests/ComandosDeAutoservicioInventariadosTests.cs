@@ -93,7 +93,7 @@ public class ComandosDeAutoservicioInventariadosTests
         foreach (var archivo in Directory.EnumerateFiles(directorio, "*.cs", SearchOption.AllDirectories))
         {
             var nombre = Path.GetFileName(archivo);
-            if (nombre is "IComandoDeAutoservicio.cs" or "AutorizacionEscrituraBehavior.cs"
+            if (nombre is "IComandoDeAutoservicio.cs" or "AutorizacionEscrituraBehavior.cs" or "GuardaPorServicioBehavior.cs"
                 || archivo.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                 || archivo.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
                 continue;
