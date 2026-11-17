@@ -87,6 +87,66 @@ public class PaginasDeOutboundPorPapelTests
             .Should().BeEmpty("la marca dice que la página es de Outbound; las de Inbound y del Núcleo no se tocan");
     }
 
+    private const string MotivoExtension =
+        "La llama la extensión de navegador con su propio token (Policies.SoloExtension o SesionOExtension): " +
+        "ContextoExtensionMiddleware solo resuelve Asignaciones de Operación de Outbound, y con papel Inbound los " +
+        "comandos los corta GuardaPorServicioBehavior y los datos AlcanceDatosService. Marcarla negaría la vía de la " +
+        "extensión, cuyo papel no se ha medido; queda declarado en la PR que cierra el hueco.";
+
+    /// <summary>Clases de endpoints de un área de Outbound que no llevan <c>.DeOutbound()</c>, con su motivo.</summary>
+    private static readonly Dictionary<string, string> EndpointsExentos = new()
+    {
+        ["CaeManager.Web.Features.Contacto.SolicitudDemoEndpoints"] =
+            "Formulario público de solicitud de demo: es anónimo, no hay sesión ni papel que mirar.",
+        ["CaeManager.Web.Features.Extension.AcreditacionesPendientesEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Features.Extension.EntregaArchivoExtensionEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Features.Extension.ExtensionTokenEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Features.Extension.MarcarAcreditacionSubidaEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Features.Extension.TenantsBeneficiariosExtensionEndpoints"] = MotivoExtension,
+    };
+
+    private static readonly Lazy<IReadOnlyList<Type>> ClasesDeEndpointsDeOutbound = new(() =>
+        ReflexionArquitecturaHelper.TiposDe(ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Web"))
+            .Where(t => t.IsAbstract && t.IsSealed && t.Name.EndsWith("Endpoints", StringComparison.Ordinal)
+                        && ModuloDe(t) == Modulo.Outbound)
+            .ToList());
+
+    [Fact]
+    public void Toda_clase_de_endpoints_de_Outbound_lleva_la_condicion_de_papel_o_esta_exenta_con_motivo()
+    {
+        // Quien descarga o exporta lo de una página de Outbound es quien la ve: se niega con el mismo papel. Mide por
+        // fuente (un endpoint mínimo no tiene tipo que marcar) y por clase, no por cada Map*: una clase con una sola
+        // llamada a .DeOutbound() pasa; el detalle de cada ruta lo revisa quien la añade.
+        var fuentes = Directory
+            .GetFiles(Path.Combine(FuentesDeSrc.RaizDelRepositorio(), "src", "CaeManager.Web"), "*Endpoints.cs",
+                SearchOption.AllDirectories)
+            .ToLookup(Path.GetFileNameWithoutExtension, File.ReadAllText);
+
+        // Control positivo del instrumento: las diez clases marcadas al cerrar el hueco y las seis exentas.
+        ClasesDeEndpointsDeOutbound.Value.Should().HaveCountGreaterThanOrEqualTo(16);
+
+        ClasesDeEndpointsDeOutbound.Value
+            .Where(t => !EndpointsExentos.ContainsKey(t.FullName!)
+                        && !fuentes[t.Name].Any(fuente => fuente.Contains(".DeOutbound()", StringComparison.Ordinal)))
+            .Select(t => t.FullName)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .Should().BeEmpty(
+                "un endpoint de Outbound sin .DeOutbound() descarga con papel Inbound lo que su página niega; " +
+                "márcalo o exímelo con motivo");
+    }
+
+    [Fact]
+    public void Los_endpoints_exentos_existen_son_de_Outbound_y_tienen_motivo()
+    {
+        var porNombre = ClasesDeEndpointsDeOutbound.Value.ToDictionary(t => t.FullName!);
+
+        foreach (var (nombre, motivo) in EndpointsExentos)
+        {
+            porNombre.Should().ContainKey(nombre, "una exención obsoleta o fuera de Outbound se retira");
+            motivo.Should().NotBeNullOrWhiteSpace();
+        }
+    }
+
     [Fact]
     public void Toda_pagina_marcada_dispara_la_evaluacion_de_autorizacion()
     {
