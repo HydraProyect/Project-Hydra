@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 
@@ -27,7 +28,7 @@ public static class IdentityEndpointsExtensions
             await CierreSesionEnServidor.CerrarEstaSesionAsync(httpContext, logger);
 
             return await SalirAsync(signInManager, httpContext);
-        });
+        }).AbiertoConPapelInbound(); // salir de la sesión no depende del papel (O-1 (b))
 
         // Cerrar sesión en todos los dispositivos: rota el sello de seguridad y revoca todas las
         // sesiones de la cuenta, esta incluida. Formulario POST con antiforgery, como el de arriba.
@@ -41,13 +42,14 @@ public static class IdentityEndpointsExtensions
             await CierreSesionEnServidor.CerrarTodasLasSesionesAsync(httpContext, logger);
 
             return await SalirAsync(signInManager, httpContext);
-        }).RequireAuthorization();
+        }).RequireAuthorization().AbiertoConPapelInbound();
 
         // Señal de interacción de actividad-sesion.js. Lo hace todo la validación de la cookie
         // (CaducidadSesion); sin sesión, responde el desafío y no se mueve nada. Sin formulario ni
         // antiforgery: la señal no cambia datos y solo cuenta con Sec-Fetch-Site: same-origin. Fuera de
         // /cuenta para no consumir el limitador por IP de esa ruta.
-        endpoints.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent()).RequireAuthorization();
+        endpoints.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent()).RequireAuthorization()
+            .AbiertoConPapelInbound();
 
         static async Task<IResult> SalirAsync(SignInManager<ApplicationUser> signInManager, HttpContext httpContext)
         {

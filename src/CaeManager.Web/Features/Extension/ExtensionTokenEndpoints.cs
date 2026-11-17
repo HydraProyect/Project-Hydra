@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 
@@ -69,7 +70,10 @@ public static class ExtensionTokenEndpoints
 
             var (token, expiraEnUtc) = resultado.Valor;
             return Results.Ok(new TokenExtensionRespuesta(token, expiraEnUtc));
-        });
+        })
+        // La extensión es de Outbound: con papel Inbound no se emite su token (O-1 (b)). Con la sesión web, como las
+        // páginas de Outbound; la vía del token no pasa por aquí.
+        .DeOutbound();
 
         return endpoints;
     }

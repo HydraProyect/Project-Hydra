@@ -4,6 +4,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
@@ -38,7 +39,9 @@ public static class ClienteActivoEndpoints
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio));
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio))
+            // Con papel Inbound hace falta para volver a cambiar de papel (O-1 (b)); la selección la revalida CambiarAsync.
+            .AbiertoConPapelInbound();
 
         return endpoints;
     }

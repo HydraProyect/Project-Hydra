@@ -40,6 +40,7 @@ using CaeManager.Web.Features.Trabajadores;
 using CaeManager.Web.Features.Contacto;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
@@ -458,6 +459,10 @@ builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHand
 // resuelve en cada petición HTTP.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     CaeManager.Web.Services.Autorizacion.PaginaDeOutboundPorPapelAuthorizationHandler>();
+// Núcleo y Facturación por papel (decisión O-1 (b)): con papel Inbound niega toda página del Núcleo y de Facturación y
+// todo endpoint del grupo de abajo, salvo los abiertos de forma explícita. Con ámbito, por lo mismo que el anterior.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    CaeManager.Web.Services.Autorizacion.NucleoCerradoConPapelInboundAuthorizationHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -1552,42 +1557,47 @@ app.UseRevisionEnSalud(Environment.GetEnvironmentVariable(CaeManager.Web.Service
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
 app.MapStaticAssets().AllowAnonymous();
 app.MapHealthChecks("/salud").AllowAnonymous();
-app.MapIdentityEndpoints();
-app.MapIdiomaEndpoints();
+// Los endpoints con sesión del Núcleo y de Facturación van en este grupo (decisión O-1 (b)): con papel Inbound nacen
+// cerrados, salvo los que llevan .AbiertoConPapelInbound(). Prefijo vacío: el grupo solo añade el metadato, no cambia
+// ninguna ruta. Los de Outbound se cierran ruta a ruta con .DeOutbound(); los anónimos (webhooks, token de la API v1)
+// y la API v1 quedan fuera, sin sesión ni papel. NucleoPorPapelInboundTests exige que no quede ninguno fuera.
+var nucleoYFacturacion = app.MapGroup(string.Empty).DelNucleoOFacturacion();
+nucleoYFacturacion.MapIdentityEndpoints();
+nucleoYFacturacion.MapIdiomaEndpoints();
 app.MapClientesEndpoints();
-app.MapAsignacionesEndpoints();
-app.MapEmpresasEndpoints();
-app.MapCentrosEndpoints();
+nucleoYFacturacion.MapAsignacionesEndpoints();
+nucleoYFacturacion.MapEmpresasEndpoints();
+nucleoYFacturacion.MapCentrosEndpoints();
 app.MapIncidenciasEndpoints();
-app.MapFacturacionEndpoints();
-app.MapDocumentosEndpoints();
+nucleoYFacturacion.MapFacturacionEndpoints();
+nucleoYFacturacion.MapDocumentosEndpoints();
 app.MapImportacionEndpoints();
-app.MapTrabajadoresEndpoints();
-app.MapFirmasGuardadasEndpoints();
-app.MapLogoTenantEndpoints();
-app.MapRequisitosDocumentalesEndpoints();
+nucleoYFacturacion.MapTrabajadoresEndpoints();
+nucleoYFacturacion.MapFirmasGuardadasEndpoints();
+nucleoYFacturacion.MapLogoTenantEndpoints();
+nucleoYFacturacion.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
 app.MapVisitasEndpoints();
-app.MapVehiculosEndpoints();
+nucleoYFacturacion.MapVehiculosEndpoints();
 app.MapProyectosEndpoints();
 app.MapGestionesEndpoints();
 app.MapCuadroDireccionEndpoints();
 app.MapReportesEndpoints();
-app.MapAuditoriaEndpoints();
-app.MapClienteActivoEndpoints();
+nucleoYFacturacion.MapAuditoriaEndpoints();
+nucleoYFacturacion.MapClienteActivoEndpoints();
 // Entrada por sesión privilegiada (plano 3, B1). Aparte del anterior a
 // propósito: aquél acumula ramas de autorización en un OR y éste no debe
 // añadirse a ese OR — ver SesionSoporteEndpoints.
-app.MapSesionSoporteEndpoints();
+nucleoYFacturacion.MapSesionSoporteEndpoints();
 app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
 app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
-app.MapVistaVocabularioPreviewEndpoints();
-app.MapVistaDemoEndpoints();
-app.MapConectarMicrosoft365Endpoints();
+nucleoYFacturacion.MapVistaVocabularioPreviewEndpoints();
+nucleoYFacturacion.MapVistaDemoEndpoints();
+nucleoYFacturacion.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();
 app.MapWebhookStripeEndpoints();

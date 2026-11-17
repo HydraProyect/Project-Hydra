@@ -1,10 +1,12 @@
 namespace CaeManager.Application.Common;
 
 /// <summary>
-/// El criterio de papel que comparten las tres puertas de lo que no es Inbound (DN-21 del mapa de flujos de Inbound;
-/// B-02b y su hueco declarado): <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> para un comando que no es
-/// <see cref="IComandoInbound"/> ni de autoservicio, <c>AlcanceDatosService</c> para el alcance de datos de Outbound y
-/// <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> para las páginas de Outbound.
+/// El criterio de papel que comparten las puertas de lo que no es Inbound (DN-21 del mapa de flujos de Inbound;
+/// B-02b y su hueco declarado; O-1 (b)): <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> para un comando que
+/// no es <see cref="IComandoInbound"/> ni de autoservicio, <c>AlcanceDatosService</c> para el alcance de datos de
+/// Outbound y <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> para las páginas y endpoints de Outbound. El Núcleo y
+/// Facturación (<c>NucleoCerradoConPapelInboundAuthorizationHandler</c>, O-1 (b)) no lo usan: se cierran solo con papel
+/// Inbound, y una operación que ya no autoriza la retira la revalidación del cliente activo en la misma petición.
 ///
 /// <para>
 /// Se niega con papel <see cref="PapelActivo.Inbound"/> y con una operación que ya no autoriza
@@ -16,7 +18,10 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public static class CriterioDePapel
 {
-    /// <summary>¿Abre este papel lo que no es de Inbound (páginas, alcance y comandos de Outbound y del Núcleo)?</summary>
+    /// <summary>
+    /// ¿Abre este papel lo que no es de Inbound (páginas y alcance de Outbound, y los comandos que no son de Inbound, también
+    /// los del Núcleo)? Las páginas y endpoints del Núcleo no lo usan (ver el resumen de la clase).
+    /// </summary>
     public static bool AdmiteLoQueNoEsInbound(PapelActivo papel) =>
         papel is not (PapelActivo.Inbound or PapelActivo.OperacionQueYaNoAutoriza);
 }
