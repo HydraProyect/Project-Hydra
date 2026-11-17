@@ -8816,6 +8816,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("RecuperacionHuecoCubreDesdeUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("RecuperacionHuecoCursorDesempate")
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("RecuperacionHuecoCursorUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -8823,6 +8826,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<bool>("RecuperacionHuecoListadoCompleto")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RecuperacionHuecoRecorridaPorId")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ReintentoVerificacionNoAntesDeUtc")
