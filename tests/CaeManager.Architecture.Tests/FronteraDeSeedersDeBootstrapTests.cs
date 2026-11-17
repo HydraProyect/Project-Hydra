@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 
@@ -164,6 +165,199 @@ public class FronteraDeSeedersDeBootstrapTests
             e => string.IsNullOrWhiteSpace(e.Value),
             "salir de RLS es una decisión de seguridad, y una decisión de seguridad sin motivo escrito " +
             "es un descuido que nadie podrá revisar después");
+    }
+
+    /// <summary>
+    /// <b>«Solo en Development» es una promesa que el propio seeder tiene que cumplir.</b>
+    ///
+    /// <para>
+    /// Un seeder de la lista administrativa siembra con el rol propietario, fuera de RLS. Cuando su motivo dice
+    /// «Solo en Development», lo que lo mantiene fuera de staging y de producción es una guarda
+    /// <c>IsDevelopment()</c> dentro de su propio código. Hoy esa guarda solo la fijan los tests de cada seeder: un
+    /// seeder nuevo que entrara en la lista declarando esa promesa podría entrar sin guarda, y sembraría con el rol
+    /// propietario en cualquier entorno sin que ningún ratchet lo notara. El test recorre el diccionario, sin una
+    /// lista aparte, así que cubre solo a todo seeder que declare esa promesa en el futuro.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Qué cuenta como guarda.</b> Se quitan antes los comentarios (<c>//</c>, <c>///</c> y <c>/* */</c>) y el
+    /// contenido de los literales de cadena, para que mencionar <c>IsDevelopment()</c> en un comentario o en un
+    /// mensaje no cuente. Sobre el código que queda se exige un <c>if</c> cuya condición niegue
+    /// <c>IsDevelopment()</c> (<c>!entorno.IsDevelopment()</c>), sin <c>&amp;&amp;</c> —con <c>&amp;&amp;</c> la
+    /// salida ya no cubriría el caso «no es Development»—, y cuyo cuerpo empiece por <c>return</c> o <c>throw</c>:
+    /// la salida temprana, que es lo que impide llegar a la escritura. Admite que la negación vaya como un
+    /// disyunto más (<c>!activo || !entorno.IsDevelopment()</c>). Una forma de guarda legítima que no encaje se
+    /// reescribe a esa, o se amplía este criterio con su propio caso en el test del detector; el fallo avisa.
+    /// </para>
+    ///
+    /// <para>
+    /// El fichero del seeder se localiza por nombre de clase bajo <c>src/</c>; si no aparece exactamente uno, el
+    /// test falla en vez de saltarse al seeder, porque un seeder que no se encuentra es uno que no se vigila.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Todo_seeder_administrativo_que_declara_solo_en_Development_lleva_la_guarda_en_su_codigo()
+    {
+        var declaran = ConIdentidadAdministrativa
+            .Where(e => e.Value.Contains(MarcadorSoloEnDevelopment, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Key)
+            .OrderBy(n => n)
+            .ToList();
+
+        // Guarda del instrumento: si el filtro dejara de casar con ningún motivo, el bucle de abajo no
+        // observaría nada y el test pasaría en vacío.
+        declaran.Should().NotBeEmpty(
+            $"al menos un seeder administrativo declara «{MarcadorSoloEnDevelopment}» en su motivo; una lista " +
+            "vacía significaría que el filtro ya no casa con el diccionario y este test no vigila nada");
+
+        var raiz = RaizDelRepositorio();
+        var defectos = new List<string>();
+
+        foreach (var seeder in declaran)
+        {
+            var ficheros = LocalizarFuenteDeClase(raiz, seeder);
+
+            if (ficheros.Count != 1)
+            {
+                defectos.Add(
+                    $"{seeder}: se esperaba exactamente un fichero con «class {seeder}» bajo src/ y hay " +
+                    $"{ficheros.Count}" + (ficheros.Count == 0 ? "" : ": " + string.Join(", ", ficheros)));
+                continue;
+            }
+
+            var codigo = SinComentariosNiLiterales(File.ReadAllText(ficheros[0]));
+
+            if (!TieneGuardaDeDevelopment(codigo))
+                defectos.Add(
+                    $"{seeder} ({ficheros[0]}): su motivo dice «{MarcadorSoloEnDevelopment}» pero su código no " +
+                    "contiene una guarda real: un if que niegue IsDevelopment() y salga con return o throw");
+        }
+
+        string.Join(Environment.NewLine, defectos).Should().BeEmpty(
+            "un seeder administrativo escribe con el rol propietario, fuera de RLS; si declara que es solo de " +
+            "Development, la guarda IsDevelopment() tiene que estar en su propio código y no solo en sus tests, " +
+            "porque es lo único que evita que siembre en staging o en producción");
+    }
+
+    /// <summary>
+    /// El detector de guardas es el instrumento del test anterior: se prueba contra casos construidos para
+    /// que no dé por buena una guarda que no lo es (comentario, cadena, condición con <c>&amp;&amp;</c>, falta de
+    /// salida) y acepte las dos formas que usan los seeders reales.
+    /// </summary>
+    [Theory]
+    [InlineData("if (!entorno.IsDevelopment()) throw new InvalidOperationException(\"x\");", true)]
+    [InlineData("if (!entorno.IsDevelopment())\n    return;", true)]
+    [InlineData("if (!configuration.GetValue<bool>(\"A:B\") || !entorno.IsDevelopment()) { return; }", true)]
+    [InlineData("// if (!entorno.IsDevelopment()) return;\nvar x = 1;", false)]
+    [InlineData("/// <c>if (!entorno.IsDevelopment()) return;</c>\nvar x = 1;", false)]
+    [InlineData("/* if (!entorno.IsDevelopment()) return; */ var x = 1;", false)]
+    [InlineData("var m = \"if (!entorno.IsDevelopment()) return;\";", false)]
+    [InlineData("if (activo && !entorno.IsDevelopment()) return;", false)]
+    [InlineData("if (entorno.IsDevelopment()) return;", false)]
+    [InlineData("if (!entorno.IsDevelopment()) logger.LogWarning(\"x\");", false)]
+    [InlineData("var esDev = entorno.IsDevelopment();", false)]
+    public void El_detector_de_guarda_de_Development_solo_acepta_una_salida_temprana_real(string fuente, bool esperado)
+    {
+        TieneGuardaDeDevelopment(SinComentariosNiLiterales(fuente)).Should().Be(esperado);
+    }
+
+    private const string MarcadorSoloEnDevelopment = "Solo en Development";
+
+    private static readonly Regex IfConSalida = new(
+        @"\bif\s*\(([^;{}]*)\)\s*(?:\{\s*)?(?:return|throw)\b", RegexOptions.Compiled);
+
+    private static readonly Regex NegacionDeIsDevelopment = new(
+        @"!\s*[\w.]+\s*\.\s*IsDevelopment\s*\(\s*\)", RegexOptions.Compiled);
+
+    private static bool TieneGuardaDeDevelopment(string codigoSinComentarios) =>
+        IfConSalida.Matches(codigoSinComentarios)
+            .Select(m => m.Groups[1].Value)
+            .Any(condicion => !condicion.Contains("&&") && NegacionDeIsDevelopment.IsMatch(condicion));
+
+    private static List<string> LocalizarFuenteDeClase(string raiz, string clase)
+    {
+        var separador = Path.DirectorySeparatorChar;
+        var patron = new Regex($@"\bclass\s+{Regex.Escape(clase)}\b");
+
+        return Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{separador}obj{separador}") && !f.Contains($"{separador}bin{separador}"))
+            .Where(f =>
+            {
+                var texto = File.ReadAllText(f);
+                return texto.Contains(clase, StringComparison.Ordinal)
+                    && patron.IsMatch(SinComentariosNiLiterales(texto));
+            })
+            .Select(f => Path.GetRelativePath(raiz, f))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Quita comentarios y vacía los literales de cadena, carácter incluido, de un fuente C#. No es un analizador
+    /// completo —las llaves de interpolación no se interpretan—, pero cubre lo que importa aquí: que una mención
+    /// de <c>IsDevelopment()</c> en un comentario o en un mensaje de excepción no se confunda con una guarda.
+    /// </summary>
+    private static string SinComentariosNiLiterales(string codigo)
+    {
+        var salida = new StringBuilder(codigo.Length);
+        var i = 0;
+
+        while (i < codigo.Length)
+        {
+            var c = codigo[i];
+            var siguiente = i + 1 < codigo.Length ? codigo[i + 1] : '\0';
+
+            if (c == '/' && siguiente == '/')
+            {
+                while (i < codigo.Length && codigo[i] != '\n')
+                    i++;
+            }
+            else if (c == '/' && siguiente == '*')
+            {
+                var fin = codigo.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = fin < 0 ? codigo.Length : fin + 2;
+                salida.Append(' ');
+            }
+            else if (c == '"' && string.CompareOrdinal(codigo, i, "\"\"\"", 0, 3) == 0)
+            {
+                var fin = codigo.IndexOf("\"\"\"", i + 3, StringComparison.Ordinal);
+                i = fin < 0 ? codigo.Length : fin + 3;
+                salida.Append("\"\"");
+            }
+            else if (c == '"')
+            {
+                var literal = i > 0 && (codigo[i - 1] == '@' || (i > 1 && codigo[i - 1] == '$' && codigo[i - 2] == '@'));
+                i++;
+
+                while (i < codigo.Length)
+                {
+                    if (literal && codigo[i] == '"' && i + 1 < codigo.Length && codigo[i + 1] == '"')
+                        i += 2;
+                    else if (!literal && codigo[i] == '\\')
+                        i += 2;
+                    else if (codigo[i] == '"')
+                        break;
+                    else
+                        i++;
+                }
+
+                i = Math.Min(i + 1, codigo.Length);
+                salida.Append("\"\"");
+            }
+            else if (c == '\'')
+            {
+                var fin = codigo.IndexOf('\'', i + (siguiente == '\\' ? 3 : 2));
+                i = fin < 0 ? codigo.Length : fin + 1;
+                salida.Append("''");
+            }
+            else
+            {
+                salida.Append(c);
+                i++;
+            }
+        }
+
+        return salida.ToString();
     }
 
     private static string RaizDelRepositorio()
