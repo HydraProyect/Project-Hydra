@@ -196,6 +196,13 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
                                             r.DatosDespues.Contains("\"usuarioSimuladoId\":null") &&
                                             !r.DatosDespues.Contains(ContrasenaZip));
         manifiesto.RootElement.GetProperty("noIncluido").EnumerateObject().Should().NotBeEmpty();
+
+        // Decisión de Legal y cumplimiento (2026-11-17): la actividad de Soporte TALVEG no es dato del Tenant
+        // propietario; se declara en el manifiesto y no sale como fichero vacío.
+        entradas.Select(e => e.Name).Should().NotContain("datos/RegistroActividadSoporte.json");
+        manifiesto.RootElement.GetProperty("noIncluido")
+            .GetProperty(ExportacionCompletaTenant.NoIncluidoActividadSoporte).GetString().Should().Be(
+                "registro de seguridad del que TALVEG es responsable; disponible a petición como información de cumplimiento (DPA § 10.1, art. 28.3.h RGPD)");
     }
 
     [Fact]

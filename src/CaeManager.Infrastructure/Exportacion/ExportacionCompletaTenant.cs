@@ -100,9 +100,32 @@ public static class ExportacionCompletaTenant
         "TareaAsistente", "TurnoTareaAsistente", "PasoTareaAsistente",
     };
 
+    /// <summary>
+    /// Tablas con Tenant que son registro de seguridad del que TALVEG es responsable, no dato del Tenant propietario:
+    /// su lectura bajo <c>cae_app_runtime</c> la abre la RLS solo al Administrador del Tenant y a la plataforma de la
+    /// visita (<c>SoloElAdministradorLeeLaActividadDeSoporte</c>), y la exportación corre sin sesión de usuario, así que
+    /// saldrían vacías y diría que no hay actividad. Salen del recorrido y constan en el manifiesto
+    /// (<see cref="NoIncluidoDeclarado"/>), nunca como un fichero vacío en silencio.
+    /// </summary>
+    private static readonly HashSet<string> RegistroDeSeguridadDeTalveg = new(StringComparer.Ordinal)
+    {
+        "RegistroActividadSoporte",
+    };
+
+    /// <summary>Clave de <c>RegistrosActividadSoporte</c> en el manifiesto (<c>noIncluido</c>).</summary>
+    public const string NoIncluidoActividadSoporte = "RegistrosActividadSoporte (actividad de Soporte TALVEG)";
+
+    /// <summary>Motivo literal de su exclusión (decisión de Legal y cumplimiento, 2026-11-17, opción a).</summary>
+    public const string MotivoActividadSoporte =
+        "registro de seguridad del que TALVEG es responsable; disponible a petición como información de cumplimiento (DPA § 10.1, art. 28.3.h RGPD)";
+
+    /// <summary>Lo que la exportación deja fuera a sabiendas, con su motivo, tal cual va al manifiesto.</summary>
+    public static IReadOnlyDictionary<string, string> NoIncluidoDeclarado => NoIncluido;
+
     /// <summary>Lo que la exportación deja fuera a sabiendas; va al manifiesto con su motivo.</summary>
     private static readonly IReadOnlyDictionary<string, string> NoIncluido = new SortedDictionary<string, string>(StringComparer.Ordinal)
     {
+        [NoIncluidoActividadSoporte] = MotivoActividadSoporte,
         ["TareaAsistente, TurnoTareaAsistente, PasoTareaAsistente"] =
             "RLS las acota a la persona que las creó; la exportación corre sin sesión de usuario y no las ve.",
         ["Asignaciones de Operación y de Cartera, encargos, solicitudes y propuestas de cartera"] =
@@ -170,7 +193,8 @@ public static class ExportacionCompletaTenant
         modelo.GetEntityTypes()
             .Where(t => t.BaseType is null && !t.IsOwned() && t.FindPrimaryKey() is not null &&
                         t.GetTableName() is not null && !t.HasSharedClrType &&
-                        typeof(EntidadConTenant).IsAssignableFrom(t.ClrType) && !AcotadasALaPersona.Contains(t.ClrType.Name))
+                        typeof(EntidadConTenant).IsAssignableFrom(t.ClrType) && !AcotadasALaPersona.Contains(t.ClrType.Name) &&
+                        !RegistroDeSeguridadDeTalveg.Contains(t.ClrType.Name))
             .OrderBy(t => t.ClrType.Name, StringComparer.Ordinal)
             .ToList();
 

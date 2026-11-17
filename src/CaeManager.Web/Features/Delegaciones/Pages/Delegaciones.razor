@@ -261,7 +261,7 @@
                         <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _personasCompletas.Add(delegacion.Id)">@TextosLista["VerRestantes", delegacion.Operadores.Count - 3]</Boton>
                     }
                     <div class="delegaciones-pie">
-                        @if (delegacion.EsSoporte)
+                        @if (delegacion.EsSoporte && PuedeVerActividadRegistrada(delegacion))
                         {
                             <Boton Tamano="TamanoBoton.Pequeno"
                                    Variante="VarianteBoton.Fantasma"
