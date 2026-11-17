@@ -101,7 +101,7 @@ public static class ComunicacionesDemoCompletaSeeder
         new("Confirmación de la visita programada del viernes", 2, CanalConversacion.Correo, EstadoConversacion.EsperandoRespuestaExterna,
             PrioridadConversacion.Urgente, Asignacion.OtroGestor, Buzon.Compartido, null, 9, ReclamacionEnviada: true),
         new("Contrato de la subcontrata autorizada", 0, CanalConversacion.Correo, EstadoConversacion.Pendiente,
-            PrioridadConversacion.Normal, Asignacion.SinAsignar, Buzon.Personal, 30,
+            PrioridadConversacion.Normal, Asignacion.GestorDeLaDemo, Buzon.Personal, 30,
             Adjuntos: [Reparto.Dividido]),
         new("Consulta de un remitente que no figura en la cartera", -1, CanalConversacion.Correo, EstadoConversacion.Abierta,
             PrioridadConversacion.Normal, Asignacion.SinAsignar, Buzon.Compartido, 5),
@@ -404,7 +404,7 @@ public static class ComunicacionesDemoCompletaSeeder
         var (nombre, tipoContenido) = reparto switch
         {
             Reparto.PdfDivisible => (NombrePdfDivisible, "application/pdf"),
-            Reparto.ListoParaAsignar => ("epis-firmadas.jpg", "image/jpeg"),
+            Reparto.ListoParaAsignar => ("epis-firmadas.pdf", "application/pdf"),
             Reparto.SinDestino => ("documento-sin-identificar.pdf", "application/pdf"),
             Reparto.Asignado => ("apto-medico.pdf", "application/pdf"),
             Reparto.Rechazado => ("seguro-caducado.pdf", "application/pdf"),
@@ -476,16 +476,12 @@ public static class ComunicacionesDemoCompletaSeeder
         return mejor;
     }
 
-    private const string JpegMinimoBase64 =
-        "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
-
     private const string PngMinimoBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
-    /// <summary>Un archivo válido y mínimo del tipo que dice su nombre: un PDF de una página, un JPEG o un PNG de un píxel.</summary>
+    /// <summary>Un archivo válido y mínimo del tipo que dice su nombre: un PNG de un píxel o un PDF de una página.</summary>
     private static byte[] ContenidoMinimo(string nombre) => Path.GetExtension(nombre).ToLowerInvariant() switch
     {
-        ".jpg" => Convert.FromBase64String(JpegMinimoBase64),
         ".png" => Convert.FromBase64String(PngMinimoBase64),
         _ => ComunicacionesDemoPdf.Generar([$"{nombre} · documento de demostración"]),
     };
