@@ -37,6 +37,9 @@ public class ConsumidoresDelLectorInboundAcotadosTests
         // Demo mínima (DECISION_LOG 2026-11-17, opción b): la cola de validación lista los Documentos autorizados de cada
         // contrato después de LecturaInboundAutoridad sobre ese contrato, igual que ObtenerDocumentosInboundQueryHandler.
         typeof(ObtenerColaValidacionInboundQueryHandler),
+        // Demo Inbound P6: el archivo pedido desde la cola de validación. Pide ValidarInbound y LeerInbound y luego abre con
+        // la misma apertura que ObtenerArchivoInboundQueryHandler, que decide la cartera con LecturaInboundAutoridad.
+        typeof(ObtenerArchivoParaValidarInboundQueryHandler),
     ];
 
     /// <summary>
@@ -48,6 +51,7 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     private static readonly Type[] ConsumidoresAutorizadosDelAlmacenDeOriginales =
     [
         typeof(ObtenerArchivoInboundQueryHandler),
+        typeof(ObtenerArchivoParaValidarInboundQueryHandler),
         typeof(RegistrarEvidenciaInboundCommandHandler),
         typeof(OriginalesInbound),
     ];

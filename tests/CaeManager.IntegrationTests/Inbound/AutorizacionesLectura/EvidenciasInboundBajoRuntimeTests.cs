@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerLecturaInbound;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Inbound.AutorizacionesLectura;
 using CaeManager.Domain.Centros;
@@ -502,6 +503,67 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna evidencia nueva");
         }
     }
+
+    /// <summary>
+    /// Demo Inbound P6: la Gestora CAE del Tenant TCE (X) abre desde la cola el original del Tenant TEC (Y). Bajo runtime con
+    /// contexto firmado: se sirve el binario descifrado con la clave de Y, y la función deja una sola fila Apertura en
+    /// AccesosLecturaInbound de Y, con los mismos datos que un Listado (Tenant lector, contrato, autorización, usuario) y
+    /// nada más; X no la ve.
+    /// </summary>
+    [Fact]
+    public async Task La_apertura_desde_la_cola_sirve_el_original_y_deja_una_fila_Apertura_en_el_Tenant_TEC()
+    {
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            var abierto = await ArchivoParaValidar(contexto, Alcance(), Usuario()).Handle(new(_contrato.Id, _formacion), CancellationToken.None);
+
+            abierto!.Contenido.Should().Equal(ContenidoOriginal);
+            abierto.TipoMime.Should().Be("application/pdf");
+            (await contexto.AccesosLecturaInbound.IgnoreQueryFilters().CountAsync())
+                .Should().Be(0, "el registro es del Tenant TEC: RLS se lo oculta al Tenant TCE");
+        }
+
+        var acceso = (await AccesosEnElTenantPropietarioAsync()).Should().ContainSingle().Subject;
+        (acceso.TenantId, acceso.Tipo, acceso.DocumentoId).Should().Be((_contratista.Id, TipoAccesoLecturaInbound.Apertura, (Guid?)_formacion));
+        (acceso.TenantLectorId, acceso.ContratoAccesoId, acceso.AutorizacionId, acceso.UsuarioId, acceso.TenantOrigenLectorId)
+            .Should().Be((_lector.Id, _contrato.Id, _autorizacion, _usuarioLector, (Guid?)null));
+    }
+
+    [Fact]
+    public async Task La_apertura_desde_la_cola_niega_sin_traza_fuera_de_cartera_el_informe_de_salud_y_desde_otro_Tenant_TCE()
+    {
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            (await ArchivoParaValidar(contexto, Alcance(), Usuario()).Handle(new(_contrato.Id, _informeSinMarca), CancellationToken.None))
+                .Should().BeNull("el informe médico es de un tipo de salud sin marca: la base no lo concede");
+            (await ArchivoParaValidar(contexto, new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]), Usuario())
+                    .Handle(new(_contrato.Id, _formacion), CancellationToken.None))
+                .Should().BeNull("el Cliente empresarial del contrato no está en la Asignación de Cartera");
+        }
+
+        // Z, otro Tenant TCE, con «cartera» sobre el mismo Cliente empresarial: RLS no le deja ver el contrato de X.
+        await using (var contexto = Contexto(_otro.Id, _usuarioOtro))
+        {
+            (await ArchivoParaValidar(contexto, Alcance(), new CurrentUserServiceFalso(_usuarioOtro, Roles.GestorCae, tenantOrigenId: _otro.Id))
+                    .Handle(new(_contrato.Id, _formacion), CancellationToken.None))
+                .Should().BeNull("el contrato es de otro Tenant TCE");
+        }
+
+        (await AccesosEnElTenantPropietarioAsync()).Should().BeEmpty("ninguna negativa dio lectura ni dejó traza");
+
+        // Control positivo: la misma apertura, con autoridad, sí deja su fila.
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+            (await ArchivoParaValidar(contexto, Alcance(), Usuario()).Handle(new(_contrato.Id, _formacion), CancellationToken.None))
+                .Should().NotBeNull();
+        (await AccesosEnElTenantPropietarioAsync()).Should().ContainSingle();
+    }
+
+    private ObtenerArchivoParaValidarInboundQueryHandler ArchivoParaValidar(
+        CaeManagerDbContext contexto, AlcanceDatosServiceFalso alcance, CurrentUserServiceFalso usuario) =>
+        new(contexto, alcance, usuario, new LectorDocumentosInboundEnBase(contexto),
+            new CaeManager.Infrastructure.Inbound.FileStorage.AdaptadorAlmacenOriginalesInbound(
+                new CaeManager.Infrastructure.FileStorage.LecturaDeDiscoDelTenantPropietario(Almacen(_lector.Id))),
+            new AutorizacionInboundQuePermite());
 
     private async Task<Guid> RegistrarAsync(Guid documento, Guid tipo, ConclusionAptitud? conclusion = null)
     {

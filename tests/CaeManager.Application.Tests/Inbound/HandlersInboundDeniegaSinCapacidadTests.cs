@@ -50,6 +50,8 @@ public class HandlersInboundDeniegaSinCapacidadTests
         ["ContratosAcceso.Queries.ObtenerLecturaInbound.ObtenerAutorizacionInboundQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.Queries.ObtenerLecturaInbound.ObtenerDocumentosInboundQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.Queries.ObtenerLecturaInbound.ObtenerArchivoInboundQueryHandler"] = CapacidadInbound.LeerInbound,
+        // Pide primero ValidarInbound (la de la cola) y, solo si la tiene, LeerInbound: con la puerta que niega, solo la primera.
+        ["ContratosAcceso.Queries.ObtenerLecturaInbound.ObtenerArchivoParaValidarInboundQueryHandler"] = CapacidadInbound.ValidarInbound,
         ["Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommandHandler"] = CapacidadInbound.GestionarInbound,
         ["Requisitos.Commands.CrearPlantillaRequisitos.CrearPlantillaRequisitosCommandHandler"] = CapacidadInbound.GestionarInbound,
         ["Requisitos.Commands.CrearRequisitoPropio.CrearRequisitoPropioCommandHandler"] = CapacidadInbound.GestionarInbound,
