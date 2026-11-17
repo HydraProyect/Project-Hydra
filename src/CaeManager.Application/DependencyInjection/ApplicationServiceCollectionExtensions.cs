@@ -100,6 +100,8 @@ public static class ApplicationServiceCollectionExtensions
         services.TryAddScoped<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada,
             CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.IEstadoLineaOutbound,
+            CaeManager.Application.Comercial.LineaOutbound.EstadoLineaOutboundService>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
         // Foto a PDF: fuera de MediatR, para no retener la puerta de acceso a datos del circuito mientras decodifica.
