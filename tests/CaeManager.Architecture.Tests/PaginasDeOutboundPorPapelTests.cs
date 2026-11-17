@@ -93,15 +93,24 @@ public class PaginasDeOutboundPorPapelTests
         "comandos los corta GuardaPorServicioBehavior y los datos AlcanceDatosService. Marcarla negaría la vía de la " +
         "extensión, cuyo papel no se ha medido; queda declarado en la PR que cierra el hueco.";
 
+    private const string MotivoExtensionYSesion =
+        "Policies.SesionOExtension: la llama la extensión con su token y también la sesión web. Por la vía del token, " +
+        "ContextoExtensionMiddleware solo resuelve Asignaciones de Operación de Outbound; por la sesión web, con papel " +
+        "Inbound, AlcanceDatosService da alcance vacío y GuardaPorServicioBehavior corta la escritura, pero la ruta " +
+        "responde. Marcarla negaría también la vía de la extensión, cuyo papel no se ha medido; hueco declarado en la PR.";
+
     /// <summary>Clases de endpoints de un área de Outbound que no llevan <c>.DeOutbound()</c>, con su motivo.</summary>
     private static readonly Dictionary<string, string> EndpointsExentos = new()
     {
         ["CaeManager.Web.Features.Contacto.SolicitudDemoEndpoints"] =
             "Formulario público de solicitud de demo: es anónimo, no hay sesión ni papel que mirar.",
-        ["CaeManager.Web.Features.Extension.AcreditacionesPendientesEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Api.V1.ClientesApiEndpoints"] =
+            "API pública v1: la autentica la Clave de Integración (RequiereAlcanceIntegracion), sin sesión web ni " +
+            "selección de Asignación de Operación, así que no hay papel Inbound que negar.",
+        ["CaeManager.Web.Features.Extension.AcreditacionesPendientesEndpoints"] = MotivoExtensionYSesion,
         ["CaeManager.Web.Features.Extension.EntregaArchivoExtensionEndpoints"] = MotivoExtension,
         ["CaeManager.Web.Features.Extension.ExtensionTokenEndpoints"] = MotivoExtension,
-        ["CaeManager.Web.Features.Extension.MarcarAcreditacionSubidaEndpoints"] = MotivoExtension,
+        ["CaeManager.Web.Features.Extension.MarcarAcreditacionSubidaEndpoints"] = MotivoExtensionYSesion,
         ["CaeManager.Web.Features.Extension.TenantsBeneficiariosExtensionEndpoints"] = MotivoExtension,
     };
 
@@ -120,10 +129,10 @@ public class PaginasDeOutboundPorPapelTests
         var fuentes = Directory
             .GetFiles(Path.Combine(FuentesDeSrc.RaizDelRepositorio(), "src", "CaeManager.Web"), "*Endpoints.cs",
                 SearchOption.AllDirectories)
-            .ToLookup(Path.GetFileNameWithoutExtension, File.ReadAllText);
+            .ToLookup(Path.GetFileNameWithoutExtension, SinComentarios);
 
-        // Control positivo del instrumento: las diez clases marcadas al cerrar el hueco y las seis exentas.
-        ClasesDeEndpointsDeOutbound.Value.Should().HaveCountGreaterThanOrEqualTo(16);
+        // Control positivo del instrumento: las diez clases marcadas al cerrar el hueco y las siete exentas.
+        ClasesDeEndpointsDeOutbound.Value.Should().HaveCountGreaterThanOrEqualTo(17);
 
         ClasesDeEndpointsDeOutbound.Value
             .Where(t => !EndpointsExentos.ContainsKey(t.FullName!)
@@ -134,6 +143,10 @@ public class PaginasDeOutboundPorPapelTests
                 "un endpoint de Outbound sin .DeOutbound() descarga con papel Inbound lo que su página niega; " +
                 "márcalo o exímelo con motivo");
     }
+
+    /// <summary>La fuente sin las líneas de comentario, para que un «.DeOutbound()» citado en la documentación no cuente.</summary>
+    private static string SinComentarios(string ruta) =>
+        string.Join('\n', File.ReadAllLines(ruta).Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal)));
 
     [Fact]
     public void Los_endpoints_exentos_existen_son_de_Outbound_y_tienen_motivo()
