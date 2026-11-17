@@ -69,8 +69,11 @@ public class NucleoCerradoConPapelInboundAuthorizationHandlerTests
         var usuario = new UsuarioConPapel(PapelActivo.Inbound);
 
         (await AutorizarAsync(Ruta(CentrosInbound), usuario)).Succeeded.Should().BeTrue();
-        (await AutorizarAsync(Ruta(MiTrabajo), usuario)).Succeeded.Should().BeTrue();
         usuario.ConsultasDePapel.Should().Be(0);
+
+        var deOutbound = new UsuarioConPapel(PapelActivo.Inbound);
+        (await AutorizarAsync(Ruta(MiTrabajo), deOutbound)).Succeeded.Should().BeFalse("la niega el handler de Outbound");
+        deOutbound.ConsultasDePapel.Should().Be(1, "el papel se consulta una sola vez: solo el handler de Outbound");
     }
 
     [Theory]
