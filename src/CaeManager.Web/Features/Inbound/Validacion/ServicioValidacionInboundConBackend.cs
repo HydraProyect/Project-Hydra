@@ -17,8 +17,10 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 /// <see cref="ObtenerColaValidacionInboundQuery"/>, y Validar y Rechazar, uno a uno, de
 /// <see cref="RegistrarEvidenciaInboundCommand"/> (Rechazar, con su rechazo inicial en el mismo guardado). La autoridad la
 /// decide Application en cada llamada; este servicio solo traduce. La cola, el documento, Validar y Rechazar
-/// solo funcionan con <see cref="OpcionesValidacionInbound.Habilitado"/>; apagada, todo responde «no disponible» y no se lee nada. Lo demás sigue «no disponible»: Marcar incompleto y
-/// Deshacer (B-22), el lote (B-27), la lectura con IA y su propuesta (B-24, B-26), las páginas y la descarga del original.
+/// solo funcionan con <see cref="OpcionesValidacionInbound.Habilitado"/>; apagada, todo responde «no disponible» y no se lee nada.
+/// La descarga del original (demo P6) es un enlace a <see cref="ArchivoValidacionInboundEndpoints"/>, que vuelve a decidir la
+/// autoridad en cada petición. Lo demás sigue «no disponible»: Marcar incompleto y
+/// Deshacer (B-22), el lote (B-27), la lectura con IA y su propuesta (B-24, B-26) y las páginas del visor.
 ///
 /// <para>
 /// Una fila de la cola es un par (contrato de acceso, Documento original): el mismo original puede estar pendiente en dos
@@ -185,7 +187,7 @@ public sealed class ServicioValidacionInboundConBackend(
         new(id, fila.TipoDocumentoNombre, Entidad(fila), fila.Titular, fila.Identificador ?? "—", fila.EmpresaContratista,
             RolEmpresaContratista, fila.CifEmpresaContratista ?? "—", [fila.Centro], Subido(fila),
             Origen: "Empresa contratista", Requisito: fila.TipoDocumentoNombre, NombreArchivo: fila.TipoDocumentoNombre,
-            UrlDescarga: string.Empty, Paginas: [], DatosAVerificar: DatosDeLaFicha(fila), Chequeos: [], new CriterioAceptacion(string.Empty, []),
+            UrlDescarga: ArchivoValidacionInboundEndpoints.Ruta(fila.ContratoAccesoId, fila.DocumentoOrigenId), Paginas: [], DatosAVerificar: DatosDeLaFicha(fila), Chequeos: [], new CriterioAceptacion(string.Empty, []),
             fila.FechaEmision, fila.FechaVencimiento, VigenciaMeses: null, Vigencia(fila.FechaVencimiento), Anteriores: [],
             Destinos: [], Propuesta: null, NotaSinPropuesta: textos["SinPropuesta"],
             MotivoRechazoSugerido: string.Empty, FaltaSugerida: string.Empty, ExplicacionSugerida: string.Empty, Propio: false);

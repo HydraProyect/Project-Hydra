@@ -22,7 +22,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que acota la salida de RLS.</b> Solo en Development y con las mismas claves que <see cref="InboundDemoSeeder"/>;
+/// <b>Lo que acota la salida de RLS.</b> En el arranque, solo en Development y con las mismas claves que
+/// <see cref="InboundDemoSeeder"/>; en staging, solo por el modo de línea de órdenes de <see cref="InboundDemoAdministrativa"/>,
+/// que pide el entorno confirmado a mano y se lanza con el servicio <c>migrador</c> (<see cref="ContratarLineaAsync"/>). En los dos casos,
 /// solo sobre el Tenant que esa siembra aprovisiona, localizado por su nombre y con el marcador de datos de demo (un Tenant
 /// real que se llamara igual no se toca); una sola fila, la línea Inbound vigente, dentro del
 /// <see cref="AmbitoTenantExplicito"/> de ese Tenant, que la sella; e idempotente: si el Tenant ya tiene una línea Inbound
@@ -55,6 +57,18 @@ public static class LineaInboundDemoSeeder
                 $"{InboundDemoSeeder.ClaveConfiguracion} solo puede activarse en Development (entorno actual: {entorno.EnvironmentName}): " +
                 "la línea Inbound de demostración se escribe con el rol propietario.");
 
+        await ContratarLineaAsync(dbContextBootstrap, logger, cancellationToken);
+    }
+
+    /// <summary>
+    /// La fila, SIN la guarda de Development: la llaman <see cref="SeedAsync"/>, después de su guarda, y la vía
+    /// administrativa <see cref="InboundDemoAdministrativa"/>, solo desde su modo de línea de órdenes y con el contexto de
+    /// bootstrap del servicio <c>migrador</c> (lo vigila <c>InboundDemoSoloDesdeElModoCliTests</c>). Mismo acotamiento en
+    /// los dos caminos: solo el Tenant TCE con su marcador de demo, una fila, dentro de su ámbito e idempotente.
+    /// </summary>
+    internal static async Task ContratarLineaAsync(
+        CaeManagerDbContext dbContextBootstrap, ILogger logger, CancellationToken cancellationToken)
+    {
         var tenant = await dbContextBootstrap.Tenants
             .Where(t => t.Nombre == InboundDemoSeeder.NombreTenantTce)
             .Select(t => new { t.Id, t.DatosDemoCompletadosEnUtc })

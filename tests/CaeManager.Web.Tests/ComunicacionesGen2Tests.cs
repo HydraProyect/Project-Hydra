@@ -5042,7 +5042,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
         await AbrirTablaAsync(cut);
         cut.FindAll(".tabla-conversaciones [role=columnheader]").Select(e => e.TextContent.Trim())
-            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente empresarial", "Estado", "Asignada a");
+            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente empresarial", "Estado", "Asignada a", "Plazo");
         await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
         await Escribir(cut, "Recibido.");
         cut.FindAll(".composer-macro-campo").Should().ContainSingle();

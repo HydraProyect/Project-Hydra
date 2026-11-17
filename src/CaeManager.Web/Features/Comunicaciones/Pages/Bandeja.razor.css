@@ -455,7 +455,9 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    /* Relleno de la fila de la maqueta (`.fila`, 2026-11-01): 8 arriba y abajo, 12 a la derecha. Por la izquierda, 8 (la maqueta pone 4 tras una
+       columna de 36 px con la casilla de lote, que aquí no existe: va el avatar). */
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
     border-top: var(--border-default);
     border-left: 3px solid transparent;
     cursor: pointer;

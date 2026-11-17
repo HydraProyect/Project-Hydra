@@ -113,6 +113,13 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
         (await ContarDocumentosAsync(_tenant, ambito, propietario)).Should().Be(1);
+
+        // D-12: la fila que llega a PostgreSQL lleva al Gestor CAE en las dos columnas del autor.
+        await using var contexto = CrearContexto(_tenant);
+        var autor = await contexto.Documentos.Where(d => d.Id == resultado.Valor)
+            .Select(d => new { d.SubidoPorUsuarioId, d.SubidoPorActorRealUsuarioId }).SingleAsync();
+        autor.SubidoPorUsuarioId.Should().Be(_gestorA);
+        autor.SubidoPorActorRealUsuarioId.Should().Be(_gestorA);
     }
 
     [Theory]
@@ -355,6 +362,9 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
         servicios.AddSingleton<ICurrentUserService>(usuario);
         servicios.AddSingleton<ITenantActual>(tenantActual);
         servicios.AddSingleton<ISesionPrivilegiadaActual>(new SesionPrivilegiadaAusente());
+        // D-12: Crear firma la versión con la identidad de auditoría; en producción la da Program.cs.
+        servicios.AddSingleton<CaeManager.Application.Common.IActorAuditoria>(
+            new ActorAuditoriaFijoFalso(CaeManager.Application.Common.ActorAuditoria.Normal(usuarioId)));
         // Crear/RenovarDocumento comprueban la firma del contenido (ASVS V12); estos escenarios no mandan archivo.
         servicios.AddSingleton<CaeManager.Application.Common.IFileStorageService, AlmacenamientoConPdfMinimoFalso>();
 

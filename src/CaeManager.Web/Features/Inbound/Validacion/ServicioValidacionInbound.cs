@@ -56,6 +56,8 @@ public sealed class ColaEnCursoValidacion
 /// el binario al Tenant TCE, DN-12 (a), y esa copia no se borra).
 /// Fuera de Development queda apagado aunque la clave diga lo contrario. Apagado, la cola se ve y Validar y Rechazar responden
 /// «no disponible».
+/// También abre la descarga del original del Tenant TEC desde la validación (<see cref="ArchivoValidacionInboundEndpoints"/>,
+/// demo P6): apagado, esa ruta responde 404 sin leer nada, porque cada apertura deja traza en el Tenant TEC.
 /// </summary>
 public sealed class OpcionesValidacionInbound
 {

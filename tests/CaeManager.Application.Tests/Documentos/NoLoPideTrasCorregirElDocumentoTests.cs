@@ -63,7 +63,7 @@ public class NoLoPideTrasCorregirElDocumentoTests
         documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
         new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
         mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-        new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
+        new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica(), new ActorAuditoriaFijoFalso());
 
     private static MarcarAcreditacionNoRequeridaCommandHandler NoPide(
         MundoAcreditaciones mundo, DocumentoRepositorioFalso documentos, UnitOfWorkFalso unitOfWork) => new(

@@ -62,12 +62,13 @@ public class GenerarDocumentoIndividualCommandHandlerTests
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(
             Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false,
-            IInvalidadorAlcance? invalidadorAlcance = null) => new(
+            IInvalidadorAlcance? invalidadorAlcance = null, ActorAuditoria? actor = null) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
             alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, Serializacion, AltaAcreditaciones, UnitOfWork,
-            GestionAutomatica, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, invalidadorAlcance ?? new InvalidadorAlcanceInerte());
+            GestionAutomatica, NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, new ActorAuditoriaFijoFalso(actor),
+            invalidadorAlcance ?? new InvalidadorAlcanceInerte());
 
         public UnitOfWorkFalso UnitOfWork { get; } = new();
 
@@ -130,6 +131,26 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
         entorno.Documentos.Documentos.Should().BeEmpty();
         entorno.Almacenamiento.ArchivosGuardados.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task D12_el_documento_generado_nace_con_quien_lo_genera_y_en_impersonacion_separa_al_Actor_real()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var (actorReal, simulado) = (Guid.NewGuid(), Guid.NewGuid());
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre", FuenteDatoPlantilla.TrabajadorNombreCompleto)],
+            actorReal);
+
+        var resultado = await entorno.CrearHandler(simulado, actor: new ActorAuditoria(actorReal, simulado, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()))
+            .Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var documento = entorno.Documentos.Documentos.Should().ContainSingle().Subject;
+        documento.SubidoPorUsuarioId.Should().Be(simulado);
+        documento.SubidoPorActorRealUsuarioId.Should().Be(actorReal);
     }
 
     [Fact]
@@ -697,7 +718,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, new ActorAuditoriaFijoFalso());
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
@@ -891,7 +912,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, new ActorAuditoriaFijoFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -922,7 +943,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, new ActorAuditoriaFijoFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -948,7 +969,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
             new AlcanceDatosServiceFalso(), entorno.Asignaciones, new SerializacionAltasAcreditacionEmpresaFalsa(),
             new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso(), new NacimientoGestionAutomaticaQueRegistra(),
-            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance);
+            NullLogger<GenerarDocumentoIndividualCommandHandler>.Instance, new ActorAuditoriaFijoFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 

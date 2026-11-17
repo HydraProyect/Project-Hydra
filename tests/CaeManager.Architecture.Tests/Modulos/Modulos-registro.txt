@@ -283,7 +283,7 @@ excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions    
 # Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
 excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
 
-# Siembra: sin fila en § 3. Solo InboundDemoSeeder siembra tablas Inbound (Development; excepción Composición, abajo); la de demo, la del piloto y los rellenos que solo
+# Siembra: sin fila en § 3. Solo InboundDemoSeeder siembra tablas Inbound (Development, y staging por InboundDemoAdministrativa; excepciones Composición, abajo); la de demo, la del piloto y los rellenos que solo
 # tocan datos Outbound (AsignacionesOperativasBackfillSeeder, que corre en cada arranque) existen para Outbound («ante la
 # duda, a su módulo»). Los datos de arranque que no son de un flujo (Tenant, roles, parámetros, catálogo) son Núcleo.
 excepcion Infrastructure.Persistence.Seed                                 = Outbound provisional  # sin fila en § 3: siembra de demo y piloto Outbound
@@ -297,6 +297,7 @@ excepcion Infrastructure.Persistence.Seed.SiembraEmpresaPropia            = Nucl
 excepcion Infrastructure.Persistence.Seed.DelegacionesSoporteSeeder       = Nucleo provisional  # sin fila en § 3: plano de Plataforma
 excepcion Infrastructure.Persistence.Seed.LineaInboundDemoSeeder          = Nucleo provisional  # sin fila en § 3: plano Comercial (la línea Inbound del Producto Contratado de la siembra Inbound)
 excepcion Infrastructure.Persistence.Seed.InboundDemoSeeder               = Composicion provisional  # sin fila en § 3: siembra de Development que compone el aprovisionamiento de la demo (Outbound) con las tablas Inbound; Outbound -> Inbound e Inbound -> Outbound están cerradas
+excepcion Infrastructure.Persistence.Seed.InboundDemoAdministrativa       = Composicion provisional  # sin fila en § 3: la misma siembra Inbound por el modo de CLI de staging (--sembrar-demo-inbound); compone el núcleo de InboundDemoSeeder con la línea Inbound y el backfill
 
 # ---------------------------------------------------------------------------------------------------------------------
 # Código que generan los paquetes y el compilador fuera de CaeManager.* (generadores de fuentes, atributos embebidos)

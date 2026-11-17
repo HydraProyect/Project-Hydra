@@ -174,7 +174,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         await using var renovacion = CrearRuntime();
         var anterior = await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento);
         var hoy = DiaDeNegocio.Hoy();
-        var nuevo = anterior.NuevoDelMismoTitular(hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), $"tenant/{Guid.NewGuid():N}.pdf", null, null);
+        var nuevo = anterior.NuevoDelMismoTitular(hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), $"tenant/{Guid.NewGuid():N}.pdf", null, AutorVersionDocumento.Desconocido, null);
         renovacion.Documentos.Add(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         new AcreditacionDocumentoPlataformaRepository(renovacion).Agregar(new AcreditacionDocumentoPlataforma(nuevo.Id, _propio.Canal));
@@ -792,7 +792,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
                 new DocumentoRepository(runtime), runtime, Alcance(runtime), runtime, new ColaAnalisisSinUso(), Usuario(),
                 new AcreditacionDocumentoPlataformaRepository(runtime), AltaAcreditacionesDePrueba.Con(runtime),
                 new SerializacionAltasSinBloqueo(), new PublisherFalso(), unitOfWork ?? runtime,
-                new VerificadorArchivoAlmacenadoPermisivo(), AltaAcreditacionesDePrueba.GestionAutomatica(runtime, Usuario()))
+                new VerificadorArchivoAlmacenadoPermisivo(), AltaAcreditacionesDePrueba.GestionAutomatica(runtime, Usuario()), new ActorAuditoriaFijoFalso())
             .Handle(new RenovarDocumentoCommand(_propio.Documento, DiaDeNegocio.Hoy().AddDays(-2), null, null,
                 "Fecha de emisión corregida", version), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue("control: la corrección del Documento se aplica");
@@ -913,7 +913,7 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     private async Task<Documento> RenovacionConArchivoAsync(CaeManagerDbContext runtime, Documento anterior, Guid canalId)
     {
         var hoy = DiaDeNegocio.Hoy();
-        var nuevo = anterior.NuevoDelMismoTitular(hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), $"tenant/{Guid.NewGuid():N}.pdf", null, null);
+        var nuevo = anterior.NuevoDelMismoTitular(hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), $"tenant/{Guid.NewGuid():N}.pdf", null, AutorVersionDocumento.Desconocido, null);
         runtime.Documentos.Add(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         await ActoAsync(runtime, nuevo, anterior, canalId);
