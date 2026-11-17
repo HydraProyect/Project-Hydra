@@ -44,7 +44,7 @@
         </form>
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
                 aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
-                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre" title="@_activo.Nombre"
+                aria-label="@Textos["SelectorTenantEtiqueta"]: @NombreConPapel(_activo)" title="@NombreConPapel(_activo)"
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
             <AvatarTenant Nombre="@_activo!.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
@@ -163,7 +163,7 @@
     {
         var esActivo = EsActiva(cliente);
         var pendientes = Pendientes(cliente);
-        var nombre = cliente.Servicio is { } papel ? $"{cliente.Nombre} · {TextoPapel(papel)}" : cliente.Nombre;
+        var nombre = NombreConPapel(cliente);
         var etiqueta = pendientes is { } n ? $"{nombre}, {(n == 1 ? Textos["SelectorTenantPendientesUno"].Value : Textos["SelectorTenantPendientes", n].Value)}" : nombre;
         var fijable = PuedeFijar && !esOrigen;
         var fijada = fijable && _fijadas.Contains(cliente.TenantId);
@@ -224,6 +224,13 @@
             }
         </form>
     };
+
+    /// <summary>
+    /// El nombre con su papel («Empresa Norte · Inbound») para el aria-label y el title: la pastilla es aria-hidden, así
+    /// que el lector de pantalla solo sabe el papel por aquí.
+    /// </summary>
+    private string NombreConPapel(ClienteAutorizadoDto cliente) =>
+        cliente.Servicio is { } papel ? $"{cliente.Nombre} · {TextoPapel(papel)}" : cliente.Nombre;
 
     /// <summary>Pastilla de papel de la maqueta (V1-Gestor y V2-Gestor): «Outbound» o «Inbound».</summary>
     private RenderFragment Pastilla(CaeManager.Domain.Operaciones.ServicioCae papel) => __builder =>

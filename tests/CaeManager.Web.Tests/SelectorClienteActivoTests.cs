@@ -1082,4 +1082,35 @@ public class SelectorClienteActivoTests : BunitContext
 
         Renderizar().FindAll(".selector-tenant").Should().NotBeEmpty("el selector es el único sitio donde se elige el papel Inbound");
     }
+
+    [Fact]
+    public async Task D4_la_via_heredada_conserva_su_entrada_sin_papel_junto_a_la_de_Inbound_del_mismo_Tenant()
+    {
+        // Norte llega por la vía heredada (sin servicio) y además por una Asignación de Operación Inbound.
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel =
+        [
+            Propio(), Gestionado(Norte, "Empresa Norte"), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound),
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound),
+        ];
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, null).Should().NotBeNull("la vía heredada sigue siendo una opción autorizada");
+        FormularioDe(cut, Norte, ServicioCae.Inbound).Should().NotBeNull();
+        FormularioDe(cut, Norte, null)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true",
+            "sin papel resuelto, la entrada activa es la de la vía heredada");
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("false");
+    }
+
+    [Fact]
+    public void D4_el_disparador_anuncia_el_papel_activo_al_lector_de_pantalla()
+    {
+        DosPapelesSobreNorte();
+        _papel = PapelActivo.Inbound;
+        var disparador = Renderizar(seleccionado: Norte).Find(".selector-tenant-disparador");
+
+        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Inbound",
+            "la pastilla es aria-hidden: el papel solo llega al lector de pantalla por la etiqueta");
+    }
 }

@@ -11,6 +11,7 @@ using Microsoft.JSInterop;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace CaeManager.Web.Components.Layout;
@@ -116,6 +117,7 @@ public partial class SelectorClienteActivo
     /// Decisión 1 sobre la lista por Tenant y, además (D-4), siempre que haya una entrada Inbound: el selector es el único
     /// sitio donde se elige ese papel.
     /// </summary>
+    [MemberNotNullWhen(true, nameof(_activo), nameof(_activoBase))]
     private bool Visible => _activo is not null && _activoBase is not null
         && (ClientesAutorizados.SelectorVisible(_clientes!, _activoBase)
             || _entradas.Any(e => e.Servicio == CaeManager.Domain.Operaciones.ServicioCae.Inbound));
@@ -516,7 +518,9 @@ public partial class SelectorClienteActivo
     /// La lista del marco (por Tenant, la que comparten menú y migas y la que viaja del prerenderizado al circuito) con
     /// el papel de cada Asignación de Operación: cada Tenant del marco se sustituye por sus entradas con papel, con el
     /// nombre y el logo del marco, y se añaden al final, en orden, los Tenants que solo alcanza la vía Inbound. Un Tenant
-    /// del marco sin entradas con papel (vía heredada, o lista por papel vacía tras una desconexión) queda como estaba.
+    /// del marco sin entradas con papel (vía heredada, o lista por papel vacía tras una desconexión) queda como estaba, y
+    /// uno que llega por la vía heredada y además por Inbound conserva su entrada sin papel junto a la de Inbound: la vía
+    /// heredada sigue siendo una opción autorizada y la única desde la que se vuelve a ella.
     /// </summary>
     internal static IReadOnlyList<ClienteAutorizadoDto> ConPapeles(
         IReadOnlyList<ClienteAutorizadoDto> marco, IReadOnlyList<ClienteAutorizadoDto> porPapel)
@@ -524,11 +528,11 @@ public partial class SelectorClienteActivo
         var resultado = new List<ClienteAutorizadoDto>();
         foreach (var cliente in marco)
         {
-            var papeles = cliente.EsOrigen
+            var delTenant = cliente.EsOrigen
                 ? []
-                : porPapel.Where(p => !p.EsOrigen && p.TenantId == cliente.TenantId && p.Servicio is not null).ToList();
-            if (papeles.Count == 0) resultado.Add(cliente);
-            else resultado.AddRange(papeles.Select(p => cliente with { Servicio = p.Servicio }));
+                : porPapel.Where(p => !p.EsOrigen && p.TenantId == cliente.TenantId).ToList();
+            if (!delTenant.Any(p => p.Servicio is not null)) resultado.Add(cliente);
+            else resultado.AddRange(delTenant.Select(p => cliente with { Servicio = p.Servicio }));
         }
 
         var delMarco = marco.Select(c => c.TenantId).ToHashSet();
