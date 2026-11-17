@@ -66,6 +66,11 @@ Cumplimiento.AceptacionContractual :: ObtenerTextoDocumentoContractualQueryHandl
 Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos :: ObtenerEstadoAceptacionTerminosQueryHandler[Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos.ObtenerEstadoAceptacionTerminosQuery] = 1
 Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual :: ObtenerEstadoTratamientoIaActualQueryHandler[Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual.ObtenerEstadoTratamientoIaActualQuery] = 1
 Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario :: ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandler[Cumplimiento.Queries.ObtenerHistoricoInstruccionTratamientoIaTenantPropietario.ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery] = 1
+# Registro de solicitudes de derechos del interesado del Tenant propietario (#2002, D-3 del 2026-11-15): la lectura es del Tenant
+# entero y la decide IAutoridadCapacidadesTenant.TieneCapacidadAsync (Administrador del Tenant propietario o concesion vigente de
+# 'Derechos del interesado', sin contexto cruzado); sin la capacidad la lista sale vacia y la ficha nula. La cartera no aplica.
+DerechosInteresado.Queries :: SolicitudesDerechoInteresadoQueryHandler[DerechosInteresado.Queries.ListarSolicitudesDerechoInteresadoQuery] = 1
+DerechosInteresado.Queries :: SolicitudesDerechoInteresadoQueryHandler[DerechosInteresado.Queries.ObtenerSolicitudDerechoInteresadoQuery] = 1
 Dashboard.Queries :: ContarExtranjerosCobrablesDelMesQueryHandler[Dashboard.Queries.ContarExtranjerosCobrablesDelMesQuery] = 1
 Dashboard.Queries :: ObtenerComunicacionesCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerComunicacionesCuadroDireccionQuery] = 1
 Dashboard.Queries :: ObtenerCuadroDireccionQueryHandler[Dashboard.Queries.ObtenerCuadroDireccionQuery] = 1

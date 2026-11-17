@@ -87,6 +87,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
         ["src/CaeManager.Domain/Empresas/PlataformaCaeClienteEmpresarial.cs"] = 1,
         ["src/CaeManager.Domain/Facturacion/CobroLiquidacionOperadorCae.cs"] = 1,
+        ["src/CaeManager.Domain/DerechosInteresado/SolicitudDerechoInteresado.cs"] = 1,
+        ["src/CaeManager.Domain/Tenants/ConcesionCapacidadTenant.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Cumplimiento/Subencargados/Subencargado.cs"] = 1,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,

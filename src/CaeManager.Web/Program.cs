@@ -1354,6 +1354,12 @@ using (var scope = app.Services.CreateScope())
         // ver LineaInboundDemoSeeder y FronteraDeSeedersDeBootstrapTests). Mismas claves y misma guarda de Development.
         await LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
 
+        // Su línea Outbound de gestión propia (P), con el mismo rol y la misma razón: los Tenants de demostración que gestionan
+        // su CAE con su propio personal (hoy el Tenant Beta de la cobertura) la llevan y ningún otro. Sin backfill en
+        // producción: un Tenant sin el marcador de TEC participante y sin P es «Outbound heredado». Después de la cobertura, que crea ese Tenant; inerte fuera de
+        // Development (ver LineaOutboundGestionPropiaDemoSeeder).
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
+
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
         // que SegundoTenant:Activo esté configurado explícitamente.
