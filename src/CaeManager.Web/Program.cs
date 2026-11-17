@@ -1344,7 +1344,10 @@ using (var scope = app.Services.CreateScope())
         // Siembra de la línea Inbound para la revisión de sus pantallas: un Tenant TCE con contratos de acceso en cada
         // estado y plantillas de requisitos, y tres Tenants TEC con su Usuario único — inerte salvo
         // DatosPrueba:Inbound:Activo (con DatosPrueba:Activo), y lanza fuera de Development (ver InboundDemoSeeder).
-        await InboundDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await InboundDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore,
+            scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Configuration, app.Environment, logger);
 
         // Su línea Inbound del Producto Contratado, la única fila de esa siembra con el rol propietario: en
         // ProductosContratados solo inserta cae_app_aprovisionamiento bajo Sesión Privilegiada (DECISION_LOG 2026-11-16;

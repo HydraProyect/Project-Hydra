@@ -50,7 +50,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// sin requisito base.</item>
 /// <item>Las evidencias Inbound (validado, rechazado): solo nacen de leer el documento original del Tenant TEC a través del
 /// contrato y la autorización (<c>RegistrarEvidenciaInboundCommand</c>), y su modelo no tiene «por validar», «incompleto» ni
-/// «vencido en tolerancia». Los documentos originales del Tenant TEC sí se siembran, en varios estados de vigencia.</item>
+/// «vencido en tolerancia». Los documentos originales del Tenant TEC sí se siembran, en varios estados de vigencia, y los
+/// del Tenant TEC Montajes Moncayo (el de la autorización de lectura) llevan un PDF de prueba adjunto (<see cref="InboundDemoPdf"/>),
+/// para que el Gestor CAE pueda validarlos en directo: sin archivo, el registro de la Evidencia lo rechaza.</item>
 /// <item>Dos estados no tienen Command todavía: rechazar por el Tenant TEC (B-09) y suspender (B-18). El Rechazado y el
 /// Suspendido usan los métodos de dominio <see cref="ContratoAcceso.RechazarPorTenantContratista"/> y
 /// <see cref="ContratoAcceso.Suspender"/>; el resto, los mismos métodos de dominio que llaman los Commands de B-05.</item>
@@ -67,8 +69,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// interfaz no puede alterar en el Tenant TCE (su historial de vigencia), y Trabajadores o Documentos, dados de baja incluidos,
 /// en cada Tenant TEC; cada Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo
 /// siembra entero. Lo que el revisor edite después (el rol o la cartera de la Gestora CAE, las notas de un contrato, las bajas
-/// de un Tenant TEC) no se vuelve a tocar; la única reparación es la de una cuenta que una pasada cortada dejó sin ningún rol,
-/// que recibe el suyo y la aceptación de términos (para empezar de cero, se retiran los Tenants de la demo).
+/// de un Tenant TEC) no se vuelve a tocar; las únicas reparaciones son la de una cuenta que una pasada cortada dejó sin ningún
+/// rol, que recibe el suyo y la aceptación de términos, y la de un Documento vivo del Tenant TEC Montajes Moncayo sin archivo,
+/// que recibe su PDF de prueba (para empezar de cero, se retiran los Tenants de la demo).
 /// </para>
 ///
 /// <para>
@@ -76,7 +79,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Tenant que la posee: el contrato de acceso, su historial y las plantillas en el Tenant TCE; la autorización de lectura,
 /// en el Tenant TEC que la concede. Ninguna escritura cruza de Tenant: el Tenant TEC del contrato y el contrato de la
 /// autorización son Ids, como en el producto. La cartera pasa por el mismo <see cref="AsignacionesOperativasWriter"/> que la
-/// aplicación. Es Composición en el registro de módulos: compone el aprovisionamiento de la demo con las tablas Inbound.
+/// aplicación. Los PDF de prueba se guardan por el almacén de la aplicación dentro del ámbito del Tenant TEC que los posee.
+/// Es Composición en el registro de módulos: compone el aprovisionamiento de la demo con las tablas Inbound.
 /// </para>
 /// </summary>
 public static class InboundDemoSeeder
@@ -159,6 +163,7 @@ public static class InboundDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IFileStorageService almacen,
         IConfiguration configuration,
         IHostEnvironment entorno,
         ILogger logger,
@@ -298,6 +303,12 @@ public static class InboundDemoSeeder
                         c => new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(c), cancellationToken);
                 }
                 dbContext.ChangeTracker.Clear();
+
+                // El único Tenant TEC con una autorización de lectura al Tenant TCE: sus Documentos son los que el Gestor CAE
+                // puede abrir, y solo con archivo llegan a una Evidencia.
+                if (tec.RazonSocial == Moncayo)
+                    await AdjuntarArchivosDePruebaAsync(dbContext, almacen, tec.Id, cancellationToken);
+                dbContext.ChangeTracker.Clear();
             }
 
         logger.LogInformation(
@@ -330,6 +341,61 @@ public static class InboundDemoSeeder
             logger.LogWarning(ex,
                 "La siembra Inbound no repone {Nombre}: choca con datos dados de baja a mano. Retira los Tenants de la demo para sembrarlos de nuevo.",
                 nombre);
+        }
+    }
+
+    /// <summary>
+    /// Adjunta el PDF de prueba (<see cref="InboundDemoPdf"/>) a cada Documento vivo del Tenant que aún no tiene archivo, por
+    /// el camino de la subida real: <see cref="IFileStorageService.GuardarAsync"/> bajo el Tenant propietario (el ámbito
+    /// explícito del llamante) y <see cref="Documento.AdjuntarArchivo"/>. Es idempotente por construcción: un Documento con
+    /// archivo no se toca, así que una segunda pasada no escribe nada y no duplica ficheros. Cubre también los Documentos de una
+    /// base ya sembrada antes de este paso, que no entran en la siembra inicial del Tenant (ya cuenta como sembrado).
+    ///
+    /// <para>
+    /// Un Documento por guardado: si el guardado falla, el fichero recién escrito se retira (sin el token de la siembra, que
+    /// puede ser la causa) y no queda nada en el almacén sin fila que lo referencie. Los dados de baja, y los sustituidos del
+    /// historial (inmutable), no se tocan. No crea Evidencias: nacen de la validación del Gestor CAE.
+    /// </para>
+    /// </summary>
+    private static async Task AdjuntarArchivosDePruebaAsync(
+        CaeManagerDbContext db, IFileStorageService almacen, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var sinArchivo = await db.Documentos
+            .Operativos()
+            .Where(d => d.TenantId == tenantId && d.ArchivoUrl == null)
+            .ToListAsync(cancellationToken);
+        if (sinArchivo.Count == 0)
+            return;
+
+        var soloConclusionPorTipo = await db.TiposDocumento
+            .ToDictionaryAsync(t => t.Id, t => t.SoloConclusionAptitud || t.Nombre == AptitudMedica, cancellationToken);
+
+        foreach (var documento in sinArchivo)
+        {
+            var texto = InboundDemoPdf.TextoDe(soloConclusionPorTipo.GetValueOrDefault(documento.TipoDocumentoId));
+            string clave;
+            using (var pdf = new MemoryStream(InboundDemoPdf.Generar(texto), writable: false))
+                clave = await almacen.GuardarAsync(pdf, "documento.pdf", cancellationToken);
+
+            try
+            {
+                documento.AdjuntarArchivo(clave);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                try
+                {
+                    await almacen.EliminarAsync(clave, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Limpieza de mejor esfuerzo: no puede sustituir a la excepción original.
+                }
+
+                db.ChangeTracker.Clear();
+                throw;
+            }
         }
     }
 
