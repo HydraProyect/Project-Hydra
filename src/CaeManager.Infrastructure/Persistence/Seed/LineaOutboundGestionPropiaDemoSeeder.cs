@@ -76,14 +76,14 @@ public static class LineaOutboundGestionPropiaDemoSeeder
     /// de Operación externa.
     /// </summary>
     public static string? MotivoParaOmitir(
-        bool esPlataforma, bool puedeActuarComoOperadorCaeExterno, bool tieneDelegacionDeOperadorCaeExternoActiva,
+        bool esPlataforma, bool puedeActuarComoOperadorCaeExterno, bool tieneOperadorCaeExternoActivo,
         bool tieneAsignacionDeOperacionExterna)
     {
         if (esPlataforma)
             return "es el Tenant de plataforma";
         if (puedeActuarComoOperadorCaeExterno)
             return "está habilitado como Operador CAE externo";
-        if (tieneDelegacionDeOperadorCaeExternoActiva)
+        if (tieneOperadorCaeExternoActivo)
             return "tiene una delegación activa con propósito de Operador CAE externo (Tenant propietario con gestión externa)";
         if (tieneAsignacionDeOperacionExterna)
             return "tiene una Asignación de Operación Outbound externa (Tenant propietario con gestión externa)";
@@ -121,14 +121,14 @@ public static class LineaOutboundGestionPropiaDemoSeeder
                 // sus dos extremos y las Asignaciones de Operación las ve su Tenant propietario (ver HistoriaDelParEnSiembra).
                 // Una delegación solo cuenta si está activa; una operación externa cuenta aunque esté cerrada, porque ya hubo
                 // gestión externa.
-                var tieneDelegacion = await dbContextBootstrap.DelegacionesTenant.AnyAsync(
+                var tieneOperadorExterno = await dbContextBootstrap.DelegacionesTenant.AnyAsync(
                     d => d.TenantClienteId == tenant.Id && d.Proposito == PropositoDelegacion.OperadorExterno && d.Activa,
                     cancellationToken);
                 var tieneOperacionExterna = await dbContextBootstrap.AsignacionesOperacion.AnyAsync(
                     o => !o.EsRaiz && o.PropietarioTenantId == tenant.Id && o.Servicio == ServicioCae.Outbound, cancellationToken);
 
                 var motivo = MotivoParaOmitir(
-                    tenant.EsPlataforma, tenant.PuedeActuarComoOperadorCaeExterno, tieneDelegacion, tieneOperacionExterna);
+                    tenant.EsPlataforma, tenant.PuedeActuarComoOperadorCaeExterno, tieneOperadorExterno, tieneOperacionExterna);
                 if (motivo is not null)
                 {
                     logger.LogWarning(

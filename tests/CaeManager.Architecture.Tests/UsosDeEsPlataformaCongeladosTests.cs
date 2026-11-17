@@ -424,6 +424,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":31 localiza el tenant de plataforma, :42 decide a quién aprovisionar. Los retira B: el " +
                 "seeder se elimina, porque ConcesionesSoloPorActoExplicitoTests ya nombra su " +
                 "pre-aprovisionamiento como el antipatrón a no repetir en el plano 3"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/LineaOutboundGestionPropiaDemoSeeder.cs"] =
+            new(2, CategoriaUso.Bootstrap,
+                "la guarda de gestión propia de la siembra de la línea P de Development: la proyección del Tenant de su lista " +
+                "cerrada lee EsPlataforma y la decisión lo usa para OMITIR el Tenant (fallo cerrado: un Tenant de plataforma no " +
+                "recibe la línea). No concede capacidad a nadie ni lo lee ninguna ruta de la aplicación; solo con " +
+                "DatosPrueba:Activo y en Development"),
 
         // ── PORTADOR ──────────────────────────────────────────────────────────────
         ["src/CaeManager.Domain/Tenants/Tenant.cs"] =

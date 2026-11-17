@@ -60,7 +60,7 @@ public class LineaOutboundGestionPropiaDemoSeederTests
     {
         // Control del instrumento: las cuatro pruebas de abajo pasarían también si la función devolviera siempre un motivo.
         LineaOutboundGestionPropiaDemoSeeder.MotivoParaOmitir(
-            esPlataforma: false, puedeActuarComoOperadorCaeExterno: false, tieneDelegacionDeOperadorCaeExternoActiva: false,
+            esPlataforma: false, puedeActuarComoOperadorCaeExterno: false, tieneOperadorCaeExternoActivo: false,
             tieneAsignacionDeOperacionExterna: false).Should().BeNull();
     }
 

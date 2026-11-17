@@ -489,6 +489,7 @@ src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: clienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/HistoriaDelParEnSiembra.cs :: TenantClienteId = 5
 src/CaeManager.Infrastructure/Persistence/Seed/IdentityRoleSeedData.cs :: ClienteId = 2
+src/CaeManager.Infrastructure/Persistence/Seed/LineaOutboundGestionPropiaDemoSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: clienteIds = 2
