@@ -43,6 +43,10 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
         await GuardarGanadoraAsync(operacionId);
 
         await using var contexto = CrearContexto();
+        // Una entidad ya rastreada sin cambios: el descarte del lote fallido que hace el DbContext al traducir el CIF la
+        // conserva, así que solo el Clear() del repositorio deja el contexto vacío. Sin ella, la aserción de abajo no
+        // distinguiría ese Clear() del descarte del DbContext.
+        await contexto.Empresas.SingleAsync();
         var repositorio = new OperacionImportacionRepository(contexto);
         repositorio.Agregar(OperacionImportacion.Registrar(operacionId));
         contexto.Empresas.Add(new Empresa("Perdedora S.L.", Cif));
@@ -50,7 +54,7 @@ public class GuardarSiOperacionNuevaTrasOtraViolacionTests : IAsyncLifetime
         var guardada = await repositorio.GuardarSiOperacionNuevaAsync();
 
         guardada.Should().BeFalse("la operación ya la guardó la ganadora: la perdedora no escribe y responde «ya ejecutada»");
-        contexto.ChangeTracker.Entries().Should().BeEmpty("lo pendiente de la perdedora no puede quedar para otro guardado del circuito");
+        contexto.ChangeTracker.Entries().Should().BeEmpty("el repositorio vacía el contexto: nada de la perdedora queda para otro guardado del circuito");
         await using var verificacion = CrearContexto();
         (await verificacion.Empresas.CountAsync()).Should().Be(1, "solo la Empresa de la ganadora");
         (await verificacion.OperacionesImportacion.CountAsync(o => o.OperacionId == operacionId)).Should().Be(1);
