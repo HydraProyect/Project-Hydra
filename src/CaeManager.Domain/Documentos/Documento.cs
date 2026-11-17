@@ -254,6 +254,24 @@ public class Documento : EntidadBase
     public MotivoSustitucionDocumento? MotivoSustitucion { get; private set; }
 
     /// <summary>
+    /// Usuario que subió esta versión del documento (cada versión es una fila de Documentos), o null si no se
+    /// sabe: las filas anteriores a la columna y las que todavía no rellena ningún escritor. Sigue el reparto de
+    /// <c>RegistroAuditoria</c>: el usuario efectivo, que en una impersonación es el Usuario simulado.
+    /// Sin FK a AspNetUsers: el usuario puede pertenecer a otro Tenant (un Gestor CAE de un Operador CAE externo)
+    /// y la cuenta se anonimiza, así que el identificador se conserva como dato y no como referencia.
+    /// </summary>
+    /// <remarks>Preparación de D-12 (nadie valida en Inbound una versión que subió él mismo). En esta fase solo
+    /// existe la columna: ningún método la asigna todavía.</remarks>
+    public Guid? SubidoPorUsuarioId { get; private set; }
+
+    /// <summary>
+    /// Actor real que subió esta versión, o null si no se sabe. Se separa de <see cref="SubidoPorUsuarioId"/>
+    /// para que una subida hecha en impersonación no confunda al Actor real con el Usuario simulado. Mismas reglas
+    /// que <see cref="SubidoPorUsuarioId"/>: sin FK y sin escritor todavía.
+    /// </summary>
+    public Guid? SubidoPorActorRealUsuarioId { get; private set; }
+
+    /// <summary>
     /// Historial: otro documento lo sustituyó y ya no cuenta. Es irreversible. Para filtrar en una consulta
     /// se usa <see cref="DocumentoOperativo"/>, que además excluye los eliminados.
     /// </summary>

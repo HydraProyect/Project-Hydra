@@ -239,6 +239,18 @@ public interface IMicrosoft365GraphClient
         string accessToken, BuzonGraph buzon, DateTime desdeUtc, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Issue #2263: una página de la Bandeja de entrada con los mensajes recibidos exactamente en el segundo
+    /// <paramref name="segundoUtc"/> (sin fracción) y, si <paramref name="despuesDeId"/> no es null, con Id posterior a él
+    /// (<c>receivedDateTime eq</c> el segundo <c>and id gt</c>), en orden de Id. Recorre por Id un segundo con más
+    /// mensajes de los que caben en una página; como <see cref="ListarRecibidosDesdeAsync"/>, nunca sigue
+    /// <c>@odata.nextLink</c>, solo lo usa para saber si hay más. Además de lo que aquella rechaza, es un fallo una página
+    /// con un mensaje de otra recepción, con Ids que no crecen estrictamente (orden ordinal) o con un Id que no es
+    /// posterior a <paramref name="despuesDeId"/>: Graph no habría aplicado el filtro o el orden que se pidió.
+    /// </summary>
+    Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosEnSegundoAsync(
+        string accessToken, BuzonGraph buzon, DateTime segundoUtc, string? despuesDeId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Puro formato, sin llamada de red: el payload de un evento de recuperación del hueco con estos Ids, en la forma
     /// que lee <see cref="ExtraerMensajeIdsDeNotificacion"/>. El formato de Graph solo lo conoce el adaptador.
     /// </summary>

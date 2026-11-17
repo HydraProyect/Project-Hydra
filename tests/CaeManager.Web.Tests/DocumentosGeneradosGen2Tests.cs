@@ -44,7 +44,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
         public List<DocumentoGeneradoListaDto> Generados { get; } = [];
         public List<PlantillaDocumentoListaDto> Plantillas { get; } = [];
         public bool FallaGenerados { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla.</summary>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
+using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerColaValidacionInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerLecturaInbound;
 using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
@@ -13,8 +14,8 @@ namespace CaeManager.Architecture.Tests;
 /// Las funciones <c>app_inbound_*</c> que hay detrás de <see cref="ILectorDocumentosInbound"/> garantizan el Tenant lector
 /// (del contexto firmado), el contrato de acceso y la autorización del Tenant de la Empresa contratista, pero no la cartera:
 /// no saben qué Clientes empresariales tiene asignados el Gestor CAE. Esa mitad la pone
-/// <see cref="LecturaInboundAutoridad"/> en los handlers de <c>ObtenerLecturaInboundQueries</c> y en
-/// <c>RegistrarEvidenciaInboundCommandHandler</c>. Un consumidor nuevo que
+/// <see cref="LecturaInboundAutoridad"/> en los handlers de <c>ObtenerLecturaInboundQueries</c>, en
+/// <c>ObtenerColaValidacionInboundQueryHandler</c> y en <c>RegistrarEvidenciaInboundCommandHandler</c>. Un consumidor nuevo que
 /// inyectara el lector directamente leería los Documentos de otro Tenant de cualquier contrato del Tenant lector, fuera de
 /// la cartera del usuario, y ningún test de comportamiento lo vería: la base respondería igual.
 /// </para>
@@ -33,6 +34,9 @@ public class ConsumidoresDelLectorInboundAcotadosTests
         // Inbound M1, PR 4: registrar la copia de evidencia validada lee la autorización, el Documento y su archivo. Decide
         // antes la autoridad con LecturaInboundAutoridad, como los tres de arriba.
         typeof(RegistrarEvidenciaInboundCommandHandler),
+        // Demo mínima (DECISION_LOG 2026-11-17, opción b): la cola de validación lista los Documentos autorizados de cada
+        // contrato después de LecturaInboundAutoridad sobre ese contrato, igual que ObtenerDocumentosInboundQueryHandler.
+        typeof(ObtenerColaValidacionInboundQueryHandler),
     ];
 
     /// <summary>

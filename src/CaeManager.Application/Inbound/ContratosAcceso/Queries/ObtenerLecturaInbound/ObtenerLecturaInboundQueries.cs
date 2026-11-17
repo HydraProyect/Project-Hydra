@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
@@ -34,22 +35,26 @@ public record ContenidoArchivoInboundDto(byte[] Contenido, string TipoMime);
 
 public class ObtenerAutorizacionInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
-    ILectorDocumentosInbound lector)
+    ILectorDocumentosInbound lector, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerAutorizacionInboundQuery, AutorizacionInboundDto?>
 {
     public async Task<AutorizacionInboundDto?> Handle(ObtenerAutorizacionInboundQuery request, CancellationToken cancellationToken) =>
-        await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
+        await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken)
+        && await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
             ? await lector.AutorizacionDelContratoAsync(request.ContratoAccesoId, cancellationToken)
             : null;
 }
 
 public class ObtenerDocumentosInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
-    ILectorDocumentosInbound lector)
+    ILectorDocumentosInbound lector, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerDocumentosInboundQuery, IReadOnlyList<DocumentoInboundDto>?>
 {
     public async Task<IReadOnlyList<DocumentoInboundDto>?> Handle(ObtenerDocumentosInboundQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return null;
+
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
             return null;
 
@@ -62,11 +67,14 @@ public class ObtenerDocumentosInboundQueryHandler(
 
 public class ObtenerArchivoInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
-    ILectorDocumentosInbound lector, IAlmacenOriginalesInbound almacenOriginales)
+    ILectorDocumentosInbound lector, IAlmacenOriginalesInbound almacenOriginales, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerArchivoInboundQuery, ContenidoArchivoInboundDto?>
 {
     public async Task<ContenidoArchivoInboundDto?> Handle(ObtenerArchivoInboundQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return null;
+
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
             return null;
 

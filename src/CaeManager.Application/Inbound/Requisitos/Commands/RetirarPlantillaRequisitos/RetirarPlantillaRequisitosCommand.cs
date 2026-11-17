@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -21,13 +22,17 @@ public class RetirarPlantillaRequisitosCommandValidator : AbstractValidator<Reti
 }
 
 public class RetirarPlantillaRequisitosCommandHandler(
-    IPlantillaRequisitosRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IPlantillaRequisitosRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RetirarPlantillaRequisitosCommand, Result>
 {
     public async Task<Result> Handle(RetirarPlantillaRequisitosCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         var plantilla = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        // shortcut: autoriza con IAlcanceDatosService sin servicio CAE Inbound, sustituir por IAutorizacionInbound en B-03
+        // La capacidad (GestionarInbound) la pide arriba IAutorizacionInbound (B-03); el alcance de cartera del
+        // recurso lo decide PlantillaRequisitosAutorizacion con IAlcanceDatosService, del servicio del papel activo.
         if (plantilla is null || !await PlantillaRequisitosAutorizacion.PuedeEscribirAsync(plantilla, alcanceDatos, cancellationToken))
             return Result.Fallo(PlantillaRequisitosErrores.NoEncontrada);
 

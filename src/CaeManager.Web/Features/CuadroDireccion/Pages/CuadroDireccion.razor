@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using System.Globalization
 @using CaeManager.Application.Dashboard.Queries
 @using CaeManager.Domain.Comunicaciones

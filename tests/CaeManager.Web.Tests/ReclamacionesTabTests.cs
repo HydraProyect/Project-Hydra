@@ -67,7 +67,7 @@ public class ReclamacionesTabTests : BunitContext
     /// </summary>
     private sealed class MediadorControlado : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>Lo que devuelve <see cref="ObtenerReclamacionesEnviadasQuery"/> — puede depender de la página/tamaño pedidos.</summary>

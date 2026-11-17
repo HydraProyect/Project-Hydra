@@ -16,6 +16,12 @@ public sealed class SeleccionEmpresaGestionadaDePrueba(Guid? tenantSeleccionado 
     public Guid? SesionPrivilegiadaIdSeleccionada => null;
 }
 
+/// <summary>Doble de <see cref="CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada"/> con la coordenada fijada.</summary>
+internal sealed class CoordenadaSesionPrivilegiadaDePrueba(bool haySeleccionada) : CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada
+{
+    public bool HaySeleccionada { get; } = haySeleccionada;
+}
+
 internal sealed class SeleccionPrivilegiadaDePrueba : IClienteActivoSeleccionado
 {
     public Guid? TenantIdSeleccionado => null;

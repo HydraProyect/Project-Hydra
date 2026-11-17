@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Kicker" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="KickerPlantilla" xml:space="preserve">
+    <value>Plantilla «{0}»</value>
+  </data>
+  <data name="KickerFormulario" xml:space="preserve">
+    <value>Plantilla «{0}» · Requisito «{1}»</value>
+  </data>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Plantillas de requisitos</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Qué se pide según la Actividad, los riesgos validados del contrato de acceso, el Centro y lo que exige el Cliente a todas las Empresas contratistas. Al dar de alta un contrato de acceso, sus requisitos son la suma de estos niveles y de los legales, que pone TALVEG.</value>
+  </data>
+  <data name="BuscadorPlaceholder" xml:space="preserve">
+    <value>Filtrar por plantilla</value>
+  </data>
+  <data name="FiltroNivelEtiqueta" xml:space="preserve">
+    <value>Filtrar por nivel</value>
+  </data>
+  <data name="NivelActividad" xml:space="preserve">
+    <value>Actividad</value>
+  </data>
+  <data name="NivelRiesgo" xml:space="preserve">
+    <value>Riesgo</value>
+  </data>
+  <data name="NivelCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="NivelExigencia" xml:space="preserve">
+    <value>Exigencia del Cliente</value>
+  </data>
+  <data name="NombreExigencias" xml:space="preserve">
+    <value>Exigencias de {0}</value>
+  </data>
+  <data name="ReferenciaNoDisponible" xml:space="preserve">
+    <value>Referencia no disponible</value>
+  </data>
+  <data name="RequisitoNoDisponible" xml:space="preserve">
+    <value>Requisito no disponible</value>
+  </data>
+  <data name="ColPlantilla" xml:space="preserve">
+    <value>Plantilla</value>
+  </data>
+  <data name="ColRequisitos" xml:space="preserve">
+    <value>Requisitos</value>
+  </data>
+  <data name="ColContratos" xml:space="preserve">
+    <value>Contratos</value>
+  </data>
+  <data name="ColRequisito" xml:space="preserve">
+    <value>Requisito</value>
+  </data>
+  <data name="ColOrigen" xml:space="preserve">
+    <value>Origen</value>
+  </data>
+  <data name="ColTolerancia" xml:space="preserve">
+    <value>Tolerancia tras el vencimiento</value>
+  </data>
+  <data name="ColToleranciaDecision" xml:space="preserve">
+    <value>Decisión del Cliente</value>
+  </data>
+  <data name="ColAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+  <data name="SinDatoTitulo" xml:space="preserve">
+    <value>Sin dato: todavía no hay backend que lo calcule</value>
+  </data>
+  <data name="UsadaEn" xml:space="preserve">
+    <value>Usada en {0} contratos de acceso</value>
+  </data>
+  <data name="UsadaSinDato" xml:space="preserve">
+    <value>Contratos de acceso que la usan: sin dato</value>
+  </data>
+  <data name="PanelRequisitosEtiqueta" xml:space="preserve">
+    <value>Requisitos de la plantilla</value>
+  </data>
+  <data name="ExplicaActividad" xml:space="preserve">
+    <value>Se pide a las Empresas contratistas que trabajan en esta Actividad. Los requisitos legales los pone TALVEG: se ven aquí, pero no se editan, no se quitan ni se marcan como No aplica.</value>
+  </data>
+  <data name="ExplicaRiesgo" xml:space="preserve">
+    <value>Se pide en los contratos de acceso con este riesgo validado por un Gestor CAE. Mientras la IA solo lo proponga, no se pide.</value>
+  </data>
+  <data name="ExplicaCentro" xml:space="preserve">
+    <value>Se pide en todos los contratos de acceso con trabajos en este Centro, sea cual sea la Actividad.</value>
+  </data>
+  <data name="ExplicaExigencia" xml:space="preserve">
+    <value>Se pide en todos los contratos de acceso de este Cliente, sea cual sea la Actividad. Los requisitos legales no se repiten aquí: ya los pone TALVEG.</value>
+  </data>
+  <data name="LegalNoAdmiteNoAplica" xml:space="preserve">
+    <value>No admite No aplica</value>
+  </data>
+  <data name="LoPoneTalveg" xml:space="preserve">
+    <value>Lo pone TALVEG</value>
+  </data>
+  <data name="LoPoneTalvegTitulo" xml:space="preserve">
+    <value>Requisito legal: no se edita, no se quita ni se marca como No aplica</value>
+  </data>
+  <data name="PlantillaSinRequisitos" xml:space="preserve">
+    <value>Esta plantilla todavía no tiene requisitos.</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Todavía no hay plantillas de requisitos</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Añade una plantilla por Actividad, riesgo, Centro o Cliente para fijar qué se pide en los contratos de acceso.</value>
+  </data>
+  <data name="VacioFiltros" xml:space="preserve">
+    <value>Ninguna plantilla coincide con el filtro.</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No se han podido cargar las plantillas</value>
+  </data>
+  <data name="ErrorCargaDetalle" xml:space="preserve">
+    <value>Vuelve a intentarlo en unos segundos.</value>
+  </data>
+  <data name="ErrorDetalleDetalle" xml:space="preserve">
+    <value>No hemos podido leer los requisitos de esta plantilla. Vuelve a intentarlo.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No se ha podido guardar. Vuelve a intentarlo.</value>
+  </data>
+  <data name="BotonAnadir" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="BotonEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="BotonRetirar" xml:space="preserve">
+    <value>Retirar</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="AccionEditarAria" xml:space="preserve">
+    <value>Editar requisito {0}</value>
+  </data>
+  <data name="AccionRetirarAria" xml:space="preserve">
+    <value>Retirar requisito {0}</value>
+  </data>
+  <data name="RetirarTitulo" xml:space="preserve">
+    <value>Retirar plantilla</value>
+  </data>
+  <data name="RetirarMensaje" xml:space="preserve">
+    <value>La plantilla deja de aplicarse a los contratos de acceso. Sus requisitos no se borran.</value>
+  </data>
+  <data name="RetirarRequisitoTitulo" xml:space="preserve">
+    <value>Retirar requisito</value>
+  </data>
+  <data name="RetirarRequisitoMensaje" xml:space="preserve">
+    <value>«{0}» deja de pedirse en esta plantilla.</value>
+  </data>
+  <data name="ToastAlta" xml:space="preserve">
+    <value>Plantilla añadida</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Plantilla retirada de la lista</value>
+  </data>
+  <data name="ToastRequisitoAnadido" xml:space="preserve">
+    <value>Requisito añadido</value>
+  </data>
+  <data name="ToastRequisitoGuardado" xml:space="preserve">
+    <value>Requisito guardado</value>
+  </data>
+  <data name="ToastRequisitoRetirado" xml:space="preserve">
+    <value>Requisito retirado</value>
+  </data>
+  <data name="AltaTitulo" xml:space="preserve">
+    <value>Añadir plantilla</value>
+  </data>
+  <data name="AltaSubtitulo" xml:space="preserve">
+    <value>Nivel y referencia. Los requisitos se añaden después.</value>
+  </data>
+  <data name="AltaNivel" xml:space="preserve">
+    <value>Nivel</value>
+  </data>
+  <data name="AltaElige" xml:space="preserve">
+    <value>Elige…</value>
+  </data>
+  <data name="AltaReferenciaActividad" xml:space="preserve">
+    <value>Actividad</value>
+  </data>
+  <data name="AltaReferenciaRiesgo" xml:space="preserve">
+    <value>Riesgo</value>
+  </data>
+  <data name="AltaReferenciaCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="AltaReferenciaCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="AltaFaltaReferencia" xml:space="preserve">
+    <value>Elige a qué se aplica la plantilla.</value>
+  </data>
+  <data name="AltaSinReferencias" xml:space="preserve">
+    <value>No queda nada por elegir en este nivel: todo lo que ves ya tiene su plantilla.</value>
+  </data>
+  <data name="RequisitosTitulo" xml:space="preserve">
+    <value>Requisitos</value>
+  </data>
+  <data name="RequisitosVacioDescripcion" xml:space="preserve">
+    <value>Añade el primer requisito: elígelo del catálogo de tipos de documento o créalo propio.</value>
+  </data>
+  <data name="VolverPlantillas" xml:space="preserve">
+    <value>Volver a Plantillas de requisitos</value>
+  </data>
+  <data name="VolverRequisitos" xml:space="preserve">
+    <value>Volver a los requisitos de la plantilla</value>
+  </data>
+  <data name="PlantillaNoEncontradaTitulo" xml:space="preserve">
+    <value>No encontramos esta plantilla</value>
+  </data>
+  <data name="PlantillaNoEncontradaDetalle" xml:space="preserve">
+    <value>No existe o no está en tu cartera.</value>
+  </data>
+  <data name="OrigenLegal" xml:space="preserve">
+    <value>Legal</value>
+  </data>
+  <data name="OrigenConvenio" xml:space="preserve">
+    <value>Convenio</value>
+  </data>
+  <data name="OrigenActividad" xml:space="preserve">
+    <value>Actividad</value>
+  </data>
+  <data name="OrigenExigencia" xml:space="preserve">
+    <value>Exigencia del Cliente</value>
+  </data>
+  <data name="OrigenPropio" xml:space="preserve">
+    <value>Propio de tu organización</value>
+  </data>
+  <data name="EntidadEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="EntidadTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="EntidadVehiculo" xml:space="preserve">
+    <value>Vehículo o máquina</value>
+  </data>
+  <data name="EntidadSinElegir" xml:space="preserve">
+    <value>Elige un requisito</value>
+  </data>
+  <data name="EntidadAyuda" xml:space="preserve">
+    <value>La fija el tipo de documento y no cambia.</value>
+  </data>
+  <data name="DestinatarioTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="DestinatarioNacionales" xml:space="preserve">
+    <value>Nacionales</value>
+  </data>
+  <data name="DestinatarioExtranjeros" xml:space="preserve">
+    <value>Extranjeros</value>
+  </data>
+  <data name="ContratacionCuentaAjena" xml:space="preserve">
+    <value>Cuenta ajena</value>
+  </data>
+  <data name="ContratacionAutonomo" xml:space="preserve">
+    <value>Autónomo</value>
+  </data>
+  <data name="ContratacionVoluntario" xml:space="preserve">
+    <value>Voluntario</value>
+  </data>
+  <data name="BadgeContratacion" xml:space="preserve">
+    <value>Contratación · {0}</value>
+  </data>
+  <data name="BadgeEquivalencias" xml:space="preserve">
+    <value>Equivalencias · {0}</value>
+  </data>
+  <data name="VigenciaAnios" xml:space="preserve">
+    <value>{0} años</value>
+  </data>
+  <data name="VigenciaMeses" xml:space="preserve">
+    <value>{0} meses</value>
+  </data>
+  <data name="VigenciaUnAnio" xml:space="preserve">
+    <value>1 año</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
+  <data name="VigenciaFija" xml:space="preserve">
+    <value>Fija</value>
+  </data>
+  <data name="VigenciaDocumento" xml:space="preserve">
+    <value>La pone el documento</value>
+  </data>
+  <data name="VigenciaSinVencimiento" xml:space="preserve">
+    <value>Sin vencimiento</value>
+  </data>
+  <data name="ToleranciaSin" xml:space="preserve">
+    <value>Sin tolerancia</value>
+  </data>
+  <data name="ToleranciaDias" xml:space="preserve">
+    <value>{0} días</value>
+  </data>
+  <data name="ToleranciaNoVence" xml:space="preserve">
+    <value>No vence</value>
+  </data>
+  <data name="EditarTitulo" xml:space="preserve">
+    <value>Editar requisito</value>
+  </data>
+  <data name="EditarTituloAlta" xml:space="preserve">
+    <value>Añadir requisito</value>
+  </data>
+  <data name="EditarSubtitulo" xml:space="preserve">
+    <value>Plantilla «{0}»</value>
+  </data>
+  <data name="CampoRequisito" xml:space="preserve">
+    <value>Requisito</value>
+  </data>
+  <data name="CampoEntidad" xml:space="preserve">
+    <value>Entidad</value>
+  </data>
+  <data name="CampoDestinatario" xml:space="preserve">
+    <value>A quién se pide</value>
+  </data>
+  <data name="CampoContratacion" xml:space="preserve">
+    <value>Tipo de contratación</value>
+  </data>
+  <data name="CampoEquivalencias" xml:space="preserve">
+    <value>Equivalencias para extranjeros</value>
+  </data>
+  <data name="CampoVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="CampoTolerancia" xml:space="preserve">
+    <value>Tolerancia tras el vencimiento</value>
+  </data>
+  <data name="CampoCriterio" xml:space="preserve">
+    <value>Criterio de aceptación</value>
+  </data>
+  <data name="CampoDatosIa" xml:space="preserve">
+    <value>Datos que lee la IA</value>
+  </data>
+  <data name="CampoFormulario" xml:space="preserve">
+    <value>Formulario del Centro</value>
+  </data>
+  <data name="CampoAlcance" xml:space="preserve">
+    <value>Contratos a los que se aplica</value>
+  </data>
+  <data name="CatalogoAyuda" xml:space="preserve">
+    <value>Elige el requisito del catálogo de tipos de documento: así el nombre es el mismo en todos los Centros y para todas las Empresas contratistas. Si no está, escríbelo en el buscador y créalo tú; antes te avisamos si ya existe con otro nombre o en otro idioma.</value>
+  </data>
+  <data name="CatalogoBuscar" xml:space="preserve">
+    <value>Buscar en el catálogo</value>
+  </data>
+  <data name="CatalogoEtiqueta" xml:space="preserve">
+    <value>Catálogo de requisitos</value>
+  </data>
+  <data name="CatalogoVacio" xml:space="preserve">
+    <value>El catálogo todavía no tiene tipos de documento.</value>
+  </data>
+  <data name="CatalogoSinCoincidencias" xml:space="preserve">
+    <value>Ningún requisito del catálogo coincide.</value>
+  </data>
+  <data name="CatalogoYaEnPlantilla" xml:space="preserve">
+    <value>Ya en la plantilla</value>
+  </data>
+  <data name="CatalogoElegido" xml:space="preserve">
+    <value>Se añadirá «{0}».</value>
+  </data>
+  <data name="ParecidosTitulo" xml:space="preserve">
+    <value>¿Es alguno de estos?</value>
+  </data>
+  <data name="ParecidosAyuda" xml:space="preserve">
+    <value>Ya están en el catálogo con otro nombre o en otro idioma. Si es el mismo, añade el existente y no se duplica.</value>
+  </data>
+  <data name="ParecidosVia" xml:space="preserve">
+    <value>Coincide con «{0}»</value>
+  </data>
+  <data name="ParecidosAnadirAria" xml:space="preserve">
+    <value>Añadir el existente {0}</value>
+  </data>
+  <data name="ParecidosCatalogoBase" xml:space="preserve">
+    <value>Catálogo base de TALVEG</value>
+  </data>
+  <data name="CrearPropioTitulo" xml:space="preserve">
+    <value>Crear «{0}» como requisito propio</value>
+  </data>
+  <data name="CrearPropioAyuda" xml:space="preserve">
+    <value>Es propio de tu organización: solo existe en tus plantillas.</value>
+  </data>
+  <data name="CrearPropioAria" xml:space="preserve">
+    <value>Crear el requisito propio {0}</value>
+  </data>
+  <data name="MotivoFaltaRequisito" xml:space="preserve">
+    <value>Elige un requisito del catálogo o crea uno propio.</value>
+  </data>
+  <data name="DestinatarioAyuda" xml:space="preserve">
+    <value>Quién es extranjero lo decide el país de la Empresa contratista o el documento de identidad del Trabajador.</value>
+  </data>
+  <data name="ContratacionAyuda" xml:space="preserve">
+    <value>A qué tipos de contratación del Trabajador se pide.</value>
+  </data>
+  <data name="EquivalenciasAyuda" xml:space="preserve">
+    <value>Documentos que valen en su lugar para quien no es nacional, uno por línea (hasta {0}).</value>
+  </data>
+  <data name="VigenciaMesesAria" xml:space="preserve">
+    <value>Meses de vigencia</value>
+  </data>
+  <data name="VigenciaMesesSufijo" xml:space="preserve">
+    <value>meses desde la emisión</value>
+  </data>
+  <data name="VigenciaMesesInvalida" xml:space="preserve">
+    <value>Escribe los meses de vigencia como un número.</value>
+  </data>
+  <data name="VigenciaAyudaFija" xml:space="preserve">
+    <value>El documento vale ese tiempo desde su emisión.</value>
+  </data>
+  <data name="VigenciaAyudaDocumento" xml:space="preserve">
+    <value>La fecha de vencimiento es la que figura en el propio documento.</value>
+  </data>
+  <data name="VigenciaAyudaSin" xml:space="preserve">
+    <value>El documento no vence.</value>
+  </data>
+  <data name="ToleranciaAyuda" xml:space="preserve">
+    <value>Decisión del Cliente, por tipo de documento. No se aplica nunca a la aptitud médica, la formación obligatoria ni los seguros: el documento vencido deja de valer ese día.</value>
+  </data>
+  <data name="ToleranciaAyudaNoVence" xml:space="preserve">
+    <value>El documento no vence: no hay tolerancia que configurar.</value>
+  </data>
+  <data name="CriterioAyuda" xml:space="preserve">
+    <value>Lo lee la Empresa contratista antes de subir el documento y el Gestor CAE al validarlo.</value>
+  </data>
+  <data name="DatosIaAyuda" xml:space="preserve">
+    <value>Qué datos del documento comprueba la lectura con IA. Todavía no se pueden fijar por requisito.</value>
+  </data>
+  <data name="FormularioAyuda" xml:space="preserve">
+    <value>Si el Centro pide su propio formulario, se subirá en PDF y se colocará en cada hueco el dato del perfil de la Empresa contratista. Todavía no está disponible.</value>
+  </data>
+  <data name="AlcanceAyuda" xml:space="preserve">
+    <value>Elegir si el cambio vale solo para los contratos de acceso nuevos o también para los existentes. Todavía no está disponible.</value>
+  </data>
+  <data name="FormularioTitulo" xml:space="preserve">
+    <value>Campos del formulario</value>
+  </data>
+  <data name="FormularioNoDisponibleTitulo" xml:space="preserve">
+    <value>El formulario del Centro todavía no está disponible</value>
+  </data>
+  <data name="FormularioNoDisponibleDetalle" xml:space="preserve">
+    <value>Aquí se colocará, sobre el PDF del Centro, cada dato del perfil de la Empresa contratista que se rellena solo. Aún no se puede subir el PDF ni colocar campos.</value>
+  </data>
+  <data name="PlantillaRetiradaAviso" xml:space="preserve">
+    <value>Esta plantilla está retirada: se puede consultar, pero ya no admite cambios.</value>
+  </data>
+  <data name="MotivoFaltaContratacion" xml:space="preserve">
+    <value>Marca al menos un tipo de contratación.</value>
+  </data>
+  <data name="ToleranciaAyudaPropio" xml:space="preserve">
+    <value>Un requisito propio todavía no tiene grupo de documento y no admite tolerancia.</value>
+  </data>
+  <data name="NombreNoDisponible" xml:space="preserve">
+    <value>Ese nombre ya existe en el catálogo y no se puede pedir como requisito: está archivado o es de otro tipo de documento.</value>
+  </data>
+</root>

@@ -3,8 +3,9 @@ namespace CaeManager.Web.Features.Inbound.Validacion;
 // Modelo de lectura y de peticiones de las dos pantallas de validación del Tenant TCE (Documentos por validar y
 // Validación). Es el contrato que la pantalla pide al servicio: cuando entren B-21 (cola), B-22 (veredicto con Deshacer de
 // 10 s), B-24 (veredicto del sistema) y B-26 (propuesta de la IA), el servicio real devuelve estos mismos registros y la
-// pantalla no cambia. Hasta entonces, ServicioValidacionInboundSinBackend responde «no disponible» y la pantalla no pinta
-// ningún dato.
+// pantalla no cambia. En la demo mínima, ServicioValidacionInboundConBackend rellena la cola y el documento con lo que la
+// lectura Inbound ya da (sin lectura con IA, páginas ni historial) y registra Validar y Rechazar; el resto responde
+// «no disponible».
 
 /// <summary>A qué pertenece el documento: la Empresa contratista, uno de sus Trabajadores o uno de sus vehículos.</summary>
 public enum EntidadValidable
@@ -160,14 +161,18 @@ public sealed record SolicitudRechazar(Guid Id, string Motivo, string Explicacio
 
 public sealed record SolicitudMarcarIncompleto(Guid Id, string Falta, string Explicacion);
 
-/// <summary>Un veredicto registrado; el aviso a la Empresa contratista sale al terminar el plazo de Deshacer (B-22).</summary>
-public sealed record VeredictoRegistrado(Guid VeredictoId, VeredictoValidacion Veredicto);
+/// <summary>
+/// Un veredicto registrado; el aviso a la Empresa contratista sale al terminar el plazo de Deshacer (B-22). Sin
+/// <paramref name="Deshacible"/> (la demo mínima, antes de B-22) el veredicto ya es firme: la pantalla no ofrece Deshacer
+/// ni promete un aviso diferido.
+/// </summary>
+public sealed record VeredictoRegistrado(Guid VeredictoId, VeredictoValidacion Veredicto, bool Deshacible = true);
 
 public sealed record LoteRegistrado(Guid LoteId, int Documentos, int ParaRevision);
 
 /// <summary>
-/// Respuesta del servicio. «No disponible» no es un error: es la pantalla sin backend, que no pinta datos ni inventa
-/// ninguno. <see cref="Mensaje"/> lleva el motivo cuando el servidor rechaza una petición.
+/// Respuesta del servicio. «No disponible» no es un error: es la acción sin backend (o apagada por su opción), que no
+/// pinta datos ni inventa ninguno. <see cref="Mensaje"/> lleva el motivo cuando el servidor rechaza una petición.
 /// </summary>
 public sealed record RespuestaValidacion<T>(bool Disponible, T? Valor, string? Mensaje = null)
 {

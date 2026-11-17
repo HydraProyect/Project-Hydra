@@ -4,11 +4,13 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Inbound.Validacion.Components
+@using CaeManager.Web.Features.Inbound.Validacion.Recursos
+@inject Microsoft.Extensions.Localization.IStringLocalizer<TextosValidacionInbound> TextosValidacion
 
 <LimiteDeErrores Pagina="this">
-@* Tarjeta 10 de la maqueta de Inbound, «Documentos por validar»: la cola del Gestor CAE del Tenant TCE. Sin backend
-   fusionado (B-21: cola paginada por cartera, índice de pendientes): el servicio responde «no disponible» y la pantalla no
-   pinta ningún dato. «Exportar a Excel» de la maqueta tampoco está: no hay endpoint hasta B-21. La línea Inbound activa
+@* Tarjeta 10 de la maqueta de Inbound, «Documentos por validar»: la cola del Gestor CAE del Tenant TCE. En la demo
+   mínima la cola es real (ObtenerColaValidacionInboundQuery), sin paginar ni índice de pendientes (B-21) y sin lectura con
+   IA, así que nada entra en lote (B-27). «Exportar a Excel» de la maqueta tampoco está: no hay endpoint hasta B-21. La línea Inbound activa
    (gate B-01) la impone la base; la pantalla no tiene aún una consulta con la que ocultarse sola. *@
 <PageTitle>Documentos por validar — @Marca.Nombre</PageTitle>
 <TituloDePaginaSinPrerender Titulo="@($"Documentos por validar — {Marca.Nombre}")" />
@@ -145,7 +147,7 @@
                                     </td>
                                     <td title="@string.Join(", ", documento.Centros)">@LogicaValidacionInbound.TextoCentros(documento.Centros)</td>
                                     <td class="@(LogicaValidacionInbound.Tramo(documento, _ahora) == TramoAntiguedad.MasDeTresDias ? "dpv-antiguo" : "")">@LogicaValidacionInbound.TextoSubido(documento.SubidoUtc)</td>
-                                    <td><span class="@($"dpv-lectura dpv-lectura-{LogicaValidacionInbound.ClaseResultado(documento.Lectura)}")">@LogicaValidacionInbound.TextoLectura(documento)</span></td>
+                                    <td><span class="@($"dpv-lectura dpv-lectura-{LogicaValidacionInbound.ClaseResultado(documento.Lectura)}")">@LogicaValidacionInbound.TextoLectura(documento, TextosValidacion["SinLecturaIa"])</span></td>
                                 </tr>
                             }
                         </tbody>

@@ -19,4 +19,16 @@ public class ComandosQueReducenExposicionTests
 
         marcados.Should().BeEquivalentTo([typeof(RevocarClaveApiDeMiOrganizacionCommand), typeof(CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPorSoporte.RevocarOperadorCaeExternoPorSoporteCommand)]);
     }
+
+    // La portabilidad salta el gate comercial (no la suspensión operativa): lista cerrada, como la de arriba.
+    [Fact]
+    public void Solo_la_exportacion_completa_es_portabilidad_del_Tenant_propietario()
+    {
+        var marcados = typeof(IComandoDePortabilidadDelTenantPropietario).Assembly.GetTypes()
+            .Where(t => t.IsClass && t.IsAssignableTo(typeof(IComandoDePortabilidadDelTenantPropietario)));
+
+        marcados.Should().BeEquivalentTo([
+            typeof(CaeManager.Application.Exportacion.SolicitarExportacionCompletaCommand),
+            typeof(CaeManager.Application.Exportacion.DescargarExportacionCompletaCommand)]);
+    }
 }

@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Inbound.AutorizacionesLectura;
@@ -9,7 +10,7 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.RetirarT
 
 /// <summary>Retira un Trabajador de una autorización sin revocar: borra su fila, que no tiene UPDATE.</summary>
 [AreaDelEncargo("AutorizacionesLectura")]
-public record RetirarTrabajadorAutorizacionCommand(Guid AutorizacionId, Guid TrabajadorId, Guid Version = default) : ICommand, IComandoInbound;
+public record RetirarTrabajadorAutorizacionCommand(Guid AutorizacionId, Guid TrabajadorId, Guid Version = default) : ICommand;
 
 public class RetirarTrabajadorAutorizacionCommandValidator : AbstractValidator<RetirarTrabajadorAutorizacionCommand>
 {
@@ -21,11 +22,14 @@ public class RetirarTrabajadorAutorizacionCommandValidator : AbstractValidator<R
 }
 
 public class RetirarTrabajadorAutorizacionCommandHandler(
-    IAutorizacionLecturaRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
+    IAutorizacionLecturaRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RetirarTrabajadorAutorizacionCommand, Result>
 {
     public async Task<Result> Handle(RetirarTrabajadorAutorizacionCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ParticipanteTec, cancellationToken))
+            return Result.Fallo(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await AutorizacionLecturaAutoridad.EsAdministradorAsync(currentUserService))
             return Result.Fallo(AutorizacionLecturaAutoridad.SoloAdministrador);
 

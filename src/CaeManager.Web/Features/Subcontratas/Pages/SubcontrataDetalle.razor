@@ -9,6 +9,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Subcontratas

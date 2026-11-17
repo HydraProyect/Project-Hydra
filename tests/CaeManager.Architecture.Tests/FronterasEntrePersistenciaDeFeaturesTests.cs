@@ -59,6 +59,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContactosSeguridad.ProponerContactoSeguridadCommandHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadDeMiOrganizacionQueryHandler", "IContactoSeguridadTenantRepository"),
         ("ContactosSeguridad.ObtenerContactoSeguridadVigenteQueryHandler", "IContactoSeguridadTenantRepository"),
+        // La concesión de una capacidad del Tenant (decisión D-3 del 2026-11-15) es del plano de Propiedad del Tenant:
+        // su entidad y su repositorio viven en Domain/Tenants; la Feature CapacidadesTenant es su superficie.
+        ("CapacidadesTenant.ConcederCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        ("CapacidadesTenant.RevocarCapacidadTenantCommandHandler", "IConcesionCapacidadTenantRepository"),
+        // Una solicitud de derechos del interesado puede señalar a un Trabajador de la cartera de quien la registra.
+        ("DerechosInteresado.RegistrarSolicitudDerechoInteresadoCommandHandler", "ITrabajadorRepository"),
         // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
         // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
@@ -70,6 +76,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
+        // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
+        // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
+        ("Exportacion.DescargarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
+        ("Exportacion.SolicitarExportacionCompletaCommandHandler", "ITenantsQueryContext"),
         // #2009, D-6: la aceptación contractual fuera del alta no la hace una cuenta del Tenant de plataforma
         // (Actor de Plataforma TALVEG); AceptanteFueraDelAlta lo comprueba con el catálogo de Tenants.
         ("Cumplimiento.AceptarDocumentosContractualesCommandHandler", "ITenantsQueryContext"),
@@ -792,6 +803,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
+        // Cola de validación de la demo mínima (DECISION_LOG 2026-11-17, opción b): nombra el tipo del catálogo propio, la
+        // Empresa contratista local y el Centro de cada contrato, solo para pintar la fila.
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "IEmpresasQueryContext"),
+        ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "ICentrosQueryContext"),
         // Plantillas de requisitos del Tenant TCE (B-14): un requisito se acredita con un Tipo de documento del catálogo
         // propio y puede adoptar un requisito del catálogo base; el alta comprueba que la Actividad, el riesgo, el Centro o
         // la Empresa Cliente empresarial existen, solo por su Id. El requisito propio crea su Tipo de documento.

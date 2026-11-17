@@ -93,7 +93,7 @@ public partial class Cliente360PaginaTests : BunitContext
         /// <summary>Si tiene valor, la lectura de la fila «Gestor CAE» no responde hasta que se complete.</summary>
         public Task? GestorCaePendiente { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
         public Action? AlGuardarTolerancia { get; set; }

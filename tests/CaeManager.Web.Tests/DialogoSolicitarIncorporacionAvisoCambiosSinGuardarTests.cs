@@ -35,7 +35,7 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
 
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public bool SinCandidatos { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)

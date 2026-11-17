@@ -51,6 +51,7 @@ public class ExportacionCompletaTenantTests
     [InlineData(typeof(EventoWebhook), "PayloadCrudo")]
     [InlineData(typeof(ClaveApi), "HashClave")]
     [InlineData(typeof(ClaveIntegracionTenant), "HashClave")]
+    [InlineData(typeof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta), "ContrasenaProtegida")]
     public void Los_secretos_conocidos_no_se_exportan(Type entidad, string propiedad)
     {
         var columna = Modelo.FindEntityType(entidad)!.FindProperty(propiedad);

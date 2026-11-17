@@ -279,7 +279,7 @@ public class GestorCaeClienteTests : BunitContext
 
     private sealed class MediatorFalso : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public IReadOnlyList<CarterasDeOperacion> Operaciones { get; set; } = [];
         public IReadOnlyList<CarterasDeOperacion> OperacionesDelPropietario { get; set; } = [];
         public ApoyosDeCarteraDto Apoyos { get; set; } = ApoyosDeCarteraDto.Vacio;

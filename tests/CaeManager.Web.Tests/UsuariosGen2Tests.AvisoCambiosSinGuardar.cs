@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Web.Components.DesignSystem;
@@ -14,8 +15,9 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// P1-E2b: salir de /usuarios con el alta o la edición de Usuario a medias, o con las marcas de
 /// «Asignar empresas» cambiadas, pregunta antes. La ficha recién cargada no es un cambio, y lo ya
-/// guardado no deja nada que perder. El diálogo de desactivar no tiene ninguna elección desde D-7
-/// (no hay traspaso de cartera): cierra sin preguntar por la X, «Volver», Escape y la navegación.
+/// guardado no deja nada que perder. El diálogo de desactivar solo tiene una elección que perder si el Gestor CAE
+/// tiene Tenants beneficiarios enteros en su cartera (a quién pasan, o «A nadie por ahora»; decisión de Chris del
+/// 2026-11-14): con ella, la X, «Volver», Escape, el fondo y la navegación preguntan; sin ella, cierran sin preguntar.
 /// </summary>
 public partial class UsuariosGen2Tests
 {
@@ -157,7 +159,7 @@ public partial class UsuariosGen2Tests
     [Fact]
     public async Task Aviso_el_dialogo_de_desactivar_no_deja_nada_que_perder()
     {
-        // Desde D-7 no hay traspaso de cartera: el diálogo solo confirma, sin ningún dato escrito.
+        // Sin Tenants beneficiarios en la cartera (solo la interna) no hay a quién reasignar: el diálogo solo confirma.
         var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
@@ -171,13 +173,12 @@ public partial class UsuariosGen2Tests
     }
 
     /// <summary>
-    /// Regla de Chris (2026-10-03): toda pérdida de edición pregunta. El diálogo de desactivar ya no tiene nada
-    /// que perder desde D-7 (el Gestor CAE de destino del traspaso se retiró con la cartera por Cliente empresarial):
-    /// ni campos ni elección. Esta prueba fija esa premisa; si el diálogo vuelve a tener un campo, tiene que pasar
-    /// <c>HayCambios</c> (lo exige DrawerYModalConCamposPreguntanAlDescartarTests) y esta prueba obliga a releer la regla.
+    /// Regla de Chris (2026-10-03): toda pérdida de edición pregunta. Sin Tenants beneficiarios en la cartera el diálogo
+    /// de desactivar no tiene campo ni elección que perder: esta prueba fija esa premisa; con ellos hay un selector
+    /// (la prueba siguiente de salidas fija que entonces pregunta).
     /// </summary>
     [Fact]
-    public async Task Aviso_el_dialogo_de_desactivar_no_tiene_ninguna_eleccion_que_perder()
+    public async Task Aviso_el_dialogo_de_desactivar_sin_Tenants_beneficiarios_no_tiene_ninguna_eleccion_que_perder()
     {
         var cut = await AbrirDesactivarDeAnderAsync();
 
@@ -186,17 +187,96 @@ public partial class UsuariosGen2Tests
     }
 
     /// <summary>
-    /// «Volver», la X, Escape y el clic en el fondo cierran el diálogo de desactivar sin «¿Descartar cambios?» y sin tocar
-    /// la cuenta. Se ejerce cada salida por separado: un HayCambios que devuelva siempre true deja en rojo la X, Escape y el
-    /// fondo (medido); «Volver» no pasa por SolicitarCierreAsync, y que lo haga cuando haya un campo lo exige el analizador de
-    /// arquitectura. Es una prueba de propiedad (hoy no hay nada que perder), no de regresión.
+    /// Con una decisión elegida (a quién pasa la cartera, o «A nadie por ahora»), «Volver», la X, Escape y el clic en el fondo
+    /// preguntan «¿Descartar cambios?», «Seguir editando» conserva la elección y «Descartar cambios» cierra sin desactivar.
+    /// Se ejerce cada salida por separado.
     /// </summary>
     [Theory]
     [InlineData("Volver")]
     [InlineData("X")]
     [InlineData("Escape")]
     [InlineData("Fondo")]
-    public async Task Aviso_las_salidas_del_dialogo_de_desactivar_cierran_sin_preguntar(string salida)
+    public async Task Aviso_con_una_decision_elegida_las_salidas_del_dialogo_de_desactivar_preguntan(string salida)
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+
+        await SalirDelDialogoDeDesactivarAsync(cut, salida);
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?", "hay una elección que perder");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new());
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeFalse("«Seguir editando» conserva la elección: sigue habiendo decisión tomada");
+
+        await SalirDelDialogoDeDesactivarAsync(cut, salida);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty("descartar no desactiva");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Navegar fuera con el diálogo de desactivar abierto y una decisión tomada pregunta (la guarda de navegación ve el
+    /// mismo <c>HayCambios</c> que la X); sin elegir nada, o tras volver a «Elige una opción», la navegación sigue sin preguntar.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_navegar_con_una_decision_elegida_en_el_dialogo_de_desactivar_pregunta()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty("la navegación detenida no desactiva");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Aviso_navegar_con_el_dialogo_de_desactivar_con_cartera_pero_sin_decision_no_pregunta()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, "nadie");
+        await ElegirDestinoAsync(cut, string.Empty);
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin decisión tomada no hay nada que perder");
+    }
+
+    private static async Task SalirDelDialogoDeDesactivarAsync(IRenderedComponent<UsuariosControlados> cut, string salida)
+    {
+        switch (salida)
+        {
+            case "Volver":
+                await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+                break;
+            case "X":
+                await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new());
+                break;
+            case "Escape":
+                await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+                break;
+            default:
+                await cut.Find(".modal-superposicion").ClickAsync(new());
+                break;
+        }
+    }
+
+    /// <summary>
+    /// «Volver», la X, Escape y el clic en el fondo cierran el diálogo de desactivar, cuando no hay nada elegido, sin «¿Descartar
+    /// cambios?» y sin tocar la cuenta. Se ejerce cada salida por separado: un HayCambios que devuelva siempre true deja en rojo la
+    /// X, Escape y el fondo (medido). Es una prueba de propiedad (sin cartera de Tenants beneficiarios no hay nada que perder).
+    /// </summary>
+    [Theory]
+    [InlineData("Volver")]
+    [InlineData("X")]
+    [InlineData("Escape")]
+    [InlineData("Fondo")]
+    public async Task Aviso_las_salidas_del_dialogo_de_desactivar_sin_decision_cierran_sin_preguntar(string salida)
     {
         var cut = await AbrirDesactivarDeAnderAsync();
 

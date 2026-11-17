@@ -105,6 +105,7 @@ public class LecturaIaGen2Tests : BunitContext
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<CaeManager.Application.Common.ICurrentUserService>(_ => new UsuarioDeVegaDePrueba());
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<SeleccionarClienteLecturaIa>>(_ => NullLogger<SeleccionarClienteLecturaIa>.Instance);
         return mediador;

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="AptitudConConclusion" xml:space="preserve">
+    <value>Un certificado de aptitud se registra con su conclusión, que esta pantalla todavía no recoge.</value>
+  </data>
+  <data name="Descargar" xml:space="preserve">
+    <value>Descargar</value>
+  </data>
+  <data name="DestinosNoDisponibles" xml:space="preserve">
+    <value>Validar para otros Centros no está disponible todavía.</value>
+  </data>
+  <data name="EligeMotivo" xml:space="preserve">
+    <value>Elige un motivo de la lista.</value>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="EtiquetaDniNie" xml:space="preserve">
+    <value>DNI o NIE</value>
+  </data>
+  <data name="EtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="EtiquetaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ExplicaCorreccion" xml:space="preserve">
+    <value>Explica qué tiene que corregir la Empresa contratista.</value>
+  </data>
+  <data name="ExplicacionLarga" xml:space="preserve">
+    <value>La explicación no puede superar {0} caracteres.</value>
+  </data>
+  <data name="FechasNoDisponibles" xml:space="preserve">
+    <value>Corregir las fechas al validar no está disponible todavía: deja las del documento original.</value>
+  </data>
+  <data name="NoEncontrado" xml:space="preserve">
+    <value>No encontramos este documento entre tus pendientes.</value>
+  </data>
+  <data name="NotaSinLectura" xml:space="preserve">
+    <value>Sin lectura con IA: compáralo tú con el documento.</value>
+  </data>
+  <data name="SinLecturaIa" xml:space="preserve">
+    <value>! Sin lectura con IA</value>
+  </data>
+  <data name="SinPaginasConDescarga" xml:space="preserve">
+    <value>El documento no se puede mostrar. Descárgalo para revisarlo.</value>
+  </data>
+  <data name="SinPaginasNiDescarga" xml:space="preserve">
+    <value>El documento todavía no se puede mostrar ni descargar aquí.</value>
+  </data>
+  <data name="SinPropuesta" xml:space="preserve">
+    <value>La lectura con IA no está disponible todavía: revisa el documento tú.</value>
+  </data>
+  <data name="TipoFueraDeCatalogo" xml:space="preserve">
+    <value>«{0}» no está en tu catálogo de tipos de documento: no se puede registrar el veredicto todavía.</value>
+  </data>
+</root>

@@ -62,7 +62,7 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
     private sealed class MediadorFalso : IMediator
     {
         public List<VehiculoListaDto> Almacen { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Lo que devuelve la lectura del documento que abre el formulario de corrección.</summary>
         public DocumentoDetalleDto? Documento { get; set; }

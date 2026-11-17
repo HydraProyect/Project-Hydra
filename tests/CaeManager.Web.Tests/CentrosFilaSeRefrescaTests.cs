@@ -46,7 +46,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<CentroListaDto> Almacen { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public bool FallarConsultaPorId { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)

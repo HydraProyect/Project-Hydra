@@ -52,12 +52,25 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool? _rigenExclusionesDelEncargo;
 
+    [Inject] private CaeManager.Application.Common.ICurrentUserService UsuarioActual { get; set; } = default!;
+
+    /// <summary>
+    /// Un panel que es una página de Outbound (<c>[PaginaDeOutbound]</c>) solo se ve y se resuelve con un papel que admita
+    /// lo que no es Inbound (<see cref="CaeManager.Application.Common.CriterioDePapel"/>): embebido con
+    /// <c>DynamicComponent</c> no pasa por <c>PaginaDeOutboundPorPapelAuthorizationHandler</c>,
+    /// así que este filtro es su barrera, como el del encargo. <c>null</c> mientras no se conoce el papel, y entonces se
+    /// trata como si no lo admitiera.
+    /// </summary>
+    private bool? _papelAdmiteOutbound;
+
     protected override async Task OnInitializedAsync()
     {
         // El principal va antes que cualquier espera real: el estado de autenticación del circuito
         // ya está resuelto, así que esto se asigna antes del primer render.
         var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
         _rigenExclusionesDelEncargo = PaginasExcluidasDelEncargo.RigenLasExclusiones(usuario);
+        _papelAdmiteOutbound = CaeManager.Application.Common.CriterioDePapel.AdmiteLoQueNoEsInbound(
+            await UsuarioActual.ObtenerPapelActivoAsync());
 
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
 
@@ -160,6 +173,8 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
                 .Where(e => !e.SoloActorPlataforma || _esAdministradorPlataforma)
                 .Where(e => e.Politica is null || _politicasConcedidas.Contains(e.Politica))
                 .Where(e => _rigenExclusionesDelEncargo == false || !PaginasExcluidasDelEncargo.Contiene(e.TipoPanel))
+                .Where(e => _papelAdmiteOutbound == true
+                            || !CaeManager.Web.Services.Autorizacion.PaginaDeOutboundPorPapelAuthorizationHandler.EsPaginaDeOutbound(e.TipoPanel))
                 .ToList()
         })
         .ToList();

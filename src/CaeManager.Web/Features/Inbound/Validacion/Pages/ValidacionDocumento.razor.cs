@@ -371,9 +371,18 @@ public partial class ValidacionDocumento
                 return;
             }
 
-            _veredicto = registrado;
-            _textoVeredicto = textoEspecial ?? TextoVeredicto(registrado);
-            _veredictoDocumentoId = documentoId;
+            var texto = textoEspecial ?? TextoVeredicto(registrado);
+            if (registrado.Deshacible)
+            {
+                _veredicto = registrado;
+                _textoVeredicto = texto;
+                _veredictoDocumentoId = documentoId;
+            }
+            else
+            {
+                // Veredicto firme, sin plazo de Deshacer: se dice y basta.
+                Toast.Mostrar(texto);
+            }
             _resueltos.Add(documentoId);
             _modo = ModoVeredicto.Ninguno;
 
