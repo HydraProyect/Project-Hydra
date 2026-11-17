@@ -24,8 +24,8 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura;
 /// Workspace operativo derivado abierto por Asignación de Operación, para el Administrador del Operador CAE externo
 /// que opera el Tenant, porque su perfil de origen rige ahí con todos sus poderes (decisión del 2026-10-20, más amplia
 /// que la del encargo de administración pleno del 2026-10-15, con la que el Administrador del Operador CAE ya era
-/// Administrador pleno). Se acepta tal cual: es el criterio vigente del rol efectivo, y estrecharlo solo aquí sería una
-/// regla nueva que DN-2 tendría que decidir.
+/// Administrador pleno). Es lo que DN-2 decidió (decisión de Chris del 2026-11-16, B-03): el Administrador del propio
+/// Tenant TEC o el Operador CAE externo que lo opera en Outbound; ParticipanteTec lo aplica antes, por el papel.
 /// </para>
 ///
 /// <para>

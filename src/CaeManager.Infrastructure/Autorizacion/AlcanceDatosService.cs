@@ -593,7 +593,7 @@ public class AlcanceDatosService(
             // delegación vigente del par no la sostiene, una que sobrevivió a una revocación no vuelve al
             // reactivarse, y sin origen falla cerrada. La raíz y las internas no dependen de ninguna delegación.
             .Join(dbContext.AsignacionesOperacion
-                    .AmparadasSegunServicio(servicio, dbContext.DelegacionesTenant, ahora)
+                    .AmparadasSegunServicio(servicio, o => o.AmparadasPorSuOrigen(dbContext.DelegacionesTenant, ahora))
                     .Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
                     && o.Servicio == servicio

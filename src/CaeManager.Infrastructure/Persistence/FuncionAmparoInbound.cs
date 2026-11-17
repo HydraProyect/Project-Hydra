@@ -1,6 +1,5 @@
 using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
-using CaeManager.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Persistence;
@@ -36,17 +35,18 @@ internal static class FuncionAmparoInbound
         throw new InvalidOperationException($"{Nombre} solo se evalúa en PostgreSQL, dentro de una consulta.");
 
     /// <summary>
-    /// Las Asignaciones de Operación amparadas según su servicio (B-03): las Outbound por su DelegacionTenant de origen
-    /// (<see cref="AmparoDeOrigen.AmparadasPorSuOrigen"/>, como siempre) y las Inbound por la línea Inbound vigente de su
-    /// Tenant propietario (<see cref="Ampara"/>), nunca una por el amparo de la otra. No filtra el servicio: lo filtra la
-    /// consulta que la usa, en la misma sentencia.
+    /// Las Asignaciones de Operación amparadas según su servicio (B-03): las Inbound, solo de servicio Inbound y por la
+    /// línea Inbound vigente de su Tenant propietario (<see cref="Ampara"/>); las Outbound, por el amparo de origen que pasa
+    /// quien llama (<paramref name="amparoDeOutbound"/>, que es <see cref="AmparoDeOrigen.AmparadasPorSuOrigen"/>), sin
+    /// filtrar aquí el servicio. Nunca una por el amparo de la otra; la consulta que la usa filtra además el servicio en la
+    /// misma sentencia.
     /// </summary>
     internal static IQueryable<AsignacionOperacion> AmparadasSegunServicio(
-        this IQueryable<AsignacionOperacion> operaciones, ServicioCae servicio, IQueryable<DelegacionTenant> delegaciones,
-        DateTime ahora) =>
+        this IQueryable<AsignacionOperacion> operaciones, ServicioCae servicio,
+        Func<IQueryable<AsignacionOperacion>, IQueryable<AsignacionOperacion>> amparoDeOutbound) =>
         servicio == ServicioCae.Inbound
             ? operaciones.Where(o => o.Servicio == ServicioCae.Inbound && Ampara(o.Id))
-            : operaciones.AmparadasPorSuOrigen(delegaciones, ahora);
+            : amparoDeOutbound(operaciones);
 
     internal static void MapearAmparoInbound(this ModelBuilder builder) =>
         builder.HasDbFunction(() => Ampara(default))
