@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Comercial;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -186,8 +187,9 @@ public class LineaOutboundGestionPropiaDemoSeederTests(LineaOutboundGestionPropi
 /// <summary>
 /// <b>Lo que acota la línea P cuando el Tenant no es suyo</b>, en una base aparte: un Tenant que se llama como el Tenant Beta
 /// pero no lleva el marcador de datos de demo no recibe nada (podría ser real), el que sí lo lleva la recibe, uno de la lista
-/// que resulta ser Operador CAE externo o tener una delegación activa de Operador CAE externo no la recibe, y fuera de
-/// Development no escribe aunque <c>DatosPrueba:Activo</c> esté activo.
+/// que resulta ser Operador CAE externo, tener una delegación activa de Operador CAE externo o tener una Asignación de
+/// Operación Outbound externa (aunque no tenga delegación) no la recibe, una delegación de Soporte o una operación interna
+/// no la impiden, y fuera de Development no escribe aunque <c>DatosPrueba:Activo</c> esté activo.
 /// </summary>
 public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLifetime
 {
@@ -301,7 +303,9 @@ public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLif
     public async Task Un_Tenant_de_la_lista_con_una_Asignacion_de_Operacion_externa_y_sin_delegacion_no_recibe_la_linea()
     {
         // Aísla la segunda lectura de la guarda: sin ninguna DelegacionTenant, solo la operación externa puede omitir al Tenant.
-        // Una mutación que quitara esa lectura (o su filtro) dejaría pasar la línea y haría fallar esta prueba.
+        // Una mutación que quitara esa lectura dejaría pasar la línea y haría fallar esta prueba. El filtro
+        // OperadorTenantId != tenant.Id no lo fija esta prueba (su operación es externa con cualquier filtro), sino la de la
+        // operación interna, de abajo.
         using var ambito = _arnes.Servicios.CreateScope();
         await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
 
@@ -327,6 +331,80 @@ public sealed class LineaOutboundGestionPropiaDemoSeederAcotadaTests : IAsyncLif
         await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
 
         (await LineasPAsync(propietario.Id)).Should().Be(0, "una Asignación de Operación externa es gestión externa, aunque no haya delegación");
+    }
+
+    [Fact]
+    public async Task Una_Asignacion_de_Operacion_interna_no_cuenta_como_gestion_externa_y_el_Tenant_recibe_la_linea()
+    {
+        // Fija el filtro OperadorTenantId != tenant.Id de la segunda lectura de la guarda: una operación interna (operador
+        // igual al propio Tenant propietario, que no es la raíz) es gestión propia y no debe omitir al Tenant. Si el filtro se
+        // quitara, esta operación contaría como externa y la línea no se escribiría. Se acota a una Relación Empresarial porque
+        // una interna universal es la raíz, que la guarda ya excluye con !EsRaiz y no distinguiría el filtro.
+        using var ambito = _arnes.Servicios.CreateScope();
+        await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var propietario = new Tenant(CoberturaPantallasSeeder.NombreTenantBeta, PerfilVocabularioTenant.ClienteDirecto);
+        propietario.MarcarDatosDemoCompletados();
+        using (AmbitoTenantExplicito.Establecer(propietario.Id))
+        {
+            bootstrap.Tenants.Add(propietario);
+            await bootstrap.SaveChangesAsync();
+        }
+
+        var ahora = DateTime.UtcNow;
+        var clienteEmpresarial = Empresa.CrearComoCliente("Cliente de la operación interna", "B10380186", false, null, null);
+        using (AmbitoTenantExplicito.Establecer(propietario.Id))
+        {
+            bootstrap.Empresas.Add(clienteEmpresarial);
+            await bootstrap.SaveChangesAsync();
+
+            bootstrap.AsignacionesOperacion.Add(AsignacionOperacion.Interna(
+                propietario.Id, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteEmpresarial.Id), ahora, null, ahora));
+            await bootstrap.SaveChangesAsync();
+        }
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+
+        (await LineasPAsync(propietario.Id)).Should().Be(1,
+            "una Asignación de Operación interna (operador = el propio Tenant) no es gestión externa");
+    }
+
+    [Fact]
+    public async Task Una_delegacion_activa_de_Soporte_no_cuenta_como_Operador_CAE_externo_y_el_Tenant_recibe_la_linea()
+    {
+        // Fija el filtro de propósito de la primera lectura de la guarda: una DelegacionTenant de Soporte activa y vigente no
+        // es un Operador CAE externo (Soporte TALVEG no es Operador CAE) y no debe omitir al Tenant. Si el filtro
+        // Proposito == OperadorExterno se quitara, esta delegación contaría y la línea no se escribiría.
+        using var ambito = _arnes.Servicios.CreateScope();
+        await using var bootstrap = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
+
+        var propietario = new Tenant(CoberturaPantallasSeeder.NombreTenantBeta, PerfilVocabularioTenant.ClienteDirecto);
+        propietario.MarcarDatosDemoCompletados();
+        var plataforma = new Tenant("Tenant de plataforma de la prueba de la línea P", PerfilVocabularioTenant.Consultora);
+        foreach (var tenant in new[] { propietario, plataforma })
+            using (AmbitoTenantExplicito.Establecer(tenant.Id))
+            {
+                bootstrap.Tenants.Add(tenant);
+                await bootstrap.SaveChangesAsync();
+            }
+
+        var ahora = DateTime.UtcNow;
+        var soporte = DelegacionTenant.ParaSoporte(plataforma.Id, propietario.Id);
+        soporte.ActivarParaSoporte("Revisión de una pantalla de demostración", ahora.AddHours(2), ahora);
+        using (AmbitoTenantExplicito.Establecer(plataforma.Id))
+        {
+            bootstrap.DelegacionesTenant.Add(soporte);
+            await bootstrap.SaveChangesAsync();
+        }
+
+        // Control del instrumento: la delegación de Soporte está activa y vigente y la guarda la tendría delante.
+        (await bootstrap.DelegacionesTenant.AnyAsync(
+            d => d.TenantClienteId == propietario.Id && d.Proposito == PropositoDelegacion.Soporte && d.Activa)).Should().BeTrue();
+
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(bootstrap, _configuracion, EntornoDePrueba.Desarrollo, NullLogger.Instance);
+
+        (await LineasPAsync(propietario.Id)).Should().Be(1,
+            "una delegación de Soporte no es un Operador CAE externo, aunque esté activa");
     }
 
     [Theory]
