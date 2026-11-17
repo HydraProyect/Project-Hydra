@@ -15,9 +15,12 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// <c>offline_access</c> (para el refresh token) — ver Project-Hydra-Negocio/tecnico/DEPLOY.md.
 ///
 /// Apagado por defecto, mismo patrón que el resto de integraciones
-/// opcionales: sin credenciales, la pantalla de Conexiones sigue mostrando
-/// el botón "Conectar" pero el flujo falla con un aviso explícito en vez de
-/// arrancar el proceso de arranque roto.
+/// opcionales. Sin <see cref="UrlPublicaBase"/>, Conexiones y Buzones no
+/// ofrecen conectar un buzón y explican que la conexión no está disponible en
+/// el entorno; con la URL pública pero sin ClientId o sin credencial, el
+/// endpoint de conectar y el callback vuelven a Conexiones con el código
+/// «configuracion» (ConectarMicrosoft365Endpoints), nunca con un JSON de
+/// problema ni arrancando un flujo OAuth roto.
 /// </summary>
 public class Microsoft365GraphOptions : IOpcionesConGate
 {

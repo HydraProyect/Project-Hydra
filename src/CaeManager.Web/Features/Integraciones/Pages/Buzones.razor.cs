@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
@@ -38,6 +37,8 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth (no hay redirect_uri): no
     /// se ofrece «Añadir buzón» y la página lo explica. Es la misma condición que comprueba el endpoint.
     /// </summary>
+    // shortcut: el aviso solo mira UrlPublicaBase; sin ClientId o sin credencial el botón sigue y el endpoint vuelve con
+    // «configuracion». Mejorarlo si un entorno llega a tener la URL pública sin el resto (mirar EstaConfigurado aquí y en Conexiones).
     private bool ConexionDisponible => !string.IsNullOrWhiteSpace(OpcionesMicrosoft365.Value.UrlPublicaBase);
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
@@ -209,11 +210,12 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     // el cajón no arranca nada por sí mismo, navega a la misma URL y es el endpoint quien autoriza, valida y consume el nonce.
 
     private readonly SeleccionPropietarioBuzon _propietario = new();
-    private IReadOnlyList<ClienteSelectorDto> _clientesCajon = [];
-    private IReadOnlyList<GestorParaElegir> _gestoresCajon = [];
+    private OpcionesPropietarioBuzon _opcionesCajon = OpcionesPropietarioBuzon.Vacias;
     private bool _cajonVisible;
     private bool _cargandoCajon;
     private string? _errorCajon;
+    private bool _saliendoAMicrosoft;
+    private bool _navegacionAMicrosoftLanzada;
 
     private async Task AbrirCajonAsync()
     {
@@ -226,10 +228,9 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         try
         {
             // Se cargan al abrir y no con la página: quien no añade buzones no paga estas consultas.
-            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion.Token);
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, _cancelacion.Token);
-            _clientesCajon = clientes;
-            _gestoresCajon = gestores.Select(u => new GestorParaElegir(u.Id, u.NombreCompleto)).ToList();
+            // shortcut: se recargan en cada apertura, sin caché, y la carga no se cancela al cerrar el cajón (solo al salir de la
+            // página). Mejorarlo si el cajón se abre a menudo o las listas crecen (caché por visita o selector con búsqueda).
+            _opcionesCajon = await OpcionesPropietarioBuzon.CargarAsync(Mediator, DirectorioUsuarios, _cancelacion.Token);
         }
         catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
@@ -238,8 +239,7 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         {
             // Sin las listas solo queda el buzón de la organización propia o un compartido: se dice y se puede seguir.
             Logger.LogError(ex, "Error al cargar las Empresas y los Gestores CAE del cajón de añadir buzón.");
-            _clientesCajon = [];
-            _gestoresCajon = [];
+            _opcionesCajon = OpcionesPropietarioBuzon.Vacias;
             _errorCajon = Textos["CajonErrorCarga"];
         }
         finally
@@ -262,11 +262,30 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     /// A la misma URL que Conexiones, con navegación de página completa: la mejorada de Blazor haría un fetch al endpoint de
     /// conectar y la CSP (connect-src 'self') bloquearía el salto a Microsoft.
     /// </summary>
+    /// <summary>Guardián del cajón: una elección hecha y todavía no enviada a Microsoft se pregunta antes de perderla.</summary>
+    private bool HayEleccionSinEnviar() => !_saliendoAMicrosoft && _propietario.HayEleccion;
+
+    /// <summary>
+    /// «Continuar en Microsoft» sale de la página a propósito, así que primero deja de haber cambios pendientes y se repinta:
+    /// el NavigationLock del kit consulta HayCambios al navegar, pero el aviso del navegador (beforeunload) lo registra el
+    /// render, y navegar antes de que ese render llegue al cliente haría saltar «¿salir del sitio?». La navegación sale de
+    /// <see cref="OnAfterRenderAsync"/>, después de ese render.
+    /// </summary>
     private Task ContinuarAMicrosoftAsync()
     {
-        if (!ConexionDisponible || _cargandoCajon) return Task.CompletedTask;
-        Navegacion.NavigateTo(_propietario.UrlConectar, forceLoad: true);
+        if (!ConexionDisponible || _cargandoCajon || _saliendoAMicrosoft) return Task.CompletedTask;
+        _saliendoAMicrosoft = true;
+        StateHasChanged();
         return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_saliendoAMicrosoft || _navegacionAMicrosoftLanzada) return;
+        _navegacionAMicrosoftLanzada = true;
+        // Cede el turno para que el NavigationLock de este mismo render quite antes el aviso del navegador.
+        await Task.Yield();
+        Navegacion.NavigateTo(_propietario.UrlConectar, forceLoad: true);
     }
 
     // ---- Reconectar ----

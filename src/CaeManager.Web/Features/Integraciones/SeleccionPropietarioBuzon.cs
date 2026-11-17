@@ -14,7 +14,7 @@ public sealed class SeleccionPropietarioBuzon
 {
     public const string RutaConectar = "/integraciones/conectar-microsoft365";
 
-    public Guid? ClienteId { get; private set; }
+    public Guid? EmpresaSeleccionadaId { get; private set; }
 
     public Guid? GestorPropietarioId { get; private set; }
 
@@ -22,7 +22,7 @@ public sealed class SeleccionPropietarioBuzon
 
     public bool HayBuzonCompartido => !string.IsNullOrWhiteSpace(BuzonCompartido);
 
-    public bool HayEleccion => ClienteId is not null || GestorPropietarioId is not null || HayBuzonCompartido;
+    public bool HayEleccion => EmpresaSeleccionadaId is not null || GestorPropietarioId is not null || HayBuzonCompartido;
 
     /// <summary>Un buzón compartido nunca es el buzón personal de un Gestor CAE: escribir uno limpia esa elección.</summary>
     public void FijarBuzonCompartido(string valor)
@@ -34,19 +34,19 @@ public sealed class SeleccionPropietarioBuzon
     /// <summary>Empresa sin rol CAE y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
     public void SeleccionarCliente(string valor)
     {
-        ClienteId = Guid.TryParse(valor, out var id) ? id : null;
-        if (ClienteId is not null) GestorPropietarioId = null;
+        EmpresaSeleccionadaId = Guid.TryParse(valor, out var id) ? id : null;
+        if (EmpresaSeleccionadaId is not null) GestorPropietarioId = null;
     }
 
     public void SeleccionarGestorPropietario(string valor)
     {
         GestorPropietarioId = Guid.TryParse(valor, out var id) ? id : null;
-        if (GestorPropietarioId is not null) ClienteId = null;
+        if (GestorPropietarioId is not null) EmpresaSeleccionadaId = null;
     }
 
     public void Limpiar()
     {
-        ClienteId = null;
+        EmpresaSeleccionadaId = null;
         GestorPropietarioId = null;
         BuzonCompartido = string.Empty;
     }
@@ -59,7 +59,7 @@ public sealed class SeleccionPropietarioBuzon
                 return $"{RutaConectar}?gestorPropietarioId={gestorId}";
 
             var parametros = new List<string>();
-            if (ClienteId is { } clienteId)
+            if (EmpresaSeleccionadaId is { } clienteId)
                 parametros.Add($"clienteId={clienteId}");
             if (HayBuzonCompartido)
                 parametros.Add($"buzonCompartido={Uri.EscapeDataString(BuzonCompartido.Trim())}");

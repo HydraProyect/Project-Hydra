@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
@@ -32,7 +31,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     [SupplyParameterFromQuery] public bool? Conectado { get; set; }
     [SupplyParameterFromQuery] public string? Error { get; set; }
 
-    private IReadOnlyList<ClienteSelectorDto> _clientes = [];
+    private IReadOnlyList<EmpresaParaElegir> _empresas = [];
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
     private IReadOnlyList<GestorParaElegir> _gestores = [];
@@ -92,6 +91,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth (no hay redirect_uri): no
     /// se ofrece el enlace y la página lo explica. Es la misma condición que comprueba el endpoint.
     /// </summary>
+    // shortcut: el aviso solo mira UrlPublicaBase; sin ClientId o sin credencial el enlace sigue y el endpoint vuelve con
+    // «configuracion». Mejorarlo si un entorno llega a tener la URL pública sin el resto (mirar EstaConfigurado aquí y en Buzones).
     private bool ConexionDisponible => !string.IsNullOrWhiteSpace(OpcionesMicrosoft365.Value.UrlPublicaBase);
 
     /// <summary>Los campos del propietario avisan de cada elección: se repinta el enlace de conectar, que depende de ella.</summary>
@@ -115,12 +116,10 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         var token = _cancelacionCarga.Token;
         try
         {
-            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), token);
-
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, token);
+            var opciones = await OpcionesPropietarioBuzon.CargarAsync(Mediator, DirectorioUsuarios, token);
             if (generacion != _generacionInicializacion || token.IsCancellationRequested) return;
-            _clientes = clientes;
-            _gestores = gestores.Select(u => new GestorParaElegir(u.Id, u.NombreCompleto)).ToList();
+            _empresas = opciones.Empresas;
+            _gestores = opciones.Gestores;
 
             await CargarConexionesAsync(token);
         }

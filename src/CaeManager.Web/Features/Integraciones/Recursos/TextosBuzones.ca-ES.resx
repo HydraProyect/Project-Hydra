@@ -187,6 +187,6 @@
     <value>Per a una bústia compartida, escriu-ne l&apos;adreça; l&apos;administrador d&apos;Exchange de la teva organització ha d&apos;haver autoritzat abans TALVEG sobre aquesta bústia. Sense triar res, es connecta la teva bústia.</value>
   </data>
   <data name="CajonErrorCarga" xml:space="preserve">
-    <value>No hem pogut carregar les Empreses ni els Gestors CAE. Pots continuar amb una bústia de l&apos;organització pròpia o compartida.</value>
+    <value>No hem pogut carregar les Empreses sense rol CAE ni els Gestors CAE. Pots continuar amb una bústia de l&apos;organització pròpia o compartida.</value>
   </data>
 </root>

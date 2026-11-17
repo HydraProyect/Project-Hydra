@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
@@ -43,7 +44,9 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     /// <summary>La configuración de Microsoft 365 de la página: con URL pública (se puede conectar) salvo que el test la vacíe.</summary>
     private Microsoft365GraphOptions Opciones { get; } = new()
     {
-        ClientId = "cliente-secreto-de-prueba", ClientSecret = "valor-secreto-de-prueba", UrlPublicaBase = "https://app.talveg.test",
+        ClientId = "cliente-secreto-de-prueba",
+        ClientSecret = "valor-secreto-de-prueba",
+        UrlPublicaBase = "https://app.talveg.test",
     };
 
     private sealed class MediadorBuzones : IMediator
@@ -620,5 +623,170 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
 
         cut.Markup.Should().Contain("Aún no hay buzones conectados.");
         cut.FindAll("table").Should().BeEmpty();
+    }
+
+    // ---- Añadir buzón (cajón), franja de error con «Reconectar» y punto de estado ----
+
+    /// <summary>
+    /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth: no se ofrece «Añadir buzón»
+    /// y la página lo explica sin enseñar ningún valor de configuración.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Sin_URL_publica_no_hay_Anadir_buzon_y_el_aviso_no_enseña_la_configuracion(string? urlPublica)
+    {
+        Opciones.UrlPublicaBase = urlPublica;
+
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
+
+        cut.FindAll("[data-testid=anadir-buzon]").Should().BeEmpty();
+        var aviso = cut.Find("[data-testid=aviso-conexion-no-disponible]");
+        aviso.GetAttribute("role").Should().Be("status");
+        aviso.TextContent.Should().Contain("Soporte TALVEG");
+        cut.Markup.Should().NotContain("cliente-secreto-de-prueba").And.NotContain("valor-secreto-de-prueba")
+            .And.NotContain("Integraciones:Microsoft365").And.NotContain("UrlPublicaBase").And.NotContain("app.talveg.test");
+        cut.FindAll("[data-testid=fila-buzon]").Should().ContainSingle("control positivo: el listado sigue");
+    }
+
+    [Fact]
+    public void Con_URL_publica_hay_Anadir_buzon_y_no_hay_aviso()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
+
+        cut.Find("[data-testid=anadir-buzon]").TextContent.Trim().Should().Be("Añadir buzón");
+        cut.FindAll("[data-testid=aviso-conexion-no-disponible]").Should().BeEmpty();
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el cajón está cerrado hasta pulsar «Añadir buzón»");
+    }
+
+    /// <summary>
+    /// El cajón trae los tres campos de propietario de Conexiones, con las Empresas y los Gestores CAE que carga al abrirse, y
+    /// «Continuar en Microsoft» navega a la URL de conectar con página completa: la navegación mejorada de Blazor haría un fetch
+    /// al endpoint y la CSP bloquearía el salto a Microsoft.
+    /// </summary>
+    [Fact]
+    public void El_cajon_trae_los_campos_de_propietario_y_Continuar_en_Microsoft_navega_con_forceLoad()
+    {
+        var gestora = new CuentaVisibleEnRol(Guid.NewGuid(), "Marta Gestora", "marta@ejemplo.test", null);
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [Buzon("cae")],
+            Clientes = [new ClienteSelectorDto(Guid.NewGuid(), "Obras del Norte S.L.")],
+        };
+        var cut = Renderizar(mediador, gestores: [gestora]);
+
+        cut.Find("[data-testid=anadir-buzon]").Click();
+
+        var cajon = cut.Find("[role=dialog]");
+        cajon.TextContent.Should().Contain("Empresa sin rol CAE (opcional)")
+            .And.Contain("Buzón personal de un Gestor CAE (opcional)").And.Contain("Obras del Norte S.L.").And.Contain("Marta Gestora");
+        cajon.QuerySelectorAll("select").Should().HaveCount(2);
+        cajon.QuerySelectorAll("input[type=email]").Should().ContainSingle();
+
+        cut.Find("[role=dialog]").QuerySelectorAll("select")[1].Change(gestora.Id.ToString());
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Continuar en Microsoft").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle());
+        var navegacion = Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle().Subject;
+        navegacion.Uri.Should().Be($"/integraciones/conectar-microsoft365?gestorPropietarioId={gestora.Id}");
+        navegacion.Options.ForceLoad.Should().BeTrue("página completa: sin navegación mejorada hacia el endpoint OAuth");
+    }
+
+    [Fact]
+    public void Continuar_en_Microsoft_sin_eleccion_conecta_el_buzon_propio()
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae")] });
+
+        cut.Find("[data-testid=anadir-buzon]").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Continuar en Microsoft").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle());
+        var navegacion = Services.GetRequiredService<BunitNavigationManager>().History.Should().ContainSingle().Subject;
+        navegacion.Uri.Should().Be("/integraciones/conectar-microsoft365");
+        navegacion.Options.ForceLoad.Should().BeTrue();
+    }
+
+    /// <summary>Un buzón con error muestra su último error en una franja <c>role=alert</c> y «Reconectar» lanza «Reactivar».</summary>
+    [Fact]
+    public void La_franja_de_error_muestra_el_ultimo_error_y_Reconectar_lanza_ReactivarConexion()
+    {
+        var conError = Buzon("cae", estado: EstadoConexionIntegracion.ConError, ultimoError: "Microsoft revocó el permiso del buzón.");
+        var mediador = new MediadorBuzones { Conexiones = [conError, Buzon("proyectos")] };
+        var cut = Renderizar(mediador);
+
+        var franja = cut.Find("[data-testid=franja-error-buzon]");
+        franja.GetAttribute("role").Should().Be("alert");
+        franja.TextContent.Should().Contain("cae@ejemplo.test").And.Contain("Microsoft revocó el permiso del buzón.");
+        cut.FindAll("[data-testid=franja-error-buzon]").Should().ContainSingle("solo el buzón con error tiene franja");
+
+        cut.Find("[data-testid=reconectar-buzon]").Click();
+
+        mediador.ComandosReactivar.Should().ContainSingle().Which.Should().Be(new ReactivarConexionCommand(conError.Id));
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Exito));
+    }
+
+    [Fact]
+    public void Si_Reconectar_falla_se_avisa_con_el_error_del_servidor()
+    {
+        var conError = Buzon("cae", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado.");
+        var mediador = new MediadorBuzones
+        {
+            Conexiones = [conError],
+            FalloDelComando = Error.Crear("ReactivarConexion.SinComprobacion", "No pudimos comprobar el buzón en Microsoft."),
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find("[data-testid=reconectar-buzon]").Click();
+
+        mediador.ComandosReactivar.Should().ContainSingle();
+        cut.WaitForAssertion(() => Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Error));
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.Consulta)]
+    [InlineData(null)]
+    public void Sin_rol_Administrador_la_franja_se_ve_pero_no_hay_Reconectar(string? rol)
+    {
+        var cut = Renderizar(
+            new MediadorBuzones { Conexiones = [Buzon("cae", estado: EstadoConexionIntegracion.ConError, ultimoError: "Token caducado.")] },
+            rol);
+
+        cut.Find("[data-testid=franja-error-buzon]").TextContent.Should().Contain("Token caducado.");
+        cut.FindAll("[data-testid=reconectar-buzon]").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(EstadoConexionIntegracion.Habilitada, "Token caducado.")]
+    [InlineData(EstadoConexionIntegracion.Deshabilitada, "Token caducado.")]
+    [InlineData(EstadoConexionIntegracion.ConError, null)]
+    [InlineData(EstadoConexionIntegracion.ConError, "   ")]
+    public void Sin_estado_de_error_o_sin_ultimo_error_no_hay_franja(EstadoConexionIntegracion estado, string? ultimoError)
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae", estado: estado, ultimoError: ultimoError)] });
+
+        cut.FindAll("[data-testid=franja-error-buzon]").Should().BeEmpty();
+        cut.FindAll("[data-testid=fila-buzon]").Should().ContainSingle("control positivo");
+    }
+
+    [Theory]
+    [InlineData(EstadoConexionIntegracion.Habilitada, "estado-exito")]
+    [InlineData(EstadoConexionIntegracion.ConError, "estado-peligro")]
+    [InlineData(EstadoConexionIntegracion.Deshabilitada, "estado-neutro")]
+    public void El_estado_sale_con_su_punto_y_su_clase(EstadoConexionIntegracion estadoConexion, string clase)
+    {
+        var cut = Renderizar(new MediadorBuzones { Conexiones = [Buzon("cae", estado: estadoConexion, ultimoError: "x")] });
+
+        var estado = cut.Find("[data-testid=estado-buzon]");
+        estado.ClassList.Should().Contain("estado-buzon").And.Contain(clase);
+        var punto = estado.QuerySelector(".punto-estado");
+        punto.Should().NotBeNull();
+        punto!.GetAttribute("aria-hidden").Should().Be("true");
+        estado.TextContent.Trim().Should().NotBeEmpty("el punto acompaña al texto, no lo sustituye");
     }
 }

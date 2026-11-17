@@ -190,13 +190,14 @@
 </Modal>
 
 @* Cajón «Añadir buzón» (E31): los mismos campos y reglas que Conexiones. «Continuar en Microsoft» navega a la URL de conectar
-   con página completa; el consentimiento, el nonce y los permisos son del endpoint. *@
+   con página completa; el consentimiento, el nonce y los permisos son del endpoint. El guardián pregunta por una elección
+   hecha y no enviada, y deja de hacerlo al pulsar «Continuar en Microsoft» (ContinuarAMicrosoftAsync). *@
 <DrawerFormulario Visible="_cajonVisible" VisibleChanged="CerrarCajon" Titulo="@Textos["CajonTitulo"]"
-                  HayCambios="() => _propietario.HayEleccion" Cargando="_cargandoCajon" MensajeError="@_errorCajon"
+                  HayCambios="HayEleccionSinEnviar" Cargando="_cargandoCajon" MensajeError="@_errorCajon"
                   OnGuardar="ContinuarAMicrosoftAsync"
                   TextoGuardar="@Textos["CajonContinuar"]" TextoCancelar="@Textos["CajonCancelar"]">
     <p class="texto-descriptivo">@Textos["CajonIntro"]</p>
-    <CamposPropietarioBuzon Seleccion="_propietario" Clientes="_clientesCajon" Gestores="_gestoresCajon" AlCambiar="RepintarCajon" />
+    <CaeManager.Web.Features.Integraciones.Components.CamposPropietarioBuzon Seleccion="_propietario" Empresas="_opcionesCajon.Empresas" Gestores="_opcionesCajon.Gestores" AlCambiar="RepintarCajon" />
     <p class="texto-descriptivo">@Textos["CajonAyudaCompartido"]</p>
 </DrawerFormulario>
 </LimiteDeErrores>

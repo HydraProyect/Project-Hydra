@@ -187,6 +187,6 @@
     <value>Para un buzón compartido, escribe su dirección; el administrador de Exchange de tu organización debe haber autorizado antes a TALVEG sobre ese buzón. Sin elegir nada, se conecta tu propio buzón.</value>
   </data>
   <data name="CajonErrorCarga" xml:space="preserve">
-    <value>No pudimos cargar las Empresas y los Gestores CAE. Puedes seguir con un buzón de la organización propia o compartido.</value>
+    <value>No pudimos cargar las Empresas sin rol CAE ni los Gestores CAE. Puedes seguir con un buzón de la organización propia o compartido.</value>
   </data>
 </root>

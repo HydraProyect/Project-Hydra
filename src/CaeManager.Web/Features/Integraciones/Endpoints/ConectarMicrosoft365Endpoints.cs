@@ -43,6 +43,10 @@ public static class ConectarMicrosoft365Endpoints
             // problema en el navegador. Es la misma comprobación de antes, solo cambia la respuesta (RequireAuthorization sigue delante).
             if (string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
                 return Results.LocalRedirect(RedireccionSinUrlPublica);
+            // Con URL pública pero sin ClientId o sin credencial, Microsoft recibiría un client_id vacío y enseñaría su propia
+            // página de error; el callback tampoco podría canjear el código. Se dice aquí, con el mismo código que el callback.
+            if (!opciones.Value.EstaConfigurado)
+                return Results.LocalRedirect(RedireccionConfiguracionIncompleta);
 
             var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null)

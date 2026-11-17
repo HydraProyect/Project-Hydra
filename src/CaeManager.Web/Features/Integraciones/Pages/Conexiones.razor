@@ -40,9 +40,11 @@
     else
     {
     <div class="acciones-conexion-buzon">
-        <CaeManager.Web.Features.Integraciones.Components.CamposPropietarioBuzon Seleccion="_propietario" Clientes="_clientes" Gestores="_gestores" AlCambiar="Repintar" />
+        <CaeManager.Web.Features.Integraciones.Components.CamposPropietarioBuzon Seleccion="_propietario" Empresas="_empresas" Gestores="_gestores" AlCambiar="Repintar" />
 
-        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
+        @* Página completa (data-enhance-nav="false"): la navegación mejorada de Blazor haría un fetch al endpoint, seguiría su
+           302 a login.microsoftonline.com y la CSP lo bloquearía. *@
+        <a class="enlace-conectar-microsoft" href="@UrlConectar" data-enhance-nav="false">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
     }
 
@@ -265,9 +267,9 @@
             <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaEmpresaId?.ToString() ?? string.Empty)"
                          ValorChanged="v => { _lineaEmpresaId = Guid.TryParse(v, out var id) ? id : null; _errorLinea = null; }">
                 <option value="">Organización propia</option>
-                @foreach (var cliente in _clientes)
+                @foreach (var empresa in _empresas)
                 {
-                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
                 }
             </CampoSelect>
         }

@@ -43,7 +43,9 @@ public class ConexionesGen2Tests : BunitContext
     /// <summary>La configuración de Microsoft 365 de la página: con URL pública (se puede conectar) salvo que el test la vacíe.</summary>
     private Microsoft365GraphOptions Opciones { get; } = new()
     {
-        ClientId = "cliente-secreto-de-prueba", ClientSecret = "valor-secreto-de-prueba", UrlPublicaBase = "https://app.talveg.test",
+        ClientId = "cliente-secreto-de-prueba",
+        ClientSecret = "valor-secreto-de-prueba",
+        UrlPublicaBase = "https://app.talveg.test",
     };
 
     private sealed class MediadorFalso : IMediator
@@ -222,6 +224,36 @@ public class ConexionesGen2Tests : BunitContext
         aviso.Mensaje.Should().NotContain("script").And.NotContain("sitio-ajeno").And.NotContain("AADSTS");
     }
 
+    /// <summary>
+    /// Cada código que declara <c>ConectarMicrosoft365Endpoints</c> (leído por reflexión, así una constante nueva entra sola) tiene
+    /// su texto propio en Conexiones; solo «solicitud» cae a propósito en el genérico (state caducado o de otra cuenta).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CodigosDelEndpoint))]
+    public void Cada_codigo_que_declara_el_endpoint_tiene_su_texto_en_Conexiones(string codigo)
+    {
+        var aviso = RenderizarConError(codigo);
+
+        if (codigo == "solicitud")
+            aviso.Mensaje.Should().Be("No pudimos completar la conexión.");
+        else
+            aviso.Mensaje.Should().NotBe("No pudimos completar la conexión.", $"«{codigo}» necesita su propio texto");
+    }
+
+    public static TheoryData<string> CodigosDelEndpoint()
+    {
+        const string raiz = "/integraciones?error=";
+        var codigos = typeof(CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.IsLiteral && f.FieldType == typeof(string) && f.Name.StartsWith("Redireccion", StringComparison.Ordinal))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .Where(r => r.StartsWith(raiz, StringComparison.Ordinal))
+            .Select(r => r[raiz.Length..]);
+        var datos = new TheoryData<string>();
+        foreach (var codigo in codigos) datos.Add(codigo);
+        return datos;
+    }
+
     /// <summary>Cada motivo del callback tiene su texto en catalán, distinto del genérico y sin valores de configuración.</summary>
     [Theory]
     [InlineData("autenticacion", "No hem pogut autenticar amb Microsoft.")]
@@ -277,7 +309,10 @@ public class ConexionesGen2Tests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Find("a.enlace-conectar-microsoft").GetAttribute("href").Should().StartWith("/integraciones/conectar-microsoft365");
+        var enlace = cut.Find("a.enlace-conectar-microsoft");
+        enlace.GetAttribute("href").Should().StartWith("/integraciones/conectar-microsoft365");
+        enlace.GetAttribute("data-enhance-nav").Should().Be("false",
+            "página completa: la navegación mejorada seguiría el 302 a Microsoft con un fetch que la CSP bloquea");
         cut.FindAll("[data-testid=aviso-conexion-no-disponible]").Should().BeEmpty();
     }
 
