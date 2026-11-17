@@ -91,9 +91,27 @@ public class GuardaPestanaObsoletaBehaviorTests
         new SinGuardaDeSeleccion().Comprobar().Should().BeNull();
     }
 
+    [Fact]
+    public async Task Sin_rechazo_no_pide_el_registro_de_auditoria_al_contenedor()
+    {
+        // Un contenedor sin IRegistroCambioContexto ni sus dependencias (IActorAuditoria es de Web): el comando vigente
+        // y la consulta corren igual, porque el registro solo se pide al rechazar.
+        var vacio = new ServiceCollection().BuildServiceProvider();
+
+        var comando = await new GuardaPestanaObsoletaBehavior<ComandoDePrueba, Result>(new GuardaFija(null), vacio)
+            .Handle(new ComandoDePrueba(), _ => Task.FromResult(Result.Exito()), default);
+        var consulta = await new GuardaPestanaObsoletaBehavior<ConsultaDePrueba, Result>(
+                new GuardaFija(SeleccionNoVigente.CambiadaEnOtraPestana), vacio)
+            .Handle(new ConsultaDePrueba(), _ => Task.FromResult(Result.Exito()), default);
+
+        comando.EsExitoso.Should().BeTrue();
+        consulta.EsExitoso.Should().BeTrue();
+    }
+
     private GuardaPestanaObsoletaBehavior<TRequest, TResponse> Behavior<TRequest, TResponse>(SeleccionNoVigente? motivo)
         where TRequest : notnull =>
-        new(new GuardaFija(motivo), _registro);
+        new(new GuardaFija(motivo),
+            new ServiceCollection().AddSingleton<IRegistroCambioContexto>(_registro).BuildServiceProvider());
 
     public sealed record ComandoDePrueba : ICommand;
 

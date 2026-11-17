@@ -1,6 +1,7 @@
 using CaeManager.Application.Auditoria;
 using CaeManager.Domain.Common;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Application.Common;
 
@@ -14,9 +15,17 @@ namespace CaeManager.Application.Common;
 /// <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>: un comando de una pestaña obsoleta no llega a
 /// tocar datos, ni siquiera para autorizarse.
 /// </summary>
+/// <remarks>
+/// MediatR construye todos los behaviors para cualquier petición, Queries incluidas, y no todo contenedor que monta
+/// <c>AddApplication()</c> registra <see cref="IActorAuditoria"/> (lo registra Web) ni el repositorio de auditoría (lo
+/// registra Infrastructure). Por eso <see cref="IRegistroCambioContexto"/> se resuelve del proveedor del mismo ámbito solo
+/// al rechazar, como <c>DuplicadosEmpresaBehavior</c>, y no en el constructor: con <see cref="SinGuardaDeSeleccion"/>
+/// nunca se rechaza y nunca se pide, y un host con guarda real que no componga la auditoría falla al rechazar, con el
+/// comando sin ejecutar, en vez de rechazar sin dejar rastro.
+/// </remarks>
 public class GuardaPestanaObsoletaBehavior<TRequest, TResponse>(
     IGuardaSeleccionVigente guarda,
-    IRegistroCambioContexto registroCambioContexto)
+    IServiceProvider proveedor)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -35,6 +44,7 @@ public class GuardaPestanaObsoletaBehavior<TRequest, TResponse>(
         if (request is not ICommandBase || guarda.Comprobar() is not { } motivo)
             return await next(cancellationToken);
 
+        var registroCambioContexto = proveedor.GetRequiredService<IRegistroCambioContexto>();
         await registroCambioContexto.RegistrarRechazoAsync(typeof(TRequest).Name, motivo, cancellationToken);
 
         return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(

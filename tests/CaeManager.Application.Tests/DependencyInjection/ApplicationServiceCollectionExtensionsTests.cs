@@ -159,6 +159,24 @@ public class ApplicationServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddApplication_por_si_sola_construye_la_guarda_de_pestana_obsoleta_sin_Web_ni_Infrastructure()
+    {
+        // Mismo fallo de forma (run 44195422480, los cuatro bloques de integración): la guarda de D-6 b, R-2 se construye
+        // para toda petición, así que no puede exigir en su constructor el registro de auditoría del cambio de contexto,
+        // que depende de IActorAuditoria (Web) y del repositorio de auditoría (Infrastructure).
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+
+        servicios.Should().NotContain(d => d.ServiceType == typeof(IActorAuditoria));
+        var accion = () => ActivatorUtilities.CreateInstance<GuardaPestanaObsoletaBehavior<PreguntarAlAsistenteQuery, CaeManager.Domain.Common.Result>>(
+            ambito.ServiceProvider);
+
+        accion.Should().NotThrow();
+    }
+
+    [Fact]
     public async Task El_valor_por_defecto_de_sesion_privilegiada_no_concede_nada()
     {
         // Un default de una pieza de autorizacion tiene que decir "no" — si
