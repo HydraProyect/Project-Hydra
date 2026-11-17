@@ -90,6 +90,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private readonly ToastService _toasts = new();
     private readonly MediatorFalso _mediador = new();
     private readonly CatalogoCarteraFalso _catalogo = new();
+    private readonly AvisoSinGestorCaeRegistrado _aviso = new();
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _identidad = new();
 
@@ -437,12 +438,37 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>El aviso a los Administradores se prueba en Application; esta pantalla no lo mira.</summary>
-    private sealed class AvisoSinGestorCaeInerte
+    private sealed class AvisoSinGestorCaeRegistrado
         : CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario.IAvisoDeCarteraSinGestorCae
     {
+        /// <summary>Cada aviso emitido: el Gestor CAE desactivado y los Tenants beneficiarios que quedaron sin Gestor CAE.</summary>
+        public List<(string Desactivado, IReadOnlyList<Guid> SinGestorCae)> Avisos { get; } = [];
+
         public Task AvisarAsync(
             Guid operadorTenantId, string nombreDesactivado,
-            IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae, CancellationToken cancellationToken) => Task.CompletedTask;
+            IReadOnlyList<TenantEnCarteraDeGestor> sinGestorCae, CancellationToken cancellationToken)
+        {
+            Avisos.Add((nombreDesactivado, sinGestorCae.Select(t => t.PropietarioTenantId).ToList()));
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// La transacción de Application deshace lo escrito si el Command falla; la directa no. Para observar que una
+    /// desactivación rechazada no deja la cuenta bloqueada (p. ej. <c>DecisionDeCarteraRequerida</c>), se restaura el
+    /// bloqueo de cada cuenta del arnés cuando la operación termina en fallo.
+    /// </summary>
+    private sealed class TransaccionQueDeshaceSiFalla(UserManagerFalso identidad) : CaeManager.Application.Common.ITransaccionDeComando
+    {
+        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            var antes = identidad.Cuentas.ToDictionary(c => c.Key, c => c.Value.LockoutEnd);
+            var resultado = await operacion(cancellationToken);
+            if (resultado.EsFallido)
+                foreach (var (id, bloqueo) in antes)
+                    identidad.Cuentas[id].LockoutEnd = bloqueo;
+            return resultado;
+        }
     }
 
     /// <summary>
@@ -455,8 +481,8 @@ public partial class UsuariosGen2Tests : BunitContext
         public List<TenantCandidatoIncorporacion> Asignables { get; } = [];
         public List<(Guid PropietarioTenantId, Guid UsuarioId)> Incorporadas { get; } = [];
 
-        public void Registrar(Guid propietarioTenantId, string nombre) =>
-            Asignables.Add(new TenantCandidatoIncorporacion(propietarioTenantId, nombre, Guid.NewGuid()));
+        public void Registrar(Guid propietarioTenantId, string nombre, Guid? asignacionOperacionId = null) =>
+            Asignables.Add(new TenantCandidatoIncorporacion(propietarioTenantId, nombre, asignacionOperacionId ?? Guid.NewGuid()));
 
         public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
             Guid operadorTenantId, CancellationToken cancellationToken = default) =>
@@ -468,6 +494,11 @@ public partial class UsuariosGen2Tests : BunitContext
             CancellationToken cancellationToken = default)
         {
             Incorporadas.Add((propietarioTenantId, usuarioId));
+            // La cartera nueva existe de verdad desde ahora: el aviso de «sin Gestor CAE» y la comprobación de
+            // YaEnCartera del Command la ven. Sin esto, un destino elegido dejaría igualmente al Tenant «sin nadie».
+            CarterasVivas.Add((operadorTenantId, new CarteraVivaDeOperacion(
+                asignacionOperacionId, propietarioTenantId, Asignables.FirstOrDefault(a => a.PropietarioTenantId == propietarioTenantId)?.Nombre ?? "Empresa",
+                usuarioId, "GestorCae", false, null)));
             return Task.FromResult(new ResultadoIncorporacionCartera(null, null, null));
         }
 
@@ -486,6 +517,8 @@ public partial class UsuariosGen2Tests : BunitContext
             CancellationToken cancellationToken = default)
         {
             Retiradas.Add(propietarioTenantId);
+            CarterasVivas.RemoveAll(c => c.OperadorTenantId == operadorTenantId
+                                         && c.Cartera.PropietarioTenantId == propietarioTenantId && c.Cartera.UsuarioId == usuarioId);
             return Task.FromResult(EnCartera.RemoveAll(t => t.PropietarioTenantId == propietarioTenantId) > 0);
         }
 
@@ -760,8 +793,8 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
-                new OtroAdministradorSiempre(), new AvisoSinGestorCaeInerte()).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, new TransaccionQueDeshaceSiFalla(_identidad), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
+                new OtroAdministradorSiempre(), _aviso).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
@@ -2984,36 +3017,235 @@ public partial class UsuariosGen2Tests : BunitContext
         _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
     }
 
-    /// <summary>
-    /// Desde D-7 (2026-10-02) la cartera de un Gestor CAE es siempre el Tenant entero: no hay traspaso
-    /// Cliente empresarial a Cliente empresarial. Desactivar a un Gestor CAE con cartera dice que sigue
-    /// abierta y la conserva su Coordinador CAE (decisión del 2026-09-24), no ofrece pasarla a otro, y
-    /// desactiva con un solo CambiarActivacionUsuarioCommand.
-    /// </summary>
-    [Fact]
-    public async Task Desactivar_a_un_Gestor_CAE_con_cartera_universal_dice_que_la_hereda_su_Coordinador_y_no_ofrece_traspaso()
+    // ---- La baja de un Gestor CAE con cartera: decisión explícita (decisión de Chris del 2026-11-14, PR A #2316) ----
+
+    private static IElement BotonDesactivar(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Desactivar");
+
+    private static IReadOnlyList<(string Valor, string Texto)> OpcionesDeDestino(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("[role=dialog] select option").Select(o => (o.GetAttribute("value") ?? string.Empty, o.TextContent.Trim())).ToList();
+
+    private static Task ElegirDestinoAsync(IRenderedComponent<UsuariosControlados> cut, string valor) =>
+        cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = valor });
+
+    private void DarCarteraDeNorteAAnder()
     {
-        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
-        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        _catalogo.EnCartera.Add(new TenantEnCarteraDeGestor(BeneficiarioNorte, "Talleres Norte"));
+        SembrarCarteraViva(OperacionNorte, BeneficiarioNorte, "Talleres Norte", AnderId, RolesIdentidad.GestorCae, principal: false);
+    }
+
+    /// <summary>
+    /// Marta (Administradora) con dos Gestores CAE activos, Ander e Iker. Ander lleva Talleres Norte entero si
+    /// <paramref name="conCartera"/>; <paramref name="carteraInterna"/> le da además la Asignación de Cartera interna del Tenant.
+    /// </summary>
+    private void SembrarGestoresParaLaBaja(bool conCartera = true, bool carteraInterna = false)
+    {
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
-            (ander, RolesIdentidad.GestorCae),
-            (iker, RolesIdentidad.GestorCae));
-        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
-        _fuente.EnRol = _ => [ander, iker];
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae),
+            (Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga"), RolesIdentidad.GestorCae));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte", OperacionNorte);
+        if (carteraInterna)
+            _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
+        if (conCartera)
+            DarCarteraDeNorteAAnder();
+    }
 
+    /// <summary>
+    /// Lo que el diálogo de desactivar ya tenía antes de la reasignación (título, pie y estado por rol), fijado con
+    /// el diálogo de un Administrador (sin cartera de Gestor CAE): sin pregunta ni campo, «Volver» a la izquierda y «Desactivar»
+    /// destructivo y habilitado, y «Volver» cierra sin preguntar ni tocar la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task El_dialogo_de_desactivar_a_quien_no_es_Gestor_CAE_conserva_titulo_pie_y_no_pregunta_nada()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(JonId, "jon.a@talveg.es", "Jon Aguirre"), RolesIdentidad.Administrador),
+            (Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga"), RolesIdentidad.CoordinadorCae));
         var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "i.larra@talveg.es", "Desactivar");
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Iker Larrañaga?")
+            .And.Contain("Perderá el acceso en cuanto confirmes")
+            .And.NotContain("Asignación de Cartera", "solo un Gestor CAE tiene cartera de la que hablar");
+        dialogo.QuerySelectorAll("select").Should().BeEmpty("sin cartera no hay a quién reasignar");
+        cut.FindAll("[role=dialog] .modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Volver", "Desactivar");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeFalse("sin decisión que tomar, «Desactivar» está listo");
+        BotonDesactivar(cut).ClassList.Should().Contain("boton-destructivo");
+
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("«Volver» cierra sin preguntar «¿Descartar cambios?»: no hay nada que perder");
+        _identidad.Actualizadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una cuenta de Gestor CAE sin cartera de Tenants beneficiarios, con solo la Asignación de Cartera interna, conserva
+    /// el aviso de que esa cartera sigue abierta (decisión del 2026-11-16, O-1) y se desactiva sin decisión.
+    /// </summary>
+    [Fact]
+    public async Task Desactivar_a_un_Gestor_CAE_con_solo_la_cartera_interna_dice_que_se_conserva_y_no_pide_decision()
+    {
+        SembrarGestoresParaLaBaja(conCartera: false, carteraInterna: true);
+        var cut = Renderizar(actorId: MartaId);
+
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("la conserva su Coordinador CAE").And.NotContain("no se reparte por Cliente", "el modo por Cliente ya no existe (D-7)");
-        dialogo.QuerySelectorAll("select").Should().BeEmpty("no hay traspaso de cartera");
+        dialogo.TextContent.Should().Contain("cartera interna").And.Contain("la sigue heredando su Coordinador CAE")
+            .And.NotContain("la conserva su Coordinador CAE", "la regla del 2026-09-24 ya no describe la cartera de los Tenants beneficiarios")
+            .And.NotContain("empresas");
+        dialogo.QuerySelectorAll("select").Should().BeEmpty();
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeFalse();
 
         await ConfirmarDesactivacionAsync(cut);
 
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, false));
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        _aviso.Avisos.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Con_cartera_de_Tenants_beneficiarios_el_dialogo_obliga_a_decidir_y_Desactivar_queda_deshabilitado_con_su_motivo()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Ander Beitia?")
+            .And.Contain("Es el Gestor CAE de estas organizaciones: Talleres Norte")
+            .And.NotContain("empresas");
+        OpcionesDeDestino(cut).Should().Equal(
+            ("", "Elige una opción"),
+            ("nadie", "A nadie por ahora"),
+            (IkerId.ToString(), "Iker Larrañaga (i.larra@talveg.es)"));
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("sin decisión no se puede desactivar");
+        BotonDesactivar(cut).GetAttribute("title").Should().Be(
+            "Elige a quién pasan sus organizaciones, o «A nadie por ahora», para poder desactivar la cuenta.");
+
+        // Aunque el clic llegara (el botón deshabilitado no es una garantía), no se envía nada.
+        await BotonDesactivar(cut).ClickAsync(new());
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Elegir_de_nuevo_la_opcion_sin_elegir_vuelve_a_deshabilitar_Desactivar()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeFalse();
+        await ElegirDestinoAsync(cut, string.Empty);
+
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue();
+        BotonDesactivar(cut).GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Con_un_Gestor_CAE_de_destino_envia_GestorCaeDestinoId_y_pasa_la_cartera_sin_avisar()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, Activar: false, GestorCaeDestinoId: IkerId, SinDestinoConfirmado: false));
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        _catalogo.Retiradas.Should().Equal(BeneficiarioNorte);
+        _catalogo.Incorporadas.Should().Equal((BeneficiarioNorte, IkerId));
+        _aviso.Avisos.Should().BeEmpty("Talleres Norte sigue con un Gestor CAE: la cartera nueva de Iker");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Usuario desactivado.");
+    }
+
+    [Fact]
+    public async Task Con_A_nadie_por_ahora_envia_SinDestinoConfirmado_y_avisa_de_los_Tenants_sin_Gestor_CAE()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        await ElegirDestinoAsync(cut, "nadie");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("se quedarán sin Gestor CAE").And.Contain("no da de baja a ninguna de ellas");
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, Activar: false, GestorCaeDestinoId: null, SinDestinoConfirmado: true));
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        _catalogo.Retiradas.Should().Equal(BeneficiarioNorte);
+        _catalogo.Incorporadas.Should().BeEmpty("«A nadie por ahora» no abre ninguna cartera nueva");
+        var aviso = _aviso.Avisos.Should().ContainSingle().Subject;
+        aviso.Desactivado.Should().Be("Ander Beitia");
+        aviso.SinGestorCae.Should().Equal(BeneficiarioNorte);
+    }
+
+    /// <summary>
+    /// Punto 3 del encargo: el diálogo se abrió sin cartera, así que no mandó decisión; mientras tanto apareció una cartera.
+    /// El Command no desactiva nada, el diálogo sigue abierto con el error, relee la cartera y pide decidir. Con la decisión
+    /// tomada, el mismo diálogo desactiva.
+    /// </summary>
+    [Fact]
+    public async Task Si_aparece_una_cartera_con_el_dialogo_abierto_sin_ella_se_pide_decidir_y_no_se_desactiva()
+    {
+        SembrarGestoresParaLaBaja(conCartera: false);
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        cut.Find("[role=dialog]").QuerySelectorAll("select").Should().BeEmpty("se abrió sin cartera");
+
+        DarCarteraDeNorteAAnder();
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().ContainSingle()
+            .Which.Should().Be(new CambiarActivacionUsuarioCommand(AnderId, Activar: false), "no se preguntó, no hay decisión que enviar");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("el Command falló y su transacción lo deshizo");
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Ander Beitia?")
+            .And.Contain("Tiene organizaciones en su cartera que no estaban cuando abriste este diálogo")
+            .And.Contain("Es el Gestor CAE de estas organizaciones: Talleres Norte");
+        OpcionesDeDestino(cut).Select(o => o.Valor).Should().Equal("", "nadie", IkerId.ToString());
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("ahora sí hay que decidir");
+        _toasts.Mensajes.Should().BeEmpty("el error se dice en el diálogo, no en un toast que se va");
+        _catalogo.Retiradas.Should().BeEmpty();
+
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("no estaban cuando abriste", "elegir resuelve el aviso");
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Last()
+            .Should().Be(new CambiarActivacionUsuarioCommand(AnderId, Activar: false, GestorCaeDestinoId: IkerId));
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        _catalogo.Incorporadas.Should().Equal((BeneficiarioNorte, IkerId));
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_cartera_y_una_opcion_elegida_Volver_pregunta_antes_de_descartar_y_no_toca_la_cuenta()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, "nadie");
+
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+
+        cut.FindAll("[role=dialog], [role=alertdialog]").Any(d => d.TextContent.Contains("Descartar")).Should().BeTrue(
+            "con una elección hecha, «Volver» pregunta como la X y Escape (regla del 2026-10-03)");
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
     /// <summary>
     /// Bug del 21-10 con la siembra del piloto Outbound: desde el Operador CAE externo, la columna
     /// «Ámbito efectivo» decía «Sin cartera» de una Gestora CAE cuyo Mi trabajo mostraba
