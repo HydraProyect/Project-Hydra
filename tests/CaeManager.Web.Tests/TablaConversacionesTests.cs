@@ -33,14 +33,58 @@ public class TablaConversacionesTests : BunitContext
     }
 
     [Fact]
-    public void Sin_asignacion_no_inventa_una_persona_ni_un_plazo()
+    public void Sin_asignacion_no_inventa_una_persona_y_la_tabla_tiene_seis_columnas_sin_Empresa_gestionada()
     {
-        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones,
-            [CrearConversacion() with { SlaRestante = TimeSpan.FromHours(2) }]));
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
 
         cut.FindAll("[role=cell]")[4].TextContent.Should().Be("Sin asignar");
-        cut.FindAll("[role=columnheader]").Should().HaveCount(5);
-        cut.Markup.Should().NotContain("SLA");
+        cut.FindAll("[role=columnheader]").Select(e => e.TextContent.Trim())
+            .Should().Equal("Prioridad", "Conversación", "Cliente empresarial", "Estado", "Asignada a", "Plazo");
+        cut.Markup.Should().NotContain("SLA").And.NotContain("Empresa gestionada");
+    }
+
+    [Theory]
+    [InlineData(-25, "Fuera de plazo · 25 min", "plazo-conversacion-vencido")]
+    [InlineData(40, "Por vencer · 40 min", "plazo-conversacion-por-vencer")]
+    [InlineData(300, "Quedan 5 h", "plazo-conversacion-holgado")]
+    public void La_columna_Plazo_enseña_el_mismo_texto_y_tono_que_la_fila(int minutos, string texto, string clase)
+    {
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones,
+            [CrearConversacion() with { SlaRestante = TimeSpan.FromMinutes(minutos), VencimientoSlaUtc = DateTime.UtcNow.AddMinutes(minutos) }]));
+
+        var celda = cut.FindAll("[role=cell]")[5];
+        celda.QuerySelector(".plazo-conversacion")!.TextContent.Trim().Should().Be(texto);
+        celda.QuerySelector(".plazo-conversacion")!.ClassList.Should().Contain(clase);
+    }
+
+    [Fact]
+    public void Sin_plazo_la_celda_de_Plazo_queda_vacia()
+    {
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
+
+        cut.FindAll("[role=cell]")[5].TextContent.Trim().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_numero_de_ticket_va_delante_de_la_linea_del_remitente_y_el_cero_no_se_pinta()
+    {
+        var con = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion() with { NumeroTicket = 10479 }]));
+        var sin = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion() with { NumeroTicket = 0 }]));
+
+        con.Find(".tabla-conversaciones-remitente").TextContent.Should().StartWith("Nº 10479 · contacto@example.invalid");
+        sin.Find(".tabla-conversaciones-remitente").TextContent.Should().StartWith("contacto@example.invalid").And.NotContain("Nº");
+    }
+
+    [Fact]
+    public void La_nota_al_pie_da_la_regla_real_del_servidor_y_no_la_de_8_a_18_de_la_maqueta()
+    {
+        var cut = Render<TablaConversaciones>(p => p.Add(c => c.Conversaciones, [CrearConversacion()]));
+
+        var nota = cut.Find(".tabla-conversaciones-nota").TextContent;
+        nota.Should().Contain("de 8:00 a 10:00 y de 10:30 a 15:00, y de 16:00 a 17:00")
+            .And.Contain("Crítica, 1 h. Urgente, 4 h. Normal, 1 día laborable.")
+            .And.Contain("menos de 2 h");
+        nota.Should().NotContain("8:00 a 18:00");
     }
 
     [Fact]

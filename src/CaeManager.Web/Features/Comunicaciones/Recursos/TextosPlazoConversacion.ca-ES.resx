@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Plazo" xml:space="preserve"><value>Termini</value></data>
+  <data name="FueraDePlazo" xml:space="preserve"><value>Fora de termini · {0}</value></data>
+  <data name="PorVencer" xml:space="preserve"><value>Per vèncer · {0}</value></data>
+  <data name="Quedan" xml:space="preserve"><value>Queden {0}</value></data>
+  <data name="Minutos" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Horas" xml:space="preserve"><value>{0} h</value></data>
+  <data name="HorasMinutos" xml:space="preserve"><value>{0} h {1}</value></data>
+  <data name="ReglaNormal" xml:space="preserve"><value>Normal: 1 dia laborable</value></data>
+  <data name="ReglaUrgente" xml:space="preserve"><value>Urgent: 4 h laborables</value></data>
+  <data name="ReglaCritica" xml:space="preserve"><value>Crítica: 1 h laborable</value></data>
+  <data name="Vence" xml:space="preserve"><value>Venç el {0} (horari laboral)</value></data>
+  <data name="NumeroTicket" xml:space="preserve"><value>Núm. {0}</value></data>
+  <data name="TituloTicket" xml:space="preserve"><value>Número de tiquet</value></data>
+  <data name="NotaPlazos" xml:space="preserve"><value>Terminis en horari laboral de l'Operador CAE: de dilluns a divendres, de 8:00 a 10:00 i de 10:30 a 15:00, i de 16:00 a 17:00 excepte els divendres, al juliol i a l'agost i la vigília d'un festiu. Els festius els fixa cada Operador CAE. Crítica, 1 h. Urgent, 4 h. Normal, 1 dia laborable. En ambre, quan queden menys de 2 h.</value></data>
+</root>
