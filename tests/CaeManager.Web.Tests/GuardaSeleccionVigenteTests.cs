@@ -118,6 +118,18 @@ public class GuardaSeleccionVigenteTests
     }
 
     [Fact]
+    public void El_contexto_explicito_de_la_extension_tampoco_queda_retirado_si_algo_leyo_antes_la_cookie()
+    {
+        var extension = Pestana(Token(TenantA));
+        _ = extension.TenantIdSeleccionado;
+        extension.Invalidar();
+
+        extension.FijarDesdeExtension(TenantB, Guid.NewGuid());
+
+        Guarda(extension).Comprobar().Should().BeNull("el contexto explícito sustituye a la cookie que se leyó");
+    }
+
+    [Fact]
     public void La_version_es_una_huella_que_no_contiene_el_token()
     {
         var token = Token(TenantA);

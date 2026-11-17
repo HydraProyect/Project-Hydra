@@ -23,8 +23,9 @@ public class GuardaPestanaObsoletaBehavior<TRequest, TResponse>(
     public const string CodigoError = "Contexto.SeleccionObsoleta";
 
     // Sin «Empresa gestionada»: el rechazo sale también dentro de una Sesión Privilegiada, donde Soporte TALVEG no es
-    // Gestor CAE, y en la vuelta al Tenant de origen.
-    public const string MensajeCambiada = "El contexto activo cambió en otra pestaña. Vuelve a cargar la página.";
+    // Gestor CAE, y en la vuelta al Tenant de origen. Sin afirmar que haya otra pestaña: con una sola, una navegación
+    // mejorada que conserva el circuito también cambia la selección vigente (renovación o Tenant por defecto).
+    public const string MensajeCambiada = "El contexto activo cambió, quizá en otra pestaña. Vuelve a cargar la página.";
 
     public const string MensajeRetirada = "El contexto activo ya no está disponible. Vuelve a cargar la página.";
 

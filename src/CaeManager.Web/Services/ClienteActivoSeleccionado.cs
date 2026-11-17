@@ -236,9 +236,11 @@ public class ClienteActivoSeleccionado(
         _tenantIdSeleccionado = tenantId;
         _asignacionOperacionIdSeleccionada = asignacionOperacionId;
         _sesionPrivilegiadaIdSeleccionada = null;
-        // Contexto explícito de la petición, no de la cookie: la guarda de pestaña obsoleta no aplica.
+        // Contexto explícito de la petición, no de la cookie: la guarda de pestaña obsoleta no aplica, tampoco como
+        // retirada si algo leyó la cookie antes de fijarlo.
         _versionSeleccion = null;
         _claveSesion = null;
+        _retiradaTrasLeer = false;
         _leidoDeCookie = true;
     }
 

@@ -25,7 +25,8 @@ public partial class GuardaPestanaObsoletaCableadaTests
             "cierre de sesión: la clave del registro (usuario y talveg:sid) muere con la sesión de navegador",
     };
 
-    [GeneratedRegex(@"Cookies\.(Append|Delete)\(\s*ClienteActivoSeleccionado\.NombreCookie")]
+    // La cookie de contexto por su nombre público o por el alias privado de CookieDeContextoTenant.
+    [GeneratedRegex(@"Cookies\.(Append|Delete)\(\s*(ClienteActivoSeleccionado\.NombreCookie|NombreSeleccion)\b")]
     private static partial Regex EscribeLaCookieDeContexto();
 
     [Fact]
@@ -56,11 +57,40 @@ public partial class GuardaPestanaObsoletaCableadaTests
             .Where(f => EscribeLaCookieDeContexto().IsMatch(f.Texto))
             .ToList();
 
-        sitios.Should().NotBeEmpty("el instrumento tiene que ver al menos SesionSoporteEndpoints");
+        sitios.Select(s => s.Ruta).Should().Contain(
+            ["src/CaeManager.Web/Features/Plataforma/SesionSoporteEndpoints.cs", "src/CaeManager.Web/Services/CookieDeContextoTenant.cs"],
+            "el instrumento tiene que ver la sesión de soporte y el punto común de la cookie");
+        // Por escritura, no por fichero: abrir y salir de la Sesión Privilegiada, o emitir, volver al origen y retirar,
+        // son sitios distintos dentro del mismo fichero.
         foreach (var (ruta, texto) in sitios.Where(s => !SinRegistroDeVigente.ContainsKey(s.Ruta)))
-            texto.Should().Contain("CookieDeContextoTenant.RegistrarSeleccionVigente(",
-                $"{ruta} cambia la cookie de contexto: la selección que deja tiene que pasar a ser la vigente");
+            LlamadaARegistrarVigente().Count(texto).Should().BeGreaterThanOrEqualTo(EscribeLaCookieDeContexto().Count(texto),
+                $"{ruta} cambia la cookie de contexto: la selección que deja cada escritura tiene que pasar a ser la vigente");
     }
+
+    /// <summary>
+    /// La auditoría del cambio de contexto escribe en el Tenant de destino con un ámbito explícito (D1): solo la
+    /// llaman el selector y la selección por defecto, que autorizan el destino antes. Un llamante nuevo tiene que
+    /// entrar aquí con su autorización a la vista.
+    /// </summary>
+    [Fact]
+    public void Solo_el_selector_y_la_seleccion_por_defecto_auditan_el_cambio_de_contexto()
+    {
+        var raiz = RaizDelRepositorio();
+        var llamantes = Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .Select(f => (Ruta: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Texto: SinComentarios(File.ReadAllText(f))))
+            .Where(f => f.Texto.Contains(".RegistrarCambioAsync(", StringComparison.Ordinal))
+            .Select(f => f.Ruta)
+            .ToList();
+
+        llamantes.Should().BeEquivalentTo(
+            "src/CaeManager.Web/Features/Tenants/ClienteActivoEndpoints.cs",
+            "src/CaeManager.Web/Services/TenantBeneficiarioPorDefectoMiddleware.cs");
+    }
+
+    // Una llamada, no la definición (RegistrarSeleccionVigente(HttpContext httpContext, ...)).
+    [GeneratedRegex(@"RegistrarSeleccionVigente\((?!HttpContext\b)")]
+    private static partial Regex LlamadaARegistrarVigente();
 
     private static string Leer(string ruta) => SinComentarios(File.ReadAllText(Path.Combine(RaizDelRepositorio(), ruta)));
 

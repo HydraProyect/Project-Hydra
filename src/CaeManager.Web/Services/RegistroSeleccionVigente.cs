@@ -34,8 +34,11 @@ namespace CaeManager.Web.Services;
 /// el servidor registró último, y en el navegador la cookie de la respuesta que llegó última; pueden no coincidir. Un
 /// compare-and-set no lo arregla, porque la carrera es con el orden de llegada de las respuestas, que el servidor no
 /// ve. Lo cierra la adopción al abrir circuito (<see cref="ClienteActivoSeleccionado.AdoptarComoVigente"/>): la
-/// pestaña que recarga pinta con la cookie que el navegador tiene de verdad, y esa pasa a ser la vigente. El peor caso
-/// es pedir recargar una vez de más, nunca escribir con una selección que no es la del navegador.
+/// pestaña que recarga pinta con la cookie que el navegador tiene de verdad, y esa pasa a ser la vigente. Queda una
+/// carrera: un circuito que negoció con la cookie anterior antes de que llegara la respuesta del cambio y se abre
+/// después del circuito de la pestaña que cambió deja vigente la anterior. Esa pestaña escribe entonces con una
+/// selección que ya no es la de la cookie del navegador, y la otra pide recargar. No abre ningún Tenant que no esté
+/// autorizado (la revalidación y la RLS siguen mandando) y se corrige al recargar cualquiera de las dos.
 /// </para>
 /// </summary>
 public sealed class RegistroSeleccionVigente
