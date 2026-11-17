@@ -66,7 +66,7 @@ else
     {
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true });
             var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
 
             // La pista ?tenant= se contrasta con el conjunto autorizado del usuario, nunca con la entidad.

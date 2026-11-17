@@ -836,7 +836,7 @@ public partial class BuscadorGlobal
         _selectorVisible = false;
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, token);
             if (apertura != _generacionApertura) return;
             var activo = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
             // Estado 4a: sin empresa elegida no hay empresa activa que nombrar (el Tenant de origen no es

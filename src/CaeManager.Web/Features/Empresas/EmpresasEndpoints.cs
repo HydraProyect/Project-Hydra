@@ -76,7 +76,7 @@ public static class EmpresasEndpoints
         // Estado 4a, igual que /trabajadores/exportar.xlsx: Empresas.razor no muestra las Empresas del
         // Tenant de origen a quien tiene que elegir una empresa de su cartera
         // (ContextoEmpresaActiva.ResolverAsync); el endpoint tampoco las consulta ni genera el archivo.
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/empresas");
 

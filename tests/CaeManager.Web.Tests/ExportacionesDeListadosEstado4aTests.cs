@@ -55,7 +55,8 @@ public class ExportacionesDeListadosEstado4aTests
     /// Responde la lista autorizada y, a cualquier consulta paginada del listado, una página vacía.
     /// Anota todo lo que recibe: así se ve que en el estado 4a no sale nada más que la lista autorizada.
     /// </summary>
-    private sealed class MediatorFalso(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
+    private sealed class MediatorFalso(
+        IReadOnlyList<ClienteAutorizadoDto> autorizados, IReadOnlyList<ClienteAutorizadoDto>? paraTenantActivo = null) : IMediator
     {
         public List<object> Enviados { get; } = [];
 
@@ -64,8 +65,8 @@ public class ExportacionesDeListadosEstado4aTests
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
-            if (request is ObtenerClientesAutorizadosQuery)
-                return Task.FromResult((TResponse)autorizados);
+            if (request is ObtenerClientesAutorizadosQuery q)
+                return Task.FromResult((TResponse)(q.ParaTenantActivo && paraTenantActivo is not null ? paraTenantActivo : autorizados));
 
             var tipo = typeof(TResponse);
             if (!tipo.IsGenericType || tipo.GetGenericTypeDefinition() != typeof(ResultadoPaginado<>))
@@ -148,6 +149,26 @@ public class ExportacionesDeListadosEstado4aTests
         entrada.Filas.Should().Be(0);
         entrada.Criterios.Should().BeEquivalentTo(new Dictionary<string, string> { ["listado"] = listado.ToLowerInvariant() });
         mediador.ConsultasDelListado.Should().NotBeEmpty("el listado de la empresa elegida sí se consulta");
+    }
+
+    [Theory]
+    [MemberData(nameof(Listados))]
+    public async Task D4_con_un_Tenant_alcanzado_solo_por_Inbound_activo_no_hay_estado_4a(string listado, string pagina, string archivo)
+    {
+        // La lista por Tenant no trae el Tenant activo; la del Tenant activo, con su entrada Inbound, sí (D-4). Sin ella,
+        // la guarda creería que el activo es el origen y redirigiría a «Selecciona una empresa».
+        var soloInbound = Guid.NewGuid();
+        var mediador = new MediatorFalso([Propio(), Cartera()],
+        [
+            Propio(), Cartera(),
+            new ClienteAutorizadoDto(soloInbound, "Tenant Inbound", EsOrigen: false, EsGestionadoPorOperacion: true,
+                EsCarteraGestorCae: true) { Servicio = CaeManager.Domain.Operaciones.ServicioCae.Inbound },
+        ]);
+
+        var resultado = await ExportarAsync(listado, mediador, soloInbound, new RegistroFalso());
+
+        resultado.Should().NotBeOfType<RedirectHttpResult>($"con el Tenant elegido no se vuelve a {pagina}");
+        resultado.Should().BeOfType<FileStreamHttpResult>().Which.FileDownloadName.Should().Be(archivo);
     }
 
     [Theory]

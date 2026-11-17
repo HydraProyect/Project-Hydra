@@ -40,15 +40,15 @@ public class FichaNoEncontradaTests : BunitContext
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
     }
 
-    private sealed class Mediador(Func<IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
+    private sealed class Mediador(Func<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
     {
         public List<object> Enviadas { get; } = [];
 
         public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return request is ObtenerClientesAutorizadosQuery
-                ? Task.FromResult((T)(object)lista())
+            return request is ObtenerClientesAutorizadosQuery q
+                ? Task.FromResult((T)(object)lista(q))
                 : throw new NotSupportedException(request.GetType().Name);
         }
 
@@ -73,6 +73,8 @@ public class FichaNoEncontradaTests : BunitContext
     ];
 
     private Func<IReadOnlyList<ClienteAutorizadoDto>> _lista = () => Cartera;
+    /// <summary>Lo que devuelve el handler a <see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>, si difiere de la lista por Tenant.</summary>
+    private IReadOnlyList<ClienteAutorizadoDto>? _listaParaTenantActivo;
     private readonly Mediador _mediador;
     private readonly ToastService _toasts = new();
 
@@ -80,7 +82,7 @@ public class FichaNoEncontradaTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        _mediador = new Mediador(() => _lista());
+        _mediador = new Mediador(q => q.ParaTenantActivo && _listaParaTenantActivo is { } ampliada ? ampliada : _lista());
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton(_toasts);
@@ -106,6 +108,24 @@ public class FichaNoEncontradaTests : BunitContext
         _toasts.Mensajes.Should().ContainSingle().Which.Should().Match<ToastMensaje>(t =>
             t.Mensaje == "Esa ficha no está en Empresa Sur; te llevamos a la lista." && t.Tono == TonoToast.Info);
         cut.Markup.Should().NotContain("Reintentar");
+    }
+
+    [Fact]
+    public void D4_con_un_Tenant_alcanzado_solo_por_Inbound_el_toast_nombra_ese_Tenant_y_no_el_origen()
+    {
+        // La lista por Tenant no trae Empresa Sur; la del Tenant activo, con su entrada Inbound, sí (D-4).
+        _lista = () => [Cartera[0], Cartera[1]];
+        _listaParaTenantActivo =
+        [
+            Cartera[0], Cartera[1],
+            new(Sur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true)
+            { Servicio = CaeManager.Domain.Operaciones.ServicioCae.Inbound },
+        ];
+
+        var cut = Renderizar(Ficha, activa: Sur);
+
+        cut.WaitForAssertion(() => _toasts.Mensajes.Should().ContainSingle().Which.Mensaje
+            .Should().Be("Esa ficha no está en Empresa Sur; te llevamos a la lista."));
     }
 
     [Fact]
@@ -242,7 +262,7 @@ public class PanelNoEncontradoTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista()));
+        Services.AddScoped<IMediator>(_ => new Mediador(_ => _lista()));
         Services.AddScoped<ITenantActual>(_ => new TenantActualFijo(Sur));
         Services.AddSingleton(_toasts);
         Services.AddSingleton(_workspace);

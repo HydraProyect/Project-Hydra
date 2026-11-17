@@ -103,7 +103,7 @@ public static class DocumentosEndpoints
         // Estado 4a: la página no muestra los Documentos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera (ContextoEmpresaActiva.ResolverAsync); el endpoint no
         // los consulta, no genera el archivo ni deja rastro. Misma guarda que Trabajadores.
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/documentos");
 
