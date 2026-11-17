@@ -320,6 +320,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Visitas.MarcarNotificadoClienteCommandHandler",
         "Visitas.QuitarMarcaDocumentacionGestionadaCommandHandler",
         "Visitas.QuitarTrabajadorDeVisitaCommandHandler",
+        "Visitas.ReabrirExpedienteVisitaCommandHandler",
         "Visitas.ReactivarVisitaCommandHandler",
     ];
 

@@ -175,6 +175,10 @@ public static class ApplicationServiceCollectionExtensions
         // Va por fuera de AutorizacionEscrituraBehavior y del handler: ambos autorizan con el
         // alcance recién resuelto, no con el que memoizó el circuito.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
+        // D-4 (#2005): tras una orden de Acreditación con éxito, reevalúa el sello de las Visitas de su Documento. Dentro
+        // de la serialización (usa el DbContext del scope) y por fuera de la restauración, la autorización y el handler:
+        // solo actúa cuando la orden ya pasó todas las guardas y guardó; una orden rechazada no reevalúa nada.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(Visitas.Antelacion.ReevaluarExpedientesTrasCambioDeAcreditacionBehavior<,>));
         // La instantánea queda dentro de la puerta y envuelve todos los resultados de fallo.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(RestauracionCambiosDeComandoBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(CaeManager.Application.Empresas.DuplicadosEmpresaBehavior<,>));

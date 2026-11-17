@@ -564,6 +564,7 @@ PuedeRevocarQuery	Tenants
 QuitarMarcaDocumentacionGestionadaCommand	Visitas
 QuitarRequisitoEventoCommand	Proyectos
 QuitarTrabajadorDeVisitaCommand	Visitas
+ReabrirExpedienteVisitaCommand	Visitas
 ReabrirMesCuadroDireccionCommand	Dashboard
 ReabrirProyectoCommand	Proyectos
 ReactivarAsignacionCommand	Asignaciones

@@ -17,10 +17,45 @@ namespace CaeManager.Infrastructure.Documentos;
 /// que se ejecute después de que la ranura anterior deje de atender: lo creado después de una pasada solo lo cubre
 /// la pasada siguiente.
 /// </para>
+///
+/// <para>
+/// <b>Bloqueada hasta que exista la confirmación de un Gestor CAE (D-4, #2005, decisión del 2026-11-15).</b> Es un
+/// proceso sin persona: crea Pendientes en plataforma que bloquean el acceso de los Trabajadores de la Empresa sin que
+/// ningún Gestor CAE los haya visto. Por eso sigue apagada por defecto y, además, no se puede encender: mientras
+/// <see cref="ConfirmacionDeGestorCaeDisponible"/> sea falso, encender <see cref="EjecutarAlArrancar"/> hace fallar el
+/// arranque (<see cref="DebeRegistrarse"/>) en vez de crear esos Pendientes. Construir la confirmación es una decisión de
+/// producto aparte; cuando exista, este interruptor pasa a verdadero en el mismo cambio que la construye.
+/// </para>
 /// </summary>
 public class ConciliacionAcreditacionesEmpresaOptions
 {
     public const string SeccionConfiguracion = "ConciliacionAcreditacionesEmpresa";
+
+    /// <summary>
+    /// Normativo (D-4, #2005): falso mientras no exista la confirmación de un Gestor CAE para los Pendientes en
+    /// plataforma que crea la conciliación. Solo lo cambia el incremento que construya esa confirmación; lo congela
+    /// <c>ConciliacionAcreditacionesBloqueadaSinConfirmacionTests</c>.
+    /// </summary>
+    public static bool ConfirmacionDeGestorCaeDisponible => false;
+
+    /// <summary>
+    /// Si la conciliación debe registrarse en este arranque. Apagada, no. Encendida sin la confirmación de un Gestor CAE,
+    /// falla: el arranque se detiene con un mensaje que dice por qué, en vez de crear Pendientes que nadie confirmó.
+    /// </summary>
+    public static bool DebeRegistrarse(ConciliacionAcreditacionesEmpresaOptions opciones)
+    {
+        ArgumentNullException.ThrowIfNull(opciones);
+        if (!opciones.EjecutarAlArrancar)
+            return false;
+
+        if (!ConfirmacionDeGestorCaeDisponible)
+            throw new InvalidOperationException(
+                $"{SeccionConfiguracion}__{nameof(EjecutarAlArrancar)}=true no está permitido: la conciliación crea Pendientes en " +
+                "plataforma que bloquean el acceso y todavía no existe la confirmación de un Gestor CAE para ellos (D-4, #2005). " +
+                "Apágala para arrancar.");
+
+        return true;
+    }
 
     /// <summary>
     /// Si es verdadero, la conciliación recorre todos los Tenants en segundo plano al arrancar, hasta completar una
