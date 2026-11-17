@@ -328,7 +328,7 @@ public class ReactivarConexionCommandHandler(
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
         if (identidad.EsFallido)
         {
-            if (identidad.Error.Codigo != CodigosErrorMicrosoft365.SinAccesoBuzon)
+            if (!CodigosErrorMicrosoft365.EsSinAccesoBuzon(identidad.Error))
                 return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null, token.Valor);
 
             // Como en el ciclo: un motivo de identidad más concreto que ya tuviera la conexión se conserva.

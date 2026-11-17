@@ -20,7 +20,20 @@
             @Textos["Subtitulo"]
             @Textos["EnlaceConexiones"] <a href="/integraciones">@Textos["EnlaceConexionesVinculo"]</a>.
         </Descripcion>
+        <Acciones>
+            @* Secundario a la derecha del título (E31): abre el cajón con la elección de propietario y navega a la misma URL de
+               conectar que Conexiones. Sin la URL pública no hay flujo OAuth posible y no se ofrece. *@
+            @if (ConexionDisponible)
+            {
+                <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCajonAsync" data-testid="anadir-buzon">@Textos["AnadirBuzon"]</Boton>
+            }
+        </Acciones>
     </CabeceraPagina>
+
+    @if (!ConexionDisponible)
+    {
+        <p class="aviso-conexion-no-disponible" role="status" data-testid="aviso-conexion-no-disponible">@Textos["AvisoConexionNoDisponible"]</p>
+    }
 
     @if (_cargando)
     {
@@ -64,11 +77,10 @@
                                 <td>@DescribirTipo(conexion)</td>
                                 <td>@DescribirEnruta(conexion)</td>
                                 <td>
-                                    <Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge>
-                                    @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
-                                    {
-                                        <span class="texto-error">@conexion.UltimoError</span>
-                                    }
+                                    @* E35 (parcial): punto de color + texto, con los tokens de éxito, peligro y neutro. *@
+                                    <span class="@($"estado-buzon estado-{ClaseEstado(conexion.Estado)}")" data-testid="estado-buzon">
+                                        <span class="punto-estado" aria-hidden="true"></span>@ObtenerEtiquetaEstado(conexion.Estado)
+                                    </span>
                                 </td>
                                 <td>
                                     @if (conexion.GestorPropietarioId is { } propietarioId)
@@ -126,6 +138,22 @@
                                     }
                                 </td>
                             </tr>
+                            @if (conexion.Estado == EstadoConexionIntegracion.ConError && !string.IsNullOrWhiteSpace(conexion.UltimoError))
+                            {
+                                @* E32 (parcial): franja con el último error de ese buzón y «Reconectar», que es la acción de «Reactivar». *@
+                                <tr class="fila-franja-error">
+                                    <td colspan="6">
+                                        <div class="franja-error" role="alert" data-testid="franja-error-buzon">
+                                            <span class="franja-error-texto">@Textos["FranjaErrorBuzon", conexion.BuzonEmail]: @conexion.UltimoError</span>
+                                            <AuthorizeView Roles="@RolAdministrador" Context="autorizacionReconectar">
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Deshabilitado="@(_procesandoId is not null)"
+                                                       OnClick="() => ReconectarAsync(conexion)" data-testid="reconectar-buzon">@Textos["Reconectar"]</Boton>
+                                            </AuthorizeView>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>
@@ -160,4 +188,15 @@
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoAcuse" OnClick="ConfirmarActivacionAcuseAsync" data-testid="guardar-acuse">@Textos["ModalAcuseGuardar"]</Boton>
     </Pie>
 </Modal>
+
+@* Cajón «Añadir buzón» (E31): los mismos campos y reglas que Conexiones. «Continuar en Microsoft» navega a la URL de conectar
+   con página completa; el consentimiento, el nonce y los permisos son del endpoint. *@
+<DrawerFormulario Visible="_cajonVisible" VisibleChanged="CerrarCajon" Titulo="@Textos["CajonTitulo"]"
+                  HayCambios="() => _propietario.HayEleccion" Cargando="_cargandoCajon" MensajeError="@_errorCajon"
+                  OnGuardar="ContinuarAMicrosoftAsync"
+                  TextoGuardar="@Textos["CajonContinuar"]" TextoCancelar="@Textos["CajonCancelar"]">
+    <p class="texto-descriptivo">@Textos["CajonIntro"]</p>
+    <CamposPropietarioBuzon Seleccion="_propietario" Clientes="_clientesCajon" Gestores="_gestoresCajon" AlCambiar="RepintarCajon" />
+    <p class="texto-descriptivo">@Textos["CajonAyudaCompartido"]</p>
+</DrawerFormulario>
 </LimiteDeErrores>

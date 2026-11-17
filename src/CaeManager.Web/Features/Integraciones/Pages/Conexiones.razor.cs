@@ -12,8 +12,10 @@ using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Integraciones;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
@@ -25,21 +27,19 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     [Inject] private ILogger<Conexiones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
 
+    [Inject] private IOptions<Microsoft365GraphOptions> OpcionesMicrosoft365 { get; set; } = default!;
+
     [SupplyParameterFromQuery] public bool? Conectado { get; set; }
     [SupplyParameterFromQuery] public string? Error { get; set; }
-
-    private record GestorSelectorDto(Guid Id, string NombreCompleto);
 
     private IReadOnlyList<ClienteSelectorDto> _clientes = [];
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
-    private IReadOnlyList<GestorSelectorDto> _gestores = [];
+    private IReadOnlyList<GestorParaElegir> _gestores = [];
     private bool _cargando = true;
 
     /// <summary>La última carga del listado falló: no se muestra ningún listado ni acción, solo el aviso.</summary>
     private bool _cargaFallida;
-    private Guid? _clienteSeleccionadoId;
-    private Guid? _gestorPropietarioSeleccionadoId;
 
     // --- Modal de línea WhatsApp (alta/edición) ---
     private bool _modalLineaVisible;
@@ -83,46 +83,24 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private long _generacionInicializacion;
     private bool _dispuesto;
 
-    private string _buzonCompartido = string.Empty;
+    // Las reglas del propietario y la URL de conectar son las mismas que usa el cajón «Añadir buzón» de Buzones.
+    private readonly SeleccionPropietarioBuzon _propietario = new();
 
-    private string UrlConectar
+    private string UrlConectar => _propietario.UrlConectar;
+
+    /// <summary>
+    /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth (no hay redirect_uri): no
+    /// se ofrece el enlace y la página lo explica. Es la misma condición que comprueba el endpoint.
+    /// </summary>
+    private bool ConexionDisponible => !string.IsNullOrWhiteSpace(OpcionesMicrosoft365.Value.UrlPublicaBase);
+
+    /// <summary>Los campos del propietario avisan de cada elección: se repinta el enlace de conectar, que depende de ella.</summary>
+    private void Repintar()
     {
-        get
-        {
-            if (_gestorPropietarioSeleccionadoId is { } gestorId)
-                return $"/integraciones/conectar-microsoft365?gestorPropietarioId={gestorId}";
-
-            var parametros = new List<string>();
-            if (_clienteSeleccionadoId is { } clienteId)
-                parametros.Add($"clienteId={clienteId}");
-            if (!string.IsNullOrWhiteSpace(_buzonCompartido))
-                parametros.Add($"buzonCompartido={Uri.EscapeDataString(_buzonCompartido.Trim())}");
-
-            return parametros.Count == 0
-                ? "/integraciones/conectar-microsoft365"
-                : $"/integraciones/conectar-microsoft365?{string.Join('&', parametros)}";
-        }
     }
 
-    /// <summary>Un buzón compartido nunca es el buzón personal de un Gestor CAE: escribir uno limpia esa elección.</summary>
-    private void FijarBuzonCompartido(string valor)
-    {
-        _buzonCompartido = valor;
-        if (!string.IsNullOrWhiteSpace(valor)) _gestorPropietarioSeleccionadoId = null;
-    }
-
-    /// <summary>Cliente y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
-    private void SeleccionarCliente(string valor)
-    {
-        _clienteSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
-        if (_clienteSeleccionadoId is not null) _gestorPropietarioSeleccionadoId = null;
-    }
-
-    private void SeleccionarGestorPropietario(string valor)
-    {
-        _gestorPropietarioSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
-        if (_gestorPropietarioSeleccionadoId is not null) _clienteSeleccionadoId = null;
-    }
+    /// <summary>Se conservan para los tests de la elección: la regla vive en <see cref="SeleccionPropietarioBuzon"/>.</summary>
+    private void SeleccionarGestorPropietario(string valor) => _propietario.SeleccionarGestorPropietario(valor);
 
     protected override async Task OnInitializedAsync()
     {
@@ -142,7 +120,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, token);
             if (generacion != _generacionInicializacion || token.IsCancellationRequested) return;
             _clientes = clientes;
-            _gestores = gestores.Select(u => new GestorSelectorDto(u.Id, u.NombreCompleto)).ToList();
+            _gestores = gestores.Select(u => new GestorParaElegir(u.Id, u.NombreCompleto)).ToList();
 
             await CargarConexionesAsync(token);
         }
@@ -532,16 +510,25 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private const string CodigoCancelado = "cancelado";
 
-    // «solicitud» (state caducado o de otra cuenta) cae en el mensaje genérico.
+    // Códigos cerrados de «?error=» (los pone ConectarMicrosoft365Endpoints): un texto fijo por código, y uno desconocido o
+    // manipulado cae en el genérico; nada de la query ni de Microsoft se refleja. «solicitud» (state caducado o de otra
+    // cuenta) también cae en el genérico.
     private string MensajeError(string codigo) => codigo switch
     {
         CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
-        "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
+        "autenticacion" => Textos["ErrorAutenticacion"],
+        "configuracion" => Textos["ErrorConfiguracionIncompleta"],
+        "canje-tokens" => Textos["ErrorCanjeTokens"],
+        "permisos-microsoft" => Textos["ErrorPermisosMicrosoft"],
+        "sin-buzon-exchange" => Textos["ErrorSinBuzonExchange"],
+        "error-microsoft" => Textos["ErrorMicrosoft"],
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
         "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
         "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
         "ya-conectado" => Textos["ErrorBuzonYaConectado"],
         "compartidos-en-pausa" => Textos["ErrorAltaCompartidaEnPausa"],
+        "solo-administrador" => Textos["ErrorSoloAdministrador"],
+        "url-publica" => Textos["AvisoConexionNoDisponible"],
         _ => "No pudimos completar la conexión."
     };
 

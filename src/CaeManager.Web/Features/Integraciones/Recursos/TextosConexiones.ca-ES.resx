@@ -117,4 +117,28 @@
   <data name="AvisoRecargaFallida" xml:space="preserve">
     <value>No vam poder actualitzar el llistat de connexions. Recarrega la pàgina per veure'n l'estat.</value>
   </data>
+  <data name="AvisoConexionNoDisponible" xml:space="preserve">
+    <value>La connexió amb Microsoft 365 encara no està disponible en aquest entorn. Avisa el Suport TALVEG perquè l&apos;activi.</value>
+  </data>
+  <data name="ErrorSoloAdministrador" xml:space="preserve">
+    <value>Només l&apos;Administrador pot connectar una bústia de Microsoft 365.</value>
+  </data>
+  <data name="ErrorAutenticacion" xml:space="preserve">
+    <value>No hem pogut autenticar amb Microsoft. Torna-ho a provar; si es repeteix, avisa el Suport TALVEG.</value>
+  </data>
+  <data name="ErrorConfiguracionIncompleta" xml:space="preserve">
+    <value>La connexió amb Microsoft 365 està a mitges en aquest entorn: falta part de la seva configuració. Avisa el Suport TALVEG; repetir la connexió no ho arregla.</value>
+  </data>
+  <data name="ErrorCanjeTokens" xml:space="preserve">
+    <value>Microsoft no ha acceptat l&apos;autorització per connectar la bústia. Torna-la a connectar; si es repeteix, avisa el Suport TALVEG.</value>
+  </data>
+  <data name="ErrorPermisosMicrosoft" xml:space="preserve">
+    <value>Microsoft no ha concedit els permisos necessaris. Torna a connectar i accepta els permisos, o demana al teu administrador de Microsoft 365 que els concedeixi.</value>
+  </data>
+  <data name="ErrorSinBuzonExchange" xml:space="preserve">
+    <value>Aquest compte de Microsoft no té bústia d&apos;Exchange Online (llicència sense correu o compte només d&apos;administració). Connecta un compte amb correu d&apos;Outlook.</value>
+  </data>
+  <data name="ErrorMicrosoft" xml:space="preserve">
+    <value>Microsoft ha cancel·lat la connexió o ha retornat un error. No s&apos;ha connectat cap bústia; pots tornar-ho a provar.</value>
+  </data>
 </root>

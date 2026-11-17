@@ -74,8 +74,11 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Dirección del buzón propio que devuelve <c>/me</c>.</summary>
     public string BuzonEmailPropio { get; set; } = "buzon@cliente-falso.test";
 
+    /// <summary>Error que devuelve la lectura del perfil (<c>/me</c>); null, éxito.</summary>
+    public Error? ErrorBuzonEmail { get; set; }
+
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(BuzonEmailPropio));
+        Task.FromResult(ErrorBuzonEmail is { } error ? Result.Fallo<string>(error) : Result.Exito(BuzonEmailPropio));
 
     /// <summary>Cada buzón sobre el que se pidió algo a Graph, en orden: prueba que una conexión compartida no cae en /me.</summary>
     public List<BuzonGraph> BuzonesUsados { get; } = [];

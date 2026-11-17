@@ -117,4 +117,28 @@
   <data name="AvisoRecargaFallida" xml:space="preserve">
     <value>No pudimos actualizar el listado de conexiones. Recarga la página para ver su estado.</value>
   </data>
+  <data name="AvisoConexionNoDisponible" xml:space="preserve">
+    <value>La conexión con Microsoft 365 no está disponible en este entorno todavía. Avisa a Soporte TALVEG para que la active.</value>
+  </data>
+  <data name="ErrorSoloAdministrador" xml:space="preserve">
+    <value>Solo el Administrador puede conectar un buzón de Microsoft 365.</value>
+  </data>
+  <data name="ErrorAutenticacion" xml:space="preserve">
+    <value>No pudimos autenticar con Microsoft. Inténtalo de nuevo; si se repite, avisa a Soporte TALVEG.</value>
+  </data>
+  <data name="ErrorConfiguracionIncompleta" xml:space="preserve">
+    <value>La conexión con Microsoft 365 está a medias en este entorno: falta parte de su configuración. Avisa a Soporte TALVEG; repetir la conexión no lo arregla.</value>
+  </data>
+  <data name="ErrorCanjeTokens" xml:space="preserve">
+    <value>Microsoft no aceptó la autorización para conectar el buzón. Vuelve a conectarlo; si se repite, avisa a Soporte TALVEG.</value>
+  </data>
+  <data name="ErrorPermisosMicrosoft" xml:space="preserve">
+    <value>Microsoft no concedió los permisos necesarios. Vuelve a conectar y acepta los permisos, o pide a tu administrador de Microsoft 365 que los conceda.</value>
+  </data>
+  <data name="ErrorSinBuzonExchange" xml:space="preserve">
+    <value>Esta cuenta de Microsoft no tiene buzón de Exchange Online (licencia sin correo o cuenta solo de administración). Conecta una cuenta con correo de Outlook.</value>
+  </data>
+  <data name="ErrorMicrosoft" xml:space="preserve">
+    <value>Microsoft canceló la conexión o devolvió un error. No se ha conectado ningún buzón; puedes intentarlo de nuevo.</value>
+  </data>
 </root>

@@ -1,15 +1,19 @@
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
+using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
@@ -27,6 +31,14 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
+    [Inject] private NavigationManager Navegacion { get; set; } = default!;
+    [Inject] private IOptions<Microsoft365GraphOptions> OpcionesMicrosoft365 { get; set; } = default!;
+
+    /// <summary>
+    /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth (no hay redirect_uri): no
+    /// se ofrece «Añadir buzón» y la página lo explica. Es la misma condición que comprueba el endpoint.
+    /// </summary>
+    private bool ConexionDisponible => !string.IsNullOrWhiteSpace(OpcionesMicrosoft365.Value.UrlPublicaBase);
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private IReadOnlyList<CuentaVisibleEnRol> _candidatos = [];
@@ -177,11 +189,12 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
     private string EtiquetaAcuse(ConexionIntegracionListaDto conexion) =>
         conexion.AcuseAutomaticoActivo ? Textos["AcuseActivado"] : Textos["AcuseDesactivado"];
 
-    private static TonoBadge ObtenerTonoEstado(EstadoConexionIntegracion estado) => estado switch
+    /// <summary>Clase del punto de estado (E35, parcial): el color sale de los tokens de éxito, peligro y neutro de la hoja de estilos.</summary>
+    private static string ClaseEstado(EstadoConexionIntegracion estado) => estado switch
     {
-        EstadoConexionIntegracion.Habilitada => TonoBadge.Exito,
-        EstadoConexionIntegracion.ConError => TonoBadge.Peligro,
-        _ => TonoBadge.Neutro
+        EstadoConexionIntegracion.Habilitada => "exito",
+        EstadoConexionIntegracion.ConError => "peligro",
+        _ => "neutro"
     };
 
     private string ObtenerEtiquetaEstado(EstadoConexionIntegracion estado) => estado switch
@@ -190,6 +203,104 @@ public partial class Buzones : CaeManager.Web.Components.PaginaIntegrableConfigu
         EstadoConexionIntegracion.ConError => Textos["EstadoConError"],
         _ => Textos["EstadoDeshabilitada"]
     };
+
+    // ---- Añadir buzón (cajón) ----
+    // La elección de propietario y la URL de conectar son las de Conexiones (SeleccionPropietarioBuzon + CamposPropietarioBuzon):
+    // el cajón no arranca nada por sí mismo, navega a la misma URL y es el endpoint quien autoriza, valida y consume el nonce.
+
+    private readonly SeleccionPropietarioBuzon _propietario = new();
+    private IReadOnlyList<ClienteSelectorDto> _clientesCajon = [];
+    private IReadOnlyList<GestorParaElegir> _gestoresCajon = [];
+    private bool _cajonVisible;
+    private bool _cargandoCajon;
+    private string? _errorCajon;
+
+    private async Task AbrirCajonAsync()
+    {
+        if (!ConexionDisponible) return;
+        _propietario.Limpiar();
+        _errorCajon = null;
+        _cajonVisible = true;
+        _cargandoCajon = true;
+        StateHasChanged();
+        try
+        {
+            // Se cargan al abrir y no con la página: quien no añade buzones no paga estas consultas.
+            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _cancelacion.Token);
+            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, _cancelacion.Token);
+            _clientesCajon = clientes;
+            _gestoresCajon = gestores.Select(u => new GestorParaElegir(u.Id, u.NombreCompleto)).ToList();
+        }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            // Sin las listas solo queda el buzón de la organización propia o un compartido: se dice y se puede seguir.
+            Logger.LogError(ex, "Error al cargar las Empresas y los Gestores CAE del cajón de añadir buzón.");
+            _clientesCajon = [];
+            _gestoresCajon = [];
+            _errorCajon = Textos["CajonErrorCarga"];
+        }
+        finally
+        {
+            if (!_dispuesto) _cargandoCajon = false;
+        }
+    }
+
+    private Task CerrarCajon(bool visible)
+    {
+        if (!visible) _cajonVisible = false;
+        return Task.CompletedTask;
+    }
+
+    private void RepintarCajon()
+    {
+    }
+
+    /// <summary>
+    /// A la misma URL que Conexiones, con navegación de página completa: la mejorada de Blazor haría un fetch al endpoint de
+    /// conectar y la CSP (connect-src 'self') bloquearía el salto a Microsoft.
+    /// </summary>
+    private Task ContinuarAMicrosoftAsync()
+    {
+        if (!ConexionDisponible || _cargandoCajon) return Task.CompletedTask;
+        Navegacion.NavigateTo(_propietario.UrlConectar, forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+    // ---- Reconectar ----
+
+    /// <summary>
+    /// «Reconectar» es la misma acción que «Reactivar» de Conexiones: <c>ReactivarConexionCommand</c> vuelve a comprobar en
+    /// Microsoft que el buzón sigue siendo el mismo y rehabilita la conexión; exige Administrador efectivo en el servidor.
+    /// </summary>
+    private async Task ReconectarAsync(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null) return;
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarConexionCommand(conexion.Id));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastReconectado", conexion.Nombre], TonoToast.Exito);
+
+            await RecargarSinPropagarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al reconectar la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorReconectar"], TonoToast.Error);
+            await RecargarSinPropagarAsync();
+        }
+        finally
+        {
+            _procesandoId = null;
+        }
+    }
 
     // ---- Acuse automático ----
 

@@ -38,8 +38,11 @@ public static class ConectarMicrosoft365Endpoints
             IOptions<Microsoft365GraphOptions> opciones, ISolicitudConexionMicrosoft365Repository solicitudRepositorio,
             IUnitOfWork unitOfWork, ICurrentUserService currentUser, CancellationToken cancellationToken) =>
         {
+            // Sin la URL pública no hay redirect_uri: no se arranca el flujo. Conexiones y Buzones ya no ofrecen el enlace en
+            // ese caso; quien llega igualmente (un favorito, un enlace viejo) vuelve a Conexiones con su aviso, no a un JSON de
+            // problema en el navegador. Es la misma comprobación de antes, solo cambia la respuesta (RequireAuthorization sigue delante).
             if (string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
-                return Results.Problem("La integración con Microsoft 365 no tiene configurada la URL pública de la aplicación.", statusCode: StatusCodes.Status503ServiceUnavailable);
+                return Results.LocalRedirect(RedireccionSinUrlPublica);
 
             var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null)
@@ -81,26 +84,32 @@ public static class ConectarMicrosoft365Endpoints
         {
             // Solo «access_denied» es la persona cancelando en la pantalla de Microsoft
             // (RFC 6749 § 4.1.2.1): Conexiones lo enseña en tono informativo. Cualquier
-            // otro error de OAuth, un callback sin code/state o la URL pública sin
-            // configurar son fallos de verdad y no se disfrazan de cancelación.
+            // otro error de OAuth es un fallo de verdad y no se disfraza de cancelación. El texto del error que devuelve
+            // Microsoft nunca viaja de vuelta: solo el código cerrado (Conexiones muestra un mensaje fijo por código).
             if (string.Equals(error, "access_denied", StringComparison.Ordinal))
-                return Results.LocalRedirect("/integraciones?error=cancelado");
+                return Results.LocalRedirect(RedireccionCancelado);
 
-            if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state) ||
-                string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
-            {
-                return Results.LocalRedirect("/integraciones?error=autenticacion");
-            }
+            if (!string.IsNullOrWhiteSpace(error))
+                return Results.LocalRedirect(RedireccionErrorMicrosoft);
+
+            // Falta configuración de verdad (URL pública, ClientId o credencial): solo aquí sale el aviso de configuración.
+            if (string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
+                return Results.LocalRedirect(RedireccionSinUrlPublica);
+            if (!opciones.Value.EstaConfigurado)
+                return Results.LocalRedirect(RedireccionConfiguracionIncompleta);
+
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+                return Results.LocalRedirect(RedireccionSolicitud);
 
             var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null || !Guid.TryParse(state, out var solicitudId))
-                return Results.LocalRedirect("/integraciones?error=solicitud");
+                return Results.LocalRedirect(RedireccionSolicitud);
 
             var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
             if (solicitud is null || !solicitud.EsValidaPara(usuarioId.Value, DateTime.UtcNow))
             {
                 logger.LogWarning("Callback de Microsoft 365 con \"state\" inválido, expirado o de otro usuario — descartado.");
-                return Results.LocalRedirect("/integraciones?error=solicitud");
+                return Results.LocalRedirect(RedireccionSolicitud);
             }
 
             var clienteId = solicitud.ClienteId;
@@ -116,18 +125,14 @@ public static class ConectarMicrosoft365Endpoints
             var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
             var tokensResultado = await graphClient.IntercambiarCodigoPorTokensAsync(code, redirectUri, cancellationToken);
             if (tokensResultado.EsFallido)
-                return Results.LocalRedirect("/integraciones?error=autenticacion");
+                return Results.LocalRedirect(RedireccionCanjeTokens);
 
             // Qué buzón, con qué token y con qué identidad: AltaBuzonMicrosoft365Service, con sus garantías
             // (directorio del inicio de sesión, sonda con el token de aplicación, sin refresh token en el
             // compartido) cubiertas por sus tests.
             var preparado = await altaBuzon.PrepararAsync(tokensResultado.Valor, buzonCompartido, cancellationToken);
             if (preparado.EsFallido)
-            {
-                return Results.LocalRedirect(preparado.Error.Codigo == AltaBuzonMicrosoft365Service.ErrorSinAccesoCompartido
-                    ? "/integraciones?error=sin-acceso-compartido"
-                    : "/integraciones?error=autenticacion");
-            }
+                return Results.LocalRedirect(RedireccionTrasFalloDeAlta(preparado.Error.Codigo));
 
             var buzon = preparado.Valor;
             var comando = new ConectarBuzonMicrosoft365Command(
@@ -143,7 +148,7 @@ public static class ConectarMicrosoft365Endpoints
             {
                 // El state ya está consumido: una combinación que el Command rechaza vuelve a Conexiones con
                 // su error, no con un 500.
-                return Results.LocalRedirect("/integraciones?error=solicitud");
+                return Results.LocalRedirect(RedireccionSolicitud);
             }
         }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();
@@ -169,10 +174,41 @@ public static class ConectarMicrosoft365Endpoints
                         : "/integraciones?error=suscripcion";
 
     /// <summary>
+    /// A dónde vuelve el callback cuando falla la preparación del alta (<see cref="AltaBuzonMicrosoft365Service"/>). Se clasifica
+    /// por el código del fallo, que sale del estado HTTP o del código de error de Graph, nunca del texto que devuelva Microsoft;
+    /// cualquier otro cae en «autenticacion», genérico. Pública para poder probarla.
+    /// </summary>
+    public static string RedireccionTrasFalloDeAlta(string codigoFallo) => codigoFallo switch
+    {
+        AltaBuzonMicrosoft365Service.ErrorSinAccesoCompartido => RedireccionSinAccesoCompartido,
+        AltaBuzonMicrosoft365Service.ErrorSinPermisos => RedireccionPermisosMicrosoft,
+        AltaBuzonMicrosoft365Service.ErrorSinBuzonExchange => RedireccionSinBuzonExchange,
+        _ => RedireccionAutenticacion
+    };
+
+    // Códigos cerrados de «?error=»: Conexiones pinta un texto fijo por código y uno desconocido cae en el genérico.
+    // Son rutas fijas de la propia aplicación (LocalRedirect): nada de lo que llega en la query ni de Microsoft se refleja.
+    public const string RedireccionCancelado = "/integraciones?error=cancelado";
+    public const string RedireccionErrorMicrosoft = "/integraciones?error=error-microsoft";
+    public const string RedireccionConfiguracionIncompleta = "/integraciones?error=configuracion";
+    public const string RedireccionSolicitud = "/integraciones?error=solicitud";
+    public const string RedireccionCanjeTokens = "/integraciones?error=canje-tokens";
+    public const string RedireccionPermisosMicrosoft = "/integraciones?error=permisos-microsoft";
+    public const string RedireccionSinBuzonExchange = "/integraciones?error=sin-buzon-exchange";
+    public const string RedireccionSinAccesoCompartido = "/integraciones?error=sin-acceso-compartido";
+    public const string RedireccionAutenticacion = "/integraciones?error=autenticacion";
+
+    /// <summary>
     /// Sin rol efectivo Administrador no se conecta nada; no es un fallo de las notificaciones, así que no vuelve con
-    /// «suscripcion» (que invita a repetir). Conexiones aún no tiene texto propio para este código y muestra el genérico.
+    /// «suscripcion» (que invita a repetir). Conexiones lo muestra con su texto propio.
     /// </summary>
     public const string RedireccionSoloAdministrador = "/integraciones?error=solo-administrador";
+
+    /// <summary>
+    /// Falta la URL pública de la aplicación (configuración del entorno, no de la persona): Conexiones lo explica y manda a
+    /// Soporte TALVEG. Pública para poder probarla (sin <c>InternalsVisibleTo</c> en CaeManager.Web).
+    /// </summary>
+    public const string RedireccionSinUrlPublica = "/integraciones?error=url-publica";
 
     /// <summary>
     /// Dirección de buzón bien formada (solo la dirección, sin nombre visible) o null. Pública para poder

@@ -1,14 +1,17 @@
 using Bunit;
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
+using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerResponsablesElegiblesBuzones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Integraciones.Pages;
@@ -17,6 +20,7 @@ using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.Web.Tests;
@@ -33,13 +37,22 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddSingleton<IOptions<Microsoft365GraphOptions>>(Options.Create(Opciones));
     }
+
+    /// <summary>La configuración de Microsoft 365 de la página: con URL pública (se puede conectar) salvo que el test la vacíe.</summary>
+    private Microsoft365GraphOptions Opciones { get; } = new()
+    {
+        ClientId = "cliente-secreto-de-prueba", ClientSecret = "valor-secreto-de-prueba", UrlPublicaBase = "https://app.talveg.test",
+    };
 
     private sealed class MediadorBuzones : IMediator
     {
         public List<ConexionIntegracionListaDto> Conexiones { get; set; } = [];
         public List<FijarAcuseAutomaticoBuzonCommand> ComandosAcuse { get; } = [];
         public List<FijarResponsableBuzonCommand> ComandosResponsable { get; } = [];
+        public List<ReactivarConexionCommand> ComandosReactivar { get; } = [];
+        public List<ClienteSelectorDto> Clientes { get; set; } = [];
 
         /// <summary>Si se pone, el comando falla con este error y no cambia nada (lo que haría el handler real).</summary>
         public Error? FalloDelComando { get; set; }
@@ -66,6 +79,8 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
                     ? throw new InvalidOperationException("listado caído")
                     : (IReadOnlyList<ConexionIntegracionListaDto>)Conexiones.ToList(),
                 ObtenerResponsablesElegiblesBuzonesQuery q => Evaluar(q),
+                ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Clientes.ToList(),
+                ReactivarConexionCommand c => Reactivar(c),
                 FijarAcuseAutomaticoBuzonCommand c => Aplicar(c),
                 FijarResponsableBuzonCommand c => Aplicar(c),
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -80,6 +95,12 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
             return consulta.ConexionIds.ToDictionary(
                 id => id,
                 id => (IReadOnlySet<Guid>)consulta.CandidatoIds.Where(c => Elegibles is null || Elegibles.Contains(c)).ToHashSet());
+        }
+
+        private Result Reactivar(ReactivarConexionCommand comando)
+        {
+            ComandosReactivar.Add(comando);
+            return FalloDelComando is { } fallo ? Result.Fallo(fallo) : Result.Exito();
         }
 
         private Result Aplicar(FijarAcuseAutomaticoBuzonCommand comando)
@@ -135,9 +156,11 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
         return new DirectorioConGestores(cuentasPorRol, usuarios, identidad);
     }
 
-    private static ConexionIntegracionListaDto Buzon(string nombre, bool acuse = false, Guid? propietario = null, Guid? responsable = null) =>
-        new(Guid.NewGuid(), $"{nombre}@ejemplo.test", nombre, null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow,
-            propietario, null, responsable, acuse, EsBuzonCompartido: propietario is null);
+    private static ConexionIntegracionListaDto Buzon(
+        string nombre, bool acuse = false, Guid? propietario = null, Guid? responsable = null,
+        EstadoConexionIntegracion estado = EstadoConexionIntegracion.Habilitada, string? ultimoError = null) =>
+        new(Guid.NewGuid(), $"{nombre}@ejemplo.test", nombre, null, null, estado, DateTime.UtcNow,
+            propietario, ultimoError, responsable, acuse, EsBuzonCompartido: propietario is null);
 
     private IRenderedComponent<Buzones> Renderizar(
         MediadorBuzones mediador, string? rol = Roles.Administrador, IReadOnlyList<CuentaVisibleEnRol>? gestores = null,

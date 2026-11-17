@@ -265,7 +265,7 @@ public class CompletarIdentidadBuzonService(
 
             // Solo un 403/404 es definitivo. El resto (429, 5xx, 401, tiempo agotado, red) no dice nada del buzón.
             // Un motivo de identidad más concreto que ya tuviera la conexión se conserva.
-            if (identidad.Error.Codigo == CodigosErrorMicrosoft365.SinAccesoBuzon && !EsMotivoDeIdentidad(conexion.UltimoError))
+            if (CodigosErrorMicrosoft365.EsSinAccesoBuzon(identidad.Error) &&!EsMotivoDeIdentidad(conexion.UltimoError))
                 conexion.MarcarConError(MensajeSinAccesoBuzon);
 
             // También guarda el token refrescado, si lo hubo, para no volver a rotarlo en la renovación.

@@ -80,3 +80,36 @@
 
 /* Pie de Buzones (maqueta Buzones.dc.html, .pie): 12/16 500 apagado. */
 .pie-buzones { margin: 0; font: 500 12px/16px var(--font-family); color: var(--color-text-muted); }
+
+/* E35 (parcial): estado como punto de color + texto, con los tokens de éxito, peligro y neutro. */
+.estado-buzon { display: inline-flex; align-items: center; gap: var(--space-2); font: 500 13px/18px var(--font-family); }
+.punto-estado { width: 8px; height: 8px; border-radius: var(--radius-full); background: currentColor; flex: none; }
+.estado-exito { color: var(--color-success-700); }
+.estado-peligro { color: var(--color-danger-700); }
+.estado-neutro { color: var(--color-neutral-700); }
+
+/* E32 (parcial): franja de error de un buzón, con «Reconectar» a la derecha. */
+.fila-franja-error > td { padding-top: 0; }
+.franja-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-danger-700);
+    border-radius: var(--radius-md);
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font: 500 13px/18px var(--font-family);
+}
+.franja-error-texto { min-width: 0; overflow-wrap: anywhere; }
+
+.aviso-conexion-no-disponible {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-warning-700);
+    border-radius: var(--radius-lg);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: 500 13px/18px var(--font-family);
+}
