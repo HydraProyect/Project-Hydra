@@ -16,6 +16,13 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// <c>CorregirLineaInboundCommand</c>, opción B del 2026-11-15). La de A6 desde <c>CompletarAltaAutonomaCommand</c>
 /// sigue sin abrir.
 /// <para>
+/// Fuera de esas vías de la aplicación, dos siembras de Development insertan filas con el rol propietario y el contexto de
+/// bootstrap: <c>LineaInboundDemoSeeder</c> (la línea Inbound del Tenant TCE de demostración) y
+/// <c>LineaOutboundGestionPropiaDemoSeeder</c> (la línea Outbound de gestión propia de los Tenants de demostración de gestión
+/// propia). Solo existen con <c>DatosPrueba:Activo</c> en Development, no son una vía de la aplicación y no abren la escritura
+/// de esta tabla a <c>cae_app_runtime</c> ni a <c>cae_app_soporte</c>, que siguen solo con SELECT.
+/// </para>
+/// <para>
 /// Los enumerados se guardan por nombre, con un CHECK que repite la lista, como en <c>SolicitudesAlta</c>.
 /// Un solo índice único, parcial: un Producto Contratado de la línea Inbound vigente y no eliminado por Tenant
 /// beneficiario (D-B, 2026-11-15). Cuántos admite de las demás líneas no está decidido.

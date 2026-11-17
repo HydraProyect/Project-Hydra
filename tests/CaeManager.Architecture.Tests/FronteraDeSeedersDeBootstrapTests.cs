@@ -54,6 +54,15 @@ public class FronteraDeSeedersDeBootstrapTests
             "Development: en esa tabla cae_app_runtime solo lee y el único rol que inserta, cae_app_aprovisionamiento, exige " +
             "una Sesión Privilegiada de Aprovisionamiento que el arranque no tiene. Solo en Development, solo sobre ese " +
             "Tenant con su marcador de demo, dentro de su ámbito explícito e idempotente",
+        // Misma identidad y misma razón que la línea Inbound, para la línea P: la decisión de Chris (DECISION_LOG 2026-11-17,
+        // opción (c)) es sin backfill, y un Tenant sin el marcador de TEC participante y sin línea P es «Outbound heredado»; la identidad de bootstrap es una
+        // deducción a partir del precedente Inbound del 2026-11-16, no una decisión registrada.
+        ["LineaOutboundGestionPropiaDemoSeeder"] =
+            "escribe una sola fila de ProductosContratados por Tenant, la línea Outbound de gestión propia vigente de los Tenants de " +
+            "demostración que gestionan su CAE con su propio personal: en esa tabla cae_app_runtime solo lee y el único rol que " +
+            "inserta, cae_app_aprovisionamiento, solo contrata la línea Inbound y bajo una Sesión Privilegiada de " +
+            "Aprovisionamiento que el arranque no tiene. Solo en Development, solo sobre los Tenants de su lista cerrada con " +
+            "su marcador de demo, dentro de su ámbito explícito e idempotente",
     };
 
     /// <summary>
