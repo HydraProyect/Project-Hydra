@@ -533,7 +533,9 @@ public class TerminologiaCanonicaTests
         // (DelegacionesTenant y PropositoDelegacion) en la guarda de gestión propia de LineaOutboundGestionPropiaDemoSeeder,
         // que lee si el Tenant de su lista tiene una delegación activa de Operador CAE externo; ningún nombre nuevo con el
         // término. Baja con la migración de DelegacionTenant, que es un incremento propio.
-        ["Delegacion"] = 400,
+        // 400 → 401 (2026-11-17, siembra Inbound de staging): +1, la llamada a DelegacionesSoporteSeeder.SeedAsync de
+        // InboundDemoAdministrativa.cs, el mismo uso que PilotoOutboundAdministrativa.cs; ningún nombre nuevo con el término.
+        ["Delegacion"] = 401,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

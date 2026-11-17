@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Plazo" xml:space="preserve"><value>Plazo</value></data>
+  <data name="FueraDePlazo" xml:space="preserve"><value>Fuera de plazo · {0}</value></data>
+  <data name="FueraDePlazoSinCifra" xml:space="preserve"><value>Fuera de plazo</value></data>
+  <data name="PorVencer" xml:space="preserve"><value>Por vencer · {0}</value></data>
+  <data name="Quedan" xml:space="preserve"><value>Quedan {0}</value></data>
+  <data name="Minutos" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Horas" xml:space="preserve"><value>{0} h</value></data>
+  <data name="HorasMinutos" xml:space="preserve"><value>{0} h {1}</value></data>
+  <data name="ReglaNormal" xml:space="preserve"><value>Normal: 1 día laborable</value></data>
+  <data name="ReglaUrgente" xml:space="preserve"><value>Urgente: 4 h laborables</value></data>
+  <data name="ReglaCritica" xml:space="preserve"><value>Crítica: 1 h laborable</value></data>
+  <data name="Vence" xml:space="preserve"><value>Vence el {0} (horario laboral)</value></data>
+  <data name="NumeroTicket" xml:space="preserve"><value>Nº {0}</value></data>
+  <data name="TituloTicket" xml:space="preserve"><value>Número de ticket</value></data>
+  <data name="NotaPlazos" xml:space="preserve"><value>Plazos en horario laboral del Operador CAE: de lunes a viernes, de 8:00 a 10:00 y de 10:30 a 15:00, y de 16:00 a 17:00 salvo los viernes, en julio y agosto y la víspera de un festivo. Los festivos los fija cada Operador CAE. Crítica, 1 h. Urgente, 4 h. Normal, 1 día laborable. En ámbar, cuando quedan menos de 2 h.</value></data>
+</root>

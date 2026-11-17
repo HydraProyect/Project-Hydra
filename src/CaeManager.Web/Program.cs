@@ -26,6 +26,7 @@ using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Importacion;
+using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
@@ -1087,6 +1088,51 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
     return;
 }
 
+// Siembra administrativa de la demo Inbound en un servidor que arranca como Production
+// (staging): el mismo lote que InboundDemoSeeder y LineaInboundDemoSeeder siembran en
+// Development (el Tenant TCE de Logística Delta Sur S.A., con su línea Inbound, y los tres
+// Tenants TEC), sin CredencialesDemo: una contraseña aleatoria por cuenta, solo en un fichero
+// del directorio de credenciales (tmpfs). Exige InboundDemo:ConfirmarEntorno igual al entorno,
+// InboundDemo:FechaDemostracion, un dominio propio y DatosPrueba apagado; el catálogo se copia
+// sin los tipos de documento de salud (D7). No envía correo. Sale con 1 si se niega, si falla
+// o si la autoverificación no cuadra. Se lanza con el servicio "migrador": la línea Inbound y
+// el backfill de asignaciones piden la identidad de bootstrap.
+if (args.Contains(InboundDemoAdministrativa.ArgumentoSembrar))
+{
+    using var scopeSiembraInbound = app.Services.CreateScope();
+    var serviciosSiembraInbound = scopeSiembraInbound.ServiceProvider;
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoInbound = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        InboundDemoAdministrativa.ArgumentoSembrar);
+
+    try
+    {
+        // Las piezas (contexto de tráfico, fábrica del de bootstrap, gestores de Identity, almacén) las resuelve la
+        // siembra de este ámbito: la capa Web no nombra los gestores de Identity.
+        var resultadoInbound = await InboundDemoAdministrativa.SembrarAsync(
+            serviciosSiembraInbound, app.Configuration, app.Environment,
+            InboundDemoAdministrativa.LeerOpciones(app.Configuration),
+            serviciosSiembraInbound.GetRequiredService<ILogger<Program>>());
+
+        Environment.ExitCode = InboundDemoAdministrativa.Informar(
+            resultadoInbound, app.Environment.EnvironmentName, Console.Out, Console.Error);
+    }
+    // Cualquier excepción, con su tipo y su mensaje y sin la traza, como en el piloto Outbound.
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(InboundDemoAdministrativa.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoInbound, app.Services.GetRequiredService<IServiceScopeFactory>(),
+            serviciosSiembraInbound.GetRequiredService<ILogger<Program>>());
+    }
+
+    return;
+}
+
 // Retirada completa de la siembra del piloto Outbound (sus Tenants, con marcador de
 // demo, y los ficheros que sus filas nombran en el almacén): mismo patrón de dos pasos que --retirar-demo-direccion,
 // más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
@@ -1595,6 +1641,10 @@ app.MapAcreditacionesPendientesEndpoints();
 app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
+// Inbound (demo P6): el archivo de un Documento del Tenant TEC desde la validación del Gestor CAE del Tenant TCE. Fuera del
+// grupo del Núcleo a propósito: es de Inbound y lo decide ObtenerArchivoParaValidarInboundQuery (ValidarInbound, cartera y
+// autorización de lectura del Tenant TEC).
+app.MapArchivoValidacionInboundEndpoints();
 nucleoYFacturacion.MapVistaVocabularioPreviewEndpoints();
 nucleoYFacturacion.MapVistaDemoEndpoints();
 nucleoYFacturacion.MapConectarMicrosoft365Endpoints();

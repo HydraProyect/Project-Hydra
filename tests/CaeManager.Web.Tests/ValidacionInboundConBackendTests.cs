@@ -132,7 +132,7 @@ public class ValidacionInboundConBackendTests : BunitContext
     }
 
     [Fact]
-    public void El_documento_se_abre_con_Validar_habilitado_y_sin_descarga_ni_Deshacer_que_no_existen()
+    public void El_documento_se_abre_con_Validar_habilitado_con_descarga_del_original_y_sin_Deshacer_que_no_existe()
     {
         var cut = Detalle(DocA);
 
@@ -140,8 +140,12 @@ public class ValidacionInboundConBackendTests : BunitContext
             "sin lectura con IA se ve de quién es el documento por la ficha, sin inventar lo que pone el documento");
         cut.Markup.Should().Contain("La lectura con IA no está disponible todavía");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse();
-        cut.FindAll("a.vd-descargar").Should().BeEmpty("no hay descarga del original: el enlace no se pinta");
-        cut.Markup.Should().Contain("El documento todavía no se puede mostrar ni descargar aquí.");
+
+        // Demo P6: «Descargar» lleva al endpoint Inbound del par (contrato, Documento original) de la fila, no al de Outbound.
+        var descargar = cut.Find("a.vd-descargar");
+        descargar.GetAttribute("href").Should().Be($"/inbound/validacion/contratos/{Contrato}/documentos/{DocA}/archivo");
+        descargar.HasAttribute("download").Should().BeTrue();
+        cut.Markup.Should().NotContain("El documento todavía no se puede mostrar ni descargar aquí.");
     }
 
     [Fact]

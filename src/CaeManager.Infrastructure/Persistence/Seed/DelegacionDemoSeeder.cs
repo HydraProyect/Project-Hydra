@@ -755,7 +755,7 @@ public static class DelegacionDemoSeeder
 
     internal static async Task<Guid> AprovisionarTenantAsync(
         CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken,
-        bool esOperadorCaeExterno, bool marcarComoDemo = false)
+        bool esOperadorCaeExterno, bool marcarComoDemo = false, bool sinTiposDeSalud = false)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
@@ -830,7 +830,11 @@ public static class DelegacionDemoSeeder
             // cuenta filas (ese conteo no necesita el join a TiposDocumento).
             // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
             // fijo para las filas del tenant #1, no reutilizable aquí.
-            dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.CrearCopiasParaTenant());
+            // Con sinTiposDeSalud (la siembra Inbound de staging, D7 de 2026-11-17: los tipos de documento de salud
+            // existen solo en Development), la copia deja fuera los tipos de categoría especial de salud.
+            dbContext.TiposDocumento.AddRange(sinTiposDeSalud
+                ? TipoDocumentoSeedData.CrearCopiasParaTenantSinTiposDeSalud()
+                : TipoDocumentoSeedData.CrearCopiasParaTenant());
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }

@@ -87,6 +87,7 @@ public class CrearDocumentoCommandHandler(
     IVerificadorArchivoAlmacenado verificadorArchivo,
     ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     INacimientoGestionAutomaticaService gestionAutomatica,
+    IActorAuditoria actorAuditoria,
     // Opcional solo mientras la PR #2104 cambia los tests que construyen este handler: el contenedor siempre lo resuelve
     // (InvalidadorAlcanceInerte por defecto, el AlcanceDatosService del circuito en la Web). Issue #2118.
     IInvalidadorAlcance? invalidadorAlcance = null)
@@ -140,23 +141,25 @@ public class CrearDocumentoCommandHandler(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
 
+        // D-12: la versión nace con quien la sube (AutorDeLaSubida); sin persona detrás queda sin autor (D-12.1).
+        var autor = await AutorDeLaSubida.ResolverAsync(actorAuditoria);
         var documento = ambitoSolicitado switch
         {
             AmbitoAplicacion.Trabajador => Documento.DeTrabajador(
                 request.TrabajadorId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado, autor: autor),
             AmbitoAplicacion.Cliente => Documento.DeCliente(
                 request.ClienteId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado, autor: autor),
             AmbitoAplicacion.Vehiculo => Documento.DeVehiculo(
                 request.VehiculoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado, autor: autor),
             AmbitoAplicacion.Proyecto => Documento.DeProyecto(
                 request.ProyectoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado, autor: autor),
             _ => Documento.DeEmpresa(
                 request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado)
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado, autor: autor)
         };
 
         // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo

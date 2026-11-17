@@ -1,0 +1,72 @@
+@* Plazo de respuesta de una conversación (maqueta 2026-11-01, `.pz`): texto y color según lo que calcula el servidor. Sin plazo no pinta nada. *@
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosPlazoConversacion> Textos
+
+@if (SlaRestante is { } restante)
+{
+    <span class="plazo-conversacion @ClaseTono(restante)" title="@Detalle()">@TextoPlazo(restante)</span>
+}
+
+@code {
+    /// <summary>Por debajo de este tiempo laborable restante el plazo se marca «Por vencer» (ámbar). Misma cifra que la nota al pie de la tabla (<c>NotaPlazos</c>).</summary>
+    private static readonly TimeSpan UmbralPorVencer = TimeSpan.FromHours(2);
+
+    /// <summary>Tiempo laborable que queda hasta el vencimiento, tal cual lo da <c>ConversacionListaDto.SlaRestante</c>: negativo si ya venció, nulo si no hay plazo.</summary>
+    [Parameter] public TimeSpan? SlaRestante { get; set; }
+
+    [Parameter] public DateTime? VencimientoSlaUtc { get; set; }
+    [Parameter] public PrioridadConversacion Prioridad { get; set; }
+
+    /// <summary>
+    /// Vencido: el servidor da un restante negativo cuando entre el vencimiento y ahora hay tiempo laborable, pero 0 cuando no lo hay (el vencimiento
+    /// cayó el viernes a las 15:00 y ahora es el sábado). Ese 0 también lo tiene un plazo vivo al que no le queda tiempo laborable hasta mañana a las
+    /// 8:00; lo que los distingue es el vencimiento (<c>VencimientoSlaUtc</c>), que es otro dato del servidor, no un recálculo del plazo.
+    /// </summary>
+    private bool EstaVencido(TimeSpan restante) =>
+        restante < TimeSpan.Zero || (restante == TimeSpan.Zero && VencimientoSlaUtc is { } vence && vence <= DateTime.UtcNow);
+
+    private string ClaseTono(TimeSpan restante) =>
+        EstaVencido(restante) ? "plazo-conversacion-vencido"
+        : restante < UmbralPorVencer ? "plazo-conversacion-por-vencer"
+        : "plazo-conversacion-holgado";
+
+    private string TextoPlazo(TimeSpan restante)
+    {
+        if (EstaVencido(restante))
+            return restante == TimeSpan.Zero ? Textos["FueraDePlazoSinCifra"].Value : Textos["FueraDePlazo", Duracion(restante.Duration())].Value;
+        var duracion = Duracion(restante);
+        return restante < UmbralPorVencer ? Textos["PorVencer", duracion].Value : Textos["Quedan", duracion].Value;
+    }
+
+    /// <summary>
+    /// «40 min», «5 h», «1 h 20». Siempre en horas y minutos: lo que queda es tiempo laborable, y un «día» laborable no dura lo mismo cada día
+    /// (los viernes y el verano no tienen tramo de tarde). Se redondea hacia arriba al minuto para no pintar «0 min» donde queda algo; el cero
+    /// exacto sí se pinta, porque es verdad (no queda tiempo laborable).
+    /// </summary>
+    private string Duracion(TimeSpan tiempo)
+    {
+        // shortcut: nunca pasa a días (la maqueta enseña «2 días»), hasta que el producto decida cómo contar un día laborable de duración variable.
+        var minutos = tiempo == TimeSpan.Zero ? 0 : Math.Max(1, (int)Math.Ceiling(tiempo.TotalMinutes));
+        var horas = minutos / 60;
+        var resto = minutos % 60;
+        return horas == 0 ? Textos["Minutos", resto].Value
+            : resto == 0 ? Textos["Horas", horas].Value
+            : Textos["HorasMinutos", horas, resto].Value;
+    }
+
+    /// <summary>La regla de la prioridad y el vencimiento en hora peninsular, para quien quiera saber de dónde sale el plazo.</summary>
+    private string Detalle()
+    {
+        var regla = Prioridad switch
+        {
+            PrioridadConversacion.Critica => Textos["ReglaCritica"].Value,
+            PrioridadConversacion.Urgente => Textos["ReglaUrgente"].Value,
+            _ => Textos["ReglaNormal"].Value
+        };
+        return VencimientoSlaUtc is { } vence
+            ? $"{regla} · {Textos["Vence", vence.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")].Value}"
+            : regla;
+    }
+}

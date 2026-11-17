@@ -5,6 +5,7 @@
 @inject IStringLocalizer<TextosListaConversaciones> Textos
 @inject IStringLocalizer<TextosEstadosConversacion> Estados
 @inject IStringLocalizer<TextosPlazosConversacion> Prioridades
+@inject IStringLocalizer<TextosPlazoConversacion> TextosPlazo
 
 <div class="tabla-conversaciones" role="table" aria-label="@Textos["TodasConversaciones"]">
     <div class="tabla-conversaciones-fila tabla-conversaciones-cabecera" role="row">
@@ -13,6 +14,7 @@
         <span role="columnheader">@Textos["Empresa"]</span>
         <span role="columnheader">@Textos["Estado"]</span>
         <span role="columnheader">@Textos["AsignadaA"]</span>
+        <span role="columnheader">@TextosPlazo["Plazo"]</span>
     </div>
     @foreach (var conversacion in Conversaciones)
     {
@@ -20,22 +22,29 @@
             <span role="cell" class="tabla-prioridad tabla-prioridad-@conversacion.Prioridad.ToString().ToLowerInvariant()"><span class="tabla-prioridad-punto" aria-hidden="true"></span>@Prioridades[conversacion.Prioridad.ToString()]</span>
             <div role="cell" class="tabla-conversaciones-asunto">
                 <button type="button" @onclick="() => OnAbrir.InvokeAsync(conversacion.Id)">@conversacion.Asunto</button>
-                <span class="tabla-conversaciones-remitente">@conversacion.RemitentePrincipal · @conversacion.FechaUltimoMensajeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
+                @* Nº de ticket delante de la línea 12/16 apagada (maqueta, `.m-d`); NumeroTicket 0 es «sin número» y no se pinta. *@
+                <span class="tabla-conversaciones-remitente">@PrefijoTicket(conversacion)@conversacion.RemitentePrincipal · @conversacion.FechaUltimoMensajeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
                 <span class="tabla-conversaciones-canal"><Icono Nombre="@(conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />@(conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : Textos["Correo"].Value)</span>
             </div>
             <span role="cell">@(conversacion.ClienteRazonSocial ?? Textos["SinEmpresa"].Value)</span>
             @* Estado como texto plano (maqueta, E13): sin pastilla. *@
             <span role="cell" class="tabla-estado">@EstadoConversacionPresentacion.Etiqueta(Estados, conversacion.Estado)</span>
             <span role="cell">@NombreAsignado(conversacion.EjecutivoAsignadoId)</span>
+            @* Plazo del servidor, sin recalcular; sin plazo, la celda queda vacía. *@
+            <span role="cell"><IndicadorPlazo SlaRestante="conversacion.SlaRestante" VencimientoSlaUtc="conversacion.VencimientoSlaUtc" Prioridad="conversacion.Prioridad" /></span>
         </div>
     }
 </div>
+<p class="tabla-conversaciones-nota">@TextosPlazo["NotaPlazos"]</p>
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<ConversacionListaDto> Conversaciones { get; set; } = [];
     [Parameter] public IReadOnlyDictionary<Guid, string> NombresAsignados { get; set; } = new Dictionary<Guid, string>();
     [Parameter] public Guid? EnfocadaId { get; set; }
     [Parameter] public EventCallback<Guid> OnAbrir { get; set; }
+
+    private string? PrefijoTicket(ConversacionListaDto conversacion) =>
+        conversacion.NumeroTicket > 0 ? $"{TextosPlazo["NumeroTicket", conversacion.NumeroTicket].Value} · " : null;
 
     private string NombreAsignado(Guid? usuarioId) => usuarioId is { } id
         ? NombresAsignados.GetValueOrDefault(id, Textos["Asignada"].Value)
