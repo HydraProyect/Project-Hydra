@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
+using CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -35,6 +36,7 @@ public class CentroInboundPantallasTests : BunitContext
     {
         public bool CentroNoVisible { get; init; }
         public IReadOnlyList<ContratoAccesoDto> Contratos { get; init; } = [];
+        public IReadOnlyList<AptoHoyDto> AptosHoy { get; init; } = [];
         public List<ObtenerContratosAccesoQuery> PeticionesContratos { get; } = [];
 
         private IReadOnlyList<ContratoAccesoDto> Registrar(ObtenerContratosAccesoQuery q)
@@ -55,6 +57,7 @@ public class CentroInboundPantallasTests : BunitContext
                 // Registra la petición: sin CentroId (listado) devuelve todos los contratos, así que que la ficha acota por su Centro
                 // se comprueba sobre PeticionesContratos, no sobre los datos devueltos.
                 ObtenerContratosAccesoQuery q => (object)Registrar(q),
+                ObtenerAptosHoyDelCentroQuery q => q.CentroId == CentroId ? (object)AptosHoy : Array.Empty<AptoHoyDto>(),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza Norte", "Logística Delta Sur S.A.", "Logística Delta Sur S.A.", ClienteId) },
                 ObtenerEmpresaPorIdQuery q => new EmpresaDetalleDto(q.Id, "Montajes Moncayo S.L.", "B12345674", DateTime.UtcNow, [], Guid.NewGuid()),
                 // FichaNoEncontrada lee el conjunto autorizado del usuario: sin ninguna empresa no hay selector de Tenant y pinta el
@@ -112,15 +115,19 @@ public class CentroInboundPantallasTests : BunitContext
 
     private void Preparar(
         IReadOnlyList<TrabajadorAptoHoy>? aptos = null, IReadOnlyList<DocumentoInformacionCentro>? docs = null,
-        bool centroNoVisible = false, params ContratoAccesoDto[] contratos)
+        bool centroNoVisible = false, IReadOnlyList<AptoHoyDto>? aptosDelBackend = null, params ContratoAccesoDto[] contratos)
     {
-        _mediador = new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos };
+        _mediador = new MediadorDePrueba { CentroNoVisible = centroNoVisible, Contratos = contratos, AptosHoy = aptosDelBackend ?? [] };
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ResolutorContratosAcceso>();
         Services.AddSingleton<Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider>(new AntiforgeryFalso());
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
-        Services.AddScoped<IAptosHoyDelCentro>(_ => new AptosFalsos(aptos));
+        // Con filas del backend la pantalla usa el adaptador real, que es quien da formato a las fechas.
+        if (aptosDelBackend is null)
+            Services.AddScoped<IAptosHoyDelCentro>(_ => new AptosFalsos(aptos));
+        else
+            Services.AddScoped<IAptosHoyDelCentro, AptosHoyDelCentroConBackend>();
         _informacion = new InformacionFalsa(docs);
         Services.AddScoped<IInformacionDelCentro>(_ => _informacion);
     }
@@ -239,6 +246,22 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public async Task Aptos_hoy_el_filtro_por_Empresa_contratista_encuentra_al_Trabajador_por_cualquiera_de_sus_Empresas()
+    {
+        var deUna = Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.NoApto, "Seguro de responsabilidad civil", empresa: "Instalaciones Cinca S.L.");
+        var enDos = deUna with { EmpresasContratistas = ["Instalaciones Cinca S.L.", "Montajes Moncayo S.L."] };
+        Preparar(aptos: [enDos, Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L.")], contratos: Contrato());
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        await cut.FindAll("button").First(b => b.TextContent.Contains("Empresa contratista")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").First(i => i.TextContent.Contains("Montajes Moncayo S.L.")).ClickAsync(new MouseEventArgs());
+
+        await cut.WaitForAssertionAsync(() => cut.FindAll("tbody tr").Select(f => f.TextContent).Should()
+            .ContainSingle("solo está en Montajes Moncayo el Trabajador con dos Empresas").Which.Should().Contain("Pilar Sanjuán Aznar"),
+            Plazo);
+    }
+
+    [Fact]
     public async Task Aptos_hoy_sin_Trabajadores_asignados_lo_dice()
     {
         Preparar(aptos: [], contratos: Contrato());
@@ -246,6 +269,80 @@ public class CentroInboundPantallasTests : BunitContext
         var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Markup.Should().Contain("Ningún Trabajador asignado a este Centro");
+    }
+
+    [Fact]
+    public async Task Aptos_hoy_con_datos_enseña_sus_cuatro_columnas_la_nota_los_filtros_y_el_detalle_de_fechas()
+    {
+        // Las fechas llegan como DateOnly y las formatea el adaptador real, no el fixture.
+        Preparar(aptosDelBackend:
+        [
+            new AptoHoyDto(Guid.NewGuid(), "Pilar Sanjuán Aznar", "12345678Z", ContratoId, EmpresaId, TipoContratoAcceso.Recurrente,
+                EstadoAptitudInbound.NoApto, "Carné de operador de plataforma elevadora", SujetoDelRequisitoInbound.Trabajador,
+                CausaNoAptitudInbound.Vencido, new DateOnly(2026, 10, 30)),
+            new AptoHoyDto(Guid.NewGuid(), "Javier Lasheras Pueyo", "87654321X", ContratoId, EmpresaId, TipoContratoAcceso.Recurrente,
+                EstadoAptitudInbound.Apto, null, null, null, new DateOnly(2027, 3, 2)),
+        ], contratos: Contrato());
+
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var panel = cut.Find("[data-pieza=aptos-hoy]");
+        panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Trabajador", "Empresa contratista", "Hoy", "Lo que bloquea o vence");
+        panel.QuerySelector("[role=note]")!.TextContent.Should().Contain("Consulta informativa del día; no registra entradas");
+        panel.QuerySelector("input[placeholder='Filtrar: Trabajador o DNI']").Should().NotBeNull();
+        panel.TextContent.Should().Contain("Todos").And.Contain("En tolerancia").And.Contain("No aptos");
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas[0].Should().Contain("Montajes Moncayo S.L.").And.Contain("****678Z").And.Contain("Vencido el 30/10/2026");
+        filas[1].Should().Contain("Montajes Moncayo S.L.").And.Contain("****321X").And.Contain("Siguiente vencimiento: 02/03/2027");
+    }
+
+    [Fact]
+    public async Task Aptos_hoy_con_la_proyeccion_restringida_no_pinta_requisito_ni_Todo_validado_ni_tipo_de_contrato()
+    {
+        // Sin ValidarInbound la Query devuelve las filas ya restringidas (duda 6): nombre, DNI parcial, Empresa y apto o no apto.
+        Preparar(aptosDelBackend:
+        [
+            new AptoHoyDto(Guid.NewGuid(), "Pilar Sanjuán Aznar", "****678Z", ContratoId, EmpresaId, null,
+                EstadoAptitudInbound.NoApto, null, null, null, null, ProyeccionCompleta: false),
+            new AptoHoyDto(Guid.NewGuid(), "Javier Lasheras Pueyo", "****321X", ContratoId, EmpresaId, null,
+                EstadoAptitudInbound.Apto, null, null, null, null, ProyeccionCompleta: false),
+        ], contratos: Contrato());
+
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var panel = cut.Find("[data-pieza=aptos-hoy]");
+        panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa contratista", "Hoy");
+        panel.QuerySelector("[role=note]")!.TextContent.Should().Contain("Consulta informativa del día").And.NotContain("requisito");
+        panel.TextContent.Should().NotContain("En tolerancia", "la restringida no tiene ese estado: la franja no lo ofrece");
+        cut.Markup.Should().NotContain("en tolerancia", "el indicador tampoco lo cuenta");
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas.Should().HaveCount(2);
+        filas.Should().OnlyContain(f => f.Contains("Montajes Moncayo S.L.") && !f.Contains("Todo validado") && !f.Contains("—"));
+        filas.Should().ContainSingle(f => f.Contains("No puede entrar hoy"));
+    }
+
+    [Fact]
+    public async Task Aptos_hoy_ordena_por_estado_despues_por_la_Empresa_de_la_fila_y_al_final_por_nombre()
+    {
+        // La Empresa de la fila de la proyección restringida es la del contrato más reciente (P3, revisión, punto 5): la pantalla ordena
+        // por esa Empresa, no por la del estado menos favorable.
+        Preparar(aptos:
+        [
+            Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Montajes Moncayo S.L."),
+            Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+            Apto("Iván Bescós Lacasa", EstadoAptitudHoy.NoApto, "Seguro de responsabilidad civil", empresa: "Montajes Moncayo S.L."),
+            Apto("Sonia Ferrer Lahoz", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L."),
+        ], contratos: Contrato());
+
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas.Should().HaveCount(4);
+        filas[0].Should().Contain("Iván Bescós Lacasa", "primero lo que no deja entrar");
+        filas[1].Should().Contain("Pilar Sanjuán Aznar", "dentro de los aptos, la Empresa Instalaciones Cinca va antes que Montajes Moncayo");
+        filas[2].Should().Contain("Sonia Ferrer Lahoz");
+        filas[3].Should().Contain("Javier Lasheras Pueyo");
     }
 
     [Fact]

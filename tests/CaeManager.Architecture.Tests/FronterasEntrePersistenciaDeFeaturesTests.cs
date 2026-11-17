@@ -803,6 +803,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
+        // Aptos hoy del Centro: cruza las evidencias con los requisitos que bloquean (plantillas del Centro y exigencias del
+        // Cliente empresarial) y con el nombre y la tolerancia efectiva (R-6) del tipo de documento. Todo es del Tenant del
+        // Cliente empresarial; no lee nada de otro Tenant.
+        ("ContratosAcceso.ObtenerAptosHoyDelCentroQueryHandler", "IPlantillasRequisitosQueryContext"),
+        ("ContratosAcceso.ObtenerAptosHoyDelCentroQueryHandler", "ITiposDocumentoQueryContext"),
         // Cola de validación de la demo mínima (DECISION_LOG 2026-11-17, opción b): nombra el tipo del catálogo propio, la
         // Empresa contratista local y el Centro de cada contrato, solo para pintar la fila.
         ("ContratosAcceso.ObtenerColaValidacionInboundQueryHandler", "ITiposDocumentoQueryContext"),

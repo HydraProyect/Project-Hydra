@@ -12,7 +12,7 @@ namespace CaeManager.Web.Features.Inbound.CentroInbound.Pages;
 /// <summary>
 /// Centro de Inbound (tarjeta 14), vista del Gestor CAE del Tenant TCE. Lee la ficha con <see cref="ObtenerCentroPorIdQuery"/> (que
 /// devuelve null si el Centro no es visible) y los contratos de acceso del Centro con <see cref="ObtenerContratosAccesoQuery"/>; Aptos
-/// hoy e Información del Centro van por sus puertos. La autoridad es la de las Queries; la pantalla no escribe nada.
+/// hoy (<c>ObtenerAptosHoyDelCentroQuery</c>) e Información del Centro van por sus puertos. La autoridad es la de las Queries; la pantalla no escribe nada.
 /// </summary>
 public partial class FichaCentroInbound
 {
@@ -37,6 +37,12 @@ public partial class FichaCentroInbound
     private IReadOnlyList<DocumentoInformacionCentro>? _informacion;
     private IReadOnlyList<PestanaDefinicion> _pestanas = [];
     private IReadOnlyList<OpcionFranjaEstado> _opcionesAptitud = [];
+
+    /// <summary>
+    /// Falso si alguna fila llega con la proyección restringida (sin <c>ValidarInbound</c>, duda 6): la pantalla no pinta
+    /// requisito, tipo de contrato ni el estado «en tolerancia».
+    /// </summary>
+    private bool ProyeccionCompleta => _aptos is null || _aptos.All(a => a.ConRequisito);
     private string _pestanaActiva = PestanaAptos;
     private DateOnly _hoy = DiaDeNegocio.Hoy();
     private bool _cargando = true;
@@ -85,10 +91,13 @@ public partial class FichaCentroInbound
                 .ToList();
             _aptos = await AptosHoy.ObtenerAsync(CentroId);
             _informacion = await InformacionCentro.ListarAsync(CentroId);
+            // La proyección restringida ya trae «en tolerancia» como apto (duda 6): no se ofrece un estado que no puede salir.
             _opcionesAptitud =
             [
                 new OpcionFranjaEstado("Aptos", TonoBadge.Exito, nameof(EstadoAptitudHoy.Apto)),
-                new OpcionFranjaEstado("En tolerancia", TonoBadge.Advertencia, nameof(EstadoAptitudHoy.EnTolerancia)),
+                .. ProyeccionCompleta
+                    ? new[] { new OpcionFranjaEstado("En tolerancia", TonoBadge.Advertencia, nameof(EstadoAptitudHoy.EnTolerancia)) }
+                    : Array.Empty<OpcionFranjaEstado>(),
                 new OpcionFranjaEstado("No aptos", TonoBadge.Peligro, nameof(EstadoAptitudHoy.NoApto)),
             ];
             _pestanas =
@@ -131,7 +140,7 @@ public partial class FichaCentroInbound
         .Where(a => string.IsNullOrWhiteSpace(_busquedaAptos)
             || a.Nombre.Contains(_busquedaAptos.Trim(), StringComparison.CurrentCultureIgnoreCase)
             || a.DniParcial.Contains(_busquedaAptos.Trim(), StringComparison.CurrentCultureIgnoreCase))
-        .Where(a => _empresaAptos.Length == 0 || a.EmpresaContratista == _empresaAptos);
+        .Where(a => _empresaAptos.Length == 0 || a.EmpresasParaFiltrar.Contains(_empresaAptos));
 
     // Primero lo que no deja entrar, después lo que vence y al final los aptos (maqueta).
     private IReadOnlyList<TrabajadorAptoHoy> AptosVisibles =>
@@ -146,7 +155,7 @@ public partial class FichaCentroInbound
         SinEstado.GroupBy(a => a.Estado.ToString()).ToDictionary(g => g.Key, g => g.Count());
 
     private IReadOnlyList<OpcionEstado> OpcionesEmpresaAptos =>
-        (_aptos ?? []).Select(a => a.EmpresaContratista).Distinct().OrderBy(e => e, StringComparer.CurrentCultureIgnoreCase)
+        (_aptos ?? []).SelectMany(a => a.EmpresasParaFiltrar).Distinct().OrderBy(e => e, StringComparer.CurrentCultureIgnoreCase)
             .Select(e => new OpcionEstado(e, e)).ToList();
 
     private Task BuscarAptos(string texto)

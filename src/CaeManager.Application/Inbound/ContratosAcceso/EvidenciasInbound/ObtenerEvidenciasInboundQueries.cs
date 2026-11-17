@@ -61,6 +61,13 @@ public class ObtenerEvidenciaInboundPorIdQueryHandler(
 
 internal static class EvidenciasInboundProyeccion
 {
+    /// <summary>
+    /// ¿La evidencia está Aceptada (y no Rechazada)? Quien solo necesita saberlo (p. ej. «Aptos hoy») lo pregunta aquí y no
+    /// nombra <c>EstadoAcreditacion</c>, que es del Núcleo compartido con Outbound (K-5, lista cerrada Inbound a Outbound).
+    /// </summary>
+    public static bool EstaAceptada(EvidenciaInbound evidencia) =>
+        evidencia.Estado == Domain.Documentos.EstadoAcreditacion.Aceptada;
+
     public static async Task<IReadOnlyList<EvidenciaInboundDto>> ADtosAsync(
         IReadOnlyList<EvidenciaInbound> evidencias, ITiposDocumentoQueryContext tiposContext, CancellationToken cancellationToken)
     {
