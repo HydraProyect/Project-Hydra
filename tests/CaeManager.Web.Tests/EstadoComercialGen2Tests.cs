@@ -754,7 +754,9 @@ public partial class EstadoComercialGen2Tests : BunitContext
 
         var bloquean = frases.Should().ContainSingle(f => f.Contains("bloquean")).Which;
         bloquean.Should().StartWith("Solo «Solo lectura» y «Suspendida» bloquean")
-            .And.NotContain("«Sin suscripción»").And.NotContain("«Aviso de impago»");
+            .And.NotContain("«Sin suscripción»").And.NotContain("«Aviso de impago»")
+            // La exención por impago del gate (portabilidad y derechos del interesado, D-3 opción (b)) se nombra aquí.
+            .And.Contain("exportación completa").And.Contain("derechos del interesado");
 
         // Las dos frases nombran los cinco estados que existen hoy. Un estado
         // nuevo no cabría en ninguna de las dos sin que alguien decida si el

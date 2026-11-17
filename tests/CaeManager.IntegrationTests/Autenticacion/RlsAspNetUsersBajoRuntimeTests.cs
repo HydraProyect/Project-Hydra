@@ -197,12 +197,27 @@ public class RlsAspNetUsersBajoRuntimeTests
             e.GestorCarteraP.Id,       // E2: cartera vigente sobre X de su Operador CAE
             e.ActorAuditoriaY.Id,      // G: actor en la auditoría de X
             e.ActorAccesoSensibleY.Id, // G2: actor en los accesos sensibles de X
-            e.SoporteP.Id,             // G3: Soporte TALVEG que visitó X
         });
+        visibles.Should().NotContain(
+            e.SoporteP.Id,
+            "G3 lee RegistrosActividadSoporte con los privilegios de quien consulta, y su lectura bajo el runtime " +
+            "solo entrega la actividad al Administrador de X (SoloElAdministradorLeeLaActividadDeSoporte)");
         visibles.Should().NotContain(e.AjenaY.Id, "no guarda ninguna relación con X");
         visibles.Should().NotContain(
             e.GestorCarteraSinOperadorY.Id,
             "su cartera cuelga de una Asignación de Operación de otro Operador CAE: E2 exige el suyo");
+    }
+
+    [Fact]
+    public async Task G3_la_cuenta_de_Soporte_TALVEG_que_visito_el_Tenant_solo_la_ve_su_Administrador()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Administrador);
+
+        (await VisiblesAsync(e, tenant: e.TenantX, origen: e.TenantX, usuario: e.PropiaX.Id))
+            .Should().Contain(e.SoporteP.Id, "G3: el Administrador de X ve la actividad de soporte y la cuenta que nombra");
+        (await VisiblesAsync(e, tenant: e.TenantX, origen: e.TenantX, usuario: e.AjenaY.Id))
+            .Should().NotContain(e.SoporteP.Id, "una cuenta que no es Administrador de X no ve la actividad");
     }
 
     [Fact]
@@ -588,8 +603,8 @@ public class RlsAspNetUsersBajoRuntimeTests
             personas.Select(p => p.Id).Should().BeEquivalentTo(new[]
             {
                 e.PropiaX.Id, e.OperadorDelegadoY.Id, e.GestorCarteraP.Id,
-                e.ActorAuditoriaY.Id, e.ActorAccesoSensibleY.Id, e.SoporteP.Id,
-            });
+                e.ActorAuditoriaY.Id, e.ActorAccesoSensibleY.Id,
+            }, "SoporteP solo entra por G3, que sin Administrador de X en el contexto no entrega la actividad de soporte");
             personas.Select(p => p.Email).Should().NotContain(new[] { e.AjenaY.Email, e.GestorCarteraSinOperadorY.Email },
                 "ningún correo de una cuenta que la política no deja ver desde el Tenant beneficiario");
             personas.Single(p => p.Id == e.OperadorDelegadoY.Id).Rol.Should().Be(Roles.GestorCae);
