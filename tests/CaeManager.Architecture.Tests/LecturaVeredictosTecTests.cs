@@ -18,7 +18,7 @@ public class LecturaVeredictosTecTests
 {
     // La causa y el motivo solo salen con Rechazada y cuando la base sabe que la evidencia no es de salud.
     private const string SoloSiNoEsDeSalud =
-        "CASE WHEN e.\"Estado\" = 'Rechazada' AND NOT e.\"SoloConclusionAptitud\" AND td.\"Sensibilidad\" <> 'CategoriaEspecialSalud'";
+        "CASE WHEN e.\"Estado\" = 'Rechazada' AND NOT e.\"SoloConclusionAptitud\" AND td.\"Sensibilidad\" IN ('SinDatosPersonales', 'DatosPersonales')";
 
     private static string Up => new AnadeLecturaVeredictosTec()
         .UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
@@ -86,7 +86,9 @@ public class LecturaVeredictosTecTests
         var normalizado = Regex.Replace(Cuerpo, @"\s+", " ");
 
         normalizado.Should().Contain(SoloSiNoEsDeSalud + " THEN e.\"CausaRechazo\"::text END,")
-            .And.Contain(SoloSiNoEsDeSalud + " THEN e.\"MotivoRechazo\"::text END,");
+            .And.Contain(SoloSiNoEsDeSalud + " THEN e.\"MotivoRechazo\"::text END,")
+            .And.Contain("CASE WHEN e.\"Estado\" = 'Rechazada' THEN COALESCE(e.\"RechazadaEnUtc\", e.\"ValidadaEnUtc\") ELSE e.\"ValidadaEnUtc\" END");
+        Cuerpo.Should().NotContain("<> 'CategoriaEspecialSalud'", "la sensibilidad va por lista de admisión, que falla cerrada ante un valor nuevo");
         Regex.Matches(Cuerpo, "e\\.\"CausaRechazo\"").Should().ContainSingle("la causa no sale por ningún otro camino");
         Regex.Matches(Cuerpo, "e\\.\"MotivoRechazo\"").Should().ContainSingle("el motivo no sale por ningún otro camino");
         Cuerpo.Should().NotContain("\"ConclusionAptitud\"", "la conclusión de aptitud no sale de ninguna evidencia");

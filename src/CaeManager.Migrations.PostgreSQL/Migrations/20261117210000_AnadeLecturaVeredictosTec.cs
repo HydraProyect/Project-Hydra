@@ -30,7 +30,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// (<c>TipoDocumento.RevelaSalud</c>) o porque llegó como solo conclusión de aptitud (el mismo criterio que
     /// <c>ObtenerAptosHoyDelCentroQuery</c>), da solo el estado y la fecha: ni la causa ni el motivo, que es texto libre y
     /// puede llevar el motivo clínico. La conclusión no sale nunca, de ninguna evidencia. La causa y el motivo solo salen
-    /// cuando la base sabe que la evidencia no es de salud, así que un dato que falte deja la fila callada en vez de abierta.
+    /// cuando la base sabe que la evidencia no es de salud: la sensibilidad del tipo va por lista de admisión
+    /// (<c>SinDatosPersonales</c> o <c>DatosPersonales</c>), así que un valor nulo, desconocido o una categoría de salud nueva
+    /// deja la fila callada en vez de abierta. Un rechazo sin fecha de rechazo (ningún CHECK lo impide, aunque el dominio
+    /// siempre la pone) da la de la validación, para que una fila incoherente de un Tenant TCE no tumbe la lectura entera.
     /// </para>
     /// <para>
     /// Mismo contrato que <c>app_inbound_tec_requerimientos()</c> y las funciones públicas <c>app_inbound_*</c>: plpgsql
@@ -69,11 +72,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 v_hoy := (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date;
                 RETURN QUERY
                     SELECT e."ContratoAccesoId", e."DocumentoOrigenId", e."Estado"::text,
-                           CASE WHEN e."Estado" = 'Rechazada' AND NOT e."SoloConclusionAptitud" AND td."Sensibilidad" <> 'CategoriaEspecialSalud'
+                           CASE WHEN e."Estado" = 'Rechazada' AND NOT e."SoloConclusionAptitud" AND td."Sensibilidad" IN ('SinDatosPersonales', 'DatosPersonales')
                                 THEN e."CausaRechazo"::text END,
-                           CASE WHEN e."Estado" = 'Rechazada' AND NOT e."SoloConclusionAptitud" AND td."Sensibilidad" <> 'CategoriaEspecialSalud'
+                           CASE WHEN e."Estado" = 'Rechazada' AND NOT e."SoloConclusionAptitud" AND td."Sensibilidad" IN ('SinDatosPersonales', 'DatosPersonales')
                                 THEN e."MotivoRechazo"::text END,
-                           CASE WHEN e."Estado" = 'Rechazada' THEN e."RechazadaEnUtc" ELSE e."ValidadaEnUtc" END
+                           CASE WHEN e."Estado" = 'Rechazada' THEN COALESCE(e."RechazadaEnUtc", e."ValidadaEnUtc") ELSE e."ValidadaEnUtc" END
                       FROM public."EvidenciasInbound" e
                       JOIN public."ContratosAcceso" c ON c."TenantId" = e."TenantId" AND c."Id" = e."ContratoAccesoId"
                       JOIN public."TiposDocumento" td ON td."TenantId" = e."TenantId" AND td."Id" = e."TipoDocumentoId"
