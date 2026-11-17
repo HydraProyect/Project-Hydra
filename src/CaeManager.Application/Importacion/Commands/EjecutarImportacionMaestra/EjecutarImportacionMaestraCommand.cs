@@ -249,9 +249,11 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         // El índice único de CIF incluye las Empresas dadas de baja del Tenant propietario: una fila que coincida con
         // una baja abortaría el guardado con un error genérico.
+        // Una sola lectura para todos los CIF del plan (#1991).
+        var identidades = await CatalogoIdentidadesEmpresa.CargarAsync(empresaRepositorio, cancellationToken);
         foreach (var cif in plan.Empresas.Select(e => e.Cif).Concat(plan.Clientes.Select(c => c.Cif)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(cif, cancellationToken: cancellationToken);
+            var duplicada = identidades.DuplicadaPorCif(cif);
             if (duplicada?.EstaEliminado == true)
                 return Result.Fallo<ResultadoImportacionMaestraDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(cif));
         }
@@ -411,11 +413,15 @@ public class EjecutarImportacionMaestraCommandHandler(
         var gestionadasPorCif = todas.Where(e => e.EsPropia && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var clientesPorCif = todas.Where(e => e.EsCritico != null && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var razonesEscritas = new HashSet<string>(StringComparer.Ordinal);
+        // Leídas una vez por pasada (bajo el candado al confirmar; sin él en la vista previa), después de las Empresas: lo
+        // que la base guarda, bajas incluidas, en vez de una consulta por razón social de cada fila (#1991). Lo que esta
+        // pasada escribe lo lleva razonesEscritas.
+        var identidades = await CatalogoIdentidadesEmpresa.CargarAsync(empresaRepositorio, cancellationToken);
 
-        async Task<Error?> RazonSocialOcupadaAsync(string razonSocial, Guid? excluirId) =>
+        Task<Error?> RazonSocialOcupadaAsync(string razonSocial, Guid? excluirId) => Task.FromResult(
             razonesEscritas.Contains(razonSocial.Trim())
                 ? DuplicadosEmpresa.ErrorRazonSocialDuplicada(dadaDeBaja: false)
-                : await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, razonSocial, excluirId, cancellationToken: cancellationToken);
+                : identidades.ComprobarRazonSocial(razonSocial, excluirId));
 
         var empresasCreadas = 0;
 
