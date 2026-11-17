@@ -434,8 +434,8 @@ public class EvidenciasInboundTests
     {
         var documento = Guid.NewGuid();
         _lector.Documentos.Add(Documento(documento, soloConclusion: true));
-        var comando = Comando(_tipoAptitud, ConclusionAptitud.Apto, documento)
-            with { Rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, "No se lee la conclusión.") };
+        var rechazo = new RechazoInicialEvidenciaInbound(CausaRechazoAcreditacion.Ilegible, "No se lee la conclusión.");
+        var comando = Comando(_tipoAptitud, ConclusionAptitud.Apto, documento) with { Rechazo = rechazo };
 
         (await Registrar().Handle(comando, CancellationToken.None)).EsExitoso.Should().BeTrue();
 
