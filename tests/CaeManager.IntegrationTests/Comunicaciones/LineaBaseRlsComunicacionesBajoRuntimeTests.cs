@@ -261,7 +261,7 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
     /// Norte no debe leer Norte. Hoy el ámbito manda sobre la selección en <see cref="TenantActual"/>, el interceptor
     /// firma ese Tenant y adopta <c>cae_app_soporte</c>, y <c>aislamiento_tenant</c> solo compara el Tenant del contexto:
     /// por lectura del código, la prueba sale en rojo. Marcada como defecto, sin tocar producción.</summary>
-    [Fact(Skip = "defecto pendiente de issue: el ámbito explícito manda sobre la Sesión Privilegiada (D-6 b, R-0, P-6)")]
+    [Fact(Skip = "defecto #2351: el ámbito explícito manda sobre la Sesión Privilegiada (D-6 b, R-0, P-6)")]
     public async Task P6_una_Sesion_Privilegiada_sobre_un_Tenant_no_lee_otro_por_un_ambito_explicito()
     {
         await using var contexto = ContextoDeSesionPrivilegiada(objetivo: _ebro);

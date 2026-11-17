@@ -6,7 +6,7 @@
 # Necesita los mockups de Project-Hydra-Negocio (variable de entorno); sin ellos se omite.
 tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: Skip (atributo) = 1
 # Defecto (D-6 b, R-0, P-6): un ámbito explícito sobre otro Tenant manda sobre la Sesión Privilegiada. Dueña: la línea
-# D-6 b; se quita el Skip con el arreglo del defecto (issue pendiente de abrir por la coordinadora).
+# D-6 b; se quita el Skip con el arreglo del defecto (issue #2351).
 tests/CaeManager.IntegrationTests/Comunicaciones/LineaBaseRlsComunicacionesBajoRuntimeTests.cs :: Skip (atributo) = 1
 # Requiere una clave real de IA en la variable de entorno; en CI sin clave se omite.
 tests/CaeManager.IntegrationTests/RegresionPromptsIa/TheorySiHayClaveIaAttribute.cs :: Skip (atributo) = 1
