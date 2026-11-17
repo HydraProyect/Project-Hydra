@@ -284,6 +284,8 @@ $avisos = New-Object System.Collections.ArrayList
 $enCi = ($env:GITHUB_ACTIONS -eq 'true') -or (-not [string]::IsNullOrEmpty($env:CI) -and $env:CI -notin @('false', '0'))
 $modoPlaza = $false
 $plaza = $null
+$remoto = $null
+$dellFalla = $false
 $moduloPlazas = ''
 if (-not $enCi) {
     $moduloPlazas = $env:HYDRA_PLAZA_COMPILACION
@@ -310,6 +312,11 @@ function Write-Resumen([int]$Codigo, [string]$Causa) {
 
 function Stop-Con([string]$Causa) {
     if ($plaza) { Exit-PlazaCompilacion $plaza }
+    # Un fallo local con la compilacion de la Dell aun en marcha: se corta bld (y su arbol de procesos) para
+    # que no retenga una plaza de la Dell hasta acabar.
+    if ($remoto -and $remoto.Proc -and -not $remoto.Proc.HasExited) {
+        & taskkill.exe /T /F /PID $remoto.Proc.Id 2>$null | Out-Null
+    }
     Write-Resumen 1 $Causa
     exit 1
 }
@@ -387,8 +394,8 @@ $ordenCompilar = 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeRe
 
 function Start-CompilacionEnDell {
     # Salto a la Dell cuando no hay plaza local: SOLO la compilacion con warnings como errores, con
-    # `bld -Remote` tal cual (el Dell compila origin/<rama>, por eso exige el arbol limpio y HEAD empujado).
-    # Devuelve $null (y el motivo) si no es viable; entonces se espera plaza local para todo, como siempre.
+    # `bld -SoloDell` (el Dell compila origin/<rama>, por eso exige el arbol limpio y HEAD empujado).
+    # Devuelve un objeto con Motivo no vacio si no es viable; entonces se espera plaza local para todo.
     $bld = Join-Path (Split-Path -Parent $moduloPlazas) 'bld.ps1'
     if (-not (Test-Path -LiteralPath $bld -PathType Leaf)) { return [pscustomobject]@{ Motivo = "no existe $bld" } }
     $rama = (git symbolic-ref --quiet --short HEAD 2>$null)
@@ -449,7 +456,9 @@ function Close-CompilacionEnDell($Remoto) {
     # de los proyectos que los tests ya hubieran dejado al dia. (La compilacion incremental del worktree
     # reutilizado de la Dell tiene el mismo limite que la local de siempre: un warning en un proyecto que ya
     # estaba al dia no se vuelve a emitir.)
-    $r = Get-ResultadoDell $Remoto
+    # Si la espera ya se corto por un 'falla', ese es el veredicto: reevaluarlo podria dar 'invalido' (el arbol
+    # cambio en el intervalo) y compilar aqui sin plaza y antes de restaurar.
+    $r = if ($script:dellFalla) { 'falla' } else { Get-ResultadoDell $Remoto }
     $seg = [int]$Remoto.Reloj.Elapsed.TotalSeconds
     $paso = "$nombreCompilar [Dell]"
     if ($r -eq 'pasa') {
@@ -483,7 +492,10 @@ if ($modoPlaza) {
                 Write-Host "Sin salto a la Dell: $($remoto.Motivo)." -ForegroundColor Yellow
                 $remoto = $null
             }
-            $cancelar = { $remoto -and $remoto.Proc.HasExited -and (Get-ResultadoDell $remoto) -eq 'falla' }
+            $cancelar = {
+                if ($remoto -and $remoto.Proc.HasExited -and (Get-ResultadoDell $remoto) -eq 'falla') { $script:dellFalla = $true }
+                $script:dellFalla
+            }
             $plaza = Enter-PlazaCompilacion -Cancelar $cancelar
             if (-not $plaza -and $remoto) { Close-CompilacionEnDell $remoto }
         }
