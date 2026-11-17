@@ -63,6 +63,9 @@
   <data name="DesactivarDecisionRequerida" xml:space="preserve">
     <value>Té organitzacions a la seva cartera que no hi eren quan vas obrir aquest diàleg. No s'ha canviat res: tria a qui passen o «A ningú per ara».</value>
   </data>
+  <data name="DesactivarCarteraNoLegible" xml:space="preserve">
+    <value>No hem pogut mostrar la seva cartera. Tanca aquest diàleg, recarrega la llista i torna-ho a provar.</value>
+  </data>
   <data name="ReenvioCorreoFallido" xml:space="preserve">
     <value>No hem pogut enviar el correu</value>
   </data>

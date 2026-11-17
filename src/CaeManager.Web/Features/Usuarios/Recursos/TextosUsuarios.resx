@@ -63,6 +63,9 @@
   <data name="DesactivarDecisionRequerida" xml:space="preserve">
     <value>Tiene organizaciones en su cartera que no estaban cuando abriste este diálogo. No se ha cambiado nada: elige a quién pasan o «A nadie por ahora».</value>
   </data>
+  <data name="DesactivarCarteraNoLegible" xml:space="preserve">
+    <value>No pudimos mostrar su cartera. Cierra este diálogo, recarga la lista y vuelve a intentarlo.</value>
+  </data>
   <data name="ReenvioCorreoFallido" xml:space="preserve">
     <value>No pudimos enviar el correo</value>
   </data>

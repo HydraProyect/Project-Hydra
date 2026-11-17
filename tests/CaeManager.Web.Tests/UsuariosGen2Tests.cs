@@ -3095,7 +3095,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("cartera interna").And.Contain("la sigue heredando su Coordinador CAE")
+        dialogo.TextContent.Should().Contain("Cartera interna").And.Contain("la sigue heredando su Coordinador CAE")
             .And.NotContain("la conserva su Coordinador CAE", "la regla del 2026-09-24 ya no describe la cartera de los Tenants beneficiarios")
             .And.NotContain("empresas");
         dialogo.QuerySelectorAll("select").Should().BeEmpty();
@@ -3231,20 +3231,56 @@ public partial class UsuariosGen2Tests : BunitContext
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// El destino elegido se desactivó (otra Administradora) entre abrir el diálogo y confirmar. El Command lo rechaza con
+    /// «elige otro»: el diálogo sigue abierto con ese motivo, sin toast, sin la elección y sin ofrecer ya a esa cuenta; la
+    /// cuenta de Ander no se desactiva. Con «A nadie por ahora» sigue pudiendo confirmar.
+    /// </summary>
     [Fact]
-    public async Task Con_cartera_y_una_opcion_elegida_Volver_pregunta_antes_de_descartar_y_no_toca_la_cuenta()
+    public async Task Si_el_destino_elegido_ya_no_vale_el_dialogo_sigue_abierto_dice_por_que_y_pide_elegir_otro()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+
+        _identidad.Cuentas[IkerId].LockoutEnd = DateTimeOffset.MaxValue;
+        await ConfirmarDesactivacionAsync(cut);
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Ander Beitia?").And.Contain("Ese Gestor CAE tiene la cuenta desactivada: elige otro.");
+        _toasts.Mensajes.Should().BeEmpty("el motivo se dice en el diálogo, que es donde se elige otro");
+        OpcionesDeDestino(cut).Select(o => o.Valor).Should().Equal("", "nadie");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("hay que elegir de nuevo");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("el Command falló y su transacción lo deshizo");
+        _catalogo.Retiradas.Should().BeEmpty();
+
+        await ElegirDestinoAsync(cut, "nadie");
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Last()
+            .Should().Be(new CambiarActivacionUsuarioCommand(AnderId, Activar: false, SinDestinoConfirmado: true));
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Una desactivación con cartera pasa por el mismo sitio en las dos aperturas: abrir el diálogo de otra cuenta después
+    /// de cancelar uno no arrastra la elección ni el error del anterior.
+    /// </summary>
+    [Fact]
+    public async Task Abrir_el_dialogo_de_nuevo_no_arrastra_la_eleccion_ni_el_error_anteriores()
     {
         SembrarGestoresParaLaBaja();
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
         await ElegirDestinoAsync(cut, "nadie");
+        await SalirDelDialogoDeDesactivarAsync(cut, "Volver");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new());
 
-        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
-        cut.FindAll("[role=dialog], [role=alertdialog]").Any(d => d.TextContent.Contains("Descartar")).Should().BeTrue(
-            "con una elección hecha, «Volver» pregunta como la X y Escape (regla del 2026-10-03)");
-        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty();
-        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("la elección anterior se descartó: otra vez hay que decidir");
     }
     /// <summary>
     /// Bug del 21-10 con la siembra del piloto Outbound: desde el Operador CAE externo, la columna
