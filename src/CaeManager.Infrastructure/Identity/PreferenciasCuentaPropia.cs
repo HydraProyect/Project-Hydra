@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace CaeManager.Infrastructure.Identity;
@@ -81,8 +82,9 @@ public interface IPreferenciasCuentaPropia
 /// <para>
 /// <b>Un 42501 es un resultado, no una excepción.</b> El <c>DbUpdateException</c> cuyo <c>PostgresException</c> trae
 /// el <c>SqlState</c> 42501 se devuelve como <see cref="ResultadoEscrituraCuenta.NoPermitida"/>, sin reintento: en
-/// una Sesión Privilegiada es lo esperado, y relanzarlo tumbaba el islote del selector de tema. Cualquier otro
-/// rechazo sigue subiendo como excepción.
+/// una Sesión Privilegiada es lo esperado, y relanzarlo tumbaba el islote del selector de tema. Se registra en
+/// Warning con la excepción adjunta, para que una denegación de RLS que no venga de soporte deje diagnóstico.
+/// Cualquier otro rechazo sigue subiendo como excepción.
 /// </para>
 ///
 /// <para>
@@ -102,7 +104,8 @@ public interface IPreferenciasCuentaPropia
 /// fuera de la pantalla no debe convertirse en un rechazo que saque la cuenta del rastreo.
 /// </para>
 /// </summary>
-public sealed class PreferenciasCuentaPropia(CaeManagerDbContext contexto, PuertaAccesoDatos puertaAccesoDatos)
+public sealed class PreferenciasCuentaPropia(
+    CaeManagerDbContext contexto, PuertaAccesoDatos puertaAccesoDatos, ILogger<PreferenciasCuentaPropia> logger)
     : IPreferenciasCuentaPropia
 {
     private const int Intentos = 2;
@@ -163,9 +166,17 @@ public sealed class PreferenciasCuentaPropia(CaeManagerDbContext contexto, Puert
             // CaeManagerDbContext ya descartó el lote y su auditoría antes de relanzar.
             return ResultadoEscrituraCuenta.Conflicto;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege })
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege } denegada)
         {
             // cae_app_soporte no tiene UPDATE sobre la tabla: denegado a propósito, no se reintenta ni se relanza.
+            // Se registra con la excepción adjunta (como RegistroAccesoDocumentoSensibleRepository ante el mismo 42501)
+            // porque el 42501 también lo da una violación de WITH CHECK de una política RLS, y sin esta traza esa
+            // denegación no dejaría diagnóstico: los llamadores solo ven el valor del enum. En Warning y no en Error
+            // porque, en una Sesión Privilegiada, escribir actividad o tema es lo esperado y daría una alerta por cada
+            // interacción; la excepción adjunta conserva el detalle para quien investigue.
+            logger.LogWarning(ex,
+                "Escritura de preferencias de la cuenta {UsuarioId} denegada por la base: SQLSTATE {SqlState} en la tabla {Tabla}.",
+                usuarioId, denegada.SqlState, denegada.TableName ?? "AspNetUsers");
             ConcurrenciaContexto.DescartarEdicionPerdida(contexto, [entrada]);
             return ResultadoEscrituraCuenta.NoPermitida;
         }

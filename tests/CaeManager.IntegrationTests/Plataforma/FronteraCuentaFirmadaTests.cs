@@ -657,7 +657,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         await QuitarLasCredencialesASoporteAsync();
 
         await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
-        var preferencias = new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos());
+        var preferencias = new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos(), NullLogger<PreferenciasCuentaPropia>.Instance);
 
         (await preferencias.ObtenerAsync(_actorReal)).Should().NotBeNull();
 

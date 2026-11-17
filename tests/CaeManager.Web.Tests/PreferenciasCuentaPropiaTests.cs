@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Xunit;
 
@@ -38,6 +39,7 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
     private readonly SqliteConnection _conexion = new("Data Source=:memory:");
     private readonly ComandosAnotados _comandos = new();
     private readonly EscrituraAjena _ajena;
+    private readonly RegistroCapturado _registro = new();
     private CaeManagerDbContext _contexto = null!;
     private PreferenciasCuentaPropia _preferencias = null!;
 
@@ -69,7 +71,7 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
             VALUES ({_usuarioId}, {_tenantId}, {SelloInicial}, {(int)TemaPreferido.Claro}, {(int)IdiomaPreferido.Espanol}, {Instante})
             """);
 
-        _preferencias = new PreferenciasCuentaPropia(_contexto, new PuertaAccesoDatos());
+        _preferencias = new PreferenciasCuentaPropia(_contexto, new PuertaAccesoDatos(), _registro);
         _comandos.Textos.Clear();
     }
 
@@ -268,6 +270,51 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
         resultado.Should().Be(ResultadoEscrituraCuenta.NoPermitida);
         _comandos.Actualizaciones.Should().ContainSingle("el 42501 no se reintenta: la base volvería a negarlo");
         _contexto.ChangeTracker.Entries().Should().BeEmpty("el lote fallido no puede arrastrarse al siguiente guardado del circuito");
+    }
+
+    /// <summary>
+    /// El 42501 también lo da una violación de <c>WITH CHECK</c> de una política RLS, y los llamadores solo ven el valor
+    /// del enum: sin esta traza esa denegación no dejaría diagnóstico. Se exige la excepción original adjunta y que el
+    /// resultado siga siendo <see cref="ResultadoEscrituraCuenta.NoPermitida"/>.
+    /// </summary>
+    [Fact]
+    public async Task Un_42501_deja_una_entrada_de_registro_con_la_excepcion_adjunta_y_sigue_devolviendo_NoPermitida()
+    {
+        var denegacion = new PostgresException(
+            "permission denied for table AspNetUsers", "ERROR", "ERROR", PostgresErrorCodes.InsufficientPrivilege);
+        _comandos.FalloEnActualizacion = denegacion;
+
+        var resultado = await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro);
+
+        resultado.Should().Be(ResultadoEscrituraCuenta.NoPermitida);
+        var entrada = _registro.Entradas.Should().ContainSingle("una denegación deja una sola traza, sin duplicar por reintento").Subject;
+        entrada.Nivel.Should().Be(LogLevel.Warning);
+        entrada.Excepcion.Should().BeOfType<DbUpdateException>().Which.InnerException
+            .Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        entrada.Mensaje.Should().Contain(PostgresErrorCodes.InsufficientPrivilege).And.Contain("AspNetUsers");
+    }
+
+    [Fact]
+    public async Task Una_escritura_guardada_no_deja_entradas_de_registro()
+    {
+        (await _preferencias.GuardarTemaAsync(_usuarioId, TemaPreferido.Oscuro)).Should().Be(ResultadoEscrituraCuenta.Guardada);
+
+        _registro.Entradas.Should().BeEmpty();
+    }
+
+    private sealed record EntradaDeRegistro(LogLevel Nivel, Exception? Excepcion, string Mensaje);
+
+    private sealed class RegistroCapturado : ILogger<PreferenciasCuentaPropia>
+    {
+        public List<EntradaDeRegistro> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entradas.Add(new EntradaDeRegistro(logLevel, exception, formatter(state, exception)));
     }
 
     [Fact]
