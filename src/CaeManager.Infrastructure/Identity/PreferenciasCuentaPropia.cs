@@ -173,10 +173,12 @@ public sealed class PreferenciasCuentaPropia(
             // porque el 42501 también lo da una violación de WITH CHECK de una política RLS, y sin esta traza esa
             // denegación no dejaría diagnóstico: los llamadores solo ven el valor del enum. En Warning y no en Error
             // porque, en una Sesión Privilegiada, escribir actividad o tema es lo esperado y daría una alerta por cada
-            // interacción; la excepción adjunta conserva el detalle para quien investigue.
+            // interacción; la excepción adjunta conserva el detalle para quien investigue. No se registra una tabla
+            // aparte: PostgreSQL no rellena TableName en un 42501 (ni en el permiso de tabla ni en el WITH CHECK de
+            // RLS), y el mismo lote lleva la auditoría, así que el texto del error dice cuál fue la denegada.
             logger.LogWarning(ex,
-                "Escritura de preferencias de la cuenta {UsuarioId} denegada por la base: SQLSTATE {SqlState} en la tabla {Tabla}.",
-                usuarioId, denegada.SqlState, denegada.TableName ?? "AspNetUsers");
+                "Escritura de preferencias de la cuenta {UsuarioId} denegada por la base: SQLSTATE {SqlState}, {Detalle}.",
+                usuarioId, denegada.SqlState, denegada.MessageText);
             ConcurrenciaContexto.DescartarEdicionPerdida(contexto, [entrada]);
             return ResultadoEscrituraCuenta.NoPermitida;
         }

@@ -291,7 +291,8 @@ public sealed class PreferenciasCuentaPropiaTests : IAsyncLifetime
         entrada.Nivel.Should().Be(LogLevel.Warning);
         entrada.Excepcion.Should().BeOfType<DbUpdateException>().Which.InnerException
             .Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
-        entrada.Mensaje.Should().Contain(PostgresErrorCodes.InsufficientPrivilege).And.Contain("AspNetUsers");
+        entrada.Mensaje.Should().Contain(PostgresErrorCodes.InsufficientPrivilege).And.Contain(denegacion.MessageText,
+            "el texto de la base es lo que dice qué tabla o política negó la escritura");
     }
 
     [Fact]
