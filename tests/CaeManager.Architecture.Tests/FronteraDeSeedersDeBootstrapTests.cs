@@ -225,7 +225,7 @@ public class FronteraDeSeedersDeBootstrapTests
                 continue;
             }
 
-            var codigo = SinComentariosNiLiterales(File.ReadAllText(ficheros[0]));
+            var codigo = SinComentariosNiLiterales(File.ReadAllText(Path.Combine(raiz, ficheros[0])));
 
             if (!TieneGuardaDeDevelopment(codigo))
                 defectos.Add(
