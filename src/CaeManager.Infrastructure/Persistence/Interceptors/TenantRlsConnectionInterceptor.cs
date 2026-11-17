@@ -235,7 +235,13 @@ public class TenantRlsConnectionInterceptor(
     /// (solo lectura) no aísla nada por sí misma y la A (las políticas) solo mira el Tenant del contexto.
     /// Con una Sesión Privilegiada seleccionada y un Tenant efectivo distinto del seleccionado, la conexión
     /// <b>conserva <c>cae_app_soporte</c></b> y <b>se queda sin Tenant</b>: ninguna política casa un Tenant nulo,
-    /// así que no lee ninguna fila con RLS, y el rol no escribe en ninguna tabla, tenga RLS o no.
+    /// así que no lee ninguna fila con RLS, y el rol no tiene privilegio de escritura sobre ninguna tabla, tenga RLS o
+    /// no. Las funciones <c>SECURITY DEFINER</c> por las que soporte sí registra exigen un Tenant en el contexto.
+    /// </para>
+    /// <para>
+    /// Alcance: esta guarda decide lo que se aplica a la conexión. El sellado de un lote de <c>SaveChanges</c> dentro
+    /// de una transacción vuelve a firmar el Tenant del lote (<c>TenantSelladoInterceptor</c>) sin pasar por aquí; con
+    /// el rol de soporte ese lote no escribe (42501).
     /// </para>
     /// <para>
     /// Lo que la guarda nunca hace es quitar el rol: la conexión volvería al rol de login

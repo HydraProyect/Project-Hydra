@@ -170,7 +170,8 @@ public record ParteMiTrabajoDto(
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
     ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos,
-    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger, PuertaAccesoDatos? puerta = null)
+    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger, PuertaAccesoDatos? puerta = null,
+    IClienteActivoSeleccionado? seleccion = null)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
       IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
 {
@@ -203,7 +204,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     private async IAsyncEnumerable<ParteMiTrabajoDto> RecorrerAsync(
         bool serializarPorTenant, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var tenants = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var tenants = SoloElTenantObjetivoDeLaSesionPrivilegiada(
+            await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken));
         var hoy = DiaDeNegocio.Hoy();
 
         yield return new ParteMiTrabajoDto(tenants.Count, 0);
@@ -219,6 +221,17 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             yield return parte with { Total = tenants.Count, Completados = completados };
         }
     }
+
+    /// <summary>
+    /// Con una Sesión Privilegiada seleccionada, solo su Tenant objetivo. Una Sesión Privilegiada se concede sobre un
+    /// Tenant, y el interceptor de RLS deja sin Tenant cualquier ámbito explícito sobre otro (issue #2351): consultar los
+    /// demás solo daría Tenants no consultados y un error en el registro por cada uno. Con la sesión, el selector
+    /// tampoco cambia de Tenant, así que sus pendientes no le sirven a nadie.
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> SoloElTenantObjetivoDeLaSesionPrivilegiada(IReadOnlyList<ClienteAutorizadoDto> tenants) =>
+        seleccion is { SesionPrivilegiadaIdSeleccionada: not null, TenantIdSeleccionado: var objetivo }
+            ? tenants.Where(t => t.TenantId == objetivo).ToList()
+            : tenants;
 
     private async Task<ParteMiTrabajoDto> ConsultarTenantAsync(
         ClienteAutorizadoDto tenant, DateOnly hoy, CancellationToken cancellationToken)

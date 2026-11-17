@@ -34,14 +34,62 @@ public class MiTrabajoDegradaPorTenantTests
     private static readonly Guid TenantRefri = Guid.NewGuid();
     private static readonly Guid TenantRoto = Guid.NewGuid();
 
-    private static ObtenerMiTrabajoAgregadoQueryHandler Handler(IMediator mediator)
+    private static ObtenerMiTrabajoAgregadoQueryHandler Handler(IMediator mediator, IClienteActivoSeleccionado? seleccion = null)
     {
         var configuracion = new ConfiguracionQueryContextFalso();
         configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
 
         return new ObtenerMiTrabajoAgregadoQueryHandler(
             mediator, configuracion, new EmpresasQueryContextFalso(), new CalculoEstadoCentroSinUso(),
-            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance);
+            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance, seleccion: seleccion);
+    }
+
+    /// <summary>
+    /// Issue #2351: con una Sesión Privilegiada seleccionada, el interceptor de RLS deja sin Tenant cualquier ámbito
+    /// explícito sobre un Tenant distinto del objetivo. Mi trabajo no consulta esos Tenants: solo el objetivo.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_Sesion_Privilegiada_solo_se_consulta_su_Tenant_objetivo()
+    {
+        var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
+
+        var resultado = await Handler(mediator, new Seleccion(TenantRefri, sesionPrivilegiada: Guid.NewGuid()))
+            .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
+
+        resultado.Tenants.Select(t => t.TenantId).Should().Equal([TenantRefri]);
+        resultado.NoConsultados.Should().BeEmpty("los demás Tenants no se intentan, así que no fallan ni se registran");
+        mediator.Consultados.Should().Equal([TenantRefri], "no se abre ningún ámbito sobre un Tenant distinto del objetivo");
+    }
+
+    [Fact]
+    public async Task Con_una_Sesion_Privilegiada_cuyo_Tenant_objetivo_no_esta_en_la_lista_no_se_consulta_ninguno()
+    {
+        var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
+
+        var resultado = await Handler(mediator, new Seleccion(Guid.NewGuid(), sesionPrivilegiada: Guid.NewGuid()))
+            .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
+
+        resultado.Tenants.Should().BeEmpty();
+        mediator.Consultados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_Sesion_Privilegiada_una_seleccion_de_Tenant_no_recorta_la_cartera()
+    {
+        var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
+
+        var resultado = await Handler(mediator, new Seleccion(TenantRefri, sesionPrivilegiada: null))
+            .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
+
+        resultado.Tenants.Should().HaveCount(3, "el recorte es solo de la Sesión Privilegiada");
+        mediator.Consultados.Should().Equal([TenantOrigen, TenantRefri, TenantRoto]);
+    }
+
+    private sealed class Seleccion(Guid? tenant, Guid? sesionPrivilegiada) : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => tenant;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiada;
     }
 
     [Fact]
@@ -78,6 +126,8 @@ public class MiTrabajoDegradaPorTenantTests
 
     private sealed class MediatorQueFallaEn(Guid? tenantQueFalla, Exception? excepcion = null) : IMediator
     {
+        public List<Guid> Consultados { get; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             if (request is ObtenerClientesAutorizadosQuery)
@@ -93,6 +143,10 @@ public class MiTrabajoDegradaPorTenantTests
 
             if (AmbitoTenantExplicito.TenantIdActual is null)
                 throw new InvalidOperationException("La cola de un Tenant se consultó fuera de su ámbito.");
+
+            var consultado = AmbitoTenantExplicito.TenantIdActual.Value;
+            if (!Consultados.Contains(consultado))
+                Consultados.Add(consultado);
 
             if (AmbitoTenantExplicito.TenantIdActual == tenantQueFalla)
                 throw excepcion ?? new InvalidOperationException("Fallo determinista en este Tenant.");

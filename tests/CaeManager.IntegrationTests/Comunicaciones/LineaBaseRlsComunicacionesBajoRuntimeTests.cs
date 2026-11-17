@@ -280,11 +280,15 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
                    AND has_table_privilege('cae_app_runtime', c.oid, 'INSERT')
                  ORDER BY c.relname LIMIT 1
                 """) ?? throw new InvalidOperationException("barrera: hace falta una tabla sin RLS que el rol de login escriba");
-            (await EscalarAsync(propietaria, "SELECT has_table_privilege('cae_app_soporte', format('public.%I', @t), 'INSERT')",
-                ("t", tablaSinRls))).Should().Be(false, $"barrera: {tablaSinRls} no la escribe el rol de soporte");
+            (await EscalarAsync(propietaria, "SELECT has_any_column_privilege('cae_app_soporte', format('public.%I', @t), 'INSERT')",
+                ("t", tablaSinRls))).Should().Be(false, $"barrera: {tablaSinRls} no la escribe el rol de soporte, ni por columna");
         }
 
+        // Conexión retenida, como la de una operación de la puerta (D3): el paso al ámbito y la vuelta son
+        // realineaciones de la misma conexión física, no aperturas nuevas.
         await using var contexto = ContextoDeSesionPrivilegiada(objetivo: _ebro);
+        await contexto.Database.OpenConnectionAsync();
+        var pid = ((NpgsqlConnection)contexto.Database.GetDbConnection()).ProcessID;
         (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().Equal([_ebro], "control positivo");
 
         using (AmbitoTenantExplicito.Establecer(_norte))
@@ -299,6 +303,8 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
 
         (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().Equal([_ebro],
             "al cerrar el ámbito, la misma conexión vuelve a la Sesión Privilegiada sobre Ebro");
+        ((NpgsqlConnection)contexto.Database.GetDbConnection()).ProcessID.Should().Be(pid, "barrera: misma conexión física");
+        await contexto.Database.CloseConnectionAsync();
     }
 
     /// <summary>P-7. El Actor de Plataforma TALVEG visita Ebro con ámbito explícito (Tenant del contexto Ebro, Tenant de
