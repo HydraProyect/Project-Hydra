@@ -14,8 +14,9 @@ namespace CaeManager.Application.Tests.Inbound.AutorizacionesLectura;
 /// </summary>
 public class TieneAutorizacionLecturaConcedidaQueryTests
 {
-    // 2026-11-17 09:00 UTC: en Madrid ya es el 17 de noviembre.
-    private static readonly DateTime Ahora = new(2026, 11, 17, 9, 0, 0, DateTimeKind.Utc);
+    // 2026-11-16 23:30 UTC: en Madrid ya es el 17 de noviembre (00:30). Fija que la Query usa el día de negocio (DiaDeNegocio) y no
+    // la fecha UTC: con la fecha UTC, una autorización que empieza el 17 aún no estaría vigente.
+    private static readonly DateTime Ahora = new(2026, 11, 16, 23, 30, 0, DateTimeKind.Utc);
     private static readonly DateOnly Hoy = new(2026, 11, 17);
     private static readonly Guid TenantActivo = Guid.NewGuid();
     private static readonly Guid OtroTenant = Guid.NewGuid();
