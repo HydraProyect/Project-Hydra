@@ -234,11 +234,11 @@ public class PanelNoEncontradoTests : BunitContext
     private static readonly Guid Origen = Guid.Parse("eeeeeeee-0000-0000-0000-000000000001");
     private static readonly Guid Sur = Guid.Parse("eeeeeeee-0000-0000-0000-000000000003");
 
-    private sealed class Mediador(Func<IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
+    private sealed class Mediador(Func<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
     {
         public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
-                ? Task.FromResult((T)(object)lista())
+            request is ObtenerClientesAutorizadosQuery q
+                ? Task.FromResult((T)(object)lista(q))
                 : throw new NotSupportedException(request.GetType().Name);
 
         public Task Send<T>(T request, CancellationToken cancellationToken = default) where T : IRequest => throw new NotSupportedException();
@@ -255,6 +255,8 @@ public class PanelNoEncontradoTests : BunitContext
         new(Sur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
     ];
 
+    /// <summary>Lo que devuelve el handler a <see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>, si difiere de la lista por Tenant.</summary>
+    private IReadOnlyList<ClienteAutorizadoDto>? _listaParaTenantActivo;
     private readonly ToastService _toasts = new();
     private readonly ContextWorkspaceService _workspace = new();
 
@@ -262,7 +264,7 @@ public class PanelNoEncontradoTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new Mediador(_ => _lista()));
+        Services.AddScoped<IMediator>(_ => new Mediador(q => q.ParaTenantActivo && _listaParaTenantActivo is { } ampliada ? ampliada : _lista()));
         Services.AddScoped<ITenantActual>(_ => new TenantActualFijo(Sur));
         Services.AddSingleton(_toasts);
         Services.AddSingleton(_workspace);
@@ -279,6 +281,26 @@ public class PanelNoEncontradoTests : BunitContext
         _toasts.Mensajes.Should().ContainSingle().Which.Should().Match<ToastMensaje>(t =>
             t.Mensaje == "Esa ficha no está en Empresa Sur." && t.Tono == TonoToast.Info);
         cut.Markup.Should().NotContain("Reintentar");
+    }
+
+    [Fact]
+    public async Task D4_con_un_Tenant_alcanzado_solo_por_Inbound_el_toast_nombra_ese_Tenant()
+    {
+        // La lista por Tenant no trae Empresa Sur, que es el Tenant activo; la del Tenant activo, con su entrada Inbound, sí.
+        var norte = new ClienteAutorizadoDto(Guid.NewGuid(), "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true);
+        _lista = () => [new(Origen, "Operador de prueba", EsOrigen: true), norte];
+        _listaParaTenantActivo =
+        [
+            new(Origen, "Operador de prueba", EsOrigen: true), norte,
+            new(Sur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true)
+            { Servicio = CaeManager.Domain.Operaciones.ServicioCae.Inbound },
+        ];
+        await _workspace.AbrirAsync(EntidadWorkspace.Trabajador, Guid.NewGuid(), "Trabajador", "informacion");
+
+        var cut = Render<PanelNoEncontrado>();
+
+        cut.WaitForAssertion(() => _toasts.Mensajes.Should().ContainSingle().Which.Mensaje
+            .Should().Be("Esa ficha no está en Empresa Sur.", "no el Tenant de origen"));
     }
 
     [Fact]
