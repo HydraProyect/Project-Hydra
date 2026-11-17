@@ -1,0 +1,164 @@
+@* Pestaña «Requerimientos» del contrato de acceso (pantalla 19 de la maqueta de Inbound, «No aplica»): la tabla de requerimientos con su
+   estado y, en cada uno que lo admite, el botón «No aplica» (o «Editar» si ya lo tiene). Un requisito legal, preventivo o N1 sale con el
+   botón bloqueado. Sin backend fusionado (B-11 para los requerimientos, B-16 para la excepción): sin datos enseña el estado vacío que
+   enseñaba la pestaña, y no pinta ninguna fila. *@
+@inject IServicioNoAplica Servicio
+@inject ToastService ToastService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="4" />
+}
+else if (_error is not null)
+{
+    <EstadoVacio Titulo="No se pudieron cargar los requerimientos" Descripcion="@_error">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="() => CargarAsync(conEsqueleto: true)">Reintentar</Boton></Accion>
+    </EstadoVacio>
+}
+else if (_datos is null)
+{
+    <EstadoVacio NombreIcono="documentos" Titulo="@TituloVacio" Descripcion="@DescripcionVacio" />
+}
+else if (_datos.Requerimientos.Count == 0)
+{
+    <EstadoVacio NombreIcono="documentos" Titulo="Este contrato no tiene requerimientos" Descripcion="Cuando el contrato exija requisitos, aparecerán aquí." />
+}
+else
+{
+    <table class="tabla-datos prc-tabla" aria-label="Requerimientos del contrato de acceso" data-pieza="tabla-requerimientos">
+        <thead><tr>
+            <th scope="col">Requisito</th>
+            <th scope="col">Entidad</th>
+            <th scope="col">Origen</th>
+            <th scope="col">Estado</th>
+            <th scope="col"><span class="sr-only">Acción</span></th>
+        </tr></thead>
+        <tbody>
+        @foreach (var r in _datos.Requerimientos)
+        {
+            <tr @key="r.Id" data-requerimiento="@r.Id">
+                <td>
+                    <span class="prc-nombre" title="@r.Nombre">@r.Nombre</span>
+                    <div class="inbound-secundario">@r.Nota</div>
+                </td>
+                <td>@r.Entidad</td>
+                <td>@r.OrigenTexto</td>
+                <td>
+                    @if (r.Excepcion is { } e && Vigente(e) && e.TrabajadorId is null)
+                    {
+                        @* Todo el contrato: el requisito no se exige a nadie, y por eso no cuenta como validado. *@
+                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@DialogoNoAplica.EtiquetaEstado</Badge>
+                        <div class="inbound-secundario">@Alcance(e)</div>
+                    }
+                    else
+                    {
+                        @* Sin excepción, con la de un solo Trabajador (los demás siguen obligados) o con una vencida (vuelve a exigirse): el estado real. *@
+                        <Badge Tono="Tono(r.Estado)" Tamano="TamanoBadge.Pequeno">@Texto(r.Estado)</Badge>
+                        @if (!string.IsNullOrWhiteSpace(r.Detalle))
+                        {
+                            <div class="inbound-secundario">@r.Detalle</div>
+                        }
+                        @if (r.Excepcion is { } otra)
+                        {
+                            <div class="inbound-secundario" data-pieza="excepcion-parcial">@(Vigente(otra) ? $"{DialogoNoAplica.EtiquetaEstado}: {Alcance(otra)}" : $"Excepción vencida el {MascaraFecha.Formatear(otra.Hasta)}")</div>
+                        }
+                    }
+                </td>
+                <td class="prc-acciones">
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(!r.AdmiteNoAplica || SoloLectura)"
+                               title="@(!r.AdmiteNoAplica ? "Requisito legal, preventivo o de nivel N1: no admite No aplica" : SoloLectura ? "El contrato de acceso ya no admite cambios" : null)"
+                               OnClick="() => Abrir(r)">@(r.Excepcion is null ? "No aplica" : "Editar")</Boton>
+                    </SoloConEscritura>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <p class="inbound-secundario" data-pieza="nota-no-aplica">Los requisitos legales y preventivos no admiten No aplica. Una excepción la autoriza @_datos.TenantTce; el Gestor CAE solo la registra.</p>
+
+    <DialogoNoAplica Visible="_abierto" VisibleChanged="v => _abierto = v" ContratoId="@ContratoId" Requerimiento="_seleccionado"
+                     Empresa="@_datos.Empresa" Centro="@_datos.Centro" TenantTce="@_datos.TenantTce" Trabajadores="_datos.Trabajadores"
+                     OnGuardado="GuardadoAsync" />
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ContratoId { get; set; }
+    /// <summary>El contrato de acceso ya no admite cambios (Cancelado, Finalizado o Rechazado): la tabla se ve, «No aplica» no se ofrece.</summary>
+    [Parameter] public bool SoloLectura { get; set; }
+    [Parameter] public string TituloVacio { get; set; } = string.Empty;
+    [Parameter] public string DescripcionVacio { get; set; } = string.Empty;
+
+    private RequerimientosDeContrato? _datos;
+    private string? _error;
+    private bool _cargando = true;
+    private bool _abierto;
+    private RequerimientoDeContrato? _seleccionado;
+
+    private Guid? _cargadoDe;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Solo se vuelve a leer si cambia el contrato: un re-render del padre no puede vaciar la tabla ni cerrar el diálogo abierto.
+        if (_cargadoDe == ContratoId) return;
+        _cargadoDe = ContratoId;
+        await CargarAsync(conEsqueleto: true);
+    }
+
+    private async Task CargarAsync(bool conEsqueleto)
+    {
+        _cargando = conEsqueleto;
+        _error = null;
+        try
+        {
+            var respuesta = await Servicio.ObtenerAsync(ContratoId);
+            _datos = respuesta.Aceptada ? respuesta.Valor : null;
+            // «No disponible» es la pantalla sin backend; un rechazo del servidor es otra cosa y se dice.
+            if (respuesta.Disponible && respuesta.Mensaje is not null) _error = respuesta.Mensaje;
+        }
+        catch (Exception)
+        {
+            _datos = null;
+            _error = "Inténtalo de nuevo en unos segundos.";
+        }
+        _cargando = false;
+    }
+
+    private void Abrir(RequerimientoDeContrato requerimiento)
+    {
+        if (!requerimiento.AdmiteNoAplica || SoloLectura) return;
+        _seleccionado = requerimiento;
+        _abierto = true;
+    }
+
+    private static bool Vigente(ExcepcionNoAplica e) => e.Hasta is null || e.Hasta >= CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+
+    private async Task GuardadoAsync(ExcepcionNoAplica excepcion)
+    {
+        var nombre = _seleccionado?.Nombre;
+        _abierto = false;
+        await CargarAsync(conEsqueleto: false);
+        ToastService.Mostrar($"Guardado: «{nombre}». {Alcance(excepcion)}.", TonoToast.Exito);
+    }
+
+    private static string Alcance(ExcepcionNoAplica e) =>
+        (e.TrabajadorNombre ?? "Todo el contrato") + (e.Hasta is { } h ? $" · hasta el {MascaraFecha.Formatear(h)}" : " · permanente");
+
+    private static TonoBadge Tono(EstadoRequerimientoContrato estado) => estado switch
+    {
+        EstadoRequerimientoContrato.Validado => TonoBadge.Exito,
+        EstadoRequerimientoContrato.PendienteDeValidar or EstadoRequerimientoContrato.Parcial => TonoBadge.Advertencia,
+        EstadoRequerimientoContrato.Incompleto or EstadoRequerimientoContrato.Rechazado => TonoBadge.Peligro,
+        _ => TonoBadge.Neutro,
+    };
+
+    private static string Texto(EstadoRequerimientoContrato estado) => estado switch
+    {
+        EstadoRequerimientoContrato.Validado => "Validado",
+        EstadoRequerimientoContrato.PendienteDeValidar => "Pendiente de validar",
+        EstadoRequerimientoContrato.PendienteDeSubir => "Pendiente de subir",
+        EstadoRequerimientoContrato.Parcial => "Parcial",
+        EstadoRequerimientoContrato.Incompleto => "Incompleto",
+        _ => "Rechazado",
+    };
+}

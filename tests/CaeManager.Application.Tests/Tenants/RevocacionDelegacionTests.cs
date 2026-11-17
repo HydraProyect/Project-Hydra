@@ -408,8 +408,8 @@ public class RevocacionDelegacionTests
         delegacion.Activa.Should().BeTrue();
         writer.OperacionesAbiertas.Should().ContainSingle();
         transaccion.Ambitos.Should().Equal(TenantPropietario);
-        // Dos guardados en el Tenant propietario, en la misma transacción: la reactivación primero, para que la
-        // operación nazca con su DelegacionTenant de origen ya confirmada (AmparoDeOrigen), y después la operación.
+        // Dos guardados en el Tenant propietario: la reactivación primero, para que el trigger selle la
+        // operación contra la DelegacionTenant ya confirmada (PR #2237, ronda 3), y después la operación.
         guardados.Tenants.Should().Equal(TenantPropietario, TenantPropietario);
         AmbitoTenantExplicito.TenantIdActual.Should().Be(anterior);
     }

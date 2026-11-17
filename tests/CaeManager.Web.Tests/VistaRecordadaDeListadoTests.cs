@@ -49,7 +49,7 @@ public class VistaRecordadaDeListadoTests : BunitContext
 
     private sealed class MediadorDeVista : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public string? Recordada { get; set; }
         public Func<Task<string?>>? Lectura { get; set; }
         public Func<Result> Escritura { get; set; } = Result.Exito;

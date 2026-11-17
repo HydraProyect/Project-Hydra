@@ -371,7 +371,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<string, EmpresaPorCifDto> EmpresasPorCif { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>
         /// Lo que respondería Application en este Context Workspace: vacío en
@@ -2291,8 +2291,13 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var primera = new TaskCompletionSource<object?>();
+        var primeraSalio = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _mediador.Retener = peticion =>
-            peticion is BuscarEmpresaPorCifQuery { Cif: "A48220917" } ? primera.Task : null;
+        {
+            if (peticion is not BuscarEmpresaPorCifQuery { Cif: "A48220917" }) return null;
+            primeraSalio.TrySetResult();
+            return primera.Task;
+        };
         _mediador.EmpresasPorCif["B50331406"] = new EmpresaPorCifDto(EmpresaId, "Montajes Ebro S.L.", "B50331406");
 
         var cut = Renderizar();
@@ -2305,14 +2310,18 @@ public partial class UsuariosGen2Tests : BunitContext
         // Hay que esperar a que la primera búsqueda SALGA de verdad: si se
         // teclea el segundo CIF antes de que venza el rebote de CampoTexto,
         // el rebote cancela la primera, nunca llega a haber dos en vuelo y el
-        // caso probaría otra cosa.
-        cut.WaitForAssertion(() =>
-            _mediador.Enviadas.OfType<BuscarEmpresaPorCifQuery>().Should().ContainSingle());
+        // caso probaría otra cosa. Se espera a que el mediador la reciba, no a
+        // un sondeo de 1 s: el rebote es un Task.Delay real de 300 ms y con la
+        // máquina cargada se comía el plazo entero (#2261). El plazo de 10 s
+        // solo evita que el test se cuelgue si la búsqueda no sale nunca.
+        await primeraSalio.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        _mediador.Enviadas.OfType<BuscarEmpresaPorCifQuery>().Should().ContainSingle();
 
+        // InputAsync espera al manejador entero: el rebote, la búsqueda (que
+        // responde en el acto) y el repintado que la sigue.
         await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "B50331406");
 
-        cut.WaitForAssertion(() =>
-            cut.Find(".pista-documento-exito").TextContent.Should().Contain("Montajes Ebro S.L."));
+        cut.Find(".pista-documento-exito").TextContent.Should().Contain("Montajes Ebro S.L.");
 
         // Llega tarde la respuesta del CIF anterior, con OTRA empresa.
         primera.SetResult(new EmpresaPorCifDto(Guid.NewGuid(), "Refrielectric S.A.", "A48220917"));
@@ -2490,9 +2499,17 @@ public partial class UsuariosGen2Tests : BunitContext
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty();
         _toasts.Mensajes.Should().BeEmpty("el resultado del envío aún no existe");
 
+        // La respuesta del correo vuelve por el pool de hilos y la pantalla la pinta en un InvokeAsync que avisa con el toast
+        // y repinta en el mismo turno del dispatcher. Se espera a ese aviso y luego a un InvokeAsync propio, que se encola
+        // detrás de ese turno: un WaitForAssertion de 1 s medía la velocidad del runner, y con el pool o la CPU saturados
+        // vencía sin llegar a comprobar nada («Check count: 0», #2171). El plazo de 10 s solo evita colgarse.
+        var aviso = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _toasts.OnCambio += () => aviso.TrySetResult();
         _correo.Retenido.SetResult(Result.Exito());
-        cut.WaitForAssertion(() =>
-            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo reenviado"));
+        await aviso.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await cut.InvokeAsync(() => { });
+
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo reenviado");
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Correo de activación reenviado.");
     }
 

@@ -58,3 +58,11 @@ Mes anterior
 # 2026-11-13 (Revisión IA, D-49): «confirmable» y «confirmables» se escriben igual en catalán (rótulo del tratamiento y del filtro de la Revisión IA).
 Confirmable
 Confirmables
+# Tarjeta 31 (2026-11-16): «Plataforma» y «Tenants» se escriben igual en catalán (kicker de la pantalla de Plataforma).
+Plataforma · Tenants
+# Tarjeta 31: «Administrador», «del», «Tenant» y «TCE» se escriben igual en catalán.
+Administrador del Tenant TCE
+# Tarjeta 31: «Administrador» se escribe igual en catalán (paso del alta del Tenant TCE, rótulo de la maqueta).
+Administrador
+# Decisión D-2 (rótulo de línea del menú lateral): «Inbound · Tenant TCE» se escribe igual en catalán (nombre de la línea de producto y sigla TCE).
+Inbound · Tenant TCE

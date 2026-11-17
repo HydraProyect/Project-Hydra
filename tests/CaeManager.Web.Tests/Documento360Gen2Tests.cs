@@ -23,7 +23,7 @@ public partial class Documento360Gen2Tests : BunitContext
         public Dictionary<Guid, DocumentoDetalleDto> Detalles { get; } = [];
         public Result<Guid> ResultadoRenovar { get; set; } = Result.Exito(Guid.NewGuid());
         public Func<object, Task?>? Retener { get; set; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)

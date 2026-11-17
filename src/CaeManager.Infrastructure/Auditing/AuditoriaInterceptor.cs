@@ -368,6 +368,22 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     };
 
     /// <summary>
+    /// Grupos de propiedades que se auditan enteros: en un <c>Modified</c> en el que cambia cualquiera de ellas, el
+    /// registro lleva todas, aunque alguna conserve su valor. El sello del expediente de una Visita (D-4, #2005, Codex r3
+    /// de la #2266) es uno: al reabrirlo, el «antes» tiene que conservar el sello retirado completo, y la atribución
+    /// <c>SinUrgencia</c> de un sello no cambia al retirarlo (es también el valor sin sello), así que sin el grupo se
+    /// quedaría fuera del registro.
+    /// </summary>
+    private static readonly Dictionary<Type, string[]> GruposAuditadosJuntosPorTipo = new()
+    {
+        [typeof(Visita)] =
+        [
+            nameof(Visita.FechaHoraExpedienteCompletoUtc), nameof(Visita.AntelacionNominalHoras),
+            nameof(Visita.AntelacionEfectivaHoras), nameof(Visita.Tramo), nameof(Visita.Atribucion),
+        ],
+    };
+
+    /// <summary>
     /// Punto 7 del comentario de clase. Los datos personales del Trabajador más
     /// los campos de la ficha que <see cref="PropiedadesSensiblesPorTipo"/> ya
     /// enmascara siempre: hoy coinciden, pero la unión evita que un campo
@@ -538,6 +554,16 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             var propiedades = entrada.State == EntityState.Modified
                 ? entrada.Properties.Where(p => p.IsModified).ToList()
                 : entrada.Properties.ToList();
+
+            // Ver GruposAuditadosJuntosPorTipo: si cambia una propiedad del grupo, entran todas.
+            if (entrada.State == EntityState.Modified
+                && GruposAuditadosJuntosPorTipo.GetValueOrDefault(entrada.Entity.GetType()) is { } grupo
+                && propiedades.Any(p => grupo.Contains(p.Metadata.Name)))
+            {
+                foreach (var nombre in grupo)
+                    if (!propiedades.Any(p => p.Metadata.Name == nombre))
+                        propiedades.Add(entrada.Property(nombre));
+            }
 
             // Ver PropiedadesSilenciosasPorTipo: un Modified cuyo ÚNICO
             // cambio sea un campo silenciado no genera fila. Solo aplica a

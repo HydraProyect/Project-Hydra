@@ -113,6 +113,22 @@
             continue;
         }
 
+        if (_rotulosDeLinea.TryGetValue(grupo.Id, out var linea))
+        {
+            @* Rótulo separador de línea (D-2): solo cuando el menú enseña las dos. No es un enlace ni un control (sin foco, sin
+               href); es un encabezado de nivel 2 para que un lector de pantalla anuncie cada tramo de la navegación. La maqueta
+               de Design (.io-linea-tit) lo pinta en mayúsculas pequeñas, con una regla que ocupa el resto de la fila. *@
+            if (linea == LineaMenu.SinLinea)
+            {
+                @* Cierre del tramo: Administración y Plataforma no son de la línea de arriba. *@
+                <hr class="nav-linea-fin" />
+            }
+            else
+            {
+                <h2 class="nav-linea-rotulo" data-linea="@linea.ToString().ToLowerInvariant()">@RotuloDeLinea(linea)</h2>
+            }
+        }
+
         if (enlaces.Count == 1)
         {
             @* Un solo enlace: la cabecera no aporta nada y el grupo no se pliega. *@
@@ -182,6 +198,12 @@
     private IReadOnlyList<string>? _ordenEnlaces;
     private IReadOnlyList<CatalogoMenuLateral.GrupoVisible> _grupos = [];
     private IReadOnlyList<CatalogoMenuLateral.SubopcionVisible> _subopciones = [];
+    private IReadOnlyDictionary<string, LineaMenu> _rotulosDeLinea = new Dictionary<string, LineaMenu>();
+
+    // «Inbound · Tenant TCE» y no «Tenant TEC»: la línea Inbound solo está visible con el Producto Contratado Inbound vigente
+    // del Tenant (ILineaInboundVigente), que es el del Tenant TCE. El Tenant TEC participante no tiene Producto Contratado ni
+    // marcador todavía (falta EP-4/B-03), así que hoy no se puede distinguir; cuando exista, aquí se elige entre los dos rótulos.
+    private string RotuloDeLinea(LineaMenu linea) => linea == LineaMenu.Inbound ? Textos["MenuLineaInboundTce"].Value : Textos["MenuLineaOutbound"].Value;
 
     private string RotuloDe(SubopcionMenuLateral sub) =>
         sub.Fuente == FuenteRotuloSubopcion.TextosConfiguracion ? TextosConfiguracion[sub.ClaveRotulo].Value : Textos[sub.ClaveRotulo].Value;
@@ -250,5 +272,6 @@
         _contexto = _contexto with { Usuario = usuario };
         _grupos = CatalogoMenuLateral.Visibles(_contexto, _ordenGrupos, _ordenEnlaces);
         _subopciones = CatalogoMenuLateral.SubopcionesVisibles(_contexto, _grupos);
+        _rotulosDeLinea = CatalogoMenuLateral.RotulosDeLinea(_grupos);
     }
 }

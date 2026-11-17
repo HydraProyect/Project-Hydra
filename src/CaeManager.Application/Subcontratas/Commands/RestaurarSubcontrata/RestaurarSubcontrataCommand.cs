@@ -20,7 +20,8 @@ public record RestaurarSubcontrataCommand(Guid Id) : ICommand;
 
 public class RestaurarSubcontrataCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia,
+    IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RestaurarSubcontrataCommand, Result>
 {
     public async Task<Result> Handle(RestaurarSubcontrataCommand request, CancellationToken cancellationToken)
@@ -44,6 +45,12 @@ public class RestaurarSubcontrataCommandHandler(
         // restaurarla pasa por el mismo límite que RestaurarEmpresaCommand, bajo el mismo candado.
         return await limiteEmpresaPropia.SerializarAsync(async ct =>
         {
+            // La Asignación de Cartera se vuelve a decidir después de esperar el candado, sin el alcance memoizado de
+            // antes de la espera (issue #2118).
+            invalidadorAlcance?.Invalidar();
+            if (!await alcanceDatos.SubcontrataEliminadaParaGestionVisibleAsync(subcontrata.Id, ct))
+                return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata eliminada."));
+
             if (subcontrata.EsPropia
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);

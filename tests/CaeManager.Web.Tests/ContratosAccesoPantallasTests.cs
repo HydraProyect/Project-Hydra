@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.Commands.CerrarContratoAcceso;
+using CaeManager.Application.Inbound.ContratosAcceso.Commands.EliminarContratoAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratoAccesoPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
@@ -56,7 +57,7 @@ public class ContratosAccesoPantallasTests : BunitContext
 
         public bool FallaLaLista { get; init; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -295,6 +296,22 @@ public class ContratosAccesoPantallasTests : BunitContext
     }
 
     [Fact]
+    public void Eliminar_pide_confirmacion_y_envia_la_baja_con_la_version_leida()
+    {
+        var mediador = Preparar(Contrato(EstadoContratoAcceso.PendienteDeConfirmar, fin: new DateOnly(2099, 12, 31), inicio: new DateOnly(2098, 1, 1)));
+        var cut = Cargada(Render<ContratoAccesoDetalle>(p => p.Add(c => c.Id, ContratoId)));
+
+        cut.Find("button[aria-haspopup=menu]").Click();
+        cut.FindAll("[role=menuitem]").First(i => i.TextContent.Trim() == "Eliminar").Click();
+        cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarContratoAccesoCommand>().Should().ContainSingle());
+        var baja = mediador.Enviadas.OfType<EliminarContratoAccesoCommand>().Single();
+        baja.Id.Should().Be(ContratoId);
+        baja.Version.Should().Be(VersionContrato);
+    }
+
+    [Fact]
     public void Con_el_inicio_ya_pasado_un_contrato_Activo_no_se_cancela_ni_se_elimina()
     {
         Preparar(Contrato(fin: new DateOnly(2099, 12, 31)));
@@ -357,13 +374,9 @@ public class ContratosAccesoPantallasTests : BunitContext
         var grupos = CatalogoMenuLateral.Visibles(ContextoMenu(lineaInbound: true));
 
         var inbound = grupos.Single(g => g.Grupo.Id == "inbound");
-        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/validacion");
+        inbound.Enlaces.Select(e => e.Ruta).Should().BeEquivalentTo("inbound/contratos", "inbound/centros", "inbound/validacion", "inbound/informacion-centro");
     }
 
-    [Fact]
-    public async Task Sin_lectura_de_la_linea_Inbound_el_gate_falla_cerrado()
-    {
-        (await new LineaInboundNoDisponible().EstaVigenteAsync()).Should().BeFalse(
-            "no hay Query de lectura de LineaProductoContratado: hasta que exista, el menú de Inbound no se enseña a nadie");
-    }
+    // El gate de la línea Inbound (LineaInboundVigenteDelProductoContratado y AdmisionDeDestinos) lo cubre
+    // LineaInboundVigenteGateTests.
 }

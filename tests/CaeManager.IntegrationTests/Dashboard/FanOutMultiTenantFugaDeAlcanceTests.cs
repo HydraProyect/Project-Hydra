@@ -87,7 +87,7 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
             var operacion = AsignacionOperacion.Externa(
                 _tenantDelegante, _tenantConsultora, ServicioCae.Outbound,
                 AmbitoAsignacion.DeRelacionCliente(_clienteDentroCartera), ahora, null, ahora);
-            contexto.AsignacionesOperacion.Add(operacion);
+            OperacionExternaAmparada.Agregar(contexto, operacion, delegacionConCartera);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _usuario, Roles.GestorCae,
                 AmbitoAsignacion.Universal, ahora, null, ahora));

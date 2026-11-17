@@ -18,7 +18,7 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.Commands.CrearContratoA
 public record CrearContratoAccesoCommand(
     Guid ClienteEmpresarialId, Guid CentroId, Guid EmpresaContratistaId, DateOnly FechaInicio, DateOnly? FechaFin, string? Notas,
     CondicionesContratoAccesoDatos? Condiciones = null)
-    : ICommand<Guid>;
+    : ICommand<Guid>, IComandoInbound;
 
 public class CrearContratoAccesoCommandValidator : AbstractValidator<CrearContratoAccesoCommand>
 {

@@ -54,7 +54,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
 
         public required IReadOnlyList<DocumentoListaDto> Documentos { get; init; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

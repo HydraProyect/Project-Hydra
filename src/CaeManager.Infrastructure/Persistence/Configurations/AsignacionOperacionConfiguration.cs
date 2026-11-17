@@ -135,12 +135,12 @@ public class AsignacionOperacionConfiguration : IEntityTypeConfiguration<Asignac
             .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Procedencia de la operación externa: la DelegacionTenant de la que nace y las revocaciones que llevaba
-        // entonces (AmparoDeOrigen). Nullable porque la raíz y las internas no nacen de ninguna, porque las
-        // anteriores a la migración AnadeOrigenDeOperacionExterna no la tienen y porque la ranura anterior del
-        // despliegue azul-verde no escribe la columna: el trigger asignacion_operacion_sella_origen la deduce al
-        // insertar cuando el par tiene una sola delegación activa. Restrict, como el resto: una delegación nunca se
-        // borra ("desactivar, nunca borrar").
+        // Procedencia de la operación externa: la DelegacionTenant de la que nace y las revocaciones
+        // que llevaba entonces. Nullable porque la raíz y las internas no nacen de ninguna, y porque la
+        // ranura anterior del despliegue azul-verde no escribe la columna: el trigger
+        // asignacion_operacion_sella_origen la deduce al insertar cuando el par tiene una sola
+        // delegación activa, y si no, queda NULL y la operación no autoriza (los lectores fallan
+        // cerrados). Restrict, como el resto: una delegación nunca se borra ("desactivar, nunca borrar").
         builder.HasOne<DelegacionTenant>().WithMany()
             .HasForeignKey(a => a.OrigenId)
             .OnDelete(DeleteBehavior.Restrict);

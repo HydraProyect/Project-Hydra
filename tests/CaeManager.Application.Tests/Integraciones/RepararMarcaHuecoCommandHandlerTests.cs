@@ -42,11 +42,11 @@ public class RepararMarcaHuecoCommandHandlerTests
     private static RepararMarcaHuecoCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexiones, IUnitOfWork unitOfWork, CerrojoVerificacionBuzonFalso? cerrojo = null,
         AlcanceDatosServiceFalso? alcance = null, ILogger<RepararMarcaHuecoCommandHandler>? logger = null,
-        DescarteContado? descarte = null)
+        DescarteContado? descarte = null, string? rol = "Administrador")
     {
         cerrojo ??= new CerrojoVerificacionBuzonFalso();
         return new RepararMarcaHuecoCommandHandler(
-            conexiones, alcance ?? new AlcanceDatosServiceFalso(), cerrojo,
+            conexiones, alcance ?? new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), rol), cerrojo,
             new ReparacionMarcaHuecoService(conexiones, unitOfWork, cerrojo, descarte ?? new DescarteContado(), NullLogger<ReparacionMarcaHuecoService>.Instance),
             logger ?? NullLogger<RepararMarcaHuecoCommandHandler>.Instance);
     }
@@ -62,6 +62,47 @@ public class RepararMarcaHuecoCommandHandlerTests
         var conexiones = new ConexionIntegracionRepositorioFalso();
         conexiones.Agregar(conexion);
         return (conexion, conexiones);
+    }
+
+    /// <summary>
+    /// La pantalla no es una frontera de autorización: sin rol efectivo Administrador, Reparar no toma el cerrojo, no relee
+    /// la conexión ni registra la marca, y lo pendiente sigue por registrar.
+    /// </summary>
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    [InlineData("Consulta")]
+    [InlineData(null)]
+    public async Task Sin_rol_efectivo_Administrador_no_repara_ni_toca_nada(string? rol)
+    {
+        var porRegistrar = DateTime.UtcNow.AddMinutes(-10);
+        var (conexion, conexiones) = Deshabilitada(porRegistrar);
+        var marcaAntes = conexion.HuecoPendienteDesdeUtc;
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        var handler = CrearHandler(conexiones, unitOfWork, cerrojo, rol: rol);
+
+        var resultado = await handler.Handle(new RepararMarcaHuecoCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
+        cerrojo.Pedidos.Should().BeEmpty();
+        conexiones.VecesLeidaActual.Should().Be(0);
+        unitOfWork.VecesGuardado.Should().Be(0);
+        conexion.MarcaHuecoPorRegistrarDesdeUtc.Should().Be(porRegistrar, "lo pendiente sigue por registrar");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marcaAntes, "la marca no se registra");
+    }
+
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new RepararMarcaHuecoCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(DesconectarBuzonCommandHandler.CodigoSoloAdministrador);
     }
 
     [Fact]

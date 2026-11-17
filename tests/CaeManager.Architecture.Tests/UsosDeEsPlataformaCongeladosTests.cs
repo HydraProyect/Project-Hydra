@@ -259,12 +259,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "en 0). Lo retira el bloque B junto con los dos comandos que lo llaman"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(1, CategoriaUso.Autoridad,
-                ":55, en OR con la vía del cliente visitado. B reescribe el predicado por concesión propia. " +
-                "AVISO: D-6 obliga a conservar la rama del cliente, y ESTE RATCHET NO LO COMPRUEBA — solo " +
-                "cuenta el flag. Si B rompiera únicamente esa rama, el conteo seguiría en 1 y esto pasaría en " +
-                "verde. Hoy la rama del cliente tiene cobertura CERO en los cinco proyectos de test, así que " +
-                "nada la protege; B debe añadir esa prueba y enlazarla desde aquí. No leas esta entrada como " +
-                "cobertura de la vía del cliente: no lo es"),
+                ":109 (vía por Delegación de Tenant de Soporte), en OR con la vía del cliente visitado. B " +
+                "reescribe el predicado por concesión propia. AVISO: D-6 obliga a conservar la rama del " +
+                "cliente, y ESTE RATCHET NO LO COMPRUEBA — solo cuenta el flag. La rama del Tenant propietario visitado la cubren " +
+                "desde la issue #2016 ObtenerActividadSoporteQueryTests (Application) y " +
+                "ActividadSoporteDelTenantPropietarioBajoRuntimeTests (integración); la rama de plataforma " +
+                "sigue sin test propio. No leas esta entrada como cobertura de ninguna de las dos"),
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
@@ -294,7 +294,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "tendría delta de comportamiento"),
         ["src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs"] =
             new(2, CategoriaUso.ReglaComercial,
-                ":137 (proyección) y :144 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
+                ":139 (proyección) y :146 (predicado) rechazan contratar la línea Inbound al Tenant de plataforma (B-04a), " +
                 "como RegistrarSuscripcionTenant rechaza suscribirlo: no concede nada. Defensa en profundidad, porque " +
                 "ReglaTenantObjetivoAjeno ya impide abrir la Sesión Privilegiada de Aprovisionamiento sobre la casa propia"),
         ["src/CaeManager.Application/Comercial/Queries/ObtenerEstadoComercialTenants/ObtenerEstadoComercialTenantsQuery.cs"] =
@@ -307,6 +307,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "plataforma — mismo criterio que RegistrarSuscripcionTenantCommand:69: TALVEG no se " +
                 "instruye tratamiento a sí misma. La autorización real es PuedeSobreTenantAsync, dos " +
                 "líneas antes"),
+        ["src/CaeManager.Application/Cumplimiento/Subencargados/AutorizacionSubencargados.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "rechaza la objeción a un subencargado (#2010, D-7) desde el Tenant de Plataforma: solo objeta el " +
+                "Administrador de un Tenant propietario. Impide, no concede: la autoridad la da " +
+                "AutoridadSobreAceptacionContractual.EsAdministradorDelTenantPropietarioAsync"),
+        ["src/CaeManager.Infrastructure/Persistence/Repositories/SubencargadoRepository.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "excluye el Tenant de Plataforma de los Tenants propietarios a los que se avisa y cuyo aviso " +
+                "exige la activación de un subencargado (#2010, D-7); no concede nada"),
         ["src/CaeManager.Application/Comercial/Common/TenantComercialExtensions.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":15 define EsSuscribible = !EsPlataforma. Nuevo en la corrección de hallazgo Codex del " +
@@ -490,6 +499,12 @@ public class UsosDeEsPlataformaCongeladosTests
                 "comentario y predicado de app_revocar_operador_cae_externo_por_soporte en el Up y el mismo predicado en " +
                 "el Down (cuerpo de 20261026120000): la función se reescribe para cerrar también las Asignaciones de " +
                 "Operación Outbound acotadas (decisión de Chris del 2026-11-14) y no cambia qué cuenta admite. Solo restringe"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261116040000_AnadeProcedenciaDeOperacionExterna.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "el mismo predicado de app_revocar_operador_cae_externo_por_soporte (cuerpo de 20261114120000) en el Up y " +
+                "en el Down: la función se reescribe solo para bloquear sus operaciones con FOR NO KEY UPDATE en vez de " +
+                "FOR UPDATE (interbloqueo con el Encargo de Administración, ronda 4 de Codex en la PR #2237) y no cambia " +
+                "qué cuenta admite. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
             new(2, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +

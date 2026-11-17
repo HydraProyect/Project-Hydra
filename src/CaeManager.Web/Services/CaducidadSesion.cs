@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -73,6 +74,24 @@ namespace CaeManager.Web.Services;
 /// petición. Que el identificador siga vivo en la base lo comprueba la revalidación
 /// del sello (<c>SignInManagerCuentaDesactivada.ValidateSecurityStampAsync</c>),
 /// cada 60 s, para la cookie y para el circuito por igual.
+/// </para>
+///
+/// <para>
+/// <b>Token de la extensión (issue #1891).</b> Lleva la hora de inicio y la última interacción
+/// de la sesión de la que salió (<see cref="MarcasParaExtension"/>), y vale mientras esa sesión
+/// valdría con estas mismas reglas (<see cref="SesionOrigenVigente"/>, que aplica
+/// <see cref="SesionOrigenExtension"/>): tope desde el inicio y plazo del Tenant propietario de la
+/// cuenta, el menor entre el que regía al emitir, que va en el token, y el vigente, con la
+/// interacción más reciente entre la del token y la anotada en <see cref="ActividadSesiones"/>.
+/// Usar la extensión no cuenta como interacción. Por eso vencer por inactividad no revoca el
+/// identificador de sesión: sin una señal de la interfaz web, que la cookie ya caducada no
+/// admite, ninguna marca avanza, tampoco tras un reinicio, que solo vacía la memoria, y ampliar
+/// el plazo del Tenant no alarga el del token. Queda un caso, el mismo que tiene una copia de la
+/// cookie: el plazo se acorta por debajo del que regía al emitir, la sesión vence y luego el plazo
+/// vuelve a ampliarse; el token vuelve a valer hasta el plazo con que se emitió, y la copia de la
+/// cookie, que toma el plazo vigente en su revalidación, también. Ninguna de las dos credenciales
+/// guarda que su sesión venció. Cerrarlo exige que vencer sea irreversible para la sesión entera, no
+/// solo para el token, y eso queda fuera de este cambio, pendiente de decisión.
 /// </para>
 ///
 /// <para>
@@ -245,6 +264,40 @@ public static class CaducidadSesion
         SigueActiva(principal, ultimaRegistrada, ahora, PlazoInactividad(principal));
 
     /// <summary>
+    /// Las marcas que se guardan en el token de la extensión (issue #1891): la hora de inicio y la
+    /// interacción más reciente entre la del principal y <paramref name="ultimaRegistrada"/>. Sin marca
+    /// de interacción cuenta el inicio. <c>null</c> si la sesión ya no está vigente: sin inicio legible,
+    /// pasada de <see cref="DuracionMaxima"/> o caducada con el <see cref="PlazoInactividad"/> del principal.
+    /// </summary>
+    public static MarcasSesionOrigen? MarcasParaExtension(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
+    {
+        if (Leer(principal.FindFirst(MarcaInicio)?.Value) is not { } inicio || !EsVigente(inicio, ahora))
+            return null;
+
+        var marca = Leer(principal.FindFirst(MarcaInteraccion)?.Value) ?? inicio;
+        var ultima = marca < ultimaRegistrada ? ultimaRegistrada.Value : marca;
+        var plazo = PlazoInactividad(principal);
+        return SigueActiva(ultima, ahora, plazo) ? new MarcasSesionOrigen(inicio, ultima, plazo) : null;
+    }
+
+    /// <summary>
+    /// ¿Sigue vigente la sesión de origen de un token de extensión? Las mismas reglas que la cookie:
+    /// menos de <see cref="DuracionMaxima"/> desde el inicio y una interacción, la del token o
+    /// <paramref name="ultimaRegistrada"/> si es posterior, dentro del menor entre el plazo que regía al
+    /// emitir (<see cref="MarcasSesionOrigen.PlazoInactividad"/>) y el <see cref="PlazoInactividad"/> de
+    /// <paramref name="cuenta"/>: acortarlo rige ya y ampliarlo no revive un token vencido. El uso del
+    /// token no cuenta como interacción: nadie anota nada por él.
+    /// </summary>
+    public static bool SesionOrigenVigente(
+        ClaimsPrincipal cuenta, MarcasSesionOrigen marcas, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
+    {
+        var vigente = PlazoInactividad(cuenta);
+        var plazo = marcas.PlazoInactividad < vigente ? marcas.PlazoInactividad : vigente;
+        return EsVigente(marcas.Inicio, ahora)
+            && SigueActiva(marcas.UltimaInteraccion < ultimaRegistrada ? ultimaRegistrada : marcas.UltimaInteraccion, ahora, plazo);
+    }
+
+    /// <summary>
     /// ¿Admite el ajuste vigente del Tenant, recién leído de la base en <paramref name="vigente"/>,
     /// un circuito que sigue con el principal de cuando se conectó? No, si con el plazo vigente la
     /// sesión ya caducó o si la cuenta tiene ahora una activación que antes no tenía: esa solo se
@@ -280,7 +333,10 @@ public static class CaducidadSesion
         && peticion.Headers["Sec-Fetch-Site"] == "same-origin";
 
     private static bool EsVigente(string? marca, DateTimeOffset ahora) =>
-        Leer(marca) is { } inicio && inicio <= ahora && ahora - inicio < DuracionMaxima;
+        Leer(marca) is { } inicio && EsVigente(inicio, ahora);
+
+    private static bool EsVigente(DateTimeOffset inicio, DateTimeOffset ahora) =>
+        inicio <= ahora && ahora - inicio < DuracionMaxima;
 
     private static DateTimeOffset? Leer(string? marca) =>
         long.TryParse(marca, NumberStyles.None, CultureInfo.InvariantCulture, out var segundos)

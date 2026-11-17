@@ -286,7 +286,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
     /// Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md) — se construye el fallo genéricamente por
     /// reflexión para no acoplar este behavior a cada tipo de respuesta.
     /// </summary>
-    private static TResponse CrearRespuestaFallo<T>(Error error)
+    internal static TResponse CrearRespuestaFallo<T>(Error error)
     {
         var tipoRespuesta = typeof(T);
 

@@ -22,7 +22,7 @@ public class ClavesApiGen2Tests : BunitContext
     public ClavesApiGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
     private sealed class Mediador : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public Queue<TaskCompletionSource> EsperasGeneracion { get; } = [];

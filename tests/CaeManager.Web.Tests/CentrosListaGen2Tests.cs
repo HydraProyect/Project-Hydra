@@ -55,7 +55,7 @@ public partial class CentrosListaGen2Tests : BunitContext
     private sealed class MediatorPorTipo : IMediator
     {
         public required IReadOnlyList<CentroListaDto> Centros { get; init; }
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public int? EliminadosDelLote { get; set; }
         /// <summary>Ids que el lote pide y no elimina: no entran en IdsEliminados.</summary>
         public HashSet<Guid> NoEliminables { get; } = [];

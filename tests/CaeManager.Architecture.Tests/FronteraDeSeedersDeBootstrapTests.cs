@@ -47,6 +47,13 @@ public class FronteraDeSeedersDeBootstrapTests
         ["PlantillasRespuestaSeeder"] =
             "instala contenido estático de catálogo en los Tenants propietarios existentes durante el arranque; " +
             "no lee ni copia datos operativos entre ellos y filtra cada consulta por el Tenant propietario",
+        // Decisión de Chris, DECISION_LOG 2026-11-16 («identidad de la siembra de la línea Inbound»; commit 26ea503 de
+        // Project-Hydra-Negocio): la opción A, solo esta fila. El resto de la siembra Inbound sigue con dbContext.
+        ["LineaInboundDemoSeeder"] =
+            "escribe una sola fila de ProductosContratados, la línea Inbound vigente del Tenant TCE de la siembra Inbound de " +
+            "Development: en esa tabla cae_app_runtime solo lee y el único rol que inserta, cae_app_aprovisionamiento, exige " +
+            "una Sesión Privilegiada de Aprovisionamiento que el arranque no tiene. Solo en Development, solo sobre ese " +
+            "Tenant con su marcador de demo, dentro de su ámbito explícito e idempotente",
     };
 
     /// <summary>

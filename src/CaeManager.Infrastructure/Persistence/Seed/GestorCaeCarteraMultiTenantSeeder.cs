@@ -87,6 +87,12 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// <summary>Días hasta el vencimiento del documento «a punto de vencer»: dentro del umbral ámbar (30) y fuera del rojo (15).</summary>
     private const int DiasProximo = 27;
 
+    /// <summary>
+    /// Días hasta la Visita sembrada: dentro de la ventana de aviso (48 h por defecto, dos días) y a más
+    /// de uno, para que siga «por empezar» aunque la medianoche de Madrid caiga durante el recorrido.
+    /// </summary>
+    private const int DiasHastaVisitaProxima = 2;
+
     /// <param name="Empleador">Empresa propia del Tenant, o la Subcontrata si <paramref name="EmpleadorEsSubcontrata"/>.</param>
     private sealed record RamaE2E(
         string NombreTenant, bool EnCartera, string Cliente, string Empleador, string Centro, string CodigoCentro,
@@ -158,7 +164,15 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
                 esOperadorCaeExterno: false);
 
-            await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken);
+            // Revocada desde la interfaz, la rama no reabre nada: el writer lanzaría sin delegación vigente y el arranque
+            // caería (PR #2237).
+            if (!await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken))
+            {
+                logger.LogWarning(
+                    "Rama E2E de Gestor CAE con cartera multi-Tenant: la delegación de {Tenant} está revocada; no se reabre.",
+                    rama.NombreTenant);
+                continue;
+            }
             if (rama.ConGestorDeApoyo)
                 await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, gestorDeApoyo, cancellationToken);
 
@@ -200,9 +214,9 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// La delegación del Tenant beneficiario al Operador CAE externo, bajo el ámbito
     /// del Operador (le pertenece). Con Gestor CAE, además su asignación de operador
     /// delegado; sin él (Tenant fuera de cartera), la delegación queda sin nadie del
-    /// Operador que la opere como Gestor CAE.
+    /// Operador que la opere como Gestor CAE. Devuelve si la delegación sigue activa.
     /// </summary>
-    private static async Task AbrirOperacionHeredadaAsync(
+    private static async Task<bool> AbrirOperacionHeredadaAsync(
         CaeManagerDbContext dbContext, Guid tenantOperadorId, Guid tenantBeneficiarioId, ApplicationUser? gestor,
         CancellationToken cancellationToken)
     {
@@ -217,14 +231,18 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
 
+            // Revocada, o con historia (revocada y reactivada, filas heredadas revocadas, operaciones sin ninguna
+            // amparada): la siembra no reabre nada (rondas 1 y 2 de Codex en la PR #2237).
+            if (!delegacion.Activa || await HistoriaDelParEnSiembra.TieneHistoriaAsync(dbContext, delegacion, cancellationToken))
+                return false;
             if (gestor is null
-                || await dbContext.AsignacionesOperadorDelegado.AnyAsync(
-                    a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == gestor.Id, cancellationToken))
-                return;
+                || !await HistoriaDelParEnSiembra.PuedeSembrarFilaHeredadaAsync(dbContext, delegacion, gestor.Id, cancellationToken))
+                return true;
 
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae));
+                new AsignacionOperadorDelegado(delegacion.Id, gestor.Id, Roles.GestorCae, delegacion.Revocaciones));
             await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
         }
     }
 
@@ -319,8 +337,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
         dbContext.Documentos.AddRange(formacion, aptitud);
         dbContext.AcreditacionesDocumentoPlataforma.AddRange(acreditacionRechazada, acreditacionVencida);
 
-        // Mañana: dentro de las 48 h de aviso por defecto, así que entra en la cola como «Visita próxima».
-        var visita = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(1), notas: null, OrigenVisita.Plataforma);
+        // Pasado mañana: el último día dentro de las 48 h de aviso por defecto, así que entra en la cola
+        // como «Visita próxima» (Urgente). No mañana: la siembra fija el día una vez, al arrancar la
+        // fixture, y la cola se lee después con el día de negocio de ese momento. Si entre las dos cae
+        // la medianoche de Madrid, la Visita de mañana empieza «hoy», pasa a En curso y sale de la cola
+        // (SoloPorEmpezar), y el E2E falla sin defecto (#2146). A dos días aguanta esa medianoche:
+        // queda a uno, Crítica, y sigue siendo «Visita próxima».
+        var visita = new Visita(centro.Id, hoy.AddDays(DiasHastaVisitaProxima), hoy.AddDays(DiasHastaVisitaProxima),
+            notas: null, OrigenVisita.Plataforma);
         dbContext.Visitas.Add(visita);
         dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajador.Id));
 
