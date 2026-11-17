@@ -50,7 +50,7 @@ public sealed class SelectorTemaSesionPrivilegiadaTests : BunitContext
         cut.WaitForAssertion(() => _preferencias.Lecturas.Should().Be(1));
         cut.FindAll("button.selector-tema").Should().BeEmpty();
         cut.FindAll(".selector-tema-envoltura").Should().BeEmpty();
-        cut.Markup.Should().NotContain("No disponible", "el islote no cae en el aviso de error: el control simplemente no se ofrece");
+        cut.FindAll("[data-limite-errores]").Should().BeEmpty("el islote no cae en el aviso de error: el control simplemente no se ofrece");
     }
 
     private sealed class ProveedorDeUsuario(Guid usuarioId) : AuthenticationStateProvider
