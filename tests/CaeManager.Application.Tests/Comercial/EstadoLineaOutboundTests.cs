@@ -78,6 +78,16 @@ public class EstadoLineaOutboundTests
     }
 
     [Fact]
+    public async Task Una_vigente_antigua_y_una_finalizada_posterior_dan_Vigente()
+    {
+        // Manda el estado más fuerte, no el contrato más reciente ni el último en leerse.
+        Contratar(Tenant, desde: Ahora.AddDays(-90));
+        Contratar(Tenant, desde: Ahora.AddDays(-10)).Finalizar(Ahora.AddDays(-1), ahoraUtc: Ahora);
+
+        (await LeerAsync()).Should().Be(EstadoLineaOutbound.Vigente);
+    }
+
+    [Fact]
     public async Task La_unica_linea_Outbound_eliminada_es_SinLinea()
     {
         Contratar(Tenant).MarcarComoEliminado(Guid.NewGuid());

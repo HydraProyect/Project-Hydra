@@ -16,6 +16,8 @@ public enum EstadoLineaOutbound
     /// Un Producto Contratado de la línea Outbound <see cref="EstadoProductoContratado.Vigente"/> cuyo inicio todavía no
     /// ha llegado, y ninguno ya en vigor. Inalcanzable mientras no se decida el inicio diferido
     /// (<c>ProductoContratado.Contratar</c>); existe para que una fila así nunca caiga en <see cref="Finalizada"/>.
+    /// La única salvedad es el reloj: el inicio se sella con el <c>now()</c> de la base y aquí se compara con el de la
+    /// aplicación, así que un desfase puede dar Programada unos segundos justo después de contratar (falla cerrado).
     /// </summary>
     Programada,
 
@@ -49,6 +51,15 @@ public enum EstadoLineaOutbound
 /// las filas del Tenant activo. Preguntar por otro Tenant responde <see cref="EstadoLineaOutbound.SinLinea"/>, que para
 /// la guarda de EP-4 es negar: falla cerrado. El filtro por Tenant y por filas no eliminadas se escribe aquí aunque lo
 /// repitan el filtro global de la entidad y la RLS, para que la respuesta no dependa de que el contexto los aplique.
+/// Bajo <c>cae_app_aprovisionamiento</c> la política RESTRICTIVE <c>aprovisionamiento_solo_lee_inbound</c> oculta las
+/// filas que no son Inbound, así que ahí respondería <see cref="EstadoLineaOutbound.SinLinea"/>: no se consulta bajo esa
+/// identidad.
+/// </para>
+///
+/// <para>
+/// Va fuera de MediatR y lee el contexto de persistencia de quien lo resuelve. Su consumidor previsto es un behavior del
+/// pipeline. Un componente Blazor no lo llama directamente, sino a través de <c>PuertaAccesoDatos</c>; si no, compartiría
+/// en paralelo el <c>DbContext</c> del circuito con el layout.
 /// </para>
 ///
 /// <para>
