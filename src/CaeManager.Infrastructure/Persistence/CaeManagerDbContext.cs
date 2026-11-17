@@ -100,10 +100,14 @@ public class CaeManagerDbContext(
         CaeManager.Application.Calendario.ICalendarioLaboralQueryContext,
         CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext,
         CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext,
-        CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext
+        CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext,
+        CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext
 {
     // Línea Inbound vigente del Tenant beneficiario: el runtime solo tiene SELECT y la política aislamiento_tenant.
     IQueryable<CaeManager.Domain.Comercial.ProductoContratado> CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext.ProductosContratados => ProductosContratados.AsNoTracking();
+
+    // Estado de la línea Outbound del Tenant beneficiario (guarda de EP-4): mismo SELECT y misma política.
+    IQueryable<CaeManager.Domain.Comercial.ProductoContratado> CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext.ProductosContratados => ProductosContratados.AsNoTracking();
 
     // Plantillas de requisitos del Tenant TCE (B-14), con RLS por Tenant.
     public DbSet<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos> PlantillasRequisitos => Set<CaeManager.Domain.Inbound.Requisitos.PlantillaRequisitos>();
