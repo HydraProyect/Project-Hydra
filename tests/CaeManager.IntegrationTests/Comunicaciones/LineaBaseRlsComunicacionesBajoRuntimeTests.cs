@@ -101,8 +101,12 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
 
             _filas[tenant] = new()
             {
-                ["Conversaciones"] = conversacion.Id, ["Mensajes"] = mensaje.Id, ["ParticipantesConversacion"] = participante.Id,
-                ["AdjuntosMensaje"] = adjunto.Id, ["NotasInternasConversacion"] = nota.Id, ["EventosConversacion"] = evento.Id,
+                ["Conversaciones"] = conversacion.Id,
+                ["Mensajes"] = mensaje.Id,
+                ["ParticipantesConversacion"] = participante.Id,
+                ["AdjuntosMensaje"] = adjunto.Id,
+                ["NotasInternasConversacion"] = nota.Id,
+                ["EventosConversacion"] = evento.Id,
                 ["ConexionesIntegracion"] = conexion.Id,
             };
         }
@@ -410,8 +414,16 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
         var leidos = new List<Guid>();
         foreach (var tabla in tablas)
             leidos.AddRange(await contexto.Database.SqlQueryRaw<Guid>(
-                $"""SELECT "TenantId" AS "Value" FROM "{tabla}" WHERE "Id" = ANY(@ids)""", new NpgsqlParameter("ids", TodasLasFilas(tabla))).ToListAsync());
+                SqlTenantsDe(tabla), new NpgsqlParameter("ids", TodasLasFilas(tabla))).ToListAsync());
         return leidos.Distinct().ToList();
+    }
+
+    // Un nombre de tabla es un identificador y no se puede parametrizar: se construye aquí, fuera de la llamada a
+    // SqlQueryRaw, y solo desde la lista cerrada de tablas de la prueba. Los valores (@ids) sí van como parámetro.
+    private static string SqlTenantsDe(string tabla)
+    {
+        if (!Tablas.Contains(tabla)) throw new ArgumentException($"Tabla fuera de la lista cerrada: {tabla}", nameof(tabla));
+        return $"""SELECT "TenantId" AS "Value" FROM "{tabla}" WHERE "Id" = ANY(@ids)""";
     }
 
     /// <summary>Inserta una copia de la fila <paramref name="origen"/> con Id nuevo y el Tenant indicado.</summary>
