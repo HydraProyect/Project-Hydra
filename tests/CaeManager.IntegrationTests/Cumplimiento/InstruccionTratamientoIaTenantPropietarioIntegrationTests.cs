@@ -90,7 +90,7 @@ public class InstruccionTratamientoIaTenantPropietarioIntegrationTests : IAsyncL
         await using var contextoLectura = CrearContexto();
         using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
         {
-            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLectura));
+            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLectura), new SubencargadoRepository(contextoLectura));
 
             (await servicio.EstaHabilitadaAsync(_tenantClienteId)).Should().BeFalse(
                 "control negativo: sin fila vigente, el Nivel 0 tiene que denegar");
@@ -106,7 +106,7 @@ public class InstruccionTratamientoIaTenantPropietarioIntegrationTests : IAsyncL
         await using var contextoLecturaTrasRegistro = CrearContexto();
         using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
         {
-            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLecturaTrasRegistro));
+            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLecturaTrasRegistro), new SubencargadoRepository(contextoLecturaTrasRegistro));
 
             (await servicio.EstaHabilitadaAsync(_tenantClienteId)).Should().BeTrue(
                 "control positivo: con una fila vigente para este tenant, el Nivel 0 tiene que autorizar");
@@ -204,7 +204,7 @@ public class InstruccionTratamientoIaTenantPropietarioIntegrationTests : IAsyncL
         await using var contextoLecturaTrasRevocar = CrearContexto();
         using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
         {
-            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLecturaTrasRevocar));
+            var servicio = new InstruccionTratamientoIaService(new InstruccionTratamientoIaTenantPropietarioRepository(contextoLecturaTrasRevocar), new SubencargadoRepository(contextoLecturaTrasRevocar));
             (await servicio.EstaHabilitadaAsync(_tenantClienteId)).Should().BeFalse("revocar cierra la fila vigente, el Nivel 0 vuelve a denegar");
         }
 

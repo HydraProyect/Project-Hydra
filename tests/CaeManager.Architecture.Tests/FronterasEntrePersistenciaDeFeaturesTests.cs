@@ -336,6 +336,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.CambiarAddOnSubidaAutomaticaCommandHandler", "ITenantsQueryContext"),
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
+        // #2010, D-7: la objeción a un subencargado la registra el Administrador del Tenant propietario,
+        // nunca el Tenant de Plataforma; el handler solo lee Tenant.EsPlataforma del Tenant de la sesión
+        // para rechazarlo (AutorizacionSubencargados).
+        ("Cumplimiento.ObjetarSubencargadoCommandHandler", "ITenantsQueryContext"),
         // Línea Inbound (B-04a): solo comprueba que el Tenant beneficiario existe y no es el de plataforma antes de
         // contratarle el Producto Contratado. No escribe en Tenants.
         ("Comercial.ContratarLineaInboundCommandHandler", "ITenantsQueryContext"),
