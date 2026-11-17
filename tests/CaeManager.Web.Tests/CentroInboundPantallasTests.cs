@@ -272,7 +272,7 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Aptos_hoy_con_datos_enseña_sus_cuatro_columnas_la_nota_los_filtros_y_el_detalle_de_fechas()
+    public async Task Aptos_hoy_con_datos_enseña_sus_cuatro_columnas_la_nota_los_filtros_y_el_detalle_de_fechas()
     {
         // Las fechas llegan como DateOnly y las formatea el adaptador real, no el fixture.
         Preparar(aptosDelBackend:
@@ -284,7 +284,7 @@ public class CentroInboundPantallasTests : BunitContext
                 EstadoAptitudInbound.Apto, null, null, null, new DateOnly(2027, 3, 2)),
         ], contratos: Contrato());
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         var panel = cut.Find("[data-pieza=aptos-hoy]");
         panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim())
@@ -298,7 +298,7 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Aptos_hoy_con_la_proyeccion_restringida_no_pinta_requisito_ni_Todo_validado_ni_tipo_de_contrato()
+    public async Task Aptos_hoy_con_la_proyeccion_restringida_no_pinta_requisito_ni_Todo_validado_ni_tipo_de_contrato()
     {
         // Sin ValidarInbound la Query devuelve las filas ya restringidas (duda 6): nombre, DNI parcial, Empresa y apto o no apto.
         Preparar(aptosDelBackend:
@@ -309,7 +309,7 @@ public class CentroInboundPantallasTests : BunitContext
                 EstadoAptitudInbound.Apto, null, null, null, null, ProyeccionCompleta: false),
         ], contratos: Contrato());
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         var panel = cut.Find("[data-pieza=aptos-hoy]");
         panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa contratista", "Hoy");
