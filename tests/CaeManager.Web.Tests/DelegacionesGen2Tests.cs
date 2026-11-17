@@ -424,6 +424,33 @@ public partial class DelegacionesGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// #2016 (revisión): la RLS de <c>RegistrosActividadSoporte</c> solo entrega la traza al Administrador del Tenant
+    /// propietario y a la plataforma de la visita; a cualquier otra cuenta le devuelve una lista vacía, y la pantalla
+    /// diría «Sin actividad registrada» aunque la traza exista. El botón no se pinta a quien no la puede ver.
+    /// Falsación: pintar el botón sin condición (<c>PuedeVerActividadRegistrada</c> a <c>true</c>) hace caer el primer
+    /// aserto.
+    /// </summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_solo_se_ofrece_a_quien_la_base_le_entrega()
+    {
+        var delegacionDelCliente = Delegacion(soporte: true, activa: true, somosLaConsultora: false);
+
+        var (cuentaSinRol, _, _) = Renderizar(esAdministradorPlataforma: false, delegacionDelCliente);
+
+        cuentaSinRol.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "una cuenta del Tenant propietario sin rol Administrador recibiría una lista vacía de la RLS");
+
+        _configurarMediador = m => m.TenantPropietarioAutorizante = TenantPropietarioRefrielectric;
+        var (administrador, _, _) = Renderizar(esAdministradorPlataforma: false, delegacionDelCliente);
+        administrador.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "control positivo: el Administrador del Tenant propietario sí la lee");
+
+        var (plataforma, _, _) = Renderizar(esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: true));
+        plataforma.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "control positivo: la plataforma de la visita la lee desde su Tenant");
+    }
+
+    /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
     /// exige ser Administrador del Tenant propietario, desde su casa (decisión SEG-7 del
     /// 2026-10-31) — NO basta con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace

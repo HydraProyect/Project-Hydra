@@ -52,8 +52,11 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 /// barrera de rol, como <c>administrador_del_tenant_objetivo</c> en las Sesiones
 /// Privilegiadas (migración <c>SoloElAdministradorLeeLaActividadDeSoporte</c>):
 /// bajo <c>cae_app_runtime</c> solo leen la tabla el Administrador del Tenant
-/// propietario y la plataforma de la visita. La comprobación de rol de este
-/// handler es la primera barrera, y la base, la segunda.
+/// propietario y la plataforma de la visita. Por Sesión Privilegiada la comprobación
+/// de rol de este handler es la primera barrera y la base, la segunda; por la vía
+/// heredada el handler no pide rol al cliente visitado y la barrera es solo la base
+/// (una cuenta sin rol Administrador recibe una lista vacía, sin excepción), así que
+/// la pantalla de Delegaciones no ofrece la consulta a quien no la puede ver.
 /// </para>
 /// </summary>
 [AreaDelEncargo("Tenants")]

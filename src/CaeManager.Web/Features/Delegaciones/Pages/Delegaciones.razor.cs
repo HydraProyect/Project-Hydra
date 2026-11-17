@@ -558,6 +558,17 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool PuedeAdministrarAccesoSoporte(bool somosLaConsultora) =>
         _esTenantOrigenPlataforma && somosLaConsultora;
 
+    /// <summary>
+    /// Si se ofrece «Ver actividad registrada» en una Delegación de Soporte. La RLS de
+    /// <c>RegistrosActividadSoporte</c> (migración <c>SoloElAdministradorLeeLaActividadDeSoporte</c>) solo
+    /// entrega la traza al Administrador del Tenant propietario y a la plataforma de la visita
+    /// (<see cref="PuedeRetirarPersonas"/> comparte la fuente de ambos datos): a cualquier otra cuenta le
+    /// devolvería una lista vacía y la pantalla diría «Sin actividad registrada» aunque la traza exista, una
+    /// ausencia afirmada en falso. Etiqueta de oferta, no autoridad: la puerta es la base.
+    /// </summary>
+    private bool PuedeVerActividadRegistrada(AsignacionLista delegacion) =>
+        delegacion.SomosLaConsultora || _tenantPropietarioAutorizante is not null;
+
     private bool PuedeReactivar(Guid entidadId) =>
         _puedeReactivarPorEntidad.GetValueOrDefault(entidadId);
 
