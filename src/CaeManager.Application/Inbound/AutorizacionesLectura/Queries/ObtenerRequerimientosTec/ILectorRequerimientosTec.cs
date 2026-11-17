@@ -26,10 +26,13 @@ public interface ILectorRequerimientosTec
 /// </summary>
 /// <param name="TipoDocumentoNombre">El nombre exacto del tipo en el catálogo del Tenant TCE (D1).</param>
 /// <param name="SePideA">
-/// Todos, Nacionales o Extranjeros. Este incremento no lo evalúa (Trabajador extranjero, #2338): el requisito se aplica a
-/// todos los Trabajadores asignados.
+/// Todos, Nacionales o Extranjeros. No se lee en el Trabajador (#2338, decisión 2026-11-17: lo sustituye la máscara
+/// <paramref name="TiposContratacion"/>); en la Empresa contratista seguiría decidiendo, pero esta lectura todavía no lo evalúa.
 /// </param>
-/// <param name="TiposContratacion">Máscara de bits de los tipos de contratación. Tampoco se evalúa todavía.</param>
+/// <param name="TiposContratacion">
+/// Máscara de bits de <c>TiposContratacion</c>: el único criterio para pedir el requisito a un Trabajador asignado, que
+/// <see cref="ObtenerRequerimientosTecQueryHandler"/> compara con su <c>TipoContratacion</c>.
+/// </param>
 public sealed record RequisitoTecDto(
     Guid ContratoAccesoId,
     string TenantTceNombre,

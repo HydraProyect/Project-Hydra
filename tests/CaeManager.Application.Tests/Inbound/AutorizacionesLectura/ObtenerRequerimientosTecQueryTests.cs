@@ -69,9 +69,11 @@ public class ObtenerRequerimientosTecQueryTests
     }
 
     private RequisitoTecDto Requisito(
-        string tipo, string entidad = "Trabajador", Guid? contrato = null, string ambito = "GeneralTec", string capa = "DeCentro") =>
+        string tipo, string entidad = "Trabajador", Guid? contrato = null, string ambito = "GeneralTec", string capa = "DeCentro",
+        TiposContratacion contrataciones = TiposContratacion.Todos) =>
         new(contrato ?? _contrato, "Logística Delta Sur", Guid.NewGuid(), "Planta Zaragoza Norte", "Logística Delta Sur S.A.",
-            Guid.NewGuid(), Guid.NewGuid(), tipo, entidad, "Certificado vigente", "Fija", 12, 0, true, ambito, capa, "Todos", 7);
+            Guid.NewGuid(), Guid.NewGuid(), tipo, entidad, "Certificado vigente", "Fija", 12, 0, true, ambito, capa, "Todos",
+            (int)contrataciones);
 
     private AutorizacionLecturaDocumental Autorizar(
         Guid? contrato = null, bool incluyeEmpresa = false, bool revocada = false, DateOnly? desde = null, params Trabajador[] trabajadores)
@@ -142,6 +144,61 @@ public class ObtenerRequerimientosTecQueryTests
         var filas = await Leer();
 
         filas.Select(f => f.SujetoId).Should().Equal(_asignado.Id);
+    }
+
+    [Fact]
+    public async Task Un_requisito_solo_de_Extranjero_no_se_pide_al_Trabajador_por_cuenta_ajena()
+    {
+        // Máscara 8: «Permiso de trabajo y residencia» bloqueante solo para el Trabajador extranjero (#2338).
+        _requisitos.Add(Requisito("Permiso de trabajo y residencia", contrataciones: TiposContratacion.Extranjero));
+        _asignado.TipoContratacion.Should().Be(TipoContratacion.CuentaAjena);
+        Autorizar(trabajadores: [_asignado]);
+
+        (await Leer()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_requisito_solo_de_Autonomo_solo_se_pide_al_Trabajador_autonomo()
+    {
+        // Máscara 2: solo Autónomo. El Trabajador por cuenta ajena del mismo contrato no lo recibe.
+        _requisitos.Add(Requisito("Formación en altura", contrataciones: TiposContratacion.Autonomo));
+        var autonomo = Trabajador.DeEmpresa(_propia.Id, "Marta", "Ruiz", "11111111H");
+        autonomo.CambiarTipoContratacion(TipoContratacion.Autonomo);
+        _trabajadores.ListaTrabajadores.Add(autonomo);
+        Autorizar(trabajadores: [_asignado, autonomo]);
+
+        var filas = await Leer();
+
+        filas.Select(f => f.SujetoId).Should().Equal(autonomo.Id);
+    }
+
+    [Fact]
+    public async Task Un_requisito_de_Extranjero_se_pide_al_Trabajador_extranjero_con_su_estado()
+    {
+        _requisitos.Add(Requisito("Permiso de trabajo y residencia", contrataciones: TiposContratacion.Extranjero));
+        var extranjero = Trabajador.DeEmpresa(_propia.Id, "Marta", "Ruiz", "11111111H");
+        extranjero.CambiarTipoContratacion(TipoContratacion.Extranjero);
+        _trabajadores.ListaTrabajadores.Add(extranjero);
+        Autorizar(trabajadores: [_asignado, extranjero]);
+
+        var fila = (await Leer()).Should().ContainSingle().Subject;
+
+        fila.SujetoId.Should().Be(extranjero.Id);
+        fila.BloqueaAcceso.Should().BeTrue();
+        fila.Estado.Should().Be(EstadoRequerimientoTecSinVeredicto.PendienteDeSubir);
+    }
+
+    [Fact]
+    public async Task La_mascara_de_contratacion_no_filtra_los_requisitos_de_Empresa()
+    {
+        // La máscara solo acota requisitos de Trabajador: aunque la de un requisito de Empresa no incluya ningún tipo, la
+        // Empresa propia lo sigue recibiendo.
+        _requisitos.Add(Requisito("Seguro de responsabilidad civil", entidad: "Empresa", contrataciones: TiposContratacion.Ninguno));
+        Autorizar(incluyeEmpresa: true, trabajadores: [_asignado]);
+
+        var fila = (await Leer()).Should().ContainSingle().Subject;
+
+        fila.Sujeto.Should().Be(SujetoRequerimientoTec.Empresa);
     }
 
     [Fact]
