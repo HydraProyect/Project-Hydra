@@ -453,6 +453,11 @@ builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationH
 // Con ámbito (no singleton): consulta la política de la Nota interna, que depende de la sesión del circuito.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotalHandler>();
+// Páginas de Outbound por papel (cierre del hueco de B-02b): niega toda página marcada con [PaginaDeOutbound] a quien
+// trabaja con papel Inbound, aunque su rol cumpla el [Authorize]. Con ámbito: consulta el papel de la sesión, que se
+// resuelve en cada petición HTTP.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    CaeManager.Web.Services.Autorizacion.PaginaDeOutboundPorPapelAuthorizationHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -1346,12 +1351,21 @@ using (var scope = app.Services.CreateScope())
         // Siembra de la línea Inbound para la revisión de sus pantallas: un Tenant TCE con contratos de acceso en cada
         // estado y plantillas de requisitos, y tres Tenants TEC con su Usuario único — inerte salvo
         // DatosPrueba:Inbound:Activo (con DatosPrueba:Activo), y lanza fuera de Development (ver InboundDemoSeeder).
-        await InboundDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await InboundDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore,
+            scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Configuration, app.Environment, logger);
 
         // Su línea Inbound del Producto Contratado, la única fila de esa siembra con el rol propietario: en
         // ProductosContratados solo inserta cae_app_aprovisionamiento bajo Sesión Privilegiada (DECISION_LOG 2026-11-16;
         // ver LineaInboundDemoSeeder y FronteraDeSeedersDeBootstrapTests). Mismas claves y misma guarda de Development.
         await LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
+
+        // Su línea Outbound de gestión propia (P), con el mismo rol y la misma razón: los Tenants de demostración que gestionan
+        // su CAE con su propio personal (hoy el Tenant Beta de la cobertura) la llevan y ningún otro. Sin backfill en
+        // producción: un Tenant sin el marcador de TEC participante y sin P es «Outbound heredado». Después de la cobertura, que crea ese Tenant; inerte fuera de
+        // Development (ver LineaOutboundGestionPropiaDemoSeeder).
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo

@@ -265,7 +265,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
             var grupo = CatalogoMenuLateral.Grupos.First(g => g.Id == id);
             var enlaces = _enlaces[id];
             return new GrupoEditable(
-                new FilaEditable(new Fila(TipoFila.Grupo, string.Empty, id), i, _grupos.Count, grupo.Titulo, null, null,
+                new FilaEditable(new Fila(TipoFila.Grupo, string.Empty, id), i, _grupos.Count, grupo.TituloEn(TextosComunes), null, null,
                     !grupo.AbiertoPorDefecto, _gruposNuevos.Contains(id), enlaces.Count),
                 enlaces.Select((idEnlace, j) =>
                 {
@@ -281,7 +281,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     private string Nombre(Fila fila) =>
         fila.Tipo == TipoFila.Grupo
-            ? CatalogoMenuLateral.Grupos.First(g => g.Id == fila.Id).Titulo
+            ? CatalogoMenuLateral.Grupos.First(g => g.Id == fila.Id).TituloEn(TextosComunes)
             : CatalogoMenuLateral.Enlaces.First(e => e.Id == fila.Id).RotuloEn(TextosComunes);
 
     private bool EsCogida(Fila fila) => _cogida == fila;
@@ -540,7 +540,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
             var contexto = ContextoVistaPrevia;
             var grupos = CatalogoMenuLateral
                 .Visibles(contexto, _grupos, _grupos.SelectMany(g => _enlaces[g]).ToList())
-                .Select(v => new GrupoPrevio(v.Grupo.Id, v.Grupo.Titulo,
+                .Select(v => new GrupoPrevio(v.Grupo.Id, v.Grupo.TituloEn(TextosComunes),
                     v.Enlaces.Select(e => new EnlacePrevio(e.Id, e.Icono, e.RotuloPara(contexto, TextosComunes))).ToList()))
                 .ToList();
             var vistos = grupos.Sum(g => g.Enlaces.Count);

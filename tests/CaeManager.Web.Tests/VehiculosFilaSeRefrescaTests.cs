@@ -49,7 +49,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
     private sealed class MediadorFalso : IMediator
     {
         public List<VehiculoListaDto> Almacen { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>La consulta de una sola fila falla (la de página no).</summary>
         public bool FallarRelectura { get; set; }

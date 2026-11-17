@@ -121,6 +121,9 @@
   <data name="DescartarCambiosMensaje" xml:space="preserve">
     <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
   </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar cambios</value>
   </data>
@@ -922,5 +925,14 @@
   </data>
   <data name="MenuInboundGobierno" xml:space="preserve">
     <value>Gobierno de Inbound</value>
+  </data>
+  <data name="MenuGrupoInboundTec" xml:space="preserve">
+    <value>Mis Clientes</value>
+  </data>
+  <data name="MenuInboundRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="MenuInboundQuienLee" xml:space="preserve">
+    <value>Quién lee mis documentos</value>
   </data>
 </root>

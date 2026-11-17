@@ -74,7 +74,7 @@ public partial class DocumentosGen2Tests : BunitContext
     /// </summary>
     private sealed class MediadorControlado : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>Lista que devuelve <see cref="ObtenerDocumentosQuery"/> — puede depender de la consulta.</summary>

@@ -41,6 +41,14 @@ public enum ResultadoRecuperacionHueco
     /// </summary>
     Truncada,
 
+    /// <summary>
+    /// El listado está completo y todo ingerido, pero recorrió algún segundo por Id (cursor compuesto, issue #2263), un
+    /// recorrido aún sin verificar contra Graph real: la marca se queda
+    /// (<see cref="ConexionIntegracion.RecuperacionHuecoRecorridaPorId"/>). Esta entrega no recorre por Id; respeta el
+    /// indicador que deje la entrega que sí lo hace mientras las dos convivan en el despliegue azul/verde.
+    /// </summary>
+    RecorridaPorIdSinVerificar,
+
     /// <summary>Lectura completa, todo ingerido, conexión operativa con suscripción viva: la marca se limpió.</summary>
     Limpiada,
 }
@@ -403,6 +411,15 @@ public class RecuperacionHuecoCorreoService(
             if (!conexion.OperativaVerificada(ahoraUtc) || suscripcion is null || suscripcion.FechaExpiracionUtc <= ahoraUtc)
             {
                 resultado = ResultadoRecuperacionHueco.SinRecuperar;
+                return;
+            }
+
+            if (conexion.RecuperacionHuecoRecorridaPorId)
+            {
+                logger.LogWarning(
+                    "La recuperación del hueco de {ConexionId} terminó recorriendo algún segundo por Id, sin verificar contra Graph real que ese recorrido no salte nada (issue #2263): lo leído quedó encolado y la marca ({Marca}) se queda.",
+                    conexionId, conexion.HuecoPendienteDesdeUtc);
+                resultado = ResultadoRecuperacionHueco.RecorridaPorIdSinVerificar;
                 return;
             }
 

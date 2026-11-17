@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
@@ -79,11 +80,14 @@ public class RegistrarEvidenciaInboundCommandHandler(
     IUnitOfWork unitOfWork,
     TimeProvider reloj,
     IEvidenciasInboundQueryContext evidenciasContext,
-    ILogger<RegistrarEvidenciaInboundCommandHandler> logger)
+    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<RegistrarEvidenciaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RegistrarEvidenciaInboundCommand request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.ValidarInbound, cancellationToken))
+            return Result.Fallo<Guid>(AutorizacionInboundErrores.SinCapacidad);
+
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
             || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);

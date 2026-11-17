@@ -26,7 +26,7 @@ public class VincularTenantContratistaCommandTests
     }
 
     private VincularTenantContratistaCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null) =>
-        new(_repositorio, alcance ?? new AlcanceDatosServiceFalso(), new TenantActualFijo(_tenantPropio), _unitOfWork);
+        new(_repositorio, alcance ?? new AlcanceDatosServiceFalso(), new TenantActualFijo(_tenantPropio), _unitOfWork, new AutorizacionInboundQuePermite());
 
     [Fact]
     public async Task Vincula_el_Tenant_de_la_Empresa_contratista_y_guarda()

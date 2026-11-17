@@ -21,6 +21,9 @@ namespace CaeManager.Web.Components.Layout;
 /// ve una lista ajena.</param>
 /// <param name="LineaInboundVigente">El Producto Contratado del Tenant beneficiario tiene activa la línea Inbound
 /// (<see cref="ILineaInboundVigente"/>). Es el gate de la sección «Inbound»; sin la línea no hay grupo.</param>
+/// <param name="EsTenantTecInbound">El Tenant activo, como Tenant propietario, tiene al menos una autorización de lectura documental
+/// concedida (vigente y sin revocar; <see cref="IEsTenantTecInbound"/>, decisión D6 de la demo de Inbound). Es el gate del grupo
+/// «Mis Clientes», independiente de <paramref name="LineaInboundVigente"/>: el Tenant TEC no necesita la línea.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
@@ -32,7 +35,8 @@ public sealed record ContextoMenuLateral(
     bool RotulosPrimeraPersona = false,
     bool HerramientasPdfDisponibles = true,
     bool MiTrabajoOculto = false,
-    bool LineaInboundVigente = false)
+    bool LineaInboundVigente = false,
+    bool EsTenantTecInbound = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -66,12 +70,20 @@ public enum LineaMenu
 /// <param name="AbiertoPorDefecto">Si nace abierto en el primer render (menu-lateral.js respeta lo que el usuario haya tocado).</param>
 /// <param name="Visible">Si el grupo existe para quien mira; sus enlaces solo pueden restringirlo más.</param>
 /// <param name="Linea">Línea de producto del grupo; decide dónde cae el rótulo separador (<see cref="CatalogoMenuLateral.RotulosDeLinea"/>).</param>
+/// <param name="ClaveTitulo">Clave del título en <c>TextosComunes</c> cuando el título se localiza (un título de varias palabras no
+/// puede vivir como literal: ratchet de textos sin localizar). Si no es null, <paramref name="Titulo"/> solo repite esa clave y el
+/// texto lo resuelve <see cref="TituloEn"/>; quien pinte el título tiene que usar <see cref="TituloEn"/>, nunca <paramref name="Titulo"/>.</param>
 public sealed record GrupoMenuLateral(
     string Id,
     string Titulo,
     bool AbiertoPorDefecto,
     Func<ContextoMenuLateral, bool> Visible,
-    LineaMenu Linea = LineaMenu.SinLinea);
+    LineaMenu Linea = LineaMenu.SinLinea,
+    string? ClaveTitulo = null)
+{
+    /// <summary>El título con el idioma activo cuando lleva clave; si no, el literal.</summary>
+    public string TituloEn(IStringLocalizer textos) => ClaveTitulo is null ? Titulo : textos[ClaveTitulo].Value;
+}
 
 /// <summary>Un enlace del menú lateral. Pertenece a un único grupo, el que fija el catálogo: un orden guardado no puede cambiarlo.</summary>
 /// <param name="Id">Identificador estable, clave del orden guardado; no cambia aunque cambie la ruta o el rótulo.</param>
@@ -237,6 +249,16 @@ public static class CatalogoMenuLateral
         new("inbound-config", "Configuración", AbiertoPorDefecto: true,
             c => c.LineaInboundVigente && c.TieneAlgunRol(RolesDeGestionDocumental), Linea: LineaMenu.Inbound),
 
+        // «Mis Clientes» (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): el menú del Tenant TEC, la Empresa
+        // contratista que autoriza la lectura de sus documentos. Gate propio e independiente de la línea Inbound
+        // (ContextoMenuLateral.EsTenantTecInbound: al menos una autorización de lectura documental concedida como Tenant propietario, y
+        // la capacidad ParticipanteTec de B-03 en la Query): el Tenant TEC no tiene Producto Contratado de Inbound. Solo el
+        // Administrador, el rol que autorizan sus dos
+        // páginas ([Authorize(Roles = Administrador)] en Requerimientos y en Quién lee mis documentos). Sin línea de producto
+        // (SinLinea): no es de la sección «Inbound · Tenant TCE», y así no lleva ese rótulo ni cuenta como una segunda línea.
+        new("inbound-tec", "MenuGrupoInboundTec", AbiertoPorDefecto: true,
+            c => c.EsTenantTecInbound && c.TieneAlgunRol(Roles.Administrador), ClaveTitulo: "MenuGrupoInboundTec"),
+
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Equipo; solo
         // Administrador ve el resto (Condicion de cada enlace). Nace colapsado (marco de Design, DDL-083).
         new("administracion", "Administración", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
@@ -328,8 +350,7 @@ public static class CatalogoMenuLateral
 
         // Inbound del Tenant beneficiario que recibe contratistas (el Tenant TCE del plan de pantallas). Las rutas son fijas: las
         // páginas de «Documentos por validar» las crea otra línea de trabajo. Las entradas del Tenant TEC (Requerimientos y
-        // Quién lee mis documentos) no están todavía: no hay forma de identificar al Tenant TEC participante (falta EP-4/B-03).
-        // shortcut: sin backend, cablear cuando entre B-09/EP-4 (enlaces inbound/requerimientos e inbound/quien-lee, solo para el Tenant TEC).
+        // Quién lee mis documentos) cuelgan de su propio grupo, «inbound-tec», más abajo.
         new("inbound-contratos", "inbound", "inbound/contratos", "solicitud", "MenuInboundContratos",
             ClaveRotulo: "MenuInboundContratos"),
         new("inbound-centros", "inbound", "inbound/centros", "asignaciones", "MenuInboundCentros",
@@ -349,6 +370,14 @@ public static class CatalogoMenuLateral
         new("inbound-gobierno", "inbound-config", "inbound/gobierno", "roles", "MenuInboundGobierno",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)
                             && !CaeManager.Web.Services.PaginasExcluidasDelEncargo.RigenLasExclusiones(c.Usuario), ClaveRotulo: "MenuInboundGobierno"),
+
+        // Inbound del Tenant TEC (la Empresa contratista que autoriza la lectura de sus documentos; demo P4, D6). Las dos páginas
+        // son solo del rol Administrador, el mismo que exige el grupo «inbound-tec», que sus enlaces heredan. No dependen de la
+        // línea Inbound. Rutas y páginas: Features/Inbound/TenantTec (Requerimientos.razor y QuienLeeMisDocumentos.razor).
+        new("inbound-requerimientos", "inbound-tec", "inbound/requerimientos", "subir", "MenuInboundRequerimientos",
+            ClaveRotulo: "MenuInboundRequerimientos"),
+        new("inbound-quien-lee", "inbound-tec", "inbound/quien-lee", "contacto", "MenuInboundQuienLee",
+            ClaveRotulo: "MenuInboundQuienLee"),
 
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.

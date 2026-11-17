@@ -47,7 +47,7 @@ public partial class CentrosListaPatronTests : BunitContext
     /// <summary>Mediador que responde por tipo, apunta lo enviado y puede retener la resolución de la empresa.</summary>
     private sealed class Mediador : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CentroListaDto> Centros { get; } = [];
         public Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> Visitas { get; } = [];
         public List<ClienteSelectorDto> ClientesSelector { get; } = [];

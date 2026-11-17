@@ -84,7 +84,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         /// <summary>Los tipos que no salen con <c>ParaAltaNueva</c>, como los archivados en el catálogo real.</summary>
         public HashSet<Guid> Archivados { get; } = [TipoArchivadoId];
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

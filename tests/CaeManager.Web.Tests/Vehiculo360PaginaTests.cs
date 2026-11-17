@@ -67,7 +67,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
         /// <summary>Si está, la consulta de detalle de ese Vehículo no responde hasta que se complete.</summary>
         public Dictionary<Guid, TaskCompletionSource> Compuertas { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto> TrabajadoresFicha { get; set; } = [];
         public Result ResultadoFicha { get; set; } = Result.Exito();
 

@@ -64,7 +64,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         public IReadOnlyList<EmpresaSelectorDto> Empresas { get; init; } = [];
         public IReadOnlyList<ClienteSelectorDto> Clientes { get; init; } = [];
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
         public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
         /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>

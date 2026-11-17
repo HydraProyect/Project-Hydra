@@ -42,7 +42,7 @@ public partial class DelegacionesGen2Tests : BunitContext
     private sealed class Mediador : IMediator
     {
         public TaskCompletionSource? EsperaLista { get; set; }
-        public List<(object Peticion, CancellationToken Token)> Enviadas { get; } = [];
+        public ListaSegura<(object Peticion, CancellationToken Token)> Enviadas { get; } = [];
         public IReadOnlyList<DelegacionDto> Delegaciones { get; set; } = [];
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public TaskCompletionSource? EsperaCreacion { get; set; }

@@ -68,7 +68,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
     /// </summary>
     private sealed class MediadorControlado : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public IReadOnlyList<EmpresaSelectorDto> CatalogoEmpresas { get; set; } = [];
         public IReadOnlyList<ClienteSelectorDto> CatalogoClientes { get; set; } = [];

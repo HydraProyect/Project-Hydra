@@ -57,7 +57,7 @@ public class ContratosAccesoPantallasTests : BunitContext
 
         public bool FallaLaLista { get; init; }
 
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

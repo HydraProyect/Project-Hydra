@@ -481,6 +481,28 @@ public class RecuperacionHuecoCorreoServiceTests
         escenario.Graph.ListadosRecibidosPedidos.Should().ContainSingle("terminada y truncada, no se vuelve a listar");
     }
 
+    /// <summary>
+    /// Issue #2263, expandir y contraer: esta entrega no recorre por Id, pero respeta el indicador que deje la entrega que
+    /// sí lo hace mientras las dos convivan en el despliegue azul/verde. Se pone por reflexión porque aquí ningún camino lo
+    /// escribe.
+    /// </summary>
+    [Fact]
+    public async Task Una_recuperacion_recorrida_por_id_en_la_otra_ranura_termina_sin_limpiar_la_marca()
+    {
+        var escenario = new Escenario(TimeSpan.FromHours(3));
+        escenario.Pagina(hayMas: false, escenario.Mensaje("m1", 10));
+        await escenario.PasadaAsync();
+        escenario.IngerirTodo();
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.RecuperacionHuecoRecorridaPorId))!
+            .SetValue(escenario.Conexion, true);
+
+        (await escenario.PasadaAsync()).Should().Be(ResultadoRecuperacionHueco.RecorridaPorIdSinVerificar);
+
+        escenario.Conexion.HuecoPendienteDesdeUtc.Should().Be(escenario.Marca, "el recorrido por Id está sin verificar contra Graph real");
+        escenario.Conexion.RecuperacionHuecoRecorridaPorId.Should().BeTrue();
+        escenario.Graph.ListadosRecibidosPedidos.Should().ContainSingle("con el listado completo no se vuelve a listar");
+    }
+
     [Fact]
     public async Task El_tope_de_mensajes_por_pasada_corta_y_la_siguiente_sigue_desde_el_cursor()
     {

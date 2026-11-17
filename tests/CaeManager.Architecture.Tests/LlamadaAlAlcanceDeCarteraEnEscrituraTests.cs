@@ -144,6 +144,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Contactos.FijarNotaContactoAgendaCommandHandler",
         "Contactos.GuardarContactoAgendaCommandHandler",
 
+        // DerechosInteresado: registrar con un Trabajador comprueba que está en la cartera de quien registra (#2002)
+        "DerechosInteresado.RegistrarSolicitudDerechoInteresadoCommandHandler",
         // Documentos
         "Documentos.AplicarDeteccionIaDocumentoCommandHandler",
         "Documentos.ConfirmarVigenciaAcreditacionCommandHandler",
@@ -367,6 +369,11 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     private static readonly Guarda[] TareaDeLaPersona =
         [new(typeof(ModificacionTareaAsistente), nameof(ModificacionTareaAsistente.AplicarAsync))];
 
+    /// <summary>Administrador del Tenant propietario o concesión vigente de «Derechos del interesado» (#2002).</summary>
+    private static readonly Guarda[] CapacidadDerechosDelInteresado =
+        [new(typeof(CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant),
+            nameof(CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant.TieneCapacidadAsync))];
+
     /// <summary>
     /// Handlers que no llaman a la comprobación, con el motivo por el que es correcto. Leídos uno a
     /// uno el 2026-10-18; el motivo dice qué fila escriben y quién decide en su lugar.
@@ -549,13 +556,27 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "mismo motivo que DesasignarmeDeApoyoCommand", Guardas: ConRolEnOrigen),
         ["Operaciones.TerminarApoyoCarteraCommandHandler[RevocarApoyoCarteraCommand]"] = new(
             "mismo motivo que DesasignarmeDeApoyoCommand", Guardas: ConRolEnOrigen),
+
+        // ── Derechos del interesado: el registro es del Tenant propietario entero ────────────────
+        ["DerechosInteresado.TramitarSolicitudDerechoInteresadoCommandHandler[VerificarIdentidadSolicitudDerechoCommand]"] = new(
+            "tramitar una solicitud de derechos del interesado es del Tenant propietario entero (decisión D-3 del " +
+            "2026-11-15): solo su Administrador o una cuenta del propio Tenant con la capacidad «Derechos del " +
+            "interesado» (AutoridadCapacidadesTenant), no una cartera", Guardas: CapacidadDerechosDelInteresado),
+        ["DerechosInteresado.TramitarSolicitudDerechoInteresadoCommandHandler[IniciarTramitacionSolicitudDerechoCommand]"] = new(
+            "mismo motivo que VerificarIdentidadSolicitudDerechoCommand", Guardas: CapacidadDerechosDelInteresado),
+        ["DerechosInteresado.TramitarSolicitudDerechoInteresadoCommandHandler[ProrrogarSolicitudDerechoCommand]"] = new(
+            "mismo motivo que VerificarIdentidadSolicitudDerechoCommand", Guardas: CapacidadDerechosDelInteresado),
+        ["DerechosInteresado.TramitarSolicitudDerechoInteresadoCommandHandler[ResolverSolicitudDerechoCommand]"] = new(
+            "mismo motivo que VerificarIdentidadSolicitudDerechoCommand", Guardas: CapacidadDerechosDelInteresado),
+        ["DerechosInteresado.TramitarSolicitudDerechoInteresadoCommandHandler[DenegarSolicitudDerechoCommand]"] = new(
+            "mismo motivo que VerificarIdentidadSolicitudDerechoCommand", Guardas: CapacidadDerechosDelInteresado),
     };
 
     /// <summary>
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 45;
+    private const int MaximoDeExentos = 50;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;
@@ -567,9 +588,16 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// </summary>
     private static readonly Dictionary<string, string> CaracteristicasSinCartera = new()
     {
+        ["Exportacion"] =
+            "exportación completa del Tenant en autoservicio (#2008, D-8): la pide y la descarga solo el Administrador " +
+            "del Tenant propietario, sin contexto cruzado ni Encargo, y abarca el Tenant entero por definición. Una " +
+            "Asignación de Cartera no recorta nada aquí: quien opera por cartera no llega a este comando",
         ["ApiKeys"] =
             "claves de API de una delegación de soporte: plano de Plataforma, solo desde el Tenant de la consultora " +
             "delegada; no escribe filas de una cartera",
+        ["CapacidadesTenant"] =
+            "concesión y revocación de una capacidad del Tenant (decisión D-3 del 2026-11-15): plano de Propiedad, solo " +
+            "el Administrador del Tenant propietario (AutoridadCapacidadesTenant); no escribe filas de una cartera",
         ["ContactosSeguridad"] =
             "contacto de seguridad del Tenant beneficiario: lo propone su Administrador para toda la organización y lo " +
             "valida un Actor de Plataforma TALVEG; no escribe filas de una cartera",

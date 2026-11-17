@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescarga;
+using CaeManager.Web.Services.Autorizacion;
 using CaeManager.Web.Services;
 using MediatR;
 
@@ -15,7 +16,7 @@ public static class ComunicacionesEndpoints
 {
     public static IEndpointRouteBuilder MapComunicacionesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/comunicaciones/adjuntos/{id:guid}/archivo", ServirAdjuntoAsync);
+        endpoints.MapGet("/comunicaciones/adjuntos/{id:guid}/archivo", ServirAdjuntoAsync).DeOutbound();
         // Sin .RequireAuthorization() explícito: el FallbackPolicy global de
         // Program.cs (RequireAuthenticatedUser) ya lo cubre, mismo criterio
         // que DocumentosEndpoints.

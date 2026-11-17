@@ -497,6 +497,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             ["app_inbound_autorizacion_del_contrato"] = "p_contrato uuid",
             ["app_inbound_documentos_autorizados"] = "p_contrato uuid",
             ["app_inbound_archivo_autorizado"] = "p_contrato uuid, p_documento uuid",
+            // Lectura inversa X-2 (demo Inbound, P0a): sin parámetros, el Tenant TEC sale del contexto firmado.
+            ["app_inbound_tec_requerimientos"] = "",
         };
         var auxiliares = new[]
         {
@@ -516,7 +518,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             f.Soporte.Should().BeFalse(nombre);
             f.Aprovisionamiento.Should().BeFalse(nombre);
             f.Public.Should().BeFalse($"{nombre}: REVOKE ALL ... FROM PUBLIC");
-            f.Volatilidad.Should().Be('v', $"{nombre}: no es STABLE, porque escribe la traza");
+            f.Volatilidad.Should().Be('v', $"{nombre}: no es STABLE, porque escribe la traza o compara con clock_timestamp()");
         }
 
         foreach (var nombre in auxiliares)
@@ -585,6 +587,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [InlineData("app_inbound_autorizacion_del_contrato(uuid)", "SELECT * FROM public.app_inbound_autorizacion_del_contrato(NULL)")]
     [InlineData("app_inbound_documentos_autorizados(uuid)", "SELECT * FROM public.app_inbound_documentos_autorizados(NULL)")]
     [InlineData("app_inbound_archivo_autorizado(uuid,uuid)", "SELECT * FROM public.app_inbound_archivo_autorizado(NULL, NULL)")]
+    [InlineData("app_inbound_tec_requerimientos()", "SELECT * FROM public.app_inbound_tec_requerimientos()")]
     public async Task Sin_propietario_que_evita_rls_la_lectura_falla_cerrada(string firma, string consulta)
     {
         await using var conexion = new NpgsqlConnection(_cadena);

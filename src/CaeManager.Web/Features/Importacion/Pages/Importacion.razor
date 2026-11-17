@@ -3,6 +3,7 @@
    corría dos veces en cada visita. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.ConCargaMasivaCsv)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Web.Features.Importacion
 @using CaeManager.Web.Features.Importacion.Recursos

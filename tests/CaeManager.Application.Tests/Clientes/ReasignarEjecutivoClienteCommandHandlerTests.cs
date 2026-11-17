@@ -386,10 +386,14 @@ public class BloqueoCarteraUsuarioFalso : IBloqueoCarteraUsuario
     /// </summary>
     public Action? AlTomarElCompartido { get; set; }
 
+    /// <summary>Lo que confirmó otra escritura mientras este esperaba el candado exclusivo: se ejecuta al tomarlo.</summary>
+    public Action? AlBloquearExclusivo { get; set; }
+
     public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Exclusivos.Add(usuarioId);
         Eventos?.Add("exclusivo");
+        AlBloquearExclusivo?.Invoke();
         return Task.CompletedTask;
     }
 

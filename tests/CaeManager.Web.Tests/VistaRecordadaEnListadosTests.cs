@@ -104,7 +104,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     /// </summary>
     private sealed class MediatorDeListado : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         /// <summary>Lo que devuelve <see cref="ObtenerVistaRecordadaQuery"/> por pantalla. Sin entrada: nada recordado.</summary>
         public Dictionary<string, string> VistasRecordadas { get; } = [];
