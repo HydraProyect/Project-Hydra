@@ -58,7 +58,13 @@ public enum ModoVigenciaRequisito
 /// <summary>
 /// A quién se pide según su origen (DECISION_LOG 2026-11-14): vale para la Empresa contratista y para el Trabajador.
 /// Quién es extranjero lo decide el país de la Empresa contratista o el documento de identidad del Trabajador (B-15).
+/// <para>
+/// Desde el 2026-11-17 ya no decide nada: el extranjero se identifica por el modelo de contratación
+/// (<see cref="CaeManager.Domain.Trabajadores.TipoContratacion.Extranjero"/>) y a quién se pide un requisito lo dice solo
+/// <see cref="RequisitoPlantilla.TiposContratacion"/>. Se conserva porque los Commands lo siguen recibiendo.
+/// </para>
 /// </summary>
+// shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
 public enum DestinatarioRequisito
 {
     Todos = 1,

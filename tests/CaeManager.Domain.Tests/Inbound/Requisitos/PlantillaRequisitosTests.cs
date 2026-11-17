@@ -388,6 +388,24 @@ public class PlantillaRequisitosTests
     }
 
     [Fact]
+    public void Un_requisito_de_Trabajador_se_puede_acotar_al_Extranjero_y_una_Empresa_exige_Todos_con_el_Extranjero_dentro()
+    {
+        var requisito = DeCentro().AnadirRequisito(Tipo(), null, Basicos with { TiposContratacion = TiposContratacion.Extranjero });
+
+        requisito.TiposContratacion.Should().Be(TiposContratacion.Extranjero);
+        requisito.TiposContratacion.Incluye(TipoContratacion.Extranjero).Should().BeTrue();
+        requisito.TiposContratacion.Incluye(TipoContratacion.CuentaAjena).Should().BeFalse();
+
+        var empresa = Tipo(AmbitoAplicacion.Empresa, grupo: null);
+        FluentActions.Invoking(() => DeCentro().AnadirRequisito(empresa, null, Basicos with
+            {
+                TiposContratacion = TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario,
+            }))
+            .Should().Throw<ArgumentException>("el Todos de antes (7) ya no es Todos: le falta el Extranjero");
+        DeCentro().AnadirRequisito(empresa, null, Basicos).TiposContratacion.Should().Be(TiposContratacion.Todos);
+    }
+
+    [Fact]
     public void Las_equivalencias_se_limpian_y_no_valen_si_solo_se_pide_a_nacionales()
     {
         var requisito = DeCentro().AnadirRequisito(Tipo(), null,

@@ -7,8 +7,9 @@ namespace CaeManager.Domain.Inbound.Requisitos;
 
 /// <summary>
 /// Un requisito de una <see cref="PlantillaRequisitos"/> del Tenant TCE (tarjeta 9; plan backend Inbound § 2.3): qué tipo
-/// de documento propio lo acredita, a qué sujeto se pide, con qué origen, vigencia, tolerancia y bloqueo, a quién (todos,
-/// nacionales o extranjeros, y qué tipos de contratación) y qué equivalencias acepta de un extranjero.
+/// de documento propio lo acredita, a qué sujeto se pide, con qué origen, vigencia, tolerancia y bloqueo, a quién (los
+/// modelos de contratación de <see cref="TiposContratacion"/>, el extranjero incluido desde el 2026-11-17) y qué
+/// equivalencias acepta de un extranjero.
 ///
 /// <para>
 /// <b>Hijo del agregado.</b> Solo lo crean, editan y retiran los métodos de <see cref="PlantillaRequisitos"/>, que renuevan la
@@ -18,7 +19,8 @@ namespace CaeManager.Domain.Inbound.Requisitos;
 ///
 /// <para>
 /// <b>Lo que no hace este incremento (B-14).</b> No resuelve capas ni crea requerimientos (B-15), no aplica el «solo nuevos o
-/// también los N ya dados de alta» de la edición (revalidación, B-23) y no decide quién es extranjero (B-15).
+/// también los N ya dados de alta» de la edición (revalidación, B-23). Quién es extranjero lo dice el modelo de contratación
+/// del Trabajador (<see cref="TipoContratacion.Extranjero"/>), no este requisito.
 /// </para>
 /// </summary>
 public sealed class RequisitoPlantilla : EntidadConTenant
@@ -52,8 +54,18 @@ public sealed class RequisitoPlantilla : EntidadConTenant
 
     public string? Criterio { get; private set; }
 
+    /// <summary>
+    /// Nacionalidad a la que se pedía el requisito antes del 2026-11-17. Ya no decide nada: a quién se pide lo dice solo
+    /// <see cref="TiposContratacion"/>, y a un extranjero se le pide con <see cref="TiposContratacion.Extranjero"/>. La
+    /// migración <c>TraduceExtranjeroAModeloDeContratacion</c> tradujo los valores guardados a la máscara.
+    /// </summary>
+    // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
     public DestinatarioRequisito SePideA { get; private set; }
 
+    /// <summary>
+    /// A qué modelos de contratación del Trabajador se pide: el único criterio, también para el extranjero
+    /// (<see cref="TiposContratacion.Extranjero"/>). Fuera del ámbito Trabajador es siempre <see cref="TiposContratacion.Todos"/>.
+    /// </summary>
     public TiposContratacion TiposContratacion { get; private set; }
 
     /// <summary>
@@ -154,6 +166,9 @@ public sealed class RequisitoPlantilla : EntidadConTenant
             throw new ArgumentException($"El criterio tiene como máximo {AtributosRequisito.LongitudMaximaCriterio} caracteres.", nameof(atributos.Criterio));
 
         var entidad = EntidadDe(tipo);
+        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // Se sigue validando y guardando porque es parte del contrato de los Commands (AtributosRequisito); no decide a
+        // quién se pide el requisito.
         var sePideA = ReglasCatalogoBase.ValidarEnum(atributos.SePideA, nameof(atributos.SePideA));
         if (entidad == EntidadRequisito.VehiculoOMaquina && sePideA != DestinatarioRequisito.Todos)
             throw new ArgumentException("Un vehículo o máquina no es nacional ni extranjero: se pide a todos.", nameof(atributos.SePideA));

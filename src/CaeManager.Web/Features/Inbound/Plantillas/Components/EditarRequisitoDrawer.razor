@@ -116,17 +116,8 @@
         }
     </div>
 
-    <div class="campo">
-        <span class="cfg-etq" id="e-ori">@Textos["CampoDestinatario"]</span>
-        <div class="cfg-seg" role="radiogroup" aria-labelledby="e-ori">
-            @foreach (var d in PlantillaRequisitosUi.Destinatarios)
-            {
-                <button type="button" role="radio" aria-checked="@(DestinatarioEnviado == d)" aria-pressed="@(DestinatarioEnviado == d)" disabled="@(SoloTodos && d != DestinatarioRequisito.Todos)" @onclick="() => _destinatario = d">@Textos[PlantillaRequisitosUi.ClaveDestinatario(d)]</button>
-            }
-        </div>
-        <p class="cfg-ayuda">@Textos["DestinatarioAyuda"]</p>
-    </div>
-
+    @* «Se pide a» (todos, nacionales o extranjeros) ya no se ofrece: desde el 2026-11-17 al extranjero se le pide un requisito
+       con el modelo de contratación Extranjero, y la máscara es el único criterio. *@
     @if (EntidadActual == EntidadRequisito.Trabajador)
     {
         <div class="campo">
@@ -141,7 +132,7 @@
         </div>
     }
 
-    @if (DestinatarioEnviado != DestinatarioRequisito.Nacionales)
+    @if (AdmiteEquivalencias)
     {
         <div class="campo">
             <span class="cfg-etq">@Textos["CampoEquivalencias"]</span>
@@ -249,7 +240,6 @@
     private Guid? _tipoId;
     private bool _propio;
     private AmbitoAplicacion _ambito = AmbitoAplicacion.Empresa;
-    private DestinatarioRequisito _destinatario = DestinatarioRequisito.Todos;
     private TiposContratacion _contrataciones = TiposContratacion.Todos;
     private string _equivalencias = string.Empty;
     private ModoVigenciaRequisito _modo = ModoVigenciaRequisito.LaPoneElDocumento;
@@ -267,10 +257,17 @@
     // Sin vencimiento no hay tolerancia, y un requisito propio nace sin grupo de documento, que R-6 trata como «sin tolerancia».
     private int ToleranciaElegida => _modo == ModoVigenciaRequisito.SinVencimiento || _propio ? 0 : _tolerancia;
 
-    // Un vehículo o máquina no es nacional ni extranjero: el dominio exige «Todos».
-    private bool SoloTodos => EntidadActual == EntidadRequisito.VehiculoOMaquina;
+    // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+    // El Command todavía lo recibe: un requisito nuevo lo envía en Todos y uno editado devuelve el que tenía, sin
+    // enseñarlo ni decidir nada con él, para no reescribir un dato que la migración dejó intacto.
+    private DestinatarioRequisito DestinatarioEnviado => Requisito?.SePideA ?? DestinatarioRequisito.Todos;
 
-    private DestinatarioRequisito DestinatarioEnviado => SoloTodos ? DestinatarioRequisito.Todos : _destinatario;
+    // Las equivalencias son de un extranjero: en un Trabajador se ofrecen si la máscara incluye Extranjero (o si ya hay
+    // alguna escrita, para no perderla al guardar); la Empresa y el vehículo o máquina no se acotan por contratación.
+    private bool AdmiteEquivalencias =>
+        EntidadActual != EntidadRequisito.Trabajador
+        || _contrataciones.Incluye(TipoContratacion.Extranjero)
+        || !string.IsNullOrWhiteSpace(_equivalencias);
 
     private bool SinContratacion => EntidadActual == EntidadRequisito.Trabajador && (_contrataciones & TiposContratacion.Todos) == TiposContratacion.Ninguno;
 
@@ -306,7 +303,7 @@
 
     private bool HayCambiosSinGuardar => EsAlta
         ? _tipoId is not null || _propio || !string.IsNullOrWhiteSpace(_criterio)
-        : Requisito is { } r && (_destinatario != r.SePideA || _contrataciones != r.TiposContratacion
+        : Requisito is { } r && (_contrataciones != r.TiposContratacion
             || _equivalencias != string.Join('\n', r.Equivalencias) || _modo != r.ModoVigencia
             || _meses != (r.VigenciaMeses?.ToString() ?? string.Empty) || _tolerancia != (r.ToleranciaDias ?? 0)
             || _criterio != (r.Criterio ?? string.Empty));
@@ -327,7 +324,6 @@
             if (Requisito is { } r)
             {
                 _tipoId = r.TipoDocumentoId;
-                _destinatario = r.SePideA;
                 _contrataciones = r.TiposContratacion;
                 _equivalencias = string.Join('\n', r.Equivalencias);
                 _modo = r.ModoVigencia;
@@ -337,7 +333,6 @@
             }
             else
             {
-                _destinatario = DestinatarioRequisito.Todos;
                 _contrataciones = TiposContratacion.Todos;
                 _equivalencias = string.Empty;
                 _modo = ModoVigenciaRequisito.LaPoneElDocumento;
@@ -446,9 +441,15 @@
             vigencia = meses;
         }
 
-        var equivalencias = DestinatarioEnviado == DestinatarioRequisito.Nacionales
-            ? []
-            : _equivalencias.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        var equivalencias = AdmiteEquivalencias
+            ? _equivalencias.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+            : [];
+        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+        // Un «Nacionales» guardado no admite equivalencias en el dominio: si ahora las lleva (la máscara incluye Extranjero),
+        // se envía Todos, que es lo que la máscara dice ya.
+        var sePideA = equivalencias.Count > 0 && DestinatarioEnviado == DestinatarioRequisito.Nacionales
+            ? DestinatarioRequisito.Todos
+            : DestinatarioEnviado;
         atributos = new AtributosRequisito(
             Origen: Requisito?.Origen ?? OrigenDeAlta(),
             ModoVigencia: _modo,
@@ -456,7 +457,7 @@
             ToleranciaDias: ToleranciaElegida > 0 ? ToleranciaElegida : null,
             BloqueaAcceso: Requisito?.BloqueaAcceso ?? true,
             Criterio: string.IsNullOrWhiteSpace(_criterio) ? null : _criterio.Trim(),
-            SePideA: DestinatarioEnviado,
+            SePideA: sePideA,
             TiposContratacion: EntidadActual == EntidadRequisito.Trabajador ? _contrataciones : TiposContratacion.Todos,
             Equivalencias: equivalencias,
             AmbitoDocumento: Requisito?.AmbitoDocumento ?? (_propio ? AmbitoDocumentoRequisito.EspecificoTce : AmbitoDocumentoRequisito.GeneralTec));

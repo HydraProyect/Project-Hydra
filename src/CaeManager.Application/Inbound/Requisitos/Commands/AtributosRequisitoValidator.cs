@@ -18,6 +18,7 @@ public class AtributosRequisitoValidator : AbstractValidator<AtributosRequisito>
     {
         RuleFor(a => a.Origen).IsInEnum();
         RuleFor(a => a.ModoVigencia).IsInEnum();
+        // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
         RuleFor(a => a.SePideA).IsInEnum();
         RuleFor(a => a.AmbitoDocumento).IsInEnum();
         RuleFor(a => a.VigenciaMeses).InclusiveBetween(1, AtributosRequisito.VigenciaMaximaMeses).When(a => a.VigenciaMeses is not null);

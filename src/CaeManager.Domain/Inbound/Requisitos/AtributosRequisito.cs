@@ -15,6 +15,7 @@ public sealed record AtributosRequisito(
     int? ToleranciaDias,
     bool BloqueaAcceso,
     string? Criterio,
+    // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
     DestinatarioRequisito SePideA,
     TiposContratacion TiposContratacion,
     IReadOnlyList<string> Equivalencias,

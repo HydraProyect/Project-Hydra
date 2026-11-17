@@ -78,10 +78,7 @@
                                     {
                                         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeContratacion", TextoContrataciones(r)]</Badge>
                                     }
-                                    @if (r.SePideA != DestinatarioRequisito.Todos)
-                                    {
-                                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveDestinatario(r.SePideA)]</Badge>
-                                    }
+                                    @* «Se pide a» ya no se enseña: a un extranjero se le pide con la contratación Extranjero (2026-11-17). *@
                                     @if (r.Equivalencias.Count > 0)
                                     {
                                         <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["BadgeEquivalencias", r.Equivalencias.Count]</Badge>

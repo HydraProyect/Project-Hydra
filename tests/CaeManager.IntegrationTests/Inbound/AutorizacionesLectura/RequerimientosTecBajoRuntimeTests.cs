@@ -23,7 +23,8 @@ namespace CaeManager.IntegrationTests.Inbound.AutorizacionesLectura;
 /// Lectura inversa X-2 de la demo Inbound (P0a): <c>app_inbound_tec_requerimientos()</c> bajo <c>cae_app_runtime</c> con el
 /// contexto firmado. El Tenant TEC lee los requisitos que el Tenant TCE le pide en sus contratos de acceso Activos y
 /// vinculados (D10) y dentro de sus fechas el día de negocio (opción C), solo de las capas del Centro y de las exigencias
-/// del Cliente empresarial (D9), con la aplicabilidad de cada requisito (<c>SePideA</c>, <c>TiposContratacion</c>) y sin
+/// del Cliente empresarial (D9), con la aplicabilidad de cada requisito (<c>TiposContratacion</c>, el único criterio desde
+/// <c>TraduceExtranjeroAModeloDeContratacion</c>, que quitó <c>SePideA</c> de la firma) y sin
 /// ninguna columna que identifique a un Gestor CAE (P-4, Q-18). Contratos y plantillas comparten Centro y Cliente
 /// empresarial, así que lo único que separa un contrato que se lee de uno que no es su estado, sus fechas, su vínculo o la
 /// línea Inbound de su Tenant TCE.
@@ -92,8 +93,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             // Aplicabilidad distinta de la de serie en cada capa, para que las dos columnas no coincidan por casualidad.
             var requisitoCentro = deCentro.AnadirRequisito(tipoCentro, null, Basicos with
             {
-                SePideA = DestinatarioRequisito.Extranjeros,
-                TiposContratacion = TiposContratacion.CuentaAjena | TiposContratacion.Autonomo,
+                TiposContratacion = TiposContratacion.CuentaAjena | TiposContratacion.Extranjero,
             });
             var retirado = deCentro.AnadirRequisito(tipoRetirado, null, Basicos);
             deCentro.RetirarRequisito(retirado.Id);
@@ -106,7 +106,6 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
                 BloqueaAcceso = false,
                 Criterio = "Póliza en vigor",
                 AmbitoDocumento = AmbitoDocumentoRequisito.EspecificoTce,
-                SePideA = DestinatarioRequisito.Nacionales,
             });
             var deOtroCentro = PlantillaRequisitos.ParaCentro(otroCentro.Id);
             deOtroCentro.AnadirRequisito(tipoOtroCentro, null, Basicos);
@@ -204,8 +203,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             ToleranciaDias = (int?)null,
             BloqueaAcceso = true,
             AmbitoDocumento = "GeneralTec",
-            SePideA = "Extranjeros",
-            TiposContratacion = (int)(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo),
+            TiposContratacion = (int)(TiposContratacion.CuentaAjena | TiposContratacion.Extranjero),
         });
         var n3 = filas.Single(f => f.CapaPlantilla == "ExigenciasClienteEmpresarial");
         n3.Should().BeEquivalentTo(new
@@ -219,7 +217,6 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
             VigenciaMeses = (int?)12,
             BloqueaAcceso = false,
             AmbitoDocumento = "EspecificoTce",
-            SePideA = "Nacionales",
             TiposContratacion = (int)TiposContratacion.Todos,
         });
     }
@@ -337,7 +334,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
         columnas.Should().Equal(
             "ContratoAccesoId", "TenantTceNombre", "CentroId", "CentroNombre", "ClienteEmpresarialNombre", "RequisitoId",
             "TipoDocumentoId", "TipoDocumentoNombre", "Entidad", "Criterio", "ModoVigencia", "VigenciaMeses", "ToleranciaDias",
-            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla", "SePideA", "TiposContratacion");
+            "BloqueaAcceso", "AmbitoDocumento", "CapaPlantilla", "TiposContratacion");
         columnas.Should().NotContain(c => c.Contains("Usuario", StringComparison.OrdinalIgnoreCase)
                                           || c.Contains("Gestor", StringComparison.OrdinalIgnoreCase)
                                           || c.Contains("Email", StringComparison.OrdinalIgnoreCase)
@@ -377,7 +374,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
     private sealed record Fila(
         Guid ContratoAccesoId, string TenantTceNombre, Guid CentroId, string CentroNombre, string ClienteEmpresarialNombre,
         Guid RequisitoId, Guid TipoDocumentoId, string TipoDocumentoNombre, string Entidad, string? Criterio, string ModoVigencia,
-        int? VigenciaMeses, int? ToleranciaDias, bool BloqueaAcceso, string AmbitoDocumento, string CapaPlantilla, string SePideA,
+        int? VigenciaMeses, int? ToleranciaDias, bool BloqueaAcceso, string AmbitoDocumento, string CapaPlantilla,
         int TiposContratacion);
 
     private async Task<List<Fila>> LeerComoRuntimeAsync(Guid tenant, Guid usuario, string? antes = null, Guid? tenantOrigen = null)
@@ -406,7 +403,7 @@ public class RequerimientosTecBajoRuntimeTests : IAsyncLifetime
                 lector.GetGuid(5), lector.GetGuid(6), lector.GetString(7), lector.GetString(8),
                 lector.IsDBNull(9) ? null : lector.GetString(9), lector.GetString(10),
                 lector.IsDBNull(11) ? null : lector.GetInt32(11), lector.IsDBNull(12) ? null : lector.GetInt32(12),
-                lector.GetBoolean(13), lector.GetString(14), lector.GetString(15), lector.GetString(16), lector.GetInt32(17)));
+                lector.GetBoolean(13), lector.GetString(14), lector.GetString(15), lector.GetInt32(16)));
         }
 
         return filas;

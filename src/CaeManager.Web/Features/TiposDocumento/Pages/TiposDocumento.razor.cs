@@ -813,6 +813,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     {
         TipoContratacion.Autonomo => Textos["TipoContratacionAutonomo"].Value,
         TipoContratacion.Voluntario => Textos["TipoContratacionVoluntario"].Value,
+        TipoContratacion.Extranjero => Textos["TipoContratacionExtranjero"].Value,
         _ => Textos["TipoContratacionCuentaAjena"].Value,
     };
 

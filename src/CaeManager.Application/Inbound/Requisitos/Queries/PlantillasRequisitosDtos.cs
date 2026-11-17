@@ -22,6 +22,8 @@ public record RequisitoPlantillaDto(
     int? ToleranciaDias,
     bool BloqueaAcceso,
     string? Criterio,
+    // shortcut: SePideA queda sin leerse; retirar la columna en un incremento posterior (decisión 2026-11-17)
+    // Solo viaja para que Editar requisito lo devuelva sin cambiarlo; ninguna pantalla lo enseña ni decide con él.
     DestinatarioRequisito SePideA,
     TiposContratacion TiposContratacion,
     IReadOnlyList<string> Equivalencias,

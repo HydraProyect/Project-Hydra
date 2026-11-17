@@ -343,8 +343,9 @@ public class PlantillasRequisitosPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Un_vehiculo_o_maquina_solo_admite_Todos_como_destinatario()
+    public void El_formulario_ya_no_ofrece_a_quien_se_pide_y_un_requisito_nuevo_lo_envia_en_Todos()
     {
+        // Desde el 2026-11-17 al extranjero se le pide con la contratación Extranjero: «Se pide a» ni se enseña ni decide.
         var mediador = Preparar();
         var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
@@ -352,8 +353,9 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
         cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("grúa")).Click();
 
-        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").First(b => b.TextContent.Trim() == "Nacionales").HasAttribute("disabled").Should().BeTrue());
-        cut.FindAll("button[role='radio']").First(b => b.TextContent.Trim() == "Extranjeros").HasAttribute("disabled").Should().BeTrue();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Se añadirá"));
+        cut.FindAll("button[role='radio']").Should().BeEmpty();
+        cut.Markup.Should().NotContain("A quién se pide").And.NotContain("Nacionales");
         Guardar(cut);
 
         cut.WaitForAssertion(() => mediador.Enviadas
@@ -397,7 +399,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("Formación en altura")).Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo de contratación"));
 
-        foreach (var nombre in new[] { "Cuenta ajena", "Autónomo", "Voluntario" })
+        foreach (var nombre in new[] { "Cuenta ajena", "Autónomo", "Voluntario", "Extranjero" })
             cut.FindAll("button").First(b => b.TextContent.Trim() == nombre).Click();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Marca al menos un tipo de contratación."));
@@ -444,8 +446,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
         cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
         cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("Formación en altura")).Click();
-        cut.WaitForAssertion(() => cut.FindAll("button[role='radio']").Should().NotBeEmpty());
-        cut.FindAll("button[role='radio']").First(b => b.TextContent.Trim() == "Nacionales").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo de contratación"));
         cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("grúa")).Click();
         cut.WaitForAssertion(() => cut.FindAll("textarea").Should().NotBeEmpty());
         cut.Find("textarea").Input("Certificado equivalente");
@@ -457,6 +458,33 @@ public class PlantillasRequisitosPantallasTests : BunitContext
             .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single().Atributos;
         atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
         atributos.Equivalencias.Should().Equal("Certificado equivalente");
+    }
+
+    [Fact]
+    public void Un_requisito_de_Trabajador_solo_ofrece_equivalencias_si_se_pide_al_Extranjero()
+    {
+        var mediador = Preparar();
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button[role='option']").Should().NotBeEmpty());
+        cut.FindAll("button[role='option']").First(b => b.TextContent.Contains("Formación en altura")).Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo de contratación"));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Extranjero").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Markup.Should().Contain("Equivalencias para extranjeros", "la serie por defecto incluye al Extranjero");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Extranjero").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Equivalencias para extranjeros"));
+        Guardar(cut);
+
+        cut.WaitForAssertion(() => mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Should().ContainSingle());
+        var atributos = mediador.Enviadas
+            .OfType<CaeManager.Application.Inbound.Requisitos.Commands.AnadirRequisitoAPlantilla.AnadirRequisitoAPlantillaCommand>().Single().Atributos;
+        atributos.TiposContratacion.Should().Be(TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario);
+        atributos.Equivalencias.Should().BeEmpty();
+        atributos.SePideA.Should().Be(DestinatarioRequisito.Todos);
     }
 
     [Fact]

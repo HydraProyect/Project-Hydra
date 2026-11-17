@@ -267,15 +267,6 @@
   <data name="EntidadAyuda" xml:space="preserve">
     <value>La fija el tipo de documento y no cambia.</value>
   </data>
-  <data name="DestinatarioTodos" xml:space="preserve">
-    <value>Todos</value>
-  </data>
-  <data name="DestinatarioNacionales" xml:space="preserve">
-    <value>Nacionales</value>
-  </data>
-  <data name="DestinatarioExtranjeros" xml:space="preserve">
-    <value>Extranjeros</value>
-  </data>
   <data name="ContratacionCuentaAjena" xml:space="preserve">
     <value>Cuenta ajena</value>
   </data>
@@ -284,6 +275,9 @@
   </data>
   <data name="ContratacionVoluntario" xml:space="preserve">
     <value>Voluntario</value>
+  </data>
+  <data name="ContratacionExtranjero" xml:space="preserve">
+    <value>Extranjero</value>
   </data>
   <data name="BadgeContratacion" xml:space="preserve">
     <value>Contratación · {0}</value>
@@ -335,9 +329,6 @@
   </data>
   <data name="CampoEntidad" xml:space="preserve">
     <value>Entidad</value>
-  </data>
-  <data name="CampoDestinatario" xml:space="preserve">
-    <value>A quién se pide</value>
   </data>
   <data name="CampoContratacion" xml:space="preserve">
     <value>Tipo de contratación</value>
@@ -411,11 +402,8 @@
   <data name="MotivoFaltaRequisito" xml:space="preserve">
     <value>Elige un requisito del catálogo o crea uno propio.</value>
   </data>
-  <data name="DestinatarioAyuda" xml:space="preserve">
-    <value>Quién es extranjero lo decide el país de la Empresa contratista o el documento de identidad del Trabajador.</value>
-  </data>
   <data name="ContratacionAyuda" xml:space="preserve">
-    <value>A qué tipos de contratación del Trabajador se pide.</value>
+    <value>A qué modelos de contratación del Trabajador se pide. A un extranjero se le pide con Extranjero.</value>
   </data>
   <data name="EquivalenciasAyuda" xml:space="preserve">
     <value>Documentos que valen en su lugar para quien no es nacional, uno por línea (hasta {0}).</value>
