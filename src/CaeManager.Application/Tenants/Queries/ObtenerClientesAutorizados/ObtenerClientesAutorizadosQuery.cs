@@ -330,7 +330,8 @@ public class ObtenerClientesAutorizadosQueryHandler(
         return tenant is null
             ? null
             : new ClienteAutorizadoDto(tenant.Id, tenant.Nombre, EsOrigen: false, EsGestionadoPorOperacion: true,
-                LogoVersion: tenant.LogoVersion, EsCarteraGestorCae: true) { Servicio = ServicioCae.Inbound };
+                LogoVersion: tenant.LogoVersion, EsCarteraGestorCae: true)
+            { Servicio = ServicioCae.Inbound };
     }
 
     /// <summary>La lista real, sin lente de demo, leída de la base con el contexto actual.</summary>
