@@ -746,6 +746,33 @@ public class BuzonGen2Tests : BunitContext
         AsuntosVisibles(cut).Should().Equal(["TC2 de julio"], "el historial abierto sigue igual");
     }
 
+    /// <summary>Un Confirmar que vuelve con la página ya cerrada no recarga el selector ni avisa de un error.</summary>
+    [Fact]
+    public async Task Un_Confirmar_que_vuelve_con_la_pagina_cerrada_no_recarga_ni_registra_errores()
+    {
+        var envio = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registrado = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var escenario = new Escenario
+        {
+            PuedeConfirmar = true,
+            Interceptar = (peticion, _) => peticion is ReconocerAvisoHuecoCommand ? RegistrarYRetener(registrado, envio) : null,
+        };
+        escenario.Conexiones.Add(ConAviso(ConexionAId, "CAE Norte"));
+        var registro = new RegistroPrueba();
+        var (cut, mediador) = Renderizar(escenario, registro: registro);
+        await ElegirConexion(cut, ConexionAId);
+        await BotonesConfirmar(cut).Single().ClickAsync(new MouseEventArgs());
+        var confirmar = cut.Find("[data-testid=confirmar-aviso-hueco]").ClickAsync(new MouseEventArgs());
+        await registrado.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await DisposeComponentsAsync();
+        envio.SetResult(Result.Exito());
+        await confirmar.WaitAsync(TimeSpan.FromSeconds(10));
+
+        mediador.Enviados.OfType<ObtenerConexionesIntegracionQuery>().Should().ContainSingle("con la página cerrada no se recarga");
+        registro.Entradas.Should().NotContain(e => e.Nivel == LogLevel.Error);
+    }
+
     [Fact]
     public async Task Cancelar_cierra_el_dialogo_sin_enviar_nada()
     {
