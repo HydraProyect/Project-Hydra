@@ -75,6 +75,27 @@ public class AptosHoyDelCentroConBackendTests
     }
 
     [Fact]
+    public async Task Un_Trabajador_en_contratos_de_dos_Empresas_lleva_las_dos_para_el_filtro_y_la_que_da_el_estado_en_la_fila()
+    {
+        // Decisión del 2026-11-17: una sola fila, con el estado menos favorable; el filtro por Empresa la encuentra por cualquiera.
+        var mediador = new MediadorDePrueba
+        {
+            Contratos = [Contrato(EmpresaId), Contrato(OtraEmpresaId)],
+            Filas =
+            [
+                Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.NoApto, "Seguro de responsabilidad civil",
+                    SujetoDelRequisitoInbound.EmpresaContratista, CausaNoAptitudInbound.SinDocumentoValidado, empresa: OtraEmpresaId)
+                    with { EmpresasContratistaIds = [OtraEmpresaId, EmpresaId] },
+            ],
+        };
+
+        var fila = (await Adaptador(mediador).ObtenerAsync(CentroId))!.Should().ContainSingle().Subject;
+
+        fila.EmpresaContratista.Should().Be("Instalaciones Cinca S.L.");
+        fila.EmpresasParaFiltrar.Should().BeEquivalentTo(["Instalaciones Cinca S.L.", "Montajes Moncayo S.L."]);
+    }
+
+    [Fact]
     public async Task Traduce_cada_estado_con_la_Empresa_contratista_el_DNI_enmascarado_y_el_requisito()
     {
         var mediador = new MediadorDePrueba

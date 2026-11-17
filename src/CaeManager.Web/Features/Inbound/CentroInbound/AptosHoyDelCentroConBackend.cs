@@ -27,7 +27,7 @@ public sealed class AptosHoyDelCentroConBackend(
                 return [];
 
             // Solo se le pone nombre a las Empresas contratistas que salen en alguna fila: el resolutor las pide una a una.
-            var necesarias = filas.Select(f => f.EmpresaContratistaId).ToHashSet();
+            var necesarias = filas.SelectMany(f => TodasLasEmpresas(f)).ToHashSet();
             var contratos = (await mediator.Send(new ObtenerContratosAccesoQuery(centroId), cancellationToken))
                 .Where(c => necesarias.Contains(c.EmpresaContratistaId))
                 .ToList();
@@ -38,7 +38,8 @@ public sealed class AptosHoyDelCentroConBackend(
             return filas.Select(f => new TrabajadorAptoHoy(
                     f.TrabajadorId, f.Nombre, EnmascararDocumento(f.DocumentoIdentidad),
                     empresas.GetValueOrDefault(f.EmpresaContratistaId) ?? textos["EmpresaNoDisponible"].Value, TipoDe(f), EstadoDe(f.Estado),
-                    f.Requisito, DetalleDe(f), f.ProyeccionCompleta))
+                    f.Requisito, DetalleDe(f), f.ProyeccionCompleta,
+                    TodasLasEmpresas(f).Select(id => empresas.GetValueOrDefault(id) ?? textos["EmpresaNoDisponible"].Value).Distinct().ToList()))
                 .ToList();
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
@@ -46,6 +47,10 @@ public sealed class AptosHoyDelCentroConBackend(
             return null;
         }
     }
+
+    // La Empresa de la fila primero y después las de los demás contratos del Trabajador en el Centro.
+    private static IEnumerable<Guid> TodasLasEmpresas(AptoHoyDto fila) =>
+        new[] { fila.EmpresaContratistaId }.Concat(fila.EmpresasContratistaIds ?? []).Distinct();
 
     private string TipoDe(AptoHoyDto fila) =>
         fila.TipoContrato is { } tipo ? textos[ContratoAccesoUi.ClaveTipo(tipo)].Value : textos["SinDato"].Value;

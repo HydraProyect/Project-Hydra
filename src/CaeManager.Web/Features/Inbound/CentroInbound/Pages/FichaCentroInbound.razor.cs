@@ -140,7 +140,7 @@ public partial class FichaCentroInbound
         .Where(a => string.IsNullOrWhiteSpace(_busquedaAptos)
             || a.Nombre.Contains(_busquedaAptos.Trim(), StringComparison.CurrentCultureIgnoreCase)
             || a.DniParcial.Contains(_busquedaAptos.Trim(), StringComparison.CurrentCultureIgnoreCase))
-        .Where(a => _empresaAptos.Length == 0 || a.EmpresaContratista == _empresaAptos);
+        .Where(a => _empresaAptos.Length == 0 || a.EmpresasParaFiltrar.Contains(_empresaAptos));
 
     // Primero lo que no deja entrar, después lo que vence y al final los aptos (maqueta).
     private IReadOnlyList<TrabajadorAptoHoy> AptosVisibles =>
@@ -155,7 +155,7 @@ public partial class FichaCentroInbound
         SinEstado.GroupBy(a => a.Estado.ToString()).ToDictionary(g => g.Key, g => g.Count());
 
     private IReadOnlyList<OpcionEstado> OpcionesEmpresaAptos =>
-        (_aptos ?? []).Select(a => a.EmpresaContratista).Distinct().OrderBy(e => e, StringComparer.CurrentCultureIgnoreCase)
+        (_aptos ?? []).SelectMany(a => a.EmpresasParaFiltrar).Distinct().OrderBy(e => e, StringComparer.CurrentCultureIgnoreCase)
             .Select(e => new OpcionEstado(e, e)).ToList();
 
     private Task BuscarAptos(string texto)

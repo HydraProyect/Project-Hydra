@@ -437,8 +437,9 @@ public class AptosHoyDelCentroTests
     }
 
     [Fact]
-    public async Task Un_Trabajador_en_dos_contratos_sale_una_vez_con_el_estado_mas_favorable()
+    public async Task Un_Trabajador_en_dos_contratos_sale_una_vez_con_el_estado_menos_favorable()
     {
+        // Decisión del 2026-11-17 (P3, punto 4): antes tomaba el más favorable.
         var segundo = NuevoContrato(Guid.NewGuid());
         _contratos.ListaContratos.Add(segundo);
         var t = Guid.NewGuid();
@@ -448,9 +449,43 @@ public class AptosHoyDelCentroTests
 
         var fila = (await Consultar()).Should().ContainSingle().Subject;
 
-        fila.Estado.Should().Be(EstadoAptitudInbound.Apto);
-        fila.ContratoAccesoId.Should().Be(segundo.Id);
-        fila.EmpresaContratistaId.Should().Be(segundo.EmpresaContratistaId);
+        fila.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        fila.ContratoAccesoId.Should().Be(_contrato.Id);
+        fila.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId);
+        fila.EmpresasContratistaIds.Should().BeEquivalentTo([_contrato.EmpresaContratistaId, segundo.EmpresaContratistaId]);
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_en_dos_contratos_con_la_Empresa_de_uno_incumpliendo_D3_sale_una_sola_fila_NoApto_por_cualquiera_de_las_dos_Empresas()
+    {
+        // El contrato de la Empresa que incumple D3 (sin Seguro de responsabilidad civil) y el de otra Empresa al día.
+        ConExigencias();
+        var alDia = NuevoContrato(Guid.NewGuid());
+        _contratos.ListaContratos.Add(alDia);
+        DarEmpresa(_seguridadSocial, new DateOnly(2026, 11, 5)); // la de _contrato: sin seguro de RC
+        Registrar(alDia, _seguroRc, null, "Montajes Moncayo S.L.", new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1), null);
+        Registrar(alDia, _seguridadSocial, null, "Montajes Moncayo S.L.", new DateOnly(2026, 11, 5), null, null);
+        var t = Guid.NewGuid();
+        foreach (var contrato in new[] { _contrato, alDia })
+        {
+            Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1), contrato: contrato);
+            Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto, contrato: contrato);
+        }
+
+        var completa = (await Consultar()).Should().ContainSingle("una fila por Trabajador").Subject;
+
+        completa.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        completa.EmpresaContratistaId.Should().Be(_contrato.EmpresaContratistaId, "la fila cita la Empresa que da el estado");
+        completa.SujetoDelRequisito.Should().Be(SujetoDelRequisitoInbound.EmpresaContratista);
+        completa.EmpresasContratistaIds.Should().BeEquivalentTo([_contrato.EmpresaContratistaId, alDia.EmpresaContratistaId],
+            "el filtro por Empresa lo encuentra por cualquiera de las dos");
+
+        var restringida = (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound))).Should().ContainSingle().Subject;
+        restringida.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        (restringida.Requisito, restringida.SujetoDelRequisito, restringida.Causa, restringida.FechaVencimiento)
+            .Should().Be(((string?)null, (SujetoDelRequisitoInbound?)null, (CausaNoAptitudInbound?)null, (DateOnly?)null),
+                "fuera del Gestor CAE no sale el motivo");
+        restringida.EmpresasContratistaIds.Should().BeEquivalentTo([_contrato.EmpresaContratistaId, alDia.EmpresaContratistaId]);
     }
 
     [Fact]
@@ -549,6 +584,68 @@ public class AptosHoyDelCentroTests
         fila.Requisito.Should().Be("Certificado de aptitud");
         fila.Causa.Should().Be(CausaNoAptitudInbound.NoAcreditado);
         fila.FechaVencimiento.Should().BeNull("ni siquiera la fecha del certificado");
+    }
+
+    // Decisión del 2026-11-17 (P3, punto 2): un «No apto» vigente bloquea siempre; antes ganaba la mejor evidencia.
+    [Fact]
+    public async Task Un_apto_medico_antiguo_no_gana_a_un_No_apto_vigente_mas_reciente()
+    {
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2025, 12, 1), conclusion: ConclusionAptitud.Apto); // vigente hasta 2026-12-01
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.NoApto);
+
+        var fila = (await Consultar()).Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        (fila.Requisito, fila.Causa, fila.FechaVencimiento).Should().Be(
+            ((string?)"Certificado de aptitud", (CausaNoAptitudInbound?)CausaNoAptitudInbound.NoAcreditado, (DateOnly?)null));
+    }
+
+    [Fact]
+    public async Task Un_No_apto_vigente_bloquea_aunque_haya_un_apto_posterior_todavia_vigente()
+    {
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 6, 1), conclusion: ConclusionAptitud.NoApto);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+
+        (await Consultar()).Should().ContainSingle().Which.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        (await Consultar(autorizacion: new AutorizacionSolo(CapacidadInbound.LeerInbound))).Should().ContainSingle()
+            .Which.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+    }
+
+    [Theory]
+    [InlineData("2025-11-17", EstadoAptitudInbound.NoApto, "su último día de vigencia es hoy: todavía bloquea")]
+    [InlineData("2025-11-16", EstadoAptitudInbound.Apto, "caducó ayer: deja de bloquear y el apto vigente acredita")]
+    public async Task Un_No_apto_caducado_deja_de_bloquear(string emisionDelNoApto, EstadoAptitudInbound esperado, string porQue)
+    {
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, DateOnly.Parse(emisionDelNoApto), conclusion: ConclusionAptitud.NoApto);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+
+        (await Consultar()).Should().ContainSingle().Which.Estado.Should().Be(esperado, porQue);
+    }
+
+    [Fact]
+    public async Task Un_No_apto_Rechazado_no_bloquea_y_un_No_apto_caducado_sin_otra_evidencia_sigue_sin_acreditar()
+    {
+        var rechazado = Guid.NewGuid();
+        Dar(rechazado, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(rechazado, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 6, 1), conclusion: ConclusionAptitud.NoApto)
+            .Rechazar(CausaRechazoAcreditacion.DatosErroneos, "Mal transcrito", _usuario, Ahora.UtcDateTime);
+        Dar(rechazado, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+        var caducado = Guid.NewGuid();
+        Dar(caducado, "Iván Bescós Lacasa", _formacion, new DateOnly(2026, 6, 1));
+        Dar(caducado, "Iván Bescós Lacasa", _aptitud, new DateOnly(2024, 1, 1), conclusion: ConclusionAptitud.NoApto);
+
+        var filas = await Consultar();
+
+        filas.Single(f => f.TrabajadorId == rechazado).Estado.Should().Be(EstadoAptitudInbound.Apto);
+        var sinAcreditar = filas.Single(f => f.TrabajadorId == caducado);
+        sinAcreditar.Estado.Should().Be(EstadoAptitudInbound.NoApto, "un «No apto» caducado no acredita nada");
+        sinAcreditar.Causa.Should().Be(CausaNoAptitudInbound.NoAcreditado);
     }
 
     [Fact]

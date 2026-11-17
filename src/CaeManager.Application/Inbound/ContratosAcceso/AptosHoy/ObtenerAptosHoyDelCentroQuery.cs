@@ -65,6 +65,11 @@ public enum SujetoDelRequisitoInbound
 /// El vencimiento del requisito citado; con <see cref="EstadoAptitudInbound.Apto"/>, el próximo vencimiento de lo que bloquea.
 /// Nulo en un requisito que revela salud y no se acredita (<see cref="CausaNoAptitudInbound.NoAcreditado"/>).
 /// </param>
+/// <param name="EmpresasContratistaIds">
+/// Todas las Empresas contratistas de los contratos de acceso del Trabajador en el Centro, la de <paramref name="EmpresaContratistaId"/>
+/// incluida: el Trabajador sale en una sola fila, con el estado menos favorable, y el filtro por Empresa contratista lo encuentra
+/// por cualquiera de ellas. Solo ids de Empresa, que la proyección restringida ya muestra.
+/// </param>
 /// <remarks>
 /// Proyección completa (con requisito, sujeto, causa y fecha) solo para quien tiene <see cref="CapacidadInbound.ValidarInbound"/>,
 /// el Gestor CAE (DECISION_LOG del 2026-11-14, duda 6). Para los demás roles con <see cref="CapacidadInbound.LeerInbound"/>,
@@ -83,7 +88,8 @@ public record AptoHoyDto(
     SujetoDelRequisitoInbound? SujetoDelRequisito,
     CausaNoAptitudInbound? Causa,
     DateOnly? FechaVencimiento,
-    bool ProyeccionCompleta = true);
+    bool ProyeccionCompleta = true,
+    IReadOnlyList<Guid>? EmpresasContratistaIds = null);
 
 /// <summary>
 /// El DNI parcial de «Aptos hoy»: los cuatro últimos caracteres, como el del Importador. Aplicarlo dos veces da lo mismo. Vive
@@ -128,9 +134,13 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// no las de Actividad ni de riesgo. (3) <c>SePideA</c> y los tipos de contratación no se evalúan: el requisito se aplica a
 /// todos (falla cerrado). (4) Los requisitos de vehículo o máquina no entran. (5) Con el mismo requisito en las dos plantillas,
 /// cada una se evalúa por separado y basta que una bloquee y falle. (6) Un requisito que toma el vencimiento del documento y
-/// una evidencia sin fecha no se da por vigente. (7) Una evidencia médica que transcribe «No apto» no acredita el requisito,
-/// aunque esté Aceptada y vigente. (8) Cada evidencia es de un contrato: un Trabajador en dos contratos se evalúa en cada uno
-/// y sale una sola vez, con el estado más favorable. (9) En una fila Apto de la proyección completa, el próximo vencimiento
+/// una evidencia sin fecha no se da por vigente. (7) Una evidencia médica que transcribe «No apto» no acredita el requisito y,
+/// mientras esté Aceptada y vigente (su vencimiento, sin tolerancia; sin fecha que la caduque, se da por vigente), bloquea
+/// siempre, aunque haya otra evidencia mejor del mismo tipo (decisión del 2026-11-17, P3 punto 2); caducada, deja de bloquear.
+/// Solo se evalúa si el Centro o el Cliente empresarial tienen ese tipo como requisito que bloquea. (8) Cada evidencia es de un
+/// contrato: un Trabajador en dos contratos se evalúa en cada uno y sale una sola vez, con el estado menos favorable de todos
+/// ellos (decisión del 2026-11-17, P3 punto 4); la fila cita el contrato y la Empresa contratista que dan ese estado y lleva en
+/// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas. (9) En una fila Apto de la proyección completa, el próximo vencimiento
 /// puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
 /// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
 /// </para>
@@ -199,6 +209,7 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             .ToList();
 
         var filas = new Dictionary<Guid, AptoHoyDto>();
+        var empresasPorTrabajador = new Dictionary<Guid, List<Guid>>();
         foreach (var contrato in contratos)
         {
             var delContrato = evidencias.Where(e => e.ContratoAccesoId == contrato.Id).ToList();
@@ -215,13 +226,20 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
                 var identidad = propias.OrderByDescending(e => e.ValidadaEnUtc).ThenBy(e => e.Id).First();
                 var fila = Resumir(porTrabajador.Key, identidad, contrato, evaluadas, hoy);
 
-                if (!filas.TryGetValue(porTrabajador.Key, out var previa) || fila.Estado < previa.Estado)
+                // Decisión del 2026-11-17 (P3, punto 4): con varios contratos en el Centro, el Trabajador toma el estado menos
+                // favorable de todos. Con el mismo estado se queda el primero (el contrato más reciente).
+                if (!filas.TryGetValue(porTrabajador.Key, out var previa) || fila.Estado > previa.Estado)
                     filas[porTrabajador.Key] = fila;
+                if (!empresasPorTrabajador.TryGetValue(porTrabajador.Key, out var empresas))
+                    empresasPorTrabajador[porTrabajador.Key] = empresas = [];
+                if (!empresas.Contains(contrato.EmpresaContratistaId))
+                    empresas.Add(contrato.EmpresaContratistaId);
             }
         }
 
         // La restricción va antes de ordenar: el orden no puede delatar un «en tolerancia» que la proyección restringida oculta.
-        return filas.Values
+        return filas
+            .Select(par => par.Value with { EmpresasContratistaIds = empresasPorTrabajador[par.Key] })
             .Select(f => completa ? f : Restringida(f))
             .OrderByDescending(f => f.Estado).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.TrabajadorId)
             .ToList();
@@ -309,9 +327,17 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
 
     private static Resultado MejorDe(Exigido exigido, IEnumerable<EvidenciaInbound> candidatas, DateOnly hoy)
     {
-        var resultados = candidatas.Select(e => Valorar(exigido, e, hoy)).ToList();
-        if (resultados.Count == 0)
+        var lista = candidatas.ToList();
+        if (lista.Count == 0)
             return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.SinDocumentoValidado, null);
+
+        // Decisión del 2026-11-17 (P3, punto 2): un «No apto» transcrito, Aceptado y vigente bloquea siempre al Trabajador, aunque
+        // haya otra evidencia mejor del mismo tipo (un apto anterior o posterior). Si ya caducó, deja de bloquear y compite como
+        // cualquier otra evidencia (sin acreditar nada).
+        if (lista.Any(e => EsNoAptoVigente(exigido, e, hoy)))
+            return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.NoAcreditado, null);
+
+        var resultados = lista.Select(e => Valorar(exigido, e, hoy)).ToList();
 
         return resultados
             .OrderBy(r => Rango(r))
@@ -339,14 +365,7 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.NoAcreditado, null);
 
         var requisito = exigido.Requisito;
-        DateOnly? vencimiento = requisito.ModoVigencia switch
-        {
-            // D4: la fecha más temprana entre la emisión más N meses y la del documento.
-            ModoVigenciaRequisito.Fija => MasTemprana(
-                requisito.VigenciaMeses is { } meses ? evidencia.FechaEmision.AddMonths(meses) : null, evidencia.FechaVencimiento),
-            // Con «Sin vencimiento» el requisito no pone plazo, pero si el documento trae su fecha de vencimiento, cuenta.
-            _ => evidencia.FechaVencimiento,
-        };
+        var vencimiento = VencimientoDe(requisito, evidencia);
         if (vencimiento is not { } dia)
         {
             return requisito.ModoVigencia == ModoVigenciaRequisito.SinVencimiento
@@ -360,6 +379,26 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
             return new Resultado(EstadoAptitudInbound.EnTolerancia, null, dia);
         return new Resultado(EstadoAptitudInbound.NoApto, CausaNoAptitudInbound.Vencido, dia);
     }
+
+    /// <summary>
+    /// El vencimiento de la evidencia para el requisito (D4, sin cambios): con «Fija N meses», la fecha más temprana entre la
+    /// emisión más N meses y la del documento; con «Sin vencimiento» o «Lo pone el documento», la del documento si la trae.
+    /// </summary>
+    private static DateOnly? VencimientoDe(RequisitoPlantilla requisito, EvidenciaInbound evidencia) =>
+        requisito.ModoVigencia switch
+        {
+            ModoVigenciaRequisito.Fija => MasTemprana(
+                requisito.VigenciaMeses is { } meses ? evidencia.FechaEmision.AddMonths(meses) : null, evidencia.FechaVencimiento),
+            _ => evidencia.FechaVencimiento,
+        };
+
+    /// <summary>
+    /// Una conclusión «No apto» transcrita sigue vigente hasta su vencimiento, sin tolerancia (R-6). Sin fecha que la caduque
+    /// (el requisito no la fija y el documento no la trae) se da por vigente: falla cerrado.
+    /// </summary>
+    private static bool EsNoAptoVigente(Exigido exigido, EvidenciaInbound evidencia, DateOnly hoy) =>
+        evidencia.SoloConclusionAptitud && evidencia.ConclusionAptitud == ConclusionAptitud.NoApto
+        && (VencimientoDe(exigido.Requisito, evidencia) is not { } dia || hoy.DayNumber <= dia.DayNumber);
 
     private static DateOnly? MasTemprana(DateOnly? a, DateOnly? b) =>
         a is null ? b : b is null ? a : a < b ? a : b;

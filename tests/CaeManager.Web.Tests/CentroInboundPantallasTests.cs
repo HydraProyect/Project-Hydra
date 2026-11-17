@@ -230,6 +230,22 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public void Aptos_hoy_el_filtro_por_Empresa_contratista_encuentra_al_Trabajador_por_cualquiera_de_sus_Empresas()
+    {
+        var deUna = Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.NoApto, "Seguro de responsabilidad civil", empresa: "Instalaciones Cinca S.L.");
+        var enDos = deUna with { EmpresasContratistas = ["Instalaciones Cinca S.L.", "Montajes Moncayo S.L."] };
+        Preparar(aptos: [enDos, Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L.")], contratos: Contrato());
+        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        cut.FindAll("button").First(b => b.TextContent.Contains("Empresa contratista")).Click();
+        cut.FindAll("[role=menuitemradio]").First(i => i.TextContent.Contains("Montajes Moncayo S.L.")).Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Select(f => f.TextContent).Should()
+            .ContainSingle("solo está en Montajes Moncayo el Trabajador con dos Empresas").Which.Should().Contain("Pilar Sanjuán Aznar"),
+            TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Aptos_hoy_sin_Trabajadores_asignados_lo_dice()
     {
         Preparar(aptos: [], contratos: Contrato());
