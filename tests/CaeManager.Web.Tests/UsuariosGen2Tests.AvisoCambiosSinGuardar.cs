@@ -217,6 +217,36 @@ public partial class UsuariosGen2Tests
         _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
     }
 
+    /// <summary>
+    /// Navegar fuera con el diálogo de desactivar abierto y una decisión tomada pregunta (la guarda de navegación ve el
+    /// mismo <c>HayCambios</c> que la X); sin elegir nada, o tras volver a «Elige una opción», la navegación sigue sin preguntar.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_navegar_con_una_decision_elegida_en_el_dialogo_de_desactivar_pregunta()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty("la navegación detenida no desactiva");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Aviso_navegar_con_el_dialogo_de_desactivar_con_cartera_pero_sin_decision_no_pregunta()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, "nadie");
+        await ElegirDestinoAsync(cut, string.Empty);
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin decisión tomada no hay nada que perder");
+    }
+
     private static async Task SalirDelDialogoDeDesactivarAsync(IRenderedComponent<UsuariosControlados> cut, string salida)
     {
         switch (salida)

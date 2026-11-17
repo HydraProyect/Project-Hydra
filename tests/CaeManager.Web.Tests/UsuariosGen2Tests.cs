@@ -3265,8 +3265,9 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Una desactivación con cartera pasa por el mismo sitio en las dos aperturas: abrir el diálogo de otra cuenta después
-    /// de cancelar uno no arrastra la elección ni el error del anterior.
+    /// Abrir el diálogo de nuevo no arrastra el error ni la elección del anterior. Primero, un rechazo del destino deja
+    /// un error en el diálogo; se cierra con la X y, al reabrir, el error no está y hay que decidir. Después, una elección
+    /// descartada con «Volver» tampoco sobrevive a la reapertura.
     /// </summary>
     [Fact]
     public async Task Abrir_el_dialogo_de_nuevo_no_arrastra_la_eleccion_ni_el_error_anteriores()
@@ -3274,6 +3275,21 @@ public partial class UsuariosGen2Tests : BunitContext
         SembrarGestoresParaLaBaja();
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+        _identidad.Cuentas[IkerId].LockoutEnd = DateTimeOffset.MaxValue;
+        await ConfirmarDesactivacionAsync(cut);
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Ese Gestor CAE tiene la cuenta desactivada: elige otro.",
+            "el test necesita que el error previo esté a la vista");
+
+        await SalirDelDialogoDeDesactivarAsync(cut, "X");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin elección no hay nada que perder: la X cierra sin preguntar");
+        _identidad.Cuentas[IkerId].LockoutEnd = null;
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("elige otro", "el error de la apertura anterior no se arrastra");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("hay que decidir de nuevo");
+        BotonDesactivar(cut).GetAttribute("title").Should().Contain("Elige a quién pasan");
+
         await ElegirDestinoAsync(cut, "nadie");
         await SalirDelDialogoDeDesactivarAsync(cut, "Volver");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new());
@@ -3281,6 +3297,167 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("la elección anterior se descartó: otra vez hay que decidir");
+    }
+
+    /// <summary>
+    /// La fila de la lista pudo quedarse vieja: cuando se abrió el diálogo la cuenta no era Gestor CAE (sin pregunta), y
+    /// al confirmar el Command, que lee el rol bajo el candado, ve un Gestor CAE con cartera y pide decisión. La relectura
+    /// no se fía del rol de la fila: ofrece destinos y obliga a decidir en vez de decir que no puede leer la cartera.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_fila_obsoleta_pasa_a_ser_Gestor_CAE_el_rechazo_relee_su_cartera_y_pide_decidir()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.CoordinadorCae),
+            (Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga"), RolesIdentidad.GestorCae));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte", OperacionNorte);
+        DarCarteraDeNorteAAnder();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        cut.Find("[role=dialog]").QuerySelectorAll("select").Should().BeEmpty("la fila dice que no es Gestor CAE");
+
+        _identidad.RolesPorCuenta[AnderId] = [RolesIdentidad.GestorCae];
+        await ConfirmarDesactivacionAsync(cut);
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("Tiene organizaciones en su cartera que no estaban cuando abriste este diálogo")
+            .And.Contain("Es el Gestor CAE de estas organizaciones: Talleres Norte")
+            .And.NotContain("No pudimos mostrar su cartera");
+        OpcionesDeDestino(cut).Select(o => o.Valor).Should().Equal("", "nadie", IkerId.ToString());
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("hay que decidir");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    /// <summary>
+    /// El destino elegido aún no ha activado su cuenta: el Command lo rechaza con su motivo, el diálogo sigue abierto y
+    /// esa cuenta deja de ofrecerse (igual que una desactivada).
+    /// </summary>
+    [Fact]
+    public async Task Si_el_destino_elegido_aun_no_ha_activado_su_cuenta_el_dialogo_lo_dice_y_deja_de_ofrecerlo()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+
+        _identidad.Cuentas[IkerId].PasswordHash = null;
+        await ConfirmarDesactivacionAsync(cut);
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Ese Gestor CAE aún no ha activado su cuenta: elige otro.");
+        OpcionesDeDestino(cut).Select(o => o.Valor).Should().Equal("", "nadie");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("hay que elegir de nuevo");
+        _toasts.Mensajes.Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    /// <summary>Si la lectura de la cartera falla al abrir, no se abre el diálogo y un aviso dice que se vuelva a intentar.</summary>
+    [Fact]
+    public async Task Si_falla_la_lectura_de_la_cartera_al_abrir_no_se_abre_el_dialogo_y_se_avisa()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        var despacharReal = _mediador.Despachar!;
+        _mediador.Despachar = (peticion, ct) => peticion is ObtenerCarteraDeGestorCaeQuery
+            ? throw new InvalidOperationException("Fallo simulado de la lectura.")
+            : despacharReal(peticion, ct);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin saber su cartera no se ofrece una baja a ciegas");
+        var aviso = _toasts.Mensajes.Should().ContainSingle().Subject;
+        aviso.Mensaje.Should().Be("No pudimos preparar la baja de esta cuenta. Vuelve a intentarlo.");
+        aviso.Tono.Should().Be(TonoToast.Error);
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Dos aperturas seguidas: la lectura de la primera cuenta tarda y llega cuando ya está abierto el diálogo de la segunda.
+    /// Esa lectura tardía no pisa a la actual (ni el título ni la cartera).
+    /// </summary>
+    [Fact]
+    public async Task Una_lectura_de_cartera_que_llega_tarde_de_otra_cuenta_no_pisa_el_dialogo_abierto()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        var despacharReal = _mediador.Despachar!;
+        var soltarALander = new TaskCompletionSource();
+        _mediador.Despachar = async (peticion, ct) =>
+        {
+            if (peticion is ObtenerCarteraDeGestorCaeQuery { GestorUsuarioId: var id } && id == AnderId)
+                await soltarALander.Task;
+            return await despacharReal(peticion, ct);
+        };
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        var tardia = Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Single(b => b.TextContent.Trim() == "Desactivar").ClickAsync(new());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("la lectura de Ander sigue en vuelo");
+
+        await PulsarEnMenuAsync(cut, "i.larra@talveg.es", "Desactivar");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Desactivar a Iker Larrañaga?");
+
+        soltarALander.SetResult();
+        await tardia;
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("¿Desactivar a Iker Larrañaga?")
+            .And.NotContain("Ander", "la lectura vieja no puede traer la cartera de otra cuenta")
+            .And.NotContain("Talleres Norte");
+        dialogo.QuerySelectorAll("select").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si tras el rechazo la relectura de la cartera también falla, «Desactivar» solo podría fallar: queda deshabilitado
+    /// con su motivo (no un botón que cierra el diálogo con el error) y el destino rechazado no se sigue ofreciendo.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_relectura_tras_el_rechazo_falla_Desactivar_queda_deshabilitado_con_su_motivo_y_sin_el_destino_rechazado()
+    {
+        SembrarGestoresParaLaBaja();
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ElegirDestinoAsync(cut, IkerId.ToString());
+        var despacharReal = _mediador.Despachar!;
+        _mediador.Despachar = (peticion, ct) => peticion is ObtenerCarteraDeGestorCaeQuery
+            ? throw new InvalidOperationException("Fallo simulado de la relectura.")
+            : despacharReal(peticion, ct);
+
+        _identidad.Cuentas[IkerId].LockoutEnd = DateTimeOffset.MaxValue;
+        await ConfirmarDesactivacionAsync(cut);
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("No pudimos mostrar su cartera");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue("no se sabe qué decisión pedir: solo podría fallar");
+        BotonDesactivar(cut).GetAttribute("title").Should().Contain("No pudimos mostrar su cartera");
+        OpcionesDeDestino(cut).Select(o => o.Valor).Should().Equal("", "nadie");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        _toasts.Mensajes.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Tras «necesita decisión» la relectura vuelve vacía (el Command ve una cartera que la lectura no enseña): sin saber
+    /// qué decisión pedir, «Desactivar» queda deshabilitado con su motivo en vez de poder pulsarse para fallar otra vez.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_relectura_tras_pedir_decision_vuelve_vacia_Desactivar_queda_deshabilitado_con_su_motivo()
+    {
+        SembrarGestoresParaLaBaja(conCartera: false);
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        var despacharReal = _mediador.Despachar!;
+        _mediador.Despachar = (peticion, ct) => peticion is ObtenerCarteraDeGestorCaeQuery
+            ? Task.FromResult<object?>(Array.Empty<EmpresaDeCarteraDeGestor>())
+            : despacharReal(peticion, ct);
+
+        DarCarteraDeNorteAAnder();
+        await ConfirmarDesactivacionAsync(cut);
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("No pudimos mostrar su cartera");
+        BotonDesactivar(cut).HasAttribute("disabled").Should().BeTrue();
+        BotonDesactivar(cut).GetAttribute("title").Should().Contain("No pudimos mostrar su cartera");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        _toasts.Mensajes.Should().BeEmpty();
     }
     /// <summary>
     /// Bug del 21-10 con la siembra del piloto Outbound: desde el Operador CAE externo, la columna

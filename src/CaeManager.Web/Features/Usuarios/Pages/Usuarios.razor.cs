@@ -1961,7 +1961,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>«Desactivar» deshabilitado hasta decidir, con el motivo a la vista (un primario mudo no existe, D-02 y D-06).</summary>
     private string? MotivoDesactivarDeshabilitado =>
-        DesactivarExigeDecision && _destinoDeCartera.Length == 0 ? TextosUsuarios["DesactivarSinDecision"].Value : null;
+        _carteraIlegible
+            ? TextosUsuarios["DesactivarCarteraNoLegible"].Value
+            : DesactivarExigeDecision && _destinoDeCartera.Length == 0 ? TextosUsuarios["DesactivarSinDecision"].Value : null;
+
+    /// <summary>
+    /// Tras un rechazo del Command la cartera no se pudo releer (falló, o volvió vacía cuando el Command dice que la
+    /// hay): no se sabe qué decisión pedir, así que «Desactivar» solo podría fallar y queda deshabilitado con su motivo.
+    /// </summary>
+    private bool _carteraIlegible;
 
     /// <summary>Lo que el diálogo de desactivar enseña de la cartera de un Gestor CAE, leído en el momento.</summary>
     private sealed record CarteraParaDesactivar(
@@ -2040,6 +2048,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         _destinoDeCartera = string.Empty;
         _errorDesactivar = null;
+        _carteraIlegible = false;
         _usuarioADesactivar = usuarioLista;
     }
 
@@ -2052,6 +2061,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _destinosDeCartera = [];
         _destinoDeCartera = string.Empty;
         _errorDesactivar = null;
+        _carteraIlegible = false;
     }
 
     /// <summary>
@@ -2109,6 +2119,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private async Task ReabrirDecisionTrasRechazoAsync(UsuarioListaDto usuario, Error rechazo, Guid? destino)
     {
         _destinoDeCartera = string.Empty;
+        Guid? destinoRechazado = destino is not null
+            && (rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoDesactivado.Codigo
+                || rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoPendienteDeActivar.Codigo)
+            ? destino
+            : null;
         try
         {
             AplicarCarteraADesactivar(await LeerCarteraADesactivarAsync(usuario, ignorarRolDeLaFila: true));
@@ -2120,21 +2135,29 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         catch (Exception excepcion)
         {
             Logger.LogError(excepcion, "Fallo al releer la cartera de {UsuarioId} para desactivarlo.", usuario.Id);
+            QuitarDestinoRechazado(destinoRechazado);
+            _carteraIlegible = true;
             _errorDesactivar = TextosUsuarios["DesactivarCarteraNoLegible"].Value;
             return;
         }
 
-        if (destino is { } descartado
-            && (rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoDesactivado.Codigo
-                || rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DestinoPendienteDeActivar.Codigo))
-            _destinosDeCartera = _destinosDeCartera.Where(d => d.Id != descartado).ToList();
-
-        _errorDesactivar = rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo
+        QuitarDestinoRechazado(destinoRechazado);
+        var pideDecision = rechazo.Codigo == CambiarActivacionUsuarioCommandHandler.DecisionDeCarteraRequerida.Codigo;
+        _carteraIlegible = pideDecision && !DesactivarExigeDecision;
+        _errorDesactivar = pideDecision
             ? (DesactivarExigeDecision
                 ? TextosUsuarios["DesactivarDecisionRequerida"].Value
                 : TextosUsuarios["DesactivarCarteraNoLegible"].Value)
             : rechazo.Mensaje;
     }
+
+    /// <summary>Un destino que el Command rechazó por su estado (desactivado, pendiente de activar) deja de ofrecerse.</summary>
+    private void QuitarDestinoRechazado(Guid? destino)
+    {
+        if (destino is { } descartado)
+            _destinosDeCartera = _destinosDeCartera.Where(x => x.Id != descartado).ToList();
+    }
+
     /// <summary>
     /// Las cuentas con un cambio de activación en vuelo. A prueba de doble
     /// clic por fila, no por pantalla: desactivar a una persona no debe
