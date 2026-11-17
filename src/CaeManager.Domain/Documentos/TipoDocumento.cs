@@ -170,8 +170,15 @@ public class TipoDocumento : EntidadConTenant
     /// <see cref="Documentos.ConfiguracionIaDocumentoCliente"/> para el
     /// nivel 2 (Gestor CAE, solo para su propia cartera). Un tipo que revela
     /// salud (<see cref="RevelaSalud"/>), el de aptitud incluido, nace apagado
-    /// y lo enciende el Tenant propietario por tipo de documento (DPA 16.4);
-    /// el resto nace activo. Sin clasificar, el tipo cuenta como de salud.
+    /// y no se puede encender (decisión de Legal del 2026-11-17, la misma
+    /// condición que Traducir PDF): <see cref="EstablecerLecturaIaActiva"/> lo
+    /// rechaza mientras no conste ni un proveedor en región UE sin retención
+    /// ni el contrato ampliado aceptado por el abogado, y hoy ninguna de las dos
+    /// cosas existe en el código, así que el bloqueo es incondicional. El resto
+    /// nace activo. Sin clasificar, el tipo cuenta como de salud. La
+    /// sensibilidad solo se fija al crear el tipo, y en base el trigger
+    /// <c>proteger_lectura_ia_inicial_salud</c> apaga la lectura al insertar un
+    /// tipo de salud o al reclasificarlo como tal.
     /// </summary>
     public bool LecturaIaActiva { get; private set; }
 
@@ -349,7 +356,21 @@ public class TipoDocumento : EntidadConTenant
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
 
-    public void EstablecerLecturaIaActiva(bool activa) => LecturaIaActiva = activa;
+    /// <summary>
+    /// Enciende o apaga la lectura por IA (nivel 1). Apagarla siempre se puede. Encenderla en un tipo que revela salud
+    /// está prohibido (decisión de Legal del 2026-11-17, ver <see cref="LecturaIaActiva"/>).
+    /// </summary>
+    public void EstablecerLecturaIaActiva(bool activa)
+    {
+        if (activa && RevelaSalud)
+            throw new InvalidOperationException(MensajeLecturaIaBloqueadaPorSalud);
+
+        LecturaIaActiva = activa;
+    }
+
+    /// <summary>Mensaje del rechazo de <see cref="EstablecerLecturaIaActiva"/>, compartido con el Command que lo valida antes.</summary>
+    public const string MensajeLecturaIaBloqueadaPorSalud =
+        "La lectura con IA no se puede activar en un tipo de documento con datos de salud.";
 
     public void EstablecerDeteccionTrabajadoresActiva(bool activa) => DeteccionTrabajadoresActiva = activa;
 

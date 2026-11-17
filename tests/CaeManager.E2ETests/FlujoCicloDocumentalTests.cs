@@ -71,6 +71,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         var filaTipo = page.GetByRole(AriaRole.Row, new() { Name = nombreTipoDocumento });
         await filaTipo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+
+        // La pantalla no deja elegir la sensibilidad: el tipo nace sin clasificar, cuenta como de salud y en un tipo de
+        // salud la lectura por IA no se puede activar (decisión de Legal del 2026-11-17). Se clasifica sin salud en base
+        // y se recarga en frío, con un circuito nuevo que no guarde la entidad con la sensibilidad anterior.
+        Assert.Equal(1, await fixture.ClasificarTipoDocumentoSinSaludAsync(nombreTipoDocumento));
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
+        await filaTipo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         var interruptorVerificacionIa = filaTipo.GetByTitle(
             "Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score");
         await interruptorVerificacionIa.Locator("input").CheckAsync();
@@ -100,7 +107,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Expect(interruptorVerificacionIa).ToHaveTextAsync(
             "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
-        // El tipo creado aquí no pasa sensibilidad: cuenta como de salud y su lectura nace apagada (DPA 16.4).
+        // El tipo nació sin clasificar, con la lectura apagada, y la reclasificación no la enciende.
         // La verificación exige lectura, así que el Administrador la enciende también, con la misma espera.
         var interruptorLecturaIa = filaTipo.GetByTitle("Lectura automática por IA para este tipo de documento, en todos los Clientes");
         await interruptorLecturaIa.Locator("input").CheckAsync();

@@ -114,16 +114,73 @@ public class TipoDocumentoTests
     }
 
     [Fact]
-    public void La_lectura_IA_nace_apagada_en_un_tipo_de_salud_y_la_enciende_el_Tenant_propietario()
+    public void La_lectura_IA_nace_apagada_en_un_tipo_de_salud_y_no_se_puede_encender()
     {
         var aptitud = new TipoDocumento("Certificado de aptitud médica", 12, true, 1, AmbitoAplicacion.Trabajador,
             sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
 
-        aptitud.LecturaIaActiva.Should().BeFalse("DPA 16.4: apagada salvo que el Tenant propietario la active");
+        aptitud.LecturaIaActiva.Should().BeFalse("un tipo de salud nace con la lectura por IA apagada");
 
-        aptitud.EstablecerLecturaIaActiva(true);
+        var encender = () => aptitud.EstablecerLecturaIaActiva(true);
 
-        aptitud.LecturaIaActiva.Should().BeTrue();
+        encender.Should().Throw<InvalidOperationException>()
+            .WithMessage("La lectura con IA no se puede activar en un tipo de documento con datos de salud.");
+        aptitud.LecturaIaActiva.Should().BeFalse("decisión de Legal del 2026-11-17: misma condición que Traducir PDF");
+    }
+
+    [Fact]
+    public void La_lectura_IA_no_se_puede_encender_en_un_tipo_sin_clasificar()
+    {
+        var sinClasificar = new TipoDocumento("Tipo nuevo", 12, true, 1, AmbitoAplicacion.Trabajador);
+
+        var encender = () => sinClasificar.EstablecerLecturaIaActiva(true);
+
+        encender.Should().Throw<InvalidOperationException>();
+        sinClasificar.LecturaIaActiva.Should().BeFalse("sin clasificar cuenta como salud");
+    }
+
+    /// <summary>
+    /// Orden inverso: marcar salud en un tipo que ya lee con IA. Hoy la sensibilidad solo se fija en el constructor,
+    /// que apaga la lectura de un tipo de salud. Si alguien expone un modo de reclasificar, este test le obliga a
+    /// pasar por aquí y a apagar la lectura en el mismo método.
+    /// </summary>
+    [Fact]
+    public void La_sensibilidad_no_se_puede_cambiar_despues_de_crear_el_tipo()
+    {
+        var setter = typeof(TipoDocumento).GetProperty(nameof(TipoDocumento.Sensibilidad))!.SetMethod;
+
+        setter.Should().NotBeNull();
+        setter!.IsPublic.Should().BeFalse();
+        typeof(TipoDocumento).GetMethods()
+            .Where(m => m.DeclaringType == typeof(TipoDocumento) && !m.IsSpecialName)
+            .Select(m => m.Name)
+            .Should().NotContain(n => n.Contains("Sensibilidad"),
+                "reclasificar un tipo como de salud tiene que apagar su lectura por IA");
+    }
+
+    [Fact]
+    public void La_lectura_IA_de_un_tipo_de_salud_se_puede_apagar()
+    {
+        var aptitud = new TipoDocumento("Certificado de aptitud médica", 12, true, 1, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+
+        aptitud.EstablecerLecturaIaActiva(false);
+
+        aptitud.LecturaIaActiva.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(SensibilidadDocumental.SinDatosPersonales)]
+    [InlineData(SensibilidadDocumental.DatosPersonales)]
+    public void La_lectura_IA_se_apaga_y_se_vuelve_a_encender_en_un_tipo_que_no_revela_salud(SensibilidadDocumental sensibilidad)
+    {
+        var tipo = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, sensibilidad: sensibilidad);
+
+        tipo.EstablecerLecturaIaActiva(false);
+        tipo.LecturaIaActiva.Should().BeFalse();
+
+        tipo.EstablecerLecturaIaActiva(true);
+        tipo.LecturaIaActiva.Should().BeTrue();
     }
 
     [Fact]

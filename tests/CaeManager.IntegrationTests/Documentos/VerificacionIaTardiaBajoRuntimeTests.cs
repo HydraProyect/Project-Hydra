@@ -263,7 +263,9 @@ public class VerificacionIaTardiaBajoRuntimeTests
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Gómez", "12345678Z");
         contexto.Trabajadores.Add(trabajador);
         var tipo = new TipoDocumento("Apto médico", 12, aplicaVencimientoAutomatico: true, orden: 1,
-            AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+            AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si,
+            // Un tipo de salud no admite lectura por IA (decisión de Legal del 2026-11-17).
+            sensibilidad: SensibilidadDocumental.DatosPersonales);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
         tipo.EstablecerLecturaIaActiva(true);

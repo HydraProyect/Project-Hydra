@@ -46,7 +46,9 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(_empresa);
 
-        _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
+        // Un tipo de salud no admite lectura por IA (decisión de Legal del 2026-11-17): se elige uno que no revela salud.
+        _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+            && t.Sensibilidad != SensibilidadDocumental.CategoriaEspecialSalud);
         _tipoApto.EstablecerLecturaIaActiva(true);
         _tipoApto.EstablecerVerificacionIaActiva(true);
 
