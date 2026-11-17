@@ -123,7 +123,9 @@
     private RenderFragment PanelAptos() => __builder =>
     {
         <div class="cin-panel" data-pieza="aptos-hoy">
-            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas. Enseña el requisito que bloquea o vence, nunca su motivo.</span></div>
+            @* Proyección restringida (duda 6): sin ValidarInbound no llega el requisito, así que ni la nota lo promete ni hay columna. *@
+            @{ var conRequisito = _aptos is null || _aptos.All(a => a.ConRequisito); }
+            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas.@(conRequisito ? " Enseña el requisito que bloquea o vence, nunca su motivo." : null)</span></div>
             @if (_aptos is null)
             {
                 <EstadoVacio NombreIcono="vacio" Titulo="Aptos hoy no está disponible"
@@ -163,19 +165,31 @@
                                     <th scope="col">Trabajador</th>
                                     <th scope="col">Empresa contratista</th>
                                     <th scope="col">Hoy</th>
-                                    <th scope="col">Lo que bloquea o vence</th>
+                                    @if (conRequisito)
+                                    {
+                                        <th scope="col">Lo que bloquea o vence</th>
+                                    }
                                 </tr></thead>
                                 <tbody>
                                 @foreach (var fila in AptosVisibles)
                                 {
                                     <tr @key="fila.TrabajadorId" data-trabajador="@fila.TrabajadorId">
                                         <td><span class="nombre-fila-entidad">@fila.Nombre</span><div class="inbound-secundario">@fila.DniParcial</div></td>
-                                        <td>@fila.EmpresaContratista<div class="inbound-secundario">@fila.TipoDeContrato</div></td>
+                                        <td>
+                                            @fila.EmpresaContratista
+                                            @if (conRequisito)
+                                            {
+                                                <div class="inbound-secundario">@fila.TipoDeContrato</div>
+                                            }
+                                        </td>
                                         <td>
                                             <Badge Tono="TonoDe(fila.Estado)" Tamano="TamanoBadge.Pequeno">@TextoDe(fila.Estado)</Badge>
                                             <div class="inbound-secundario @(fila.Estado == EstadoAptitudHoy.NoApto ? "cin-rojo" : fila.Estado == EstadoAptitudHoy.EnTolerancia ? "cin-ambar" : null)">@(fila.Estado == EstadoAptitudHoy.NoApto ? "No puede entrar hoy" : "Puede entrar hoy")</div>
                                         </td>
-                                        <td>@(string.IsNullOrWhiteSpace(fila.RequisitoQueBloquea) ? "Todo validado" : fila.RequisitoQueBloquea)<div class="inbound-secundario">@fila.Detalle</div></td>
+                                        @if (conRequisito)
+                                        {
+                                            <td>@(string.IsNullOrWhiteSpace(fila.RequisitoQueBloquea) ? "Todo validado" : fila.RequisitoQueBloquea)<div class="inbound-secundario">@fila.Detalle</div></td>
+                                        }
                                     </tr>
                                 }
                                 </tbody>

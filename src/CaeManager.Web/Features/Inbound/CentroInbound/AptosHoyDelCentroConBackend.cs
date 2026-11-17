@@ -38,7 +38,7 @@ public sealed class AptosHoyDelCentroConBackend(
             return filas.Select(f => new TrabajadorAptoHoy(
                     f.TrabajadorId, f.Nombre, EnmascararDocumento(f.DocumentoIdentidad),
                     empresas.GetValueOrDefault(f.EmpresaContratistaId) ?? textos["EmpresaNoDisponible"].Value, TipoDe(f), EstadoDe(f.Estado),
-                    f.Requisito, DetalleDe(f)))
+                    f.Requisito, DetalleDe(f), f.ProyeccionCompleta))
                 .ToList();
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)

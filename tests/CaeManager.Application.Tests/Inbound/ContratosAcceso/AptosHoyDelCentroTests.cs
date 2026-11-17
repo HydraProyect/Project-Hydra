@@ -576,6 +576,47 @@ public class AptosHoyDelCentroTests
     }
 
     [Fact]
+    public async Task La_marca_de_solo_conclusion_de_la_evidencia_basta_aunque_el_tipo_del_Tenant_TCE_no_revele_salud()
+    {
+        // El tipo del Tenant TCE está mal clasificado (datos personales, grupo con tolerancia), pero las evidencias llegaron como
+        // solo conclusión de aptitud: ni la causa, ni la fecha, ni la tolerancia (R-6) pueden distinguir «vencido» de «No apto».
+        var reconocimiento = Tipo("Reconocimiento médico", AmbitoAplicacion.Trabajador, GrupoTipoDocumento.HabilitacionesYOficios,
+            SensibilidadDocumental.DatosPersonales);
+        var plantilla = PlantillaRequisitos.ParaCentro(Guid.NewGuid());
+        var otro = ContratoNuevoEnOtroCentro(plantilla);
+        Requisito(plantilla, reconocimiento, ModoVigenciaRequisito.Fija, 12, tolerancia: 15);
+        var vencidoAyer = Guid.NewGuid();
+        var vencidoHaceUnMes = Guid.NewGuid();
+        var noApto = Guid.NewGuid();
+        Dar(vencidoAyer, "Pilar Sanjuán Aznar", reconocimiento, new DateOnly(2025, 11, 16), conclusion: ConclusionAptitud.Apto, contrato: otro);
+        Dar(vencidoHaceUnMes, "Iván Bescós Lacasa", reconocimiento, new DateOnly(2025, 10, 17), conclusion: ConclusionAptitud.Apto, contrato: otro);
+        Dar(noApto, "Javier Lasheras Pueyo", reconocimiento, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.NoApto, contrato: otro);
+
+        var filas = await Consultar(centro: plantilla.CentroId!.Value);
+
+        filas.Should().HaveCount(3);
+        filas.Select(f => (f.Estado, f.Causa, f.FechaVencimiento)).Distinct().Should().ContainSingle()
+            .Which.Should().Be((EstadoAptitudInbound.NoApto, (CausaNoAptitudInbound?)CausaNoAptitudInbound.NoAcreditado, (DateOnly?)null));
+    }
+
+    [Fact]
+    public async Task Un_requisito_cuyo_tipo_no_se_encuentra_se_trata_como_si_revelara_salud()
+    {
+        var huerfano = new TipoDocumento("Tipo retirado", 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.SinDatosPersonales);
+        var plantilla = PlantillaRequisitos.ParaCentro(Guid.NewGuid());
+        var otro = ContratoNuevoEnOtroCentro(plantilla);
+        Requisito(plantilla, huerfano, ModoVigenciaRequisito.Fija, 12);
+        Dar(Guid.NewGuid(), "Pilar Sanjuán Aznar", huerfano, new DateOnly(2025, 1, 1), contrato: otro);
+
+        var fila = (await Consultar(centro: plantilla.CentroId!.Value)).Should().ContainSingle().Subject;
+
+        fila.Requisito.Should().Be("Requisito sin nombre");
+        fila.Causa.Should().Be(CausaNoAptitudInbound.NoAcreditado, "falla cerrado: sin el tipo no se sabe si revela salud");
+        fila.FechaVencimiento.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Un_requisito_que_no_revela_salud_sigue_diciendo_su_causa()
     {
         var t = Guid.NewGuid();
@@ -605,14 +646,17 @@ public class AptosHoyDelCentroTests
         fila.SujetoDelRequisito.Should().Be(SujetoDelRequisitoInbound.Trabajador);
         fila.FechaVencimiento.Should().Be(new DateOnly(2026, 11, 10));
         fila.DocumentoIdentidad.Should().Be("12345678Z", "la pantalla lo enmascara para todos");
+        fila.ProyeccionCompleta.Should().BeTrue();
+        fila.TipoContrato.Should().Be(_contrato.Tipo);
     }
 
     [Fact]
     public async Task Sin_ValidarInbound_solo_sale_nombre_DNI_parcial_Empresa_y_apto_o_no_apto()
     {
+        // El de la tolerancia va después del apto por nombre: si se ordenara antes de restringir, saldría antes que él.
         var tolerancia = Guid.NewGuid();
-        Dar(tolerancia, "Iván Bescós Lacasa", _formacion, new DateOnly(2025, 11, 10));
-        Dar(tolerancia, "Iván Bescós Lacasa", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+        Dar(tolerancia, "Sonia Ferrer Lahoz", _formacion, new DateOnly(2025, 11, 10));
+        Dar(tolerancia, "Sonia Ferrer Lahoz", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
         var noApto = Guid.NewGuid();
         Dar(noApto, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
         Dar(noApto, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.NoApto);
@@ -624,12 +668,13 @@ public class AptosHoyDelCentroTests
 
         filas.Should().HaveCount(3);
         filas.Should().OnlyContain(f => f.Requisito == null && f.SujetoDelRequisito == null && f.Causa == null && f.FechaVencimiento == null);
+        filas.Should().OnlyContain(f => f.TipoContrato == null && !f.ProyeccionCompleta);
         filas.Should().OnlyContain(f => f.DocumentoIdentidad == "****678Z");
         filas.Should().OnlyContain(f => f.EmpresaContratistaId == _contrato.EmpresaContratistaId);
         filas.Single(f => f.TrabajadorId == noApto).Estado.Should().Be(EstadoAptitudInbound.NoApto);
         filas.Single(f => f.TrabajadorId == tolerancia).Estado.Should().Be(EstadoAptitudInbound.Apto, "en tolerancia cuenta como apto (Q-10)");
         filas.Single(f => f.TrabajadorId == apto).Estado.Should().Be(EstadoAptitudInbound.Apto);
-        filas.Select(f => f.TrabajadorId).Should().Equal([noApto, tolerancia, apto], "el orden tampoco delata el «en tolerancia»");
+        filas.Select(f => f.TrabajadorId).Should().Equal([noApto, apto, tolerancia], "el orden tampoco delata el «en tolerancia»");
     }
 
     [Fact]

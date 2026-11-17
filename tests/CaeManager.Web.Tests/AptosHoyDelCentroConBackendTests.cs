@@ -161,14 +161,14 @@ public class AptosHoyDelCentroConBackendTests
             Contratos = [Contrato(EmpresaId)],
             Filas =
             [
-                Fila("Javier Lasheras Pueyo", EstadoAptitudInbound.NoApto, dni: "****678Z"),
-                Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.Apto, dni: "****678Z"),
+                Fila("Javier Lasheras Pueyo", EstadoAptitudInbound.NoApto, dni: "****678Z", tipo: null) with { ProyeccionCompleta = false },
+                Fila("Pilar Sanjuán Aznar", EstadoAptitudInbound.Apto, dni: "****678Z", tipo: null) with { ProyeccionCompleta = false },
             ],
         };
 
         var aptos = (await Adaptador(mediador).ObtenerAsync(CentroId))!;
 
-        aptos.Should().OnlyContain(a => a.RequisitoQueBloquea == null && a.Detalle == null);
+        aptos.Should().OnlyContain(a => a.RequisitoQueBloquea == null && a.Detalle == null && !a.ConRequisito);
         aptos.Should().OnlyContain(a => a.DniParcial == "****678Z" && a.EmpresaContratista == "Montajes Moncayo S.L.");
         aptos.Select(a => a.Estado).Should().Equal(EstadoAptitudHoy.NoApto, EstadoAptitudHoy.Apto);
     }

@@ -69,7 +69,7 @@ public enum SujetoDelRequisitoInbound
 /// Proyección completa (con requisito, sujeto, causa y fecha) solo para quien tiene <see cref="CapacidadInbound.ValidarInbound"/>,
 /// el Gestor CAE (DECISION_LOG del 2026-11-14, duda 6). Para los demás roles con <see cref="CapacidadInbound.LeerInbound"/>,
 /// Consulta incluido, la proyección restringida: nombre, DNI parcial, Empresa contratista y apto o no apto («en tolerancia» cuenta
-/// como apto, Q-10), con requisito, sujeto, causa y fecha a null.
+/// como apto, Q-10), con tipo de contrato, requisito, sujeto, causa y fecha a null y <c>ProyeccionCompleta</c> a false.
 /// </remarks>
 public record AptoHoyDto(
     Guid TrabajadorId,
@@ -82,7 +82,8 @@ public record AptoHoyDto(
     string? Requisito,
     SujetoDelRequisitoInbound? SujetoDelRequisito,
     CausaNoAptitudInbound? Causa,
-    DateOnly? FechaVencimiento);
+    DateOnly? FechaVencimiento,
+    bool ProyeccionCompleta = true);
 
 /// <summary>
 /// El DNI parcial de «Aptos hoy»: los cuatro últimos caracteres, como el del Importador. Aplicarlo dos veces da lo mismo. Vive
@@ -226,11 +227,13 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
 
     /// <summary>
     /// La proyección para quien no tiene <see cref="CapacidadInbound.ValidarInbound"/>: nombre, DNI parcial, Empresa contratista
-    /// y apto o no apto. Sin requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10).
+    /// y apto o no apto. Sin tipo de contrato, requisito, sujeto, causa ni fecha; «en tolerancia» cuenta como apto (Q-10).
     /// </summary>
     private static AptoHoyDto Restringida(AptoHoyDto fila) => fila with
     {
         DocumentoIdentidad = DniParcialAptosHoy.Enmascarar(fila.DocumentoIdentidad),
+        TipoContrato = null,
+        ProyeccionCompleta = false,
         Estado = fila.Estado == EstadoAptitudInbound.NoApto ? EstadoAptitudInbound.NoApto : EstadoAptitudInbound.Apto,
         Requisito = null,
         SujetoDelRequisito = null,
@@ -267,8 +270,11 @@ public class ObtenerAptosHoyDelCentroQueryHandler(
                 // Revela salud el tipo del Tenant TCE o cualquier evidencia que llegó como solo conclusión de aptitud: la marca
                 // dice de qué clase es el documento, no qué concluye, así que no delata nada.
                 var revelaSalud = x.RevelaSalud || delTipo.Any(e => e.SoloConclusionAptitud);
+                // R-6: la tolerancia nunca se aplica a la aptitud médica, tampoco cuando lo dice la marca de la evidencia y no
+                // el tipo del Tenant TCE.
+                var exigido = revelaSalud ? x with { ToleranciaDias = 0 } : x;
                 return new Evaluado(
-                    x.Nombre, sujeto, MejorDe(x, delTipo.Where(EvidenciasInboundProyeccion.EstaAceptada), hoy), revelaSalud);
+                    x.Nombre, sujeto, MejorDe(exigido, delTipo.Where(EvidenciasInboundProyeccion.EstaAceptada), hoy), revelaSalud);
             })
             .ToList();
 

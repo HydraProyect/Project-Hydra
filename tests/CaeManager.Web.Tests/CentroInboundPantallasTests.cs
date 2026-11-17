@@ -266,6 +266,29 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
+    public void Aptos_hoy_con_la_proyeccion_restringida_no_pinta_requisito_ni_Todo_validado_ni_tipo_de_contrato()
+    {
+        // Sin ValidarInbound la Query devuelve las filas ya restringidas (duda 6): nombre, DNI parcial, Empresa y apto o no apto.
+        Preparar(aptosDelBackend:
+        [
+            new AptoHoyDto(Guid.NewGuid(), "Pilar Sanjuán Aznar", "****678Z", ContratoId, EmpresaId, null,
+                EstadoAptitudInbound.NoApto, null, null, null, null, ProyeccionCompleta: false),
+            new AptoHoyDto(Guid.NewGuid(), "Javier Lasheras Pueyo", "****321X", ContratoId, EmpresaId, null,
+                EstadoAptitudInbound.Apto, null, null, null, null, ProyeccionCompleta: false),
+        ], contratos: Contrato());
+
+        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+
+        var panel = cut.Find("[data-pieza=aptos-hoy]");
+        panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa contratista", "Hoy");
+        panel.QuerySelector("[role=note]")!.TextContent.Should().Contain("Consulta informativa del día").And.NotContain("requisito");
+        var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
+        filas.Should().HaveCount(2);
+        filas.Should().OnlyContain(f => f.Contains("Montajes Moncayo S.L.") && !f.Contains("Todo validado") && !f.Contains("—"));
+        filas.Should().ContainSingle(f => f.Contains("No puede entrar hoy"));
+    }
+
+    [Fact]
     public void El_modelo_de_Aptos_hoy_no_tiene_ninguna_propiedad_de_motivo_medico()
     {
         var propiedades = typeof(TrabajadorAptoHoy).GetProperties().Select(p => p.Name).ToList();
