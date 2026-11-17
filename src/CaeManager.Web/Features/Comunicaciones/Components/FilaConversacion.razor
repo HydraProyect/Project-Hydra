@@ -4,9 +4,10 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosEstadosConversacion> TextosEstados
-@inject IStringLocalizer<TextosPlazosConversacion> TextosPlazos
+@inject IStringLocalizer<TextosPlazosConversacion> TextosPrioridades
+@inject IStringLocalizer<TextosPlazoConversacion> TextosPlazo
 
-<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
+<li class="bandeja-fila fila-conversacion @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <span class="bandeja-fila-avatar" aria-hidden="true">
         @ObtenerIniciales(Conversacion.RemitentePrincipal)
         <span class="bandeja-fila-canal bandeja-fila-canal-@Conversacion.Canal.ToString().ToLowerInvariant()" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
@@ -25,7 +26,11 @@
         <div class="bandeja-fila-linea2">
             <span class="bandeja-fila-asunto" title="@Conversacion.Asunto">@Conversacion.Asunto</span>
         </div>
-        <div class="bandeja-fila-linea3">
+        @* Tercera línea (maqueta 2026-11-01, `.f3`, 12/16): plazo, prioridad, estado y, a la derecha, el Nº de ticket. Envuelve en vez de
+           desbordar: la lista mide 240-304 px y no caben todas las piezas en una sola fila. La vista previa pasa a su propia fila. *@
+        <div class="bandeja-fila-linea3 fila-linea-meta">
+            <IndicadorPlazo SlaRestante="Conversacion.SlaRestante" VencimientoSlaUtc="Conversacion.VencimientoSlaUtc" Prioridad="Conversacion.Prioridad" />
+            <span class="fila-prioridad fila-prioridad-@Conversacion.Prioridad.ToString().ToLowerInvariant()"><span class="fila-prioridad-punto" aria-hidden="true"></span>@TextosPrioridades[Conversacion.Prioridad.ToString()]</span>
             <Badge Tono="EstadoConversacionPresentacion.Tono(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, Conversacion.Estado)</Badge>
             @if (Conversacion.MensajesRuido > 0)
             {
@@ -33,7 +38,12 @@
                     @Conversacion.MensajesRuido mensaje@(Conversacion.MensajesRuido == 1 ? "" : "s") de ruido
                 </Badge>
             }
-            <span class="bandeja-fila-preview">@Conversacion.PreviewUltimoMensaje</span>
+            @* NumeroTicket 0 es «sin número» (conversación anterior a la numeración): no se pinta. Sin prefijo del Tenant hasta que exista su origen. *@
+            @if (Conversacion.NumeroTicket > 0)
+            {
+                <span class="fila-ticket" title="@TextosPlazo["TituloTicket"]">@TextosPlazo["NumeroTicket", Conversacion.NumeroTicket]</span>
+            }
+            <span class="bandeja-fila-preview fila-vista-previa">@Conversacion.PreviewUltimoMensaje</span>
         </div>
     </div>
 </li>
