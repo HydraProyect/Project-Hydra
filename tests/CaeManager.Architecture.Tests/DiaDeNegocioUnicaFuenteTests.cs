@@ -82,6 +82,8 @@ public class DiaDeNegocioUnicaFuenteTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra administrativa del piloto Outbound, con sufijo Z: zona explícita.
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAdministrativa.cs"] = 1,
+        // Nombre del fichero de credenciales de la siembra administrativa de la demo Inbound, con sufijo Z: zona explícita.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoAdministrativa.cs"] = 1,
     };
 
     [Fact]

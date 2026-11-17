@@ -358,6 +358,14 @@ public class ConexionesGen2Tests : BunitContext
     }
 
     [Fact]
+    public void El_enlace_de_Microsoft_sale_por_navegacion_completa_porque_redirige_fuera_del_sitio()
+    {
+        // La navegación mejorada de Blazor haría fetch al endpoint, que responde 302 a login.microsoftonline.com,
+        // y la CSP (connect-src 'self') bloquearía el seguimiento: la barra cambiaría y la página no.
+        Renderizar().Find("a.enlace-conectar-microsoft").GetAttribute("data-enhance-nav").Should().Be("false");
+    }
+
+    [Fact]
     public void La_cabecera_tiene_subtitulo_corto_pie_y_conserva_el_explorador_tecnico_y_el_enlace_de_conexion()
     {
         var cut = Renderizar();

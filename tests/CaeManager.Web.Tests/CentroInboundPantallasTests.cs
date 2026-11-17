@@ -1,3 +1,4 @@
+using System.Reflection;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -39,6 +40,12 @@ public class CentroInboundPantallasTests : BunitContext
         public IReadOnlyList<AptoHoyDto> AptosHoy { get; init; } = [];
         public List<ObtenerContratosAccesoQuery> PeticionesContratos { get; } = [];
 
+        /// <summary>
+        /// Si está puesta, la respuesta a <see cref="ObtenerClientesAutorizadosQuery"/> espera a que el test la abra: así el test
+        /// decide cuándo llega el render de FichaNoEncontrada que pasa de «volviendo» a «vacio».
+        /// </summary>
+        public TaskCompletionSource? PuertaAutorizados { get; set; }
+
         private IReadOnlyList<ContratoAccesoDto> Registrar(ObtenerContratosAccesoQuery q)
         {
             PeticionesContratos.Add(q);
@@ -48,6 +55,8 @@ public class CentroInboundPantallasTests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             await Task.Yield();
+            if (request is ObtenerClientesAutorizadosQuery && PuertaAutorizados is { } puerta)
+                await puerta.Task;
             return (TResponse)(request switch
             {
                 // Solo el Centro de prueba es visible: cualquier otro Id (p. ej. Guid.Empty) devuelve null, como la Query real.
@@ -141,21 +150,37 @@ public class CentroInboundPantallasTests : BunitContext
             [new AcuseEmpresaContratista("Montajes Moncayo S.L.", alDia, alDia ? "Firmado" : "Acuse pendiente", "Jorge Royo Lacasta, gerente", "Trabajadores informados: 6 de 6")],
             [new VersionInformacion("v5", new DateOnly(2026, 11, 14), "Nuevo sentido de circulación")]);
 
-    // Todas las esperas de la clase son asíncronas y usan este plazo (#2330). Las pantallas cargan con awaits reales (el doble
-    // cede el hilo con Task.Yield) y cada continuación necesita un hilo libre del pool. Un WaitFor* síncrono bloquea con
-    // GetResult() el hilo del pool en el que xUnit corre el test (mecanismo de #2171, descrito en el csproj): con el pool
-    // ocupado por el resto de la suite, la continuación no encuentra hilo y la espera vence sin que la pantalla haya vuelto a
-    // pintarse («Check count: 1»). La espera asíncrona devuelve el hilo al pool mientras espera. El plazo es el que ya usaba
-    // Cargada; antes, dos esperas de esta clase se quedaban en el segundo por defecto de bUnit.
+    // Las esperas de la clase son asíncronas y usan este plazo; las pantallas cargan con awaits reales (el doble cede el hilo
+    // con Task.Yield). La #2331 las pasó a asíncronas suponiendo que la espera síncrona retenía el hilo del pool que necesitaba
+    // la continuación; esa no era la causa del fallo de #2330 (ver FichaNoEncontradaAsync).
     private static readonly TimeSpan Plazo = TimeSpan.FromSeconds(5);
 
-    // Cargada solo cubre la carga de la pantalla. Cuando la ficha no encuentra el Centro, FichaNoEncontrada hace todavía su
-    // propia lectura asíncrona: ese estado se espera aparte, después.
+    // Cargada solo cubre la carga de la pantalla: mira Markup, que bUnit reescribe en cada render que cambia el marcado, y
+    // nunca el árbol del DOM.
+    // Cuando la ficha no encuentra el Centro, FichaNoEncontrada hace todavía su propia lectura asíncrona: ese estado se espera
+    // aparte, con FichaNoEncontradaAsync.
     private static async Task<IRenderedComponent<T>> CargadaAsync<T>(IRenderedComponent<T> cut) where T : IComponent
     {
         await cut.WaitForStateAsync(() => !cut.Markup.Contains("esqueleto-lista"), Plazo);
         return cut;
     }
+
+    // Causa de #2330. Tras CargadaAsync, la ficha no encontrada todavía tiene renders pendientes: el de FichaNoEncontrada al
+    // terminar su lectura («volviendo» → «vacio») y el de EnlaceProfundoOtraEmpresa. bUnit 2.11.3 guarda el DOM analizado en
+    // una caché sin sincronizar (RenderedComponent.Nodes: latestRenderNodes ??= Parse(Markup)); cada render que cambia el
+    // marcado la vacía y luego escribe el Markup nuevo. Un FindAll desde el hilo del test lee el Markup viejo, lo analiza y guarda el resultado; si el
+    // render de «vacio» cae entre esa lectura y esa escritura, la caché se queda con el DOM de «volviendo» y ningún render
+    // posterior la vacía (el de EnlaceProfundoOtraEmpresa no cambia el marcado). Toda comprobación siguiente lee ese DOM viejo:
+    // «Check count: 1», la colección vacía y el plazo agotado, por largo que sea. Por eso, mientras quede un render pendiente,
+    // el DOM solo se lee dentro de la espera: bUnit corre cada comprobación en el despachador del renderizador, que es también
+    // donde se pinta, así que lectura y render no se pueden intercalar. Cubierto por las dos pruebas de provocación de abajo.
+    private static Task FichaNoEncontradaAsync(IRenderedComponent<FichaCentroInbound> cut) =>
+        cut.WaitForAssertionAsync(() =>
+        {
+            cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle();
+            cut.FindAll("[role=tab]").Should().BeEmpty();
+            cut.FindAll("table").Should().BeEmpty();
+        }, Plazo);
 
     // ---------------------------------------------------------------- Centro (tarjeta 14)
 
@@ -361,8 +386,7 @@ public class CentroInboundPantallasTests : BunitContext
 
         var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, Guid.Empty)));
 
-        cut.FindAll("[role=tab]").Should().BeEmpty();
-        await cut.WaitForAssertionAsync(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle(), Plazo);
+        await FichaNoEncontradaAsync(cut);
         cut.Markup.Should().NotContain("esqueleto-lista");
     }
 
@@ -408,11 +432,123 @@ public class CentroInboundPantallasTests : BunitContext
 
         var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("table").Should().BeEmpty();
-        cut.FindAll("[role=tab]").Should().BeEmpty();
         // La ficha cae en FichaNoEncontrada (no en el error de carga con «Reintentar»).
-        await cut.WaitForAssertionAsync(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle(), Plazo);
+        await FichaNoEncontradaAsync(cut);
         cut.Markup.Should().NotContain("Reintentar").And.NotContain("esqueleto-lista");
+    }
+
+    // ---------------------------------------------------------------- Provocación de #2330
+
+    /// <summary>
+    /// Retiene, en un hilo propio, el cerrojo interno del analizador HTML de bUnit (<c>BunitHtmlParser.parserLock</c>, singleton
+    /// del contexto). <c>RenderedComponent.Nodes</c> lee el Markup ANTES de entrar en ese cerrojo, así que un FindAll que llegue
+    /// mientras está tomado se queda parado con el Markup que leyó: el test decide qué pasa entre esa lectura y la escritura de
+    /// la caché. Depende de un detalle interno de bUnit 2.11.3; si cambia, falla aquí con el motivo, no en silencio.
+    /// </summary>
+    private sealed class CerrojoDelAnalizador : IDisposable
+    {
+        private readonly ManualResetEventSlim _soltar = new();
+        private readonly Thread _hilo;
+
+        public CerrojoDelAnalizador(IServiceProvider servicios)
+        {
+            var tipo = typeof(BunitContext).Assembly.GetType("Bunit.Rendering.BunitHtmlParser")
+                ?? throw new InvalidOperationException("bUnit ya no tiene Bunit.Rendering.BunitHtmlParser: revisa la provocación de #2330.");
+            var cerrojo = tipo.GetField("parserLock", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(servicios.GetRequiredService(tipo))
+                ?? throw new InvalidOperationException("BunitHtmlParser ya no tiene parserLock: revisa la provocación de #2330.");
+            // Sin using: si la espera de abajo vence, el hilo auxiliar aún puede llamar a Set.
+            var tomado = new ManualResetEventSlim();
+            _hilo = new Thread(() =>
+            {
+                lock (cerrojo)
+                {
+                    tomado.Set();
+                    _soltar.Wait();
+                }
+            })
+            {
+                IsBackground = true,
+            };
+            _hilo.Start();
+            if (!tomado.Wait(Plazo))
+            {
+                // Sin Dispose: si el hilo llegara a tomar el cerrojo más tarde no lo soltaría nunca, y el Dispose del
+                // analizador (que también lo toma) colgaría la ejecución en vez de dar un rojo.
+                _soltar.Set();
+                throw new InvalidOperationException("El hilo auxiliar no tomó el cerrojo del analizador de bUnit a tiempo.");
+            }
+        }
+
+        public void Dispose()
+        {
+            _soltar.Set();
+            _hilo.Join();
+            _soltar.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Fuerza el entrelazado del fallo de #2330 sin depender de la carga de la máquina: con la ficha en «volviendo», lanza
+    /// <paramref name="comprobar"/> en un hilo propio, espera a que ese hilo quede parado en el cerrojo del analizador (ya ha
+    /// leído el Markup de «volviendo»), deja que FichaNoEncontrada termine su lectura y suelta el cerrojo. Si la comprobación lee
+    /// el DOM fuera del despachador, el render de «vacio» llega mientras está parada; si lo lee dentro, el render tiene que
+    /// esperar a que termine.
+    /// </summary>
+    private async Task NoEncontradaConUnRenderDuranteLaLecturaAsync(Func<IRenderedComponent<FichaCentroInbound>, Task> comprobar, bool renderDuranteLaLectura)
+    {
+        Preparar(centroNoVisible: true);
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.PuertaAutorizados = puerta;
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        cut.Markup.Should().Contain("data-ficha-no-encontrada=\"volviendo\"", "FichaNoEncontrada sigue esperando su lectura");
+        await cut.InvokeAsync(() => { }); // el despachador queda libre antes de empezar
+
+        Thread? lector = null;
+        Task comprobacion;
+        using (new CerrojoDelAnalizador(Services))
+        {
+            comprobacion = Task.Factory.StartNew(
+                () =>
+                {
+                    Volatile.Write(ref lector, Thread.CurrentThread);
+                    return comprobar(cut);
+                },
+                CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+            SpinWait.SpinUntil(() => Volatile.Read(ref lector) is { } hilo && (hilo.ThreadState & ThreadState.WaitSleepJoin) != 0, Plazo)
+                .Should().BeTrue("la comprobación tiene que quedar parada en el cerrojo del analizador con el Markup de «volviendo»");
+
+            puerta.SetResult();
+            SpinWait.SpinUntil(() => cut.Markup.Contains("data-ficha-no-encontrada=\"vacio\""), renderDuranteLaLectura ? Plazo : TimeSpan.FromSeconds(1))
+                .Should().Be(renderDuranteLaLectura, renderDuranteLaLectura
+                    ? "fuera del despachador nada impide el render de «vacio» mientras la lectura está parada"
+                    : "dentro del despachador el render de «vacio» espera a que termine la comprobación");
+        }
+
+        await comprobacion;
+    }
+
+    [Fact]
+    public async Task La_espera_de_ficha_no_encontrada_no_se_queda_con_el_DOM_de_un_render_anterior()
+    {
+        // Las comprobaciones de FichaNoEncontradaAsync corren en el despachador: el render de «vacio» no puede caer en medio.
+        await NoEncontradaConUnRenderDuranteLaLecturaAsync(FichaNoEncontradaAsync, renderDuranteLaLectura: false);
+    }
+
+    [Fact]
+    public async Task Leer_el_DOM_fuera_del_despachador_con_un_render_pendiente_deja_la_espera_con_el_DOM_viejo()
+    {
+        // Sensibilidad de la provocación: la forma anterior de los dos tests de ficha no encontrada (un FindAll desde el hilo
+        // del test antes de esperar) reproduce el fallo de #2330 cada vez. Si una versión de bUnit sincroniza su caché del DOM,
+        // este test falla y la regla de FichaNoEncontradaAsync puede revisarse.
+        var fallo = await FluentActions.Awaiting(() => NoEncontradaConUnRenderDuranteLaLecturaAsync(
+                cut =>
+                {
+                    cut.FindAll("[role=tab]").Should().BeEmpty();
+                    return cut.WaitForAssertionAsync(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle(), TimeSpan.FromMilliseconds(500));
+                },
+                renderDuranteLaLectura: true))
+            .Should().ThrowAsync<Bunit.Extensions.WaitForHelpers.WaitForFailedException>();
+        fallo.Which.InnerException!.Message.Should().Contain("the collection is empty");
     }
 
     // ---------------------------------------------------------------- Centros (entrada de menú)
