@@ -142,6 +142,22 @@ public class ObtenerClientesAutorizadosPorPapelTests
             "la lista por Tenant de los demás lectores no se ensancha con la vía Inbound");
     }
 
+    [Fact]
+    public async Task La_via_heredada_y_una_Asignacion_de_Operacion_Inbound_sobre_el_mismo_Tenant_dan_dos_entradas()
+    {
+        var e = await CrearAsync();
+        await using var _ = e.Db;
+        // Vía heredada: DelegacionTenant vigente con la fila del usuario, sin Asignación de Cartera Outbound.
+        var delegacion = new DelegacionTenant(e.Origen.Id, e.Norte.Id);
+        e.Db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "GestorCae"));
+        Inbound(e, e.Norte);
+        await e.Db.SaveChangesAsync();
+
+        (await Pedir(e, porPapel: true)).Where(c => c.TenantId == e.Norte.Id).Select(c => c.Servicio)
+            .Should().BeEquivalentTo(new ServicioCae?[] { null, ServicioCae.Inbound },
+                "la vía heredada conserva su entrada sin papel junto a la de Inbound: el selector la ofrece y se vuelve a ella");
+    }
+
     [Theory]
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]

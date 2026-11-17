@@ -1104,6 +1104,25 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Fact]
+    public async Task D4_con_el_papel_Inbound_resuelto_la_entrada_sin_papel_del_mismo_Tenant_no_esta_activa()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel =
+        [
+            Propio(), Gestionado(Norte, "Empresa Norte"), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound),
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound),
+        ];
+        _papel = PapelActivo.Inbound;
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true");
+        FormularioDe(cut, Norte, null)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("false",
+            "un listbox de selección única: solo la entrada del papel resuelto está activa");
+        cut.FindAll(".selector-tenant-lista [aria-selected='true']").Should().HaveCount(1);
+    }
+
+    [Fact]
     public void D4_el_disparador_anuncia_el_papel_activo_al_lector_de_pantalla()
     {
         DosPapelesSobreNorte();
