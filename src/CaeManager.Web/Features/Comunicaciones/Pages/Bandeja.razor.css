@@ -29,35 +29,33 @@
    tres columnas recuperan ese alto. */
 
 .bandeja-layout {
-    /* Columnas de la maqueta 2026-11-01 (E27, PR-1): cartera 200 px, lista 320 px y, con ficha de contexto, 300 px; los cortes
-       de ancho de más abajo las cambian (184/304 por debajo de 1440 px, 216/344 desde 1600 y 216/380 desde 1760). */
-    --bandeja-ancho-cartera: 200px;
-    --bandeja-ancho-lista: 320px;
-    --bandeja-ancho-ctx: 300px;
-    /* Ancho efectivo de la lista (D-26): el de la maqueta por defecto, o el que el gestor fijó con el divisor (variable
-       --bandeja-lista-ancho en <html>, ver panel-redimensionable.js); nunca más del 40 % de la ventana. */
-    --bandeja-lista-efectiva: clamp(260px, var(--bandeja-lista-ancho, var(--bandeja-ancho-lista)), 40vw);
+    /* Ancho de la lista de hilos (D-26): 360 px por defecto, ajustable con el divisor
+       (variable --bandeja-lista-ancho en <html>, ver panel-redimensionable.js); nunca
+       más del 40 % de la ventana, para no dejar sin sitio a la conversación. */
+    --bandeja-ancho-lista: clamp(260px, var(--bandeja-lista-ancho, 360px), 40vw);
     display: grid;
-    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+    gap: var(--space-5);
     align-items: start;
-    position: relative;
     /* 120 px de marco de la página + 64 px de la cabecera de página (52 px de banda y 12 px de aire). */
     height: calc(100vh - 184px);
     min-height: 480px;
 }
 
 .bandeja-layout:has(.bandeja-cliente) {
-    grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr) var(--bandeja-ancho-ctx);
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 300px;
 }
 
-/* Divisor del ancho de la lista: una franja de 8 px a caballo del borde entre la lista y el centro. */
+.bandeja-layout {
+    position: relative;
+}
+
 .bandeja-divisor {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: calc(var(--bandeja-ancho-cartera) + var(--bandeja-lista-efectiva) - var(--space-1));
-    width: var(--space-2);
+    left: var(--bandeja-ancho-lista);
+    width: var(--space-5);
     cursor: col-resize;
     touch-action: none;
     z-index: 1;
@@ -69,16 +67,6 @@
     background-color: var(--color-primary-200);
 }
 
-@media (max-width: 1099px) {
-    .bandeja-divisor {
-        display: none;
-    }
-}
-
-/* Las columnas se tocan (maqueta): solo la primera y la última redondean su esquina exterior. */
-.bandeja-layout > .bandeja-columna {
-    border-radius: 0;
-}
 .bandeja-columna {
     height: 100%;
     display: flex;
@@ -89,133 +77,20 @@
 /* --- Columna Inbox (filtros + lista de conversaciones) --- */
 
 .bandeja-filtros {
-    gap: 16px;
-    padding: 12px 8px;
     border: var(--border-default);
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-    background-color: var(--color-surface-subtle);
-    overflow-y: auto;
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface);
+    overflow: hidden;
 }
 
 .bandeja-filtros-form {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: var(--border-default);
 }
 
-/* Título de grupo de la cartera («Mi cartera», «Personal»): 12/16 500 apagado, sobre los ítems. */
-.bandeja-nav-grupo-titulo {
-    padding: 0 8px 4px;
-    font: 500 12px/16px var(--font-family);
-    color: var(--color-text-muted);
-}
-
-/* Selector «Vista» (maqueta, `.vista-b`): 36 px, 13/18, radius-lg y borde de control (3:1, DDL-062/063); el menú es `.vistas-lista`. */
-.bandeja-vista-w {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.bandeja-vista-b,
-.bandeja-crit-b {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    height: 36px;
-    padding: 4px 10px;
-    border: var(--border-control);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: 400 13px/18px var(--font-family);
-    text-align: left;
-    cursor: pointer;
-}
-
-.bandeja-vista-b:hover {
-    background: var(--color-surface-hover);
-}
-
-.bandeja-vista-k {
-    flex: none;
-    color: var(--color-text-muted);
-}
-
-.bandeja-vista-n {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.bandeja-vista-c {
-    flex: none;
-    color: var(--color-text-muted);
-}
-
-/* «Fuera de plazo n» (maqueta, `.crit-b`): 600, texto danger-700 sobre danger-50 y borde danger-500. */
-.bandeja-crit-b {
-    justify-content: space-between;
-    font-weight: 600;
-    color: var(--color-danger-700);
-    background: var(--color-danger-50);
-    border-color: var(--color-danger-500);
-}
-
-.bandeja-crit-b[aria-pressed="true"] {
-    box-shadow: inset 0 0 0 1px var(--color-danger-500);
-}
-
-.bandeja-crit-n {
-    flex: none;
-}
-
-.bandeja-vista-b:focus-visible,
-.bandeja-crit-b:focus-visible {
-    outline: 2px solid var(--color-primary-500);
-    outline-offset: 1px;
-}
-
-.bandeja-vistas-lista {
-    position: absolute;
-    top: 40px;
-    left: 0;
-    right: 0;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 6px;
-    max-height: 60vh;
-    overflow-y: auto;
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-overlay);
-}
-
-/* Pie de la cartera (maqueta, `.link`): 12/16 600 en primario, abajo del todo. */
-.bandeja-cartera-pie {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: auto;
-    padding: 0 8px;
-}
-
-.bandeja-enlace {
-    font: 600 12px/16px var(--font-family);
-    color: var(--color-primary-500);
-    text-decoration: none;
-}
-
-.bandeja-enlace:hover {
-    text-decoration: underline;
-}
 /* Cabecera de página (maqueta 2026-11-01, `.cab`): banda de 52 px con el título (16/20 700), el buscador
    (máx. 420 px, 36 px de alto) y «Nuevo correo» a la derecha. */
 .bandeja-cabecera-pagina {
@@ -249,7 +124,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 0;
+    padding: var(--space-3) var(--space-2) 0;
 }
 
 .bandeja-nav-item {
@@ -409,25 +284,22 @@
     text-align: center;
 }
 
-/* Chips de canal (maqueta, `.filtro-canal` / `.ch`): 28 px, 12/16 500, redondeados. */
 .bandeja-toggles {
     display: flex;
     gap: var(--space-2);
     flex-wrap: wrap;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-fila-divisor);
 }
 
 .bandeja-toggle {
-    height: 28px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 var(--space-3);
     border-radius: var(--radius-full);
     /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
        (DDL-062/063). --color-border no lo alcanza (1,44:1). */
     border: var(--border-control);
     background-color: var(--color-surface);
     color: var(--color-text-muted);
-    font: 500 12px/16px var(--font-family);
+    font: var(--font-label-md);
     cursor: pointer;
     transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
 }
@@ -521,19 +393,10 @@
     color: var(--color-text-muted);
 }
 
-/* Columna de la lista (maqueta, `.c-lista`): blanca, con su encabezado fijo arriba y las filas debajo. */
 .bandeja-lista {
+    flex: 1;
     overflow-y: auto;
-    border: var(--border-default);
-    border-left: 0;
-    background-color: var(--color-surface);
-}
-
-.bandeja-lista .bandeja-lis-cab {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background-color: var(--color-surface);
+    padding: var(--space-2) 0;
 }
 
 .bandeja-grupo-cabecera {
@@ -991,16 +854,19 @@ a.bandeja-documento-citado-nombre:hover {
 
 @media (max-width: 1439px) {
     .bandeja-layout {
-        --bandeja-ancho-cartera: 184px;
-        --bandeja-ancho-lista: 304px;
-        --bandeja-ancho-ctx: 280px;
+        --bandeja-ancho-lista: clamp(260px, var(--bandeja-lista-ancho, 300px), 40vw);
+    }
+
+    .bandeja-layout,
+    .bandeja-layout:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 280px;
     }
 }
 
-/* El cajón de contexto (E4) y el de la cartera (E1) no existen aún: de momento la ficha del Cliente se oculta por debajo de 1280 px. */
 @media (max-width: 1279px) {
+    .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
-        grid-template-columns: var(--bandeja-ancho-cartera) var(--bandeja-lista-efectiva) minmax(0, 1fr);
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
     }
 
     .bandeja-cliente {
@@ -1019,31 +885,38 @@ a.bandeja-documento-citado-nombre:hover {
         height: auto;
         max-height: 70vh;
     }
+}
 
-    /* Una columna: la lista y el hilo se alternan; sin conversación abierta el centro vacío no aporta nada. */
-    .bandeja-modo-lista .bandeja-centro,
-    .bandeja-modo-personal .bandeja-centro:has(.estado-vacio) {
+@media (max-width: 1099px) {
+    .bandeja-divisor {
         display: none;
     }
 }
 
-/* Composiciones de la misma pantalla: lista (por defecto), hilo, tabla y buzón personal. La tabla ocupa todo el resto. */
-.bandeja-modo-tabla,
-.bandeja-modo-tabla:has(.bandeja-cliente) {
-    grid-template-columns: var(--bandeja-ancho-cartera) minmax(0, 1fr);
+
+/* La bandeja inicial y el hilo son dos composiciones de la misma pantalla. */
+.bandeja-modo-tabla {
+    --bandeja-ancho-lista: 240px;
+    gap: 0;
 }
 
-.bandeja-modo-tabla .bandeja-lista {
-    display: none;
+.bandeja-modo-hilo {
+    --bandeja-ancho-lista: 304px;
+    gap: 0;
 }
 
-.bandeja-layout > .bandeja-filtros {
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+.bandeja-modo-hilo:has(.bandeja-cliente) {
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 344px;
 }
 
 .bandeja-modo-hilo .bandeja-columna {
     border-radius: 0;
 }
+
+.bandeja-modo-hilo .bandeja-divisor {
+    display: none;
+}
+
 .bandeja-centro-acciones {
     width: 100%;
     align-items: flex-end;
@@ -1255,11 +1128,44 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
+@media (max-width: 1180px) {
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+    }
+}
+
 @media (max-width: 1099px) {
-    .bandeja-modo-hilo:has(.bandeja-volver) .bandeja-filtros,
-    .bandeja-modo-hilo:has(.bandeja-volver) .bandeja-lista {
+    .bandeja-modo-hilo,
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: 1fr;
+    }
+
+    .bandeja-modo-hilo:has(.bandeja-volver) .bandeja-filtros {
         display: none;
     }
+}
+
+/* Sin hilo abierto no hay columna de Cliente: la tabla ocupa todo el resto.
+   Los escalones de ancho de arriba (<= 1439px) reservan una tercera columna
+   de 280px para esa ficha, y en esta composicion quedaba vacia y dejaba a la
+   tabla en ~400px, con la columna Conversacion aplastada a cero. */
+.bandeja-modo-tabla {
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+}
+
+@media (max-width: 1099px) {
+    .bandeja-modo-tabla {
+        grid-template-columns: 1fr;
+    }
+}
+
+.bandeja-modo-tabla .bandeja-filtros {
+    border-radius: 0;
+}
+
+.bandeja-modo-tabla .bandeja-lista,
+.bandeja-modo-tabla .bandeja-divisor {
+    display: none;
 }
 
 /* Tabla a sangre (maqueta, `.tabla-w`, E13): sin relleno propio; el encabezado de la lista y la tabla llegan al borde. */
@@ -1268,6 +1174,17 @@ a.bandeja-documento-citado-nombre:hover {
     gap: 0;
     overflow-y: auto;
 }
+
+.bandeja-modo-tabla .bandeja-toggles {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.bandeja-modo-tabla .bandeja-toggles .bandeja-toggle {
+    min-height: 38px;
+    text-align: left;
+}
+
 /* Buscador de la cabecera de página (maqueta, `.bus`, E3): 36 px de alto, hasta 420 px, texto 13/18. */
 .bandeja-buscar {
     display: flex;
@@ -1333,25 +1250,32 @@ a.bandeja-documento-citado-nombre:hover {
     }
 }
 
-/* Puntos de corte de la maqueta 2026-11-01 (E27, lo que es CSS): desde 1600 px la cartera mide 216 px, la lista 344 y la
-   columna de contexto 304; desde 1760 px la lista mide 380 y el contexto 320; por debajo de 1100 px la pantalla pasa a una
-   columna (la lista y el hilo se alternan con «Volver») y desde 760 px la lista tiene al menos 60vh y el buscador ocupa la
+/* Puntos de corte de la maqueta 2026-11-01 (E27, lo que es CSS): la columna de contexto mide 304 px desde 1600 y
+   320 px desde 1760, y la lista del hilo 344 y 380 px; por debajo de 1100 px la pantalla pasa a una columna (la
+   lista y el hilo se alternan con «Volver») y desde 760 px la lista tiene al menos 60vh y el buscador ocupa la
    fila entera. El cajón de contexto (<1440) y el de la cartera (<1280) no existen aún: dependen de E4 y de E1. */
 @media (min-width: 1600px) {
-    .bandeja-layout {
-        --bandeja-ancho-cartera: 216px;
+    .bandeja-modo-hilo,
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
         --bandeja-ancho-lista: 344px;
-        --bandeja-ancho-ctx: 304px;
+    }
+
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 304px;
     }
 }
 
 @media (min-width: 1760px) {
-    .bandeja-layout {
-        --bandeja-ancho-cartera: 216px;
+    .bandeja-modo-hilo,
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
         --bandeja-ancho-lista: 380px;
-        --bandeja-ancho-ctx: 320px;
+    }
+
+    .bandeja-modo-hilo:has(.bandeja-cliente) {
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 320px;
     }
 }
+
 @media (max-width: 760px) {
     .bandeja-cabecera-pagina {
         flex-wrap: wrap;
@@ -1364,8 +1288,47 @@ a.bandeja-documento-citado-nombre:hover {
         order: 3;
     }
 
-    .bandeja-modo-lista .bandeja-lista,
-    .bandeja-modo-personal .bandeja-lista {
+    .bandeja-modo-hilo .bandeja-filtros {
+        min-height: 60vh;
+    }
+}
+
+/* Modo lista (maqueta 2026-11-01, PR-1): sin conversación abierta la lista de conversaciones está a la vista junto a los filtros, como en el
+   hilo (304 px, 344 desde 1600 y 380 desde 1760) y el centro muestra «Ninguna conversación abierta». La tabla es el modo secundario. */
+.bandeja-modo-lista {
+    --bandeja-ancho-lista: 304px;
+    gap: 0;
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
+}
+
+.bandeja-modo-lista .bandeja-columna {
+    border-radius: 0;
+}
+
+.bandeja-modo-lista .bandeja-divisor {
+    display: none;
+}
+
+@media (min-width: 1600px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 344px;
+    }
+}
+
+@media (min-width: 1760px) {
+    .bandeja-modo-lista {
+        --bandeja-ancho-lista: 380px;
+    }
+}
+
+@media (max-width: 1099px) {
+    .bandeja-modo-lista {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .bandeja-modo-lista .bandeja-filtros {
         min-height: 60vh;
     }
 }

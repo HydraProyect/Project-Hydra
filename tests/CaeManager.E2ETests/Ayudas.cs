@@ -902,8 +902,9 @@ public static class Ayudas
 
     /// <summary>
     /// Abre una conversación desde la tabla de la bandeja plana de
-    /// <c>/comunicaciones</c> (<c>TablaConversaciones.razor</c>), que es lo que
-    /// el centro muestra mientras no hay ningún hilo abierto. Mismo modo de
+    /// <c>/comunicaciones</c> (<c>TablaConversaciones.razor</c>), que es el modo
+    /// secundario del centro: solo se ve tras pulsar «Tabla» en la lista (por
+    /// defecto la bandeja muestra la lista de filas). Mismo modo de
     /// fallo que <see cref="SeleccionarFilaBandejaAsync"/>: el botón tiene un
     /// <c>@onclick</c> server-side en una página <c>InteractiveServer</c>, así
     /// que un clic en la ventana del prerenderizado se pierde en silencio. La

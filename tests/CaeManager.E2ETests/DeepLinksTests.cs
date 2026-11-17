@@ -253,18 +253,17 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/comunicaciones");
 
-        // Bandeja plana: sin conversación abierta, el centro es la tabla de
-        // todas las conversaciones (TablaConversaciones, sin ".bandeja-fila");
-        // la lista lateral de filas solo existe con un hilo abierto. Se abre
-        // el primero desde la tabla y, ya en modo hilo, "filas" resuelve a la
-        // lista lateral con la que se cambia de hilo más abajo.
+        // Bandeja plana: la lista lateral de filas (".bandeja-fila") está siempre a la vista; la tabla
+        // (TablaConversaciones) es el modo secundario que abre «Tabla». Se abre el primero desde la
+        // lista y, ya en modo hilo, "filas" resuelve a esa misma lista con la que se cambia de hilo
+        // más abajo.
         var filas = page.Locator(".bandeja-fila");
 
         // Por el helper y no por un ClickAsync a secas: el botón es un
         // @onclick server-side sobre una página InteractiveServer, así que un
         // clic dado en la ventana del prerenderizado se pierde en silencio y
         // el fallo saldría 30 s después esperando el botón de copiar enlace,
-        // sin decir que la causa fue el clic (ver Ayudas.AbrirConversacionDeTablaAsync).
+        // sin decir que la causa fue el clic (ver Ayudas.SeleccionarFilaBandejaAsync).
         await Ayudas.SeleccionarFilaBandejaAsync(page.Locator(".bandeja-fila").First);
         await page.Locator(".bandeja-centro-copiar-enlace").WaitForAsync();
         var asuntoOriginal = (await page.Locator(".bandeja-centro-titulo-fila h2").TextContentAsync())!.Trim();

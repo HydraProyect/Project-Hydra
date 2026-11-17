@@ -3190,11 +3190,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
     private static int DetallesPedidos(MediadorControlado mediador, Guid conversacionId) =>
         mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == conversacionId);
 
-    /// <summary>Las listas que la página pide para mostrarlas; los recuentos de la cartera («Fuera de plazo», chips de canal) son la misma consulta con una sola fila.</summary>
-    private static IEnumerable<ObtenerConversacionesQuery> ConsultasDeLista(MediadorControlado mediador) =>
-        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Where(q => q.TamanoPagina > 1);
-
-    private static int ListasPedidas(MediadorControlado mediador) => ConsultasDeLista(mediador).Count();
+    private static int ListasPedidas(MediadorControlado mediador) => mediador.Enviados.OfType<ObtenerConversacionesQuery>().Count();
 
     private static (Escenario Escenario, ConversacionListaDto A, ConversacionListaDto B, ConversacionListaDto C) TresConversaciones()
     {
@@ -4839,7 +4835,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Hilo 20");
         await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
         cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Hilo 21");
-        var consulta = ConsultasDeLista(mediador).Last();
+        var consulta = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last();
         consulta.Pagina.Should().Be(2);
         consulta.ClienteId.Should().Be(escenario.Clientes[0].Id);
     }

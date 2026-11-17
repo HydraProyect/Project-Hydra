@@ -56,6 +56,8 @@
     </header>
 
     @{
+        // «Al día» (maqueta, E14, `.vacio`): solo cuando no hay ningún filtro puesto; con filtros el vacío es «Sin resultados».
+        // El distintivo y el estado vacío van en un mismo bloque centrado, a 8 px entre piezas, como en la maqueta. Lo usan la lista y la tabla.
         RenderFragment vacioLista = @<div class="bandeja-vacio-bloque">
             @if (!HayFiltrosActivos)
             {
@@ -74,9 +76,7 @@
     }
 
     <div class="bandeja-layout @ClaseModo">
-        @* Columna de cartera (maqueta 2026-11-01, `.c-cart`, PR-1): 200 px (216 desde 1600), con los grupos «Mi cartera» y «Personal», el
-           selector «Vista» y, al pie, «Gestionar macros →». La lista de conversaciones ya no vive aquí dentro: es su propia columna. *@
-        <aside class="bandeja-columna bandeja-filtros" aria-label="@TextosLista["VistasYBuzones"]">
+        <aside class="bandeja-columna bandeja-filtros">
             @* "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
                se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
                a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
@@ -88,102 +88,12 @@
                del mismo maestro-detalle, de solo lectura (sin Composer ni Action Center, ver más abajo), porque
                hoy no existe ningún comando de «responder» para un mensaje del buzón personal.
                /comunicaciones/buzon es OTRA pantalla —explorador de carpetas de Microsoft 365— y no es lo que
-               este ítem abre. «Clientes» no se renombra (decisión del 2026-11-11): la cartera de la maqueta
-               («Todas mis Empresas», Empresas gestionadas y buzones hijos) depende de D-6 b y no se construye. *@
+               este ítem abre. *@
             <nav class="bandeja-nav" aria-label="@TextosLista["OrigenConversaciones"]">
-                <span class="bandeja-nav-grupo-titulo">@TextosLista["TituloCartera"]</span>
                 <button type="button" aria-current="@(_vista == "clientes" ? "true" : null)"
                         class="bandeja-nav-item @(_vista == "clientes" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
                     <span class="bandeja-nav-item-texto">@TextosLista["NavClientes"]</span>
                 </button>
-            </nav>
-
-            @if (_vista == "clientes")
-            {
-                @* Selector «Vista» (maqueta, `.vista-b`): el nombre de la vista activa y su recuento, y un menú con las vistas que ya
-                   existían como píldoras (Todas, Asignadas a mí, Sin asignar, Esperando respuesta del Interlocutor). «Fuera de plazo»
-                   es un botón propio: su recuento sale de la misma consulta de la lista con ese filtro, no de la página visible. *@
-                @if (!MostrandoHistorial)
-                {
-                    <div class="bandeja-vista-w" @onkeydown="TeclaVistas">
-                        <button type="button" class="bandeja-vista-b" aria-haspopup="menu" aria-expanded="@(_menuVistasAbierto ? "true" : "false")"
-                                aria-label="@TextosLista["VistaActiva", TituloVista]" @onclick="AlternarMenuVistas">
-                            <span class="bandeja-vista-k">@TextosLista["Vista"]</span>
-                            <span class="bandeja-vista-n">@TituloVista</span>
-                            <span class="bandeja-vista-c">@_totalConversaciones</span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                        </button>
-                        @if (_soloFueraDeSla || _recuentoFueraDeSla > 0)
-                        {
-                            <button type="button" class="bandeja-crit-b" aria-pressed="@(_soloFueraDeSla ? "true" : "false")" @onclick="AlternarFueraDeSlaAsync">
-                                <span class="bandeja-nav-item-texto">@TextosLista["FueraDePlazo"]</span>
-                                <span class="bandeja-crit-n">@(_soloFueraDeSla ? _totalConversaciones : _recuentoFueraDeSla)</span>
-                            </button>
-                        }
-                        @if (_menuVistasAbierto)
-                        {
-                            <div class="bandeja-vistas-lista" role="menu" aria-label="@TextosLista["Vistas"]">
-                                @foreach (var (clave, texto) in OpcionesVista)
-                                {
-                                    <button type="button" role="menuitem" aria-current="@(clave == VistaActiva ? "true" : null)"
-                                            class="bandeja-nav-item @(clave == VistaActiva ? "bandeja-nav-item-activo" : null)" @onclick="() => ElegirVistaAsync(clave)">
-                                        <span class="bandeja-nav-item-texto">@texto</span>
-                                    </button>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-
-                <div class="bandeja-filtros-form">
-                    @* Origen de las conversaciones del filtro (lienzo de Documentos, PR6b): «Reclamaciones» es el historial de lotes
-                       enviados. Solo se ofrece a quien lo lee en Documentos (RolesComunicaciones.LecturaReclamaciones); Consulta no la ve. *@
-                    @if (_puedeLeerReclamaciones)
-                    {
-                        <PastillaFiltro Etiqueta="@TextosReclamaciones["Origen"].Value" TextoTodos="@TextosReclamaciones["OrigenTodos"].Value"
-                                        Valor="@(OrigenReclamacionesActivo ? OrigenReclamaciones : string.Empty)" ValorChanged="CambiarOrigenAsync"
-                                        Opciones="OpcionesOrigen" />
-                    }
-
-                    @if (!MostrandoHistorial)
-                    {
-                    <details class="bandeja-filtros-avanzados">
-                        <summary>Más filtros</summary>
-                        <div class="bandeja-filtros-avanzados-campos">
-                            <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los estados</option>
-                                @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
-                                {
-                                    <option value="@estado.ToString()">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, estado)</option>
-                                }
-                            </CampoSelect>
-
-                            <CampoSelect Etiqueta="@TextosIntenciones["EtiquetaIntencion"]" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">@TextosIntenciones["TodasIntenciones"]</option>
-                                @foreach (var intencion in IntencionesCae)
-                                {
-                                    <option value="@intencion">@TextosIntenciones[$"Intencion_{intencion}"]</option>
-                                }
-                            </CampoSelect>
-                            <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
-
-                            <CampoSelect Etiqueta="@TextosLista["Empresa"].Value" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los Clientes empresariales</option>
-                                @foreach (var cliente in _clientesSelector)
-                                {
-                                    <option value="@cliente.Id">@cliente.RazonSocial</option>
-                                }
-                            </CampoSelect>
-                        </div>
-                    </details>
-                    }
-                </div>
-
-                <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
-            }
-
-            <nav class="bandeja-nav" aria-label="@TextosLista["TituloPersonal"]">
-                <span class="bandeja-nav-grupo-titulo">@TextosLista["TituloPersonal"]</span>
                 <button type="button" aria-current="@(_vista == "personal" ? "true" : null)"
                         class="bandeja-nav-item @(_vista == "personal" ? "bandeja-nav-item-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
                     <span class="bandeja-nav-item-texto">@TextosLista["NavBuzonPersonal"]</span>
@@ -236,78 +146,123 @@
                 </details>
             }
 
-            @* Pie de la cartera (maqueta, `.link`): la administración de macros conserva su ruta y, solo con la política del Cuadro de
-               dirección (decisión de Chris del 2026-11-17), el enlace a /direccion. *@
-            <div class="bandeja-cartera-pie">
-                <a class="bandeja-enlace" href="/comunicaciones/macros">@TextosLista["GestionarMacros"]</a>
-                @if (_puedeVerCuadroDireccion)
-                {
-                    <a class="bandeja-enlace" href="/direccion">@TextosLista["MetricasEquipo"]</a>
-                }
-            </div>
-        </aside>
+            @if (_vista == "clientes")
+            {
+                <div class="bandeja-filtros-form">
+                    @* Origen de las conversaciones del filtro (lienzo de Documentos, PR6b): «Reclamaciones» es el historial de lotes
+                       enviados. Solo se ofrece a quien lo lee en Documentos (RolesComunicaciones.LecturaReclamaciones); Consulta no la ve. *@
+                    @if (_puedeLeerReclamaciones)
+                    {
+                        <PastillaFiltro Etiqueta="@TextosReclamaciones["Origen"].Value" TextoTodos="@TextosReclamaciones["OrigenTodos"].Value"
+                                        Valor="@(OrigenReclamacionesActivo ? OrigenReclamaciones : string.Empty)" ValorChanged="CambiarOrigenAsync"
+                                        Opciones="OpcionesOrigen" />
+                    }
 
-        @* Columna de la lista (maqueta, `.c-lista`): 320 px (344 desde 1600, 380 desde 1760), siempre visible salvo en el modo tabla. *@
-        @if (MostrarListaLateral)
-        {
-            <section class="bandeja-columna bandeja-lista" aria-label="@TextosLista["ListaConversaciones"]" aria-busy="@(_cargandoLista ? "true" : "false")">
-                @if (_vista == "clientes")
-                {
-                    @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que abre la bandeja en tabla. *@
-                    <div class="bandeja-lis-cab">
-                        <div class="bandeja-lis-cab-t">
-                            <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
-                            <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                    @if (!MostrandoHistorial)
+                    {
+                    <div class="bandeja-toggles">
+                        <button type="button" class="bandeja-toggle @(!_soloAsignadasAMi && !_soloSinAsignar && !_soloEsperandoCliente && !_soloFueraDeSla ? "bandeja-toggle-activo" : null)" @onclick="VerTodasAsync">
+                            Todas
+                        </button>
+                        <button type="button" class="bandeja-toggle @(_soloAsignadasAMi ? "bandeja-toggle-activo" : null)" @onclick="FiltrarAsignadasAMiAsync">
+                            @TextosLista["Mias"]
+                        </button>
+                        <button type="button" class="bandeja-toggle @(_soloSinAsignar ? "bandeja-toggle-activo" : null)" @onclick="FiltrarSinAsignarAsync">
+                            Sin asignar
+                        </button>
+                        <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
+                            @TextosLista["EsperandoCliente"]
+                        </button>
+
+                    </div>
+
+                    <details class="bandeja-filtros-avanzados">
+                        <summary>Más filtros</summary>
+                        <div class="bandeja-filtros-avanzados-campos">
+                            <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="async v => { _estadoFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los estados</option>
+                                @foreach (var estado in EstadoConversacionPresentacion.EnOrdenDeSelector)
+                                {
+                                    <option value="@estado.ToString()">@EstadoConversacionPresentacion.Etiqueta(TextosEstados, estado)</option>
+                                }
+                            </CampoSelect>
+
+                            <CampoSelect Etiqueta="@TextosIntenciones["EtiquetaIntencion"]" Valor="@_intencionFiltro" ValorChanged="async v => { _intencionFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">@TextosIntenciones["TodasIntenciones"]</option>
+                                @foreach (var intencion in IntencionesCae)
+                                {
+                                    <option value="@intencion">@TextosIntenciones[$"Intencion_{intencion}"]</option>
+                                }
+                            </CampoSelect>
+                            <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
+
+                            <CampoSelect Etiqueta="@TextosLista["Empresa"].Value" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los Clientes empresariales</option>
+                                @foreach (var cliente in _clientesSelector)
+                                {
+                                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                                }
+                            </CampoSelect>
                         </div>
-                        <button type="button" class="bandeja-mini" @onclick="VerTablaAsync">@TextosLista["VerTabla"]</button>
-                    </div>
-                    @* Canal (maqueta, `.filtro-canal`): la consulta de la lista ya filtra por canal; el recuento de cada chip sale de esa misma
-                       consulta con los demás filtros puestos. *@
-                    <div class="bandeja-toggles" role="group" aria-label="@TextosLista["Canal"]">
-                        @foreach (var (canal, texto, recuento) in OpcionesCanal)
-                        {
-                            <button type="button" class="bandeja-toggle @(canal == _canalFiltro ? "bandeja-toggle-activo" : null)" aria-pressed="@(canal == _canalFiltro ? "true" : "false")"
-                                    @onclick="() => ElegirCanalAsync(canal)">@texto · @recuento</button>
-                        }
-                    </div>
-                    @if (_errorCargaLista)
-                    {
-                        <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
-                            <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
-                        </EstadoVacio>
+                    </details>
                     }
-                    else if (_cargandoLista)
-                    {
-                        <EstadoCargando Filas="6" />
-                        <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
-                    }
-                    else if (_conversaciones.Count == 0)
-                    {
-                        @vacioLista
-                    }
-                    else
-                    {
-                        <ul class="bandeja-grupo-filas">
-                            @foreach (var conversacion in _conversaciones)
-                            {
-                                <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" Enfocada="@(conversacion.Id == _idEnfocado)" OnSeleccionar="SeleccionarConversacionAsync" />
-                            }
-                        </ul>
-                        @if (TotalPaginas > 1)
-                        {
-                            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalConversaciones"
-                                              Etiqueta="@TextosLista["Conversaciones"]" PaginaActualChanged="CambiarPaginaBandejaAsync" />
-                        }
-                    }
-                }
-                else
-                {
-                    <p class="bandeja-vista-personal-descripcion">
-                        Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
-                        plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
-                        Composer aquí, no hay ninguna gestión CAE que atender.
-                    </p>
+                </div>
 
+                <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
+                @* La lista de conversaciones está siempre a la vista (maqueta, PR-1): con o sin conversación abierta; solo desaparece
+                   en el modo tabla (y con el historial de Reclamaciones, que ocupa el centro). *@
+                @if (MostrarListaLateral)
+                {
+                    <div class="bandeja-lista">
+                        @* Encabezado de la lista (maqueta, E9): título, recuento y «Tabla», que abre la bandeja en tabla. *@
+                        <div class="bandeja-lis-cab">
+                            <div class="bandeja-lis-cab-t">
+                                <h2 class="bandeja-lis-cab-titulo">@TituloLista</h2>
+                                <small>@TextosLista[_totalConversaciones == 1 ? "RecuentoConversacion" : "RecuentoConversaciones", _totalConversaciones]</small>
+                            </div>
+                            <button type="button" class="bandeja-mini" @onclick="VerTablaAsync">@TextosLista["VerTabla"]</button>
+                        </div>
+                        @if (_errorCargaLista)
+                        {
+                            <EstadoVacio SinIcono="true" Titulo="@TextosLista["ErrorBuzon"]" Descripcion="@TextosLista["ErrorBuzonAyuda"]">
+                                <Accion><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarListaAsync">@TextosLista["Reintentar"]</Boton></Accion>
+                            </EstadoVacio>
+                        }
+                        else if (_cargandoLista)
+                        {
+                            <EstadoCargando Filas="6" />
+                            <p class="bandeja-cargando-texto" role="status">@TextosLista["Cargando"]</p>
+                        }
+                        else if (_conversaciones.Count == 0)
+                        {
+                            @vacioLista
+                        }
+                        else
+                        {
+                            <ul class="bandeja-grupo-filas">
+                                @foreach (var conversacion in _conversaciones)
+                                {
+                                    <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" Enfocada="@(conversacion.Id == _idEnfocado)" OnSeleccionar="SeleccionarConversacionAsync" />
+                                }
+                            </ul>
+                            @if (TotalPaginas > 1)
+                            {
+                                <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalConversaciones"
+                                                  Etiqueta="@TextosLista["Conversaciones"]" PaginaActualChanged="CambiarPaginaBandejaAsync" />
+                            }
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <p class="bandeja-vista-personal-descripcion">
+                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
+                    plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
+                    Composer aquí, no hay ninguna gestión CAE que atender.
+                </p>
+
+                <div class="bandeja-lista">
                     @if (_errorCargaLista)
                     {
                         <EstadoVacio Titulo="No pudimos cargar el buzón" Descripcion="Intenta nuevamente en unos segundos.">
@@ -334,17 +289,17 @@
                             }
                         </ul>
                     }
-                }
-            </section>
+                </div>
+            }
+        </aside>
 
-            @* D-26: divisor arrastrable (y con flechas) del ancho de la lista; vive en el hueco entre columnas (absoluto, no es una
-               celda de la rejilla) y sigue a la lista (hermano anterior). Lo gestiona wwwroot/js/panel-redimensionable.js, sin interop.
-               La maqueta fija 320/344/380 px como ancho por defecto; el ajuste del gestor se recuerda en su navegador. *@
-            <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
-                 aria-label="@TextosLista["AjustarAnchoLista"]"
-                 aria-valuemin="260" aria-valuemax="560" aria-valuenow="320"
-                 data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
-        }
+        @* D-26: divisor arrastrable (y con flechas) del ancho de la columna anterior; vive en el
+           hueco entre columnas (absoluto, no es una celda de la rejilla) para no tapar la barra de
+           desplazamiento de la lista. Lo gestiona wwwroot/js/panel-redimensionable.js, sin interop. *@
+        <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="@TextosLista["AjustarAnchoLista"]"
+             aria-valuemin="260" aria-valuemax="560" aria-valuenow="360"
+             data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
 
         <section class="bandeja-columna bandeja-centro" aria-label="@TextosLista["Conversacion"]">
             @if (MostrandoHistorial)
