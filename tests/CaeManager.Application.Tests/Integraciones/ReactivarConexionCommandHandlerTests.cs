@@ -18,13 +18,13 @@ public class ReactivarConexionCommandHandlerTests
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
         ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null,
         CerrojoVerificacionBuzonFalso? cerrojo = null, SuscripcionWebhookRepositorioFalso? suscripciones = null,
-        DescarteContado? descarte = null)
+        DescarteContado? descarte = null, string? rol = "Administrador")
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
         eventos ??= new EventoWebhookRepositorioFalso();
         descarte ??= new DescarteContado();
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
-            alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
+            alcanceDatos, new CurrentUserServiceFalso(Guid.NewGuid(), rol), tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
             eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso(),
             new SuscripcionAlRehabilitarService(
@@ -38,6 +38,72 @@ public class ReactivarConexionCommandHandlerTests
         public int Veces { get; private set; }
 
         public void DescartarCambiosPendientes() => Veces++;
+    }
+
+    /// <summary>
+    /// La pantalla no es una frontera de autorización: sin rol efectivo Administrador, Reactivar no toma el cerrojo, no
+    /// guarda la marca previa, no llama a Graph ni reclama el buzón, y la conexión sigue Deshabilitada.
+    /// </summary>
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    [InlineData("Consulta")]
+    [InlineData(null)]
+    public async Task Sin_rol_efectivo_Administrador_no_reactiva_ni_toca_nada(string? rol)
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.Deshabilitar();
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamaciones,
+            graph: graph, cerrojo: cerrojo, rol: rol);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.SoloAdministrador");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        cerrojo.Pedidos.Should().BeEmpty();
+        repositorio.VecesLeidaActual.Should().Be(0);
+        unitOfWork.VecesGuardado.Should().Be(0);
+        graph.TokensDeIdentidad.Should().BeEmpty();
+        graph.VecesSuscrito.Should().Be(0);
+        graph.SuscripcionesRenovadas.Should().BeEmpty();
+        reclamaciones.Reclamaciones.Should().BeEmpty();
+        reclamaciones.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>El rol se mira antes que la visibilidad: sin Administrador efectivo no se distingue una conexión inexistente.</summary>
+    [Fact]
+    public async Task Sin_rol_efectivo_Administrador_una_conexion_inexistente_no_se_distingue()
+    {
+        var handler = CrearHandler(new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), rol: "GestorCae");
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.SoloAdministrador");
+    }
+
+    [Fact]
+    public async Task El_Administrador_reactiva_una_conexion_con_error()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("caída");
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("control: el mismo camino con Administrador sí reactiva");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
     }
 
     // Ronda 13: regla conservadora del hueco, guardada antes de cualquier llamada a Graph.
