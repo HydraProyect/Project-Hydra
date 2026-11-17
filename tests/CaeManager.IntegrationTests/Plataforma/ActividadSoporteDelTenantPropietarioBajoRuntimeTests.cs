@@ -131,6 +131,8 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
         // (= Tenant de origen) las corta también.
         (await ContarFilasVisiblesDeLaSesionAsync(_administradorDeA, _tenantA, _sesionSobreA)).Should().Be(2,
             "control positivo: con app.tenant_id = A la base entrega las dos filas a su Administrador");
+        (await OrigenFirmadoQueVeLaBaseAsync(_administradorDeB, _tenantA, tenantOrigen: _tenantB)).Should().Be(_tenantB,
+            "barrera del instrumento: la base ve el Tenant de origen B firmado, no el del contexto de datos");
         (await ContarFilasVisiblesDeLaSesionAsync(
                 _administradorDeB, _tenantA, _sesionSobreA, tenantOrigen: _tenantB)).Should().Be(0,
             "el contexto firmado tiene como Tenant de origen a B y el Administrador de B no es Administrador de A: " +
@@ -225,6 +227,15 @@ public class ActividadSoporteDelTenantPropietarioBajoRuntimeTests : IAsyncLifeti
         await using var contexto = CrearContexto(tenant, usuario, tenantOrigen: tenantOrigen);
         return await contexto.Database
             .SqlQuery<int>($"SELECT count(*)::int AS \"Value\" FROM \"RegistrosActividadSoporte\" WHERE \"SesionPrivilegiadaId\" = {sesion}")
+            .SingleAsync();
+    }
+
+    /// <summary>El Tenant de origen que la base lee del contexto firmado (<c>app_ctx_tenant_origen_id</c>).</summary>
+    private async Task<Guid?> OrigenFirmadoQueVeLaBaseAsync(Guid usuario, Guid tenant, Guid tenantOrigen)
+    {
+        await using var contexto = CrearContexto(tenant, usuario, tenantOrigen: tenantOrigen);
+        return await contexto.Database
+            .SqlQuery<Guid?>($"SELECT public.app_ctx_tenant_origen_id() AS \"Value\"")
             .SingleAsync();
     }
 
