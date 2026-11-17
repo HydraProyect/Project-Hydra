@@ -106,7 +106,7 @@
     <value>Confirma només si ja l'has revisat a la mateixa bústia de Microsoft 365. En confirmar, l'avís desapareix, es deixa d'intentar recuperar aquest correu i queda registrat qui el va donar per revisat i quan.</value>
   </data>
   <data name="AccionCancelarAvisoHueco" xml:space="preserve">
-    <value>Cancel·lar</value>
+    <value>Cancel·la</value>
   </data>
   <data name="AvisoHuecoConfirmado" xml:space="preserve">
     <value>Avís donat per revisat.</value>
