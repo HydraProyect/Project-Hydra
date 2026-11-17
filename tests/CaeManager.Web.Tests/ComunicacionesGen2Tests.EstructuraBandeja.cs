@@ -121,7 +121,7 @@ public partial class ComunicacionesGen2Tests
         cut.FindAll(".bandeja-filtros .bandeja-nav-item").Select(b => b.TextContent.Trim())
             .Should().Equal("Clientes", "Mi buzón personal");
         cut.FindAll(".bandeja-filtros .bandeja-toggles .bandeja-toggle").Select(b => b.TextContent.Trim())
-            .Should().Equal("Todas", "Asignadas a mí", "Sin asignar", "Esperando respuesta del Interlocutor");
+            .Should().Equal("Todas", "Mías", "Sin asignar", "Esperando respuesta del Interlocutor");
         var avanzados = cut.Find(".bandeja-filtros .bandeja-filtros-avanzados");
         avanzados.TagName.Should().Be("DETAILS");
         avanzados.QuerySelector("summary")!.TextContent.Trim().Should().Be("Más filtros");
