@@ -217,7 +217,7 @@ public static class InboundDemoAdministrativa
 
         // Las negativas que miran la base, antes de crear el fichero de credenciales y de escribir nada.
         await InboundDemoSeeder.RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(dbContext, cancellationToken);
-        await RechazarDatosDeOtraVersionAsync(dbContext, cancellationToken);
+        await RechazarDatosDeOtraVersionAsync(dbContext, opciones.DominioCorreo, cancellationToken);
 
         var pendientes = await PendientesDeSembrarAsync(dbContext, cancellationToken);
         if (pendientes.Count > 0 && MotivoFechaNoUtilizable(opciones.FechaDemostracion, hoy) is { } motivo)
@@ -225,6 +225,13 @@ public static class InboundDemoAdministrativa
                 $"{motivo} Queda por sembrar «{pendientes[0]}», así que la siembra se niega y no escribe nada.");
 
         var correosNuevos = await VerificarCuentasReutilizablesAsync(dbContext, userManager, cuentasConSuTenant, cancellationToken);
+
+        // La identidad de bootstrap (la línea Inbound y el backfill) se comprueba ANTES de escribir: lanzado con el servicio
+        // app en vez de migrador, Crear() lanza por falta de la cadena del propietario y no queda un lote sin su línea.
+        await using (var sondaBootstrap = crearContextoDeBootstrap())
+            if (!await sondaBootstrap.Database.CanConnectAsync(cancellationToken))
+                throw new InvalidOperationException(
+                    "La identidad de bootstrap no conecta con la base: la siembra Inbound se lanza con el servicio migrador. No se escribe nada.");
 
         // El fichero se abre —con permisos 0600 DESDE su creación— antes de crear ninguna cuenta: si no se puede escribir,
         // no se crea nada cuya contraseña se perdería.
@@ -290,12 +297,16 @@ public static class InboundDemoAdministrativa
     /// <summary>
     /// Un Tenant del lote que ya existe (con su marcador: los que no lo llevan ya se han rechazado) solo se completa si sus
     /// datos son de esta versión: sin tipos de salud en su catálogo (D7) y, en un Tenant TEC, sin una Empresa propia con
-    /// otro CIF. Si no, se niega con su nombre y no se escribe en ninguno.
+    /// otro CIF. Tampoco si sus cuentas del lote son de otro dominio: con otro <see cref="ClaveDominioCorreo"/> la siembra
+    /// crearía un segundo juego de cuentas en un Tenant ya sembrado, sin la cartera ni las autorizaciones del primero. Si no,
+    /// se niega con su nombre y no se escribe en ninguno.
     /// </summary>
-    internal static async Task RechazarDatosDeOtraVersionAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    internal static async Task RechazarDatosDeOtraVersionAsync(CaeManagerDbContext dbContext, string dominio, CancellationToken cancellationToken)
     {
         var existentes = await TenantsDelLoteAsync(dbContext, cancellationToken);
+        var partesLocales = CuentasInboundDemo.Locales.Todas.Select(c => c.Split('@')[0]).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var deOtraVersion = new List<string>();
+        var deOtroDominio = new List<string>();
 
         foreach (var (nombre, tenantId) in existentes)
             using (AmbitoTenantExplicito.Establecer(tenantId))
@@ -310,6 +321,12 @@ public static class InboundDemoAdministrativa
 
                 if (conSalud || conOtroCif)
                     deOtraVersion.Add(nombre);
+
+                // Las cuentas del Tenant (la RLS de AspNetUsers las acota a su ámbito): una del lote en otro dominio.
+                var correos = await dbContext.Users.Select(u => u.Email).ToListAsync(cancellationToken);
+                if (correos.Any(c => c is not null && c.Split('@') is [var local, var suDominio]
+                                     && partesLocales.Contains(local) && !string.Equals(suDominio, dominio, StringComparison.OrdinalIgnoreCase)))
+                    deOtroDominio.Add(nombre);
             }
 
         dbContext.ChangeTracker.Clear();
@@ -318,9 +335,19 @@ public static class InboundDemoAdministrativa
                 $"Los Tenants «{string.Join("», «", deOtraVersion)}» tienen datos de otra versión de la siembra Inbound (tipos de documento " +
                 "de salud en su catálogo o una Empresa propia con otro CIF): hay que retirarlos (--retirar-tenant-demo) antes de sembrar. " +
                 "La siembra se niega y no escribe nada.");
+        if (deOtroDominio.Count > 0)
+            throw new InvalidOperationException(
+                $"Los Tenants «{string.Join("», «", deOtroDominio)}» ya tienen sus cuentas del lote en un dominio distinto de " +
+                $"{ClaveDominioCorreo} = '{dominio}': se reanuda con el dominio de la primera ejecución, o se retiran antes. " +
+                "La siembra se niega y no escribe nada.");
     }
 
-    /// <summary>Los Tenants del lote a los que aún les falta su parte: no existen, o no tienen sus datos.</summary>
+    /// <summary>
+    /// Los Tenants del lote a los que aún les falta su parte: no existen, no tienen sus datos o, el Tenant TCE, no tiene su
+    /// línea Inbound. HUECO declarado: en un Tenant TEC la guarda del núcleo cuenta también los Trabajadores y Documentos dados
+    /// de baja y esta no (no ignora los filtros de baja); si alguien los dio todos de baja, esto lo cuenta como pendiente y el
+    /// núcleo no escribe nada.
+    /// </summary>
     private static async Task<IReadOnlyList<string>> PendientesDeSembrarAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
         var existentes = await TenantsDelLoteAsync(dbContext, cancellationToken);
@@ -338,6 +365,7 @@ public static class InboundDemoAdministrativa
             {
                 var sembrado = nombre == InboundDemoSeeder.NombreTenantTce
                     ? await dbContext.HistorialVigenciaContratos.AnyAsync(cancellationToken)
+                      && await dbContext.ProductosContratados.AnyAsync(p => p.Linea == LineaProductoContratado.Inbound, cancellationToken)
                     : await dbContext.Trabajadores.AnyAsync(cancellationToken) || await dbContext.Documentos.AnyAsync(cancellationToken);
                 if (!sembrado)
                     pendientes.Add(nombre);

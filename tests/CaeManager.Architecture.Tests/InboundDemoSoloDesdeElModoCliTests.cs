@@ -135,6 +135,30 @@ public class InboundDemoSoloDesdeElModoCliTests
         }
     }
 
+    /// <summary>
+    /// Cada escritura usa la identidad que le toca: lo que vive bajo RLS (el lote y la delegación de soporte) con el contexto
+    /// de tráfico, y solo la línea Inbound y el backfill con el de bootstrap, que además se sondea antes de escribir nada.
+    /// Cruzar una llamada (el lote entero por bootstrap, por ejemplo) compila igual y saltaría la RLS en staging.
+    /// </summary>
+    [Fact]
+    public void Cada_escritura_de_la_siembra_usa_el_contexto_de_su_identidad()
+    {
+        var siembra = SinComentarios(Texto(Path.Combine(Seed(), "InboundDemoAdministrativa.cs")));
+
+        siembra.Should().Contain("InboundDemoSeeder.SembrarLoteInboundAsync(dbContext,");
+        siembra.Should().Contain("DelegacionesSoporteSeeder.SeedAsync(dbContext,");
+        siembra.Should().Contain("LineaInboundDemoSeeder.ContratarLineaAsync(dbContextBootstrap,");
+        siembra.Should().Contain("AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap,");
+        foreach (var llamada in new[] { "SembrarLoteInboundAsync(", "DelegacionesSoporteSeeder.SeedAsync(", "ContratarLineaAsync(", "AsignacionesOperativasBackfillSeeder.SeedAsync(" })
+            Regex.Matches(siembra, Regex.Escape(llamada)).Count.Should().Be(1, $"{llamada} se llama una sola vez, con el contexto fijado arriba");
+
+        Regex.Matches(siembra, Regex.Escape("crearContextoDeBootstrap()")).Count.Should().Be(3,
+            "la sonda previa a escribir y los dos usos acotados (línea Inbound y backfill); ninguno más");
+        siembra.IndexOf("CanConnectAsync(", StringComparison.Ordinal).Should()
+            .BeLessThan(siembra.IndexOf("EscribirCredencialesAsync(", StringComparison.Ordinal),
+                "la identidad de bootstrap se comprueba antes de escribir el fichero y la primera cuenta");
+    }
+
     [Fact]
     public void Los_argumentos_y_las_claves_del_modo_son_los_que_documenta_la_PR()
     {
