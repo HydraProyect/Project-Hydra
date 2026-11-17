@@ -65,7 +65,14 @@
                 else
                 {
                     <span class="inbound-kpi-valor">@_aptos.Count(a => a.Estado != EstadoAptitudHoy.NoApto) <small class="cin-de">de @_aptos.Count Trabajadores</small></span>
-                    <span class="inbound-secundario">@_aptos.Count(a => a.Estado == EstadoAptitudHoy.EnTolerancia) en tolerancia · @_aptos.Count(a => a.Estado == EstadoAptitudHoy.NoApto) no aptos</span>
+                    @if (ProyeccionCompleta)
+                    {
+                        <span class="inbound-secundario">@_aptos.Count(a => a.Estado == EstadoAptitudHoy.EnTolerancia) en tolerancia · @_aptos.Count(a => a.Estado == EstadoAptitudHoy.NoApto) no aptos</span>
+                    }
+                    else
+                    {
+                        <span class="inbound-secundario">@_aptos.Count(a => a.Estado == EstadoAptitudHoy.NoApto) no aptos</span>
+                    }
                 }
             </div>
             <div class="inbound-kpi" data-kpi="empresas">
@@ -124,8 +131,8 @@
     {
         <div class="cin-panel" data-pieza="aptos-hoy">
             @* Proyección restringida (duda 6): sin ValidarInbound no llega el requisito, así que ni la nota lo promete ni hay columna. *@
-            @{ var conRequisito = _aptos is null || _aptos.All(a => a.ConRequisito); }
-            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas.@(conRequisito ? " Enseña el requisito que bloquea o vence, nunca su motivo." : null)</span></div>
+            @{ var conRequisito = ProyeccionCompleta; }
+            <div class="cin-nota" role="note"><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /><span>Consulta informativa del día; no registra entradas.@(conRequisito ? " " + TextosContrato["AptosNotaRequisito"].Value : null)</span></div>
             @if (_aptos is null)
             {
                 <EstadoVacio NombreIcono="vacio" Titulo="Aptos hoy no está disponible"

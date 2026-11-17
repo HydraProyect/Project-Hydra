@@ -130,7 +130,9 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// cada una se evalúa por separado y basta que una bloquee y falle. (6) Un requisito que toma el vencimiento del documento y
 /// una evidencia sin fecha no se da por vigente. (7) Una evidencia médica que transcribe «No apto» no acredita el requisito,
 /// aunque esté Aceptada y vigente. (8) Cada evidencia es de un contrato: un Trabajador en dos contratos se evalúa en cada uno
-/// y sale una sola vez, con el estado más favorable.
+/// y sale una sola vez, con el estado más favorable. (9) En una fila Apto de la proyección completa, el próximo vencimiento
+/// puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
+/// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
 /// </para>
 /// </summary>
 public class ObtenerAptosHoyDelCentroQueryHandler(

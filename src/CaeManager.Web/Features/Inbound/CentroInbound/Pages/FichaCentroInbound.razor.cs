@@ -37,6 +37,12 @@ public partial class FichaCentroInbound
     private IReadOnlyList<DocumentoInformacionCentro>? _informacion;
     private IReadOnlyList<PestanaDefinicion> _pestanas = [];
     private IReadOnlyList<OpcionFranjaEstado> _opcionesAptitud = [];
+
+    /// <summary>
+    /// Falso si alguna fila llega con la proyección restringida (sin <c>ValidarInbound</c>, duda 6): la pantalla no pinta
+    /// requisito, tipo de contrato ni el estado «en tolerancia».
+    /// </summary>
+    private bool ProyeccionCompleta => _aptos is null || _aptos.All(a => a.ConRequisito);
     private string _pestanaActiva = PestanaAptos;
     private DateOnly _hoy = DiaDeNegocio.Hoy();
     private bool _cargando = true;
@@ -85,10 +91,13 @@ public partial class FichaCentroInbound
                 .ToList();
             _aptos = await AptosHoy.ObtenerAsync(CentroId);
             _informacion = await InformacionCentro.ListarAsync(CentroId);
+            // La proyección restringida ya trae «en tolerancia» como apto (duda 6): no se ofrece un estado que no puede salir.
             _opcionesAptitud =
             [
                 new OpcionFranjaEstado("Aptos", TonoBadge.Exito, nameof(EstadoAptitudHoy.Apto)),
-                new OpcionFranjaEstado("En tolerancia", TonoBadge.Advertencia, nameof(EstadoAptitudHoy.EnTolerancia)),
+                .. ProyeccionCompleta
+                    ? new[] { new OpcionFranjaEstado("En tolerancia", TonoBadge.Advertencia, nameof(EstadoAptitudHoy.EnTolerancia)) }
+                    : Array.Empty<OpcionFranjaEstado>(),
                 new OpcionFranjaEstado("No aptos", TonoBadge.Peligro, nameof(EstadoAptitudHoy.NoApto)),
             ];
             _pestanas =

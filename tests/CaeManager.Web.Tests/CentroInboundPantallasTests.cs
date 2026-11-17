@@ -282,6 +282,8 @@ public class CentroInboundPantallasTests : BunitContext
         var panel = cut.Find("[data-pieza=aptos-hoy]");
         panel.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa contratista", "Hoy");
         panel.QuerySelector("[role=note]")!.TextContent.Should().Contain("Consulta informativa del día").And.NotContain("requisito");
+        panel.TextContent.Should().NotContain("En tolerancia", "la restringida no tiene ese estado: la franja no lo ofrece");
+        cut.Markup.Should().NotContain("en tolerancia", "el indicador tampoco lo cuenta");
         var filas = cut.FindAll("[data-pieza=aptos-hoy] tbody tr").Select(f => f.TextContent).ToList();
         filas.Should().HaveCount(2);
         filas.Should().OnlyContain(f => f.Contains("Montajes Moncayo S.L.") && !f.Contains("Todo validado") && !f.Contains("—"));
