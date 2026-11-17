@@ -5,6 +5,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using CaeManager.Web.Features.Inbound.CentroInbound;
 using CaeManager.Web.Features.Inbound.CentroInbound.Pages;
@@ -14,6 +15,7 @@ using CaeManager.Web.Features.Inbound.InformacionDelCentro.Pages;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -58,6 +60,10 @@ public class CentroInboundPantallasTests : BunitContext
                 ObtenerAptosHoyDelCentroQuery q => q.CentroId == CentroId ? (object)AptosHoy : Array.Empty<AptoHoyDto>(),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza Norte", "Logística Delta Sur S.A.", "Logística Delta Sur S.A.", ClienteId) },
                 ObtenerEmpresaPorIdQuery q => new EmpresaDetalleDto(q.Id, "Montajes Moncayo S.L.", "B12345674", DateTime.UtcNow, [], Guid.NewGuid()),
+                // FichaNoEncontrada lee el conjunto autorizado del usuario: sin ninguna empresa no hay selector de Tenant y pinta el
+                // estado vacío con «Ir a la lista». Antes la respuesta era la excepción de «petición no prevista», que la ficha
+                // también convierte en el estado vacío, de modo que estos tests pasaban por el camino de error.
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[],
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             });
         }
@@ -135,20 +141,30 @@ public class CentroInboundPantallasTests : BunitContext
             [new AcuseEmpresaContratista("Montajes Moncayo S.L.", alDia, alDia ? "Firmado" : "Acuse pendiente", "Jorge Royo Lacasta, gerente", "Trabajadores informados: 6 de 6")],
             [new VersionInformacion("v5", new DateOnly(2026, 11, 14), "Nuevo sentido de circulación")]);
 
-    private IRenderedComponent<T> Cargada<T>(IRenderedComponent<T> cut) where T : IComponent
+    // Todas las esperas de la clase son asíncronas y usan este plazo (#2330). Las pantallas cargan con awaits reales (el doble
+    // cede el hilo con Task.Yield) y cada continuación necesita un hilo libre del pool. Un WaitFor* síncrono bloquea con
+    // GetResult() el hilo del pool en el que xUnit corre el test (mecanismo de #2171, descrito en el csproj): con el pool
+    // ocupado por el resto de la suite, la continuación no encuentra hilo y la espera vence sin que la pantalla haya vuelto a
+    // pintarse («Check count: 1»). La espera asíncrona devuelve el hilo al pool mientras espera. El plazo es el que ya usaba
+    // Cargada; antes, dos esperas de esta clase se quedaban en el segundo por defecto de bUnit.
+    private static readonly TimeSpan Plazo = TimeSpan.FromSeconds(5);
+
+    // Cargada solo cubre la carga de la pantalla. Cuando la ficha no encuentra el Centro, FichaNoEncontrada hace todavía su
+    // propia lectura asíncrona: ese estado se espera aparte, después.
+    private static async Task<IRenderedComponent<T>> CargadaAsync<T>(IRenderedComponent<T> cut) where T : IComponent
     {
-        cut.WaitForState(() => !cut.Markup.Contains("esqueleto-lista"), TimeSpan.FromSeconds(5));
+        await cut.WaitForStateAsync(() => !cut.Markup.Contains("esqueleto-lista"), Plazo);
         return cut;
     }
 
     // ---------------------------------------------------------------- Centro (tarjeta 14)
 
     [Fact]
-    public void El_Centro_sin_backend_enseña_la_cabecera_las_cuatro_pestañas_y_Aptos_hoy_no_disponible()
+    public async Task El_Centro_sin_backend_enseña_la_cabecera_las_cuatro_pestañas_y_Aptos_hoy_no_disponible()
     {
         Preparar(contratos: Contrato());
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Markup.Should().Contain("Planta Zaragoza Norte").And.Contain("Polígono Malpica");
         foreach (var pestana in new[] { "Aptos hoy", "Requisitos del Centro", "Empresas contratistas", "Información del Centro" })
@@ -161,23 +177,23 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void El_indicador_de_Empresas_contratistas_sale_de_los_contratos_reales()
+    public async Task El_indicador_de_Empresas_contratistas_sale_de_los_contratos_reales()
     {
         Preparar(contratos: [Contrato(), Contrato(EstadoContratoAcceso.PendienteDeConfirmar), Contrato(EstadoContratoAcceso.Rechazado)]);
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         var kpi = cut.Find("[data-kpi=empresas]").TextContent;
         kpi.Should().Contain("1 con contrato activo").And.Contain("1 pendiente de confirmar").And.Contain("1 rechazado");
     }
 
     [Fact]
-    public void La_pestaña_Empresas_contratistas_lista_los_contratos_del_Centro_y_enlaza_a_su_detalle()
+    public async Task La_pestaña_Empresas_contratistas_lista_los_contratos_del_Centro_y_enlaza_a_su_detalle()
     {
         Preparar(contratos: Contrato());
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Empresas contratistas")).Click();
+        await cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Empresas contratistas")).ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Montajes Moncayo S.L.").And.Contain("B12345674");
         cut.Find($"a[href='/inbound/contratos/{ContratoId}']").Should().NotBeNull();
@@ -185,18 +201,18 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void La_pestaña_Empresas_contratistas_sin_contratos_dice_que_no_hay()
+    public async Task La_pestaña_Empresas_contratistas_sin_contratos_dice_que_no_hay()
     {
         Preparar();
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Empresas contratistas")).Click();
+        await cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Empresas contratistas")).ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Este Centro no tiene contratos de acceso");
     }
 
     [Fact]
-    public void Aptos_hoy_ordena_lo_que_bloquea_primero_filtra_y_no_muestra_motivo_medico()
+    public async Task Aptos_hoy_ordena_lo_que_bloquea_primero_filtra_y_no_muestra_motivo_medico()
     {
         Preparar(aptos:
         [
@@ -205,7 +221,7 @@ public class CentroInboundPantallasTests : BunitContext
             Apto("Iván Bescós Lacasa", EstadoAptitudHoy.EnTolerancia, "Formación en prevención del puesto (art. 19 LPRL)"),
         ], contratos: Contrato());
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         var filas = cut.FindAll("tbody tr").Select(f => f.TextContent).ToList();
         filas.Should().HaveCount(3);
@@ -218,39 +234,39 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Aptos_hoy_filtra_por_estado_y_dice_cuando_ningun_Trabajador_coincide()
+    public async Task Aptos_hoy_filtra_por_estado_y_dice_cuando_ningun_Trabajador_coincide()
     {
         Preparar(aptos: [Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto)], contratos: Contrato());
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.WaitForElement("button.franja-estado-boton", TimeSpan.FromSeconds(5));
-        cut.FindAll("button.franja-estado-boton").First(b => b.TextContent.Contains("No aptos")).Click();
+        await cut.WaitForElementAsync("button.franja-estado-boton", Plazo);
+        await cut.FindAll("button.franja-estado-boton").First(b => b.TextContent.Contains("No aptos")).ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún Trabajador coincide con los filtros"), TimeSpan.FromSeconds(5));
+        await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("Ningún Trabajador coincide con los filtros"), Plazo);
     }
 
     [Fact]
-    public void Aptos_hoy_el_filtro_por_Empresa_contratista_encuentra_al_Trabajador_por_cualquiera_de_sus_Empresas()
+    public async Task Aptos_hoy_el_filtro_por_Empresa_contratista_encuentra_al_Trabajador_por_cualquiera_de_sus_Empresas()
     {
         var deUna = Apto("Pilar Sanjuán Aznar", EstadoAptitudHoy.NoApto, "Seguro de responsabilidad civil", empresa: "Instalaciones Cinca S.L.");
         var enDos = deUna with { EmpresasContratistas = ["Instalaciones Cinca S.L.", "Montajes Moncayo S.L."] };
         Preparar(aptos: [enDos, Apto("Javier Lasheras Pueyo", EstadoAptitudHoy.Apto, empresa: "Instalaciones Cinca S.L.")], contratos: Contrato());
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("button").First(b => b.TextContent.Contains("Empresa contratista")).Click();
-        cut.FindAll("[role=menuitemradio]").First(i => i.TextContent.Contains("Montajes Moncayo S.L.")).Click();
+        await cut.FindAll("button").First(b => b.TextContent.Contains("Empresa contratista")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").First(i => i.TextContent.Contains("Montajes Moncayo S.L.")).ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Select(f => f.TextContent).Should()
+        await cut.WaitForAssertionAsync(() => cut.FindAll("tbody tr").Select(f => f.TextContent).Should()
             .ContainSingle("solo está en Montajes Moncayo el Trabajador con dos Empresas").Which.Should().Contain("Pilar Sanjuán Aznar"),
-            TimeSpan.FromSeconds(5));
+            Plazo);
     }
 
     [Fact]
-    public void Aptos_hoy_sin_Trabajadores_asignados_lo_dice()
+    public async Task Aptos_hoy_sin_Trabajadores_asignados_lo_dice()
     {
         Preparar(aptos: [], contratos: Contrato());
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Markup.Should().Contain("Ningún Trabajador asignado a este Centro");
     }
@@ -316,23 +332,23 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Un_CentroId_vacio_no_deja_la_ficha_cargando()
+    public async Task Un_CentroId_vacio_no_deja_la_ficha_cargando()
     {
         Preparar(contratos: Contrato()); // el Centro de prueba es visible; Guid.Empty no es ninguno
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, Guid.Empty)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, Guid.Empty)));
 
         cut.FindAll("[role=tab]").Should().BeEmpty();
-        cut.WaitForAssertion(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle(), Plazo);
         cut.Markup.Should().NotContain("esqueleto-lista");
     }
 
     [Fact]
-    public void Un_contrato_repetido_de_la_misma_Empresa_cuenta_una_vez_en_el_indicador()
+    public async Task Un_contrato_repetido_de_la_misma_Empresa_cuenta_una_vez_en_el_indicador()
     {
         Preparar(contratos: [Contrato(), Contrato()]);
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.Find("[data-kpi=empresas]").TextContent.Should().Contain("1 con contrato activo");
         _mediador.PeticionesContratos.Should().ContainSingle().Which.CentroId.Should().Be(CentroId, "la ficha pide solo los contratos de su Centro");
@@ -340,50 +356,50 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Requisitos_del_Centro_sin_backend_dice_que_no_esta_disponible()
+    public async Task Requisitos_del_Centro_sin_backend_dice_que_no_esta_disponible()
     {
         Preparar(contratos: Contrato());
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Requisitos del Centro")).Click();
+        await cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Requisitos del Centro")).ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Los requisitos del Centro no están disponibles");
     }
 
     [Fact]
-    public void La_pestaña_Informacion_del_Centro_muestra_los_acuses_y_enlaza_a_la_pantalla_15()
+    public async Task La_pestaña_Informacion_del_Centro_muestra_los_acuses_y_enlaza_a_la_pantalla_15()
     {
         Preparar(docs: [Documento("Normas de seguridad del Centro", alDia: false)], contratos: Contrato());
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
-        cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Información del Centro")).Click();
+        await cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Información del Centro")).ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Normas de seguridad del Centro").And.Contain("0 de 1 firmaron").And.Contain("Faltan 1");
         cut.Find("a[href='/inbound/informacion-centro']").Should().NotBeNull();
     }
 
     [Fact]
-    public void Un_Centro_que_no_es_visible_dice_que_no_se_encuentra()
+    public async Task Un_Centro_que_no_es_visible_dice_que_no_se_encuentra()
     {
         Preparar(centroNoVisible: true);
 
-        var cut = Cargada(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
+        var cut = await CargadaAsync(Render<FichaCentroInbound>(p => p.Add(c => c.CentroId, CentroId)));
 
         cut.FindAll("table").Should().BeEmpty();
         cut.FindAll("[role=tab]").Should().BeEmpty();
         // La ficha cae en FichaNoEncontrada (no en el error de carga con «Reintentar»).
-        cut.WaitForAssertion(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle());
+        await cut.WaitForAssertionAsync(() => cut.FindAll("[data-ficha-no-encontrada=vacio]").Should().ContainSingle(), Plazo);
         cut.Markup.Should().NotContain("Reintentar").And.NotContain("esqueleto-lista");
     }
 
     // ---------------------------------------------------------------- Centros (entrada de menú)
 
     [Fact]
-    public void El_listado_de_Centros_agrupa_los_contratos_y_abre_la_ficha()
+    public async Task El_listado_de_Centros_agrupa_los_contratos_y_abre_la_ficha()
     {
         Preparar(contratos: [Contrato(), Contrato(EstadoContratoAcceso.Finalizado)]);
 
-        var cut = Cargada(Render<CentrosInbound>());
+        var cut = await CargadaAsync(Render<CentrosInbound>());
 
         cut.Markup.Should().Contain("Planta Zaragoza Norte").And.Contain("Logística Delta Sur S.A.");
         cut.Find($"a[href='/inbound/centros/{CentroId}']").Should().NotBeNull();
@@ -391,11 +407,11 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void El_listado_de_Centros_sin_contratos_lo_dice()
+    public async Task El_listado_de_Centros_sin_contratos_lo_dice()
     {
         Preparar();
 
-        var cut = Cargada(Render<CentrosInbound>());
+        var cut = await CargadaAsync(Render<CentrosInbound>());
 
         cut.Markup.Should().Contain("Todavía no hay Centros con contratos de acceso");
     }
@@ -403,11 +419,11 @@ public class CentroInboundPantallasTests : BunitContext
     // ---------------------------------------------------------------- Información del Centro (tarjeta 15)
 
     [Fact]
-    public void Informacion_del_Centro_sin_backend_dice_que_no_esta_disponible_y_no_pinta_datos()
+    public async Task Informacion_del_Centro_sin_backend_dice_que_no_esta_disponible_y_no_pinta_datos()
     {
         Preparar();
 
-        var cut = Cargada(Render<InformacionDelCentroPagina>());
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
 
         cut.Markup.Should().Contain("Información del Centro").And.Contain("La información del Centro no está disponible");
         cut.FindAll("table").Should().BeEmpty();
@@ -415,11 +431,11 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Informacion_del_Centro_lista_los_documentos_con_pendientes_primero_y_su_panel()
+    public async Task Informacion_del_Centro_lista_los_documentos_con_pendientes_primero_y_su_panel()
     {
         Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true), Documento("Normas de seguridad del Centro", alDia: false)]);
 
-        var cut = Cargada(Render<InformacionDelCentroPagina>());
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
 
         foreach (var rotulo in new[] { "Documento", "Centro", "Versión", "Empresas", "Con acuses pendientes", "Al día", "Modalidad" })
             cut.Markup.Should().Contain(rotulo);
@@ -433,26 +449,26 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public void Informacion_del_Centro_elige_otro_documento_y_dice_cuando_ninguno_coincide()
+    public async Task Informacion_del_Centro_elige_otro_documento_y_dice_cuando_ninguno_coincide()
     {
         Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true), Documento("Normas de seguridad del Centro", alDia: false)]);
-        var cut = Cargada(Render<InformacionDelCentroPagina>());
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
 
-        cut.FindAll("button.icn-nombre").First(b => b.TextContent.Contains("Riesgos")).Click();
+        await cut.FindAll("button.icn-nombre").First(b => b.TextContent.Contains("Riesgos")).ClickAsync(new MouseEventArgs());
         cut.Find("[data-pieza=detalle-documento]").TextContent.Should().Contain("Riesgos de la zona de muelles");
 
         // El buscador tiene retardo propio (300 ms): se espera a que se aplique.
-        cut.Find("input[data-filtro-pantalla]").Input("zzz");
+        await cut.Find("input[data-filtro-pantalla]").InputAsync(new ChangeEventArgs { Value = "zzz" });
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún documento coincide con los filtros"), TimeSpan.FromSeconds(3));
+        await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("Ningún documento coincide con los filtros"), Plazo);
     }
 
     [Fact]
-    public void Informacion_del_Centro_sin_documentos_dice_que_ningun_Centro_ha_publicado()
+    public async Task Informacion_del_Centro_sin_documentos_dice_que_ningun_Centro_ha_publicado()
     {
         Preparar(docs: []);
 
-        var cut = Cargada(Render<InformacionDelCentroPagina>());
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
 
         cut.Markup.Should().Contain("Ningún Centro ha publicado información");
     }

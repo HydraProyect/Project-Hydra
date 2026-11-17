@@ -1173,6 +1173,38 @@ public class Microsoft365GraphClient(
             "&$orderby=receivedDateTime asc" +
             $"&$top={TamanoPaginaRecuperacion}";
 
+        return await PedirPaginaRecibidosAsync(url, accessToken, LeerPaginaRecibidos, cancellationToken);
+    }
+
+    public async Task<Result<PaginaMensajesRecibidosGraphDto>> ListarRecibidosEnSegundoAsync(
+        string accessToken, BuzonGraph buzon, DateTime segundoUtc, string? despuesDeId, CancellationToken cancellationToken)
+    {
+        var segundo = DateTime.SpecifyKind(segundoUtc, DateTimeKind.Utc);
+        if (segundo.Ticks % TimeSpan.TicksPerSecond != 0)
+            throw new ArgumentException("El segundo del cursor compuesto no lleva fracción.", nameof(segundoUtc));
+
+        // Las dos propiedades del $orderby, receivedDateTime e id, también en el $filter y en el mismo orden: Graph rechaza
+        // (InefficientFilter) un $orderby con una propiedad que el $filter no nombra. Por eso la primera página del segundo
+        // pide id gt '' (todo Id es posterior a la cadena vacía). Con eq, ordenar por recepción y luego por Id es ordenar
+        // por Id.
+        var filtro = $"receivedDateTime eq {FormatoSegundoGraph(segundo)}" +
+            $" and id gt '{(despuesDeId ?? string.Empty).Replace("'", "''", StringComparison.Ordinal)}'";
+        var url = $"{RutaBuzon(buzon)}/mailFolders('Inbox')/messages" +
+            "?$select=id,receivedDateTime" +
+            $"&$filter={Uri.EscapeDataString(filtro)}" +
+            $"&$orderby={Uri.EscapeDataString("receivedDateTime asc,id asc")}" +
+            $"&$top={TamanoPaginaRecuperacion}";
+
+        return await PedirPaginaRecibidosAsync(
+            url, accessToken, cuerpo => LeerPaginaRecibidosEnSegundo(cuerpo, segundo, despuesDeId), cancellationToken);
+    }
+
+    private static string FormatoSegundoGraph(DateTime segundoUtc) =>
+        segundoUtc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+
+    private async Task<Result<PaginaMensajesRecibidosGraphDto>> PedirPaginaRecibidosAsync(
+        string url, string accessToken, Func<string, PaginaMensajesRecibidosGraphDto?> leer, CancellationToken cancellationToken)
+    {
         try
         {
             using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
@@ -1186,7 +1218,7 @@ public class Microsoft365GraphClient(
             }
 
             var cuerpo = await respuesta.Content.ReadAsStringAsync(cancellationToken);
-            return LeerPaginaRecibidos(cuerpo) is { } pagina
+            return leer(cuerpo) is { } pagina
                 ? Result.Exito(pagina)
                 : Result.Fallo<PaginaMensajesRecibidosGraphDto>(ErrorListadoIlegible);
         }
@@ -1250,6 +1282,32 @@ public class Microsoft365GraphClient(
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Issue #2263: una página legible del recorrido por Id de un segundo, además de lo que exige
+    /// <see cref="LeerPaginaRecibidos"/>: todos los mensajes recibidos exactamente en <paramref name="segundoUtc"/>, con Ids
+    /// que crecen estrictamente en orden ordinal y posteriores a <paramref name="despuesDeId"/>. El desempate guarda el
+    /// último Id de la página y la página siguiente pide los posteriores; si Graph no aplicó el filtro o el orden que se
+    /// pidió, o ordena con otra comparación, avanzar por ese Id podría saltar correo, así que la página es ilegible y la
+    /// recuperación falla cerrado.
+    /// </summary>
+    internal static PaginaMensajesRecibidosGraphDto? LeerPaginaRecibidosEnSegundo(string cuerpo, DateTime segundoUtc, string? despuesDeId)
+    {
+        if (LeerPaginaRecibidos(cuerpo) is not { } pagina)
+            return null;
+
+        var anterior = despuesDeId;
+        foreach (var mensaje in pagina.Mensajes)
+        {
+            if (mensaje.RecibidoUtc != segundoUtc
+                || (anterior is not null && string.CompareOrdinal(mensaje.MensajeExternoId, anterior) <= 0)
+                || mensaje.MensajeExternoId.Contains('|'))
+                return null;
+            anterior = mensaje.MensajeExternoId;
+        }
+
+        return pagina;
     }
 
     public string ConstruirPayloadRecuperacion(IReadOnlyList<string> mensajeIds)
