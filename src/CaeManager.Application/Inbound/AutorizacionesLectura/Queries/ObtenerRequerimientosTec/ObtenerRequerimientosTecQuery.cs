@@ -78,7 +78,8 @@ public sealed record RequerimientoTecDto(
 /// contrato sin autorización vigente no da filas. Los requisitos de vehículo o máquina no salen: no hay asignación de
 /// vehículos. A cada Trabajador asignado solo se le aplica el requisito si su máscara <c>TiposContratacion</c> incluye el
 /// <c>TipoContratacion</c> del Trabajador (#2338: la máscara es el único criterio para el Trabajador, también para el
-/// Trabajador extranjero). <c>SePideA</c> no se lee en el Trabajador; los requisitos de Empresa no llevan máscara.
+/// Trabajador extranjero). <c>SePideA</c> no se lee en el Trabajador. En los requisitos de Empresa la máscara no acota
+/// (llega como 7 o 15) y <c>SePideA</c>, que en la Empresa contratista sigue vigente, todavía no se evalúa.
 /// <b>Con qué documento.</b> El documento vigente propio de un tipo del catálogo del Tenant TEC con el mismo nombre exacto
 /// (D1), no eliminado, no anonimizado, no sustituido, no vencido y que la lectura del Tenant TCE podría ver (fuera de la
 /// categoría especial de salud salvo el tipo de solo conclusión de aptitud). Si el requisito pide un documento específico
@@ -242,6 +243,8 @@ public class ObtenerRequerimientosTecQueryHandler(
         {
             if (string.Equals(requisito.Entidad, EntidadEmpresa, StringComparison.Ordinal))
             {
+                // shortcut: SePideA (Nacionales o Extranjeros) no se evalúa en la Empresa propia: Empresa no guarda país, así que
+                // el requisito se muestra siempre. Mostrarlo u ocultarlo cuando haya país es una decisión de producto pendiente.
                 if (empresaPropia is null || !contratosConEmpresa.Contains(requisito.ContratoAccesoId))
                     continue;
 

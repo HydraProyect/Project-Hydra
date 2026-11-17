@@ -70,9 +70,9 @@ public class ObtenerRequerimientosTecQueryTests
 
     private RequisitoTecDto Requisito(
         string tipo, string entidad = "Trabajador", Guid? contrato = null, string ambito = "GeneralTec", string capa = "DeCentro",
-        TiposContratacion contrataciones = TiposContratacion.Todos) =>
+        TiposContratacion contrataciones = TiposContratacion.Todos, string sePideA = "Todos") =>
         new(contrato ?? _contrato, "Logística Delta Sur", Guid.NewGuid(), "Planta Zaragoza Norte", "Logística Delta Sur S.A.",
-            Guid.NewGuid(), Guid.NewGuid(), tipo, entidad, "Certificado vigente", "Fija", 12, 0, true, ambito, capa, "Todos",
+            Guid.NewGuid(), Guid.NewGuid(), tipo, entidad, "Certificado vigente", "Fija", 12, 0, true, ambito, capa, sePideA,
             (int)contrataciones);
 
     private AutorizacionLecturaDocumental Autorizar(
@@ -186,6 +186,35 @@ public class ObtenerRequerimientosTecQueryTests
         fila.SujetoId.Should().Be(extranjero.Id);
         fila.BloqueaAcceso.Should().BeTrue();
         fila.Estado.Should().Be(EstadoRequerimientoTecSinVeredicto.PendienteDeSubir);
+    }
+
+    [Fact]
+    public async Task Una_mascara_sin_el_bit_Extranjero_no_se_pide_al_Trabajador_extranjero()
+    {
+        // 7 es lo que la migración TraduceExtranjeroAModeloDeContratacion deja en un requisito de Trabajador «solo a
+        // nacionales»: cuenta ajena, autónomo y voluntario, sin Extranjero.
+        _requisitos.Add(Requisito("Formación en altura",
+            contrataciones: TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario,
+            sePideA: "Nacionales"));
+        var extranjero = Trabajador.DeEmpresa(_propia.Id, "Marta", "Ruiz", "11111111H");
+        extranjero.CambiarTipoContratacion(TipoContratacion.Extranjero);
+        _trabajadores.ListaTrabajadores.Add(extranjero);
+        Autorizar(trabajadores: [_asignado, extranjero]);
+
+        var filas = await Leer();
+
+        filas.Select(f => f.SujetoId).Should().Equal(_asignado.Id);
+    }
+
+    [Fact]
+    public async Task SePideA_todavia_no_filtra_los_requisitos_de_Empresa()
+    {
+        // shortcut: Empresa no guarda país, así que «Se pide a» no se evalúa en la Empresa propia y el requisito sale siempre.
+        // Si se decide ocultarlo, este test cambia con la decisión.
+        _requisitos.Add(Requisito("Seguro de responsabilidad civil", entidad: "Empresa", sePideA: "Extranjeros"));
+        Autorizar(incluyeEmpresa: true);
+
+        (await Leer()).Should().ContainSingle().Which.Sujeto.Should().Be(SujetoRequerimientoTec.Empresa);
     }
 
     [Fact]
