@@ -43,6 +43,7 @@ public class HandlersInboundDeniegaSinCapacidadTests
         ["ContratosAcceso.EvidenciasInbound.RechazarEvidenciaInboundCommandHandler"] = CapacidadInbound.ValidarInbound,
         ["ContratosAcceso.EvidenciasInbound.ObtenerEvidenciasInboundQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.EvidenciasInbound.ObtenerEvidenciaInboundPorIdQueryHandler"] = CapacidadInbound.LeerInbound,
+        ["ContratosAcceso.Queries.ObtenerColaValidacionInbound.ObtenerColaValidacionInboundQueryHandler"] = CapacidadInbound.ValidarInbound,
         ["ContratosAcceso.Queries.ObtenerContratoAccesoPorId.ObtenerContratoAccesoPorIdQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.Queries.ObtenerContratosAcceso.ObtenerContratosAccesoQueryHandler"] = CapacidadInbound.LeerInbound,
         ["ContratosAcceso.Queries.ObtenerLecturaInbound.ObtenerAutorizacionInboundQueryHandler"] = CapacidadInbound.LeerInbound,
