@@ -270,7 +270,14 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
             Activo: true, EsOperadorDelegado: true, PendienteActivacion: false, Alcance: null!);
 
-        await InvocarToleraRecargaSinRendererAsync(pagina, "CambiarActivacionAsync", filaDelegada);
+        // Los mismos argumentos que manda el diálogo de desactivar al confirmar «A nadie por ahora»
+        // (ConfirmarDesactivacionAsync): sin destino, SinDestinoConfirmado y los errores de decisión de
+        // cartera devueltos al llamante. Es la decisión de cartera que, sobre un Gestor CAE del Tenant
+        // propio, sí desactivaría la cuenta; así lo único que puede impedirlo aquí es la frontera entre
+        // Tenants, no la falta de una decisión de cartera.
+        await InvocarToleraRecargaSinRendererAsync(
+            pagina, "CambiarActivacionAsync", filaDelegada,
+            /* gestorCaeDestinoId */ null, /* sinDestinoConfirmado */ true, /* erroresDeDecisionALlamante */ true);
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var usuarioTrasElAtaque = await userManager.FindByIdAsync(_usuarioAjenoDelegado.ToString());
