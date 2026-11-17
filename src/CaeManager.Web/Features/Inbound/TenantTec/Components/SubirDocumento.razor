@@ -105,11 +105,11 @@
             <label class="sub-zona">
                 <span><strong>@(_archivo?.Name ?? Textos["SbZona"].Value)</strong></span>
                 <span class="det-sub">@Textos["SbFormatos"]</span>
-                <InputFile class="sub-oculto" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic" OnChange="ElegirArchivo" />
+                <InputFile class="sub-oculto" accept=".pdf,.docx,.jpg,.jpeg,.png" OnChange="ElegirArchivo" />
             </label>
             <label class="sub-camara">
                 @Textos["SbCamara"]
-                <InputFile class="sub-oculto" accept="image/*" capture="environment" OnChange="ElegirArchivo" />
+                <InputFile class="sub-oculto" accept="image/jpeg,image/png" capture="environment" OnChange="ElegirArchivo" />
             </label>
             @if (_seConvierte)
             {
@@ -153,7 +153,7 @@
 
 @code {
     private const long TamanoMaximo = CaeManager.Application.Common.LimitesArchivoSubido.TamanoMaximoBytes;
-    private static readonly string[] Extensiones = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic"];
+    private static readonly string[] Extensiones = [".pdf", ".docx", ".jpg", ".jpeg", ".png"];
 
     private IBrowserFile? _archivo;
     private DateOnly? _emision;
@@ -265,7 +265,8 @@
             }
             else
             {
-                _error = Textos["SbError"];
+                // El motivo claro del servidor, si lo da; si no, el genérico.
+                _error = string.IsNullOrWhiteSpace(respuesta.Mensaje) ? Textos["SbError"] : respuesta.Mensaje;
             }
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)

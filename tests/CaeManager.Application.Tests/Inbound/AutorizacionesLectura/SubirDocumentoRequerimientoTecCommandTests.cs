@@ -123,11 +123,24 @@ public class SubirDocumentoRequerimientoTecCommandTests
             _autorizaciones.AgregarTrabajador(autorizacion.AsignarTrabajador(t.Id));
     }
 
+    /// <summary>El Administrador con un papel activo dado (por ejemplo, el del Operador CAE externo que opera en Outbound).</summary>
+    private sealed class UsuarioConPapel(PapelActivo papel) : ICurrentUserService
+    {
+        private readonly Guid _id = Guid.NewGuid();
+
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(_id);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(Administrador);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(Administrador);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel);
+    }
+
     private (SubirDocumentoRequerimientoTecCommandHandler Handler, MediadorDePrueba Mediador, LectorFalso Lector) Montar(
-        IAutorizacionInbound? puerta = null, string? rol = Administrador)
+        IAutorizacionInbound? puerta = null, string? rol = Administrador, ICurrentUserService? usuarioActual = null)
     {
         var lector = new LectorFalso(_requisitos);
-        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), rol);
+        var usuario = usuarioActual ?? new CurrentUserServiceFalso(Guid.NewGuid(), rol);
         var consulta = new ObtenerRequerimientosTecQueryHandler(
             lector, new AutorizacionesLecturaQueryContextFalso(_autorizaciones), _trabajadores, _empresas, _tipos, _documentos,
             _configuracion, usuario, new AutorizacionInboundQuePermite());
@@ -318,12 +331,96 @@ public class SubirDocumentoRequerimientoTecCommandTests
     {
         var requisito = Requisito("Formación en altura");
         Autorizar(trabajadores: _asignado);
-        var (handler, mediador, _) = Montar(rol: "GestorCae");
+        var (handler, mediador, lector) = Montar(rol: "GestorCae");
 
         var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AutorizacionLecturaAutoridad.SoloAdministrador.Codigo);
+        // El rol se comprueba antes de leer X-2: sin él no se consulta nada.
+        lector.Llamadas.Should().Be(0);
         mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_certificado_de_aptitud_de_solo_conclusion_es_de_salud_pero_si_se_sube()
+    {
+        var requisito = Requisito("Certificado de aptitud médica");
+        Autorizar(trabajadores: _asignado);
+        var aptitud = new TipoDocumento("Certificado de aptitud médica", 12, false, 5, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+        aptitud.EstablecerSoloConclusionAptitud(true);
+        _tipos.ListaTiposDocumento.Add(aptitud);
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>()
+            .Which.TipoDocumentoId.Should().Be(aptitud.Id);
+    }
+
+    [Fact]
+    public async Task Un_tipo_archivado_del_mismo_nombre_no_cuenta_y_se_usa_el_activo()
+    {
+        var requisito = Requisito("Formación en altura");
+        Autorizar(trabajadores: _asignado);
+        var archivado = new TipoDocumento("Formación en altura", null, false, 6, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.DatosPersonales);
+        archivado.Archivar(null);
+        _tipos.ListaTiposDocumento.Add(archivado);
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>()
+            .Which.TipoDocumentoId.Should().Be(_formacion.Id);
+    }
+
+    [Fact]
+    public async Task Si_el_unico_tipo_del_nombre_esta_archivado_falla_sin_crear_con_el()
+    {
+        var requisito = Requisito("Formación en altura");
+        Autorizar(trabajadores: _asignado);
+        _formacion.Archivar(null);
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("RequerimientoTec.TipoSinCorrespondencia");
+        mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_tipo_del_mismo_nombre_pero_de_otro_ambito_no_cuenta()
+    {
+        var requisito = Requisito("Formación en altura");
+        Autorizar(trabajadores: _asignado);
+        _tipos.ListaTiposDocumento.Add(new TipoDocumento("Formación en altura", null, false, 7, AmbitoAplicacion.Empresa,
+            sensibilidad: SensibilidadDocumental.SinDatosPersonales));
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>()
+            .Which.TipoDocumentoId.Should().Be(_formacion.Id);
+    }
+
+    [Fact]
+    public async Task El_mismo_requisito_en_dos_contratos_de_acceso_se_toma_del_contrato_que_se_nombra()
+    {
+        var requisito = Requisito("Formación en altura");
+        // El mismo requisito en otro contrato de acceso, delante y con un ámbito que no se puede subir: si el contrato no
+        // contara, se tomaría esta fila y se rechazaría.
+        _requisitos.Insert(0, requisito with { ContratoAccesoId = Guid.NewGuid(), AmbitoDocumento = "EspecificoTce" });
+        Autorizar(trabajadores: _asignado);
+        var (handler, mediador, _) = Montar();
+
+        var resultado = await handler.Handle(Subida(requisito, _asignado.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>();
     }
 
     [Fact]
@@ -370,15 +467,56 @@ public class SubirDocumentoRequerimientoTecCommandTests
         mediador.Enviados.Should().BeEmpty();
     }
 
+    /// <summary>Pasa por la guarda de servicio real (sin el marcador, DN-2) y después por el handler.</summary>
+    private static Task<Result<Guid>> PorLaGuarda(
+        SubirDocumentoRequerimientoTecCommandHandler handler, SubirDocumentoRequerimientoTecCommand comando, ICurrentUserService usuario) =>
+        new GuardaPorServicioBehavior<SubirDocumentoRequerimientoTecCommand, Result<Guid>>(usuario)
+            .Handle(comando, _ => handler.Handle(comando, CancellationToken.None), CancellationToken.None);
+
     [Fact]
-    public void El_comando_es_Inbound_y_su_error_no_nombra_a_ningun_Gestor_CAE()
+    public async Task El_Administrador_del_Operador_CAE_externo_con_papel_Outbound_y_ParticipanteTec_sube_el_documento()
     {
-        typeof(IComandoInbound).IsAssignableFrom(typeof(SubirDocumentoRequerimientoTecCommand)).Should().BeTrue();
+        var requisito = Requisito("Formación en altura");
+        Autorizar(trabajadores: _asignado);
+        var usuario = new UsuarioConPapel(PapelActivo.Outbound);
+        var (handler, mediador, _) = Montar(usuarioActual: usuario);
+
+        var resultado = await PorLaGuarda(handler, Subida(requisito, _asignado.Id), usuario);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        mediador.Enviados.Should().ContainSingle().Which.Should().BeOfType<CrearDocumentoCommand>()
+            .Which.TrabajadorId.Should().Be(_asignado.Id);
+    }
+
+    [Fact]
+    public async Task Con_papel_Outbound_pero_sin_ser_participante_del_Tenant_TEC_se_deniega_sin_leer_ni_escribir()
+    {
+        var requisito = Requisito("Formación en altura");
+        Autorizar(trabajadores: _asignado);
+        var usuario = new UsuarioConPapel(PapelActivo.Outbound);
+        var (handler, mediador, lector) = Montar(puerta: new PuertaQueNiega(), usuarioActual: usuario);
+
+        var resultado = await PorLaGuarda(handler, Subida(requisito, _asignado.Id), usuario);
+
+        resultado.Error.Codigo.Should().Be(AutorizacionInboundErrores.SinCapacidad.Codigo);
+        lector.Llamadas.Should().Be(0);
+        mediador.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_comando_es_del_lado_del_Tenant_TEC_sin_marcador_Inbound_y_su_error_no_nombra_a_ningun_Gestor_CAE()
+    {
+        // DN-2, como sus cuatro hermanos de ParticipanteTec: con el marcador, la guarda negaría el papel Outbound.
+        typeof(IComandoInbound).IsAssignableFrom(typeof(SubirDocumentoRequerimientoTecCommand)).Should().BeFalse();
         foreach (var error in new[]
                  {
                      SubirDocumentoRequerimientoTecErrores.RequisitoNoEncontrado, SubirDocumentoRequerimientoTecErrores.RequisitoEspecifico,
                      SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado, SubirDocumentoRequerimientoTecErrores.TipoDeSaludNoLegible,
                  })
+        {
             error.Mensaje.Should().NotContain("Gestor");
+            // Quien lee no es «el Cliente»: es la Empresa que pide el documento.
+            error.Mensaje.Should().NotContain("Cliente");
+        }
     }
 }

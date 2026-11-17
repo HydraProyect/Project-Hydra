@@ -27,7 +27,9 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDoc
 /// vinculado y línea Inbound vigente del Tenant TCE) y pide un documento general del Tenant TEC; el sujeto es uno de los
 /// que la propia Query asigna a ese requisito (D8), así que las reglas de asignación no se copian aquí. El tipo propio es el
 /// único tipo no archivado del catálogo con ese nombre exacto y el ámbito del sujeto; si no hay exactamente uno, falla, sin
-/// buscar por parecido. Un tipo de salud que la lectura del Tenant TCE no puede ver (todo el de categoría especial salvo el
+/// buscar por parecido. Aquí se escribe, así que el criterio es más estrecho que el de la Query, que para leer el estado
+/// cuenta también los tipos archivados y no mira el ámbito: un documento de un tipo archivado sigue cubriendo el
+/// requerimiento, pero con ese tipo no se crea ninguno nuevo. Un tipo de salud que la lectura del Tenant TCE no puede ver (todo el de categoría especial salvo el
 /// de solo conclusión de aptitud) no se sube por aquí: no llegaría a la cola del Tenant TCE.
 /// </para>
 ///
@@ -39,9 +41,11 @@ namespace CaeManager.Application.Inbound.AutorizacionesLectura.Commands.SubirDoc
 /// </para>
 ///
 /// <para>
-/// Es <see cref="IComandoInbound"/>: la guarda de servicio solo lo deja pasar en el Tenant de origen o con papel Inbound, y
-/// <see cref="CapacidadInbound.ParticipanteTec"/> niega el papel Inbound, así que solo lo ejecuta el Administrador del Tenant
-/// TEC en su propio Tenant. Nada del resultado identifica a un Gestor CAE del Tenant TCE (P-4).
+/// Lado del Tenant TEC (DN-2), como Conceder, Asignar, Retirar y Revocar autorización de lectura: lo sube su Administrador
+/// propio o el Administrador del Operador CAE externo que lo opera en Outbound. Por eso no lleva <see cref="IComandoInbound"/>
+/// (con el marcador, la guarda de servicio lo negaba con papel Outbound; decisión del 2026-11-17, opción b) y lo
+/// autoriza <see cref="CapacidadInbound.ParticipanteTec"/>, que niega el papel Inbound. Nada del resultado identifica a un
+/// Gestor CAE del Tenant TCE (P-4).
 /// </para>
 /// </summary>
 [AreaDelEncargo("AutorizacionesLectura")]
@@ -53,7 +57,7 @@ public record SubirDocumentoRequerimientoTecCommand(
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
     string ArchivoUrl,
-    string? Comentarios) : ICommand<Guid>, IComandoInbound;
+    string? Comentarios) : ICommand<Guid>;
 
 public class SubirDocumentoRequerimientoTecCommandValidator : AbstractValidator<SubirDocumentoRequerimientoTecCommand>
 {
@@ -79,7 +83,7 @@ public static class SubirDocumentoRequerimientoTecErrores
 
     public static readonly Error RequisitoEspecifico = Error.Crear(
         "RequerimientoTec.RequisitoEspecifico",
-        "Este requisito pide un documento específico del Cliente o del Centro, y todavía no se puede subir desde aquí.");
+        "Este requisito pide un documento específico de la Empresa que lo solicita o de su Centro, y todavía no se puede subir desde aquí.");
 
     public static readonly Error SujetoNoAsignado = Error.Crear(
         "RequerimientoTec.SujetoNoAsignado",
@@ -87,7 +91,7 @@ public static class SubirDocumentoRequerimientoTecErrores
 
     public static readonly Error TipoDeSaludNoLegible = Error.Crear(
         "RequerimientoTec.TipoDeSaludNoLegible",
-        "Este tipo de documento tiene datos de salud que el Cliente no puede ver: no se sube desde aquí.");
+        "Este tipo de documento tiene datos de salud que la Empresa que pide el documento no puede ver: no se sube desde aquí.");
 
     public static Error TipoSinCorrespondencia(string nombre, int encontrados) => Error.Crear(
         "RequerimientoTec.TipoSinCorrespondencia",

@@ -46,6 +46,12 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
 
         public int Consultas { get; private set; }
 
+        /// <summary>El comando lanza en vez de responder (un fallo fuera del <see cref="Result"/>).</summary>
+        public Exception? ExcepcionAlSubir { get; init; }
+
+        /// <summary>La lectura número N (empezando en 1) lanza.</summary>
+        public int? ConsultaQueFalla { get; init; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             await Task.Yield();
@@ -53,9 +59,13 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
             {
                 case ObtenerRequerimientosTecQuery:
                     Consultas++;
+                    if (Consultas == ConsultaQueFalla)
+                        throw new InvalidOperationException("La lectura de prueba falla.");
                     return (TResponse)(object)filas.ToList();
                 case SubirDocumentoRequerimientoTecCommand subida:
                     Subidas.Add(subida);
+                    if (ExcepcionAlSubir is not null)
+                        throw ExcepcionAlSubir;
                     var resultado = respuesta ?? Result.Exito(Guid.NewGuid());
                     if (resultado.EsExitoso)
                     {
@@ -179,7 +189,40 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
         var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, PdfDeUnaPagina()));
 
         respuesta.Resultado.Should().Be(ResultadoSubidaTec.Error);
+        respuesta.Mensaje.Should().Be(SubirDocumentoRequerimientoTecErrores.SujetoNoAsignado.Mensaje);
         almacen.Eliminados.Should().Equal(almacen.Guardados.Keys);
+    }
+
+    [Fact]
+    public async Task Si_el_comando_lanza_borra_el_archivo_y_deja_salir_la_excepcion()
+    {
+        var fila = Fila("Formación en altura", "Luis Gómez Ara");
+        var mediador = new MediadorDePrueba([fila]) { ExcepcionAlSubir = new InvalidOperationException("Fallo de prueba.") };
+        var almacen = new AlmacenEnMemoria();
+
+        var subir = () => Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, PdfDeUnaPagina()));
+
+        await subir.Should().ThrowAsync<InvalidOperationException>().WithMessage("Fallo de prueba.");
+        almacen.Guardados.Should().ContainSingle();
+        almacen.Eliminados.Should().Equal(almacen.Guardados.Keys);
+    }
+
+    [Fact]
+    public async Task Si_falla_la_segunda_lectura_con_el_documento_ya_guardado_responde_Subido_sin_siguiente()
+    {
+        var fila = Fila("Formación en altura", "Luis Gómez Ara");
+        var otra = Fila("Alta en la Seguridad Social", "Marta Ruiz");
+        var mediador = new MediadorDePrueba([fila, otra]) { ConsultaQueFalla = 2 };
+        var almacen = new AlmacenEnMemoria();
+
+        var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(fila.Id, PdfDeUnaPagina()));
+
+        respuesta.Resultado.Should().Be(ResultadoSubidaTec.Subido);
+        respuesta.SiguientePendienteId.Should().BeNull();
+        respuesta.SiguientePendiente.Should().BeNull();
+        respuesta.Mensaje.Should().BeNull();
+        mediador.Subidas.Should().ContainSingle();
+        almacen.Eliminados.Should().BeEmpty();
     }
 
     [Fact]
@@ -205,6 +248,7 @@ public sealed class SubidaDocumentoTenantTecConBackendTests : BunitContext
         var respuesta = await Adaptador(mediador, almacen).SubirAsync(Solicitud(Guid.NewGuid(), PdfDeUnaPagina()));
 
         respuesta.Resultado.Should().Be(ResultadoSubidaTec.Error);
+        respuesta.Mensaje.Should().Be(SubirDocumentoRequerimientoTecErrores.RequisitoNoEncontrado.Mensaje);
         mediador.Subidas.Should().BeEmpty();
         almacen.Guardados.Should().BeEmpty();
     }

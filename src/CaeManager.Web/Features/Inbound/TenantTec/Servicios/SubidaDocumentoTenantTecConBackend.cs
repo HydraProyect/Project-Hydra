@@ -39,7 +39,7 @@ public sealed class SubidaDocumentoTenantTecConBackend(
         var requerimiento = (await mediator.Send(new ObtenerRequerimientosTecQuery(), ct))
             .FirstOrDefault(f => f.Id == solicitud.RequerimientoId);
         if (requerimiento is null)
-            return new RespuestaSubidaTec(ResultadoSubidaTec.Error);
+            return new RespuestaSubidaTec(ResultadoSubidaTec.Error, Mensaje: SubirDocumentoRequerimientoTecErrores.RequisitoNoEncontrado.Mensaje);
 
         if (await GuardarPdfAsync(solicitud, ct) is not { } archivoUrl)
             return new RespuestaSubidaTec(ResultadoSubidaTec.Error);
@@ -62,14 +62,32 @@ public sealed class SubidaDocumentoTenantTecConBackend(
             await almacenamiento.EliminarAsync(archivoUrl, CancellationToken.None);
             registro.LogWarning("La subida al requerimiento {RequerimientoId} no se ha guardado: {Codigo}.",
                 solicitud.RequerimientoId, resultado.Error.Codigo);
-            return new RespuestaSubidaTec(ResultadoSubidaTec.Error);
+            // El motivo del servidor llega a la pantalla (D1 pide un error claro); ninguno identifica a un Gestor CAE (P-4).
+            return new RespuestaSubidaTec(ResultadoSubidaTec.Error, Mensaje: resultado.Error.Mensaje);
         }
 
-        // La lista vuelve a leerse para ofrecer el siguiente pendiente, ya sin el que se acaba de subir.
-        var siguiente = (await mediator.Send(new ObtenerRequerimientosTecQuery(), ct))
-            .FirstOrDefault(f => f.Id != solicitud.RequerimientoId && f.Estado == EstadoRequerimientoTecSinVeredicto.PendienteDeSubir);
+        // El documento ya está guardado: si la segunda lectura falla, la respuesta sigue siendo «Subido», sin siguiente.
+        var siguiente = await SiguientePendienteAsync(solicitud.RequerimientoId, ct);
         return new RespuestaSubidaTec(
             ResultadoSubidaTec.Subido, siguiente?.Id, siguiente is null ? null : $"{siguiente.TipoDocumentoNombre} · {siguiente.SujetoNombre}");
+    }
+
+    /// <summary>
+    /// La lista vuelve a leerse para ofrecer el siguiente pendiente, ya sin el que se acaba de subir. Es solo una ayuda para
+    /// encadenar: un fallo aquí (también una cancelación) no deshace ni oculta que el documento se guardó.
+    /// </summary>
+    private async Task<RequerimientoTecDto?> SiguientePendienteAsync(Guid subidoId, CancellationToken ct)
+    {
+        try
+        {
+            return (await mediator.Send(new ObtenerRequerimientosTecQuery(), ct))
+                .FirstOrDefault(f => f.Id != subidoId && f.Estado == EstadoRequerimientoTecSinVeredicto.PendienteDeSubir);
+        }
+        catch (Exception excepcion)
+        {
+            registro.LogWarning(excepcion, "El documento del requerimiento {RequerimientoId} se ha guardado, pero no se ha podido leer el siguiente pendiente.", subidoId);
+            return null;
+        }
     }
 
     /// <summary>Lee, comprueba, convierte y guarda el archivo; null si no es un documento válido.</summary>

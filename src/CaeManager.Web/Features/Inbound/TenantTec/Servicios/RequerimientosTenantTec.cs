@@ -142,7 +142,13 @@ public sealed record SolicitudSubidaTec(
     DateOnly? Vencimiento,
     string? Comentarios);
 
-public sealed record RespuestaSubidaTec(ResultadoSubidaTec Resultado, Guid? SiguientePendienteId = null, string? SiguientePendiente = null);
+/// <summary>
+/// Respuesta de una subida. <paramref name="Mensaje"/> solo acompaña a <see cref="ResultadoSubidaTec.Error"/>: es el motivo
+/// claro que da el servidor (requisito que ya no se pide, tipo sin correspondencia...) y la pantalla lo pinta en lugar del
+/// error genérico; sin él, el genérico.
+/// </summary>
+public sealed record RespuestaSubidaTec(
+    ResultadoSubidaTec Resultado, Guid? SiguientePendienteId = null, string? SiguientePendiente = null, string? Mensaje = null);
 
 /// <summary>
 /// Subida de un documento a un requerimiento: formatos, conversión a PDF, comprobaciones C0/C1,
