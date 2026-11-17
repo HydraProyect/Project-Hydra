@@ -251,8 +251,9 @@ public static class CatalogoMenuLateral
 
         // «Mis Clientes» (demo de Inbound, pieza P4; decisión D6 del 2026-11-17): el menú del Tenant TEC, la Empresa
         // contratista que autoriza la lectura de sus documentos. Gate propio e independiente de la línea Inbound
-        // (ContextoMenuLateral.EsTenantTecInbound: al menos una autorización de lectura documental concedida como Tenant de
-        // origen): el Tenant TEC no tiene Producto Contratado de Inbound. Solo el Administrador, el rol que autorizan sus dos
+        // (ContextoMenuLateral.EsTenantTecInbound: al menos una autorización de lectura documental concedida como Tenant propietario, y
+        // la capacidad ParticipanteTec de B-03 en la Query): el Tenant TEC no tiene Producto Contratado de Inbound. Solo el
+        // Administrador, el rol que autorizan sus dos
         // páginas ([Authorize(Roles = Administrador)] en Requerimientos y en Quién lee mis documentos). Sin línea de producto
         // (SinLinea): no es de la sección «Inbound · Tenant TCE», y así no lleva ese rótulo ni cuenta como una segunda línea.
         new("inbound-tec", "MenuGrupoInboundTec", AbiertoPorDefecto: true,

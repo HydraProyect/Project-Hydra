@@ -597,7 +597,7 @@ public class NavMenuCaracterizacionTests
         });
     }
 
-    // Grupo «Mis Clientes empresariales» del Tenant TEC (demo P4, D6) en el menú pintado: lo que diga IEsTenantTecInbound llega a
+    // Grupo «Mis Clientes» del Tenant TEC (demo P4, D6) en el menú pintado: lo que diga IEsTenantTecInbound llega a
     // ContextoMenuLateral; sin servicio o si falla, no hay grupo. Independiente de la línea Inbound.
     private static IRenderedComponent<NavMenu> PintarConTenantTec(string tenantTec, string rol = Roles.Administrador, bool lineaInbound = false)
     {

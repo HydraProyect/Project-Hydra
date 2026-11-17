@@ -2,8 +2,8 @@ namespace CaeManager.Web.Components.Layout;
 
 /// <summary>
 /// ¿Es el Tenant activo un Tenant TEC participante de Inbound, es decir, ha concedido como Tenant propietario al menos una
-/// autorización de lectura documental que sigue concedida (vigente y sin revocar)? Es el gate del grupo «Mis Clientes
-/// empresariales» del menú lateral (<c>ContextoMenuLateral.EsTenantTecInbound</c>), independiente del de la línea Inbound
+/// autorización de lectura documental que sigue concedida (vigente y sin revocar)? Es el gate del grupo «Mis Clientes»
+/// del menú lateral (<c>ContextoMenuLateral.EsTenantTecInbound</c>), independiente del de la línea Inbound
 /// (<see cref="ILineaInboundVigente"/>): el Tenant TEC no tiene Producto Contratado de Inbound y no necesita tenerlo.
 ///
 /// <para>
