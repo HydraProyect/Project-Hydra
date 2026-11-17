@@ -151,8 +151,8 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// contrato: un Trabajador en dos contratos se evalúa en cada uno y sale una sola vez, con el estado menos favorable de todos
 /// ellos (decisión del 2026-11-17, P3 punto 4); la fila cita el contrato y la Empresa contratista que dan ese estado y lleva en
 /// <see cref="AptoHoyDto.EmpresasContratistaIds"/> todas sus Empresas (solo las de los contratos que cuentan); en la proyección
-    /// restringida la fila cita, en cambio, el contrato y la Empresa del contrato más reciente que cuenta. (9) En una fila Apto de la proyección completa, el próximo vencimiento
-/// puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
+/// restringida la fila cita, en cambio, el contrato y la Empresa del contrato más reciente que cuenta. (9) En una fila Apto de
+/// la proyección completa, el próximo vencimiento puede ser el del certificado de aptitud (una revisión anticipada que fija el médico); solo lo ve quien tiene
 /// <see cref="CapacidadInbound.ValidarInbound"/>, que ya puede leer la conclusión en las evidencias.
 /// </para>
 /// </summary>
