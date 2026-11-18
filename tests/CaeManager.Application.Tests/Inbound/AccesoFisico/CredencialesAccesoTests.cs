@@ -151,7 +151,8 @@ public class CredencialesAccesoTests
     [Fact]
     public async Task Una_evidencia_rechazada_no_acredita_ni_da_la_instantanea()
     {
-        _evidencias[0].Rechazar(CaeManager.Domain.Documentos.CausaRechazoAcreditacion.DatosErroneos, "El DNI no coincide", _usuario, Ahora.UtcDateTime);
+        // La rechazada es la más reciente: sin el filtro por Aceptada, el orden por fecha la elegiría y no el azar de un Guid.
+        _evidencias[0].Rechazar(CaeManager.Domain.Documentos.CausaRechazoAcreditacion.DatosErroneos, "El DNI no coincide", _usuario, Ahora.UtcDateTime.AddHours(1));
 
         var sinOtra = await Emitir().Handle(ComandoEmitir(), CancellationToken.None);
         _evidencias.Add(Evidencia(_contrato.Id, _trabajador, "Ana Pérez Correcta", "99999999R"));

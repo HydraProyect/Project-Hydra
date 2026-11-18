@@ -5,7 +5,6 @@ using CaeManager.Application.Inbound.ContratosAcceso;
 using CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
-using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Inbound.AccesoFisico;
 using CaeManager.Domain.Inbound.ContratosAcceso;
 using FluentValidation;
@@ -22,7 +21,7 @@ namespace CaeManager.Application.Inbound.AccesoFisico.Credenciales;
 // «acreditable» sale de las evidencias: un Trabajador con alguna evidencia en un contrato de acceso Activo y vinculado al
 // Tenant TEC, visible para el actor con su Asignación de Cartera (ContratoAccesoAutorizacion). Cuando la asignación
 // exista pasa a ser el disparador y esta búsqueda se sustituye por ella, no se suma. Quien no tiene evidencias no puede
-// tener credencial. Una evidencia Rechazada no acredita. La credencial es una por Trabajador y Tenant TCE (M8) y no por Centro:
+// tener credencial. Solo una evidencia Aceptada acredita (como en «Aptos hoy»). La credencial es una por Trabajador y Tenant TCE (M8) y no por Centro:
 // quien tiene cartera sobre el contrato que acredita al Trabajador la emite, regenera o revoca para todos los Centros donde
 // vale, también los de Clientes empresariales fuera de su cartera (consecuencia asumida de M8 con H5, a revisar con la
 // asignación). Lo que no se encuentra o no se ve responde «no encontrado», sin distinguir cuál de las dos cosas falla.
@@ -217,10 +216,11 @@ internal static class SujetoAcreditable
             return null;
 
         var evidencia = await evidenciasContext.EvidenciasInbound
-            // Una evidencia Rechazada ni acredita ni da el nombre y el documento del carné: la portería los compara con el
+            // Una evidencia no Aceptada ni acredita ni da el nombre y el documento del carné: la portería los compara con el
             // documento de identidad del visitante, y los de una evidencia rechazada por datos erróneos son los que fallan.
+            .Where(EvidenciasInboundProyeccion.AceptadaEnConsulta)
             .Where(e => e.TenantOrigenId == tenantOrigenId && e.TrabajadorOrigenId == trabajadorOrigenId
-                        && e.Estado != EstadoAcreditacion.Rechazada && contratoIds.Contains(e.ContratoAccesoId))
+                        && contratoIds.Contains(e.ContratoAccesoId))
             .OrderByDescending(e => e.ValidadaEnUtc).ThenBy(e => e.Id)
             .Select(e => new { e.SujetoNombre, e.SujetoDocumentoIdentidad })
             .FirstOrDefaultAsync(cancellationToken);

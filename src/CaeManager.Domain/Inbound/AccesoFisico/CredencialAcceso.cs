@@ -29,8 +29,14 @@ namespace CaeManager.Domain.Inbound.AccesoFisico;
 /// portería. Esta entidad no firma ni genera QR (AF-03) ni registra entradas (AF-06).
 /// </para>
 /// </summary>
-public class CredencialAcceso : EntidadBase
+public class CredencialAcceso : EntidadBase, CaeManager.Domain.Auditoria.IPropiedadesSensiblesAuditoria
 {
+    // La instantánea del Trabajador (nombre y documento, de otro Tenant) no llega en claro al historial de auditoría:
+    // cae_app_soporte lee RegistrosAuditoria aunque no pueda leer esta tabla. La marca es del Núcleo; el interceptor
+    // no nombra este tipo.
+    IReadOnlyCollection<string> CaeManager.Domain.Auditoria.IPropiedadesSensiblesAuditoria.PropiedadesSensiblesAuditoria =>
+        [nameof(SujetoNombre), nameof(SujetoDocumentoIdentidad)];
+
     public const int LongitudMaximaSujetoNombre = 300;
     public const int LongitudMaximaDocumentoIdentidad = 50;
 
