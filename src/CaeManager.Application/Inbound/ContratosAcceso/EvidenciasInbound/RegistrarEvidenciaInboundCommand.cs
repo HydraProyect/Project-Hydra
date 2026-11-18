@@ -58,6 +58,9 @@ public class RegistrarEvidenciaInboundCommandValidator : AbstractValidator<Regis
 /// <item>Lectura por <see cref="ILectorDocumentosInbound"/> <b>fuera de transacción</b>: el lector lo exige porque cada
 /// lectura deja su traza en el Tenant propietario, y un rollback la borraría. Este handler no abre ninguna; la única es la
 /// implícita de <c>SaveChangesAsync</c>, al final y después de leer.</item>
+/// <item>D-12: si el veredicto es Validar y la lectura marca la versión como subida por quien lee
+/// (<see cref="DocumentoInboundDto.SubidoPorQuienLee"/>), <see cref="EvidenciaInboundErrores.ValidaLoQueSubio"/> sin abrir
+/// ni copiar nada. Rechazar sigue permitido.</item>
 /// <item>Si la evidencia es de «solo conclusión de aptitud» (el tipo elegido o el del original lleva la marca): no se
 /// abre ni se copia ningún binario; se guardan la conclusión transcrita, el nombre y el documento de identidad del
 /// Trabajador. Un Documento de Empresa no la admite.</item>
@@ -119,6 +122,12 @@ public class RegistrarEvidenciaInboundCommandHandler(
             .FirstOrDefault(d => d.DocumentoId == request.DocumentoOrigenId);
         if (original is null)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        // D-12: nadie valida la versión que subió él mismo, antes de abrir ni copiar nada. La marca la calcula la lectura
+        // en la base con los dos autores de la versión (D-12.2) y un autor nulo no la enciende (D-12.1). Rechazar no se
+        // bloquea: D-12 solo habla de Validar, y un rechazo no da por buena la documentación de nadie.
+        if (request.Rechazo is null && original.SubidoPorQuienLee)
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.ValidaLoQueSubio);
 
         var soloConclusion = tipo.SoloConclusionAptitud || original.SoloConclusionAptitud;
         if (soloConclusion != (request.Conclusion is not null))
@@ -261,6 +270,10 @@ public static class EvidenciaInboundErrores
 
     public static readonly Error OriginalSinArchivo = Error.Crear(
         "EvidenciaInbound.OriginalSinArchivo", "El Documento original no tiene un archivo disponible.");
+
+    public static readonly Error ValidaLoQueSubio = Error.Crear(
+        "EvidenciaInbound.ValidaLoQueSubio",
+        "Subido por ti en Outbound: lo valida otra persona, otro Gestor CAE de tu organización o su Administrador.");
 
     public static readonly Error EstadoNoAdmite = Error.Crear(
         "EvidenciaInbound.EstadoNoAdmite", "La evidencia no está en un estado que admita este cambio.");

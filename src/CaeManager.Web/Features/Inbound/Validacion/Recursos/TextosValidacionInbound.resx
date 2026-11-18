@@ -60,4 +60,10 @@
   <data name="TipoFueraDeCatalogo" xml:space="preserve">
     <value>«{0}» no está en tu catálogo de tipos de documento: no se puede registrar el veredicto todavía.</value>
   </data>
+  <data name="SubidoPorTi" xml:space="preserve">
+    <value>Subido por ti en Outbound: lo valida otra persona.</value>
+  </data>
+  <data name="SubidoPorTiQuienValida" xml:space="preserve">
+    <value>Puede validarlo otro Gestor CAE de tu organizaci&#243;n o su Administrador.</value>
+  </data>
 </root>

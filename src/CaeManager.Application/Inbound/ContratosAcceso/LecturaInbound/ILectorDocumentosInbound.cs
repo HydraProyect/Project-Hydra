@@ -75,6 +75,12 @@ public record AutorizacionInboundDto(
 /// tipo de salud que la lectura deja pasar): su evidencia no lleva archivo, solo la conclusión transcrita.
 /// </param>
 /// <param name="TrabajadorId">Null en un Documento de la Empresa propia del Tenant de la Empresa contratista.</param>
+/// <param name="SubidoPorQuienLee">
+/// D-12: quien lee (el usuario del contexto firmado, que hoy es a la vez el usuario efectivo y el Actor real) subió esta
+/// versión del Documento: coincide con su <c>SubidoPorUsuarioId</c> o con su <c>SubidoPorActorRealUsuarioId</c> (D-12.2).
+/// Falso si la versión no tiene autor registrado (D-12.1). Lo calcula la función en la base; el identificador del autor
+/// no sale del Tenant propietario.
+/// </param>
 public record DocumentoInboundDto(
     Guid DocumentoId,
     Guid? TrabajadorId,
@@ -85,7 +91,8 @@ public record DocumentoInboundDto(
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
     EstadoVigenciaDocumento EstadoVigencia,
-    bool SoloConclusionAptitud);
+    bool SoloConclusionAptitud,
+    bool SubidoPorQuienLee = false);
 
 /// <summary>
 /// La apertura de un Documento original autorizado, tal como la devuelve <c>app_inbound_archivo_autorizado</c>. Es la única

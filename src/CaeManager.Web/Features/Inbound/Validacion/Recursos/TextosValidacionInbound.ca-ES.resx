@@ -60,4 +60,10 @@
   <data name="TipoFueraDeCatalogo" xml:space="preserve">
     <value>«{0}» no és al teu catàleg de tipus de document: encara no es pot registrar el veredicte.</value>
   </data>
+  <data name="SubidoPorTi" xml:space="preserve">
+    <value>Pujat per tu a Outbound: el valida una altra persona.</value>
+  </data>
+  <data name="SubidoPorTiQuienValida" xml:space="preserve">
+    <value>El pot validar un altre Gestor CAE de la teva organitzaci&#243; o el seu Administrador.</value>
+  </data>
 </root>
