@@ -240,6 +240,28 @@ public class VisibilidadTriageTests : IAsyncLifetime
         (await AlcanceReal(lectura, Guid.NewGuid()).BuzonesPersonalesPropiosAsync()).Should().BeEmpty("otro Gestor CAE");
     }
 
+    [Fact]
+    public async Task Con_su_buzon_personal_en_ConError_el_propietario_sin_el_Tenant_entero_no_ve_sus_hilos_sin_ancla()
+    {
+        // Fallo cerrado ya decidido para R-3a (pendiente de que Chris lo confirme): la condición 2 de VisibilidadConversacion
+        // solo abre los hilos de una conexión personal Habilitada. Con la conexión en ConError, la consulta real no la
+        // devuelve, y sin el Tenant entero (triaje cerrado) su propietario deja de ver esos hilos en la lista y en el detalle.
+        var propietario = Guid.NewGuid();
+        var conError = new ConexionIntegracion("h@ejemplo.local", "Personal con error", gestorPropietarioId: propietario);
+        conError.MarcarConError("token revocado").Should().BeTrue("control: la conexión queda en ConError");
+        var (conexion, hilo) = await CrearHiloSinAnclaAsync(conError, "hilo-con-error-vt-3");
+
+        IReadOnlyList<Guid> buzones;
+        await using (var lectura = CrearContexto())
+            buzones = await AlcanceReal(lectura, propietario).BuzonesPersonalesPropiosAsync();
+        buzones.Should().NotContain(conexion, "la consulta real no devuelve una conexión en ConError");
+
+        var delPropietario = new AlcanceDatosServiceFalso(
+            clienteIds: [_clientePropio], triajeVisible: false, buzonesPersonalesPropios: buzones);
+        (await ListarComo("GestorCae", delPropietario, propietario)).Select(c => c.Id).Should().NotContain(hilo);
+        (await DetalleComo(hilo, delPropietario)).Should().BeNull();
+    }
+
     private AlcanceDatosService AlcanceReal(CaeManagerDbContext contexto, Guid usuarioId) =>
         new(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant),
             new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());

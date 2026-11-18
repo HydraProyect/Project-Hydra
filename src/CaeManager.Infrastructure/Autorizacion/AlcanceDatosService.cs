@@ -299,8 +299,11 @@ public class AlcanceDatosService(
     /// <item>Con la lente de demo Gestor (la única que cambia la autorización, como en <see cref="TieneAccesoTotalAsync"/>):
     /// la lente solo estrecha, y abrir el buzón del Gestor CAE de la lente sería ampliar. Las vistas de Dirección y de
     /// Coordinación usan la autorización real, y con ella el buzón propio de la cuenta.</item>
-    /// <item>Sin un rol efectivo de <see cref="RolesQueVenTriaje"/> en este Tenant (por ejemplo, una selección cuya
-    /// Asignación de Operación dejó de autorizar con el circuito abierto, o el rol Cliente).</item>
+    /// <item>Sin un rol efectivo de <see cref="RolesQueVenTriaje"/> en este Tenant (por ejemplo, el rol Cliente).</item>
+    /// <item>Con un papel sin alcance de datos (<see cref="PapelSinAlcanceDeDatosAsync"/>): una selección cuya Asignación de
+    /// Operación dejó de autorizar con el circuito abierto, o el papel Inbound fuera de una petición de Inbound. Es el mismo
+    /// corte que cierra la cartera y el acceso total, para que el papel Inbound no abra por esta vía lo que no abre por
+    /// las demás.</item>
     /// <item>Sin usuario o sin Tenant actual.</item>
     /// </list>
     /// La consulta va por el contexto con filtro de Tenant y de borrado lógico (y RLS), y además compara el Tenant de la
@@ -314,6 +317,7 @@ public class AlcanceDatosService(
 
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesQueVenTriaje.Contains(rol)) return [];
+        if (await PapelSinAlcanceDeDatosAsync()) return [];
 
         if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId) return [];
         if (tenantActual.TenantId is not { } tenant) return [];

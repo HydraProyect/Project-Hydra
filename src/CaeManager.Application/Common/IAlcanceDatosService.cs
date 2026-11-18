@@ -104,7 +104,8 @@ public interface IAlcanceDatosService
     /// <c>ObtenerMensajesBuzonPersonalQuery</c> y que <see cref="ConexionIntegracionVisibleAsync"/>. Vacía (falla cerrado)
     /// con una Sesión Privilegiada de cualquier capacidad, Impersonación incluida (un Actor de Plataforma TALVEG no es
     /// Gestor CAE del Tenant, y el buzón del Usuario simulado no se abre por esta vía), con la lente de demo Gestor, sin rol
-    /// efectivo de gestión de Comunicaciones, sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada
+    /// efectivo de gestión de Comunicaciones, con un papel sin alcance de datos (una operación que ya no autoriza, o el papel
+    /// Inbound fuera de una petición de Inbound), sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada
     /// no entra. La implementación por defecto, para los dobles de prueba, es vacía.
     /// </para>
     /// </summary>

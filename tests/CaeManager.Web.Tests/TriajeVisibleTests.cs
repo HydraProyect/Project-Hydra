@@ -251,6 +251,20 @@ public class TriajeVisibleTests
         (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(PapelActivo.Inbound)]
+    [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]
+    public async Task Con_un_papel_sin_alcance_de_datos_no_hay_buzon_personal_propio(PapelActivo papel)
+    {
+        // El mismo Gestor CAE sin sesión que en el control de arriba sí consulta la base: lo que cambia es solo el papel.
+        // El papel Inbound fuera de una petición de Inbound y una operación que ya no autoriza no tienen alcance de datos
+        // (PapelSinAlcanceDeDatosAsync), así que tampoco abren el buzón personal propio.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("GestorCae", papel));
+
+        (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
+    }
+
     private static AlcanceDatosService Alcance(
         CaeManagerDbContext contexto, ICurrentUserService usuario, ISesionPrivilegiadaActual? sesion = null) =>
         new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantActual }, sesion ?? new ConSesion(null));
