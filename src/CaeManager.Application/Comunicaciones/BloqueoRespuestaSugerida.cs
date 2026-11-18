@@ -113,7 +113,8 @@ public static class BloqueoRespuestaSugerida
     /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>
     /// traducida a una expresión: buzón visible y, por las anclas, la expresión única de <see cref="VisibilidadConversacion"/>:
     /// con Cliente empresarial, que esté entre los visibles; con Empresa contraparte, que esté en la cartera de gestión; sin
-    /// ninguna de las dos (cola de triaje), solo si <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> es verdadero. Un
+    /// ninguna de las dos, solo si <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> es verdadero o el buzón es el
+    /// personal propio (<see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>). Un
     /// conjunto nulo es acceso total. Un test compara ambas sobre los mismos casos para que no diverjan.
     /// </para>
     ///
@@ -237,9 +238,10 @@ public static class BloqueoRespuestaSugerida
     /// Los hilos de un buzón que quien envía puede ver, como filtro para la consulta de candidatas; <c>null</c> si el
     /// buzón no es visible. Es la regla de <c>ConversacionVisibleAsync</c>: buzón visible (una vez, es el mismo para todos
     /// los hilos) y, por las anclas, la misma expresión de <see cref="VisibilidadConversacion"/> que usan la lista y el
-    /// detalle (cartera de Clientes, alcance de gestión de Empresas y la cola de triaje solo con
-    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>). Los conjuntos están memoizados por petición: no hay una
-    /// consulta por hilo.
+    /// detalle (cartera de Clientes, alcance de gestión de Empresas y, sin ancla, la cola de triaje con
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> o el buzón personal propio con
+    /// <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>). Los conjuntos se resuelven una vez por
+    /// comprobación: no hay una consulta por hilo.
     /// </summary>
     internal static async Task<Expression<Func<Conversacion, bool>>?> HilosVisiblesDelBuzonAsync(
         IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, CancellationToken cancellationToken)
@@ -248,7 +250,7 @@ public static class BloqueoRespuestaSugerida
             return null;
 
         var porAnclas = (await VisibilidadConversacion.ResolverAsync(alcanceDatos, cancellationToken))
-            .Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId);
+            .Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId);
         var conversacion = porAnclas.Parameters[0];
         // El Id del buzón por una clausura, como antes: EF lo manda como parámetro, no como literal.
         Expression<Func<Guid?>> buzon = () => conexionIntegracionId;

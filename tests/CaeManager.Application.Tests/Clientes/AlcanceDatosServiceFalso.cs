@@ -8,9 +8,13 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
     IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null,
-    bool? triajeVisible = null)
+    bool? triajeVisible = null, IReadOnlyList<Guid>? buzonesPersonalesPropios = null)
     : IAlcanceDatosService
 {
+    /// <summary>Por defecto vacío, como la implementación por defecto de la interfaz (falla cerrado).</summary>
+    public Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(buzonesPersonalesPropios ?? []);
+
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
 
     /// <summary>

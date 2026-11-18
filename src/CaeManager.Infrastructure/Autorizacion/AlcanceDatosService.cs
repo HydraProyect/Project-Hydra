@@ -289,6 +289,45 @@ public class AlcanceDatosService(
     }
 
     /// <summary>
+    /// El buzón personal propio (D-6 b, R-3a; contrato en <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>):
+    /// la segunda condición de la rama sin ancla de <see cref="VisibilidadConversacion"/>. Falla cerrado antes de leer la
+    /// base, por este orden:
+    /// <list type="number">
+    /// <item>Con cualquier Sesión Privilegiada, Impersonación incluida: el usuario de la sesión es el Actor real (el claim
+    /// de identidad no cambia al simular), un Actor de Plataforma TALVEG que no es Gestor CAE del Tenant; y el buzón
+    /// personal del Usuario simulado no se abre por esta vía.</item>
+    /// <item>Con la lente de demo Gestor (la única que cambia la autorización, como en <see cref="TieneAccesoTotalAsync"/>):
+    /// la lente solo estrecha, y abrir el buzón del Gestor CAE de la lente sería ampliar. Las vistas de Dirección y de
+    /// Coordinación usan la autorización real, y con ella el buzón propio de la cuenta.</item>
+    /// <item>Sin un rol efectivo de <see cref="RolesQueVenTriaje"/> en este Tenant (por ejemplo, una selección cuya
+    /// Asignación de Operación dejó de autorizar con el circuito abierto, o el rol Cliente).</item>
+    /// <item>Sin usuario o sin Tenant actual.</item>
+    /// </list>
+    /// La consulta va por el contexto con filtro de Tenant y de borrado lógico (y RLS), y además compara el Tenant de la
+    /// fila con el actual: una conexión de otro Tenant, eliminada, deshabilitada o con error, o un buzón compartido, no
+    /// entra. Sin memoización: la lista y el bloqueo por buzón la piden una vez, y el detalle solo con un hilo sin ancla.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default)
+    {
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return [];
+        if (await ObtenerGestorDeLenteAsync(cancellationToken) is not null) return [];
+
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || !RolesQueVenTriaje.Contains(rol)) return [];
+
+        if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId) return [];
+        if (tenantActual.TenantId is not { } tenant) return [];
+
+        return await dbContext.ConexionesIntegracion
+            .Where(c => c.TenantId == tenant
+                        && c.GestorPropietarioId == usuarioId
+                        && !c.EsBuzonCompartido
+                        && c.Estado == CaeManager.Domain.Integraciones.EstadoConexionIntegracion.Habilitada)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// El rol con el que se calcula el alcance de datos: el rol efectivo, salvo cuando la sesión
     /// está limitada a Consulta por login local. Entonces el alcance sigue siendo el del rol real
     /// (decisión Chris 2026-10-20: la restricción nunca amplía el alcance) y Consulta solo quita

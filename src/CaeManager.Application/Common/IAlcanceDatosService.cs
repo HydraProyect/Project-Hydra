@@ -91,6 +91,26 @@ public interface IAlcanceDatosService
     Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default) =>
         TieneAccesoTotalAsync(cancellationToken);
 
+    /// <summary>
+    /// Las conexiones del buzón personal propio de quien mira en el Tenant actual: la segunda condición de la rama sin
+    /// ancla de <see cref="VisibilidadConversacion"/>. El correo de un buzón personal no registrado solo vive en la cuenta
+    /// del Gestor CAE propietario (DECISION_LOG, 2026-11-14, decisión 2), así que su propietario ve esos hilos aunque no
+    /// alcance el Tenant entero.
+    ///
+    /// <para>
+    /// Son las <c>ConexionIntegracion</c> del Tenant actual (filtro de Tenant, borrado lógico y RLS) que son personales
+    /// (no <c>EsBuzonCompartido</c>), están habilitadas y cuyo <c>GestorPropietarioId</c> es el usuario de la sesión,
+    /// <see cref="ICurrentUserService.ObtenerUsuarioActualIdAsync"/>: el mismo criterio de «el mío» que
+    /// <c>ObtenerMensajesBuzonPersonalQuery</c> y que <see cref="ConexionIntegracionVisibleAsync"/>. Vacía (falla cerrado)
+    /// con una Sesión Privilegiada de cualquier capacidad, Impersonación incluida (un Actor de Plataforma TALVEG no es
+    /// Gestor CAE del Tenant, y el buzón del Usuario simulado no se abre por esta vía), con la lente de demo Gestor, sin rol
+    /// efectivo de gestión de Comunicaciones, sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada
+    /// no entra. La implementación por defecto, para los dobles de prueba, es vacía.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>([]);
+
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

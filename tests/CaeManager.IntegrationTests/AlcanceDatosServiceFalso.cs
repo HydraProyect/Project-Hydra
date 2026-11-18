@@ -21,8 +21,13 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
     IReadOnlyList<Guid>? centroIdsParaGestion = null,
     bool ladoDeGestion = true,
-    bool? triajeVisible = null) : IAlcanceDatosService
+    bool? triajeVisible = null,
+    IReadOnlyList<Guid>? buzonesPersonalesPropios = null) : IAlcanceDatosService
 {
+    /// <summary>Por defecto vacío, como la implementación por defecto de la interfaz (falla cerrado).</summary>
+    public Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(buzonesPersonalesPropios ?? []);
+
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(
         clienteIds is null && centroIds is null && empresaIds is null &&
         subcontrataIds is null && trabajadorIds is null && vehiculoIds is null);

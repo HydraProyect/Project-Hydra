@@ -41,9 +41,9 @@ public static class AlcanceDatosServiceExtensions
     /// cliente" significa compartido dentro del tenant, así que es visible —
     /// quién llega a esas pantallas lo decide el rol, no la cartera.
     ///
-    /// No sirve para una <c>Conversacion</c>: una conversación sin ancla está
-    /// en la cola de triaje y solo la ve quien cumple
-    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>; su regla es
+    /// No sirve para una <c>Conversacion</c>: una conversación sin ancla solo
+    /// la ve quien cumple <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>
+    /// o el propietario del buzón personal por el que entra; su regla es
     /// <see cref="ConversacionVisibleAsync"/> (D-6 b, R-3a).
     ///
     /// Método propio en vez de repetir la condición en cada handler: invertir
@@ -155,8 +155,10 @@ public static class AlcanceDatosServiceExtensions
     /// Alcance completo de una <c>Conversacion</c> existente: la cartera de
     /// su ancla —Cliente (<paramref name="clienteId"/>) o Empresa contraparte
     /// (<paramref name="empresaId"/>), excluyentes entre sí; sin ninguna de
-    /// las dos es la cola de triaje, que solo ve quien cumple
-    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>— con la misma
+    /// las dos la ve quien cumple
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> o, si entra por
+    /// su buzón personal, su propietario
+    /// (<see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>)— con la misma
     /// regla que la lista de la bandeja (<see cref="VisibilidadConversacion"/>).
     /// No pasa por <see cref="ClienteOpcionalVisibleAsync"/>, que no conoce el
     /// rol y sirve a macros y buzones, donde «sin cliente» sigue siendo
@@ -187,6 +189,7 @@ public static class AlcanceDatosServiceExtensions
         // ObtenerEmpresaIdsParaGestionAsync). Con EmpresaVisibleAsync, un
         // contacto de una empresa cliente descargaba los adjuntos de esos hilos
         // conociendo el Guid. La regla entera vive en VisibilidadConversacion.
-        return await VisibilidadConversacion.PermiteAsync(alcance, clienteId, empresaId, cancellationToken);
+        // Sin ancla, la ve quien pasa el triaje o el propietario de su buzón personal (condición 2 de la regla).
+        return await VisibilidadConversacion.PermiteAsync(alcance, clienteId, empresaId, conexionIntegracionId, cancellationToken);
     }
 }

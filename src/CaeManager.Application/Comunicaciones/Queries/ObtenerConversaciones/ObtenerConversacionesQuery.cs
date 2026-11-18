@@ -115,12 +115,18 @@ public class ObtenerConversacionesQueryHandler(
         //    empresarial (ADR-011: ámbito efectivo = cartera ∩ operación) no
         //    ven triaje. Falla cerrado: antes de R-3a el triaje se abría a
         //    todo rol distinto de Cliente, el nulo incluido.
+        //  - Sin ancla, pero entrando por el buzón personal propio
+        //    (IAlcanceDatosService.BuzonesPersonalesPropiosAsync): lo ve su
+        //    Gestor CAE propietario aunque no alcance el Tenant entero
+        //    (DECISION_LOG 2026-11-14, decisión 2). Es la misma condición que
+        //    el detalle, dentro de la misma expresión.
         //
         // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
         // a propósito: la página cierra la puerta de entrada, esto cierra
         // el dato para cualquier otra UI o API que llegue después.
         var visibilidad = await VisibilidadConversacion.ResolverAsync(alcanceDatos, cancellationToken);
-        consulta = consulta.Where(visibilidad.Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId));
+        consulta = consulta.Where(visibilidad.Predicado<Conversacion>(
+            c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId));
 
         // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
         // también tiene ClienteId null, igual que la cola de triage genuina —

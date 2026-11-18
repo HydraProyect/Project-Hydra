@@ -1,4 +1,6 @@
 using CaeManager.Application.Comunicaciones.Matching;
+using CaeManager.Application.Plataforma;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Integraciones;
@@ -161,10 +163,126 @@ public class VisibilidadTriageTests : IAsyncLifetime
         (await DetalleSinClienteComo(triajeVisible: true)).Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task El_Gestor_CAE_propietario_sin_el_Tenant_entero_ve_su_hilo_sin_ancla_en_la_lista_y_en_el_detalle_y_otro_Gestor_CAE_no()
+    {
+        // DECISION_LOG 2026-11-14, decisión 2: el correo de un buzón personal no registrado solo vive en la cuenta de su
+        // Gestor CAE propietario, que lo ve siempre (condición 2 de VisibilidadConversacion). Los dos Gestores CAE tienen
+        // la misma cartera acotada y ninguno pasa el triaje.
+        var propietario = Guid.NewGuid();
+        var otroGestor = Guid.NewGuid();
+        var (conexion, hilo) = await CrearHiloSinAnclaAsync(
+            new ConexionIntegracion("gestora@ejemplo.local", "Buzón personal", gestorPropietarioId: propietario), "hilo-propio-vt-1");
+
+        var delPropietario = new AlcanceDatosServiceFalso(
+            clienteIds: [_clientePropio], triajeVisible: false, buzonesPersonalesPropios: [conexion]);
+        (await ListarComo("GestorCae", delPropietario, propietario)).Select(c => c.Id)
+            .Should().Contain(hilo).And.NotContain(_conversacionSinCliente, "la cola de triaje sigue cerrada");
+        (await DetalleComo(hilo, delPropietario)).Should().NotBeNull();
+
+        var delOtro = new AlcanceDatosServiceFalso(
+            clienteIds: [_clientePropio], triajeVisible: false, conexionesIntegracionAjenas: [conexion]);
+        (await ListarComo("GestorCae", delOtro, otroGestor)).Select(c => c.Id).Should().NotContain(hilo);
+        (await DetalleComo(hilo, delOtro)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_Administrador_ve_los_hilos_sin_ancla_de_un_buzon_compartido_y_no_los_de_un_buzon_personal_ajeno()
+    {
+        var administrador = Guid.NewGuid();
+        var (_, delCompartido) = await CrearHiloSinAnclaAsync(
+            ConexionIntegracion.CrearBuzonCompartido("soporte@ejemplo.local", "Soporte", Guid.NewGuid().ToString(), administrador),
+            "hilo-compartido-vt-1");
+        var (personalAjeno, delPersonalAjeno) = await CrearHiloSinAnclaAsync(
+            new ConexionIntegracion("gestor@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid()), "hilo-ajeno-vt-2");
+
+        // Acceso total y triaje; la lista cierra el buzón personal ajeno contra la tabla de conexiones, con el usuario real.
+        var alcance = new AlcanceDatosServiceFalso(triajeVisible: true, conexionesIntegracionAjenas: [personalAjeno]);
+        var ids = (await ListarComo("Administrador", alcance, administrador)).Select(c => c.Id).ToList();
+
+        ids.Should().Contain(delCompartido).And.NotContain(delPersonalAjeno);
+        (await DetalleComo(delCompartido, alcance)).Should().NotBeNull();
+        (await DetalleComo(delPersonalAjeno, alcance)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_buzon_personal_propio_es_solo_la_conexion_personal_habilitada_del_propietario_en_este_Tenant()
+    {
+        // AlcanceDatosService real: la consulta de IAlcanceDatosService.BuzonesPersonalesPropiosAsync. Las guardas que
+        // cierran antes de leer la base (Sesión Privilegiada, lente de demo, rol) las fija TriajeVisibleTests (Web.Tests).
+        var propietario = Guid.NewGuid();
+        Guid habilitada;
+        await using (var contexto = CrearContexto())
+        {
+            var personal = new ConexionIntegracion("a@ejemplo.local", "Personal", gestorPropietarioId: propietario);
+            var deshabilitada = new ConexionIntegracion("b@ejemplo.local", "Personal desconectado", gestorPropietarioId: propietario);
+            deshabilitada.Deshabilitar();
+            var eliminada = new ConexionIntegracion("c@ejemplo.local", "Personal eliminado", gestorPropietarioId: propietario);
+            eliminada.MarcarComoEliminado(propietario);
+            var ajena = new ConexionIntegracion("d@ejemplo.local", "Personal ajeno", gestorPropietarioId: Guid.NewGuid());
+            var compartido = ConexionIntegracion.CrearBuzonCompartido("e@ejemplo.local", "Compartido", Guid.NewGuid().ToString(), propietario);
+            var general = new ConexionIntegracion("f@ejemplo.local", "General");
+            contexto.ConexionesIntegracion.AddRange(personal, deshabilitada, eliminada, ajena, compartido, general);
+            await contexto.SaveChangesAsync();
+            habilitada = personal.Id;
+        }
+
+        var otroTenant = Guid.NewGuid();
+        await using (var contexto = CrearContexto(otroTenant))
+        {
+            contexto.ConexionesIntegracion.Add(
+                new ConexionIntegracion("g@ejemplo.local", "Personal en otro Tenant", gestorPropietarioId: propietario));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        (await AlcanceReal(lectura, propietario).BuzonesPersonalesPropiosAsync()).Should().Equal(habilitada);
+        (await AlcanceReal(lectura, Guid.NewGuid()).BuzonesPersonalesPropiosAsync()).Should().BeEmpty("otro Gestor CAE");
+    }
+
+    private AlcanceDatosService AlcanceReal(CaeManagerDbContext contexto, Guid usuarioId) =>
+        new(contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant),
+            new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+    private async Task<(Guid Conexion, Guid Conversacion)> CrearHiloSinAnclaAsync(ConexionIntegracion conexion, string hiloExterno)
+    {
+        await using var contexto = CrearContexto();
+        contexto.ConexionesIntegracion.Add(conexion);
+        await contexto.SaveChangesAsync();
+
+        var hilo = new Conversacion($"Sin ancla por {conexion.BuzonEmail}");
+        hilo.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "quien-sea@externo.test", "<p>Hola</p>");
+        hilo.AsociarConexion(conexion.Id, hiloExterno);
+        contexto.Conversaciones.Add(hilo);
+        await contexto.SaveChangesAsync();
+        return (conexion.Id, hilo.Id);
+    }
+
+    private async Task<ConversacionDetalleDto?> DetalleComo(Guid conversacionId, AlcanceDatosServiceFalso alcance)
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerConversacionPorIdQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance,
+            new GanssSanitizadorHtmlService(),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
+
+        return await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+    }
+
+    private sealed class SesionPrivilegiadaAusente : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+
     private Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, bool? triajeVisible = null) =>
         ListarComo(rol, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], triajeVisible: triajeVisible));
 
-    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, AlcanceDatosServiceFalso alcance)
+    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(
+        string rol, AlcanceDatosServiceFalso alcance, Guid? usuarioId = null)
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
@@ -172,7 +290,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
             contexto,
             contexto,
             alcance,
-            new CurrentUserServiceFalso(rol: rol));
+            new CurrentUserServiceFalso(usuarioId: usuarioId, rol: rol));
 
         return (await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None)).Elementos;
     }
@@ -189,9 +307,9 @@ public class VisibilidadTriageTests : IAsyncLifetime
         return await handler.Handle(new ObtenerConversacionPorIdQuery(_conversacionSinCliente), CancellationToken.None);
     }
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(Guid? tenant = null)
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var tenantActual = new TenantActualAmbiental { TenantId = tenant ?? _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))

@@ -192,9 +192,84 @@ public class TriajeVisibleTests
         (await alcance.TriajeVisibleAsync()).Should().BeFalse();
     }
 
+    // AlcanceDatosService.BuzonesPersonalesPropiosAsync, la condición 2 de la rama sin ancla (DECISION_LOG 2026-11-14,
+    // decisión 2): falla cerrado ANTES de leer la base. Con un rol de gestión y sin sesión, sí llega a la consulta (y aquí
+    // falla, porque no hay servidor): eso prueba que lo que cierra en los demás casos es la guarda, no la falta de filas.
+    // Qué conexiones devuelve la consulta (propia, ajena, compartida, deshabilitada, de otro Tenant) se prueba bajo
+    // PostgreSQL en VisibilidadTriageTests (integración, solo en CI).
+
+    [Fact]
+    public async Task El_buzon_personal_propio_de_un_Gestor_CAE_sin_sesion_se_busca_en_la_base()
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Outbound));
+
+        var buscar = () => alcance.BuzonesPersonalesPropiosAsync();
+
+        await buscar.Should().ThrowAsync<Exception>("control: sin guarda que lo cierre, consulta la base");
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    public async Task Con_una_Sesion_Privilegiada_no_hay_buzon_personal_propio_ni_con_Impersonacion(CapacidadPrivilegio capacidad)
+    {
+        // El usuario de la sesión es el Actor real (el claim no cambia al simular); el buzón del Usuario simulado no se
+        // abre por GestorPropietarioId, ni en el Tenant objetivo de la sesión ni en otro.
+        await using var contexto = ContextoSinServidor();
+        var enSuTenant = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Outbound),
+            new ConSesion(TenantActual, capacidad, usuarioSimulado: Guid.NewGuid()));
+        var enOtro = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Outbound), new ConSesion(Guid.NewGuid(), capacidad));
+
+        (await enSuTenant.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
+        (await enOtro.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_la_lente_de_demo_Gestor_no_hay_buzon_personal_propio()
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = new AlcanceDatosService(contexto, new Usuario("Administrador", PapelActivo.Outbound),
+            new TenantActualAmbiental { TenantId = TenantActual }, new ConSesion(null), new LenteGestor(Guid.NewGuid()));
+
+        (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Cliente")]
+    [InlineData("RolInventado")]
+    [InlineData("")]
+    public async Task Sin_un_rol_de_gestion_de_Comunicaciones_no_hay_buzon_personal_propio(string? rol)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.Outbound));
+
+        (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
+    }
+
     private static AlcanceDatosService Alcance(
         CaeManagerDbContext contexto, ICurrentUserService usuario, ISesionPrivilegiadaActual? sesion = null) =>
         new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantActual }, sesion ?? new ConSesion(null));
+
+    private sealed class LenteGestor(Guid gestorUsuarioId) : CaeManager.Application.VistaDemo.IVistaDemoActual
+    {
+        public Task<bool> EstaDisponibleAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+        public Task<CaeManager.Application.VistaDemo.VistaDemoEfectiva?> ObtenerEfectivaAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<CaeManager.Application.VistaDemo.VistaDemoEfectiva?>(
+                new(CaeManager.Application.VistaDemo.VistaDemo.GestorCae, gestorUsuarioId));
+
+        public Task<IReadOnlyList<CaeManager.Application.VistaDemo.GestorDeVistaDemo>> ObtenerGestoresElegiblesAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CaeManager.Application.VistaDemo.GestorDeVistaDemo>>([]);
+
+        public Task<IReadOnlyList<Guid>?> ObtenerTenantIdsAcotadosAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>?>(null);
+    }
 
     /// <summary>Un contexto que nunca conecta: el puerto 1 de localhost no tiene ningún PostgreSQL.</summary>
     private static CaeManagerDbContext ContextoSinServidor()
@@ -222,11 +297,12 @@ public class TriajeVisibleTests
         public bool EncargoPlenoDeLaUltimaResolucion(Guid asignacionOperacionId) => false;
     }
 
-    private sealed class ConSesion(Guid? tenantObjetivo, CapacidadPrivilegio capacidad = CapacidadPrivilegio.SoporteLectura)
+    private sealed class ConSesion(
+        Guid? tenantObjetivo, CapacidadPrivilegio capacidad = CapacidadPrivilegio.SoporteLectura, Guid? usuarioSimulado = null)
         : ISesionPrivilegiadaActual
     {
         private SesionPrivilegiadaActiva? Sesion => tenantObjetivo is { } tenant
-            ? new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), tenant, capacidad, null)
+            ? new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), tenant, capacidad, usuarioSimulado)
             : null;
 
         public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(Sesion);
