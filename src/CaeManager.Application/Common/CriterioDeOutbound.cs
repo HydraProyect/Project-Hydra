@@ -9,10 +9,13 @@ namespace CaeManager.Application.Common;
 /// (<see cref="ITenantSoloInbound"/>: línea Inbound vigente y ninguna línea Outbound) no ve ni opera Outbound.
 ///
 /// <para>
-/// Lo usan todas las puertas de Outbound: las páginas y endpoints marcados (<c>PaginaDeOutboundPorPapelAuthorizationHandler</c>),
-/// los comandos del módulo Outbound (<see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> con
-/// <see cref="PeticionDeOutbound"/>), el alcance de datos de las peticiones de Outbound (<c>AlcanceDatosService</c>), los
-/// paneles de Outbound del hub de Configuración, el asistente y el menú lateral (grupos Negocio, Operación y Control).
+/// Lo usan las puertas de backend de Outbound: los comandos del módulo Outbound
+/// (<see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> con <see cref="PeticionDeOutbound"/>), el alcance de datos
+/// de las peticiones de Outbound (<c>AlcanceDatosService</c>) y los endpoints mínimos marcados con <c>.DeOutbound()</c>
+/// (<c>PaginaDeOutboundPorPapelAuthorizationHandler</c>). La presentación todavía no: las páginas de Outbound, el menú
+/// lateral, el asistente y los paneles de Outbound del hub de Configuración siguen decidiendo solo por papel hasta que se
+/// decida qué ve ese Tenant (ocultar, mostrar en gris con explicación o rutas mixtas). Lo que esas pantallas ejecutan lo
+/// cierran igualmente la guarda y el alcance.
 /// </para>
 ///
 /// <para>

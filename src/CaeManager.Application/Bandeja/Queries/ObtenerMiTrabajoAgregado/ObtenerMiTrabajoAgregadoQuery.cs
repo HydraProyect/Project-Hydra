@@ -176,6 +176,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
       IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
 {
+    private static readonly bool EsDeOutbound = PeticionDeOutbound.Es(typeof(ObtenerMiTrabajoPorPartesQuery));
+
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
     {
         // La consulta agregada ya corre dentro de la puerta de acceso a datos (SerializacionAccesoDatosBehavior).
@@ -263,8 +265,13 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         // que el propio SingleAsync tiene que caer DENTRO del ámbito, o
         // ve cero filas — RLS no deja pasar la fila de ningún Tenant sin
         // AmbitoTenantExplicito activo).
+        // El ámbito de petición de Outbound («Inbound sin Outbound», 2026-11-18) también se fija aquí: la consulta por partes
+        // es una petición de flujo (IStreamRequest), que no pasa por AmbitoInboundBehavior, y lo que este método lee sin
+        // MediatR (el alcance de EsAlcanceCeroAsync, las Empresas) tiene que verlo igual que la consulta agregada, que sí
+        // pasa. Se cierra antes de cada yield, como el sellado por Tenant.
         try
         {
+            using (AmbitoPeticionOutbound.Fijar(EsDeOutbound))
             using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
             {
                 return new ParteMiTrabajoDto(0, 0, await ConstruirTenantAsync(tenant, hoy, cancellationToken));

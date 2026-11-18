@@ -3,7 +3,7 @@ namespace CaeManager.Application.Common;
 /// <summary>
 /// El criterio de papel puro que comparten las puertas de lo que no es Inbound (DN-21 del mapa de flujos de Inbound;
 /// B-02b y su hueco declarado; O-1 (b)): <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> para un comando que
-/// no es <see cref="IComandoInbound"/> ni de autoservicio, y, a través de <see cref="ICriterioDeOutbound"/>,
+/// no es <see cref="IComandoInbound"/> ni de autoservicio (la guarda lo aplica en línea, sin llamar a este método),
 /// <c>AlcanceDatosService</c> para el alcance de datos de Outbound y <c>PaginaDeOutboundPorPapelAuthorizationHandler</c>
 /// para las páginas y endpoints de Outbound. El Núcleo y Facturación (<c>NucleoCerradoConPapelInboundAuthorizationHandler</c>,
 /// O-1 (b)) no lo usan: se cierran solo con papel Inbound, y una operación que ya no autoriza la retira la revalidación del
@@ -20,9 +20,10 @@ namespace CaeManager.Application.Common;
 /// <para>
 /// <b>Para Outbound no basta con el papel</b> (decisión del 2026-11-18, «Inbound sin Outbound»): con el papel de Tenant de
 /// origen, un Tenant cuyo Producto Contratado es solo Inbound no ve ni opera Outbound. Esa condición la añade
-/// <see cref="ICriterioDeOutbound"/>, que es lo que debe consultar toda puerta de Outbound; este método solo es el papel, y
-/// fuera de <see cref="ICriterioDeOutbound"/> solo lo usa la guarda de comandos para lo que no es Inbound en general
-/// (también el Núcleo). <c>PeticionesDeOutboundTests</c> vigila que solo lo llamen las puertas conocidas.
+/// <see cref="ICriterioDeOutbound"/>, que es lo que debe consultar toda puerta de Outbound; este método solo es el papel.
+/// Fuera de <see cref="ICriterioDeOutbound"/> lo llaman el alcance (que le añade el criterio de Outbound dentro de las
+/// peticiones de Outbound) y tres puertas de presentación pendientes de decisión (páginas de Outbound, asistente y hub de
+/// Configuración). <c>PeticionesDeOutboundTests</c> vigila que solo lo llamen las puertas conocidas.
 /// </para>
 /// </summary>
 public static class CriterioDePapel

@@ -41,17 +41,39 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// usuario y de su selección, que se resuelven en cada petición HTTP: el Router (<c>Routes</c> sin modo interactivo)
 /// evalúa la página en cada petición, también en la navegación mejorada, no dentro de un circuito.
 /// </para>
+///
+/// <para>
+/// <b>Endpoints mínimos de Outbound y Producto Contratado</b> (decisión del 2026-11-18, «Inbound sin Outbound»): un
+/// endpoint marcado con <see cref="EndpointDeOutboundExtensions.DeOutbound{TBuilder}"/> (exportaciones y archivos) se niega
+/// también con el papel de Tenant de origen en un Tenant cuyo Producto Contratado es solo Inbound
+/// (<see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/>), igual que los comandos y el alcance. Las páginas
+/// todavía no: qué ve ese Tenant en una página de Outbound (oculta, en gris con explicación o ruta mixta) es presentación
+/// y está pendiente de decisión; hasta entonces entra, pero sus comandos y su alcance de Outbound se niegan. El criterio
+/// se resuelve solo para un endpoint marcado con el papel de Tenant de origen, y sin registrar falla al resolverlo.
+/// </para>
 /// </summary>
-public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(ICurrentUserService currentUserService) : IAuthorizationHandler
+public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
+    ICurrentUserService currentUserService, IServiceProvider servicios) : IAuthorizationHandler
 {
     public async Task HandleAsync(AuthorizationHandlerContext context)
     {
         if (!EsPaginaDeOutbound(context.Resource))
             return;
 
-        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(await currentUserService.ObtenerPapelActivoAsync()))
+        var papel = await currentUserService.ObtenerPapelActivoAsync();
+        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(papel))
+        {
+            context.Fail();
+            return;
+        }
+
+        if (papel == PapelActivo.TenantDeOrigen && EsEndpointDeOutbound(context.Resource)
+            && await servicios.GetRequiredService<ICriterioDeOutbound>().CierraPorSoloInboundAsync(papel))
             context.Fail();
     }
+
+    private static bool EsEndpointDeOutbound(object? recurso) =>
+        recurso is HttpContext http && http.GetEndpoint()?.Metadata.GetMetadata<EndpointDeOutbound>() is not null;
 
     public static bool EsPaginaDeOutbound(Type? pagina) =>
         pagina is not null && pagina.IsDefined(typeof(PaginaDeOutboundAttribute), inherit: false);
@@ -85,7 +107,10 @@ public sealed class EndpointDeOutbound
 
 public static class EndpointDeOutboundExtensions
 {
-    /// <summary>El endpoint es de Outbound: con papel Inbound recibe la denegación estándar aunque el rol cumpla.</summary>
+    /// <summary>
+    /// El endpoint es de Outbound: con papel Inbound, o con el de Tenant de origen en un Tenant solo Inbound
+    /// (<see cref="ICriterioDeOutbound"/>), recibe la denegación estándar aunque el rol cumpla.
+    /// </summary>
     public static TBuilder DeOutbound<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(EndpointDeOutbound.Instancia);

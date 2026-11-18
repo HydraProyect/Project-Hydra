@@ -14,10 +14,12 @@ namespace CaeManager.Architecture.Tests;
 /// del registro que cambie el módulo de una petición da rojo aquí hasta copiarla.</item>
 /// <item>El criterio de papel puro (<see cref="CriterioDePapel.AdmiteLoQueNoEsInbound"/>) solo se llama desde las puertas
 /// conocidas. Una puerta nueva de Outbound que lo usara directamente abriría Outbound al Tenant solo Inbound: tiene que
-/// pasar por <see cref="ICriterioDeOutbound"/>.</item>
+/// pasar por <see cref="ICriterioDeOutbound"/>. Las tres puertas de presentación que aún usan el papel puro (páginas,
+/// asistente y hub de Configuración) están listadas con su motivo: siguen visibles para el Tenant solo Inbound hasta la
+/// decisión de presentación, y retirarlas de la lista es parte de ese incremento.</item>
 /// </list>
 /// Mide por reflexión sobre el ensamblado compilado y por texto sobre <c>src</c>. Lo que no demuestra: que cada puerta
-/// niegue (eso lo prueban los tests de la guarda, del handler de páginas, del alcance y del menú).
+/// niegue (eso lo prueban los tests de la guarda, del handler de endpoints y del alcance).
 /// </summary>
 public class PeticionesDeOutboundTests
 {
@@ -59,7 +61,13 @@ public class PeticionesDeOutboundTests
         ["CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs"] =
             "el alcance: lo combina con ICriterioDeOutbound dentro de las peticiones de Outbound y lo usa solo fuera de ellas",
         ["CaeManager.Web/Services/Autorizacion/PaginaDeOutbound.cs"] =
-            "la reserva de CriterioDeOutboundEnComponentes cuando la composición no registra ICriterioDeOutbound",
+            "las páginas de Outbound: presentación pendiente de decisión (rama inbound/solo-inbound-presentacion); los " +
+            "endpoints mínimos del mismo handler ya preguntan a ICriterioDeOutbound",
+        ["CaeManager.Web/Features/AsistenteIa/AsistenteIa.razor.cs"] =
+            "presentación pendiente de decisión: lo que el asistente ejecuta es de Outbound y lo cierran la guarda y el alcance",
+        ["CaeManager.Web/Features/Configuracion/Pages/Configuracion.razor.cs"] =
+            "presentación pendiente de decisión: los paneles de Outbound del hub ejecutan peticiones de Outbound, que cierran " +
+            "la guarda y el alcance",
     };
 
     [Fact]

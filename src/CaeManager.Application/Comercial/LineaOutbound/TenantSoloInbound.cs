@@ -33,9 +33,9 @@ namespace CaeManager.Application.Comercial.LineaOutbound;
 /// </para>
 ///
 /// <para>
-/// Pasa por la <see cref="PuertaAccesoDatos"/> del scope cuando la hay: la leen el menú lateral, el asistente y el hub de
-/// Configuración fuera de MediatR, sobre el mismo <c>DbContext</c> del circuito que el resto del layout. Dentro de un
-/// despacho de MediatR la puerta es reentrante.
+/// Pasa por la <see cref="PuertaAccesoDatos"/> del scope cuando la hay, porque comparte el <c>DbContext</c> del circuito:
+/// la leen la guarda de comandos y el alcance dentro de un despacho de MediatR (donde la puerta es reentrante) y el handler
+/// de autorización de los endpoints mínimos de Outbound, fuera de él.
 /// </para>
 /// </summary>
 public interface ITenantSoloInbound

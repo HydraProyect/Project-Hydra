@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries;
 using CaeManager.Application.Inbound.ContratosAcceso.Queries.ObtenerContratosAcceso;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Common;
 using FluentAssertions;
 using Xunit;
 
@@ -27,6 +28,42 @@ public class AmbitoInboundBehaviorTests
 
         dentro.Should().BeTrue();
         AmbitoPeticionInbound.Activo.Should().BeFalse("se cierra al terminar");
+    }
+
+    /// <summary>
+    /// «Inbound sin Outbound» (decisión del 2026-11-18): el mismo behavior abre <see cref="AmbitoPeticionOutbound"/> solo
+    /// alrededor de una petición del módulo Outbound (<see cref="PeticionDeOutbound"/>), y una del Núcleo anidada no lo
+    /// hereda. Es lo que lee <c>AlcanceDatosService</c> para no dar alcance de Outbound al Tenant solo Inbound.
+    /// </summary>
+    [Fact]
+    public async Task Abre_el_ambito_de_Outbound_solo_en_una_peticion_de_Outbound_y_una_del_Nucleo_anidada_no_lo_hereda()
+    {
+        bool? enOutbound = null, enLaAnidada = null, alVolver = null, enInbound = null;
+        await new AmbitoInboundBehavior<CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound, Result>().Handle(
+            new CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound(), async _ =>
+            {
+                enOutbound = AmbitoPeticionOutbound.Activo;
+                await new AmbitoInboundBehavior<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>>().Handle(
+                    new ObtenerClientesAutorizadosQuery(), _ =>
+                    {
+                        enLaAnidada = AmbitoPeticionOutbound.Activo;
+                        return Task.FromResult<IReadOnlyList<ClienteAutorizadoDto>>([]);
+                    }, default);
+                alVolver = AmbitoPeticionOutbound.Activo;
+                return Result.Exito();
+            }, default);
+        await new AmbitoInboundBehavior<ObtenerContratosAccesoQuery, IReadOnlyList<ContratoAccesoDto>>().Handle(
+            new ObtenerContratosAccesoQuery(), _ =>
+            {
+                enInbound = AmbitoPeticionOutbound.Activo;
+                return Task.FromResult<IReadOnlyList<ContratoAccesoDto>>([]);
+            }, default);
+
+        enOutbound.Should().BeTrue();
+        enLaAnidada.Should().BeFalse("una petición del Núcleo dentro de una de Outbound no hereda el ámbito");
+        alVolver.Should().BeTrue();
+        enInbound.Should().BeFalse("una petición de Inbound no es de Outbound");
+        AmbitoPeticionOutbound.Activo.Should().BeFalse("se cierra al terminar");
     }
 
     [Fact]
