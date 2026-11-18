@@ -1,5 +1,6 @@
 using CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 using CaeManager.Architecture.Tests.Soporte;
+using CaeManager.Infrastructure.DependencyInjection;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -11,9 +12,10 @@ namespace CaeManager.Architecture.Tests;
 /// El conector habla con la API de un proveedor de plataforma CAE (hoy CTAIMACAE.net) con la credencial de la Conexión del
 /// Tenant propietario. La puerta decide antes que no haya transacción abierta, que haya Tenant y no sea una Sesión
 /// Privilegiada, que la conexión sea del Tenant propietario, el rol efectivo con escritura, el kill switch de la plataforma,
-/// el Add-on del Tenant y la credencial; un tipo de Application o de Web que inyectara el conector, o lo pidiera dentro de un método, llamaría a la
-/// API externa sin ninguna de esas comprobaciones, y ningún test de comportamiento lo vería. Infrastructure queda fuera del
-/// escaneo: allí viven la implementación y su registro.
+/// el Add-on del Tenant y la credencial; un tipo de Application, de Web o de Infrastructure (un servicio de fondo, por
+/// ejemplo) que inyectara el conector, o lo pidiera dentro de un método, llamaría a la API externa sin ninguna de esas
+/// comprobaciones, y ningún test de comportamiento lo vería. En Infrastructure solo lo nombran su implementación y su
+/// registro: implementar no es inyectar, y el registro solo resuelve.
 /// </para>
 ///
 /// <para>
@@ -22,13 +24,19 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
 {
-    private static readonly string[] EnsambladosEscaneados = ["CaeManager.Application", "CaeManager.Web"];
+    private static readonly string[] EnsambladosEscaneados = ["CaeManager.Application", "CaeManager.Web", "CaeManager.Infrastructure"];
 
     private const string FicheroDelPuerto = "src/CaeManager.Application/Integraciones/ConectoresPlataformaCae/IConectorPlataformaCae.cs";
     private const string FicheroDeLaPuerta = "src/CaeManager.Application/Integraciones/ConectoresPlataformaCae/OperacionesConectorPlataformaCae.cs";
+    private const string FicheroDeLaImplementacion = "src/CaeManager.Infrastructure/Integraciones/ConectoresPlataformaCae/Ctaima/ConectorCtaimaCae.cs";
+    private const string FicheroDelRegistro = "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs";
+
+    /// <summary>Es <c>internal</c> y este proyecto no tiene <c>InternalsVisibleTo</c> de Infrastructure: se resuelve por nombre, y falla si cambia.</summary>
+    private static readonly Type ImplementacionCtaima = typeof(InfrastructureServiceCollectionExtensions).Assembly
+        .GetType("CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ConectorCtaimaCae", throwOnError: true)!;
 
     [Fact]
-    public void Solo_la_puerta_inyecta_el_conector_en_Application_y_Web()
+    public void Solo_la_puerta_inyecta_el_conector()
     {
         var consumidores = EnsambladosEscaneados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
@@ -46,10 +54,11 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
     /// <summary>
     /// El escaneo de arriba mira constructores, campos y propiedades: no ve un
     /// <c>GetRequiredService&lt;IConectorPlataformaCae&gt;()</c>, un <c>typeof</c> ni un cast dentro de un método. Este lee
-    /// también el IL de los cuerpos.
+    /// también el IL de los cuerpos y las interfaces implementadas, así que la lista nombra además a la implementación y al
+    /// registro.
     /// </summary>
     [Fact]
-    public void Ningun_cuerpo_de_metodo_de_Application_ni_de_Web_pide_el_conector_fuera_de_la_puerta()
+    public void Ningun_cuerpo_de_metodo_pide_el_conector_fuera_de_la_puerta()
     {
         var nombran = EnsambladosEscaneados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
@@ -57,27 +66,28 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
             .Distinct()
             .ToList();
 
-        nombran.Should().BeEquivalentTo([typeof(OperacionesConectorPlataformaCae)],
+        nombran.Should().BeEquivalentTo(
+            [typeof(OperacionesConectorPlataformaCae), ImplementacionCtaima, typeof(InfrastructureServiceCollectionExtensions)],
             "pedir el conector dentro de un método saltaría la puerta igual que inyectarlo");
     }
 
     /// <summary>
-    /// Identificadores y literales de <c>src</c> de Application y Web: un <c>Type.GetType("…IConectorPlataformaCae")</c> más
+    /// Identificadores y literales de <c>src</c>: un <c>Type.GetType("…IConectorPlataformaCae")</c> más
     /// <c>GetService(Type)</c> no nombra el tipo en el IL, solo en una cadena.
     /// </summary>
     [Fact]
-    public void Ningun_fichero_de_Application_ni_de_Web_nombra_el_conector_fuera_de_su_definicion_y_la_puerta()
+    public void Ningun_fichero_de_src_nombra_el_conector_fuera_de_su_definicion_la_puerta_la_implementacion_y_el_registro()
     {
         var ficheros = FuentesDeSrc.Analisis
-            .Where(f => f.Key.StartsWith("src/CaeManager.Application/", StringComparison.Ordinal)
-                        || f.Key.StartsWith("src/CaeManager.Web/", StringComparison.Ordinal))
             .Where(f => f.Value.Palabras.ContainsKey(nameof(IConectorPlataformaCae))
                         || (f.Value.Literales?.ContainsKey(nameof(IConectorPlataformaCae)) ?? false))
             .Select(f => f.Key)
             .ToList();
 
-        ficheros.Should().BeEquivalentTo([FicheroDelPuerto, FicheroDeLaPuerta],
+        ficheros.Should().BeEquivalentTo([FicheroDelPuerto, FicheroDeLaPuerta, FicheroDeLaImplementacion, FicheroDelRegistro],
             "el barrido de fuentes ve además un uso en Program.cs o en una cadena que lo resuelva por reflexión");
+        FuentesDeSrc.Analisis[FicheroDelRegistro].Palabras[nameof(IConectorPlataformaCae)]
+            .Should().Be(1, "la composición registra el conector una vez y no lo pide para nada más");
     }
 
     [Fact]
@@ -88,6 +98,7 @@ public class ConsumidoresDelConectorPlataformaCaeAcotadosTests
             .Should().Contain(typeof(IEnumerable<IConectorPlataformaCae>));
         InyectaElConector(typeof(OperacionesConectorPlataformaCae)).Should().BeTrue(
             "el escaneo de firmas ve el conector dentro de un IEnumerable<>, no solo como parámetro directo");
+        InyectaElConector(ImplementacionCtaima).Should().BeFalse("implementar el puerto no es inyectarlo");
         FuentesDeSrc.Analisis.Should().ContainKey(FicheroDeLaPuerta, "las claves del barrido son rutas relativas con barra");
         FuentesDeSrc.Analisis[FicheroDeLaPuerta].Palabras.Should().ContainKey(nameof(IConectorPlataformaCae));
     }

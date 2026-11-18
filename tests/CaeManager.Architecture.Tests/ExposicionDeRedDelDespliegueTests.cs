@@ -82,6 +82,15 @@ public class ExposicionDeRedDelDespliegueTests
             "una segunda llamada a RedactLoggedHeaders, con lista o predicado, sustituiría el tachado total");
         registro.Should().NotContain("AplicarResilienciaHttp", "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
         registro.Should().NotContain("AddStandardResilienceHandler");
+
+        // Fuera del tramo: un segundo AddHttpClient<CtaimaCaeClient> vuelve al mismo cliente con nombre y su
+        // RedactLoggedHeaders o su resiliencia ganarían; un ConfigureHttpClientDefaults aplicaría reintentos o un
+        // tachado parcial a todos los clientes, este incluido.
+        System.Text.RegularExpressions.Regex.Matches(contenido, @"AddHttpClient<[\w.]*CtaimaCaeClient>").Count.Should().Be(1,
+            "el cliente de CTAIMACAE.net se configura en un único registro");
+        Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => File.ReadAllText(f).Contains("ConfigureHttpClientDefaults", StringComparison.Ordinal))
+            .Should().BeEmpty("una configuración por defecto de todos los HttpClient alcanzaría también al de CTAIMACAE.net");
     }
 
     private static string RaizDelRepositorio()
