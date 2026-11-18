@@ -31,7 +31,7 @@ public class ConectorCtaimaCaeTests
     private readonly LoggerQueCaptura _logger = new();
 
     private ConectorCtaimaCae Crear(TimeSpan? timeout = null) =>
-        new(new ClienteHttpCtaimaCae(
+        new(new CtaimaCaeClient(
             new HttpClient(_handler) { Timeout = timeout ?? TimeSpan.FromSeconds(10) },
             Options.Create(new CtaimaCaeOptions()),
             _logger));
@@ -73,15 +73,17 @@ public class ConectorCtaimaCaeTests
     [Fact]
     public async Task Un_alta_201_sin_employeeId_devuelve_el_guid()
     {
-        _handler.Responder(HttpStatusCode.Created, """{"guid":"9b2f-guid","employeeId":0}""");
+        _handler.Responder(HttpStatusCode.Created, """{"guid":"5F0C3B1E-2D4A-4C6B-9E8F-0A1B2C3D4E5F","employeeId":0}""");
 
         var resultado = await Crear().DarDeAltaTrabajadorAsync(new CredencialApiConector(Clave), TenantCtaima, Alta, CancellationToken.None);
 
-        resultado.Valor.Valor.Should().Be("9b2f-guid");
+        resultado.Valor.Valor.Should().Be("5f0c3b1e-2d4a-4c6b-9e8f-0a1b2c3d4e5f");
     }
 
     [Theory]
     [InlineData("""{"employeeId":0}""")]
+    [InlineData("""{"guid":"No employee was found","employeeId":0}""")]
+    [InlineData("""{"guid":"00000000-0000-0000-0000-000000000000","employeeId":-3}""")]
     [InlineData("null")]
     [InlineData("<html>no es json</html>")]
     public async Task Un_alta_201_con_un_cuerpo_sin_identificador_o_ilegible_es_inesperado(string cuerpo)
@@ -157,8 +159,17 @@ public class ConectorCtaimaCaeTests
     {
         var resultado = await Crear().DarDeAltaTrabajadorAsync(new CredencialApiConector(clave), TenantCtaima, Alta, CancellationToken.None);
 
-        resultado.Fallo.Should().Be(MotivoUsoConector.CredencialRechazada);
+        resultado.Fallo.Should().Be(MotivoUsoConector.SinCredencial, "la plataforma no llegó a ver la llamada");
         _handler.Peticiones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_manejador_real_no_sigue_redirecciones_ni_guarda_cookies_entre_conexiones()
+    {
+        using var manejador = CtaimaCaeClient.CrearManejadorSinRedirecciones();
+
+        manejador.AllowAutoRedirect.Should().BeFalse("la clave va en una cabecera que .NET reenviaría al destino del 3xx");
+        manejador.UseCookies.Should().BeFalse("el manejador del pool se comparte entre las conexiones de todos los Tenants");
     }
 
     [Theory]
@@ -192,15 +203,18 @@ public class ConectorCtaimaCaeTests
     }
 
     [Theory]
-    [InlineData("12345678Z", "NIF")]
-    [InlineData("x1234567l", "NIF")]
-    [InlineData("PAA123456", "Others")]
-    [InlineData("1234567Z", "Others")]
-    public void El_tipo_de_documento_es_NIF_solo_para_un_DNI_o_un_NIE(string documento, string tipo)
+    [InlineData("12345678Z", "NIF", "12345678Z")]
+    [InlineData("x1234567l", "NIF", "X1234567L")]
+    [InlineData("12.345.678-z", "NIF", "12345678Z")]
+    [InlineData(" 12345678 Z ", "NIF", "12345678Z")]
+    [InlineData("PAA-123456", "Others", "PAA-123456")]
+    [InlineData("1234567Z", "Others", "1234567Z")]
+    public void El_tipo_de_documento_es_NIF_solo_para_un_DNI_o_un_NIE(string documento, string tipo, string enviado)
     {
         var peticion = ConectorCtaimaCae.PeticionDeAlta(Alta with { Dni = documento });
 
         peticion.IdentityCardType.Should().Be(tipo);
+        peticion.IdentityCardNumber.Should().Be(enviado);
         peticion.ToString().Should().NotContain(peticion.IdentityCardNumber, "los datos del Trabajador no se escriben en un log");
     }
 
@@ -264,7 +278,7 @@ public class ConectorCtaimaCaeTests
         }
     }
 
-    private sealed class LoggerQueCaptura : ILogger<ClienteHttpCtaimaCae>
+    private sealed class LoggerQueCaptura : ILogger<CtaimaCaeClient>
     {
         private readonly List<string> _entradas = [];
 

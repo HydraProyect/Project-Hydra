@@ -280,6 +280,7 @@ excepcion Infrastructure.Persistence.Repositories.ConversacionRepository = Outbo
 excepcion Infrastructure.Persistence.SerializacionAltasAcreditacionEmpresa = Outbound provisional  # M-3: implementa ISerializacionAltasAcreditacionEmpresa (Application.Documentos.Acreditacion)
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaHostedService = Outbound provisional  # M-3
 excepcion Infrastructure.Documentos.ConciliacionAcreditacionesEmpresaOptions       = Outbound provisional  # M-3
+excepcion Infrastructure.Integraciones.ConectoresPlataformaCae = Outbound provisional  # A-2: las implementaciones de IConectorPlataformaCae siguen a su puerto (Application.Integraciones.ConectoresPlataformaCae)
 # Infrastructure/Dashboard solo tiene el trabajo de fondo del cierre mensual (fila A'). Sin área, como Domain.Dashboard.
 excepcion Infrastructure.Dashboard.CierreMensualCuadroDireccionHostedService      = Facturacion provisional  # D-M1, A'
 

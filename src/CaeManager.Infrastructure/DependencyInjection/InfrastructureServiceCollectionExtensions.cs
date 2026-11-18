@@ -385,17 +385,17 @@ public static class InfrastructureServiceCollectionExtensions
             .Bind(configuration.GetSection(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions.SeccionConfiguracion))
             .Validate(o => o.EsValida(), "Integraciones:CtaimaCae necesita una UrlBase HTTPS absoluta acabada en barra y un TimeoutSegundos entre 1 y 120.")
             .ValidateOnStart();
-        services.AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae>((sp, cliente) =>
+        services.AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient>((sp, cliente) =>
             {
                 var opcionesCtaima = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<
                     CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions>>().Value;
                 cliente.Timeout = TimeSpan.FromSeconds(opcionesCtaima.TimeoutSegundos);
-                cliente.MaxResponseContentBufferSize = CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.TamanoMaximoRespuesta;
+                cliente.MaxResponseContentBufferSize = CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.TamanoMaximoRespuesta;
             })
-            .ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CrearManejadorSinRedirecciones)
+            .ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)
             .RedactLoggedHeaders([
-                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CabeceraClave,
-                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CabeceraTenant,
+                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CabeceraClave,
+                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CabeceraTenant,
             ]);
         services.AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae,
             CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ConectorCtaimaCae>();

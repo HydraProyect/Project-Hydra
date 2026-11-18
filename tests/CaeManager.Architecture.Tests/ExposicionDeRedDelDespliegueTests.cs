@@ -67,14 +67,14 @@ public class ExposicionDeRedDelDespliegueTests
         var contenido = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
             "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"));
 
-        var inicio = contenido.IndexOf("AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae>", StringComparison.Ordinal);
+        var inicio = contenido.IndexOf("AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient>", StringComparison.Ordinal);
         inicio.Should().BeGreaterThan(0, "el cliente de CTAIMACAE.net se registra con AddHttpClient en este fichero");
         var fin = contenido.IndexOf("AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae", inicio, StringComparison.Ordinal);
         fin.Should().BeGreaterThan(inicio, "el conector se registra justo después de su cliente");
         var registro = contenido[inicio..fin];
 
-        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CrearManejadorSinRedirecciones)");
-        registro.Should().Contain("RedactLoggedHeaders(").And.Contain("ClienteHttpCtaimaCae.CabeceraClave").And.Contain("ClienteHttpCtaimaCae.CabeceraTenant");
+        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)");
+        registro.Should().Contain("RedactLoggedHeaders(").And.Contain("CtaimaCaeClient.CabeceraClave").And.Contain("CtaimaCaeClient.CabeceraTenant");
         registro.Should().NotContain("AplicarResilienciaHttp", "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
         registro.Should().NotContain("AddStandardResilienceHandler");
     }
