@@ -682,6 +682,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         [
             new RequisitoParecidoDto(OrigenSugerencia.TipoDocumentoDelTenant, TipoClienteId, "Tipo de Cliente parecido", "su nombre", 0.9),
             new RequisitoParecidoDto(OrigenSugerencia.TipoDocumentoDelTenant, TipoLibreId, "Formación en altura parecida", "su nombre", 0.8),
+            new RequisitoParecidoDto(OrigenSugerencia.TipoDocumentoDelTenant, TipoArchivadoId, "Tipo archivado parecido", "su nombre", 0.7),
         ];
         var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));

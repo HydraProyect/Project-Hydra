@@ -217,7 +217,7 @@
     <value>Tria a què s&apos;aplica la plantilla.</value>
   </data>
   <data name="AltaSinReferencias" xml:space="preserve">
-    <value>No queda res per triar en aquest nivell: tot el que veus ja té la seua plantilla.</value>
+    <value>No queda res per triar en aquest nivell: tot el que veus ja té la seva plantilla.</value>
   </data>
   <data name="RequisitosTitulo" xml:space="preserve">
     <value>Requisits</value>
@@ -235,7 +235,7 @@
     <value>No trobem aquesta plantilla</value>
   </data>
   <data name="PlantillaNoEncontradaDetalle" xml:space="preserve">
-    <value>No existeix o no és a la teua cartera.</value>
+    <value>No existeix o no és a la teva cartera.</value>
   </data>
   <data name="OrigenLegal" xml:space="preserve">
     <value>Legal</value>
@@ -250,7 +250,7 @@
     <value>Exigència del Client</value>
   </data>
   <data name="OrigenPropio" xml:space="preserve">
-    <value>Propi de la teua organització</value>
+    <value>Propi de la teva organització</value>
   </data>
   <data name="EntidadEmpresa" xml:space="preserve">
     <value>Empresa</value>
@@ -394,7 +394,7 @@
     <value>Crea «{0}» com a requisit propi</value>
   </data>
   <data name="CrearPropioAyuda" xml:space="preserve">
-    <value>És propi de la teua organització: només existeix a les teues plantilles.</value>
+    <value>És propi de la teva organització: només existeix a les teves plantilles.</value>
   </data>
   <data name="CrearPropioAria" xml:space="preserve">
     <value>Crea el requisit propi {0}</value>
@@ -418,7 +418,7 @@
     <value>Escriu els mesos de vigència com un número.</value>
   </data>
   <data name="VigenciaAyudaFija" xml:space="preserve">
-    <value>El document val aquest temps des de la seua emissió.</value>
+    <value>El document val aquest temps des de la seva emissió.</value>
   </data>
   <data name="VigenciaAyudaDocumento" xml:space="preserve">
     <value>La data de venciment és la que figura en el mateix document.</value>

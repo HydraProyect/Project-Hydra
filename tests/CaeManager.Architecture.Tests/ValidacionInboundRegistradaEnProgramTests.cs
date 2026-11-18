@@ -33,13 +33,35 @@ public class ValidacionInboundRegistradaEnProgramTests
         Regex.Matches(ProgramSinComentarios(), @"\bOpcionesValidacionInbound\b").Count.Should().Be(0);
     }
 
-    // Primero los comentarios de línea y después los de bloque: Program.cs tiene «/*» dentro de comentarios de línea
-    // (rutas como /cuenta/*), y quitar antes los bloques podría comerse código hasta el siguiente «*/».
+    [Fact]
+    public void La_llamada_de_la_validacion_Inbound_no_esta_dentro_de_ningun_bloque()
+    {
+        // Una llamada metida tras otra sentencia dentro de un «if» por entorno también va precedida de «;»: lo que la delata es
+        // que haya más «{» abiertas que cerradas antes de ella. Program.cs usa sentencias de nivel superior.
+        var programa = ProgramSinComentarios();
+        var llamada = Regex.Match(programa, @"\bAddValidacionInbound\(");
+        llamada.Success.Should().BeTrue("Program.cs registra la validación Inbound");
+
+        var antes = programa[..llamada.Index];
+        antes.Count(c => c == '{').Should().Be(antes.Count(c => c == '}'),
+            "la llamada va en el nivel superior de Program.cs, no dentro de una rama por entorno");
+    }
+
+    [Fact]
+    public void Program_no_nombra_la_clave_de_la_validacion_Inbound()
+    {
+        // Reescribir Inbound:Validacion:Habilitado según el entorno antes de la llamada ataría la validación al entorno sin
+        // tocar la llamada ni OpcionesValidacionInbound. La clave solo se lee dentro de AddValidacionInbound.
+        Regex.Matches(ProgramSinComentarios(), @"Inbound:Validacion|""Validacion""").Count.Should().Be(0);
+    }
+
+    // Los comentarios de línea y de bloque se quitan de una sola pasada: gana el que empieza antes, así que un «/*» dentro de
+    // un comentario de línea (rutas como /cuenta/*) no abre un bloque ni un «//» dentro de un bloque cierra nada de más. Quitar
+    // primero un tipo y luego el otro se come código si el otro aparece dentro de uno del primero.
     private static string ProgramSinComentarios()
     {
         var codigo = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
-        codigo = Regex.Replace(codigo, @"(?<!:)//[^\n]*", string.Empty);
-        return Regex.Replace(codigo, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        return Regex.Replace(codigo, @"(?<!:)//[^\n]*|/\*.*?\*/", string.Empty, RegexOptions.Singleline);
     }
 
     private static string RaizDelRepositorio()
