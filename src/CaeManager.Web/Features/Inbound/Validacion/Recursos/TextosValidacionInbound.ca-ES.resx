@@ -66,4 +66,7 @@
   <data name="SubidoPorTiQuienValida" xml:space="preserve">
     <value>El pot validar un altre Gestor CAE amb aquest contracte a la seva cartera o l'Administrador d'aquesta organitzaci&#243;.</value>
   </data>
+  <data name="ValidarBajoImpersonacion" xml:space="preserve">
+    <value>Mentre actues en nom d'un altre usuari no es pot validar a Inbound. Rebutjar continua disponible.</value>
+  </data>
 </root>

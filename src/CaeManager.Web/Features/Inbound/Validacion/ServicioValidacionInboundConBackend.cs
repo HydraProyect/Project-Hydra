@@ -165,12 +165,19 @@ public sealed class ServicioValidacionInboundConBackend(
         }
         // D-12: el bloqueo lo decide el Command; aquí solo se dice en el idioma de la pantalla.
         if (resultado.EsFallido)
-            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(
-                resultado.Error == EvidenciaInboundErrores.ValidaLoQueSubio ? textos["SubidoPorTi"] : resultado.Error.Mensaje);
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(MensajeDeFallo(resultado.Error));
 
         _filas.Remove(id);
         // Sin B-22 no hay plazo de Deshacer: el veredicto es firme desde el guardado.
         return RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(resultado.Valor, veredicto, Deshacible: false));
+    }
+
+    // Los dos bloqueos de D-12 se dicen con el texto de la pantalla (es y ca-ES); el resto, con el del Command.
+    private string MensajeDeFallo(Error error)
+    {
+        if (error == EvidenciaInboundErrores.ValidaLoQueSubio) return textos["SubidoPorTi"];
+        if (error == EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible) return textos["ValidarBajoImpersonacion"];
+        return error.Mensaje;
     }
 
     private RespuestaValidacion<VeredictoRegistrado> NoEncontrado() =>

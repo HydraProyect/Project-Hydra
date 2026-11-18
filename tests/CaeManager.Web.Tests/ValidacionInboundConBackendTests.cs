@@ -212,6 +212,41 @@ public class ValidacionInboundConBackendTests : BunitContext
             "el veredicto no se registró: el documento sigue pendiente");
     }
 
+    /// <summary>
+    /// D-12: los dos bloqueos de Validar que decide el Command (lo subió quien valida; hay impersonación) se dicen con el
+    /// texto de la pantalla en su idioma, no con el literal español del error.
+    /// </summary>
+    [Theory]
+    [InlineData("EvidenciaInbound.ValidaLoQueSubio", "es-ES", "Lo subiste tú: lo valida otra persona.")]
+    [InlineData("EvidenciaInbound.ValidaLoQueSubio", "ca-ES", "L'has pujat tu: el valida una altra persona.")]
+    [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "es-ES",
+        "Mientras actúas en nombre de otro usuario no se puede validar en Inbound. Rechazar sigue disponible.")]
+    [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "ca-ES",
+        "Mentre actues en nom d'un altre usuari no es pot validar a Inbound. Rebutjar continua disponible.")]
+    public void Un_bloqueo_D12_del_servidor_se_dice_en_el_idioma_de_la_pantalla(string codigo, string cultura, string esperado)
+    {
+        var error = codigo == EvidenciaInboundErrores.ValidaLoQueSubio.Codigo
+            ? EvidenciaInboundErrores.ValidaLoQueSubio
+            : EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible;
+        _mediador.Respuesta = Result.Fallo<Guid>(error);
+        var culturaPrevia = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(cultura);
+            var cut = Detalle(DocA);
+
+            Pulsar(cut, "Validar");
+            Confirmar(cut);
+
+            _mediador.Comandos.Should().ContainSingle();
+            Services.GetRequiredService<ToastService>().Mensajes.Select(m => m.Mensaje).Should().Contain(esperado);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = culturaPrevia;
+        }
+    }
+
     [Fact]
     public void Una_validacion_del_Command_se_dice_en_la_pantalla_y_el_documento_sigue_pendiente()
     {
