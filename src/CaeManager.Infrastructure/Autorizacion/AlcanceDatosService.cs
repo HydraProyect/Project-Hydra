@@ -253,6 +253,92 @@ public class AlcanceDatosService(
         await ObtenerAlcanceDeCarteraAsync(cancellationToken) is { SinRestriccion: true } or { TenantEntero: true };
 
     /// <summary>
+    /// Lista blanca de la rama de triaje de <see cref="TriajeVisibleAsync"/> fuera del acceso total: los roles de gestión
+    /// de Comunicaciones. Cerrada: un rol nuevo queda fuera hasta que alguien lo decida. Es el mismo conjunto que
+    /// <c>RolesComunicaciones.Gestion</c> (Web), <c>AccesoATriage.Roles</c> y la puerta de lectura de
+    /// <c>AccesoAlertaCritica</c> (Application); <c>RolesDeTriajeParidadTests</c> fija que no se separen.
+    /// </summary>
+    public static readonly IReadOnlySet<string> RolesQueVenTriaje = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta
+    };
+
+    /// <summary>
+    /// La cola de triaje de Comunicaciones (D-6 b, R-3a; contrato en <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>).
+    /// <list type="number">
+    /// <item>Con acceso total en el Tenant, sí. Es el acceso total EFECTIVO: el real
+    /// (<see cref="TieneAccesoTotalRealAsync"/>, que ata la Sesión Privilegiada a su Tenant objetivo) salvo que la lente de
+    /// demo Gestor lo retire; con la lente, decide la regla de abajo con la cartera de ese Gestor, igual que para un
+    /// Gestor CAE real. La lente solo estrecha.</item>
+    /// <item>Con una Sesión Privilegiada sin acceso total aquí (otro Tenant u otra capacidad), no, tenga el rol que tenga.</item>
+    /// <item>Fuera de eso, solo un rol efectivo de <see cref="RolesQueVenTriaje"/> con un ámbito efectivo del Tenant entero
+    /// (<see cref="AlcanzaElTenantEnteroAsync"/>): un ámbito acotado (cartera ∩ operación, ADR-011) o ninguno no ve un
+    /// hilo que no tiene cartera que lo acote. Rol nulo o desconocido, no.</item>
+    /// </list>
+    /// Se pregunta antes el rol que la cartera, así que un rol que no puede ver triaje no lee la base.
+    /// </summary>
+    public async Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default)
+    {
+        if (await TieneAccesoTotalAsync(cancellationToken)) return true;
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return false;
+
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || !RolesQueVenTriaje.Contains(rol)) return false;
+
+        return await AlcanzaElTenantEnteroAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// El buzón personal propio (D-6 b, R-3a; contrato en <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>):
+    /// la segunda condición de la rama sin ancla de <see cref="VisibilidadConversacion"/>. Falla cerrado antes de leer la
+    /// base, por este orden:
+    /// <list type="number">
+    /// <item>Con cualquier Sesión Privilegiada, Impersonación incluida: el usuario de la sesión es el Actor real (el claim
+    /// de identidad no cambia al simular), un Actor de Plataforma TALVEG que no es Gestor CAE del Tenant; y el buzón
+    /// personal del Usuario simulado no se abre por esta vía.</item>
+    /// <item>Con la lente de demo Gestor (la única que cambia la autorización, como en <see cref="TieneAccesoTotalAsync"/>):
+    /// la lente solo estrecha, y abrir el buzón del Gestor CAE de la lente sería ampliar. Las vistas de Dirección y de
+    /// Coordinación usan la autorización real, y con ella el buzón propio de la cuenta.</item>
+    /// <item>Sin un rol efectivo de <see cref="RolesQueVenTriaje"/> en este Tenant (por ejemplo, el rol Cliente).</item>
+    /// <item>Con un papel sin alcance de datos (<see cref="PapelSinAlcanceDeDatosAsync"/>): una selección cuya Asignación de
+    /// Operación dejó de autorizar con el circuito abierto, o el papel Inbound fuera de una petición de Inbound. Es el mismo
+    /// corte que cierra la cartera y el acceso total, para que el papel Inbound no abra por esta vía lo que no abre por
+    /// las demás.</item>
+    /// <item>Con un ámbito efectivo que no concede nada (<see cref="AlcanceCartera.NoConcedeNada"/>): ADR-011, cartera ∩
+    /// operación. Sin una Asignación de Cartera vigente bajo una Asignación de Operación vigente que la ampare, o con
+    /// ámbito ninguno, el mismo criterio que deja vacías las listas de Clientes, Centros y Empresas cierra también el buzón
+    /// personal: si Marta, Gestora CAE del Operador CAE externo, pierde su Asignación de Cartera en el Tenant beneficiario,
+    /// deja de ver allí los hilos sin ancla de su buzón aunque la conexión siga Habilitada. Lee la cartera ya memoizada
+    /// por <see cref="TriajeVisibleAsync"/>, que la lista y el detalle piden antes.</item>
+    /// <item>Sin usuario o sin Tenant actual.</item>
+    /// </list>
+    /// La consulta va por el contexto con filtro de Tenant y de borrado lógico (y RLS), y además compara el Tenant de la
+    /// fila con el actual: una conexión de otro Tenant, eliminada, deshabilitada o con error, o un buzón compartido, no
+    /// entra. Sin memoización: la lista y el bloqueo por buzón la piden una vez, y el detalle solo con un hilo sin ancla.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default)
+    {
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return [];
+        if (await ObtenerGestorDeLenteAsync(cancellationToken) is not null) return [];
+
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || !RolesQueVenTriaje.Contains(rol)) return [];
+        if (await PapelSinAlcanceDeDatosAsync()) return [];
+        if ((await ObtenerAlcanceDeCarteraAsync(cancellationToken)).NoConcedeNada) return [];
+
+        if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId) return [];
+        if (tenantActual.TenantId is not { } tenant) return [];
+
+        return await dbContext.ConexionesIntegracion
+            .Where(c => c.TenantId == tenant
+                        && c.GestorPropietarioId == usuarioId
+                        && !c.EsBuzonCompartido
+                        && c.Estado == CaeManager.Domain.Integraciones.EstadoConexionIntegracion.Habilitada)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// El rol con el que se calcula el alcance de datos: el rol efectivo, salvo cuando la sesión
     /// está limitada a Consulta por login local. Entonces el alcance sigue siendo el del rol real
     /// (decisión Chris 2026-10-20: la restricción nunca amplía el alcance) y Consulta solo quita
@@ -481,6 +567,12 @@ public class AlcanceDatosService(
         public static readonly AlcanceCartera Universal = new(false, true, []);
         public static readonly AlcanceCartera Ninguno = new(false, false, []);
         public static AlcanceCartera DeLista(IReadOnlyList<Guid> clienteIds) => new(false, false, clienteIds);
+
+        /// <summary>
+        /// Ni sin restricción, ni el Tenant entero, ni ningún Cliente empresarial: <see cref="Ninguno"/> o una lista vacía
+        /// (sin Asignación de Cartera efectiva). Es el estado en que las listas de alcance salen vacías.
+        /// </summary>
+        public bool NoConcedeNada => !SinRestriccion && !TenantEntero && ClienteIds.Count == 0;
 
         /// <summary>Intersección: solo puede estrechar. Sin restricción ⊇ Tenant entero ⊇ lista.</summary>
         public AlcanceCartera Intersecar(AlcanceCartera otro) =>

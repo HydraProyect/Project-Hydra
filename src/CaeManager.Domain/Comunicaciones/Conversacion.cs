@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Comunicaciones;
 /// ConversacionCorreo en el paso 0 del rediseño, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 16.2). ClienteId null significa que el
 /// remitente todavía no se ha resuelto contra ningún Cliente — la
-/// conversación cae en la cola de triage hasta que alguien la asigna
+/// conversación cae en la cola de triaje hasta que alguien la asigna
 /// (AsignarCliente). ConexionIntegracionId/HiloExternoId (P3-33, la
 /// "siguiente iteración" que § 12.6 dejaba planteada) identifican qué buzón
 /// conectado atiende el hilo y el conversationId de Graph para el threading
@@ -61,12 +61,13 @@ public class Conversacion : EntidadBase
     /// documentación — hoy solo lo pone la reclamación de ámbito Empresa
     /// (DEC-7). Es un ancla de ALCANCE, no un segundo "cliente": existe
     /// para que el hilo se acote a quien tiene esa Empresa en cartera en vez
-    /// de caer en la cola de triage, que por definición es compartida
-    /// (ver § 12.4 y AlcanceDatosServiceExtensions.ConversacionVisibleAsync).
+    /// de caer en la cola de triaje, que no tiene cartera que la acote y solo
+    /// ve quien alcanza el Tenant entero (D-6 b, R-3a; ver
+    /// AlcanceDatosServiceExtensions.ConversacionVisibleAsync).
     ///
     /// Excluyente con <see cref="ClienteId"/>: un hilo tiene como mucho un
     /// ancla. Con las dos en null sigue significando lo de siempre —
-    /// remitente todavía sin resolver, cola de triage.
+    /// remitente todavía sin resolver, cola de triaje.
     /// </summary>
     public Guid? EmpresaId { get; private set; }
 
@@ -260,14 +261,14 @@ public class Conversacion : EntidadBase
         ConversacionAnteriorId = anterior.Id;
     }
 
-    /// <summary>La continuación conserva las coordenadas de acceso del hilo; nunca vuelve a la cola de triage.</summary>
+    /// <summary>La continuación conserva las coordenadas de acceso del hilo; nunca vuelve a la cola de triaje.</summary>
     public static Conversacion ContinuarCorreo(Conversacion anterior, string asunto)
     {
         if (anterior.Canal != CanalConversacion.Correo || anterior.Estado != EstadoConversacion.Cerrada
             || anterior.ConexionIntegracionId is null || anterior.HiloExternoId is null)
             throw new ArgumentException("Solo se puede continuar un hilo de correo cerrado.", nameof(anterior));
 
-        // ClienteId es el ancla legacy de Cliente empresarial: copiarla evita ampliar la visibilidad a triage.
+        // ClienteId es el ancla legacy de Cliente empresarial: copiarla evita ampliar la visibilidad a triaje.
         var nueva = new Conversacion(asunto, anterior.ClienteId, anterior.Etiquetas, anterior.EmpresaId)
         {
             EjecutivoAsignadoId = anterior.EjecutivoAsignadoId,
@@ -336,7 +337,7 @@ public class Conversacion : EntidadBase
 
     public void Asignar(Guid? ejecutivoId) => EjecutivoAsignadoId = ejecutivoId;
 
-    /// <summary>Resuelve el triage: asigna un Cliente real a una conversación que llegó sin resolver.</summary>
+    /// <summary>Resuelve el triaje: asigna un Cliente real a una conversación que llegó sin resolver.</summary>
     public void AsignarCliente(Guid clienteId)
     {
         if (clienteId == Guid.Empty)

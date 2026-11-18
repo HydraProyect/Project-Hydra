@@ -111,9 +111,11 @@ public static class BloqueoRespuestaSugerida
     /// desbloquea y no provoca ninguna lectura de texto, con o sin coincidencia. Por eso tampoco se nota por el tiempo. El
     /// filtro es la regla de
     /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>
-    /// traducida a una expresión: buzón visible, y con Empresa contraparte que esté en la cartera de gestión; sin ella, que
-    /// no haya Cliente empresarial (triage compartido) o que esté entre los visibles; un conjunto nulo es acceso total.
-    /// Un test compara ambas sobre los mismos casos para que no diverjan.
+    /// traducida a una expresión: buzón visible y, por las anclas, la expresión única de <see cref="VisibilidadConversacion"/>:
+    /// con Cliente empresarial, que esté entre los visibles; con Empresa contraparte, que esté en la cartera de gestión; sin
+    /// ninguna de las dos, solo si <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> es verdadero o el buzón es el
+    /// personal propio (<see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>). Un
+    /// conjunto nulo es acceso total. Un test compara ambas sobre los mismos casos para que no diverjan.
     /// </para>
     ///
     /// <para>
@@ -235,10 +237,11 @@ public static class BloqueoRespuestaSugerida
     /// <summary>
     /// Los hilos de un buzón que quien envía puede ver, como filtro para la consulta de candidatas; <c>null</c> si el
     /// buzón no es visible. Es la regla de <c>ConversacionVisibleAsync</c>: buzón visible (una vez, es el mismo para todos
-    /// los hilos); con Empresa contraparte, que esté en <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/>;
-    /// sin ella, que no tenga Cliente empresarial (triage compartido) o que esté en
-    /// <see cref="IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync"/>. Un conjunto nulo es acceso total. Los dos
-    /// conjuntos están memoizados por petición: no hay una consulta por hilo.
+    /// los hilos) y, por las anclas, la misma expresión de <see cref="VisibilidadConversacion"/> que usan la lista y el
+    /// detalle (cartera de Clientes, alcance de gestión de Empresas y, sin ancla, la cola de triaje con
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> o el buzón personal propio con
+    /// <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>). Los conjuntos se resuelven una vez por
+    /// comprobación: no hay una consulta por hilo.
     /// </summary>
     internal static async Task<Expression<Func<Conversacion, bool>>?> HilosVisiblesDelBuzonAsync(
         IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, CancellationToken cancellationToken)
@@ -246,17 +249,14 @@ public static class BloqueoRespuestaSugerida
         if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexionIntegracionId, cancellationToken))
             return null;
 
-        var carteraDeClientes = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var carteraDeEmpresas = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
-        var todosLosClientes = carteraDeClientes is null;
-        var todasLasEmpresas = carteraDeEmpresas is null;
-        var clientes = carteraDeClientes?.ToList() ?? [];
-        var empresas = carteraDeEmpresas?.ToList() ?? [];
-
-        return c => c.ConexionIntegracionId == conexionIntegracionId &&
-                    (c.EmpresaId != null
-                        ? todasLasEmpresas || empresas.Contains(c.EmpresaId.Value)
-                        : c.ClienteId == null || todosLosClientes || clientes.Contains(c.ClienteId.Value));
+        var porAnclas = (await VisibilidadConversacion.ResolverAsync(alcanceDatos, cancellationToken))
+            .Predicado<Conversacion>(c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId);
+        var conversacion = porAnclas.Parameters[0];
+        // El Id del buzón por una clausura, como antes: EF lo manda como parámetro, no como literal.
+        Expression<Func<Guid?>> buzon = () => conexionIntegracionId;
+        var delBuzon = Expression.Equal(
+            Expression.Property(conversacion, nameof(Conversacion.ConexionIntegracionId)), buzon.Body);
+        return Expression.Lambda<Func<Conversacion, bool>>(Expression.AndAlso(delBuzon, porAnclas.Body), conversacion);
     }
 
     private static bool HayCoincidenciaSinRevisar(

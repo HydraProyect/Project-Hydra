@@ -23,7 +23,6 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly AlcanceDatosServiceFalso _alcanceDatos = new();
-    private readonly CurrentUserServiceFalso _currentUser = new(rol: "GestorCae");
 
     public async Task InitializeAsync()
     {
@@ -66,7 +65,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -115,7 +114,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -168,7 +167,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -220,7 +219,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
@@ -251,13 +250,13 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         }
 
         await using var lectura = CrearContexto();
-        ObtenerConversacionPorIdQueryHandler Handler(string? rolSesion, string? rolPolitica) => new(
+        ObtenerConversacionPorIdQueryHandler Handler(string? rolPolitica) => new(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(clienteIds: [clienteId]),
-            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: rolSesion),
+            new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con(rolPolitica));
 
-        var interna = await Handler("GestorCae", "GestorCae").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
-        var portal = await Handler("Cliente", "Cliente").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+        var interna = await Handler("GestorCae").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+        var portal = await Handler("Cliente").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
         interna!.Eventos.Should().HaveCount(4);
         portal.Should().NotBeNull();

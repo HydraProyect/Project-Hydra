@@ -67,6 +67,61 @@ public interface IAlcanceDatosService
     Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
         TieneAccesoTotalAsync(cancellationToken);
 
+    /// <summary>
+    /// ¿Ve quien mira, en el Tenant actual, la cola de triaje de Comunicaciones (una <c>Conversacion</c> sin
+    /// <c>ClienteId</c> ni <c>EmpresaId</c>)? Es la única puerta de la rama de triaje de
+    /// <see cref="VisibilidadConversacion"/>, que usan la lista, el detalle y todo consumidor de
+    /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync"/>.
+    ///
+    /// <para>
+    /// Verdadero con acceso total en el Tenant (que ya ata la Sesión Privilegiada a su Tenant objetivo). Fuera del
+    /// acceso total, solo si el rol efectivo es un rol de gestión de Comunicaciones (Administrador, Dirección CAE,
+    /// Coordinador CAE, Gestor CAE o Consulta) <b>y</b> el ámbito efectivo es el Tenant entero
+    /// (<see cref="AlcanzaElTenantEnteroAsync"/>). Un rol nulo o desconocido, el rol Cliente, una Sesión Privilegiada
+    /// sin acceso total o un ámbito efectivo acotado (cartera ∩ operación, ADR-011) no ven triaje: falla cerrado. Un
+    /// hilo sin ancla no tiene cartera que lo acote, así que solo lo ve quien alcanza el Tenant entero.
+    /// </para>
+    ///
+    /// <para>
+    /// La implementación real y su lista de roles viven en Infrastructure; un test de paridad fija que esa lista,
+    /// <c>RolesComunicaciones.Gestion</c> y <see cref="CaeManager.Application.Comunicaciones.AccesoATriage.Roles"/> no
+    /// se separen. La implementación por defecto, para los dobles de prueba, se queda en el acceso total: falla cerrado.
+    /// </para>
+    /// </summary>
+    Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default) =>
+        TieneAccesoTotalAsync(cancellationToken);
+
+    /// <summary>
+    /// Las conexiones del buzón personal propio de quien mira en el Tenant actual: la segunda condición de la rama sin
+    /// ancla de <see cref="VisibilidadConversacion"/>. La decisión 2 del 2026-11-14 (DECISION_LOG, «Buzones de varios
+    /// Tenants…») dice que el correo de un buzón personal que no se deja como registro «solo vive en la cuenta del Gestor
+    /// CAE propietario». De ahí sale esta condición: el propietario ve esos hilos sin ancla aunque no alcance el Tenant
+    /// entero, siempre que tenga en el Tenant actual un ámbito efectivo que conceda algo (ADR-011, cartera ∩ operación).
+    /// Nadie más los ve por esta vía.
+    ///
+    /// <para>
+    /// DESVIACIÓN PENDIENTE DE CHRIS: la decisión 2 no dice qué pasa con esos hilos cuando la conexión deja de estar
+    /// Habilitada. R-3a falla cerrado: con la conexión Deshabilitada, en ConError o eliminada, la condición no se cumple y
+    /// el propietario sin el Tenant entero deja de verlos en la lista y en el detalle. Si Chris decide otra cosa, cambia
+    /// el filtro de estado de la implementación y los tests que lo fijan (VisibilidadTriageTests).
+    /// </para>
+    ///
+    /// <para>
+    /// Son las <c>ConexionIntegracion</c> del Tenant actual (filtro de Tenant, borrado lógico y RLS) que son personales
+    /// (no <c>EsBuzonCompartido</c>), están habilitadas y cuyo <c>GestorPropietarioId</c> es el usuario de la sesión,
+    /// <see cref="ICurrentUserService.ObtenerUsuarioActualIdAsync"/>: el mismo criterio de «el mío» que
+    /// <c>ObtenerMensajesBuzonPersonalQuery</c> y que <see cref="ConexionIntegracionVisibleAsync"/>. Vacía (falla cerrado)
+    /// con una Sesión Privilegiada de cualquier capacidad, Impersonación incluida (un Actor de Plataforma TALVEG no es
+    /// Gestor CAE del Tenant, y el buzón del Usuario simulado no se abre por esta vía), con la lente de demo Gestor, sin rol
+    /// efectivo de gestión de Comunicaciones, con un papel sin alcance de datos (una operación que ya no autoriza, o el papel
+    /// Inbound fuera de una petición de Inbound), con un ámbito efectivo que no concede nada (sin Asignación de Cartera
+    /// vigente, o ámbito ninguno), sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada no entra
+    /// (la desviación de arriba). La implementación por defecto, para los dobles de prueba, es vacía.
+    /// </para>
+    /// </summary>
+    Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>([]);
+
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

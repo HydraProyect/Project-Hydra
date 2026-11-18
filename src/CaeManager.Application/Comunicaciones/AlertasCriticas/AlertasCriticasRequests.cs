@@ -32,8 +32,9 @@ public sealed class AccesoAlertaCritica(
 {
     public async Task<bool> PuedeLeerAsync(Guid conversacionId, CancellationToken ct)
     {
-        if (await sesion.ObtenerAsync(ct) is not null || await usuario.ObtenerRolEfectivoAsync() is not
-            ("Administrador" or "DireccionCae" or "CoordinadorCae" or "GestorCae" or "Consulta")) return false;
+        // Los roles de gestión de Comunicaciones, la misma lista que la bandeja (RolesDeTriajeParidadTests).
+        if (await sesion.ObtenerAsync(ct) is not null
+            || await usuario.ObtenerRolEfectivoAsync() is not { } rol || !AccesoATriage.Roles.Contains(rol)) return false;
         var conversacion = await conversaciones.Conversaciones.Where(c => c.Id == conversacionId)
             .Select(c => new { c.ClienteId, c.EmpresaId, c.ConexionIntegracionId }).FirstOrDefaultAsync(ct);
         return conversacion is not null && await alcance.ConversacionVisibleAsync(

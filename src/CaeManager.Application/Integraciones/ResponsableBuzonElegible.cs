@@ -31,8 +31,10 @@ public enum MotivoResponsableNoElegible
 /// condición; Gestor CAE por su Asignación de Cartera; Coordinador CAE por la suya, la de su equipo o, si entra por
 /// la vía de Operación, por el Tenant entero. Quien alcanza por el Tenant entero solo alcanza las Empresas que son
 /// Cliente empresarial (<c>EsCritico</c> informado), como <c>AlcanceDatosService.ObtenerClienteIdsVisiblesAsync</c>;
-/// bajo una operación acotada, solo la de esa operación. Un buzón sin Cliente empresarial es triage compartido
-/// (<see cref="AlcanceDatosServiceExtensions.ClienteOpcionalVisibleAsync"/>) y ahí decide solo el rol.</item>
+/// bajo una operación acotada, solo la de esa operación. Un buzón sin Cliente empresarial no pide cartera
+/// (<see cref="AlcanceDatosServiceExtensions.ClienteOpcionalVisibleAsync"/>) y ahí decide solo el rol; pero las
+/// conversaciones sin ancla que entran por él van a la cola de triaje, que solo ve quien pasa
+/// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> (D-6 b, R-3a).</item>
 /// </list>
 ///
 /// <para>

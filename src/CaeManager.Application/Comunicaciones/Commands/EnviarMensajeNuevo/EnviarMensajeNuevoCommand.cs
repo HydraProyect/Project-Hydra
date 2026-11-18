@@ -34,7 +34,8 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// <paramref name="ClienteId"/> (ver <see cref="Conversacion.EmpresaId"/>).
 /// Hoy solo la usa la reclamación de documentos de empresa
 /// (<c>EnviarReclamacionEmpresaCommand</c>), que no tiene Cliente al que
-/// anclar el hilo y no puede dejarlo caer en la cola de triage compartida.
+/// anclar el hilo y no puede dejarlo caer en la cola de triaje, que no tiene
+/// cartera que la acote.
 /// </param>
 /// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
 /// <param name="Origen">Camino del producto que envía; solo etiqueta el rastro de salida (<see cref="RegistroSalidaComunicaciones"/>).</param>
@@ -163,7 +164,10 @@ public class EnviarMensajeNuevoCommandHandler(
         // mensaje ahí lo metería en la bandeja de quien tenga ese titular en
         // cartera y lo escondería de quien tiene el nuestro — el alcance
         // comprobado arriba se perdería justo en el último paso. Un hilo sin
-        // ancla (triage) sí puede recibirlo: no es de nadie todavía.
+        // ancla (triaje) sí puede recibirlo y no se ancla aquí; desde D-6 b
+        // (R-3a) solo lo ve quien pasa TriajeVisibleAsync, así que quien envía
+        // con un ámbito acotado deja de ver ese mensaje. Anclarlo es un
+        // incremento propio.
         if (hiloExistente is not null &&
             ((hiloExistente.ClienteId is not null && hiloExistente.ClienteId != clienteId) ||
              (hiloExistente.EmpresaId is not null && hiloExistente.EmpresaId != request.EmpresaId)))

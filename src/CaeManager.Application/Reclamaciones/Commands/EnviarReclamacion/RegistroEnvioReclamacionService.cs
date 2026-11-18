@@ -196,9 +196,10 @@ public class RegistroEnvioReclamacionService(
         {
             // El hilo se ancla al titular real. Para una Empresa contraparte va
             // por EmpresaId y no por ClienteId: son planos distintos, y dejarlo
-            // sin ancla lo mandaría a la cola de triage, que es compartida por
-            // toda la gestión CAE (§ 12.4) — el alcance de cartera de la
-            // reclamación se perdería en cuanto alguien abriera Comunicaciones.
+            // sin ancla lo mandaría a la cola de triaje, que no tiene cartera
+            // que la acote (D-6 b, R-3a): la vería quien alcanza el Tenant
+            // entero aunque no tenga a ese titular en cartera, y no la vería
+            // quien lo tiene en una cartera acotada.
             var mensaje = titular.Ambito == AmbitoAplicacion.Cliente
                 ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia, Origen: Comunicaciones.OrigenSalidaComunicacion.Reclamacion)
                 : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia, Origen: Comunicaciones.OrigenSalidaComunicacion.Reclamacion);

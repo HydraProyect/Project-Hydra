@@ -1002,7 +1002,8 @@ public class BloqueoRespuestaSugeridaTests
     /// <summary>
     /// El filtro de la consulta es la regla de <c>ConversacionVisibleAsync</c> y no otra: se comparan sobre los mismos hilos
     /// (Cliente empresarial visible y no visible, sin ancla, Empresa contraparte en cartera y fuera de ella) con alcance
-    /// total, con cartera, con cartera vacía y con el buzón no visible.
+    /// total, con cartera, con cartera y triaje, con cartera y el buzón como personal propio (o con otro buzón propio), con
+    /// cartera vacía y con el buzón no visible: los tres selectores de la rama sin ancla.
     /// </summary>
     [Fact]
     public async Task El_filtro_por_buzon_decide_igual_que_ConversacionVisibleAsync()
@@ -1023,6 +1024,14 @@ public class BloqueoRespuestaSugeridaTests
             ["total"] = new AlcanceDatosServiceFalso(),
             ["cartera"] = new AlcanceDatosServiceFalso(
                 tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera]),
+            ["cartera con triaje"] = new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera], triajeVisible: true),
+            ["cartera del propietario del buzon"] = new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera],
+                buzonesPersonalesPropios: [conexion.Id]),
+            ["cartera con otro buzon propio"] = new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera],
+                buzonesPersonalesPropios: [Guid.NewGuid()]),
             ["vacia"] = new AlcanceDatosServiceFalso(tieneAccesoTotal: false),
             ["buzon no visible"] = new AlcanceDatosServiceFalso(conexionIntegracionVisible: false)
         };
@@ -1039,9 +1048,18 @@ public class BloqueoRespuestaSugeridaTests
             (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().BeEquivalentTo(esperados, nombre);
         }
 
-        // Control de que la comparación no es vacía: con cartera entran el Cliente visible, el hilo sin ancla y la Empresa en cartera.
+        // Control de que la comparación no es vacía: con cartera acotada entran el Cliente visible y la Empresa en cartera, y
+        // el hilo sin ancla solo si además se ve la cola de triaje (D-6 b, R-3a: IAlcanceDatosService.TriajeVisibleAsync).
         (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera"])).Should()
+            .BeEquivalentTo([hilos[0].Id, hilos[3].Id]);
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera con triaje"])).Should()
             .BeEquivalentTo([hilos[0].Id, hilos[2].Id, hilos[3].Id]);
+        // El tercer selector, el del buzón personal propio (DECISION_LOG 2026-11-14, decisión 2): sin triaje, el hilo sin
+        // ancla entra solo si el buzón de la consulta es uno de los propios de quien mira; otro buzón propio no lo abre.
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera del propietario del buzon"])).Should()
+            .BeEquivalentTo([hilos[0].Id, hilos[2].Id, hilos[3].Id]);
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera con otro buzon propio"])).Should()
+            .BeEquivalentTo([hilos[0].Id, hilos[3].Id]);
         (await HilosQueEntranEnLaConsulta(conexion, alcances["buzon no visible"])).Should().BeEmpty();
     }
 

@@ -7,10 +7,23 @@ public class AlcanceDatosServiceFalso(
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
-    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null)
+    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null,
+    bool? triajeVisible = null, IReadOnlyList<Guid>? buzonesPersonalesPropios = null)
     : IAlcanceDatosService
 {
+    /// <summary>Por defecto vacío, como la implementación por defecto de la interfaz (falla cerrado).</summary>
+    public Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(buzonesPersonalesPropios ?? []);
+
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
+
+    /// <summary>
+    /// Por defecto igual que el acceso total, como la implementación por defecto de la interfaz (falla cerrado): una
+    /// cartera acotada no ve la cola de triaje. El test que simule un ámbito del Tenant entero sin acceso total (Gestor CAE
+    /// con cartera universal) pasa <c>triajeVisible: true</c>.
+    /// </summary>
+    public Task<bool> TriajeVisibleAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(triajeVisible ?? tieneAccesoTotal);
 
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(tieneAccesoTotal ? null : clienteIdsVisibles ?? []);

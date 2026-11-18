@@ -214,7 +214,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
 
         mediator.UltimoEnvio.Should().NotBeNull();
         mediator.UltimoEnvio!.EmpresaId.Should().Be(
-            _empresaId, "el hilo se ancla a la Empresa; sin ancla caería en la cola de triage, que ve toda la gestión CAE");
+            _empresaId, "el hilo se ancla a la Empresa; sin ancla caería en la cola de triage, que no acota ninguna cartera");
         mediator.UltimoEnvio.ClienteId.Should().BeNull("las dos anclas son excluyentes");
         mediator.UltimoEnvio.Destinatarios.Should().BeEquivalentTo(["agenda@contratista.test"]);
         mediator.Publicados.OfType<ReclamacionEnviadaEvent>().Should().ContainSingle()

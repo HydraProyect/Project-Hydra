@@ -154,6 +154,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Visita eliminada sigue fuera: su filtro global no se quita.
         [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
+        // Bandeja de Comunicaciones (D-6 b, R-3a): la exclusión de hilos de una conexión eliminada, con la que el
+        // detalle falla cerrado (ConexionIntegracionVisibleAsync). Sentencia aparte de solo Ids, seguida de la comparación
+        // del TenantId con el Tenant actual; solo puede estrechar la lista.
+        [("src/CaeManager.Application/Comunicaciones/ConversacionesVisibles.cs", ".IgnoreQueryFilters()")] = 1,
+
         // Resolución del Tenant de un webhook entrante (Graph/WhatsApp, S-C-5): en ese punto no hay Tenant en el
         // contexto, que es justo lo que se calcula, y bajo FORCE RLS IgnoreQueryFilters() no veía ninguna fila.
         // Las funciones SECURITY DEFINER devuelven solo el Tenant propietario (la de Graph, NULL si la conexión
