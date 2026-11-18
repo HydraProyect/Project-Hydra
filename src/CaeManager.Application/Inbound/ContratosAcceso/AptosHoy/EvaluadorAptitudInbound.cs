@@ -20,11 +20,11 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.AptosHoy;
 /// <param name="ContratoOrigenAjenoId">El contrato cuyo «No apto» ajeno provoca el estado de la fila; nulo si procede de lo propio.</param>
 /// <param name="ContratoMasReciente">El contrato más reciente que cuenta y donde sale el Trabajador (cita de la proyección restringida).</param>
 /// <param name="IdentidadMasReciente">La evidencia más reciente de ese contrato, de donde salen nombre y documento.</param>
-public sealed record AptitudTrabajadorEvaluada(
+internal sealed record AptitudTrabajadorEvaluada(
     AptoHoyDto Dto, Guid? ContratoOrigenAjenoId, ContratoAcceso ContratoMasReciente, EvidenciaInbound IdentidadMasReciente);
 
 /// <summary>El resultado de evaluar el Centro: un Trabajador por entrada y lo necesario para citar su contrato.</summary>
-public sealed record EvaluacionAptitudCentro(
+internal sealed record EvaluacionAptitudCentro(
     IReadOnlyList<AptitudTrabajadorEvaluada> Trabajadores,
     IReadOnlyDictionary<Guid, ContratoAcceso> ContratosPorId,
     IReadOnlyDictionary<(Guid Trabajador, Guid Contrato), EvidenciaInbound> Identidades)
@@ -43,9 +43,12 @@ public sealed record EvaluacionAptitudCentro(
 /// proyección (la completa pide <see cref="CapacidadInbound.ValidarInbound"/>): este servicio devuelve datos completos,
 /// con requisito, causa y fecha, que no deben salir tal cual a un rol sin esa capacidad. Sí aplica el alcance del actor (lado de
 /// gestión, Centro visible y contratos que su Asignación de Cartera deja ver) y da vacío sin decir cuál falla.
+/// Es <c>internal</c> y no se registra en DI a propósito: ningún componente de la capa web debe poder inyectarlo y saltarse la puerta de un handler.
+/// Quien lo use desde otra feature lee plantillas, tipos, contratos y evidencias de ContratosAcceso: debe declarar esa dependencia entre
+/// features como lo hace el ratchet de fronteras para los handlers.
 /// </para>
 /// </summary>
-public sealed class EvaluadorAptitudInbound(
+internal sealed class EvaluadorAptitudInbound(
     IContratosAccesoQueryContext contratosContext,
     IEvidenciasInboundQueryContext evidenciasContext,
     IPlantillasRequisitosQueryContext plantillasContext,

@@ -41,8 +41,6 @@ public static class ApplicationServiceCollectionExtensions
         // La autorización de Inbound (B-03): capacidades desde el papel activo y el rol; todo handler Inbound la llama.
         services.AddScoped<CaeManager.Application.Inbound.Autorizacion.IAutorizacionInbound,
             CaeManager.Application.Inbound.Autorizacion.AutorizacionInbound>();
-        // La evaluación de aptitud de «Aptos hoy», reutilizable por la comprobación de credencial.
-        services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.AptosHoy.EvaluadorAptitudInbound>();
         // Coste de acceso a datos del mismo scope (lo lee la cabecera Server-Timing).
         services.AddScoped<CosteCarga>();
         services.AddScoped<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IOperacionesConectorPlataformaCae,

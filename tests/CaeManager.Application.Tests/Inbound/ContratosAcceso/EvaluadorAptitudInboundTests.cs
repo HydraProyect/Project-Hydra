@@ -105,6 +105,65 @@ public class EvaluadorAptitudInboundTests
         fila.FechaVencimiento.Should().BeNull("la fecha delataría la conclusión médica (art. 9 RGPD)");
     }
 
+    [Fact]
+    public async Task Con_filtro_un_requisito_de_Empresa_acreditado_sigue_contando_igual_que_en_la_lista_completa()
+    {
+        var seguro = Tipo("Seguro de responsabilidad civil", AmbitoAplicacion.Empresa, GrupoTipoDocumento.SegurosYMutua,
+            SensibilidadDocumental.SinDatosPersonales);
+        var exigencias = PlantillaRequisitos.ParaExigenciasDe(_cliente);
+        Requisito(exigencias, seguro, ModoVigenciaRequisito.LaPoneElDocumento, null);
+        _plantillas.Plantillas.Add(exigencias);
+        var pilar = Guid.NewGuid();
+        Dar(pilar, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), ConclusionAptitud.Apto);
+        Dar(null, "Montajes Moncayo S.L.", seguro, new DateOnly(2026, 1, 1), venc: new DateOnly(2027, 1, 1));
+
+        var completa = await Evaluar(null);
+        var filtrada = await Evaluar(pilar);
+
+        completa.Trabajadores.Single().Dto.Estado.Should().Be(EstadoAptitudInbound.Apto);
+        filtrada.Trabajadores.Single().Dto.Should().BeEquivalentTo(completa.Trabajadores.Single().Dto);
+    }
+
+    [Theory]
+    [InlineData("suspendido")]
+    [InlineData("finalizado")]
+    public async Task Con_filtro_un_NoApto_vigente_de_un_contrato_que_no_cuenta_sigue_bloqueando_igual_que_en_la_lista_completa(string estado)
+    {
+        var pilar = Guid.NewGuid();
+        Dar(pilar, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), ConclusionAptitud.Apto);
+        var otro = ContratoAcceso.Crear(_cliente, _centro, Guid.NewGuid(), new DateOnly(2026, 1, 1), null, null);
+        otro.VincularTenantContratista(_tenantContratista);
+        _contratos.ListaContratos.Add(otro);
+        if (estado == "suspendido") otro.Suspender(); else otro.Finalizar(new DateOnly(2026, 6, 30));
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 10, 1), ConclusionAptitud.NoApto, otro);
+
+        var completa = await Evaluar(null);
+        var filtrada = await Evaluar(pilar);
+
+        completa.Trabajadores.Single().Dto.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        filtrada.Trabajadores.Single().Dto.Should().BeEquivalentTo(completa.Trabajadores.Single().Dto);
+    }
+
+    [Fact]
+    public async Task Con_filtro_un_NoApto_de_otro_contrato_que_cuenta_bloquea_igual_que_en_la_lista_completa()
+    {
+        var pilar = Guid.NewGuid();
+        Dar(pilar, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), ConclusionAptitud.Apto);
+        var otro = ContratoAcceso.Crear(_cliente, _centro, Guid.NewGuid(), new DateOnly(2026, 2, 1), null, null);
+        otro.VincularTenantContratista(_tenantContratista);
+        _contratos.ListaContratos.Add(otro);
+        Dar(pilar, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 10, 1), ConclusionAptitud.NoApto, otro);
+
+        var completa = await Evaluar(null);
+        var filtrada = await Evaluar(pilar);
+
+        completa.Trabajadores.Single().Dto.Estado.Should().Be(EstadoAptitudInbound.NoApto);
+        filtrada.Trabajadores.Single().Dto.Should().BeEquivalentTo(completa.Trabajadores.Single().Dto);
+        filtrada.Trabajadores.Single().ContratoOrigenAjenoId.Should().Be(completa.Trabajadores.Single().ContratoOrigenAjenoId);
+    }
     private async Task<EvaluacionAptitudCentro> Evaluar(Guid? trabajador)
     {
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(Ahora));
@@ -125,18 +184,20 @@ public class EvaluadorAptitudInboundTests
     private static RequisitoPlantilla Requisito(
         PlantillaRequisitos plantilla, TipoDocumento tipo, ModoVigenciaRequisito modo, int? meses, int? tolerancia = null) =>
         plantilla.AnadirRequisito(tipo, requisitoBase: null, new AtributosRequisito(
-            OrigenRequisito.PropioTenant, modo, meses, tolerancia, true, null, DestinatarioRequisito.Todos, TiposContratacion.Todos, [],
+            plantilla.Tipo == TipoPlantillaRequisitos.ExigenciasClienteEmpresarial ? OrigenRequisito.ExigenciaN3 : OrigenRequisito.PropioTenant,
+            modo, meses, tolerancia, true, null, DestinatarioRequisito.Todos, TiposContratacion.Todos, [],
             AmbitoDocumentoRequisito.GeneralTec));
 
-    private void Dar(Guid trabajador, string nombre, TipoDocumento tipo, DateOnly emision, ConclusionAptitud? conclusion = null) =>
+    private void Dar(
+        Guid? trabajador, string nombre, TipoDocumento tipo, DateOnly emision, ConclusionAptitud? conclusion = null,
+        ContratoAcceso? contrato = null, DateOnly? venc = null) =>
         _evidencias.Add(EvidenciaInbound.Registrar(
-            new EvidenciaInbound.Procedencia(_contrato.Id, _tenantContratista, Guid.NewGuid(), Guid.NewGuid()),
+            new EvidenciaInbound.Procedencia((contrato ?? _contrato).Id, _tenantContratista, Guid.NewGuid(), Guid.NewGuid()),
             tipo.Id,
-            new EvidenciaInbound.Sujeto(trabajador, nombre, "12345678Z"),
-            emision, null, soloConclusionAptitud: conclusion is not null, conclusion,
+            new EvidenciaInbound.Sujeto(trabajador, nombre, trabajador is null ? null : "12345678Z"),
+            emision, venc, soloConclusionAptitud: conclusion is not null, conclusion,
             conclusion is null ? new EvidenciaInbound.ArchivoCopiado($"{Guid.NewGuid():N}/copia.pdf", new string('a', 64)) : null,
             _usuario, Ahora.UtcDateTime));
-
     private sealed class EvidenciasQueryContextFalso(List<EvidenciaInbound> evidencias) : IEvidenciasInboundQueryContext
     {
         public IQueryable<EvidenciaInbound> EvidenciasInbound => new TestAsyncQueryable<EvidenciaInbound>(evidencias.AsQueryable());
