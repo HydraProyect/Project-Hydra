@@ -194,7 +194,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     // nada que aún no se hubiera consultado.
                     seleccionConcreta?.Invalidar();
 
-                    contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+                    CookieDeContextoTenant.RetirarSeleccion(contexto);
 
                     return;
                 }
@@ -205,7 +205,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
 
                 seleccionConcreta?.Invalidar();
 
-                contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+                CookieDeContextoTenant.RetirarSeleccion(contexto);
             }
         }
         else
@@ -232,11 +232,12 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 + "usuario actual).",
                 ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()));
 
-            contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+            CookieDeContextoTenant.RetirarSeleccion(contexto);
         }
 
         await siguiente(contexto);
     }
+
 
     /// <summary>
     /// Único punto de registro para las dos ramas de aborto de arriba —misma línea

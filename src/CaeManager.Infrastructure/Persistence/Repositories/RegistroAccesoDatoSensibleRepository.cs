@@ -11,7 +11,10 @@ public class RegistroAccesoDatoSensibleRepository(
 {
     public async Task GuardarAsync(RegistroAuditoria registro, CancellationToken cancellationToken = default)
     {
-        // El registro se guarda desde un camino de LECTURA con el DbContext con
+        // El registro se guarda desde un camino de LECTURA (las Queries de
+        // credenciales), o desde el cambio de contexto y el rechazo de la guarda
+        // de pestaña obsoleta, antes de que ningún handler escriba (D-6 b, R-2;
+        // RegistroCambioContextoService), siempre con el DbContext con
         // ámbito, el mismo de cualquier otro handler del circuito. Un
         // SaveChanges aquí volcaría también lo que otro haya dejado pendiente,
         // sin que ese otro lo haya decidido. Las Queries de credenciales
@@ -33,12 +36,16 @@ public class RegistroAccesoDatoSensibleRepository(
         catch (Exception ex)
         {
             // Sin excepción para 42501 (a diferencia de
-            // RegistroAccesoDocumentoSensibleRepository): una Sesión
-            // Privilegiada no llega aquí —AutorizacionSecretosDeTenantBehavior
+            // RegistroAccesoDocumentoSensibleRepository): desde las consultas,
+            // una Sesión Privilegiada no llega aquí —AutorizacionSecretosDeTenantBehavior
             // deniega antes las dos familias de consultas y
             // ObtenerAdjuntoParaDescargaQuery exige rol efectivo—, y si algún
             // día llegara, el registro que no se puede escribir significa que el
-            // dato no se entrega. Que el fallo tampoco deje el registro Added
+            // dato no se entrega. El selector tampoco la deja llegar (403, D-6 b,
+            // R-2). Sí llega el rechazo de un comando de una pestaña obsoleta
+            // dentro de una Sesión Privilegiada: su 42501 sube y
+            // RegistroCambioContextoService.RegistrarRechazoAsync lo deja en el
+            // log, con el comando ya rechazado. Que el fallo tampoco deje el registro Added
             // para el próximo SaveChanges de otro handler.
             dbContext.Entry(registro).State = EntityState.Detached;
             logger.LogWarning(ex,

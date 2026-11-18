@@ -191,6 +191,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(RestauracionCambiosDeComandoBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(CaeManager.Application.Empresas.DuplicadosEmpresaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
+        // Guarda de pestaña obsoleta (D-6 b, R-2) antes de autorizar: un comando de una pestaña cuya selección ya no
+        // es la vigente no llega a tocar datos.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GuardaPestanaObsoletaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         // GateComercialTenantBehavior va justo después: un Command ya
         // bloqueado por rol ni siquiera necesita la consulta a Tenants que
@@ -272,6 +275,9 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
         services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();
         services.AddScoped<IRegistroExportacionService, RegistroExportacionService>();
+        services.AddScoped<IRegistroCambioContexto, RegistroCambioContextoService>();
+        // Web registra la suya, con la cookie de contexto; fuera de Web no hay pestañas.
+        services.TryAddScoped<IGuardaSeleccionVigente, SinGuardaDeSeleccion>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

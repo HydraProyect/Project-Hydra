@@ -38,6 +38,9 @@ public static class CookieDeContextoTenant
 
     public static readonly TimeSpan VigenciaDefectoEvaluado = TimeSpan.FromMinutes(15);
 
+    /// <summary>La vigencia de la cookie de contexto, la misma que la del propio token protegido.</summary>
+    public static readonly TimeSpan VigenciaSeleccion = ClienteActivoSeleccionado.Vigencia;
+
     public static bool HaySeleccion(HttpRequest peticion) =>
         !string.IsNullOrEmpty(peticion.Cookies[NombreSeleccion]);
 
@@ -51,14 +54,59 @@ public static class CookieDeContextoTenant
     /// </summary>
     public static void EmitirSeleccion(
         HttpContext httpContext, IDataProtectionProvider dataProtectionProvider,
-        Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId)
+        Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId) =>
+        EmitirSeleccion(
+            httpContext, ProtegerSeleccion(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId));
+
+    /// <summary>
+    /// El token protegido de la selección de <paramref name="tenantId"/>, sin emitirlo todavía: lo usan quienes tienen
+    /// que auditar el cambio, con su versión de selección, antes de emitir la cookie (D-6 b, R-2). Mismas condiciones
+    /// que <see cref="EmitirSeleccion(HttpContext, IDataProtectionProvider, Guid, Guid, Guid?)"/>.
+    /// </summary>
+    public static string ProtegerSeleccion(
+        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId) =>
+        ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId);
+
+    /// <summary>
+    /// Emite un token ya protegido con <see cref="ProtegerSeleccion"/>: el que se auditó antes, con su versión de
+    /// selección (D-6 b, R-2). Mismas condiciones que la otra sobrecarga.
+    /// </summary>
+    public static void EmitirSeleccion(HttpContext httpContext, string token)
     {
-        httpContext.Response.Cookies.Append(
-            NombreSeleccion,
-            ClienteActivoSeleccionado.Proteger(dataProtectionProvider, usuarioId, tenantId, asignacionOperacionId),
-            Opciones(httpContext));
+        httpContext.Response.Cookies.Append(NombreSeleccion, token, Opciones(httpContext));
         httpContext.Response.Cookies.Delete(NombreOrigenElegido);
+        RegistrarSeleccionVigente(httpContext, token);
     }
+
+    /// <summary>
+    /// La selección que deja esta respuesta —<paramref name="tokenEmitido"/>, o ninguna si la cookie se borra— pasa a
+    /// ser la vigente de esta sesión de navegador: desde aquí, un circuito de otra pestaña que pintó con la anterior no
+    /// puede escribir (guarda de pestaña obsoleta, D-6 b, R-2). Todo camino que escriba o borre la cookie de contexto
+    /// la llama, también los que no pasan por este tipo (la sesión de soporte y la revalidación del middleware): si no,
+    /// la petición siguiente, con la cookie nueva, se rechazaría a sí misma hasta que un circuito la adoptara.
+    /// </summary>
+    public static void RegistrarSeleccionVigente(HttpContext httpContext, string? tokenEmitido)
+    {
+        if (httpContext.RequestServices?.GetService(typeof(RegistroSeleccionVigente)) is RegistroSeleccionVigente registro
+            && RegistroSeleccionVigente.ClaveDe(httpContext.User) is { } clave)
+            registro.Registrar(clave, VersionDe(tokenEmitido));
+    }
+
+    /// <summary>
+    /// Borra la cookie de contexto y deja la vuelta al origen como selección vigente de la sesión de navegador (D-6 b,
+    /// R-2): las peticiones siguientes llegan sin cookie y, si el registro conservara la versión retirada, la guarda de
+    /// pestaña obsoleta las rechazaría hasta que un circuito la adoptara. A diferencia de <see cref="VolverAlOrigen"/>,
+    /// no recuerda que la vuelta fuera a propósito: es la revalidación la que retira la selección.
+    /// </summary>
+    public static void RetirarSeleccion(HttpContext httpContext)
+    {
+        httpContext.Response.Cookies.Delete(NombreSeleccion);
+        RegistrarSeleccionVigente(httpContext, tokenEmitido: null);
+    }
+
+    /// <summary>La versión de selección de un token emitido, o <see cref="RegistroSeleccionVigente.VersionOrigen"/> sin él.</summary>
+    public static string VersionDe(string? tokenEmitido) =>
+        tokenEmitido is null ? RegistroSeleccionVigente.VersionOrigen : RegistroSeleccionVigente.Huella(tokenEmitido);
 
     /// <summary>
     /// Vuelta al Tenant de origen: basta con borrar la selección, no hace falta
@@ -69,6 +117,7 @@ public static class CookieDeContextoTenant
     {
         httpContext.Response.Cookies.Delete(NombreSeleccion);
         httpContext.Response.Cookies.Append(NombreOrigenElegido, usuarioId.ToString("N"), Opciones(httpContext));
+        RegistrarSeleccionVigente(httpContext, tokenEmitido: null);
     }
 
     public static bool OrigenElegido(HttpRequest peticion, Guid usuarioId) =>
@@ -96,6 +145,6 @@ public static class CookieDeContextoTenant
         SameSite = SameSiteMode.Lax,
         // Misma vigencia que la del propio token, que es la que
         // de verdad se comprueba en servidor al descifrarlo.
-        MaxAge = vigencia ?? ClienteActivoSeleccionado.Vigencia,
+        MaxAge = vigencia ?? VigenciaSeleccion,
     };
 }

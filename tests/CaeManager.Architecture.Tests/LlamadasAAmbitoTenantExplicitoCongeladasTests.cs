@@ -387,6 +387,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion, "operador.Id de cada Operador CAE externo que la propia consulta enumera (Tenants con PuedeActuarComoOperadorCaeExterno), solo tras IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync, la capacidad global que cubre a todos ellos; solo lee las delegaciones OperadorExterno de ese Operador bajo la RLS de DelegacionesTenant"),
+        // D-6 b, R-2: el ámbito se abre y se cierra dentro de RegistrarCambioAsync, solo para el INSERT del registro
+        // (RegistroCambioContextoServiceTests fija que no sale de la llamada, ni con éxito ni con excepción).
+        ["src/CaeManager.Application/Auditoria/RegistroCambioContextoService.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "tenantDestinoId, el Tenant al que se cambia de contexto, ya autorizado por quien llama con el predicado del selector (ClienteActivoEndpoints.CambiarAsync con TenantsBeneficiariosAutorizados, o TenantBeneficiarioPorDefectoMiddleware con OperacionQueAutorizaAsync) o el Tenant de origen del propio usuario; solo inserta el RegistroAuditoria del cambio, antes de emitir la cookie"),
 
         // ── JOB DE FONDO SOBRE ENUMERACIÓN PROPIA (Infrastructure, HostedServices) ──
         ["src/CaeManager.Infrastructure/Alertas/EnvioAlertasVencimientoHostedService.cs"] =

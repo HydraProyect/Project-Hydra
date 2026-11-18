@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
@@ -194,6 +195,175 @@ public class ClienteActivoEndpointsAutorizacionTests
         var origen = Contexto();
         (await Cambiar(Origen, origen, db, ServicioCae.Inbound, "Administrador")).Should().BeOfType<BadRequest>();
         origen.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D-6 b, R-2: el cambio con éxito queda auditado en el Tenant de destino, con la operación y la versión de la
+    /// selección nueva (la de la cookie que se emite), antes de emitir la cookie; un rechazo no lo registra.
+    /// </summary>
+    [Fact]
+    public async Task El_cambio_con_exito_queda_auditado_en_el_destino_y_el_rechazo_no()
+    {
+        await using var db = await CrearContexto();
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
+        await db.SaveChangesAsync();
+        var registro = new RegistroCambioFalso();
+        var aDestino = Contexto();
+
+        await CambiarAuditado(Destino, aDestino, db, registro);
+        await CambiarAuditado(Origen, Contexto(), db, registro);
+        await CambiarAuditado(Guid.NewGuid(), Contexto(), db, registro);
+
+        var cookie = aDestino.Response.Headers.SetCookie
+            .Single(c => c!.StartsWith(ClienteActivoSeleccionado.NombreCookie + "=", StringComparison.Ordinal))!;
+        var token = Uri.UnescapeDataString(cookie.Split(';')[0][(ClienteActivoSeleccionado.NombreCookie.Length + 1)..]);
+        registro.Cambios.Should().Equal(
+            (Destino, (Guid?)null, RegistroCambioContextoService.OrigenSelector, RegistroSeleccionVigente.Huella(token)),
+            (Origen, (Guid?)null, RegistroCambioContextoService.OrigenSelector, RegistroSeleccionVigente.VersionOrigen));
+    }
+
+    /// <summary>
+    /// D-6 b, R-2 (A-23): con una Sesión Privilegiada activa el selector responde 403 y no cambia nada, ni siquiera
+    /// para volver al origen; la salida del Tenant visitado es /cuenta/soporte/salir.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_Sesion_Privilegiada_el_selector_no_cambia_el_contexto(bool alOrigen)
+    {
+        await using var db = await CrearContexto();
+        // Destino autorizado por la vía heredada: el 403 tiene que venir de la Sesión Privilegiada, no de la autorización.
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
+        await db.SaveChangesAsync();
+        var http = Contexto();
+        http.RequestServices = new ServiceCollection()
+            .AddScoped<IClienteActivoSeleccionado, SeleccionConSesionPrivilegiada>()
+            .BuildServiceProvider();
+        var registro = new RegistroCambioFalso();
+
+        var resultado = await ClienteActivoEndpoints.CambiarAsync(
+            alOrigen ? Origen : Destino, "/", http, db, new UsuarioActual("GestorCae"), db, _protector, default,
+            registroCambioContexto: registro);
+
+        resultado.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>();
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+        registro.Cambios.Should().BeEmpty();
+    }
+
+    private sealed class SeleccionConSesionPrivilegiada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => Destino;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada { get; } = Guid.NewGuid();
+    }
+
+    [Fact]
+    public async Task Si_el_cambio_no_queda_auditado_el_contexto_no_cambia()
+    {
+        await using var db = await CrearContexto();
+        var http = Contexto();
+
+        var cambiar = () => CambiarAuditado(Origen, http, db, new RegistroCambioFalso { Lanzar = true });
+
+        await cambiar.Should().ThrowAsync<InvalidOperationException>();
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_cambio_deja_obsoleta_la_seleccion_de_las_demas_pestanas_del_navegador()
+    {
+        await using var db = await CrearContexto();
+        var registroVigente = new RegistroSeleccionVigente();
+        var http = Contexto();
+        http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, Usuario.ToString())], "Prueba"));
+        http.RequestServices = new ServiceCollection().AddSingleton(registroVigente).BuildServiceProvider();
+
+        await CambiarAuditado(Origen, http, db, new RegistroCambioFalso());
+
+        registroVigente.Vigente(RegistroSeleccionVigente.ClaveDe(http.User)!).Should().Be(RegistroSeleccionVigente.VersionOrigen);
+    }
+
+    /// <summary>
+    /// D-6 b, R-2 (D3): la selección del Tenant beneficiario por defecto queda auditada en el Tenant de destino con
+    /// origen «PorDefecto», la operación que la autoriza y la versión de la cookie que se emite; y si no queda
+    /// registrada, la cookie no se emite.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_seleccion_por_defecto_queda_auditada_antes_de_emitir_la_cookie(bool auditoriaFalla)
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var operacion = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        var cartera = AsignacionCartera.Externa(operacion, Usuario, "GestorCae", AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        operacion.FijarOrigen(delegacion);
+        db.AddRange(operacion, cartera, delegacion);
+        await db.SaveChangesAsync();
+        var registro = new RegistroCambioFalso { Lanzar = auditoriaFalla };
+        var http = new DefaultHttpContext();
+        http.Request.Path = "/";
+        http.RequestServices = new ServiceCollection().AddSingleton<IRegistroCambioContexto>(registro).BuildServiceProvider();
+        var mediator = System.Reflection.DispatchProxy.Create<MediatR.IMediator, MediatorConTenantPorDefecto>();
+
+        var fijar = () => TenantBeneficiarioPorDefectoMiddleware.FijarTenantPorDefectoAsync(
+            http, mediator, new UsuarioActual("GestorCae"), db, db, _protector);
+
+        if (auditoriaFalla)
+        {
+            await fijar.Should().ThrowAsync<InvalidOperationException>();
+            http.Response.Headers.SetCookie.Should().BeEmpty("sin auditoría no hay cambio de contexto");
+            return;
+        }
+
+        (await fijar()).Should().NotBeNull();
+        var cabecera = http.Response.Headers.SetCookie
+            .Single(c => c!.StartsWith(ClienteActivoSeleccionado.NombreCookie + "=", StringComparison.Ordinal))!;
+        var token = Uri.UnescapeDataString(cabecera.Split(';')[0][(ClienteActivoSeleccionado.NombreCookie.Length + 1)..]);
+        registro.Cambios.Should().Equal(
+            (Destino, (Guid?)operacion.Id, RegistroCambioContextoService.OrigenPorDefecto, RegistroSeleccionVigente.Huella(token)));
+    }
+
+    /// <summary>La lista del selector con un único Tenant beneficiario gestionado de la cartera: el Tenant por defecto.</summary>
+    public class MediatorConTenantPorDefecto : System.Reflection.DispatchProxy
+    {
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args) =>
+            args is [CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery, ..]
+                ? Task.FromResult<IReadOnlyList<CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ClienteAutorizadoDto>>(
+                [
+                    new(Origen, "Origen", EsOrigen: true),
+                    new(Destino, "Destino", EsOrigen: false, EsGestionadoPorOperacion: true,
+                        EsCarteraGestorCae: true),
+                ])
+                : throw new NotSupportedException(targetMethod?.Name);
+    }
+
+    private Task<IResult> CambiarAuditado(Guid tenant, HttpContext http, ContextoPrueba db, IRegistroCambioContexto registro) =>
+        ClienteActivoEndpoints.CambiarAsync(tenant, "/", http, db, new UsuarioActual("GestorCae"), db, _protector, default,
+            registroCambioContexto: registro);
+
+    private sealed class RegistroCambioFalso : IRegistroCambioContexto
+    {
+        public bool Lanzar { get; init; }
+
+        public List<(Guid Destino, Guid? Operacion, string Desde, string Version)> Cambios { get; } = [];
+
+        public Task RegistrarCambioAsync(Guid tenantDestinoId, Guid? asignacionOperacionId, string origen,
+            string versionSeleccion, CancellationToken cancellationToken)
+        {
+            if (Lanzar) throw new InvalidOperationException("Auditoría fallida de prueba.");
+            Cambios.Add((tenantDestinoId, asignacionOperacionId, origen, versionSeleccion));
+            return Task.CompletedTask;
+        }
+
+        public Task RegistrarRechazoAsync(string comando, SeleccionNoVigente motivo, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private DefaultHttpContext Contexto()
