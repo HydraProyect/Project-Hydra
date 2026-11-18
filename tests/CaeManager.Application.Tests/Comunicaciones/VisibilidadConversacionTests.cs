@@ -106,7 +106,7 @@ public class VisibilidadConversacionTests
     public async Task El_propietario_sin_el_Tenant_entero_ve_su_hilo_sin_ancla_en_la_lista_y_en_el_detalle()
     {
         // DECISION_LOG 2026-11-14, decisión 2: el correo de un buzón personal no registrado solo vive en la cuenta de su
-        // Gestor CAE propietario, que lo ve siempre, aunque no pase TriajeVisibleAsync.
+        // Gestor CAE propietario, que lo ve sin pasar TriajeVisibleAsync (con un ámbito efectivo que concede algo).
         var alcance = Alcance("propietario");
         var hilo = PorBuzon("Sin ancla: buzón personal propio", BuzonPersonalPropio);
 

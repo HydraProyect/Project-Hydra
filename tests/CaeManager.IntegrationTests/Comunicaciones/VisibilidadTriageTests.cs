@@ -37,6 +37,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _clientePropio;
     private Guid _conversacionSinCliente;
+    private AsignacionOperacion? _operacionAcotada;
 
     public async Task InitializeAsync()
     {
@@ -297,13 +298,14 @@ public class VisibilidadTriageTests : IAsyncLifetime
         // CAE con la cartera acotada a un Cliente empresarial, sin triaje y con su buzón personal, que sí la lanza. El
         // techo es el del presupuesto «Conversaciones» de la bandeja; el número medido se confirma en CI.
         var gestor = await OtorgarCarteraAsync();
-        await CrearHiloSinAnclaAsync(
+        var (_, delBuzonPropio) = await CrearHiloSinAnclaAsync(
             new ConexionIntegracion("presupuesto@ejemplo.local", "Personal", gestorPropietarioId: gestor), "hilo-presupuesto-vt-5");
 
         await ListarConAlcanceRealComo(gestor); // calentamiento: el modelo de EF y la primera conexión no cuentan
         var (lista, sentencias) = await ArnesPilotoOutbound.Contador.ContarAsync(() => ListarConAlcanceRealComo(gestor));
 
-        lista.Should().NotBeEmpty("control: ve su hilo anclado y el de su buzón personal");
+        lista.Select(c => c.Id).Should().Contain(delBuzonPropio, "control: el camino del buzón personal propio se recorre")
+            .And.NotContain(_conversacionSinCliente, "control: sin triaje");
         sentencias.Should().BeLessThanOrEqualTo(18, $"presupuesto «Conversaciones» de la bandeja; medido {sentencias}");
     }
 
@@ -354,13 +356,21 @@ public class VisibilidadTriageTests : IAsyncLifetime
     /// </summary>
     private async Task<Guid> OtorgarCarteraAsync(Guid? usuarioId = null)
     {
+        // Una sola operación acotada por test: IX_AsignacionesOperacion_ResponsableRelacionVigente admite una sola
+        // Asignación de Operación vigente por Tenant, servicio y Cliente empresarial; las carteras de cada usuario cuelgan de ella.
         var usuario = usuarioId ?? Guid.NewGuid();
         await using var contexto = CrearContexto();
         var ahora = DateTime.UtcNow;
-        var acotada = AsignacionOperacion.Interna(
-            _tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clientePropio), ahora, null, ahora);
-        contexto.AsignacionesOperacion.Add(acotada);
-        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(acotada, usuario, AmbitoAsignacion.Universal, ahora, null, ahora));
+        if (_operacionAcotada is { } existente)
+            contexto.AsignacionesOperacion.Attach(existente);
+        else
+        {
+            _operacionAcotada = AsignacionOperacion.Interna(
+                _tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clientePropio), ahora, null, ahora);
+            contexto.AsignacionesOperacion.Add(_operacionAcotada);
+        }
+        contexto.AsignacionesCartera.Add(
+            AsignacionCartera.Interna(_operacionAcotada, usuario, AmbitoAsignacion.Universal, ahora, null, ahora));
         await contexto.SaveChangesAsync();
         return usuario;
     }

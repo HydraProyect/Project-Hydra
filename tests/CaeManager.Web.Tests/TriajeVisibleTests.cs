@@ -272,9 +272,10 @@ public class TriajeVisibleTests
     [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]
     public async Task Con_un_papel_sin_alcance_de_datos_no_hay_buzon_personal_propio(PapelActivo papel)
     {
-        // Con el papel de Outbound, el control de arriba sí consulta la base: lo que cambia es solo el papel.
         // El papel Inbound fuera de una petición de Inbound y una operación que ya no autoriza no tienen alcance de datos
-        // (PapelSinAlcanceDeDatosAsync), así que tampoco abren el buzón personal propio.
+        // (PapelSinAlcanceDeDatosAsync), así que tampoco abren el buzón personal propio. Lo cierran dos guardas: la de papel
+        // y, detrás, NoConcedeNada (ObtenerAlcanceRealAsync ya da Ninguno con ese papel); este test fija la propiedad, no
+        // cuál de las dos corta.
         await using var contexto = ContextoSinServidor();
         var alcance = Alcance(contexto, new Usuario("GestorCae", papel));
 
