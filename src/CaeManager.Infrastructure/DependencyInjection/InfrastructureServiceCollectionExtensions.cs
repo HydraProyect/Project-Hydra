@@ -379,8 +379,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Conector de la API oficial de CTAIMACAE.net. Se registra siempre: si llama o no lo decide la
         // puerta (OperacionesConectorPlataformaCae), y el interruptor del proveedor nace apagado. Sin
         // redirecciones, porque la clave va en una cabecera que .NET reenviaría; sin el pipeline de
-        // resiliencia, porque el alta no es idempotente del otro lado; y con las cabeceras de la clave y
-        // del tenantId tachadas en el log del HttpClient.
+        // resiliencia, porque el alta no es idempotente del otro lado; y con todas las cabeceras tachadas
+        // en el log del HttpClient. Se tacha con un predicado y no con una lista: desde .NET 9 el valor por
+        // defecto ya tacha todas, y RedactLoggedHeaders(lista) sustituye ese predicado y dejaría en claro
+        // las demás (Set-Cookie, Location, Ocp-Apim-Trace-Location...).
         services.AddOptions<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions>()
             .Bind(configuration.GetSection(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions.SeccionConfiguracion))
             .Validate(o => o.EsValida(), "Integraciones:CtaimaCae necesita una UrlBase HTTPS absoluta acabada en barra y un TimeoutSegundos entre 1 y 120.")
@@ -393,10 +395,7 @@ public static class InfrastructureServiceCollectionExtensions
                 cliente.MaxResponseContentBufferSize = CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.TamanoMaximoRespuesta;
             })
             .ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)
-            .RedactLoggedHeaders([
-                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CabeceraClave,
-                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CabeceraTenant,
-            ]);
+            .RedactLoggedHeaders(_ => true);
         services.AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae,
             CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ConectorCtaimaCae>();
 

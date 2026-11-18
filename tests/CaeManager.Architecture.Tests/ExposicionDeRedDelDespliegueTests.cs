@@ -59,7 +59,7 @@ public class ExposicionDeRedDelDespliegueTests
     /// <summary>
     /// El cliente de CTAIMACAE.net lleva la clave de suscripción en una cabecera propia, que .NET reenvía al
     /// seguir un 3xx (solo limpia <c>Authorization</c>), y el alta no es idempotente del otro lado: sin
-    /// redirecciones, sin el pipeline de reintentos y con la clave y el tenantId tachados en el log.
+    /// redirecciones, sin el pipeline de reintentos y con el valor de todas las cabeceras tachado en el log.
     /// </summary>
     [Fact]
     public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras()
@@ -74,7 +74,12 @@ public class ExposicionDeRedDelDespliegueTests
         var registro = contenido[inicio..fin];
 
         registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeClient.CrearManejadorSinRedirecciones)");
-        registro.Should().Contain("RedactLoggedHeaders(").And.Contain("CtaimaCaeClient.CabeceraClave").And.Contain("CtaimaCaeClient.CabeceraTenant");
+        // Tachado total con predicado: RedactLoggedHeaders(lista) sustituye el predicado por defecto de .NET 9+
+        // (que tacha todo) y dejaría en claro Set-Cookie, Location u Ocp-Apim-Trace-Location.
+        registro.Should().Contain(".RedactLoggedHeaders(_ => true)",
+            "el log del HttpClient de CTAIMACAE.net tacha el valor de todas las cabeceras, no solo la clave y el tenantId");
+        registro.Split("RedactLoggedHeaders(").Length.Should().Be(2,
+            "una segunda llamada a RedactLoggedHeaders, con lista o predicado, sustituiría el tachado total");
         registro.Should().NotContain("AplicarResilienciaHttp", "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
         registro.Should().NotContain("AddStandardResilienceHandler");
     }

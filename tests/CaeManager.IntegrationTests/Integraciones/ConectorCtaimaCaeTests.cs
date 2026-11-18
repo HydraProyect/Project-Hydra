@@ -39,7 +39,11 @@ public class ConectorCtaimaCaeTests
     [Fact]
     public void El_codigo_es_el_del_proveedor_sembrado_para_ctaimacae_net()
     {
-        Crear().CodigoProveedor.Should().Be("ctaimacae-legacy");
+        var sembrado = CaeManager.Infrastructure.Persistence.Seed.ProveedorPlataformaCaeSeedData.Datos
+            .Should().ContainSingle(p => p.Dominios.Contains("ctaimacae.net"), "un solo proveedor sembrado sirve ctaimacae.net")
+            .Subject;
+
+        Crear().CodigoProveedor.Should().Be(sembrado.Codigo);
     }
 
     [Fact]
@@ -114,7 +118,7 @@ public class ConectorCtaimaCaeTests
         resultado.Fallo.Should().Be(esperado);
         _logger.Todo.Should().Contain(((int)codigo).ToString(), "el log dice qué código HTTP se recibió");
         _logger.Todo.Should().NotContain("12345678Z").And.NotContain("B00000000").And.NotContain("No employee");
-        _logger.Todo.Should().NotContain(Clave);
+        _logger.Todo.Should().NotContain(Clave).And.NotContain(TenantCtaima);
     }
 
     [Fact]
@@ -126,7 +130,7 @@ public class ConectorCtaimaCaeTests
             .DarDeAltaTrabajadorAsync(new CredencialApiConector(Clave), TenantCtaima, Alta, CancellationToken.None);
 
         resultado.Fallo.Should().Be(MotivoUsoConector.PlataformaNoDisponible);
-        _logger.Todo.Should().NotContain(Clave);
+        _logger.Todo.Should().NotContain(Clave).And.NotContain(TenantCtaima);
     }
 
     [Fact]
@@ -148,7 +152,7 @@ public class ConectorCtaimaCaeTests
         var resultado = await Crear().DarDeAltaTrabajadorAsync(new CredencialApiConector(Clave), TenantCtaima, Alta, CancellationToken.None);
 
         resultado.Fallo.Should().Be(MotivoUsoConector.PlataformaNoDisponible);
-        _logger.Todo.Should().NotContain("No employee").And.NotContain(Clave);
+        _logger.Todo.Should().NotContain("No employee").And.NotContain(Clave).And.NotContain(TenantCtaima);
     }
 
     [Theory]
