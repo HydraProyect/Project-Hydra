@@ -56,6 +56,29 @@ public class ExposicionDeRedDelDespliegueTests
             "el HttpClient de WhatsApp lleva el Bearer de la línea; no debe seguir un 3xx a un destino sin validar.");
     }
 
+    /// <summary>
+    /// El cliente de CTAIMACAE.net lleva la clave de suscripción en una cabecera propia, que .NET reenvía al
+    /// seguir un 3xx (solo limpia <c>Authorization</c>), y el alta no es idempotente del otro lado: sin
+    /// redirecciones, sin el pipeline de reintentos y con la clave y el tenantId tachados en el log.
+    /// </summary>
+    [Fact]
+    public void El_cliente_http_de_ctaima_no_sigue_redirecciones_no_reintenta_y_tacha_sus_cabeceras()
+    {
+        var contenido = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
+            "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"));
+
+        var inicio = contenido.IndexOf("AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae>", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0, "el cliente de CTAIMACAE.net se registra con AddHttpClient en este fichero");
+        var fin = contenido.IndexOf("AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae", inicio, StringComparison.Ordinal);
+        fin.Should().BeGreaterThan(inicio, "el conector se registra justo después de su cliente");
+        var registro = contenido[inicio..fin];
+
+        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CrearManejadorSinRedirecciones)");
+        registro.Should().Contain("RedactLoggedHeaders(").And.Contain("ClienteHttpCtaimaCae.CabeceraClave").And.Contain("ClienteHttpCtaimaCae.CabeceraTenant");
+        registro.Should().NotContain("AplicarResilienciaHttp", "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
+        registro.Should().NotContain("AddStandardResilienceHandler");
+    }
+
     private static string RaizDelRepositorio()
     {
         var actual = new DirectoryInfo(AppContext.BaseDirectory);

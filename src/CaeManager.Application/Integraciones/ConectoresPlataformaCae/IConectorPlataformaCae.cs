@@ -5,9 +5,9 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// <summary>
 /// Contrato común de una conexión por API oficial con una plataforma CAE de terceros. Ni Domain ni
 /// Application conocen ninguna plataforma: cada una es una implementación en Infrastructure, elegida
-/// por <see cref="CodigoProveedor"/> contra <c>ProveedorPlataformaCae.Codigo</c>. Hoy no hay ninguna
-/// registrada: la única implementación es un conector falso de los tests, porque aún no existe contrato
-/// de API con ninguna plataforma.
+/// por <see cref="CodigoProveedor"/> contra <c>ProveedorPlataformaCae.Codigo</c>. Hoy hay una registrada,
+/// la de CTAIMACAE.net, y no llama: aún no existe contrato de API con ninguna plataforma, el interruptor
+/// del proveedor nace apagado y al conector todavía no le llegan todos los datos que la API exige.
 ///
 /// <para>
 /// Solo lo llama <see cref="IOperacionesConectorPlataformaCae"/>, que ya ha hecho todas las

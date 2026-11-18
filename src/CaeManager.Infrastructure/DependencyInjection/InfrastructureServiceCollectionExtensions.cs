@@ -376,6 +376,30 @@ public static class InfrastructureServiceCollectionExtensions
         if (opcionesWhatsApp.EstaConfigurado)
             services.AddHostedService<IngestaWebhookWhatsAppHostedService>();
 
+        // Conector de la API oficial de CTAIMACAE.net. Se registra siempre: si llama o no lo decide la
+        // puerta (OperacionesConectorPlataformaCae), y el interruptor del proveedor nace apagado. Sin
+        // redirecciones, porque la clave va en una cabecera que .NET reenviaría; sin el pipeline de
+        // resiliencia, porque el alta no es idempotente del otro lado; y con las cabeceras de la clave y
+        // del tenantId tachadas en el log del HttpClient.
+        services.AddOptions<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions>()
+            .Bind(configuration.GetSection(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(), "Integraciones:CtaimaCae necesita una UrlBase HTTPS absoluta acabada en barra y un TimeoutSegundos entre 1 y 120.")
+            .ValidateOnStart();
+        services.AddHttpClient<CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae>((sp, cliente) =>
+            {
+                var opcionesCtaima = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<
+                    CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.CtaimaCaeOptions>>().Value;
+                cliente.Timeout = TimeSpan.FromSeconds(opcionesCtaima.TimeoutSegundos);
+                cliente.MaxResponseContentBufferSize = CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.TamanoMaximoRespuesta;
+            })
+            .ConfigurePrimaryHttpMessageHandler(CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CrearManejadorSinRedirecciones)
+            .RedactLoggedHeaders([
+                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CabeceraClave,
+                CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ClienteHttpCtaimaCae.CabeceraTenant,
+            ]);
+        services.AddTransient<CaeManager.Application.Integraciones.ConectoresPlataformaCae.IConectorPlataformaCae,
+            CaeManager.Infrastructure.Integraciones.ConectoresPlataformaCae.Ctaima.ConectorCtaimaCae>();
+
         // F3b: IClienteRepository/ClienteRepository e
         // ISubcontrataRepository/SubcontrataRepository retirados — Cliente y
         // Subcontrata pasan a ser Empresa contraparte (EsPropia=false), ver
