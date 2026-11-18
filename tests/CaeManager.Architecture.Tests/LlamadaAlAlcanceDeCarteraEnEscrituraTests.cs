@@ -231,6 +231,11 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.FijarCondicionesContratoAccesoCommandHandler",
         "ContratosAcceso.RenovarContratoAccesoCommandHandler",
         "ContratosAcceso.VincularTenantContratistaCommandHandler",
+        // Credencial de acceso físico (AF-02): el sujeto es acreditable solo si el actor ve el contrato de acceso de su evidencia
+        // (ContratoAccesoAutorizacion.VisibleAsync, por el Cliente empresarial del contrato).
+        "AccesoFisico.EmitirCredencialCommandHandler",
+        "AccesoFisico.RegenerarCredencialCommandHandler",
+        "AccesoFisico.RevocarCredencialCommandHandler",
         // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
         // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.
         "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",

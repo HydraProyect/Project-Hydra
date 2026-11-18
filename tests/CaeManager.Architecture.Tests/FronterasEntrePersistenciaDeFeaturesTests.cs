@@ -808,6 +808,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // (Domain.Inbound.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
         // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
         // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
+        // Credencial de acceso físico (AF-02): el sujeto acreditable sale de las evidencias de los contratos de acceso que el actor
+        // ve (supuesto H5 del plan). Solo lectura de esos dos contextos; la credencial vive en su propia feature.
+        ("AccesoFisico.EmitirCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.EmitirCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
+        ("AccesoFisico.RegenerarCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.RegenerarCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
+        ("AccesoFisico.RevocarCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.RevocarCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEmpresasQueryContext"),
