@@ -116,6 +116,52 @@ public class CredencialesAccesoTests
         _repositorio.Credenciales.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// La evidencia que acredita al Trabajador está en un contrato de un Cliente empresarial fuera de la cartera del actor, aunque
+    /// este vea otro contrato del mismo Tenant TEC: el cruce evidencia-contrato visible es la autoridad, y sin él el actor
+    /// controlaría credenciales de carteras ajenas.
+    /// </summary>
+    [Fact]
+    public async Task Una_evidencia_en_un_contrato_fuera_de_la_cartera_no_acredita_aunque_el_actor_vea_otro_contrato_del_mismo_Tenant_TEC()
+    {
+        var clienteAjeno = Guid.NewGuid();
+        var contratoAjeno = ContratoAcceso.Crear(clienteAjeno, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 3, 1), null, null);
+        contratoAjeno.VincularTenantContratista(_tenantContratista);
+        _contratos.ListaContratos.Add(contratoAjeno);
+        var otroTrabajador = Guid.NewGuid();
+        _evidencias.Add(Evidencia(contratoAjeno.Id, otroTrabajador, "Luis Gómez", "11111111H"));
+        var credencial = await EmitidaAsync();
+
+        var emitir = await Emitir().Handle(new EmitirCredencialCommand(_tenantContratista, otroTrabajador), CancellationToken.None);
+        var propia = _repositorio.Credenciales.Single();
+        var ajena = CredencialAcceso.Emitir(
+            new CredencialAcceso.Sujeto(_tenantContratista, otroTrabajador, "Luis Gómez", "11111111H"), _usuario, Ahora.UtcDateTime);
+        _repositorio.Agregar(ajena);
+        var regenerar = await Regenerar().Handle(new RegenerarCredencialCommand(ajena.Id), CancellationToken.None);
+        var revocar = await Revocar().Handle(
+            new RevocarCredencialCommand(ajena.Id, MotivoRevocacionCredencial.Otro), CancellationToken.None);
+
+        emitir.Error.Should().Be(CredencialAccesoErrores.NoEncontrada);
+        regenerar.Error.Should().Be(CredencialAccesoErrores.NoEncontrada);
+        revocar.Error.Should().Be(CredencialAccesoErrores.NoEncontrada);
+        (ajena.Serie, ajena.Estado).Should().Be((1, EstadoCredencialAcceso.Emitida));
+        propia.Should().BeSameAs(credencial);
+    }
+
+    [Fact]
+    public async Task Una_evidencia_rechazada_no_acredita_ni_da_la_instantanea()
+    {
+        _evidencias[0].Rechazar(CaeManager.Domain.Documentos.CausaRechazoAcreditacion.DatosErroneos, "El DNI no coincide", _usuario, Ahora.UtcDateTime);
+
+        var sinOtra = await Emitir().Handle(ComandoEmitir(), CancellationToken.None);
+        _evidencias.Add(Evidencia(_contrato.Id, _trabajador, "Ana Pérez Correcta", "99999999R"));
+        var conOtra = await Emitir().Handle(ComandoEmitir(), CancellationToken.None);
+
+        sinOtra.Error.Should().Be(CredencialAccesoErrores.NoEncontrada);
+        conOtra.EsExitoso.Should().BeTrue();
+        _repositorio.Credenciales.Single().SujetoNombre.Should().Be("Ana Pérez Correcta");
+    }
+
     [Fact]
     public async Task Solo_se_emite_para_un_contrato_Activo()
     {

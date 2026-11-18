@@ -340,6 +340,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [
             nameof(VisitaTrabajador.DocumentoIdentidad), nameof(VisitaTrabajador.NombreMostrado),
         ],
+        // AF-02: la instantánea del Trabajador en la credencial de acceso físico (nombre y documento, de otro Tenant). La
+        // tabla no la deja leer a cae_app_soporte; su «Creado» y «Modificado» en RegistrosAuditoria, que Soporte TALVEG sí lee,
+        // tampoco la copian.
+        [typeof(CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso)] =
+        [
+            nameof(CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso.SujetoNombre),
+            nameof(CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso.SujetoDocumentoIdentidad),
+        ],
         // Punto 11 (2026-10-18): el contacto de reclamación de una Delegación de Empresa, persona física de un tercero,
         // con el mismo criterio que la ficha de Empresa 360 (punto 8). Como su valor nunca llega al historial, no hace
         // falta enmascararlo a posteriori al anonimizar la Delegación.

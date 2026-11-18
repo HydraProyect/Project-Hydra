@@ -106,7 +106,7 @@ public class CredencialesAccesoBajoRuntimeTests : IAsyncLifetime
         foreach (var columna in new[]
                  {
                      "TenantId", "TenantOrigenId", "TrabajadorOrigenId", "EmitidaPorUsuarioId", "EmitidaEnUtc", "CreadoEnUtc",
-                     "EstaEliminado", "EliminadoEnUtc",
+                     "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId",
                  })
             (await Columna("cae_app_runtime", columna)).Should().BeFalse($"{columna}: la procedencia y la emisión no se reescriben");
 
