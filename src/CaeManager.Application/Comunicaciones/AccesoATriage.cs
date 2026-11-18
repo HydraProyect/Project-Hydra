@@ -6,7 +6,7 @@ namespace CaeManager.Application.Comunicaciones;
 /// Quién alcanza el contenido de un adjunto de correo. Además de la visibilidad de la conversación,
 /// exige rol efectivo: sin él no se entrega nada, tampoco en un hilo anclado (Soporte TALVEG en una
 /// Sesión Privilegiada no puede dejar la fila de acceso, y lo que no se puede registrar no se entrega).
-/// Un hilo sin ancla (la cola de triage) no tiene cartera que lo acote: la visibilidad de la conversación
+/// Un hilo sin ancla (la cola de triaje) no tiene cartera que lo acote: la visibilidad de la conversación
 /// ya exige <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>, y aquí se repite la lista de roles de gestión
 /// CAE de <c>RolesComunicaciones.Gestion</c> (SEG-9, ASVS 4.0.3 V4.1.3 y V4.2.1). Esa constante vive en Web y
 /// aquí no se alcanza; <c>RolesDeTriajeParidadTests</c> vigila que esta lista, esa, la de

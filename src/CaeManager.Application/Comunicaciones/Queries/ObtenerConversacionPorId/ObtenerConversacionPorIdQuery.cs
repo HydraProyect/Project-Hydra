@@ -167,7 +167,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         // La misma regla que la lista (ObtenerConversacionesQueryHandler), con
         // la misma expresión (VisibilidadConversacion): acotar solo el listado
         // dejaba el hilo accesible a quien tuviera el Guid. Cubre el buzón
-        // personal de OTRO gestor (nunca se abre desde aquí, tenga o no
+        // personal de OTRO Gestor CAE (nunca se abre desde aquí, tenga o no
         // Cliente resuelto), el ancla Cliente por cartera, el ancla Empresa
         // contraparte por alcance de gestión (vacío para el rol Cliente) y la
         // cola de triaje solo con IAlcanceDatosService.TriajeVisibleAsync. Es
@@ -437,7 +437,7 @@ public class ObtenerConversacionPorIdQueryHandler(
     /// Solo tiene sentido proponer vincular un hilo WhatsApp vivo con
     /// Cliente ya resuelto (§ 13.2 exige "mismo Cliente" como primer
     /// criterio) — un hilo de correo, uno cerrado/resuelto, o uno todavía en
-    /// triage no calculan nada.
+    /// triaje no calculan nada.
     /// </summary>
     private async Task<SugerenciaVinculacionDetalleDto?> ObtenerSugerenciaVinculacionAsync(
         Guid conversacionId, Guid? clienteId, CanalConversacion canal, EstadoConversacion estado,

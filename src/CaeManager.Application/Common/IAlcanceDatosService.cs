@@ -93,9 +93,18 @@ public interface IAlcanceDatosService
 
     /// <summary>
     /// Las conexiones del buzón personal propio de quien mira en el Tenant actual: la segunda condición de la rama sin
-    /// ancla de <see cref="VisibilidadConversacion"/>. El correo de un buzón personal no registrado solo vive en la cuenta
-    /// del Gestor CAE propietario (DECISION_LOG, 2026-11-14, decisión 2), así que su propietario ve esos hilos aunque no
-    /// alcance el Tenant entero.
+    /// ancla de <see cref="VisibilidadConversacion"/>. La decisión 2 del 2026-11-14 (DECISION_LOG, «Buzones de varios
+    /// Tenants…») dice que el correo de un buzón personal que no se deja como registro «solo vive en la cuenta del Gestor
+    /// CAE propietario». De ahí sale esta condición: el propietario ve esos hilos sin ancla aunque no alcance el Tenant
+    /// entero, siempre que tenga en el Tenant actual un ámbito efectivo que conceda algo (ADR-011, cartera ∩ operación).
+    /// Nadie más los ve por esta vía.
+    ///
+    /// <para>
+    /// DESVIACIÓN PENDIENTE DE CHRIS: la decisión 2 no dice qué pasa con esos hilos cuando la conexión deja de estar
+    /// Habilitada. R-3a falla cerrado: con la conexión Deshabilitada, en ConError o eliminada, la condición no se cumple y
+    /// el propietario sin el Tenant entero deja de verlos en la lista y en el detalle. Si Chris decide otra cosa, cambia
+    /// el filtro de estado de la implementación y los tests que lo fijan (VisibilidadTriageTests).
+    /// </para>
     ///
     /// <para>
     /// Son las <c>ConexionIntegracion</c> del Tenant actual (filtro de Tenant, borrado lógico y RLS) que son personales
@@ -105,8 +114,9 @@ public interface IAlcanceDatosService
     /// con una Sesión Privilegiada de cualquier capacidad, Impersonación incluida (un Actor de Plataforma TALVEG no es
     /// Gestor CAE del Tenant, y el buzón del Usuario simulado no se abre por esta vía), con la lente de demo Gestor, sin rol
     /// efectivo de gestión de Comunicaciones, con un papel sin alcance de datos (una operación que ya no autoriza, o el papel
-    /// Inbound fuera de una petición de Inbound), sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada
-    /// no entra. La implementación por defecto, para los dobles de prueba, es vacía.
+    /// Inbound fuera de una petición de Inbound), con un ámbito efectivo que no concede nada (sin Asignación de Cartera
+    /// vigente, o ámbito ninguno), sin usuario o sin Tenant. Una conexión deshabilitada, con error o eliminada no entra
+    /// (la desviación de arriba). La implementación por defecto, para los dobles de prueba, es vacía.
     /// </para>
     /// </summary>
     Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default) =>

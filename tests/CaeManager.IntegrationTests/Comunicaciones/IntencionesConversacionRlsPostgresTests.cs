@@ -100,7 +100,7 @@ public class IntencionesConversacionRlsPostgresTests : IAsyncLifetime
         }
         await db.SaveChangesAsync();
         var handler = new ObtenerConversacionesQueryHandler(db, db, db, new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(rol: "GestorCae"));
+            new CurrentUserServiceFalso(rol: "GestorCae"), tenantActual);
         var resultado = await handler.Handle(new ObtenerConversacionesQuery(Intencion: IntencionCae.CoordinacionAcceso, TamanoPagina: 1), default);
         resultado.TotalElementos.Should().Be(2);
         resultado.Elementos.Should().ContainSingle();

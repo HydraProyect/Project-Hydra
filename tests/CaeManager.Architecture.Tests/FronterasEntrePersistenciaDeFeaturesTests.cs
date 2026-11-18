@@ -405,6 +405,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IProyectosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IClientesQueryContext"),
+        // D-6 b, R-3a: el listado decide la visibilidad de la conversación de origen con la misma regla que la acción,
+        // y la exclusión de buzones personales ajenos y conexiones eliminadas lee la tabla de conexiones (ConversacionesVisibles).
+        ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "ICentrosQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ResponderConversacionCommandHandler", "IConexionIntegracionRepository"),

@@ -304,6 +304,12 @@ public class AlcanceDatosService(
     /// Operación dejó de autorizar con el circuito abierto, o el papel Inbound fuera de una petición de Inbound. Es el mismo
     /// corte que cierra la cartera y el acceso total, para que el papel Inbound no abra por esta vía lo que no abre por
     /// las demás.</item>
+    /// <item>Con un ámbito efectivo que no concede nada (<see cref="AlcanceCartera.NoConcedeNada"/>): ADR-011, cartera ∩
+    /// operación. Sin una Asignación de Cartera vigente bajo una Asignación de Operación vigente que la ampare, o con
+    /// ámbito ninguno, el mismo criterio que deja vacías las listas de Clientes, Centros y Empresas cierra también el buzón
+    /// personal: si Marta, Gestora CAE del Operador CAE externo, pierde su Asignación de Cartera en el Tenant beneficiario,
+    /// deja de ver allí los hilos sin ancla de su buzón aunque la conexión siga Habilitada. Lee la cartera ya memoizada
+    /// por <see cref="TriajeVisibleAsync"/>, que la lista y el detalle piden antes.</item>
     /// <item>Sin usuario o sin Tenant actual.</item>
     /// </list>
     /// La consulta va por el contexto con filtro de Tenant y de borrado lógico (y RLS), y además compara el Tenant de la
@@ -318,6 +324,7 @@ public class AlcanceDatosService(
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesQueVenTriaje.Contains(rol)) return [];
         if (await PapelSinAlcanceDeDatosAsync()) return [];
+        if ((await ObtenerAlcanceDeCarteraAsync(cancellationToken)).NoConcedeNada) return [];
 
         if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId) return [];
         if (tenantActual.TenantId is not { } tenant) return [];
@@ -560,6 +567,12 @@ public class AlcanceDatosService(
         public static readonly AlcanceCartera Universal = new(false, true, []);
         public static readonly AlcanceCartera Ninguno = new(false, false, []);
         public static AlcanceCartera DeLista(IReadOnlyList<Guid> clienteIds) => new(false, false, clienteIds);
+
+        /// <summary>
+        /// Ni sin restricción, ni el Tenant entero, ni ningún Cliente empresarial: <see cref="Ninguno"/> o una lista vacía
+        /// (sin Asignación de Cartera efectiva). Es el estado en que las listas de alcance salen vacías.
+        /// </summary>
+        public bool NoConcedeNada => !SinRestriccion && !TenantEntero && ClienteIds.Count == 0;
 
         /// <summary>Intersección: solo puede estrechar. Sin restricción ⊇ Tenant entero ⊇ lista.</summary>
         public AlcanceCartera Intersecar(AlcanceCartera otro) =>

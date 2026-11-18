@@ -194,7 +194,8 @@ public class VigilanciaVisitasUrgentesHostedService(
         // entrada explícito para esto, y el alcance solo lo usaría Handle.
         var visitasHandler = new ObtenerVisitasQueryHandler(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos, dbContext);
-        var sugerenciasHandler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(dbContext, dbContext, dbContext, alcanceDatos);
+        var sugerenciasHandler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(dbContext, dbContext, dbContext, alcanceDatos, dbContext,
+            ambito.ServiceProvider.GetRequiredService<ICurrentUserService>(), ambito.ServiceProvider.GetRequiredService<ITenantActual>());
 
         var visitas = await visitasHandler.LeerTodasAsync(
             GestionesUrgentesDeVisita.ConsultaCandidatas(), centroIdsVisibles: null, stoppingToken);

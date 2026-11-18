@@ -14,28 +14,34 @@ namespace CaeManager.Application.Common;
 /// (<see cref="AlcanceDatosServiceExtensions.ClientesEmpresarialesVisiblesAsync"/>).</item>
 /// <item>Ancla Empresa contraparte: en el alcance de <b>gestión</b> de Empresas
 /// (<see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/>), que para el rol Cliente es vacío: un hilo
-/// con una contratista es un artefacto interno de la gestión.</item>
+/// con una Empresa contraparte es un artefacto interno de la gestión.</item>
 /// <item>Sin ninguna de las dos anclas: visible si se cumple cualquiera de estas dos condiciones.
 /// <list type="number">
 /// <item>La cola de triaje: <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> es verdadero. Ni el rol nulo, ni el
 /// rol Cliente, ni un ámbito efectivo acotado ven triaje.</item>
 /// <item>El buzón personal propio: la conversación entra por una de las conexiones de
 /// <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>, los buzones personales (no compartidos) habilitados
-/// del Tenant actual cuyo <c>GestorPropietarioId</c> es el usuario de la sesión. El correo de un buzón personal que no
-/// se deja como registro «solo vive en la cuenta del Gestor CAE propietario» (DECISION_LOG, 2026-11-14, «Buzones de
-/// varios Tenants…», decisión 2; propuesta de buzones de varios Tenants § 3.3), así que su propietario lo ve siempre,
-/// aunque no alcance el Tenant entero. No abre nada más: un buzón compartido sin ancla sigue exigiendo el triaje, y un
-/// buzón personal ajeno no está en esa lista.</item>
+/// del Tenant actual cuyo <c>GestorPropietarioId</c> es el usuario de la sesión, con un ámbito efectivo que concede algo
+/// (ADR-011, cartera ∩ operación: sin Asignación de Cartera vigente, la lista es vacía). La decisión 2 del 2026-11-14
+/// (DECISION_LOG, «Buzones de varios Tenants…»; propuesta de buzones de varios Tenants § 3.3) dice que el correo de un
+/// buzón personal que no se deja como registro «solo vive en la cuenta del Gestor CAE propietario»: por eso lo ve su
+/// propietario aunque no alcance el Tenant entero, y nadie más por esta vía. No abre nada más: un buzón compartido sin
+/// ancla sigue exigiendo el triaje, y un buzón personal ajeno no está en esa lista.
+/// <b>DESVIACIÓN PENDIENTE DE CHRIS</b>: la decisión 2 no dice qué pasa cuando la conexión deja de estar Habilitada.
+/// R-3a falla cerrado: con la conexión Deshabilitada, en ConError o eliminada, la lista es vacía y el propietario sin el
+/// Tenant entero deja de ver esos hilos en la lista y en el detalle.</item>
 /// </list></item>
 /// </list>
 /// Las dos anclas son excluyentes en el dominio; si una fila trajera las dos, se exigen las dos (falla cerrado).
 ///
 /// <para>
 /// El buzón personal ajeno (<c>ConexionIntegracion.GestorPropietarioId</c> de otro gestor) se cierra además fuera de
-/// esta expresión, contra la tabla de conexiones y para cualquier ancla: la lista excluye las conexiones personales
-/// ajenas del Tenant y el detalle pregunta <see cref="IAlcanceDatosService.ConexionIntegracionVisibleAsync"/>, que
-/// además falla cerrado con una conexión inexistente o eliminada. Los dos aplican la misma regla de propiedad del
-/// buzón, con el mismo usuario que la condición 2. Ni el Administrador abre un buzón personal ajeno.
+/// esta expresión, contra la tabla de conexiones y para cualquier ancla: los listados
+/// (<c>ConversacionesVisibles</c>, en Comunicaciones) excluyen las conexiones personales ajenas y las eliminadas del
+/// Tenant, y el detalle pregunta <see cref="IAlcanceDatosService.ConexionIntegracionVisibleAsync"/>, que falla cerrado
+/// con una conexión eliminada o inexistente (esta última, sin clave foránea, sigue en la lista). Los dos aplican la
+/// misma regla de propiedad del buzón, con el mismo usuario que la condición 2. Ni el Administrador abre un buzón
+/// personal ajeno.
 /// </para>
 ///
 /// <para>

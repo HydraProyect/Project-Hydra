@@ -193,20 +193,36 @@ public class TriajeVisibleTests
     }
 
     // AlcanceDatosService.BuzonesPersonalesPropiosAsync, la condición 2 de la rama sin ancla (DECISION_LOG 2026-11-14,
-    // decisión 2): falla cerrado ANTES de leer la base. Con un rol de gestión y sin sesión, sí llega a la consulta (y aquí
-    // falla, porque no hay servidor): eso prueba que lo que cierra en los demás casos es la guarda, no la falta de filas.
-    // Qué conexiones devuelve la consulta (propia, ajena, compartida, deshabilitada, de otro Tenant) se prueba bajo
-    // PostgreSQL en VisibilidadTriageTests (integración, solo en CI).
+    // decisión 2): falla cerrado ANTES de leer la base. Con un rol de gestión, sin sesión y con un ámbito efectivo que
+    // concede algo, sí llega a la consulta de conexiones (y aquí falla, porque no hay servidor): eso prueba que lo que
+    // cierra en los demás casos es la guarda, no la falta de filas. El control usa un Coordinador CAE que entra por la
+    // Asignación de Operación de su organización, cuyo ámbito (el Tenant entero) se resuelve sin leer la base: la cartera
+    // de un Gestor CAE se lee de la base, y su lectura fallaría antes de llegar a las conexiones. Qué conexiones devuelve
+    // la consulta (propia, ajena, compartida, deshabilitada, de otro Tenant, sin Asignación de Cartera vigente) se prueba
+    // bajo PostgreSQL en VisibilidadTriageTests (integración, solo en CI).
 
     [Fact]
-    public async Task El_buzon_personal_propio_de_un_Gestor_CAE_sin_sesion_se_busca_en_la_base()
+    public async Task El_buzon_personal_propio_de_un_Coordinador_CAE_con_ambito_y_sin_sesion_se_busca_en_la_base()
     {
         await using var contexto = ContextoSinServidor();
-        var alcance = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Outbound));
+        var alcance = Alcance(contexto, new Usuario("CoordinadorCae", PapelActivo.Outbound));
 
         var buscar = () => alcance.BuzonesPersonalesPropiosAsync();
 
-        await buscar.Should().ThrowAsync<Exception>("control: sin guarda que lo cierre, consulta la base");
+        await buscar.Should().ThrowAsync<Exception>("control: con un ámbito que concede algo y sin guarda que lo cierre, consulta la base");
+    }
+
+    [Fact]
+    public async Task Con_un_ambito_efectivo_que_no_concede_nada_no_hay_buzon_personal_propio()
+    {
+        // ADR-011, cartera ∩ operación: un Gestor CAE sin Tenant de origen no tiene operación que ampare su cartera, así que
+        // su ámbito es ninguno (AlcanceCartera.Ninguno) sin leer la base. Sin el corte de NoConcedeNada, el servicio
+        // pasaría a la consulta de conexiones y aquí lanzaría. La cartera vacía (sin Asignación de Cartera vigente) se
+        // prueba bajo PostgreSQL en VisibilidadTriageTests.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Outbound, sinTenantOrigen: true));
+
+        (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
     }
 
     [Theory]
@@ -256,7 +272,7 @@ public class TriajeVisibleTests
     [InlineData(PapelActivo.OperacionQueYaNoAutoriza)]
     public async Task Con_un_papel_sin_alcance_de_datos_no_hay_buzon_personal_propio(PapelActivo papel)
     {
-        // El mismo Gestor CAE sin sesión que en el control de arriba sí consulta la base: lo que cambia es solo el papel.
+        // Con el papel de Outbound, el control de arriba sí consulta la base: lo que cambia es solo el papel.
         // El papel Inbound fuera de una petición de Inbound y una operación que ya no autoriza no tienen alcance de datos
         // (PapelSinAlcanceDeDatosAsync), así que tampoco abren el buzón personal propio.
         await using var contexto = ContextoSinServidor();
@@ -272,7 +288,7 @@ public class TriajeVisibleTests
         // tiene alcance de datos (el de Inbound), así que la guarda no corta y se llega a la consulta (que aquí falla, porque
         // no hay servidor). Una guarda que cerrara el papel Inbound sin mirar el ámbito de la petición lo pondría en rojo.
         await using var contexto = ContextoSinServidor();
-        var alcance = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Inbound));
+        var alcance = Alcance(contexto, new Usuario("CoordinadorCae", PapelActivo.Inbound));
 
         using (AmbitoPeticionInbound.Abrir())
         {
@@ -313,12 +329,13 @@ public class TriajeVisibleTests
     }
 
     /// <summary>Una persona que entra por la Asignación de Operación de su organización, como en <c>AlcanceConPapelInboundTests</c>.</summary>
-    private sealed class Usuario(string? rol, PapelActivo papel) : ICurrentUserService, IEncargoDeAdministracionActual
+    private sealed class Usuario(string? rol, PapelActivo papel, bool sinTenantOrigen = false)
+        : ICurrentUserService, IEncargoDeAdministracionActual
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(rol);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(sinTenantOrigen ? null : Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
         public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel);
         public Task<bool> OperaPorAsignacionDeOperacionAsync() => Task.FromResult(true);

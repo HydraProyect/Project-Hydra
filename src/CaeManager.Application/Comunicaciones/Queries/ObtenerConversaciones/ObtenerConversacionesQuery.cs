@@ -83,7 +83,7 @@ public record ConversacionListaDto(
 public class ObtenerConversacionesQueryHandler(
     IEmpresasQueryContext empresasContext, IComunicacionesQueryContext comunicacionesContext,
     IIntegracionesQueryContext integracionesContext,
-    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService,
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService, ITenantActual tenantActual,
     PlazosConversacionService? plazosService = null)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
@@ -116,34 +116,23 @@ public class ObtenerConversacionesQueryHandler(
         //    ven triaje. Falla cerrado: antes de R-3a el triaje se abría a
         //    todo rol distinto de Cliente, el nulo incluido.
         //  - Sin ancla, pero entrando por el buzón personal propio
-        //    (IAlcanceDatosService.BuzonesPersonalesPropiosAsync): lo ve su
-        //    Gestor CAE propietario aunque no alcance el Tenant entero
-        //    (DECISION_LOG 2026-11-14, decisión 2). Es la misma condición que
-        //    el detalle, dentro de la misma expresión.
+        //    (IAlcanceDatosService.BuzonesPersonalesPropiosAsync): solo con
+        //    una Asignación de Cartera vigente, el Gestor CAE propietario lo ve
+        //    aunque no alcance el Tenant entero (DECISION_LOG 2026-11-14,
+        //    decisión 2: ese correo «solo vive en la cuenta del Gestor CAE
+        //    propietario»). Es la misma condición que el detalle, dentro de la
+        //    misma expresión.
+        //  - Y la regla del buzón del detalle: fuera los hilos del buzón
+        //    personal de OTRO Gestor CAE (ConexionIntegracion.GestorPropietarioId),
+        //    que también tienen ClienteId null, y los de una conexión eliminada.
         //
+        // Las dos mitades viven en ConversacionesVisibles, que comparten los
+        // listados de objetos nacidos de un mensaje (sugerencias de visita).
         // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
         // a propósito: la página cierra la puerta de entrada, esto cierra
         // el dato para cualquier otra UI o API que llegue después.
-        var visibilidad = await VisibilidadConversacion.ResolverAsync(alcanceDatos, cancellationToken);
-        consulta = consulta.Where(visibilidad.Predicado<Conversacion>(
-            c => c.ClienteId, c => c.EmpresaId, c => c.ConexionIntegracionId));
-
-        // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
-        // también tiene ClienteId null, igual que la cola de triage genuina —
-        // sin esto, sus hilos se colaban en la bandeja de cualquier gestor con
-        // acceso a Comunicaciones (mismo hueco corregido en ObtenerConversacionPorIdQuery
-        // y en las cuatro consultas que resuelven "el buzón a usar para enviar").
-        var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        var conexionesAjenasPersonales = await integracionesContext.ConexionesIntegracion
-            .Where(c => c.GestorPropietarioId != null && c.GestorPropietarioId != usuarioActualId)
-            .Select(c => c.Id)
-            .ToListAsync(cancellationToken);
-
-        if (conexionesAjenasPersonales.Count > 0)
-        {
-            consulta = consulta.Where(c =>
-                c.ConexionIntegracionId == null || !conexionesAjenasPersonales.Contains(c.ConexionIntegracionId!.Value));
-        }
+        consulta = await ConversacionesVisibles.FiltrarAsync(
+            consulta, alcanceDatos, currentUserService, integracionesContext, tenantActual, cancellationToken);
 
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);

@@ -196,7 +196,7 @@ public class RegistroEnvioReclamacionService(
         {
             // El hilo se ancla al titular real. Para una Empresa contraparte va
             // por EmpresaId y no por ClienteId: son planos distintos, y dejarlo
-            // sin ancla lo mandaría a la cola de triage, que no tiene cartera
+            // sin ancla lo mandaría a la cola de triaje, que no tiene cartera
             // que la acote (D-6 b, R-3a): la vería quien alcanza el Tenant
             // entero aunque no tenga a ese titular en cartera, y no la vería
             // quien lo tiene en una cartera acotada.
