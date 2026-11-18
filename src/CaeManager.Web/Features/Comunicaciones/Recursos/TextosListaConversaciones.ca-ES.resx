@@ -45,7 +45,7 @@
   <data name="Mias" xml:space="preserve"><value>Meves</value></data>
   <data name="EsperandoCliente" xml:space="preserve"><value>Esperant resposta de l'Interlocutor</value></data>
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
-  <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte i al text dels missatges</value></data>
+  <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar a l’assumpte, a les etiquetes i al text dels missatges</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
   <data name="SiguienteConversacion" xml:space="preserve"><value>Conversa següent</value></data>
   <data name="ResumenCerrada" xml:space="preserve"><value>Tancada</value></data>

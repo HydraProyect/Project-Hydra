@@ -26,7 +26,8 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// adelante — el mismo motivo por el que <see cref="SoloAsignadasAMi"/> y
 /// <see cref="SoloSinAsignar"/> ya eran filtros de servidor.
 ///
-/// <see cref="Busqueda"/> compara Asunto Y el cuerpo de los mensajes del hilo
+/// <see cref="Busqueda"/> compara el Asunto, las Etiquetas (texto libre de la conversación, p. ej. el nombre de un
+/// centro) Y el cuerpo de los mensajes del hilo, siempre dentro de lo que la regla de visibilidad ya deja ver
 /// (H2, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
 /// conversaciones"). Es <c>Contains</c> sin índice de texto completo, mismo
 /// nivel que el resto de búsquedas de este repositorio — no se introduce
@@ -175,6 +176,7 @@ public class ObtenerConversacionesQueryHandler(
             var busqueda = request.Busqueda.ToUpper();
             consulta = consulta.Where(c =>
                 c.Asunto.ToUpper().Contains(busqueda) ||
+                (c.Etiquetas != null && c.Etiquetas.ToUpper().Contains(busqueda)) ||
                 comunicacionesContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.CuerpoHtml.ToUpper().Contains(busqueda)));
         }
 

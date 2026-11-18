@@ -1,5 +1,6 @@
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -218,6 +219,54 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(Busqueda: "Certificado"));
 
         resultado.TotalElementos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_busqueda_encuentra_una_conversacion_por_su_etiqueta_aunque_ni_el_asunto_ni_los_mensajes_coincidan()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            var etiquetada = new Conversacion("Asunto sin relación", etiquetas: "Centro Logístico Sevilla, visita anual");
+            etiquetada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@externo.test", "<p>Cuerpo sin relación.</p>");
+            var sinEtiquetas = new Conversacion("Otro asunto");
+            sinEtiquetas.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@externo.test", "<p>Otro cuerpo.</p>");
+            contexto.Conversaciones.AddRange(etiquetada, sinEtiquetas);
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(Busqueda: "logístico sevilla"));
+
+        resultado.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Asunto sin relación");
+    }
+
+    [Fact]
+    public async Task La_busqueda_por_etiqueta_no_devuelve_una_conversacion_que_la_visibilidad_no_deja_ver()
+    {
+        // Regresión de visibilidad: la etiqueta se busca dentro del conjunto ya acotado, no abre nada nuevo. Con el
+        // triaje cerrado, la conversación sin ancla no sale aunque lleve la etiqueta buscada; la anclada al Cliente
+        // propio, con la misma etiqueta, sí.
+        Guid clientePropioId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Contrata Propia S.L.", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var anclada = new Conversacion("Anclada al Cliente propio", clienteId: cliente.Id, etiquetas: "Centro Norte");
+            anclada.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "yo@propia.test", "<p>Hola</p>");
+            var sinTriar = new Conversacion("Sin triar", etiquetas: "Centro Norte");
+            sinTriar.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "otro@ajena.test", "<p>Datos de otra empresa</p>");
+            contexto.Conversaciones.AddRange(anclada, sinTriar);
+            await contexto.SaveChangesAsync();
+            clientePropioId = cliente.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerConversacionesQueryHandler(
+            lectura, lectura, lectura, new AlcanceDatosServiceFalso(clienteIds: [clientePropioId], triajeVisible: false),
+            new CurrentUserServiceFalso(rol: "GestorCae"), new TenantActualAmbiental { TenantId = _tenant });
+
+        var resultado = await handler.Handle(new ObtenerConversacionesQuery(Busqueda: "centro norte"), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.ClienteId.Should().Be(clientePropioId);
     }
 
     [Fact]
