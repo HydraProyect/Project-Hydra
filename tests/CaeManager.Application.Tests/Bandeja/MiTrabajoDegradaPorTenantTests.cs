@@ -34,14 +34,16 @@ public class MiTrabajoDegradaPorTenantTests
     private static readonly Guid TenantRefri = Guid.NewGuid();
     private static readonly Guid TenantRoto = Guid.NewGuid();
 
-    private static ObtenerMiTrabajoAgregadoQueryHandler Handler(IMediator mediator, IClienteActivoSeleccionado? seleccion = null)
+    private static ObtenerMiTrabajoAgregadoQueryHandler Handler(
+        IMediator mediator, bool sesionPrivilegiada = false, Guid? tenantObjetivo = null)
     {
         var configuracion = new ConfiguracionQueryContextFalso();
         configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
 
         return new ObtenerMiTrabajoAgregadoQueryHandler(
             mediator, configuracion, new EmpresasQueryContextFalso(), new CalculoEstadoCentroSinUso(),
-            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance, seleccion: seleccion);
+            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance,
+            new Coordenada(sesionPrivilegiada), new TenantActualDeMiTrabajo(tenantObjetivo));
     }
 
     /// <summary>
@@ -53,7 +55,7 @@ public class MiTrabajoDegradaPorTenantTests
     {
         var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
 
-        var resultado = await Handler(mediator, new Seleccion(TenantRefri, sesionPrivilegiada: Guid.NewGuid()))
+        var resultado = await Handler(mediator, sesionPrivilegiada: true, tenantObjetivo: TenantRefri)
             .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 
         resultado.Tenants.Select(t => t.TenantId).Should().Equal([TenantRefri]);
@@ -66,30 +68,42 @@ public class MiTrabajoDegradaPorTenantTests
     {
         var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
 
-        var resultado = await Handler(mediator, new Seleccion(Guid.NewGuid(), sesionPrivilegiada: Guid.NewGuid()))
+        var resultado = await Handler(mediator, sesionPrivilegiada: true, tenantObjetivo: Guid.NewGuid())
             .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 
         resultado.Tenants.Should().BeEmpty();
         mediator.Consultados.Should().BeEmpty();
     }
 
+    /// <summary>Fallo cerrado: con una Sesión Privilegiada y sin Tenant actual resuelto no se consulta ningún Tenant.</summary>
     [Fact]
-    public async Task Sin_Sesion_Privilegiada_una_seleccion_de_Tenant_no_recorta_la_cartera()
+    public async Task Con_una_Sesion_Privilegiada_sin_Tenant_actual_no_se_consulta_ninguno()
     {
         var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
 
-        var resultado = await Handler(mediator, new Seleccion(TenantRefri, sesionPrivilegiada: null))
+        var resultado = await Handler(mediator, sesionPrivilegiada: true, tenantObjetivo: null)
+            .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
+
+        resultado.Tenants.Should().BeEmpty();
+        resultado.NoConsultados.Should().BeEmpty();
+        mediator.Consultados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_Sesion_Privilegiada_el_Tenant_actual_no_recorta_la_cartera()
+    {
+        var mediator = new MediatorQueFallaEn(tenantQueFalla: null);
+
+        var resultado = await Handler(mediator, sesionPrivilegiada: false, tenantObjetivo: TenantRefri)
             .Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 
         resultado.Tenants.Should().HaveCount(3, "el recorte es solo de la Sesión Privilegiada");
         mediator.Consultados.Should().Equal([TenantOrigen, TenantRefri, TenantRoto]);
     }
 
-    private sealed class Seleccion(Guid? tenant, Guid? sesionPrivilegiada) : IClienteActivoSeleccionado
+    private sealed class Coordenada(bool haySeleccionada) : CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada
     {
-        public Guid? TenantIdSeleccionado => tenant;
-        public Guid? AsignacionOperacionIdSeleccionada => null;
-        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiada;
+        public bool HaySeleccionada => haySeleccionada;
     }
 
     [Fact]

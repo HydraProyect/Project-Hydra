@@ -255,7 +255,8 @@ public class IdsDeFilaUnicosTests
         var logger = new LoggerDeErrores();
         var handler = new ObtenerMiTrabajoAgregadoQueryHandler(
             new MediadorConAlertas(tenantA, alertasA, tenantB, alertasB), configuracion, new EmpresasQueryContextFalso(),
-            new CalculoEstadoCentroSinUso(), new AlcanceDatosServiceFalso(), logger);
+            new CalculoEstadoCentroSinUso(), new AlcanceDatosServiceFalso(), logger,
+            new CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente(), new TenantActualDeMiTrabajo());
 
         var resultado = await handler.Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 
