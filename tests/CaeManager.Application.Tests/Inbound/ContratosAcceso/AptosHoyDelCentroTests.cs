@@ -778,6 +778,25 @@ public class AptosHoyDelCentroTests
             EstadoAptitudInbound.Apto, "la autorización no cambia: no se leen evidencias de un contrato que la Asignación de Cartera no deja ver");
     }
 
+    [Fact]
+    public async Task Un_No_apto_de_un_contrato_que_cuenta_pero_el_actor_no_ve_no_bloquea_ni_suma_su_Empresa()
+    {
+        // Mismo Centro, Activo, vinculado y vigente (cuenta), pero de otro Cliente empresarial: la Asignación de Cartera no lo deja ver.
+        var oculto = NuevoContratoDeOtroCliente();
+        _contratos.ListaContratos.Add(oculto);
+        var t = Guid.NewGuid();
+        Dar(t, "Pilar Sanjuán Aznar", _formacion, new DateOnly(2026, 6, 1));
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 1), conclusion: ConclusionAptitud.Apto);
+        Dar(t, "Pilar Sanjuán Aznar", _aptitud, new DateOnly(2026, 9, 2), conclusion: ConclusionAptitud.NoApto, contrato: oculto);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_cliente], centroIdsVisibles: [_centro]);
+
+        var fila = (await Consultar(alcance: alcance)).Should().ContainSingle().Subject;
+
+        fila.Estado.Should().Be(EstadoAptitudInbound.Apto, "no se leen evidencias de un contrato que la Asignación de Cartera no deja ver");
+        fila.ContratoAccesoId.Should().Be(_contrato.Id);
+        fila.EmpresasContratistaIds.Should().Equal(_contrato.EmpresaContratistaId);
+    }
+
     // ---------------------------------------------------------------- «No apto» sin fecha que lo caduque = vigente
 
     [Theory]
@@ -1133,6 +1152,13 @@ public class AptosHoyDelCentroTests
     private ContratoAcceso NuevoContrato(Guid empresa)
     {
         var contrato = ContratoAcceso.Crear(_cliente, _centro, empresa, new DateOnly(2026, 1, 1), null, null);
+        contrato.VincularTenantContratista(_tenantContratista);
+        return contrato;
+    }
+
+    private ContratoAcceso NuevoContratoDeOtroCliente()
+    {
+        var contrato = ContratoAcceso.Crear(Guid.NewGuid(), _centro, Guid.NewGuid(), new DateOnly(2026, 1, 1), null, null);
         contrato.VincularTenantContratista(_tenantContratista);
         return contrato;
     }

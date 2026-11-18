@@ -131,8 +131,11 @@ public record ObtenerAptosHoyDelCentroQuery(Guid CentroId) : IRequest<IReadOnlyL
 /// <para>
 /// <b>Huecos declarados.</b> (1) Solo aparecen los Trabajadores con alguna evidencia (D2 i): quien no tiene ninguna no sale.
 /// (2) No hay resolución por capas (B-15): solo cuentan las plantillas del Centro y las exigencias de su Cliente empresarial,
-/// no las de Actividad ni de riesgo. (3) <c>SePideA</c> y los tipos de contratación no se evalúan: el requisito se aplica a
-/// todos (falla cerrado). (4) Los requisitos de vehículo o máquina no entran. (5) Con el mismo requisito en las dos plantillas,
+/// no las de Actividad ni de riesgo. (3) Ni la máscara de tipos de contratación ni <c>SePideA</c> se evalúan aquí: cada
+/// requisito de Trabajador se aplica a todos los Trabajadores del Centro (falla cerrado). La pantalla Requerimientos del Tenant
+/// TEC (<c>ObtenerRequerimientosTecQuery</c>, #2342) sí aplica la máscara al Trabajador, donde es el único criterio y
+/// <c>SePideA</c> no se lee; este cálculo todavía no la adopta, y adoptarla cambia quién sale NoApto, así que es otra línea de
+/// trabajo y no se hace aquí. (4) Los requisitos de vehículo o máquina no entran. (5) Con el mismo requisito en las dos plantillas,
 /// cada una se evalúa por separado y basta que una bloquee y falle. (6) Un requisito que toma el vencimiento del documento y
 /// una evidencia sin fecha no se da por vigente. (7) Una evidencia médica que transcribe «No apto» no acredita el requisito y,
 /// mientras esté Aceptada y vigente (su vencimiento, sin tolerancia; sin fecha que la caduque, se da por vigente), bloquea

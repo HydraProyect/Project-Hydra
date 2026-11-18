@@ -206,6 +206,25 @@ public class ObtenerRequerimientosTecQueryTests
         filas.Select(f => f.SujetoId).Should().Equal(_asignado.Id);
     }
 
+    [Theory]
+    [InlineData("Nacionales")]
+    [InlineData("Extranjeros")]
+    public async Task SePideA_no_se_lee_en_el_Trabajador_cuando_contradice_la_mascara(string sePideA)
+    {
+        // La máscara 15 (Todos) incluye al Trabajador por cuenta ajena y al extranjero. Un «Se pide a» guardado como
+        // «Nacionales» o «Extranjeros» (por ejemplo, tras añadir el bit Extranjero desde la pantalla) no recorta a nadie:
+        // en el Trabajador manda solo la máscara (#2338).
+        _requisitos.Add(Requisito("Formación en altura", contrataciones: TiposContratacion.Todos, sePideA: sePideA));
+        var extranjero = Trabajador.DeEmpresa(_propia.Id, "Marta", "Ruiz", "11111111H");
+        extranjero.CambiarTipoContratacion(TipoContratacion.Extranjero);
+        _trabajadores.ListaTrabajadores.Add(extranjero);
+        Autorizar(trabajadores: [_asignado, extranjero]);
+
+        var filas = await Leer();
+
+        filas.Select(f => f.SujetoId).Should().BeEquivalentTo([_asignado.Id, extranjero.Id]);
+    }
+
     [Fact]
     public async Task SePideA_todavia_no_filtra_los_requisitos_de_Empresa()
     {
