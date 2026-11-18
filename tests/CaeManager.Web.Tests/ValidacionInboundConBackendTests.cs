@@ -213,6 +213,24 @@ public class ValidacionInboundConBackendTests : BunitContext
     }
 
     /// <summary>
+    /// D-12: la marca de la base (<c>SubidoPorQuienValida</c>) llega por el adaptador real hasta la pantalla: en esa fila
+    /// solo Validar se deshabilita, y la otra fila de la cola sigue validable.
+    /// </summary>
+    [Fact]
+    public void La_marca_de_D12_del_backend_deshabilita_Validar_solo_en_su_documento()
+    {
+        _mediador.Cola.Clear();
+        _mediador.Cola.AddRange([Pendiente(DocA, "Ana Pérez") with { SubidoPorQuienValida = true }, Pendiente(DocB, "Luis Gil")]);
+
+        var propio = Detalle(DocA);
+        propio.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeTrue();
+        propio.FindAll("button").Single(b => b.TextContent.Trim() == "Rechazar").HasAttribute("disabled").Should().BeFalse();
+
+        var ajeno = Detalle(DocB);
+        ajeno.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    /// <summary>
     /// D-12: los dos bloqueos de Validar que decide el Command (lo subió quien valida; hay impersonación) se dicen con el
     /// texto de la pantalla en su idioma, no con el literal español del error.
     /// </summary>

@@ -215,7 +215,7 @@ public class ValidacionInboundTests : BunitContext
     }
 
     [Fact]
-    public void Un_documento_subido_por_el_propio_gestor_no_se_puede_validar()
+    public async Task Un_documento_subido_por_el_propio_gestor_no_se_puede_validar()
     {
         _servicio.Documento = RespuestaValidacion<DocumentoAValidar>.Correcta(Documento(IdA, propio: true));
         _servicio.Veredicto = RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(Guid.NewGuid(), VeredictoValidacion.Rechazado));
@@ -231,8 +231,8 @@ public class ValidacionInboundTests : BunitContext
 
         // El atajo de teclado tampoco valida: la guarda vive en el handler, no en el marcado.
         var atajos = cut.FindComponent<CaeManager.Web.Features.Inbound.Validacion.Components.AtajosValidacion>().Instance;
-        cut.InvokeAsync(() => atajos.RecibirAtajo("Espacio")).GetAwaiter().GetResult();
-        cut.InvokeAsync(() => atajos.RecibirAtajo("v")).GetAwaiter().GetResult();
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("Espacio"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("v"));
         _servicio.Llamadas.Should().NotContain(l => l.StartsWith("validar"));
 
         Pulsar(cut, "Rechazar");

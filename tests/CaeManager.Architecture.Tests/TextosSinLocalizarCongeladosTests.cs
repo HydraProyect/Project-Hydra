@@ -121,6 +121,8 @@ public class TextosSinLocalizarCongeladosTests
         // la maqueta en el marcado, como las dos de Validación. Baja cuando se localicen.
         // 554 → 552 el 2026-11-17: la demo mínima de Validación (cola real, Validar y Rechazar) nace con sus textos en
         // TextosValidacionInbound.resx y migra los del documento sin páginas.
+        // 552 → 550 el 2026-11-18 (D-12): el aviso «Lo subiste tú» del marcado y su literal en C# pasan a
+        // TextosValidacionInbound.resx (SubidoPorTi y SubidoPorTiQuienValida, con su .ca-ES.resx); recuento medido.
         ["Inbound"] = 550,
         ["Integraciones"] = 85, // 86 → 85 el 2026-11-17 al extraer de Conexiones a CamposPropietarioBuzon los campos de propietario del buzón (cifra medida); 87 → 86 el 2026-11-17 al migrar a TextosConexiones.resx el aviso de «autenticacion» del callback (ErrorAutenticacion); 93 → 87 el 2026-11-10 al migrar a TextosConexiones.resx el subtítulo y el pie de Buzones; 91 → 93 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.
         ["Plantillas"] = 158, // 159 → 158 el 2026-11-14 (PR9): el tipo que produce la plantilla y la entradilla pasan a TextosDocumentos; «Quitar los filtros» sigue sin migrar. Antes: 158 → 159 el 2026-11-09 SIN migrar a .resx: TituloDePaginaSinPrerender repite en C# el literal del PageTitle (páginas InteractiveServer sin prerender); baja cuando el título se localice.

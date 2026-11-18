@@ -725,15 +725,26 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             marcas[_deTrabajador].Should().BeFalse("las versiones sembradas sin autor tampoco la encienden");
         }
 
-        // La misma versión, leída por otra persona del Tenant lector, no lleva la marca: depende de quién firma el contexto.
+        // Las mismas versiones, leídas por otraPersona: la marca depende de quién firma el contexto, y otraPersona es uno
+        // de los dos autores de soloEfectivo (Actor real) y de soloReal (usuario efectivo), así que en esas también se enciende.
         await using (var contexto = Contexto(_lector.Id, otraPersona))
         {
             var marcas = (await new LectorDocumentosInboundEnBase(contexto).DocumentosAutorizadosAsync(_vigente.Id))
                 .ToDictionary(d => d.DocumentoId, d => d.SubidoPorQuienLee);
-            marcas[efectivoYReal].Should().BeFalse();
-            marcas[soloEfectivo].Should().BeFalse();
-            marcas[soloReal].Should().BeFalse();
+            marcas[efectivoYReal].Should().BeFalse("otraPersona no es ninguno de sus dos autores");
+            marcas[soloEfectivo].Should().BeTrue("otraPersona es el Actor real del autor (D-12.2)");
+            marcas[soloReal].Should().BeTrue("otraPersona es el usuario efectivo del autor (D-12.2)");
+            marcas[sinAutor].Should().BeFalse("un autor nulo se puede validar (D-12.1)");
             marcas[deOtro].Should().BeTrue("ahora quien lee es quien lo subió");
+        }
+
+        // Y leídas por una tercera persona que no es autora de ninguna, ninguna lleva la marca.
+        await using (var contexto = Contexto(_lector.Id, Guid.NewGuid()))
+        {
+            var marcas = (await new LectorDocumentosInboundEnBase(contexto).DocumentosAutorizadosAsync(_vigente.Id))
+                .ToDictionary(d => d.DocumentoId, d => d.SubidoPorQuienLee);
+            new[] { efectivoYReal, soloEfectivo, soloReal, sinAutor, deOtro }.Select(id => marcas[id])
+                .Should().AllSatisfy(m => m.Should().BeFalse(), "quien lee no subió ninguna de estas versiones");
         }
     }
 
