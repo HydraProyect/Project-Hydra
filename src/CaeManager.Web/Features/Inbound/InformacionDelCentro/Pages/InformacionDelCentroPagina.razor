@@ -11,7 +11,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Información del Centro — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design icn">
-    <CabeceraListado Grupo="Inbound" Titulo="Información del Centro" Contador="@(HayDatos ? _todos!.Count : null)">
+    <CabeceraListado Titulo="Información del Centro" Contador="@(HayDatos ? _todos!.Count : null)">
         <Primaria>
             <SoloConEscritura>
                 @* shortcut: sin backend, cablear cuando entre B-29 (alta de documentos de Información del Centro). *@
@@ -43,19 +43,19 @@
     }
     else
     {
-        <section class="barra-filtros-pastillas" aria-label="Filtrar Información del Centro">
-            <div class="barra-filtros-pastillas-fila">
-                <div class="barra-filtros-buscador-pantalla">
-                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
-                    <CampoTexto Placeholder="Filtrar: documento o Centro" Valor="@_busqueda" ValorChanged="BuscarAsync"
-                                aria-label="Filtrar: documento o Centro" data-filtro-pantalla="" />
-                </div>
+        @* Barra compartida en modo pastillas. La página no tenía chips de filtros activos ni «Limpiar todo» (el estado vacío ya ofrece
+           «Quitar filtros») y no se añaden aquí (shortcut: cablearlos con el resto del patrón); por eso no se pasa HayFiltrosActivos. *@
+        <BarraFiltros EtiquetaRegion="Filtrar Información del Centro" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                      PlaceholderBuscador="Filtrar: documento o Centro">
+            <Pastillas>
                 <PastillaFiltro Etiqueta="Centro" TextoTodos="Todos" Valor="@_centro" ValorChanged="v => Cambiar(() => _centro = v)" Opciones="OpcionesCentro" />
                 <PastillaFiltro Etiqueta="Modalidad" TextoTodos="Todos" Valor="@_modalidad" ValorChanged="v => Cambiar(() => _modalidad = v)" Opciones="_opcionesModalidad" />
-            </div>
-            <FranjaEstado Opciones="_opcionesAcuse" Valor="@_acuse" ValorChanged="v => Cambiar(() => _acuse = v)" Recuentos="Recuentos"
-                          EtiquetaAccesible="Filtrar por acuses" />
-        </section>
+            </Pastillas>
+            <Estados>
+                <FranjaEstado Opciones="_opcionesAcuse" Valor="@_acuse" ValorChanged="v => Cambiar(() => _acuse = v)" Recuentos="Recuentos"
+                              EtiquetaAccesible="Filtrar por acuses" />
+            </Estados>
+        </BarraFiltros>
 
         @if (_visibles.Count == 0)
         {

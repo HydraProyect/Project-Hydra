@@ -17,11 +17,10 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina alta-tce">
-    <header class="alta-tce-cab">
-        <span class="alta-tce-kicker">@Textos["Kicker"]</span>
-        <h1 class="titulo-pagina">@Textos["TituloPagina"]</h1>
-        <span class="alta-tce-subtitulo">@Textos["Subtitulo"]</span>
-    </header>
+    @* Cabecera compartida (la de EstadoComercial, otra pantalla de Plataforma que no es un listado): conserva el antetítulo «Plataforma · Tenants». *@
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
+        <Descripcion>@Textos["Subtitulo"]</Descripcion>
+    </CabeceraPagina>
 
     <div class="alta-tce-aviso" role="note">
         <Icono Nombre="info" Tamano="TamanoIcono.Pequeno" />

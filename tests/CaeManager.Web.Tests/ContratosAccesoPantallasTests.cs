@@ -212,6 +212,40 @@ public class ContratosAccesoPantallasTests : BunitContext
         cut.Markup.Should().NotContain("Dar de alta").And.NotContain("Renovar");
     }
 
+    [Fact]
+    public void El_listado_usa_la_cabecera_sin_antetitulo_y_la_barra_de_filtros_compartida_con_los_mismos_filtros()
+    {
+        Preparar(Contrato(fin: new DateOnly(2099, 12, 31)));
+
+        var cut = Cargada(Render<ContratosAccesoLista>());
+
+        cut.Find("h1").TextContent.Should().Contain("Contratos de acceso");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+        cut.Find(".barra-filtros-pastillas-fila").Should().NotBeNull("la barra es el componente compartido, no HTML copiado");
+        cut.Find("input[data-filtro-pantalla]").Should().NotBeNull();
+        var pastillas = cut.Find(".barra-filtros-pastillas-fila").TextContent;
+        pastillas.Should().Contain("Centro").And.Contain("Tipo").And.Contain("Pendiente");
+        cut.FindAll("button.limpiar-filtros-barra").Should().BeEmpty("sin filtros activos no hay «Limpiar todo»");
+    }
+
+    [Fact]
+    public async Task La_busqueda_pone_su_chip_y_Limpiar_todo_devuelve_el_listado_entero()
+    {
+        Preparar(Contrato(fin: new DateOnly(2099, 12, 31)));
+        var cut = Cargada(Render<ContratosAccesoLista>());
+
+        await cut.Find("input[data-filtro-pantalla]").InputAsync(new ChangeEventArgs { Value = "zzz" });
+
+        // El buscador tiene retardo propio (300 ms): se espera a que se aplique.
+        await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("Ningún contrato de acceso coincide con los filtros."), TimeSpan.FromSeconds(5));
+        cut.Find(".chips-filtros").TextContent.Should().Contain("zzz");
+
+        cut.Find("button.limpiar-filtros-barra").Click();
+
+        await cut.WaitForAssertionAsync(() => cut.Markup.Should().Contain("Montajes Moncayo S.L."), TimeSpan.FromSeconds(5));
+        cut.FindAll("button.limpiar-filtros-barra").Should().BeEmpty();
+    }
+
     // ------------------------------------------------------------ Detalle (tarjeta 11)
 
     [Fact]

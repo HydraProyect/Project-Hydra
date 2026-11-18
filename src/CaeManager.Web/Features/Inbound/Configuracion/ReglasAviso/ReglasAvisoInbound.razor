@@ -15,7 +15,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Reglas de aviso — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design ra">
-    <CabeceraListado Grupo="Configuración" Titulo="Reglas de aviso" Contador="@(_datos is null ? null : _datos.Reglas.Count)">
+    <CabeceraListado Titulo="Reglas de aviso" Contador="@(_datos is null ? null : _datos.Reglas.Count)">
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_datos is null)" OnClick="Anadir">Añadir</Boton></SoloConEscritura>
         </Primaria>
@@ -44,23 +44,23 @@
             <p class="ra-nota ra-nota-tol" data-pieza="nota-tolerancia"><b>Tolerancia del vencimiento.</b> Pasada la fecha, el documento sigue valiendo durante la tolerancia y el aviso lo dice, por ejemplo: <span class="ra-tol">Vencido · en tolerancia hasta 05/12</span></p>
         </div>
 
-        @* Mismo marcado que ContratosAccesoLista (barra-filtros-pastillas de list-page.css), sin «Filtros guardados»: la maqueta de Reglas de
-           aviso no los trae (shortcut: cablear con las vistas recordadas cuando el listado crezca). *@
-        <section class="barra-filtros-pastillas" aria-label="Filtrar las reglas de aviso">
-            <div class="barra-filtros-pastillas-fila">
-                <div class="barra-filtros-buscador-pantalla">
-                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
-                    <CampoTexto Placeholder="Filtrar: regla, Centro o destinatario" Valor="@_busqueda" ValorChanged="v => { _busqueda = v; return Task.CompletedTask; }"
-                                aria-label="Filtrar: regla, Centro o destinatario" data-filtro-pantalla="" />
-                </div>
-            </div>
-            <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="v => _estado = v" Recuentos="Recuentos"
-                          TotalTodos="@BaseFiltrada.Count" TextoTodos="Todas" EtiquetaAccesible="Filtrar por estado" />
-            @if (HayFiltrosActivos)
-            {
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">Quitar los filtros</Boton>
-            }
-        </section>
+        @* Barra compartida en modo pastillas (la misma que Empresas): la maqueta de Reglas de aviso no trae filtros guardados, así que la
+           pastilla de la barra se ofrece vacía y sin «Guardar filtro» (shortcut: cablear con las vistas recordadas cuando el listado
+           crezca). «Limpiar todo» sustituye al botón «Quitar los filtros» de antes y hace lo mismo: vacía la búsqueda y el estado. *@
+        <BarraFiltros EtiquetaRegion="Filtrar las reglas de aviso" Busqueda="@_busqueda" BusquedaChanged="v => { _busqueda = v; return Task.CompletedTask; }"
+                      PlaceholderBuscador="Filtrar: regla, Centro o destinatario" HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltros">
+            <Pastillas></Pastillas>
+            <Estados>
+                <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="v => _estado = v" Recuentos="Recuentos"
+                              TotalTodos="@BaseFiltrada.Count" TextoTodos="Todas" EtiquetaAccesible="Filtrar por estado" />
+            </Estados>
+            <Chips>
+                @if (_busqueda.Trim().Length > 0)
+                {
+                    <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda.Trim()}\"")" EtiquetaAccesible="Quitar la búsqueda" OnQuitar="() => _busqueda = string.Empty" />
+                }
+            </Chips>
+        </BarraFiltros>
 
         <div class="ra-tarjeta">
             <table class="tabla-datos ra-tabla" aria-label="Reglas de aviso">

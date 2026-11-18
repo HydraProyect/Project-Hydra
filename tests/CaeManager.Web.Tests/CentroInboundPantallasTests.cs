@@ -631,4 +631,35 @@ public class CentroInboundPantallasTests : BunitContext
 
         cut.Markup.Should().Contain("Ningún Centro ha publicado información");
     }
+
+    // ---------------------------------------------------------------- Alineación con Outbound: cabecera sin antetítulo y barra compartida
+
+    [Fact]
+    public async Task El_listado_de_Centros_usa_la_cabecera_sin_antetitulo()
+    {
+        Preparar(contratos: [Contrato()]);
+
+        var cut = await CargadaAsync(Render<CentrosInbound>());
+
+        cut.Find("h1").TextContent.Should().Contain("Centros");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
+    [Fact]
+    public async Task Informacion_del_Centro_usa_la_cabecera_sin_antetitulo_y_la_barra_compartida_con_sus_filtros()
+    {
+        Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true), Documento("Normas de seguridad del Centro", alDia: false)]);
+
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
+
+        cut.Find("h1").TextContent.Should().Contain("Información del Centro");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
+        cut.Find(".barra-filtros-pastillas-fila").TextContent.Should().Contain("Centro").And.Contain("Modalidad");
+        cut.Find("section.barra-filtros-pastillas").TextContent.Should().Contain("Con acuses pendientes").And.Contain("Al día");
+        cut.Find("input[data-filtro-pantalla]").Should().NotBeNull("el buscador es el de la barra compartida");
+
+        await cut.FindAll(".franja-estado-boton").First(b => b.TextContent.Contains("Al día")).ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("tbody tr").Should().ContainSingle().Which.TextContent.Should().Contain("Riesgos de la zona de muelles");
+    }
 }

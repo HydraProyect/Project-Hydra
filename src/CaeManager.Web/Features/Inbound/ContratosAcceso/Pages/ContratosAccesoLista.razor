@@ -18,7 +18,7 @@
 
 <div class="contenedor-pagina lista-design">
     @* Sin exportación a Excel: no hay endpoint de descarga de contratos de acceso (shortcut: cablear cuando exista). *@
-    <CabeceraListado Grupo="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirAlta(null)">@Textos["BotonDarDeAlta"]</Boton></SoloConEscritura>
         </Primaria>
@@ -27,17 +27,13 @@
 
     @if (!_errorCarga)
     {
-        @* Mismo marcado y clases que BarraFiltros en modo pastillas (list-page.css), sin «Filtros guardados»: la maqueta de
-           Contratos de acceso no los trae y guardarlos necesita backend (shortcut: cablear con las vistas recordadas). *@
-        <section class="barra-filtros-pastillas" aria-label="@Comunes["FiltrarEstaPantalla"]">
-            <div class="barra-filtros-pastillas-fila">
-                <div class="barra-filtros-buscador-pantalla">
-                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
-                    @* La tecla F enfoca este campo por data-filtro-pantalla (atajos-lista.js); la letra no se declara aquí porque ya la
-                       declara la pieza compartida del listado (CatalogoAtajosSincronizadoConJsTests). *@
-                    <CampoTexto Placeholder="@Textos["BuscadorPlaceholder"]" Valor="@_busqueda" ValorChanged="BuscarAsync"
-                                aria-label="@Textos["BuscadorPlaceholder"]" data-filtro-pantalla="" />
-                </div>
+        @* Barra compartida en modo pastillas, sin «Filtros guardados» propios: la maqueta de Contratos de acceso no los trae y guardarlos
+           necesita backend (shortcut: cablear con las vistas recordadas). Sin OnGuardarFiltro la pastilla de la barra se ofrece vacía y
+           «Guardar filtro» deshabilitado. La tecla F enfoca el buscador (data-filtro-pantalla, atajos-lista.js) y la letra KeyTips F la
+           declara la propia barra. *@
+        <BarraFiltros EtiquetaRegion="@Comunes["FiltrarEstaPantalla"]" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                      PlaceholderBuscador="@Textos["BuscadorPlaceholder"]" HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+            <Pastillas>
                 <PastillaFiltro Etiqueta="@Textos["FiltroCentro"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_centro"
                                 ValorChanged="CambiarCentro" Opciones="_opcionesCentro" />
                 <PastillaFiltro Etiqueta="@Textos["FiltroTipo"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_tipo"
@@ -46,35 +42,30 @@
                    backend, cablear cuando entren). Un filtro sin datos devolvería siempre la lista vacía. *@
                 <PastillaFiltro Etiqueta="@Textos["FiltroPendiente"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_pendiente"
                                 ValorChanged="CambiarPendiente" Opciones="_opcionesPendiente" />
-            </div>
-
-            <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="CambiarEstado" Recuentos="_recuentos"
-                          EtiquetaAccesible="@Textos["FranjaEstadoEtiqueta"]" />
-
-            @if (HayFiltrosActivos)
-            {
-                <div class="chips-filtros barra-filtros-lista-chips">
-                    <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-                    @if (!string.IsNullOrWhiteSpace(_busqueda))
-                    {
-                        <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["QuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
-                    }
-                    @if (_centro.Length > 0)
-                    {
-                        <ChipFiltro Etiqueta="@Textos["ChipCentro", _opcionesCentro.FirstOrDefault(o => o.Valor == _centro)?.Texto ?? _centro]" EtiquetaAccesible="@Textos["QuitarCentro"]" OnQuitar="() => CambiarCentro(string.Empty)" />
-                    }
-                    @if (_tipo.Length > 0)
-                    {
-                        <ChipFiltro Etiqueta="@Textos["ChipTipo", _opcionesTipo.FirstOrDefault(o => o.Valor == _tipo)?.Texto ?? _tipo]" EtiquetaAccesible="@Textos["QuitarTipo"]" OnQuitar="() => CambiarTipo(string.Empty)" />
-                    }
-                    @if (_pendiente.Length > 0)
-                    {
-                        <ChipFiltro Etiqueta="@Textos["ChipPendiente", Textos["PendienteVence"]]" EtiquetaAccesible="@Textos["QuitarPendiente"]" OnQuitar="() => CambiarPendiente(string.Empty)" />
-                    }
-                    <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">@Comunes["LimpiarTodo"]</button>
-                </div>
-            }
-        </section>
+            </Pastillas>
+            <Estados>
+                <FranjaEstado Opciones="_opcionesEstado" Valor="@_estado" ValorChanged="CambiarEstado" Recuentos="_recuentos"
+                              EtiquetaAccesible="@Textos["FranjaEstadoEtiqueta"]" />
+            </Estados>
+            <Chips>
+                @if (!string.IsNullOrWhiteSpace(_busqueda))
+                {
+                    <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["QuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+                }
+                @if (_centro.Length > 0)
+                {
+                    <ChipFiltro Etiqueta="@Textos["ChipCentro", _opcionesCentro.FirstOrDefault(o => o.Valor == _centro)?.Texto ?? _centro]" EtiquetaAccesible="@Textos["QuitarCentro"]" OnQuitar="() => CambiarCentro(string.Empty)" />
+                }
+                @if (_tipo.Length > 0)
+                {
+                    <ChipFiltro Etiqueta="@Textos["ChipTipo", _opcionesTipo.FirstOrDefault(o => o.Valor == _tipo)?.Texto ?? _tipo]" EtiquetaAccesible="@Textos["QuitarTipo"]" OnQuitar="() => CambiarTipo(string.Empty)" />
+                }
+                @if (_pendiente.Length > 0)
+                {
+                    <ChipFiltro Etiqueta="@Textos["ChipPendiente", Textos["PendienteVence"]]" EtiquetaAccesible="@Textos["QuitarPendiente"]" OnQuitar="() => CambiarPendiente(string.Empty)" />
+                }
+            </Chips>
+        </BarraFiltros>
     }
 
     @if (_cargando)
