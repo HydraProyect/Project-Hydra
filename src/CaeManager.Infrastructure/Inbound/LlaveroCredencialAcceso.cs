@@ -105,7 +105,7 @@ public sealed class LlaveroCredencialAcceso
 
     /// <summary>
     /// Nace una activa nueva; la activa pasa a anterior y se conservan las anteriores que aún firmaron fechas no
-    /// vencidas (<paramref name="hoy"/>); el resto se retira.
+    /// vencidas (<paramref name="hoy"/>, el día de negocio de Europe/Madrid, el mismo con el que se compara la fecha máxima); el resto se retira.
     /// </summary>
     public void Rotar(DateOnly hoy)
     {
@@ -247,7 +247,7 @@ public sealed class LlaveroCredencialAcceso
 
     private void Guardar(List<ClaveLlavero> claves)
     {
-        var temporal = _ruta + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var temporal = _ruta + "." + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)) + ".tmp";
         try
         {
             using (var salida = new FileStream(temporal, FileMode.CreateNew, FileAccess.Write))

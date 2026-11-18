@@ -90,7 +90,7 @@ public sealed class FirmanteCredencialAcceso(
     public IReadOnlyList<ClavePublicaCredencial> ClavesPublicasVigentes() =>
         llavero.Vigentes().Select(c => new ClavePublicaCredencial(c.Kid, c.SpkiBase64, c.Activa)).ToList();
 
-    public void Rotar() => llavero.Rotar(DateOnly.FromDateTime((reloj ?? TimeProvider.System).GetUtcNow().UtcDateTime));
+    public void Rotar() => llavero.Rotar(CaeManager.Domain.Common.DiaDeNegocio.Hoy(reloj ?? TimeProvider.System));
 
     public void RotarDeEmergencia() => llavero.RotarDeEmergencia();
 }
