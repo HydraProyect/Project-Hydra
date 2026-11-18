@@ -88,10 +88,25 @@ public class EvidenciasInboundTests
             deTrabajador ? dni : null, "Tipo del original", new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1),
             EstadoVigenciaDocumento.VenceEnFecha, soloConclusion);
 
-    private RegistrarEvidenciaInboundCommandHandler Registrar(string? rol = "GestorCae", Guid? clienteVisible = null) =>
+    private RegistrarEvidenciaInboundCommandHandler Registrar(string? rol = "GestorCae", Guid? clienteVisible = null, ActorAuditoria? actor = null) =>
         new(_contratos, _tipos, _empresas, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector, _originales,
             _almacen, _repositorio, _unidad, new RelojFijo(new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero)),
-            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _registro, new AutorizacionInboundQuePermite());
+            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _registro, new AutorizacionInboundQuePermite(),
+            new ActorFijo(actor ?? SinImpersonacion));
+
+    private ValidarEvidenciaInboundCommandHandler Revalidar(ActorAuditoria? actor = null) =>
+        new(_repositorio, _contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _unidad,
+            new RelojFijo(new DateTimeOffset(2026, 10, 24, 9, 0, 0, TimeSpan.Zero)), new AutorizacionInboundQuePermite(),
+            _lector, new ActorFijo(actor ?? SinImpersonacion));
+
+    private static readonly ActorAuditoria SinImpersonacion = ActorAuditoria.Normal(Guid.NewGuid());
+
+    // Hoy no existe (ActorAuditoriaDesdeSesion deja el Usuario simulado en null); es la forma que tendrá: el Actor real
+    // detrás del teclado y el Usuario simulado como usuario efectivo.
+    private static readonly ActorAuditoria ConImpersonacion = new(Guid.NewGuid(), Guid.NewGuid(), TipoViaAcceso.Normal, null);
+
+    private void MarcarSubidoPorQuienLee() =>
+        _lector.Documentos[0] = _lector.Documentos[0] with { SubidoPorQuienLee = true };
 
     private static AlcanceDatosServiceFalso Alcance(Guid clienteVisible) =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
@@ -368,7 +383,8 @@ public class EvidenciasInboundTests
         RechazarEvidenciaInboundCommandHandler Rechazar(string rol, Guid cliente) =>
             new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj, new AutorizacionInboundQuePermite());
         ValidarEvidenciaInboundCommandHandler Validar(string rol, Guid cliente) =>
-            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj, new AutorizacionInboundQuePermite());
+            new(_repositorio, _contratos, Alcance(cliente), new UsuarioConRol(rol), _unidad, reloj, new AutorizacionInboundQuePermite(),
+                _lector, new ActorFijo(SinImpersonacion));
         var rechazo = new RechazarEvidenciaInboundCommand(evidencia.Id, CausaRechazoAcreditacion.DatosErroneos, "El NIE no coincide");
 
         (await Rechazar("Consulta", _cliente).Handle(rechazo, CancellationToken.None)).Error.Should().Be(EvidenciaInboundErrores.NoEncontrada);
@@ -382,7 +398,133 @@ public class EvidenciasInboundTests
 
         (await Validar("GestorCae", _cliente).Handle(new(evidencia.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
         evidencia.Estado.Should().Be(EstadoAcreditacion.Aceptada);
-        _orden.Count(o => o is "Autorizacion" or "Documentos" or "Archivo").Should().Be(3, "los cambios de estado no leen el otro Tenant");
+        _lector.Llamadas.Should().Equal(["Autorizacion", "Documentos", "Archivo", "Documentos"],
+            "Rechazar no lee el otro Tenant; volver a validar solo lista sus Documentos, para D-12, y no abre ningún archivo");
+    }
+
+    // --- D-12: nadie valida lo que subió ---
+
+    [Fact]
+    public async Task Validar_lo_que_subio_quien_valida_responde_ValidaLoQueSubio_sin_abrir_copiar_ni_guardar()
+    {
+        MarcarSubidoPorQuienLee();
+
+        var resultado = await Registrar().Handle(Comando(), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.ValidaLoQueSubio);
+        _orden.Should().Equal(["Autorizacion", "Documentos"], "se decide con el listado, antes de abrir el archivo y sin guardar");
+        _originales.Aperturas.Should().BeEmpty();
+        _almacen.Guardados.Should().BeEmpty();
+        _repositorio.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Rechazar_lo_que_subio_quien_valida_se_permite()
+    {
+        MarcarSubidoPorQuienLee();
+
+        var resultado = await Registrar().Handle(ComandoRechazo(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("D-12 solo habla de Validar");
+        _repositorio.Agregadas.Should().ContainSingle().Which.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+    }
+
+    [Fact]
+    public async Task Validar_lo_que_no_subio_quien_valida_se_permite()
+    {
+        _lector.Documentos[0].SubidoPorQuienLee.Should().BeFalse("control: el original no lleva la marca");
+
+        var resultado = await Registrar().Handle(Comando(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _repositorio.Agregadas.Should().ContainSingle().Which.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+    }
+
+    /// <summary>
+    /// La matriz de D-12.2 en esta capa: la comparación de autores la hace la función de la base (y la prueba
+    /// LecturaInboundBajoRuntimeTests); aquí llega como marca, y la impersonación la cierra el handler.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, null)]
+    [InlineData(true, false, "EvidenciaInbound.ValidaLoQueSubio")]
+    [InlineData(false, true, "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible")]
+    [InlineData(true, true, "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible")]
+    public async Task Validar_aplica_la_marca_y_bajo_impersonacion_falla_cerrado(bool marca, bool impersonacion, string? error)
+    {
+        if (marca) MarcarSubidoPorQuienLee();
+
+        var resultado = await Registrar(actor: impersonacion ? ConImpersonacion : SinImpersonacion).Handle(Comando(), CancellationToken.None);
+
+        if (error is null) resultado.EsExitoso.Should().BeTrue();
+        else resultado.Error.Codigo.Should().Be(error);
+        if (impersonacion)
+            _lector.Llamadas.Should().BeEmpty("bajo impersonación no se lee el otro Tenant para luego no validar");
+    }
+
+    [Fact]
+    public async Task Rechazar_bajo_impersonacion_se_permite()
+    {
+        var resultado = await Registrar(actor: ConImpersonacion).Handle(ComandoRechazo(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("la guarda provisional de D-12.2 solo cierra Validar");
+    }
+
+    private async Task<EvidenciaInbound> RechazadaAsync()
+    {
+        (await Registrar().Handle(ComandoRechazo(), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        _orden.Clear();
+        _lector.Llamadas.Clear();
+        return _repositorio.Agregadas.Single();
+    }
+
+    [Fact]
+    public async Task Volver_a_validar_lo_que_subio_quien_valida_responde_ValidaLoQueSubio_sin_guardar()
+    {
+        var evidencia = await RechazadaAsync();
+        MarcarSubidoPorQuienLee();
+
+        var resultado = await Revalidar().Handle(new(evidencia.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.ValidaLoQueSubio);
+        evidencia.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+        _orden.Should().Equal(["Documentos"], "solo lista, no abre el archivo ni guarda");
+    }
+
+    [Fact]
+    public async Task Volver_a_validar_con_el_original_ya_no_visible_falla_cerrado()
+    {
+        var evidencia = await RechazadaAsync();
+        _lector.Documentos.Clear();
+
+        var resultado = await Revalidar().Handle(new(evidencia.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.OriginalNoVisibleParaRevalidar,
+            "sin el original (sustituido, revocado o fuera de la autorización) no se sabe quién lo subió");
+        evidencia.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+        _orden.Should().NotContain("SaveChanges");
+    }
+
+    [Fact]
+    public async Task Volver_a_validar_bajo_impersonacion_falla_cerrado_sin_leer_el_otro_Tenant()
+    {
+        var evidencia = await RechazadaAsync();
+
+        var resultado = await Revalidar(ConImpersonacion).Handle(new(evidencia.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible);
+        evidencia.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+        _lector.Llamadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Volver_a_validar_lo_que_no_subio_quien_valida_se_permite()
+    {
+        var evidencia = await RechazadaAsync();
+
+        (await Revalidar().Handle(new(evidencia.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        evidencia.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        _orden.Should().Equal(["Documentos", "SaveChanges"]);
     }
 
     [Fact]
@@ -523,6 +665,21 @@ public class EvidenciasInboundTests
         cola.Single(c => c.DocumentoOrigenId == sinTipo.DocumentoId).TipoDocumentoId.Should().BeNull();
         cola.Single(c => c.DocumentoOrigenId == deEmpresa.DocumentoId).Should().Match<DocumentoPendienteInboundDto>(
             c => c.TrabajadorId == null && c.Titular == "Contratista de prueba" && c.Identificador == "B12345674");
+    }
+
+    [Fact]
+    public async Task La_cola_lleva_la_marca_de_D12_de_cada_Documento_y_no_quita_la_fila()
+    {
+        _lector.Documentos.Clear();
+        var propio = Documento(Guid.NewGuid(), soloConclusion: false) with { SubidoPorQuienLee = true };
+        var ajeno = Documento(Guid.NewGuid(), soloConclusion: false);
+        _lector.Documentos.AddRange([propio, ajeno]);
+
+        var cola = await Cola().Handle(new ObtenerColaValidacionInboundQuery(), CancellationToken.None);
+
+        cola.Single(c => c.DocumentoOrigenId == propio.DocumentoId).SubidoPorQuienValida.Should().BeTrue(
+            "la fila sigue en la cola, señalada, porque quien la subió todavía puede rechazarla");
+        cola.Single(c => c.DocumentoOrigenId == ajeno.DocumentoId).SubidoPorQuienValida.Should().BeFalse();
     }
 
     [Fact]
@@ -728,6 +885,12 @@ public class EvidenciasInboundTests
     private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => ahora;
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
     private sealed class UsuarioConRol(string? rol) : ICurrentUserService

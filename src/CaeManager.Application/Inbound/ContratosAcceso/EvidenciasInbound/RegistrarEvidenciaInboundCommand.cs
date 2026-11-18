@@ -58,6 +58,8 @@ public class RegistrarEvidenciaInboundCommandValidator : AbstractValidator<Regis
 /// <item>Lectura por <see cref="ILectorDocumentosInbound"/> <b>fuera de transacción</b>: el lector lo exige porque cada
 /// lectura deja su traza en el Tenant propietario, y un rollback la borraría. Este handler no abre ninguna; la única es la
 /// implícita de <c>SaveChangesAsync</c>, al final y después de leer.</item>
+/// <item>D-12.2: si el veredicto es Validar y hay impersonación, <see cref="EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible"/>
+/// antes de leer nada (<see cref="GuardaD12"/>).</item>
 /// <item>D-12: si el veredicto es Validar y la lectura marca la versión como subida por quien lee
 /// (<see cref="DocumentoInboundDto.SubidoPorQuienLee"/>), <see cref="EvidenciaInboundErrores.ValidaLoQueSubio"/> sin abrir
 /// ni copiar nada. Rechazar sigue permitido.</item>
@@ -83,7 +85,8 @@ public class RegistrarEvidenciaInboundCommandHandler(
     IUnitOfWork unitOfWork,
     TimeProvider reloj,
     IEvidenciasInboundQueryContext evidenciasContext,
-    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound)
+    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound,
+    IActorAuditoria actorAuditoria)
     : IRequestHandler<RegistrarEvidenciaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RegistrarEvidenciaInboundCommand request, CancellationToken cancellationToken)
@@ -94,6 +97,10 @@ public class RegistrarEvidenciaInboundCommandHandler(
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
             || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        // D-12.2, antes de leer el otro Tenant: bajo impersonación no se valida (ver GuardaD12).
+        if (request.Rechazo is null && await GuardaD12.HayImpersonacionAsync(actorAuditoria))
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible);
 
         var contrato = await contratosContext.ContratosAcceso
             .Where(c => c.Id == request.ContratoAccesoId)
@@ -274,6 +281,14 @@ public static class EvidenciaInboundErrores
     public static readonly Error ValidaLoQueSubio = Error.Crear(
         "EvidenciaInbound.ValidaLoQueSubio",
         "Subido por ti en Outbound: lo valida otra persona, otro Gestor CAE de tu organización o su Administrador.");
+
+    public static readonly Error ValidarBajoImpersonacionNoDisponible = Error.Crear(
+        "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible",
+        "Mientras actúas en nombre de otro usuario no se puede validar en Inbound. Rechazar sigue disponible.");
+
+    public static readonly Error OriginalNoVisibleParaRevalidar = Error.Crear(
+        "EvidenciaInbound.OriginalNoVisibleParaRevalidar",
+        "El Documento original ya no se puede leer (sustituido, revocado o fuera de la autorización): no se puede volver a validar esta evidencia.");
 
     public static readonly Error EstadoNoAdmite = Error.Crear(
         "EvidenciaInbound.EstadoNoAdmite", "La evidencia no está en un estado que admita este cambio.");

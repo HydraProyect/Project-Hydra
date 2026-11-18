@@ -680,6 +680,63 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deTrabajador)).Should().NotBeNull("control positivo de la apertura");
     }
 
+    /// <summary>
+    /// D-12 y D-12.2 en la base: <c>app_inbound_documentos_autorizados</c> marca <c>SubidoPorQuienLee</c> cuando el usuario del
+    /// contexto firmado coincide con el usuario efectivo o con el Actor real del autor de la versión; un autor nulo (D-12.1)
+    /// y cualquier otra persona no la encienden. Son todas las combinaciones que la función puede evaluar: del lado de quien
+    /// lee solo ve <c>app_ctx_usuario_id()</c> (la impersonación la cierra el handler, ver GuardaD12).
+    /// </summary>
+    [Fact]
+    public async Task La_marca_de_D12_compara_quien_lee_con_los_dos_autores_de_la_version_y_un_autor_nulo_no_la_enciende()
+    {
+        var otraPersona = Guid.NewGuid();
+        Guid efectivoYReal, soloEfectivo, soloReal, sinAutor, deOtro;
+        await using (var contexto = Contexto(_contratista.Id))
+        {
+            var base_ = await contexto.Documentos.SingleAsync(d => d.Id == _deTrabajador);
+            Documento Version(AutorVersionDocumento autor, string archivo) => Documento.DeTrabajador(
+                base_.TrabajadorId!.Value, base_.TipoDocumentoId, _hoy.AddDays(-3), VigenciaDocumento.NoCaduca, archivo, autor: autor);
+            var documentos = new[]
+            {
+                Version(AutorVersionDocumento.Persona(_usuarioLector, _usuarioLector), "y/d12-efectivo-y-real.pdf"),
+                // Subido bajo impersonación: el lector era el usuario efectivo y otra persona el Actor real…
+                Version(AutorVersionDocumento.Persona(_usuarioLector, otraPersona), "y/d12-solo-efectivo.pdf"),
+                // …o al revés: el lector era el Actor real y actuaba como otra persona.
+                Version(AutorVersionDocumento.Persona(otraPersona, _usuarioLector), "y/d12-solo-real.pdf"),
+                Version(AutorVersionDocumento.Desconocido, "y/d12-sin-autor.pdf"),
+                Version(AutorVersionDocumento.Persona(otraPersona, otraPersona), "y/d12-de-otro.pdf"),
+            };
+            contexto.Documentos.AddRange(documentos);
+            await contexto.SaveChangesAsync();
+            (efectivoYReal, soloEfectivo, soloReal, sinAutor, deOtro) =
+                (documentos[0].Id, documentos[1].Id, documentos[2].Id, documentos[3].Id, documentos[4].Id);
+        }
+
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            var marcas = (await new LectorDocumentosInboundEnBase(contexto).DocumentosAutorizadosAsync(_vigente.Id))
+                .ToDictionary(d => d.DocumentoId, d => d.SubidoPorQuienLee);
+
+            marcas[efectivoYReal].Should().BeTrue("quien lee es el usuario efectivo y el Actor real del autor");
+            marcas[soloEfectivo].Should().BeTrue("quien lee es el usuario efectivo del autor (D-12.2)");
+            marcas[soloReal].Should().BeTrue("quien lee es el Actor real del autor (D-12.2)");
+            marcas[sinAutor].Should().BeFalse("un autor nulo se puede validar (D-12.1)");
+            marcas[deOtro].Should().BeFalse("lo subió otra persona");
+            marcas[_deTrabajador].Should().BeFalse("las versiones sembradas sin autor tampoco la encienden");
+        }
+
+        // La misma versión, leída por otra persona del Tenant lector, no lleva la marca: depende de quién firma el contexto.
+        await using (var contexto = Contexto(_lector.Id, otraPersona))
+        {
+            var marcas = (await new LectorDocumentosInboundEnBase(contexto).DocumentosAutorizadosAsync(_vigente.Id))
+                .ToDictionary(d => d.DocumentoId, d => d.SubidoPorQuienLee);
+            marcas[efectivoYReal].Should().BeFalse();
+            marcas[soloEfectivo].Should().BeFalse();
+            marcas[soloReal].Should().BeFalse();
+            marcas[deOtro].Should().BeTrue("ahora quien lee es quien lo subió");
+        }
+    }
+
     [Fact]
     public async Task Sin_IncluyeDocumentosEmpresa_no_salen_los_de_la_Empresa_propia_y_si_los_de_sus_Trabajadores()
     {

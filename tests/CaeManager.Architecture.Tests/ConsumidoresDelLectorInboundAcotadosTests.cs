@@ -40,6 +40,10 @@ public class ConsumidoresDelLectorInboundAcotadosTests
         // Demo Inbound P6: el archivo pedido desde la cola de validación. Pide ValidarInbound y LeerInbound y luego abre con
         // la misma apertura que ObtenerArchivoInboundQueryHandler, que decide la cartera con LecturaInboundAutoridad.
         typeof(ObtenerArchivoParaValidarInboundQueryHandler),
+        // D-12 (decisión del módulo Inbound, 2026-11-18, opción a): volver a validar una evidencia rechazada lee la marca de
+        // quién subió el original. Decide antes la cartera con LecturaInboundAutoridad sobre el contrato de la evidencia
+        // (EvidenciaVisible) y solo lista; no abre ningún archivo.
+        typeof(ValidarEvidenciaInboundCommandHandler),
     ];
 
     /// <summary>
