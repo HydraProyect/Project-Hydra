@@ -32,9 +32,17 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
 
     private string Fichero => Path.Combine(_directorio, "llavero.json");
 
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public DateTimeOffset Ahora { get; set; } = ahora;
+        public override DateTimeOffset GetUtcNow() => Ahora;
+    }
+
+    private readonly RelojFijo _reloj = new(new DateTimeOffset(2026, 11, 18, 0, 0, 0, TimeSpan.Zero));
+
     private FirmanteCredencialAcceso Crear(string? fichero = null, IDataProtectionProvider? proteccion = null, int tope = 8) =>
         new(new LlaveroCredencialAcceso(fichero ?? Fichero, proteccion ?? _proteccion),
-            Options.Create(new OpcionesFirmaCredencialAcceso { MaxCentrosPorToken = tope }));
+            Options.Create(new OpcionesFirmaCredencialAcceso { MaxCentrosPorToken = tope }), _reloj);
 
     private static CredencialParaFirmar Credencial(int serie = 3, params Guid[] centros) =>
         new(CredencialId, serie,
@@ -223,10 +231,10 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
     }
 
     [Fact]
-    public void La_rotacion_mantiene_la_anterior_una_generacion_y_la_siguiente_la_retira()
+    public void La_rotacion_conserva_la_anterior_mientras_tenga_fechas_vivas_y_la_retira_despues()
     {
         var f = Crear();
-        var t0 = UnToken(f);
+        var t0 = UnToken(f); // fecha máxima 2026-12-31
         var kid0 = f.ClavesPublicasVigentes().Single().Kid;
 
         f.Rotar();
@@ -236,11 +244,102 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
         f.Verificar(t0).Should().NotBeNull("la clave anterior sigue verificando");
         f.Verificar(t1).Should().NotBeNull();
 
+        // Una segunda rotación NO retira la clave de t0: su fecha máxima (2026-12-31) no ha vencido.
         f.Rotar();
-        f.ClavesPublicasVigentes().Should().HaveCount(2);
-        f.Verificar(t0).Should().BeNull("la clave de t0 ya salió del llavero");
+        f.ClavesPublicasVigentes().Should().HaveCount(3);
+        f.Verificar(t0).Should().NotBeNull("sus credenciales siguen vivas");
         f.Verificar(t1).Should().NotBeNull();
+
+        // Pasada la mayor fecha máxima firmada, la siguiente rotación retira las anteriores.
+        _reloj.Ahora = new DateTimeOffset(2027, 1, 2, 0, 0, 0, TimeSpan.Zero);
+        f.Rotar();
+        f.Verificar(t0).Should().BeNull("la clave de t0 ya no tiene credenciales vivas");
+        f.Verificar(t1).Should().BeNull();
     }
+
+    [Fact]
+    public void Al_pasar_a_anterior_la_clave_pierde_su_privada_del_disco()
+    {
+        var f = Crear();
+        UnToken(f);
+        f.Rotar();
+
+        var claves = LeerClavesDelFichero();
+        claves.Should().HaveCount(2);
+        claves.Count(c => c.GetProperty("PrivadaProtegida").GetString() != "").Should().Be(1);
+    }
+
+    [Fact]
+    public void Dos_procesos_sobre_el_mismo_fichero_comparten_clave_y_ven_la_rotacion_del_otro()
+    {
+        var a = Crear();
+        var b = Crear(); // otra instancia = otro proceso: caché propia, mismo fichero.
+
+        b.Verificar(UnToken(Crear(Path.Combine(_directorio, "otro.json")))).Should().BeNull(); // b cachea «sin fichero»
+        var tokenA = UnToken(a);
+        b.Verificar(tokenA).Should().NotBeNull("b recarga el fichero que escribió a");
+        UnToken(b); // b firma con la clave de a, no crea otra
+        b.ClavesPublicasVigentes().Should().ContainSingle();
+
+        a.RotarDeEmergencia();
+        b.Verificar(tokenA).Should().BeNull("la emergencia de a vale para b");
+        b.Rotar();
+        b.Verificar(tokenA).Should().BeNull("la clave comprometida no vuelve por una caché vieja");
+    }
+
+    [Fact]
+    public void Un_llavero_con_entradas_nulas_o_sin_kid_falla_cerrado_sin_excepcion_al_verificar()
+    {
+        Directory.CreateDirectory(_directorio);
+        var token = UnToken(Crear(Path.Combine(_directorio, "otro.json")));
+        foreach (var contenido in new[] { "{\"Version\":1,\"Claves\":[null]}", "{\"Version\":1,\"Claves\":[{\"Activa\":true}]}" })
+        {
+            File.WriteAllText(Fichero, contenido);
+            Crear().Verificar(token).Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public void Las_firmas_emitidas_tienen_s_baja_y_la_variante_s_alta_no_verifica()
+    {
+        var f = Crear();
+        for (var i = 0; i < 40; i++)
+        {
+            var token = UnToken(f);
+            var punto = token.LastIndexOf('.');
+            var firma = FormatoTokenCredencial.DesdeBase64Url(token[(punto + 1)..])!;
+            FormatoTokenCredencial.TieneSAlta(firma).Should().BeFalse();
+
+            // (r, n−s): matemáticamente válida en ECDSA, pero no la aceptamos.
+            var n = System.Numerics.BigInteger.Parse("0FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551",
+                System.Globalization.NumberStyles.HexNumber);
+            var s = new System.Numerics.BigInteger(firma.AsSpan(32, 32), isUnsigned: true, isBigEndian: true);
+            var alta = (byte[])firma.Clone();
+            Array.Clear(alta, 32, 32);
+            var bytes = (n - s).ToByteArray(isUnsigned: true, isBigEndian: true);
+            bytes.CopyTo(alta, 64 - bytes.Length);
+            f.Verificar(token[..(punto + 1)] + FormatoTokenCredencial.Base64Url(alta)).Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public void Un_tope_desmesurado_se_recorta_y_todos_los_tokens_emitidos_verifican()
+    {
+        var f = Crear(tope: 100_000);
+        var centros = Enumerable.Range(1, 50).Select(i => new CentroConFechaMaxima(
+            Guid.Parse($"bbbbbbbb-0000-0000-0000-{i:D12}"), new DateOnly(2026, 12, 31))).ToList();
+
+        var tokens = f.Firmar(new CredencialParaFirmar(CredencialId, 3, centros));
+
+        tokens.Should().NotBeEmpty();
+        tokens.Should().OnlyContain(t => t.Length <= 4096);
+        tokens.Select(t => f.Verificar(t)).Should().OnlyContain(v => v != null);
+        tokens.SelectMany(t => f.Verificar(t)!.Centros).Should().HaveCount(50);
+    }
+
+    private IReadOnlyList<System.Text.Json.JsonElement> LeerClavesDelFichero() =>
+        System.Text.Json.JsonDocument.Parse(File.ReadAllText(Fichero)).RootElement.GetProperty("Claves")
+            .EnumerateArray().Select(e => e.Clone()).ToList();
 
     [Fact]
     public void La_rotacion_de_emergencia_invalida_todo_lo_emitido()
@@ -266,16 +365,44 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
     }
 
     [Fact]
-    public void La_privada_va_protegida_y_sin_el_protector_no_se_puede_firmar_pero_si_verificar()
+    public void La_privada_va_protegida_y_sin_el_protector_ni_se_firma_ni_se_verifica()
     {
         var token = UnToken(Crear());
 
-        var otroProtector = new EphemeralDataProtectionProvider();
-        var f = Crear(proteccion: otroProtector);
+        var f = Crear(proteccion: new EphemeralDataProtectionProvider());
 
-        f.Verificar(token).Should().NotBeNull("la pública va en claro");
-        f.Invoking(x => x.Firmar(Credencial())).Should().Throw<CryptographicException>();
-        File.ReadAllText(Fichero).Should().NotContain("BEGIN").And.NotContain("PRIVATE");
+        f.Verificar(token).Should().BeNull("sin Data Protection no se puede comprobar la integridad del llavero");
+        f.Invoking(x => x.Firmar(Credencial())).Should().Throw<InvalidOperationException>();
+
+        // Lo guardado no es un PKCS#8 importable: va protegido.
+        foreach (var clave in LeerClavesDelFichero())
+        {
+            var guardada = clave.GetProperty("PrivadaProtegida").GetString()!;
+            using var ecdsa = ECDsa.Create();
+            var bytes = Encoding.UTF8.GetBytes(guardada);
+            ecdsa.Invoking(e => e.ImportPkcs8PrivateKey(bytes, out _)).Should().Throw<CryptographicException>();
+        }
+    }
+
+    [Fact]
+    public void Un_json_manipulado_con_una_publica_ajena_se_rechaza()
+    {
+        var f = Crear();
+        UnToken(f);
+
+        // El atacante genera su par, sustituye la pública del llavero y firma un token con su privada y el kid vigente.
+        using var suya = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var kid = f.ClavesPublicasVigentes().Single().Kid;
+        var actual = File.ReadAllText(Fichero);
+        var spkiOriginal = f.ClavesPublicasVigentes().Single().SpkiBase64;
+        File.WriteAllText(Fichero, actual.Replace(spkiOriginal, Convert.ToBase64String(suya.ExportSubjectPublicKeyInfo())));
+
+        var cuerpo = FormatoTokenCredencial.Cuerpo(kid, CredencialId, 3, [new(Centro1, new DateOnly(2026, 12, 31))]);
+        var firma = FormatoTokenCredencial.NormalizarSBaja(suya.SignData(
+            Encoding.UTF8.GetBytes(cuerpo), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        var falso = FormatoTokenCredencial.Componer(cuerpo, firma);
+
+        Crear().Verificar(falso).Should().BeNull();
     }
 
     [Fact]

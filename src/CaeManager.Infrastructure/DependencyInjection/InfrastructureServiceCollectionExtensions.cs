@@ -884,8 +884,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton(sp => new CaeManager.Infrastructure.Inbound.LlaveroCredencialAcceso(
             Path.Combine(CaeManager.Infrastructure.DataProtection.RegistroDataProtection.RutaAbsolutaDelLlavero(configuration, entorno),
                 "llavero-credencial-acceso.json"),
-            sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()));
-        services.AddSingleton<CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso>();
+            sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("CaeManager.Inbound.LlaveroCredencialAcceso")));
+        services.AddSingleton(sp => new CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso(
+            sp.GetRequiredService<CaeManager.Infrastructure.Inbound.LlaveroCredencialAcceso>(),
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Inbound.OpcionesFirmaCredencialAcceso>>(),
+            sp.GetService<TimeProvider>()));
         services.AddSingleton<CaeManager.Application.Inbound.CredencialesAcceso.IFirmanteCredencialAcceso>(
             sp => sp.GetRequiredService<CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso>());
         services.AddSingleton<CaeManager.Application.Inbound.CredencialesAcceso.IAdministradorLlaveroCredencialAcceso>(

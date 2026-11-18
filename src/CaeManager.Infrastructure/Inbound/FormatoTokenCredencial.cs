@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using CaeManager.Application.Inbound.CredencialesAcceso;
 
@@ -9,7 +10,9 @@ namespace CaeManager.Infrastructure.Inbound;
 /// serialización; la criptografía vive en <see cref="FirmanteCredencialAcceso"/>. El análisis es <b>canónico</b>: un
 /// token solo se acepta si al volver a serializar su contenido sale exactamente la misma cadena. Sin eso, un cambio
 /// en los bits sobrantes del último carácter base64url, o un Guid en mayúsculas, darían un token distinto con la
-/// misma firma válida.
+/// misma firma válida. ECDSA es además maleable ((r, s) y (r, n−s) verifican ambas), por lo que se exige s baja: la cadena
+/// firmada es única por emisión, pero el mismo contenido firmado dos veces da firmas distintas (ECDSA es probabilística):
+/// la cadena del token NUNCA es identificador del contenido; el identificador es la credencial y su serie.
 /// </summary>
 internal static class FormatoTokenCredencial
 {
@@ -63,8 +66,8 @@ internal static class FormatoTokenCredencial
             return null;
 
         var firma = DesdeBase64Url(partes[5]);
-        if (firma is null || firma.Length != LongitudFirmaBytes)
-            return null;
+        if (firma is null || firma.Length != LongitudFirmaBytes || TieneSAlta(firma))
+            return null; // s alta: la maleabilidad (r, n−s) daría otra cadena con la misma validez; no se emite ni se acepta.
 
         var cuerpo = Cuerpo(kid, credencialId, serie, centros);
         if (!string.Equals(Componer(cuerpo, firma), token, StringComparison.Ordinal))
@@ -94,6 +97,26 @@ internal static class FormatoTokenCredencial
         {
             return null;
         }
+    }
+
+    private static readonly BigInteger OrdenP256 = BigInteger.Parse(
+        "0FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551", NumberStyles.HexNumber);
+
+    private static BigInteger S(byte[] firma) => new(firma.AsSpan(32, 32), isUnsigned: true, isBigEndian: true);
+
+    public static bool TieneSAlta(byte[] firma) => S(firma) > OrdenP256 / 2;
+
+    /// <summary>Sustituye s por n−s si es alta: la forma única (s baja) hace que cada contenido tenga una sola cadena firmada por ejecución.</summary>
+    public static byte[] NormalizarSBaja(byte[] firma)
+    {
+        if (!TieneSAlta(firma))
+            return firma;
+
+        var baja = (OrdenP256 - S(firma)).ToByteArray(isUnsigned: true, isBigEndian: true);
+        var resultado = (byte[])firma.Clone();
+        Array.Clear(resultado, 32, 32);
+        baja.CopyTo(resultado, 64 - baja.Length);
+        return resultado;
     }
 
     public static byte[] Bytes(string cuerpo) => Encoding.UTF8.GetBytes(cuerpo);
