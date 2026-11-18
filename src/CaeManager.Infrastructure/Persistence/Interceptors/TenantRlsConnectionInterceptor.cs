@@ -234,9 +234,11 @@ public class TenantRlsConnectionInterceptor(
     /// otro Tenant firmaba ese Tenant con <c>cae_app_soporte</c> y la conexión leía sus filas: la garantía B
     /// (solo lectura) no aísla nada por sí misma y la A (las políticas) solo mira el Tenant del contexto.
     /// Con una Sesión Privilegiada seleccionada y un Tenant efectivo distinto del seleccionado, la conexión
-    /// <b>conserva <c>cae_app_soporte</c></b> y <b>se queda sin Tenant</b>: ninguna política casa un Tenant nulo,
-    /// así que no lee ninguna fila con RLS, y el rol no tiene privilegio de escritura sobre ninguna tabla, tenga RLS o
-    /// no. Las funciones <c>SECURITY DEFINER</c> por las que soporte sí registra exigen un Tenant en el contexto.
+    /// <b>conserva <c>cae_app_soporte</c></b> y <b>se queda sin Tenant</b>: ninguna política por Tenant del contexto
+    /// casa un Tenant nulo, así que no lee filas de ningún Tenant por esa vía. Las políticas que miran el Tenant de
+    /// origen (<c>app.tenant_origen_id</c>, que sale del claim del Actor real y no del ámbito ni de la selección; por
+    /// ejemplo <c>posicion_en_la_asignacion</c>) siguen viendo lo que ese Actor ya ve sin Sesión Privilegiada. El rol
+    /// no tiene privilegio de escritura sobre ninguna tabla, tenga RLS o no. Las funciones <c>SECURITY DEFINER</c> por las que soporte sí registra exigen un Tenant en el contexto.
     /// </para>
     /// <para>
     /// Alcance: esta guarda decide lo que se aplica a la conexión. El sellado de un lote de <c>SaveChanges</c> dentro

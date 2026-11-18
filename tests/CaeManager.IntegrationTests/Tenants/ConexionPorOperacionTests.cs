@@ -916,7 +916,7 @@ public sealed class ConexionPorOperacionPoolTests : IAsyncLifetime
     {
         var cadena = CadenaConUnSoloHueco("conexion-por-operacion-excepcion");
         var puerta = new PuertaAccesoDatos();
-        var seleccion = new ConexionPorOperacionTests.SeleccionMutable { SesionPrivilegiadaIdSeleccionada = Guid.NewGuid() };
+        var seleccion = new ConexionPorOperacionTests.SeleccionMutable { TenantIdSeleccionado = _clase.TenantA, SesionPrivilegiadaIdSeleccionada = Guid.NewGuid() };
         var (contexto, _) = _clase.CrearContextoRuntime(
             new ConexionPorOperacionTests.TenantMutable(_clase.TenantA), seleccion, puerta, cadena);
         await using var _c = contexto;
