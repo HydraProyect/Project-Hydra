@@ -38,34 +38,6 @@ public class CatalogoMenuLateralRepartoTests
             ["alertas", "calendario", "reportes", "facturacion", "conectar-extension"]);
     }
 
-    [Theory]
-    [InlineData(Roles.Administrador)]
-    [InlineData(Roles.DireccionCae)]
-    [InlineData(Roles.CoordinadorCae)]
-    [InlineData(Roles.GestorCae)]
-    public void Al_Tenant_de_origen_solo_Inbound_el_menu_no_le_muestra_Negocio_Operacion_ni_Control(string rol)
-    {
-        // «Inbound sin Outbound» (2026-11-18): el contexto lo marca el NavMenu con ICriterioDeOutbound.
-        var visibles = CatalogoMenuLateral.Visibles(Contexto(rol) with { OutboundCerradoPorSoloInbound = true });
-
-        visibles.Select(g => g.Grupo.Id).Should().NotContain(["negocio", "operacion", "control"]);
-        visibles.Should().NotBeEmpty("el resto del menú del rol sigue ahí");
-    }
-
-    [Theory]
-    [InlineData(Roles.Administrador)]
-    [InlineData(Roles.GestorCae)]
-    public void Sin_el_cierre_por_solo_Inbound_el_menu_no_cambia(string rol)
-    {
-        // El Tenant histórico sin líneas y el que tiene las dos llegan con OutboundCerradoPorSoloInbound = false.
-        var antes = CatalogoMenuLateral.Visibles(Contexto(rol)).SelectMany(g => g.Enlaces).Select(e => e.Id).ToList();
-        var despues = CatalogoMenuLateral.Visibles(Contexto(rol) with { OutboundCerradoPorSoloInbound = false })
-            .SelectMany(g => g.Enlaces).Select(e => e.Id).ToList();
-
-        despues.Should().Equal(antes);
-        despues.Should().Contain("mi-trabajo");
-    }
-
     [Fact]
     public void Con_Comunicaciones_apagado_Operacion_pierde_solo_ese_enlace_y_conserva_el_orden()
     {

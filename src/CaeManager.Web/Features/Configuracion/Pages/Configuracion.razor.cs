@@ -53,12 +53,10 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     private bool? _rigenExclusionesDelEncargo;
 
     [Inject] private CaeManager.Application.Common.ICurrentUserService UsuarioActual { get; set; } = default!;
-    [Inject] private IServiceProvider ServiciosDelHub { get; set; } = default!;
 
     /// <summary>
-    /// Un panel que es una página de Outbound (<c>[PaginaDeOutbound]</c>) solo se ve y se resuelve con un papel que abra
-    /// Outbound en el Tenant activo (<see cref="CaeManager.Application.Common.ICriterioDeOutbound"/>: papel que admite lo que
-    /// no es Inbound y, con el de Tenant de origen, un Producto Contratado que no sea solo Inbound): embebido con
+    /// Un panel que es una página de Outbound (<c>[PaginaDeOutbound]</c>) solo se ve y se resuelve con un papel que admita
+    /// lo que no es Inbound (<see cref="CaeManager.Application.Common.CriterioDePapel"/>): embebido con
     /// <c>DynamicComponent</c> no pasa por <c>PaginaDeOutboundPorPapelAuthorizationHandler</c>,
     /// así que este filtro es su barrera, como el del encargo. <c>null</c> mientras no se conoce el papel, y entonces se
     /// trata como si no lo admitiera.
@@ -71,8 +69,8 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
         // ya está resuelto, así que esto se asigna antes del primer render.
         var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
         _rigenExclusionesDelEncargo = PaginasExcluidasDelEncargo.RigenLasExclusiones(usuario);
-        _papelAdmiteOutbound = await CaeManager.Web.Services.Autorizacion.CriterioDeOutboundEnComponentes
-            .AdmiteOutboundAsync(ServiciosDelHub, UsuarioActual);
+        _papelAdmiteOutbound = CaeManager.Application.Common.CriterioDePapel.AdmiteLoQueNoEsInbound(
+            await UsuarioActual.ObtenerPapelActivoAsync());
 
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
 

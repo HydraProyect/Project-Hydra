@@ -24,10 +24,6 @@ namespace CaeManager.Web.Components.Layout;
 /// <param name="EsTenantTecInbound">El Tenant activo, como Tenant propietario, tiene al menos una autorización de lectura documental
 /// concedida (vigente y sin revocar; <see cref="IEsTenantTecInbound"/>, decisión D6 de la demo de Inbound). Es el gate del grupo
 /// «Mis Clientes», independiente de <paramref name="LineaInboundVigente"/>: el Tenant TEC no necesita la línea.</param>
-/// <param name="OutboundCerradoPorSoloInbound">Con el papel de Tenant de origen, el Producto Contratado del Tenant activo es
-/// solo Inbound: línea Inbound vigente y ninguna línea Outbound (<c>ICriterioDeOutbound.CierraPorSoloInboundAsync</c>;
-/// decisión del 2026-11-18, «Inbound sin Outbound»). Cierra los grupos de Outbound (Negocio, Operación y Control). Un Tenant
-/// sin ninguna línea, el Outbound histórico, no lo tiene.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
@@ -40,15 +36,8 @@ public sealed record ContextoMenuLateral(
     bool HerramientasPdfDisponibles = true,
     bool MiTrabajoOculto = false,
     bool LineaInboundVigente = false,
-    bool EsTenantTecInbound = false,
-    bool OutboundCerradoPorSoloInbound = false)
+    bool EsTenantTecInbound = false)
 {
-    /// <summary>
-    /// ¿Existen los grupos de la línea Outbound (Negocio, Operación y Control)? Los roles del menú completo y que el
-    /// Producto Contratado no los cierre (<see cref="OutboundCerradoPorSoloInbound"/>).
-    /// </summary>
-    public bool VeLaLineaOutbound(string roles) => !OutboundCerradoPorSoloInbound && TieneAlgunRol(roles);
-
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
     /// decidía: la lista separada por comas, acotada por la lente de demo (que solo puede
@@ -236,21 +225,18 @@ public static class CatalogoMenuLateral
         // DDL-073 (cadena de titularidad, Documentos al final). Negocio, desde el 2026-10-18 en el
         // orden del marco de Design: Empresas, Subcontratas, Trabajadores, Clientes, Centros, Documentos,
         // Vehículos y Proyectos.
-        // Los tres grupos de la línea Outbound (Negocio, Operación y Control) no existen para un Tenant solo Inbound con el
-        // papel de Tenant de origen (ContextoMenuLateral.OutboundCerradoPorSoloInbound; decisión del 2026-11-18, «Inbound sin
-        // Outbound»). Con ellos se van también los enlaces del Núcleo que cuelgan de esos grupos: así lo fija la decisión.
-        new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.VeLaLineaOutbound(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
+        new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones y Visitas, en ese orden;
         // Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control. Incidencias salió
         // el 2026-10-17 (entrega de Design) como pestaña de sección de Documentos y volvió en la PR8 (barra retirada).
-        new("operacion", "Operación", AbiertoPorDefecto: true, c => c.VeLaLineaOutbound(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
+        new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Control: Alertas, Calendario, Reportes y Facturación, y por el mandato del propietario del
         // 2026-09-29 cierra con Conectar extensión (Mi trabajo salió a Operación). Nace ABIERTO desde el
         // 2026-10-18: en el marco de Design (marco-talveg.js, DDL-083) solo Administración y Plataforma
         // llevan «closed»; el colapsado de Control venía del informe de consolidación de 2026-09-01.
-        new("control", "Control", AbiertoPorDefecto: true, c => c.VeLaLineaOutbound(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
+        new("control", "Control", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto), Linea: LineaMenu.Outbound),
 
         // Inbound (plan de pantallas Inbound, § 1): la sección del Tenant beneficiario que recibe contratistas en sus Centros
         // (Contratos de acceso y Documentos por validar). Existe solo con la línea Inbound activa en el Producto Contratado

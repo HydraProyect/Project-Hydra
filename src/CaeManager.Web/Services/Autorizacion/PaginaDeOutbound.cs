@@ -23,11 +23,9 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 
 /// <summary>
 /// Niega una página de Outbound (<see cref="PaginaDeOutboundAttribute"/>) a quien trabaja con papel Inbound o con una
-/// Asignación de Operación que ya no autoriza, y a quien trabaja con el papel de Tenant de origen en un Tenant cuyo
-/// Producto Contratado es solo Inbound (decisión del 2026-11-18, «Inbound sin Outbound»): el mismo criterio que
-/// <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/> aplica a los comandos y <c>AlcanceDatosService</c> al
-/// alcance (<see cref="ICriterioDeOutbound"/>). Sin esto, un Gestor CAE con papel Inbound, o la Gestora CAE de un Tenant
-/// TCE sin Outbound, entraría en las páginas de Outbound que se autorizan solo por rol.
+/// Asignación de Operación que ya no autoriza: el mismo criterio que <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>
+/// aplica a los comandos y <c>AlcanceDatosService</c> al alcance (<see cref="CriterioDePapel"/>). Sin esto, un Gestor CAE
+/// con papel Inbound entraría en las páginas de Outbound que se autorizan solo por rol.
 ///
 /// <para>
 /// Mismo patrón que <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/>: no está ligado a ningún requisito,
@@ -44,15 +42,14 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// evalúa la página en cada petición, también en la navegación mejorada, no dentro de un circuito.
 /// </para>
 /// </summary>
-public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
-    ICurrentUserService currentUserService, ICriterioDeOutbound criterioDeOutbound) : IAuthorizationHandler
+public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(ICurrentUserService currentUserService) : IAuthorizationHandler
 {
     public async Task HandleAsync(AuthorizationHandlerContext context)
     {
         if (!EsPaginaDeOutbound(context.Resource))
             return;
 
-        if (!await criterioDeOutbound.AdmiteOutboundAsync(await currentUserService.ObtenerPapelActivoAsync()))
+        if (!CriterioDePapel.AdmiteLoQueNoEsInbound(await currentUserService.ObtenerPapelActivoAsync()))
             context.Fail();
     }
 
@@ -67,44 +64,6 @@ public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
             || EsPaginaDeOutbound(endpoint.Metadata.GetMetadata<ComponentTypeMetadata>()?.Type),
         _ => false,
     };
-}
-
-/// <summary>
-/// El criterio de Outbound (<see cref="ICriterioDeOutbound"/>) para un componente que filtra él mismo lo de Outbound (el
-/// asistente del layout, los paneles de Outbound del hub de Configuración): no son la autoridad, que sigue en las páginas,
-/// la guarda de comandos y el alcance. En una composición sin el criterio registrado (pruebas de componentes hechas a mano)
-/// decide solo el papel, como antes de «Inbound sin Outbound»; la aplicación lo registra siempre (<c>AddApplication</c>).
-/// </summary>
-public static class CriterioDeOutboundEnComponentes
-{
-    public static async Task<bool> AdmiteOutboundAsync(IServiceProvider servicios, ICurrentUserService usuarioActual)
-    {
-        var papel = await usuarioActual.ObtenerPapelActivoAsync();
-        return servicios.GetService(typeof(ICriterioDeOutbound)) is ICriterioDeOutbound criterio
-            ? await criterio.AdmiteOutboundAsync(papel)
-            : CriterioDePapel.AdmiteLoQueNoEsInbound(papel);
-    }
-
-    /// <summary>
-    /// Para el menú lateral y la paleta: ¿cierra Outbound el Producto Contratado (papel de Tenant de origen y Tenant solo
-    /// Inbound)? Un fallo al leerlo responde «no»: el menú no es autoridad, y ocultar Outbound por un error transitorio
-    /// dejaría sin menú a un Tenant que lo usa; las páginas y los comandos siguen cerrados por su cuenta.
-    /// </summary>
-    public static async Task<bool> CierraPorSoloInboundAsync(IServiceProvider servicios, CancellationToken cancellationToken = default)
-    {
-        if (servicios.GetService(typeof(ICriterioDeOutbound)) is not ICriterioDeOutbound criterio
-            || servicios.GetService(typeof(ICurrentUserService)) is not ICurrentUserService usuarioActual)
-            return false;
-
-        try
-        {
-            return await criterio.CierraPorSoloInboundAsync(await usuarioActual.ObtenerPapelActivoAsync(), cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-    }
 }
 
 /// <summary>
@@ -126,10 +85,7 @@ public sealed class EndpointDeOutbound
 
 public static class EndpointDeOutboundExtensions
 {
-    /// <summary>
-    /// El endpoint es de Outbound: con papel Inbound, o con el de Tenant de origen en un Tenant solo Inbound, recibe la
-    /// denegación estándar aunque el rol cumpla (<see cref="ICriterioDeOutbound"/>).
-    /// </summary>
+    /// <summary>El endpoint es de Outbound: con papel Inbound recibe la denegación estándar aunque el rol cumpla.</summary>
     public static TBuilder DeOutbound<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(EndpointDeOutbound.Instancia);

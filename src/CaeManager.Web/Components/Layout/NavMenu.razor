@@ -262,11 +262,6 @@
             }
         }
 
-        // Grupos de Outbound (Negocio, Operación y Control): cerrados para un Tenant solo Inbound con el papel de Tenant de
-        // origen (decisión del 2026-11-18). Un fallo al leerlo responde «no» y deja el menú como estaba: no es autoridad.
-        var outboundCerradoPorSoloInbound = await CaeManager.Web.Services.Autorizacion.CriterioDeOutboundEnComponentes
-            .CierraPorSoloInboundAsync(Servicios);
-
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             marco.EsAdministradorPlataforma, marco.PerfilVocabulario, VariosTenants: marco.ClientesAutorizados.Count > 1,
@@ -275,8 +270,7 @@
             HerramientasPdfDisponibles: herramientasPdfDisponibles,
             MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios),
             LineaInboundVigente: lineaInboundVigente,
-            EsTenantTecInbound: esTenantTecInbound,
-            OutboundCerradoPorSoloInbound: outboundCerradoPorSoloInbound);
+            EsTenantTecInbound: esTenantTecInbound);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

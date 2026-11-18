@@ -69,7 +69,6 @@ public partial class AsistenteIa : IDisposable
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
     [Inject] private IActorAuditoria ActorAuditoria { get; set; } = default!;
     [Inject] private ICurrentUserService UsuarioActual { get; set; } = default!;
-    [Inject] private IServiceProvider ServiciosDelAsistente { get; set; } = default!;
     /// <summary>El Tenant efectivo del circuito (claim firmado más la Empresa gestionada elegida y vigente).</summary>
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -208,9 +207,7 @@ public partial class AsistenteIa : IDisposable
     {
         _sesionPrivilegiada = (await ActorAuditoria.ObtenerAsync()).Via == TipoViaAcceso.SesionPrivilegiada;
         _tenantOrigenId = await UsuarioActual.ObtenerTenantOrigenIdAsync();
-        // El asistente es de Outbound: se cierra con papel Inbound y con el de Tenant de origen en un Tenant solo Inbound.
-        _papelAdmiteElAsistente = await CaeManager.Web.Services.Autorizacion.CriterioDeOutboundEnComponentes
-            .AdmiteOutboundAsync(ServiciosDelAsistente, UsuarioActual);
+        _papelAdmiteElAsistente = CriterioDePapel.AdmiteLoQueNoEsInbound(await UsuarioActual.ObtenerPapelActivoAsync());
         if (_papelAdmiteElAsistente && PantallaCompleta)
             await CargarEmpresaAsync();
     }
