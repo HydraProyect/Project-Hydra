@@ -26,17 +26,17 @@
 
     @if (!_errorCarga)
     {
-        @* Barra compartida en modo pastillas: solo buscador (la maqueta de Plantillas no trae más filtros) y la franja de niveles. La
-           página no tenía chips de filtros activos ni «Limpiar todo» y no se añaden aquí (shortcut: cablearlos con el resto del patrón);
-           por eso no se pasa HayFiltrosActivos a la barra. *@
-        <BarraFiltros EtiquetaRegion="@Comunes["FiltrarEstaPantalla"]" Busqueda="@_busqueda" BusquedaChanged="Buscar"
-                      PlaceholderBuscador="@Textos["BuscadorPlaceholder"]">
-            <Pastillas></Pastillas>
-            <Estados>
-                <FranjaEstado Opciones="_opcionesNivel" Valor="@_niveles" ValorChanged="CambiarNiveles" Recuentos="_recuentos"
-                              EtiquetaAccesible="@Textos["FiltroNivelEtiqueta"]" />
-            </Estados>
-        </BarraFiltros>
+        <section class="barra-filtros-pastillas" aria-label="@Comunes["FiltrarEstaPantalla"]">
+            <div class="barra-filtros-pastillas-fila">
+                <div class="barra-filtros-buscador-pantalla">
+                    <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+                    <CampoTexto Placeholder="@Textos["BuscadorPlaceholder"]" Valor="@_busqueda" ValorChanged="Buscar"
+                                aria-label="@Textos["BuscadorPlaceholder"]" data-filtro-pantalla="" />
+                </div>
+            </div>
+            <FranjaEstado Opciones="_opcionesNivel" Valor="@_niveles" ValorChanged="CambiarNiveles" Recuentos="_recuentos"
+                          EtiquetaAccesible="@Textos["FiltroNivelEtiqueta"]" />
+        </section>
     }
 
     @if (_cargando)

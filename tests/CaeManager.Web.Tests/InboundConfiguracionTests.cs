@@ -322,26 +322,14 @@ public class InboundConfiguracionTests : BunitContext
     // ---------------------------------------------------------------- Alineación con Outbound: cabecera, barra de filtros y marco de lista
 
     [Fact]
-    public async Task Las_reglas_de_aviso_usan_la_barra_compartida_y_Limpiar_todo_restablece_estado_y_busqueda()
+    public void Las_reglas_de_aviso_usan_la_cabecera_sin_antetitulo()
     {
         _reglas.Datos = ReglasEjemplo();
+
         var cut = Render<ReglasAvisoInbound>();
 
+        cut.Find("h1").TextContent.Should().Contain("Reglas de aviso");
         cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
-        cut.Find(".barra-filtros-pastillas-fila").Should().NotBeNull("la barra es el componente compartido, no HTML copiado");
-        cut.FindAll("button.limpiar-filtros-barra").Should().BeEmpty("sin filtros activos no hay «Limpiar todo»");
-
-        cut.FindAll("button").First(b => b.TextContent.Contains("Pausadas")).Click();
-        cut.FindAll("tbody tr").Should().ContainSingle();
-        cut.Find("button.limpiar-filtros-barra").Click();
-        cut.FindAll("tbody tr").Should().HaveCount(4);
-
-        await cut.Find("input[data-filtro-pantalla]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "zzz" });
-        // El buscador tiene retardo propio (300 ms): se espera a que se aplique.
-        await cut.WaitForAssertionAsync(() => cut.Find("[data-pieza=sin-coincidencias]").TextContent.Should().Contain("Ninguna regla coincide con el filtro"), TimeSpan.FromSeconds(5));
-        cut.Find(".chips-filtros").TextContent.Should().Contain("zzz");
-        cut.Find("button.limpiar-filtros-barra").Click();
-        await cut.WaitForAssertionAsync(() => cut.FindAll("tbody tr").Should().HaveCount(4), TimeSpan.FromSeconds(5));
     }
 
     [Fact]

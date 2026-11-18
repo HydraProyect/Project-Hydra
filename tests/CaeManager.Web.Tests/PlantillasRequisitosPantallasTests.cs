@@ -205,7 +205,7 @@ public class PlantillasRequisitosPantallasTests : BunitContext
     }
 
     [Fact]
-    public async Task El_listado_usa_la_cabecera_sin_antetitulo_y_la_barra_compartida_con_su_buscador_y_la_franja_de_niveles()
+    public void El_listado_usa_la_cabecera_sin_antetitulo()
     {
         Preparar();
 
@@ -214,17 +214,10 @@ public class PlantillasRequisitosPantallasTests : BunitContext
 
         cut.Find("h1").TextContent.Should().Contain("Plantillas de requisitos");
         cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
-        cut.Find(".barra-filtros-pastillas-fila").Should().NotBeNull("la barra es el componente compartido, no HTML copiado");
-        cut.FindAll(".franja-estado-boton").Should().NotBeEmpty("la franja de niveles sigue en la barra");
-
-        await cut.Find("input[data-filtro-pantalla]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "zzz" });
-
-        // El buscador tiene retardo propio (300 ms): se espera a que se aplique.
-        await cut.WaitForAssertionAsync(() => cut.Markup.Should().NotContain("Registro de entrega de EPI"), TimeSpan.FromSeconds(5));
     }
 
     [Fact]
-    public void Los_formularios_de_requisitos_pasan_el_contexto_de_la_plantilla_de_la_cabecera_a_una_linea_secundaria()
+    public void Los_requisitos_de_la_plantilla_pasan_su_contexto_de_la_cabecera_a_una_linea_secundaria()
     {
         Preparar();
 

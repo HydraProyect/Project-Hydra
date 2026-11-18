@@ -71,7 +71,7 @@ public class AltaTenantTceTests : BunitContext
     }
 
     [Fact]
-    public void La_cabecera_es_la_compartida_con_su_antetitulo_de_plataforma_y_su_subtitulo()
+    public void La_cabecera_es_la_compartida_con_su_antetitulo_de_plataforma()
     {
         var cut = RenderConSesion();
 

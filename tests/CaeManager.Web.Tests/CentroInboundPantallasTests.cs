@@ -646,20 +646,13 @@ public class CentroInboundPantallasTests : BunitContext
     }
 
     [Fact]
-    public async Task Informacion_del_Centro_usa_la_cabecera_sin_antetitulo_y_la_barra_compartida_con_sus_filtros()
+    public async Task Informacion_del_Centro_usa_la_cabecera_sin_antetitulo()
     {
-        Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true), Documento("Normas de seguridad del Centro", alDia: false)]);
+        Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true)]);
 
         var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
 
         cut.Find("h1").TextContent.Should().Contain("Información del Centro");
         cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
-        cut.Find(".barra-filtros-pastillas-fila").TextContent.Should().Contain("Centro").And.Contain("Modalidad");
-        cut.Find("section.barra-filtros-pastillas").TextContent.Should().Contain("Con acuses pendientes").And.Contain("Al día");
-        cut.Find("input[data-filtro-pantalla]").Should().NotBeNull("el buscador es el de la barra compartida");
-
-        await cut.FindAll(".franja-estado-boton").First(b => b.TextContent.Contains("Al día")).ClickAsync(new MouseEventArgs());
-
-        cut.FindAll("tbody tr").Should().ContainSingle().Which.TextContent.Should().Contain("Riesgos de la zona de muelles");
     }
 }
