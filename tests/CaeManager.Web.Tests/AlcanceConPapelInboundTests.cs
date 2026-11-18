@@ -6,6 +6,7 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -169,8 +170,41 @@ public class AlcanceConPapelInboundTests
         (await alcance.TieneAccesoTotalAsync()).Should().BeTrue();
     }
 
-    private static AlcanceDatosService Alcance(CaeManagerDbContext contexto, ICurrentUserService usuario) =>
-        new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce }, new SinSesionPrivilegiada());
+    /// <summary>
+    /// «Inbound sin Outbound» (2026-11-18): al Tenant de origen solo Inbound, dentro de una petición de Outbound, ningún
+    /// perfil tiene alcance (no hay <c>ServicioCae.Outbound</c>); fuera de ella (Núcleo) el Administrador TCE conserva el
+    /// acceso total. Con <paramref name="soloInbound"/> en falso (Tenant histórico sin líneas o con las dos) no cambia nada.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("Administrador", false)]
+    [InlineData("DireccionCae", false)]
+    public async Task Al_Tenant_de_origen_solo_Inbound_una_peticion_de_Outbound_no_le_da_alcance(string rol, bool soloInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.TenantDeOrigen), Criterio(soloInbound));
+
+        using (AmbitoPeticionOutbound.Fijar(true))
+            (await alcance.TieneAccesoTotalAsync()).Should().Be(!soloInbound);
+        (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("fuera de una petición de Outbound el Núcleo no cambia");
+    }
+
+    private static CriterioDeOutbound Criterio(bool soloInbound) => new(new ServiceCollection()
+        .AddSingleton<ITenantActual>(new TenantActualAmbiental { TenantId = TenantTce })
+        .AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(new SoloInboundFijo(soloInbound))
+        .BuildServiceProvider());
+
+    private sealed class SoloInboundFijo(bool soloInbound) : CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound
+    {
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(soloInbound);
+    }
+
+    private static AlcanceDatosService Alcance(
+        CaeManagerDbContext contexto, ICurrentUserService usuario, ICriterioDeOutbound? criterio = null) =>
+        new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantTce }, new SinSesionPrivilegiada(),
+            criterioDeOutbound: criterio);
 
     /// <summary>Un contexto que nunca conecta: el puerto 1 de localhost no tiene ningún PostgreSQL.</summary>
     private static CaeManagerDbContext ContextoSinServidor()

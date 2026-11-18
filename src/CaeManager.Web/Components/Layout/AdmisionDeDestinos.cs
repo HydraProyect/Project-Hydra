@@ -231,11 +231,17 @@ public static class AdmisionDeDestinos
             }
         }
 
+        // Los destinos de Outbound, con el mismo gate que los grupos del menú lateral (NavMenu): cerrados para un Tenant solo
+        // Inbound con el papel de Tenant de origen. Un fallo responde «no», como en el menú.
+        var outboundCerradoPorSoloInbound = usuario.Identity?.IsAuthenticated == true
+            && await CaeManager.Web.Services.Autorizacion.CriterioDeOutboundEnComponentes.CierraPorSoloInboundAsync(servicios, ct);
+
         return new ContextoMenuLateral(
             usuario, vista, comunicacionesActivo, esAdministradorPlataforma,
             default(PerfilVocabularioTenant), VariosTenants: false,
             MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(servicios),
             LineaInboundVigente: lineaInboundVigente,
-            EsTenantTecInbound: esTenantTecInbound);
+            EsTenantTecInbound: esTenantTecInbound,
+            OutboundCerradoPorSoloInbound: outboundCerradoPorSoloInbound);
     }
 }

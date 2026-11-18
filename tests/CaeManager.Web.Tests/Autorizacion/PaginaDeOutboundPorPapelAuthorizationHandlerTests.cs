@@ -120,13 +120,52 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
     private static readonly AuthorizationPolicy CualquieraAutenticado =
         new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
 
+    [Theory]
+    [MemberData(nameof(PaginasMarcadas))]
+    public async Task Toda_pagina_marcada_se_niega_al_Tenant_de_origen_solo_Inbound(Type pagina)
+    {
+        // «Inbound sin Outbound» (2026-11-18): con el papel de Tenant de origen y solo la línea Inbound, Outbound se cierra.
+        (await AutorizarAsync(Con(Roles.Administrador), Ruta(pagina), new UsuarioConPapel(PapelActivo.TenantDeOrigen),
+            CualquieraAutenticado, soloInbound: true)).Succeeded.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(PapelActivo.TenantDeOrigen, false, true)]
+    [InlineData(PapelActivo.TenantDeOrigen, true, false)]
+    [InlineData(PapelActivo.Outbound, true, true)]
+    [InlineData(PapelActivo.SinPapel, true, true)]
+    public async Task El_Tenant_que_no_es_solo_Inbound_y_los_papeles_de_operacion_conservan_Outbound(
+        PapelActivo papel, bool soloInbound, bool entra)
+    {
+        // soloInbound=false cubre el Tenant histórico sin líneas y el que tiene las dos: ITenantSoloInbound dice «no».
+        var resultado = await AutorizarAsync(Con(Roles.GestorCae), Ruta(MiTrabajo), new UsuarioConPapel(papel),
+            soloInbound: soloInbound);
+
+        resultado.Succeeded.Should().Be(entra);
+    }
+
+    [Fact]
+    public async Task El_endpoint_minimo_de_Outbound_tambien_se_niega_al_Tenant_de_origen_solo_Inbound()
+    {
+        var marcado = PeticionA(EndpointDeOutbound.Instancia);
+
+        (await AutorizarAsync(Con(Roles.GestorCae), marcado, new UsuarioConPapel(PapelActivo.TenantDeOrigen), soloInbound: true))
+            .Succeeded.Should().BeFalse();
+        (await AutorizarAsync(Con(Roles.GestorCae), marcado, new UsuarioConPapel(PapelActivo.TenantDeOrigen), soloInbound: false))
+            .Succeeded.Should().BeTrue();
+    }
+
     private static async Task<AuthorizationResult> AutorizarAsync(
-        ClaimsPrincipal principal, object? recurso, UsuarioConPapel usuario, AuthorizationPolicy? politica = null)
+        ClaimsPrincipal principal, object? recurso, UsuarioConPapel usuario, AuthorizationPolicy? politica = null,
+        bool soloInbound = false)
     {
         var servicios = new ServiceCollection();
         servicios.AddLogging();
         servicios.AddAuthorizationCore();
         servicios.AddSingleton<ICurrentUserService>(usuario);
+        servicios.AddSingleton<ITenantActual>(new TenantFijo());
+        servicios.AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(new SoloInboundFijo(soloInbound));
+        servicios.AddScoped<ICriterioDeOutbound, CriterioDeOutbound>();
         servicios.AddScoped<IAuthorizationHandler, PaginaDeOutboundPorPapelAuthorizationHandler>();
 
         await using var proveedor = servicios.BuildServiceProvider();
@@ -146,6 +185,17 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         var http = new DefaultHttpContext();
         http.SetEndpoint(new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(metadatos), "prueba"));
         return http;
+    }
+
+    private sealed class TenantFijo : ITenantActual
+    {
+        public Guid? TenantId { get; } = Guid.NewGuid();
+    }
+
+    private sealed class SoloInboundFijo(bool soloInbound) : CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound
+    {
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(soloInbound);
     }
 
     /// <summary>Una persona cuyo papel activo es <paramref name="papel"/>; cuenta cuántas veces se le pregunta.</summary>

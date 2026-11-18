@@ -18,6 +18,10 @@ namespace CaeManager.Application.Common;
 /// o <see cref="IComandoDeAutoservicio"/> (lo que escribe es del propio usuario). Los comandos del Núcleo y de Outbound
 /// no llevan marcador de servicio, así que en un contexto Inbound se niegan todos: el incremento que necesite uno lo
 /// marca con su motivo.</item>
+/// <item>Con el papel de Tenant de origen en un Tenant cuyo Producto Contratado es solo Inbound
+/// (<see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/>; decisión del 2026-11-18, «Inbound sin Outbound»), un
+/// comando del módulo Outbound (<see cref="PeticionDeOutbound"/>) no pasa salvo que sea de autoservicio. Los del Núcleo,
+/// de Facturación y de Inbound siguen pasando: ese Tenant administra sus usuarios y opera Inbound.</item>
 /// </list>
 ///
 /// <para>
@@ -27,10 +31,13 @@ namespace CaeManager.Application.Common;
 /// papel sale de la operación revalidada en la base, nunca del request.
 /// </para>
 /// </summary>
-public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(ICurrentUserService currentUserService)
+public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(
+    ICurrentUserService currentUserService, ICriterioDeOutbound criterioDeOutbound)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
+    private static readonly bool EsDeOutbound = PeticionDeOutbound.Es(typeof(TRequest));
+
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
@@ -63,6 +70,12 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(ICurrentUserS
             return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
                 "Autorizacion.ComandoFueraDelPapelInbound",
                 "Estás trabajando en Inbound y esta acción no es de Inbound. Cambia de papel en el selector."));
+
+        if (EsDeOutbound && request is not IComandoDeAutoservicio
+            && await criterioDeOutbound.CierraPorSoloInboundAsync(papel, cancellationToken))
+            return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
+                "Autorizacion.ComandoDeOutboundSinLineaOutbound",
+                "Tu organización tiene contratado Inbound y no Outbound: esta acción es de Outbound."));
 
         return await next(cancellationToken);
     }

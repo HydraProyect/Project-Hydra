@@ -63,16 +63,20 @@ public static class AmbitoPeticionInbound
 /// <summary>
 /// Fija <see cref="AmbitoPeticionInbound"/> alrededor del handler de cada petición (B-03): abierto en las de
 /// <c>CaeManager.Application.Inbound</c> y cerrado en todas las demás, también cuando una de Inbound envía una de otro
-/// módulo. Al terminar restaura el de la petición que la envió.
+/// módulo. Al terminar restaura el de la petición que la envió. Con la misma mecánica fija también
+/// <see cref="AmbitoPeticionOutbound"/>: abierto en las peticiones del módulo Outbound (<see cref="PeticionDeOutbound"/>),
+/// cerrado en las demás (decisión del 2026-11-18, «Inbound sin Outbound»).
 /// </summary>
 public sealed class AmbitoInboundBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
     private static readonly bool EsDeInbound = AmbitoPeticionInbound.EsDeInbound(typeof(TRequest));
+    private static readonly bool EsDeOutbound = PeticionDeOutbound.Es(typeof(TRequest));
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
         using (AmbitoPeticionInbound.Fijar(EsDeInbound))
+        using (AmbitoPeticionOutbound.Fijar(EsDeOutbound))
             return await next(cancellationToken);
     }
 }

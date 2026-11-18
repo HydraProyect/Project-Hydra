@@ -1,7 +1,9 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Common;
@@ -41,11 +43,31 @@ public class GuardaPorServicioBehaviorTests
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
     }
 
+    /// <summary>
+    /// El criterio real (<see cref="CriterioDeOutbound"/>) sobre un Tenant activo cuyo Producto Contratado es o no solo
+    /// Inbound. Cuenta las lecturas para probar que con otro papel no se consulta.
+    /// </summary>
+    private static CriterioDeOutbound Criterio(bool soloInbound) => new(new ServiceCollection()
+        .AddSingleton<ITenantActual>(new TenantFijo(Guid.NewGuid()))
+        .AddSingleton<ITenantSoloInbound>(new SoloInboundFijo(soloInbound))
+        .BuildServiceProvider());
+
+    private sealed class TenantFijo(Guid tenantId) : ITenantActual
+    {
+        public Guid? TenantId { get; } = tenantId;
+    }
+
+    private sealed class SoloInboundFijo(bool soloInbound) : ITenantSoloInbound
+    {
+        public Task<bool> EsSoloInboundAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(soloInbound);
+    }
+
     private static async Task<(TResponse Respuesta, bool LlegoAlHandler)> Ejecutar<TRequest, TResponse>(
-        TRequest request, PapelActivo papel, TResponse exito) where TRequest : notnull
+        TRequest request, PapelActivo papel, TResponse exito, bool soloInbound = false) where TRequest : notnull
     {
         var llego = false;
-        var respuesta = await new GuardaPorServicioBehavior<TRequest, TResponse>(new UsuarioConPapel(papel)).Handle(
+        var respuesta = await new GuardaPorServicioBehavior<TRequest, TResponse>(new UsuarioConPapel(papel), Criterio(soloInbound)).Handle(
             request, _ => { llego = true; return Task.FromResult(exito); }, default);
         return (respuesta, llego);
     }
@@ -147,9 +169,49 @@ public class GuardaPorServicioBehaviorTests
         // La implementación por defecto de ICurrentUserService: un doble que no sobrescribe el papel.
         var llego = false;
 
-        await new GuardaPorServicioBehavior<ComandoInbound, Result>(new SinPapelConocido()).Handle(
+        await new GuardaPorServicioBehavior<ComandoInbound, Result>(new SinPapelConocido(), Criterio(soloInbound: true)).Handle(
             new ComandoInbound(), _ => { llego = true; return Task.FromResult(Result.Exito()); }, default);
 
         llego.Should().BeFalse();
+    }
+    /// <summary>
+    /// «Inbound sin Outbound» (decisión del 2026-11-18): con el papel de Tenant de origen en un Tenant solo Inbound, un
+    /// comando del módulo Outbound no pasa; con cualquier otro papel, o en un Tenant que no es solo Inbound (el Outbound
+    /// histórico sin líneas, o el que tiene las dos), decide lo de siempre.
+    /// </summary>
+    [Theory]
+    [InlineData(PapelActivo.TenantDeOrigen, true, false)]
+    [InlineData(PapelActivo.TenantDeOrigen, false, true)]
+    [InlineData(PapelActivo.Outbound, true, true)]
+    [InlineData(PapelActivo.SinPapel, true, true)]
+    [InlineData(PapelActivo.Inbound, true, false)]
+    public async Task Un_comando_de_Outbound_se_cierra_al_Tenant_de_origen_solo_Inbound(PapelActivo papel, bool soloInbound, bool pasa)
+    {
+        var (respuesta, llego) = await Ejecutar(
+            new CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound(), papel, Result.Exito(), soloInbound);
+
+        llego.Should().Be(pasa);
+        if (!pasa && papel == PapelActivo.TenantDeOrigen)
+            respuesta.Error!.Codigo.Should().Be("Autorizacion.ComandoDeOutboundSinLineaOutbound");
+    }
+
+    [Fact]
+    public async Task Con_un_Tenant_solo_Inbound_pasan_los_comandos_del_Nucleo_de_Inbound_y_de_autoservicio()
+    {
+        (await Ejecutar(new ComandoSinServicio(), PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true)).LlegoAlHandler
+            .Should().BeTrue("un comando del Núcleo no es de Outbound: el Tenant solo Inbound sigue administrando");
+        (await Ejecutar(new ComandoInbound(), PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true)).LlegoAlHandler
+            .Should().BeTrue();
+        (await Ejecutar(new CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutboundDeAutoservicio(),
+            PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true)).LlegoAlHandler.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Los_comandos_de_prueba_estan_donde_el_clasificador_los_espera()
+    {
+        // Control del instrumento: si el clasificador no viera el comando de prueba como de Outbound, el caso de arriba
+        // pasaría por la rama equivocada.
+        PeticionDeOutbound.Es(typeof(CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound)).Should().BeTrue();
+        PeticionDeOutbound.Es(typeof(ComandoSinServicio)).Should().BeFalse();
     }
 }

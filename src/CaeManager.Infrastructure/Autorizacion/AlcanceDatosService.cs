@@ -61,7 +61,8 @@ public class AlcanceDatosService(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IVistaDemoActual? vistaDemo = null,
     TimeProvider? reloj = null,
-    Microsoft.Extensions.Options.IOptions<CaducidadAlcanceOptions>? caducidad = null)
+    Microsoft.Extensions.Options.IOptions<CaducidadAlcanceOptions>? caducidad = null,
+    ICriterioDeOutbound? criterioDeOutbound = null)
     : IAlcanceDatosService, IInvalidadorAlcance
 {
     // Dictionary<TKey,TValue> exige TKey : notnull, y tenantActual.TenantId es
@@ -102,16 +103,20 @@ public class AlcanceDatosService(
     /// TCE seleccionado con papel Inbound dejaba memoizado su acceso total de Outbound, y la lectura siguiente con papel
     /// Inbound lo reutilizaba durante la caducidad (Codex, ronda 2 de la PR #2293); y al revés. Un ámbito explícito usa
     /// una clave derivada que nunca coincide con la del contexto seleccionado. Lo mismo dentro y fuera de una petición de
-    /// Inbound (<see cref="AmbitoPeticionInbound"/>, B-03): con papel Inbound, el alcance de dentro no vale fuera.
+    /// Inbound (<see cref="AmbitoPeticionInbound"/>, B-03): con papel Inbound, el alcance de dentro no vale fuera. Y lo
+    /// mismo dentro y fuera de una petición de Outbound (<see cref="AmbitoPeticionOutbound"/>, «Inbound sin Outbound»): a
+    /// un Tenant solo Inbound con el papel de Tenant de origen, el alcance de una petición del Núcleo no vale para una de
+    /// Outbound, que no tiene ninguno. Las ocho combinaciones dan máscaras distintas (0, A5, 5A, FF, 3C, 99, 66, C3).
     /// </summary>
     private static Guid ClaveTenant(Guid? tenantId)
     {
         var tenant = tenantId ?? Guid.Empty;
         var explicito = AmbitoTenantExplicito.TenantIdActual is not null;
         var inbound = AmbitoPeticionInbound.Activo;
-        if (!explicito && !inbound) return tenant;
+        var outbound = AmbitoPeticionOutbound.Activo;
+        if (!explicito && !inbound && !outbound) return tenant;
 
-        var mascara = (byte)((explicito ? 0xA5 : 0) ^ (inbound ? 0x5A : 0));
+        var mascara = (byte)((explicito ? 0xA5 : 0) ^ (inbound ? 0x5A : 0) ^ (outbound ? 0x3C : 0));
         var bytes = tenant.ToByteArray();
         for (var i = 0; i < bytes.Length; i++) bytes[i] ^= mascara;
         return new Guid(bytes);
@@ -125,10 +130,16 @@ public class AlcanceDatosService(
     /// no conceda el alcance del rol (Codex, ronda 2 de la PR #2293);</item>
     /// <item>papel Inbound: Inbound solo dentro de una petición de Inbound (<see cref="AmbitoPeticionInbound"/>); fuera,
     /// ninguno, para que el papel Inbound no abra los lectores de Outbound del Tenant TCE (B-03);</item>
+    /// <item>papel de Tenant de origen en un Tenant solo Inbound, dentro de una petición del módulo Outbound
+    /// (<see cref="AmbitoPeticionOutbound"/>): ninguno (decisión del 2026-11-18, «Inbound sin Outbound»,
+    /// <see cref="ICriterioDeOutbound"/>). Fuera de esas peticiones (Núcleo, Inbound) el alcance es el de siempre, para que
+    /// ese Tenant siga administrando sus usuarios y operando Inbound;</item>
     /// <item>cualquier otro papel: Outbound, como antes.</item>
     /// </list>
     /// Fuera del caso Inbound dentro de una petición de Inbound, el alcance de Outbound lo decide el mismo criterio que las
-    /// páginas de Outbound y la guarda de comandos (<see cref="CriterioDePapel"/>), sin repetirlo aquí.
+    /// páginas de Outbound y la guarda de comandos (<see cref="CriterioDePapel"/> e <see cref="ICriterioDeOutbound"/>), sin
+    /// repetirlo aquí. Una composición sin <see cref="ICriterioDeOutbound"/> (construcciones a mano de los tests) no aplica
+    /// el cierre por Producto Contratado; la aplicación lo registra siempre (<c>AddApplication</c>).
     /// </summary>
     private async Task<ServicioCae?> ServicioDeAlcanceAsync()
     {
@@ -140,6 +151,10 @@ public class AlcanceDatosService(
         ServicioCae? servicio = papel == PapelActivo.Inbound && AmbitoPeticionInbound.Activo
             ? ServicioCae.Inbound
             : CriterioDePapel.AdmiteLoQueNoEsInbound(papel) ? ServicioCae.Outbound : null;
+
+        if (servicio == ServicioCae.Outbound && AmbitoPeticionOutbound.Activo && criterioDeOutbound is not null
+            && await criterioDeOutbound.CierraPorSoloInboundAsync(papel))
+            servicio = null;
 
         Memoizar(_servicioDeAlcance, tenant, generacion, servicio);
         return servicio;
