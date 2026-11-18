@@ -280,7 +280,7 @@ public static class EvidenciaInboundErrores
 
     public static readonly Error ValidaLoQueSubio = Error.Crear(
         "EvidenciaInbound.ValidaLoQueSubio",
-        "Subido por ti en Outbound: lo valida otra persona, otro Gestor CAE de tu organización o su Administrador.");
+        "Lo subiste tú: lo valida otra persona, otro Gestor CAE con este contrato en su cartera o el Administrador de esta organización.");
 
     public static readonly Error ValidarBajoImpersonacionNoDisponible = Error.Crear(
         "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible",

@@ -15,7 +15,8 @@ namespace CaeManager.Architecture.Tests;
 /// (del contexto firmado), el contrato de acceso y la autorización del Tenant de la Empresa contratista, pero no la cartera:
 /// no saben qué Clientes empresariales tiene asignados el Gestor CAE. Esa mitad la pone
 /// <see cref="LecturaInboundAutoridad"/> en los handlers de <c>ObtenerLecturaInboundQueries</c>, en
-/// <c>ObtenerColaValidacionInboundQueryHandler</c> y en <c>RegistrarEvidenciaInboundCommandHandler</c>. Un consumidor nuevo que
+/// <c>ObtenerColaValidacionInboundQueryHandler</c>, en <c>RegistrarEvidenciaInboundCommandHandler</c> y en
+/// <c>ValidarEvidenciaInboundCommandHandler</c>. Un consumidor nuevo que
 /// inyectara el lector directamente leería los Documentos de otro Tenant de cualquier contrato del Tenant lector, fuera de
 /// la cartera del usuario, y ningún test de comportamiento lo vería: la base respondería igual.
 /// </para>
@@ -84,7 +85,7 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     [Fact]
     public void Los_handlers_autorizados_dependen_del_lector_y_de_la_cartera()
     {
-        // Control: el escaneo de arriba ve a los cuatro; si dejaran de inyectar el lector, la lista se quedaría muerta.
+        // Control: el escaneo de arriba ve a todos los de la lista; si dejaran de inyectar el lector, la lista se quedaría muerta.
         foreach (var handler in ConsumidoresAutorizados)
         {
             var parametros = handler.GetConstructors().Single().GetParameters().Select(p => p.ParameterType).ToList();

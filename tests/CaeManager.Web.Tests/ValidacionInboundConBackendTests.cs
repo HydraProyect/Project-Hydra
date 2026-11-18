@@ -116,7 +116,7 @@ public class ValidacionInboundConBackendTests : BunitContext
     private static DocumentoPendienteInboundDto Pendiente(Guid documento, string titular, Guid? tipo = null) =>
         new(Contrato, documento, "Formación PRL", tipo ?? TipoTce, Guid.NewGuid(), titular, "12345678Z", "Montajes Moncayo S.L.",
             "B12345674", "Planta Zaragoza Norte", new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1),
-            EstadoVigenciaDocumento.VenceEnFecha, SoloConclusionAptitud: false);
+            EstadoVigenciaDocumento.VenceEnFecha, SoloConclusionAptitud: false, SubidoPorQuienValida: false);
 
     private static Guid Fila(Guid documento) => ServicioValidacionInboundConBackend.IdDeFila(Contrato, documento);
 

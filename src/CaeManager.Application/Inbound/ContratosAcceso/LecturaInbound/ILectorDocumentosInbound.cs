@@ -30,7 +30,8 @@ namespace CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 /// <para>
 /// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c> (el archivo pedido desde la cola de validación
 /// incluido, <c>ObtenerArchivoParaValidarInboundQueryHandler</c>), <c>ObtenerColaValidacionInboundQueryHandler</c> y
-/// <c>RegistrarEvidenciaInboundCommandHandler</c>, que deciden antes la cartera
+/// <c>RegistrarEvidenciaInboundCommandHandler</c> y <c>ValidarEvidenciaInboundCommandHandler</c> (solo el listado, para
+/// la marca de D-12), que deciden antes la cartera
 /// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
 /// </summary>
@@ -92,7 +93,7 @@ public record DocumentoInboundDto(
     DateOnly? FechaVencimiento,
     EstadoVigenciaDocumento EstadoVigencia,
     bool SoloConclusionAptitud,
-    bool SubidoPorQuienLee = false);
+    bool SubidoPorQuienLee);
 
 /// <summary>
 /// La apertura de un Documento original autorizado, tal como la devuelve <c>app_inbound_archivo_autorizado</c>. Es la única

@@ -223,8 +223,8 @@ public class ValidacionInboundTests : BunitContext
         var cut = RenderDetalle(IdA);
 
         // D-12 solo habla de Validar: Rechazar y Marcar incompleto siguen disponibles (la maqueta deshabilitaba los tres).
-        cut.Find(".vd-aviso-propio").TextContent.Should().Contain("Subido por ti en Outbound: lo valida otra persona.")
-            .And.Contain("Puede validarlo otro Gestor CAE de tu organización o su Administrador.");
+        cut.Find(".vd-aviso-propio").TextContent.Should().Contain("Lo subiste tú: lo valida otra persona.")
+            .And.Contain("Puede validarlo otro Gestor CAE con este contrato en su cartera o el Administrador de esta organización.");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Rechazar").HasAttribute("disabled").Should().BeFalse();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Marcar incompleto").HasAttribute("disabled").Should().BeFalse();
@@ -250,7 +250,7 @@ public class ValidacionInboundTests : BunitContext
         var cut = Render<DocumentosPorValidar>();
 
         var senales = cut.FindAll(".dpv-propio");
-        senales.Should().ContainSingle().Which.TextContent.Should().Be("Subido por ti en Outbound: lo valida otra persona.");
+        senales.Should().ContainSingle().Which.TextContent.Should().Be("Lo subiste tú: lo valida otra persona.");
         cut.Markup.Should().Contain("Ana Pérez").And.Contain("Luis Gil");
     }
 

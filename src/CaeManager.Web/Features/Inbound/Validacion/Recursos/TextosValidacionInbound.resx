@@ -61,9 +61,9 @@
     <value>«{0}» no está en tu catálogo de tipos de documento: no se puede registrar el veredicto todavía.</value>
   </data>
   <data name="SubidoPorTi" xml:space="preserve">
-    <value>Subido por ti en Outbound: lo valida otra persona.</value>
+    <value>Lo subiste tú: lo valida otra persona.</value>
   </data>
   <data name="SubidoPorTiQuienValida" xml:space="preserve">
-    <value>Puede validarlo otro Gestor CAE de tu organizaci&#243;n o su Administrador.</value>
+    <value>Puede validarlo otro Gestor CAE con este contrato en su cartera o el Administrador de esta organizaci&#243;n.</value>
   </data>
 </root>

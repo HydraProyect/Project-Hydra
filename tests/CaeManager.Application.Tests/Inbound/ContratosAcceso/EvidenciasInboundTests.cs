@@ -86,7 +86,7 @@ public class EvidenciasInboundTests
     private static DocumentoInboundDto Documento(Guid id, bool soloConclusion, string? dni = "12345678Z", bool deTrabajador = true) =>
         new(id, deTrabajador ? Guid.NewGuid() : null, deTrabajador ? "Ana" : null, deTrabajador ? "Pérez" : null,
             deTrabajador ? dni : null, "Tipo del original", new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1),
-            EstadoVigenciaDocumento.VenceEnFecha, soloConclusion);
+            EstadoVigenciaDocumento.VenceEnFecha, soloConclusion, SubidoPorQuienLee: false);
 
     private RegistrarEvidenciaInboundCommandHandler Registrar(string? rol = "GestorCae", Guid? clienteVisible = null, ActorAuditoria? actor = null) =>
         new(_contratos, _tipos, _empresas, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector, _originales,

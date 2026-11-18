@@ -49,7 +49,7 @@ public record DocumentoPendienteInboundDto(
     DateOnly? FechaVencimiento,
     EstadoVigenciaDocumento EstadoVigencia,
     bool SoloConclusionAptitud,
-    bool SubidoPorQuienValida = false);
+    bool SubidoPorQuienValida);
 
 public class ObtenerColaValidacionInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext,
