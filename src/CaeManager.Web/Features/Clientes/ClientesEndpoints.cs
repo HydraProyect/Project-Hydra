@@ -1,10 +1,11 @@
-using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Documentos;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services.Autorizacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
@@ -21,7 +22,7 @@ public static class ClientesEndpoints
 {
     public static IEndpointRouteBuilder MapClientesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/clientes/exportar.xlsx", ExportarAsync)
+        endpoints.MapGet("/clientes/exportar.xlsx", ExportarAsync).DeOutbound()
         // DEC-1 (plan de sesiones nocturnas 2026-09-02): mismos roles que
         // /clientes (RolesComunicaciones.Gestion, no RolesDeCartera de
         // CatalogoMenuLateral — esa gatea "Visión de cartera", un dashboard distinto).

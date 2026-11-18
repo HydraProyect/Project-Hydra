@@ -129,13 +129,10 @@ public class ObtenerConversacionPorIdQueryHandler(
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
-    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia,
+    IMotorCoincidenciaConversacionesService motorCoincidencia,
     IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
-    // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
-    private const string RolCliente = "Cliente";
-
     public async Task<ConversacionDetalleDto?> Handle(ObtenerConversacionPorIdQuery request, CancellationToken cancellationToken)
     {
         // Conversacion.ClienteId es un Empresa.Id desde F3b (AsignarClienteConversacionCommand
@@ -167,41 +164,16 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         if (conversacion is null) return null;
 
-        // Un hilo atado al buzón personal de OTRO gestor nunca se abre desde
-        // aquí, tenga o no Cliente resuelto — acotar solo la rama de triage de
-        // abajo dejaba el hilo accesible por Id a cualquier rol de gestión
-        // (mismo hueco que ObtenerConversacionesQueryHandler, corregido en el
-        // mismo cambio).
-        if (conversacion.ConexionIntegracionId is { } conexionId &&
-            !await alcanceDatos.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
-        {
-            return null;
-        }
-
-        if (conversacion.ClienteId is not null)
-        {
-            if (!await alcanceDatos.ClienteVisibleAsync(conversacion.ClienteId.Value, cancellationToken))
-                return null;
-        }
-        // Anclado a una Empresa contraparte (reclamación de ámbito Empresa):
-        // tiene dueño, y se acota por cartera de Empresas — no es triage. El
-        // rol Cliente tampoco llega aquí: su cartera de Empresas es la que le
-        // resuelva IAlcanceDatosService, y un contacto de una empresa cliente
-        // no tiene por qué ver lo que se le reclama a una contratista.
-        else if (conversacion.EmpresaId is not null)
-        {
-            // EmpresaParaGestionVisibleAsync, no EmpresaVisibleAsync: ya
-            // devuelve lista vacía para el rol Cliente, así que la regla vive
-            // en un solo sitio y no puede desalinearse de la que aplica el
-            // endpoint de adjuntos (que llega por ConversacionVisibleAsync).
-            if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(conversacion.EmpresaId.Value, cancellationToken))
-                return null;
-        }
-        // Un hilo sin ninguna de las dos anclas es de la cola de triage: mismo
-        // criterio que la lista (ObtenerConversacionesQueryHandler), porque si
-        // no, acotar solo el listado dejaba el hilo accesible a quien tuviera
-        // el Guid.
-        else if (await currentUserService.ObtenerRolEfectivoAsync() == RolCliente)
+        // La misma regla que la lista (ObtenerConversacionesQueryHandler), con
+        // la misma expresión (VisibilidadConversacion): acotar solo el listado
+        // dejaba el hilo accesible a quien tuviera el Guid. Cubre el buzón
+        // personal de OTRO Gestor CAE (nunca se abre desde aquí, tenga o no
+        // Cliente resuelto), el ancla Cliente por cartera, el ancla Empresa
+        // contraparte por alcance de gestión (vacío para el rol Cliente) y la
+        // cola de triaje solo con IAlcanceDatosService.TriajeVisibleAsync. Es
+        // también la regla del endpoint de adjuntos.
+        if (!await alcanceDatos.ConversacionVisibleAsync(
+                conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
         {
             return null;
         }
@@ -465,7 +437,7 @@ public class ObtenerConversacionPorIdQueryHandler(
     /// Solo tiene sentido proponer vincular un hilo WhatsApp vivo con
     /// Cliente ya resuelto (§ 13.2 exige "mismo Cliente" como primer
     /// criterio) — un hilo de correo, uno cerrado/resuelto, o uno todavía en
-    /// triage no calculan nada.
+    /// triaje no calculan nada.
     /// </summary>
     private async Task<SugerenciaVinculacionDetalleDto?> ObtenerSugerenciaVinculacionAsync(
         Guid conversacionId, Guid? clienteId, CanalConversacion canal, EstadoConversacion estado,

@@ -14,6 +14,8 @@ public class GateComercialTenantBehaviorTests
     private record FalsoConValorCommand : ICommand<Guid>;
     private record FalsaQuery : IRequest<string>;
     private record ReduceExposicionCommand : ICommand, IComandoQueReduceExposicion;
+    private record PortabilidadCommand : ICommand, IComandoDePortabilidadDelTenantPropietario;
+    private record DerechosInteresadoCommand : ICommand, IComandoDeDerechosDelInteresado;
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {
@@ -273,5 +275,94 @@ public class GateComercialTenantBehaviorTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Comercial.Suspendido");
+    }
+
+    // Decisión de Chris (2026-11-16): el impago no impide al Tenant propietario sacar sus propios datos.
+    [Theory]
+    [InlineData(EstadoComercialTenant.SoloLectura)]
+    [InlineData(EstadoComercialTenant.Suspendida)]
+    public async Task La_portabilidad_del_Tenant_propietario_pasa_el_gate_comercial(EstadoComercialTenant estado)
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(estado);
+        var behavior = new GateComercialTenantBehavior<PortabilidadCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new PortabilidadCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    // La suspensión operativa también se usa ante un compromiso: ahí una exportación completa sería exfiltración.
+    [Fact]
+    public async Task La_suspension_operativa_bloquea_la_portabilidad()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<PortabilidadCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new PortabilidadCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_de_origen_suspendido_bloquea_la_portabilidad()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.SoloLectura);
+        var origen = AnadirTenantDeOrigen(dbContext);
+        var behavior = new GateComercialTenantBehavior<PortabilidadCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new PortabilidadCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public void Solicitar_y_descargar_la_exportacion_completa_son_portabilidad()
+    {
+        typeof(CaeManager.Application.Exportacion.SolicitarExportacionCompletaCommand)
+            .Should().Implement<IComandoDePortabilidadDelTenantPropietario>();
+        typeof(CaeManager.Application.Exportacion.DescargarExportacionCompletaCommand)
+            .Should().Implement<IComandoDePortabilidadDelTenantPropietario>();
+    }
+
+    // Decisión de Chris (2026-11-17, D-3 opción (b)): el plazo del RGPD para responder al interesado no se detiene
+    // por el impago, así que registrar y tramitar la solicitud pasa el gate comercial como la portabilidad.
+    [Theory]
+    [InlineData(EstadoComercialTenant.SoloLectura)]
+    [InlineData(EstadoComercialTenant.Suspendida)]
+    public async Task Los_derechos_del_interesado_pasan_el_gate_comercial(EstadoComercialTenant estado)
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(estado);
+        var behavior = new GateComercialTenantBehavior<DerechosInteresadoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new DerechosInteresadoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_suspension_operativa_bloquea_los_derechos_del_interesado()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<DerechosInteresadoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new DerechosInteresadoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_de_origen_suspendido_bloquea_los_derechos_del_interesado()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.SoloLectura);
+        var origen = AnadirTenantDeOrigen(dbContext);
+        var behavior = new GateComercialTenantBehavior<DerechosInteresadoCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new DerechosInteresadoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
     }
 }

@@ -1,0 +1,10 @@
+/* Editar requisito (tarjeta 9): lista de requisitos de una plantilla. */
+.rq-tabla { min-width: 0; width: 100%; table-layout: fixed; }
+.rq-col-entidad { width: 140px; }
+.rq-col-vigencia { width: 170px; }
+.rq-col-ia { width: 200px; }
+.rq-col-acc { width: 170px; text-align: right; white-space: nowrap; }
+.rq-trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rq-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.pl-fijo { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }.pl-prin { font-weight: 600; color: var(--color-text); }
+.pl-sec { display: block; font: 400 13px/18px var(--font-family); color: var(--color-text-muted); }

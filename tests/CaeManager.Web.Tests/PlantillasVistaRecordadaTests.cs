@@ -28,7 +28,7 @@ public class PlantillasVistaRecordadaTests : BunitContext
 {
     private sealed class MediatorFalso(string? vistaRecordada) : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public List<PlantillaDocumentoListaDto> Plantillas { get; } = [];
         public List<DocumentoGeneradoListaDto> Generados { get; } = [];

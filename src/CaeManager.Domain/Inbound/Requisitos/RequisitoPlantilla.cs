@@ -7,8 +7,9 @@ namespace CaeManager.Domain.Inbound.Requisitos;
 
 /// <summary>
 /// Un requisito de una <see cref="PlantillaRequisitos"/> del Tenant TCE (tarjeta 9; plan backend Inbound § 2.3): qué tipo
-/// de documento propio lo acredita, a qué sujeto se pide, con qué origen, vigencia, tolerancia y bloqueo, a quién (todos,
-/// nacionales o extranjeros, y qué tipos de contratación) y qué equivalencias acepta de un extranjero.
+/// de documento propio lo acredita, a qué sujeto se pide, con qué origen, vigencia, tolerancia y bloqueo, a quién (los
+/// modelos de contratación de <see cref="TiposContratacion"/>, el extranjero incluido desde el 2026-11-17) y qué
+/// equivalencias acepta de un extranjero.
 ///
 /// <para>
 /// <b>Hijo del agregado.</b> Solo lo crean, editan y retiran los métodos de <see cref="PlantillaRequisitos"/>, que renuevan la
@@ -18,11 +19,15 @@ namespace CaeManager.Domain.Inbound.Requisitos;
 ///
 /// <para>
 /// <b>Lo que no hace este incremento (B-14).</b> No resuelve capas ni crea requerimientos (B-15), no aplica el «solo nuevos o
-/// también los N ya dados de alta» de la edición (revalidación, B-23) y no decide quién es extranjero (B-15).
+/// también los N ya dados de alta» de la edición (revalidación, B-23). Quién es extranjero lo dice el modelo de contratación
+/// del Trabajador (<see cref="TipoContratacion.Extranjero"/>), no este requisito.
 /// </para>
 /// </summary>
 public sealed class RequisitoPlantilla : EntidadConTenant
 {
+    private const TiposContratacion TodosAnteriorAlExtranjero =
+        TiposContratacion.CuentaAjena | TiposContratacion.Autonomo | TiposContratacion.Voluntario;
+
     private List<string> _equivalencias = [];
 
     public Guid PlantillaId { get; private set; }
@@ -52,8 +57,19 @@ public sealed class RequisitoPlantilla : EntidadConTenant
 
     public string? Criterio { get; private set; }
 
+    /// <summary>
+    /// Nacionalidad a la que se pide el requisito. En un requisito de Trabajador ya no decide nada desde el 2026-11-17: a quién
+    /// se pide lo dice solo <see cref="TiposContratacion"/>, y a un extranjero se le pide con
+    /// <see cref="TiposContratacion.Extranjero"/>; la migración <c>TraduceExtranjeroAModeloDeContratacion</c> tradujo los valores
+    /// guardados a la máscara. En uno de Empresa contratista sigue decidiendo (el país de la Empresa, decisión del 2026-11-14).
+    /// </summary>
+    // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
     public DestinatarioRequisito SePideA { get; private set; }
 
+    /// <summary>
+    /// A qué modelos de contratación del Trabajador se pide: el único criterio, también para el extranjero
+    /// (<see cref="TiposContratacion.Extranjero"/>). Fuera del ámbito Trabajador es siempre <see cref="TiposContratacion.Todos"/>.
+    /// </summary>
     public TiposContratacion TiposContratacion { get; private set; }
 
     /// <summary>
@@ -154,6 +170,10 @@ public sealed class RequisitoPlantilla : EntidadConTenant
             throw new ArgumentException($"El criterio tiene como máximo {AtributosRequisito.LongitudMaximaCriterio} caracteres.", nameof(atributos.Criterio));
 
         var entidad = EntidadDe(tipo);
+        // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
+        // En un requisito de Trabajador se sigue validando y guardando porque es parte del contrato de los Commands
+        // (AtributosRequisito), pero no decide a quién se pide. En uno de Empresa contratista sí se sigue leyendo: la decisión
+        // del Extranjero solo trata del Trabajador, y la del 2026-11-14 (el país de la Empresa) sigue vigente.
         var sePideA = ReglasCatalogoBase.ValidarEnum(atributos.SePideA, nameof(atributos.SePideA));
         if (entidad == EntidadRequisito.VehiculoOMaquina && sePideA != DestinatarioRequisito.Todos)
             throw new ArgumentException("Un vehículo o máquina no es nacional ni extranjero: se pide a todos.", nameof(atributos.SePideA));
@@ -161,7 +181,9 @@ public sealed class RequisitoPlantilla : EntidadConTenant
         var contratacion = atributos.TiposContratacion & TiposContratacion.Todos;
         if (contratacion != atributos.TiposContratacion || contratacion == TiposContratacion.Ninguno)
             throw new ArgumentException("Marca al menos un tipo de contratación conocido.", nameof(atributos.TiposContratacion));
-        if (entidad != EntidadRequisito.Trabajador && contratacion != TiposContratacion.Todos)
+        // La migración TraduceExtranjeroAModeloDeContratacion no toca la máscara de Empresa ni de vehículo o máquina: su 7
+        // (el Todos anterior al Extranjero) sigue valiendo como Todos, porque la máscara no acota esas entidades.
+        if (entidad != EntidadRequisito.Trabajador && contratacion != TiposContratacion.Todos && contratacion != TodosAnteriorAlExtranjero)
             throw new ArgumentException("El tipo de contratación solo acota requisitos de Trabajador.", nameof(atributos.TiposContratacion));
 
         var equivalencias = NormalizarEquivalencias(atributos.Equivalencias);

@@ -1,0 +1,44 @@
+/* Tercera línea de la fila (maqueta 2026-11-01, `.f3`): 12/16 en 500, apagada, con 2 px entre filas y 8 px entre piezas. Los estilos del resto de la
+   fila viven en Bandeja.razor.css (`::deep`); aquí solo lo que añaden el plazo, la prioridad y el Nº de ticket. Las clases `fila-*` son propias de
+   este componente: `bandeja-fila-linea3` también la pinta FilaMensajeBuzonPersonal y no puede declararse aquí (ClasesDeCssAisladoNoViajanEntreComponentesTests).
+   El selector lleva `li.fila-conversacion` delante para ganar en especificidad (0,3,1: el atributo de scope solo va en el último selector) a `.bandeja-lista ::deep .bandeja-fila-linea3` (0,3,0);
+   el margen es solo el selector de tipo `li`, no lo quites. La regla rival fija `space-between` y un hueco de 8 px. */
+li.fila-conversacion .fila-linea-meta {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 2px var(--space-2);
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+/* La vista previa ocupa su propia fila: con las piezas de la línea no cabe en 240-304 px. */
+.fila-vista-previa {
+    flex: 1 1 100%;
+}
+
+/* Prioridad = punto de 10 px (gris de control, rojo si es urgente o crítica) + texto, como en la tabla (`.cu` y `.prio` de la maqueta). */
+.fila-prioridad {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.fila-prioridad-punto {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    background: var(--color-border-control);
+}
+
+.fila-prioridad-urgente .fila-prioridad-punto,
+.fila-prioridad-critica .fila-prioridad-punto {
+    background: var(--color-danger-500);
+}
+
+.fila-ticket {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

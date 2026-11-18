@@ -33,34 +33,20 @@
               @onclick="() => ActivarTabla(TablaConexiones.Buzones)" @onfocusin="() => ActivarTabla(TablaConexiones.Buzones)">
     <h2 id="titulo-buzones-microsoft365" class="titulo-bloque-conexiones">Buzones de Microsoft 365</h2>
 
+    @if (!ConexionDisponible)
+    {
+        <p class="aviso-conexion-no-disponible" role="status" data-testid="aviso-conexion-no-disponible">@Textos["AvisoConexionNoDisponible"]</p>
+    }
+    else
+    {
     <div class="acciones-conexion-buzon">
-        <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarCliente"
-                     Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
-            <option value="">Buzón de la organización propia</option>
-            @foreach (var cliente in _clientes)
-            {
-                <option value="@cliente.Id">@cliente.RazonSocial</option>
-            }
-        </CampoSelect>
+        <CaeManager.Web.Features.Integraciones.Components.CamposPropietarioBuzon Seleccion="_propietario" Empresas="_empresas" Gestores="_gestores" AlCambiar="Repintar" />
 
-        <CampoSelect Etiqueta="Buzón personal de un Gestor CAE (opcional)"
-                     Valor="@(_gestorPropietarioSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarGestorPropietario"
-                     Deshabilitado="@(_clienteSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
-            <option value="">—</option>
-            @foreach (var gestor in _gestores)
-            {
-                <option value="@gestor.Id">@gestor.NombreCompleto</option>
-            }
-        </CampoSelect>
-
-        <CampoTexto Etiqueta="@Textos["EtiquetaBuzonCompartido"]" Valor="@_buzonCompartido" ValorChanged="FijarBuzonCompartido"
-                    Placeholder="@Textos["PlaceholderBuzonCompartido"]" Type="email"
-                    Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || _clienteSeleccionadoId is not null)" />
-
-        <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
+        @* Página completa (data-enhance-nav="false"): la navegación mejorada de Blazor haría un fetch al endpoint, seguiría su
+           302 a login.microsoftonline.com y la CSP lo bloquearía. *@
+        <a class="enlace-conectar-microsoft" href="@UrlConectar" data-enhance-nav="false">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
+    }
 
     @if (_cargando)
     {
@@ -120,7 +106,7 @@
                             }
                             @if (conexion.CorreoNoRecuperadoDesdeUtc is { } noRecuperadoDesde)
                             {
-                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@Textos["AvisoCorreoNoRecuperado", noRecuperadoDesde.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")]</span>
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-no-recuperado">@TextoAvisoCorreoNoRecuperado(conexion, noRecuperadoDesde)</span>
                             }
                             @if (conexion.RecuperacionDetenidaEnUtc is { } detenidaEn)
                             {
@@ -133,6 +119,13 @@
                         </td>
                         <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">
+                            @if (PuedeConfirmarAvisoHueco(conexion))
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" data-testid="accion-confirmar-aviso-hueco"
+                                       Deshabilitado="@(_procesandoId is not null)" OnClick="() => AbrirConfirmacionAvisoHueco(conexion)" Cargando="@(_procesandoId == conexion.Id)">
+                                    @Textos["AccionConfirmarAvisoHueco"]
+                                </Boton>
+                            }
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError)
                             {
                                 <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
@@ -252,6 +245,9 @@
     </Pie>
 </Modal>
 
+<CaeManager.Web.Features.Integraciones.Components.ModalConfirmarAvisoHueco Conexion="_avisoHuecoAConfirmar" Confirmando="_confirmandoAvisoHueco"
+    OnCancelar="CerrarConfirmacionAvisoHueco" OnConfirmar="ConfirmarAvisoHuecoAsync" />
+
 @* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso fijo (el rechazo del servidor) y aviso de navegación
    vienen del kit. «Guardando» ya impide cerrar por fuera mientras se guarda: no hace falta Bloqueante (que quita la salida del todo). Con 8 a 10
    controles se sale del «uno a tres campos» del kit; se mantiene en Modal para no cambiar de contenedor en este incremento. *@
@@ -271,9 +267,9 @@
             <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaEmpresaId?.ToString() ?? string.Empty)"
                          ValorChanged="v => { _lineaEmpresaId = Guid.TryParse(v, out var id) ? id : null; _errorLinea = null; }">
                 <option value="">Organización propia</option>
-                @foreach (var cliente in _clientes)
+                @foreach (var empresa in _empresas)
                 {
-                    <option value="@cliente.Id">@cliente.RazonSocial</option>
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
                 }
             </CampoSelect>
         }

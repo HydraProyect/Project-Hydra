@@ -2,6 +2,8 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace CaeManager.Infrastructure.Identity;
 
@@ -22,6 +24,14 @@ public enum ResultadoEscrituraCuenta
 
     /// <summary>Otra escritura ganó la carrera en los dos intentos: la fila sigue como la dejó ella.</summary>
     Conflicto,
+
+    /// <summary>
+    /// La base rechazó la escritura por permisos (SQLSTATE 42501). Lo esperado es <c>cae_app_soporte</c>, que no tiene
+    /// <c>UPDATE</c> sobre la tabla de cuentas, y la interfaz no ofrece cambiar preferencias a quien no puede guardarlas;
+    /// pero el 42501 también lo da una violación de una política RLS (<c>WITH CHECK</c>), así que el llamador no reintenta
+    /// y deja constancia del resultado en el registro en lugar de darlo por normal.
+    /// </summary>
+    NoPermitida,
 }
 
 /// <summary>
@@ -65,8 +75,16 @@ public interface IPreferenciasCuentaPropia
 /// leídos, y solo salen en el <c>UPDATE</c> la columna cambiada y el sello. Así la escritura conserva lo que daba
 /// <c>UserManager.UpdateAsync</c> y <c>ExecuteUpdate</c> se saltaría: la fila de auditoría de <c>Tema</c> e
 /// <c>Idioma</c> (<c>AuditoriaInterceptor</c>; la de <c>UltimaActividadUtc</c> es silenciosa), su sellado con el Tenant
-/// de la cuenta (por eso el esqueleto lleva <c>TenantId</c>) y el <c>DbUpdateException</c> con el 42501 de
-/// <c>cae_app_soporte</c>, que no tiene <c>UPDATE</c> sobre la tabla y al que este puerto no le concede ninguno.
+/// de la cuenta (por eso el esqueleto lleva <c>TenantId</c>) y el rechazo con el 42501 de <c>cae_app_soporte</c>, que
+/// no tiene <c>UPDATE</c> sobre la tabla y al que este puerto no le concede ninguno.
+/// </para>
+///
+/// <para>
+/// <b>Un 42501 es un resultado, no una excepción.</b> El <c>DbUpdateException</c> cuyo <c>PostgresException</c> trae
+/// el <c>SqlState</c> 42501 se devuelve como <see cref="ResultadoEscrituraCuenta.NoPermitida"/>, sin reintento: en
+/// una Sesión Privilegiada es lo esperado, y relanzarlo tumbaba el islote del selector de tema. Se registra en
+/// Warning con la excepción adjunta, para que una denegación de RLS que no venga de soporte deje diagnóstico.
+/// Cualquier otro rechazo sigue subiendo como excepción.
 /// </para>
 ///
 /// <para>
@@ -75,7 +93,8 @@ public interface IPreferenciasCuentaPropia
 /// el sello vigente se escribe sobre ella, de modo que su dueño ve el valor nuevo y puede seguir guardando; si tiene
 /// otro sello está obsoleta, sus cambios ya no podrían guardarse, y se desengancha igual que hacen
 /// <see cref="GestionCuentasUsuarioIdentity"/> y <see cref="SegundoFactorDeCuentasIdentity"/>, para que la siguiente
-/// lectura venga de la base. Una escritura fallida también la saca del rastreo, como a todo lote fallido: esa instancia
+/// lectura venga de la base. Una escritura fallida —también la que termina en <see cref="ResultadoEscrituraCuenta.NoPermitida"/>—
+/// la saca del rastreo, como a todo lote fallido: esa instancia
 /// conserva en memoria valores que no llegaron a la fila y no debe reutilizarse.
 /// </para>
 ///
@@ -85,7 +104,8 @@ public interface IPreferenciasCuentaPropia
 /// fuera de la pantalla no debe convertirse en un rechazo que saque la cuenta del rastreo.
 /// </para>
 /// </summary>
-public sealed class PreferenciasCuentaPropia(CaeManagerDbContext contexto, PuertaAccesoDatos puertaAccesoDatos)
+public sealed class PreferenciasCuentaPropia(
+    CaeManagerDbContext contexto, PuertaAccesoDatos puertaAccesoDatos, ILogger<PreferenciasCuentaPropia> logger)
     : IPreferenciasCuentaPropia
 {
     private const int Intentos = 2;
@@ -119,14 +139,16 @@ public sealed class PreferenciasCuentaPropia(CaeManagerDbContext contexto, Puert
                 if (fila is null)
                     return ResultadoEscrituraCuenta.CuentaNoVisible;
 
-                if (await IntentarAsync(usuarioId, fila, aplicar))
-                    return ResultadoEscrituraCuenta.Guardada;
+                var resultado = await IntentarAsync(usuarioId, fila, aplicar);
+                if (resultado != ResultadoEscrituraCuenta.Conflicto)
+                    return resultado;
             }
 
             return ResultadoEscrituraCuenta.Conflicto;
         }, ct);
 
-    private async Task<bool> IntentarAsync(Guid usuarioId, FilaDeCuenta fila, Action<ApplicationUser> aplicar)
+    /// <summary><see cref="ResultadoEscrituraCuenta.Conflicto"/> aquí significa «otra escritura ganó: relee y reintenta».</summary>
+    private async Task<ResultadoEscrituraCuenta> IntentarAsync(Guid usuarioId, FilaDeCuenta fila, Action<ApplicationUser> aplicar)
     {
         var rastreada = RastreadaVigente(usuarioId, fila.Sello);
         var entrada = rastreada ?? contexto.Attach(Esqueleto(usuarioId, fila));
@@ -137,12 +159,28 @@ public sealed class PreferenciasCuentaPropia(CaeManagerDbContext contexto, Puert
         try
         {
             await contexto.SaveChangesAsync(CancellationToken.None);
-            return true;
+            return ResultadoEscrituraCuenta.Guardada;
         }
         catch (DbUpdateConcurrencyException)
         {
             // CaeManagerDbContext ya descartó el lote y su auditoría antes de relanzar.
-            return false;
+            return ResultadoEscrituraCuenta.Conflicto;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege } denegada)
+        {
+            // cae_app_soporte no tiene UPDATE sobre la tabla: denegado a propósito, no se reintenta ni se relanza.
+            // Se registra con la excepción adjunta (como RegistroAccesoDocumentoSensibleRepository ante el mismo 42501)
+            // porque el 42501 también lo da una violación de WITH CHECK de una política RLS, y sin esta traza esa
+            // denegación no dejaría diagnóstico: los llamadores solo ven el valor del enum. En Warning y no en Error
+            // porque, en una Sesión Privilegiada, escribir actividad o tema es lo esperado y daría una alerta por cada
+            // interacción; la excepción adjunta conserva el detalle para quien investigue. No se registra una tabla
+            // aparte: PostgreSQL no rellena TableName en un 42501 (ni en el permiso de tabla ni en el WITH CHECK de
+            // RLS), y el mismo lote lleva la auditoría, así que el texto del error dice cuál fue la denegada.
+            logger.LogWarning(ex,
+                "Escritura de preferencias de la cuenta {UsuarioId} denegada por la base: SQLSTATE {SqlState}, {Detalle}.",
+                usuarioId, denegada.SqlState, denegada.MessageText);
+            ConcurrenciaContexto.DescartarEdicionPerdida(contexto, [entrada]);
+            return ResultadoEscrituraCuenta.NoPermitida;
         }
         catch (Exception)
         {

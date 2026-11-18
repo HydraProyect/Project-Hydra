@@ -233,6 +233,11 @@ Test-GuardaComando 'dotnet test tests/CaeManager.Web.Tests --no-restore -nodeReu
 Test-GuardaComando 'dotnet restore CaeManager.slnx' $false
 Test-GuardaComando 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeReuse:false' $false
 Test-GuardaComando 'dotnet format CaeManager.slnx --no-restore --verify-no-changes' $false
+# Con plaza de compilacion el preflight anade -maxcpucount:4 al final de restore, build y test.
+Test-GuardaComando 'dotnet restore CaeManager.slnx -maxcpucount:4' $false
+Test-GuardaComando 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeReuse:false -maxcpucount:4' $false
+Test-GuardaComando 'dotnet test tests/CaeManager.Domain.Tests --no-restore -nodeReuse:false -maxcpucount:4' $false
+Test-GuardaComando 'dotnet test tests/CaeManager.IntegrationTests --no-restore -nodeReuse:false -maxcpucount:4' $true
 
 # Los proyectos que el script ejecuta existen de verdad, y son solo esos cuatro.
 $pruebas++

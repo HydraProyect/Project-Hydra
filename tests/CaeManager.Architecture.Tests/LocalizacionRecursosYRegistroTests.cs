@@ -176,7 +176,8 @@ public class LocalizacionRecursosYRegistroTests
             "las opciones que prueba LocalizacionInfraestructuraTests son las únicas de la aplicación");
         program.Should().Contain("builder.Configuration.GetSection(OpcionesLocalizacion.SeccionConfiguracion)",
             "el interruptor del catalán se lee de configuración (Localizacion:CatalanHabilitado)");
-        program.Should().Contain("app.MapIdiomaEndpoints();");
+        // En el grupo del Núcleo y de Facturación (O-1 (b)); abierto con papel Inbound en IdiomaEndpoints.
+        program.Should().Contain("nucleoYFacturacion.MapIdiomaEndpoints();");
 
         var usoLocalizacion = program.IndexOf("app.UseRequestLocalization(", StringComparison.Ordinal);
         usoLocalizacion.Should().BeGreaterThan(-1);

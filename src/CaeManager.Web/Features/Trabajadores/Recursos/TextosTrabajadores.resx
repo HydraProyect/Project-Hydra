@@ -794,6 +794,7 @@
   <data name="TipoContratacionCuentaAjena" xml:space="preserve"><value>Cuenta ajena</value></data>
   <data name="TipoContratacionAutonomo" xml:space="preserve"><value>Autónomo</value></data>
   <data name="TipoContratacionVoluntario" xml:space="preserve"><value>Voluntario</value></data>
+  <data name="TipoContratacionExtranjero" xml:space="preserve"><value>Extranjero</value></data>
   <data name="VoluntarioInactivo" xml:space="preserve"><value>Voluntario inactivo</value></data>
   <data name="VoluntarioInactivoAyuda" xml:space="preserve"><value>Sin evento vigente ni futuro: sus vencimientos no avisan ni cuentan en el Centro. Se reactiva al asignarlo a otro evento.</value></data>
   <data name="FichaCopiarAfiliacion" xml:space="preserve"><value>el número de afiliación a la Seguridad Social</value></data>

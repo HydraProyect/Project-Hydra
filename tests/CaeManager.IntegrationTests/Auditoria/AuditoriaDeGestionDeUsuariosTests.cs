@@ -8,6 +8,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Auditoria;
@@ -263,7 +264,7 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(ActorAuditoria.Normal(Guid.NewGuid())))
         {
-            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos()).RegistrarActividadAsync(usuarioId, DateTime.UtcNow))
+            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos(), NullLogger<PreferenciasCuentaPropia>.Instance).RegistrarActividadAsync(usuarioId, DateTime.UtcNow))
                 .Should().Be(ResultadoEscrituraCuenta.Guardada);
         }
 
@@ -290,7 +291,7 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(ActorAuditoria.Normal(Guid.NewGuid())))
         {
-            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos()).GuardarTemaAsync(usuarioId, TemaPreferido.Oscuro))
+            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos(), NullLogger<PreferenciasCuentaPropia>.Instance).GuardarTemaAsync(usuarioId, TemaPreferido.Oscuro))
                 .Should().Be(ResultadoEscrituraCuenta.Guardada);
         }
 

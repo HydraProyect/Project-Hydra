@@ -1,4 +1,4 @@
-namespace CaeManager.Web.Features.Clientes;
+namespace CaeManager.Web.Services;
 
 /// <summary>
 /// Turno de lectura compartido por Cliente 360 y sus componentes con lecturas propias (fila «Gestor CAE», pestaña

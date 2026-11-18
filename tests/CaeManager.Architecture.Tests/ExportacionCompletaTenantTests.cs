@@ -51,6 +51,7 @@ public class ExportacionCompletaTenantTests
     [InlineData(typeof(EventoWebhook), "PayloadCrudo")]
     [InlineData(typeof(ClaveApi), "HashClave")]
     [InlineData(typeof(ClaveIntegracionTenant), "HashClave")]
+    [InlineData(typeof(CaeManager.Domain.Exportacion.SolicitudExportacionCompleta), "ContrasenaProtegida")]
     public void Los_secretos_conocidos_no_se_exportan(Type entidad, string propiedad)
     {
         var columna = Modelo.FindEntityType(entidad)!.FindProperty(propiedad);
@@ -83,6 +84,28 @@ public class ExportacionCompletaTenantTests
             ["Tenant", "AsignacionOperacion", "AsignacionCartera", "ConcesionPrivilegio", "SesionPrivilegiada", "DelegacionTenant",
              "TareaAsistente", "TurnoTareaAsistente", "PasoTareaAsistente"]);
         tipos.Should().OnlyHaveUniqueItems();
+    }
+
+    /// <summary>
+    /// La actividad de Soporte TALVEG es registro de seguridad de TALVEG (decisión de Legal y cumplimiento, 2026-11-17):
+    /// la RLS de lectura solo la abre al Administrador del Tenant y a la plataforma de la visita, y la exportación corre
+    /// sin sesión de usuario. Si siguiera en el recorrido saldría su fichero vacío y diría «no hay actividad».
+    /// </summary>
+    [Fact]
+    public void La_actividad_de_Soporte_no_se_exporta_ni_como_fichero_vacio_y_el_manifiesto_la_declara_con_su_motivo()
+    {
+        var tabla = Modelo.FindEntityType(typeof(CaeManager.Domain.Soporte.RegistroActividadSoporte));
+        tabla.Should().NotBeNull("guarda del instrumento: la entidad sigue en el modelo y es una entidad con Tenant");
+        typeof(EntidadConTenant).IsAssignableFrom(tabla!.ClrType).Should().BeTrue(
+            "sin la exclusión explícita, TiposExportables la recorrería");
+
+        ExportacionCompletaTenant.TiposExportables(Modelo).Select(t => t.ClrType.Name)
+            .Should().NotContain("RegistroActividadSoporte", "no se genera datos/RegistroActividadSoporte.json");
+
+        ExportacionCompletaTenant.NoIncluidoDeclarado.Should().ContainKey(
+            ExportacionCompletaTenant.NoIncluidoActividadSoporte, "el manifiesto la declara, no la calla");
+        ExportacionCompletaTenant.NoIncluidoDeclarado[ExportacionCompletaTenant.NoIncluidoActividadSoporte].Should().Be(
+            "registro de seguridad del que TALVEG es responsable; disponible a petición como información de cumplimiento (DPA § 10.1, art. 28.3.h RGPD)");
     }
 
     /// <summary>

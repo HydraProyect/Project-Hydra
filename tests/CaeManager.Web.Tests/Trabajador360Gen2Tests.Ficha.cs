@@ -194,7 +194,7 @@ public partial class Trabajador360Gen2Tests
         var selector = drawer.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Tipo de contratación");
         selector.Instance.Valor.Should().Be("Autonomo", "precarga el tipo guardado, no el valor por defecto");
         selector.FindAll("option").Select(o => $"{o.GetAttribute("value")}={o.TextContent.Trim()}")
-            .Should().Equal("CuentaAjena=Cuenta ajena", "Autonomo=Autónomo", "Voluntario=Voluntario");
+            .Should().Equal("CuentaAjena=Cuenta ajena", "Autonomo=Autónomo", "Voluntario=Voluntario", "Extranjero=Extranjero");
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
 
         await selector.Find("select").ChangeAsync(new ChangeEventArgs { Value = "Voluntario" });

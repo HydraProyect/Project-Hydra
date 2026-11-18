@@ -204,7 +204,7 @@ public sealed class InboundTenantTecTests : BunitContext
         dialogo.TextContent.Should().Contain("Aptitud médica");
         dialogo.TextContent.Should().Contain("Cliente");
         dialogo.TextContent.Should().Contain("Sube solo el certificado de aptitud; un informe con datos de salud no se acepta ni se guarda.");
-        dialogo.TextContent.Should().Contain("PDF, Word o foto (JPG, PNG, HEIC), hasta 10 MB.");
+        dialogo.TextContent.Should().Contain("PDF, Word (.docx) o foto (JPG, PNG), hasta 10 MB.");
         dialogo.TextContent.Should().Contain("Usar la cámara");
         dialogo.TextContent.Should().Contain("Comprobación al momento");
         var subir = BotonDelDialogo(cut, "Subir");
@@ -224,6 +224,81 @@ public sealed class InboundTenantTecTests : BunitContext
 
         cut.Find("[role=dialog]").TextContent.Should().Contain("Formato no admitido: ZIP");
         BotonDelDialogo(cut, "Subir").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void SubirDocumento_solo_ofrece_los_formatos_que_acepta_el_backend_y_la_camara_solo_JPG_o_PNG()
+    {
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Subido)));
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+
+        // ValidadorFirmaArchivo y ConversorArchivosPdf solo aceptan PDF, DOCX, JPG y PNG: la pantalla no ofrece nada más.
+        var selectores = cut.Find("[role=dialog]").QuerySelectorAll("input[type=file]").Select(i => i.GetAttribute("accept")).ToList();
+        selectores.Should().Equal(".pdf,.docx,.jpg,.jpeg,.png", "image/jpeg,image/png");
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("HEIC");
+    }
+
+    [Theory]
+    [InlineData("contrato.doc", "DOC")]
+    [InlineData("IMG_0001.heic", "HEIC")]
+    public void SubirDocumento_un_Word_antiguo_o_una_foto_HEIC_no_se_admite_porque_el_backend_no_los_acepta(string archivo, string formato)
+    {
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Subido)));
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("contenido", archivo));
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain($"Formato no admitido: {formato}");
+        BotonDelDialogo(cut, "Subir").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void SubirDocumento_un_error_con_motivo_del_servidor_pinta_ese_motivo_y_no_el_generico()
+    {
+        const string motivo = "Tu catálogo no tiene un tipo de documento activo llamado \"Aptitud médica\" para este sujeto: créalo con ese nombre exacto.";
+        var subida = new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Error, Mensaje: motivo));
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => subida);
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("%PDF", "aptitud.pdf"));
+
+        BotonDelDialogo(cut, "Subir").Click();
+
+        var aviso = cut.Find("[role=dialog] [role=alert]").TextContent;
+        aviso.Should().Contain(motivo);
+        aviso.Should().NotContain("Inténtalo de nuevo");
+    }
+
+    [Fact]
+    public void SubirDocumento_una_emision_futura_se_marca_antes_de_subir_y_los_comentarios_tienen_el_tope_del_servidor()
+    {
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Subido)));
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("%PDF", "aptitud.pdf"));
+
+        cut.FindAll("[role=dialog] input[type=date]")[0].Change(CaeManager.Domain.Common.DiaDeNegocio.Hoy().AddDays(1).ToString("yyyy-MM-dd"));
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("La fecha de emisión no puede ser futura.");
+        BotonDelDialogo(cut, "Subir").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[role=dialog] textarea").GetAttribute("maxlength").Should()
+            .Be(CaeManager.Domain.Documentos.Documento.LongitudMaximaComentarios.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void SubirDocumento_un_error_sin_motivo_pinta_el_generico()
+    {
+        var subida = new SubidaDoble(true, new RespuestaSubidaTec(ResultadoSubidaTec.Error));
+        Services.AddScoped<IRequerimientosTenantTec>(_ => new RequerimientosDoble(true, Datos()));
+        Services.AddScoped<ISubidaDocumentoTenantTec>(_ => subida);
+        var cut = Render<Requerimientos>(p => p.Add(x => x.RequerimientoId, PendienteId));
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("%PDF", "aptitud.pdf"));
+
+        BotonDelDialogo(cut, "Subir").Click();
+
+        cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se ha podido subir el documento. Inténtalo de nuevo.");
     }
 
     [Fact]
@@ -307,12 +382,17 @@ public sealed class InboundTenantTecTests : BunitContext
         ]);
 
     [Fact]
-    public void AddInboundTenantTec_registra_los_cuatro_servicios_sin_backend_que_las_paginas_inyectan()
+    public void AddInboundTenantTec_registra_los_requerimientos_y_la_subida_con_backend_y_los_otros_dos_servicios_sin_backend()
     {
-        var proveedor = InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(new ServiceCollection()).BuildServiceProvider();
+        var servicios = InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(new ServiceCollection());
+        // Requerimientos (demo P1) y la subida (P2) ya usan datos reales; sus adaptadores necesitan el mediador y el
+        // almacenamiento, que aquí no se registran.
+        servicios.Should().ContainSingle(d => d.ServiceType == typeof(IRequerimientosTenantTec))
+            .Which.ImplementationType.Should().Be(typeof(RequerimientosTenantTecConBackend));
+        servicios.Should().ContainSingle(d => d.ServiceType == typeof(ISubidaDocumentoTenantTec))
+            .Which.ImplementationType.Should().Be(typeof(SubidaDocumentoTenantTecConBackend));
+        var proveedor = servicios.BuildServiceProvider();
 
-        proveedor.GetRequiredService<IRequerimientosTenantTec>().Should().NotBeNull();
-        proveedor.GetRequiredService<ISubidaDocumentoTenantTec>().Disponible.Should().BeFalse();
         proveedor.GetRequiredService<IQuienLeeTenantTec>().Should().NotBeNull();
         proveedor.GetRequiredService<IAvisoContratoTenantTec>().Should().NotBeNull();
     }

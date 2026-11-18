@@ -224,6 +224,10 @@ public class ReglasDeNegocioSinCopiasTests
         // estado pinta punto verde y texto gris en vez de pastilla. Es una pregunta de presentación sobre el rótulo de una
         // fila (Vigente y Sin caducidad), no un porcentaje: Próximo y Urgente son conformes y aun así llevan pastilla.
         ["src/CaeManager.Web/Features/Documentos/EstadoDocumentoUi.cs"] = 1,
+        // Requerimientos del Tenant TEC (demo Inbound P1): traduce el estado del documento vigente propio a la columna
+        // Vigencia de la pantalla (Sin caducidad y Vigente se pintan igual, Próximo y Urgente con su color). Mapeo de
+        // presentación de una fila, no un recuento.
+        ["src/CaeManager.Web/Features/Inbound/TenantTec/Servicios/RequerimientosTenantTecConBackend.cs"] = 1,
     };
 
     [Fact]
@@ -803,23 +807,26 @@ public class ReglasDeNegocioSinCopiasTests
     /// <summary>
     /// <c>IEvaluacionDeAccesoDelTenant</c> evalúa los requisitos de los Centros sin la Asignación de Cartera del usuario: es
     /// para el estado materializado, que es dato del Tenant. Una pantalla que la usara enseñaría lo que exigen Centros que el
-    /// usuario no alcanza, así que solo la nombran su implementación, su registro y el servicio de recálculo.
+    /// usuario no alcanza, así que solo la nombran su implementación, su registro, el servicio de recálculo y el sello del
+    /// expediente de la Visita, que también es un dato del Tenant propietario (D-4, decisión del 2026-11-15 sobre la #2005).
     /// </summary>
     private static readonly Regex PatronEvaluacionSinAlcance = new(
-        @"\b(?:IEvaluacionDeAccesoDelTenant|EvaluarCentrosAsync|CondicionesDeRequisitosAsync)\b",
+        @"\b(?:IEvaluacionDeAccesoDelTenant|EvaluarCentrosAsync|CondicionesDeRequisitosAsync|EvaluarTrabajadoresEnCentroAsync)\b",
         RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> UsosDeLaEvaluacionSinAlcance = new()
     {
-        // La interfaz, su implementación (dos métodos) y la declaración en la clase.
-        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 6,
+        // La interfaz, su implementación (tres métodos) y la declaración en la clase.
+        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 8,
         ["src/CaeManager.Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs"] = 1,
-        // El único consumidor: el recálculo del estado materializado (inyección y las dos llamadas).
+        // El recálculo del estado materializado (inyección y las dos llamadas).
         ["src/CaeManager.Application/EstadoMaterializado/RecalculoEstadoMaterializadoService.cs"] = 3,
+        // El sello del expediente de la Visita: la inyección y una llamada (los comentarios no cuentan).
+        ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 2,
     };
 
     [Fact]
-    public void La_evaluacion_sin_alcance_solo_la_usa_el_estado_materializado()
+    public void La_evaluacion_sin_alcance_solo_la_usan_el_estado_materializado_y_el_sello_de_la_visita()
     {
         Divergencias(UsosDeLaEvaluacionSinAlcance, ContarPorFichero(PatronEvaluacionSinAlcance)).Should().BeEmpty(
             "la evaluación sin Asignación de Cartera es para el estado del Tenant; un lector de pantalla usa " +

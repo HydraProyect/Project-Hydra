@@ -93,6 +93,12 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private AsignacionLista? _delegacionARevocar;
     private (Guid EntidadId, OperadorDelegadoDto Operador)? _operadorARetirar;
     private AsignacionLista? _verActividadDe;
+
+    /// <summary>
+    /// Sesión Privilegiada cuya actividad se está viendo (issue #2016); excluyente con
+    /// <see cref="_verActividadDe"/>: el cajón enseña una sola visita.
+    /// </summary>
+    private AccesoSoporteTalvegDto? _verActividadDeSesion;
     private IReadOnlyList<ActividadSoporteDto> _actividad = [];
     private bool _cargandoActividad;
     private AsignacionLista? _delegacionSoporteAAbrir;
@@ -552,6 +558,17 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool PuedeAdministrarAccesoSoporte(bool somosLaConsultora) =>
         _esTenantOrigenPlataforma && somosLaConsultora;
 
+    /// <summary>
+    /// Si se ofrece «Ver actividad registrada» en una Delegación de Soporte. La RLS de
+    /// <c>RegistrosActividadSoporte</c> (migración <c>SoloElAdministradorLeeLaActividadDeSoporte</c>) solo
+    /// entrega la traza al Administrador del Tenant propietario y a la plataforma de la visita
+    /// (<see cref="PuedeRetirarPersonas"/> comparte la fuente de ambos datos): a cualquier otra cuenta le
+    /// devolvería una lista vacía y la pantalla diría «Sin actividad registrada» aunque la traza exista, una
+    /// ausencia afirmada en falso. Etiqueta de oferta, no autoridad: la puerta es la base.
+    /// </summary>
+    private bool PuedeVerActividadRegistrada(AsignacionLista delegacion) =>
+        delegacion.SomosLaConsultora || _tenantPropietarioAutorizante is not null;
+
     private bool PuedeReactivar(Guid entidadId) =>
         _puedeReactivarPorEntidad.GetValueOrDefault(entidadId);
 
@@ -582,6 +599,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _operadorARetirar = null;
             _delegacionSoporteAAbrir = null;
             _verActividadDe = null;
+            _verActividadDeSesion = null;
             _actividad = [];
         }
         return _generacionEntidad;
@@ -614,6 +632,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         if (!visible && !_cargandoActividad)
         {
             _verActividadDe = null;
+            _verActividadDeSesion = null;
             _actividad = [];
         }
     }
@@ -675,12 +694,13 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         var generacion = PrepararEntidad(delegacion.Id);
         var token = _cicloCarga.Token;
         _verActividadDe = delegacion;
+        _verActividadDeSesion = null;
         _actividad = [];
         _cargandoActividad = true;
         StateHasChanged();
         try
         {
-            var actividad = await Mediator.Send(new ObtenerActividadSoporteQuery(delegacion.Id), token);
+            var actividad = await Mediator.Send(ObtenerActividadSoporteQuery.PorViaHeredada(delegacion.Id), token);
             if (EsEntidadVigente(generacion, delegacion.Id))
             {
                 _actividad = actividad;
@@ -706,6 +726,48 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         }
     }
 
+    /// <summary>
+    /// Lecturas de Soporte TALVEG en una Sesión Privilegiada sobre el Tenant propietario
+    /// (issue #2016). Solo se ofrece en la sección de accesos, que solo existe para su
+    /// Administrador; la puerta es el handler, que vuelve a comprobarlo.
+    /// </summary>
+    private async Task VerActividadDeSesionAsync(AccesoSoporteTalvegDto acceso)
+    {
+        var generacion = PrepararEntidad(acceso.SesionId);
+        var token = _cicloCarga.Token;
+        _verActividadDe = null;
+        _verActividadDeSesion = acceso;
+        _actividad = [];
+        _cargandoActividad = true;
+        StateHasChanged();
+        try
+        {
+            var actividad = await Mediator.Send(ObtenerActividadSoporteQuery.PorSesionPrivilegiada(acceso.SesionId), token);
+            if (EsEntidadVigente(generacion, acceso.SesionId))
+            {
+                _actividad = actividad;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (EsEntidadVigente(generacion, acceso.SesionId))
+            {
+                Logger.LogError(ex, "Error al cargar la actividad de la Sesión Privilegiada {SesionId}.", acceso.SesionId);
+                ToastService.Mostrar("No pudimos cargar la actividad registrada.", TonoToast.Error);
+            }
+        }
+        finally
+        {
+            if (EsEntidadVigente(generacion, acceso.SesionId))
+            {
+                _cargandoActividad = false;
+            }
+        }
+    }
+
     private string DescribirTipo(TipoActividadSoporte tipo) => tipo switch
     {
         TipoActividadSoporte.AccesoConcedido => "Acceso concedido",
@@ -713,6 +775,10 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         TipoActividadSoporte.Navegacion => "Navegó a",
         TipoActividadSoporte.Interaccion => "Pulsó",
         TipoActividadSoporte.AccesoRevocado => "Acceso cerrado",
+        // shortcut: el Detalle de una Lectura es el nombre interno del request (lista cerrada de la
+        // migración RegistraActividadSoportePorSesionPrivilegiada) y se pinta tal cual; traducirlo a texto
+        // de producto cuando se decida la redacción de esas peticiones. «Petición» y no «Consultó»: la
+        // fila se escribe antes de servir también los EjecutarImportacion*Command, que escriben.
         TipoActividadSoporte.Lectura => TextosAccesos["ActividadLectura"],
         _ => tipo.ToString()
     };

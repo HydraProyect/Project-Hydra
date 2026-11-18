@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Plataforma;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Services;
 using FluentAssertions;
@@ -21,6 +22,7 @@ public class SelectorIdiomaInterruptorCatalanTests : BunitContext
     public SelectorIdiomaInterruptorCatalanTests()
     {
         Services.AddLocalization();
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(false));
     }
 
     [Fact]
@@ -52,5 +54,24 @@ public class SelectorIdiomaInterruptorCatalanTests : BunitContext
         selector.FindAll("select.selector-idioma option").Select(o => o.GetAttribute("value"))
             .Should().Equal(CulturaUsuarioCookie.CulturaEspanol, CulturaUsuarioCookie.CulturaCatalan);
         selector.Markup.Should().Contain("Català");
+    }
+
+    /// <summary>
+    /// <c>cae_app_soporte</c> no puede escribir la cuenta: en una Sesión Privilegiada el cambio no podría guardarse,
+    /// así que el selector no se ofrece aunque el catalán esté encendido. El control positivo es el test anterior:
+    /// misma configuración, sin Sesión Privilegiada, y el formulario sí sale.
+    /// </summary>
+    [Fact]
+    public void En_una_Sesion_Privilegiada_el_selector_no_se_pinta_aunque_el_catalan_este_encendido()
+    {
+        Services.AddSingleton<IOptions<OpcionesLocalizacion>>(
+            Opciones.Create(new OpcionesLocalizacion { CatalanHabilitado = true }));
+        Services.AddSingleton<ICoordenadaSesionPrivilegiada>(new CoordenadaSesionPrivilegiadaDePrueba(true));
+
+        var selector = Render<SelectorIdioma>();
+
+        selector.Markup.Trim().Should().BeEmpty();
+        selector.FindAll("form").Should().BeEmpty();
+        selector.Markup.Should().NotContain("Català");
     }
 }

@@ -64,3 +64,8 @@ Plataforma · Tenants
 Administrador del Tenant TCE
 # Tarjeta 31: «Administrador» se escribe igual en catalán (paso del alta del Tenant TCE, rótulo de la maqueta).
 Administrador
+# Decisión D-2 (rótulo de línea del menú lateral): «Inbound · Tenant TCE» se escribe igual en catalán (nombre de la línea de producto y sigla TCE).
+Inbound · Tenant TCE
+#
+# 2026-11-17 (regla del plazo de una Conversación, TextosPlazoConversacion): «Crítica: 1 h laborable» se escribe igual en catalán; adjetivo, cifra y unidad coinciden.
+Crítica: 1 h laborable

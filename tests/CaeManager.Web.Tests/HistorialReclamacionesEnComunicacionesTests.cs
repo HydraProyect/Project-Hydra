@@ -83,7 +83,7 @@ public class HistorialReclamacionesEnComunicacionesTests : BunitContext
 
     private sealed class MediadorDePrueba : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         public Func<ObtenerReclamacionesEnviadasQuery, ResultadoPaginado<ReclamacionEnviadaDto>> Historial { get; set; } =

@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound;
 using CaeManager.Application.Tenants.Encargo;
@@ -20,11 +21,14 @@ public record ObtenerEvidenciaInboundPorIdQuery(Guid EvidenciaId) : IRequest<Evi
 
 public class ObtenerEvidenciasInboundQueryHandler(
     IEvidenciasInboundQueryContext evidenciasContext, ITiposDocumentoQueryContext tiposContext,
-    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser)
+    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerEvidenciasInboundQuery, IReadOnlyList<EvidenciaInboundDto>?>
 {
     public async Task<IReadOnlyList<EvidenciaInboundDto>?> Handle(ObtenerEvidenciasInboundQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return null;
+
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
             return null;
 
@@ -38,11 +42,14 @@ public class ObtenerEvidenciasInboundQueryHandler(
 
 public class ObtenerEvidenciaInboundPorIdQueryHandler(
     IEvidenciasInboundQueryContext evidenciasContext, ITiposDocumentoQueryContext tiposContext,
-    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser)
+    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerEvidenciaInboundPorIdQuery, EvidenciaInboundDto?>
 {
     public async Task<EvidenciaInboundDto?> Handle(ObtenerEvidenciaInboundPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return null;
+
         var evidencia = await evidenciasContext.EvidenciasInbound.FirstOrDefaultAsync(e => e.Id == request.EvidenciaId, cancellationToken);
         if (evidencia is null
             || !await LecturaInboundAutoridad.PuedeLeerAsync(evidencia.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
@@ -54,6 +61,13 @@ public class ObtenerEvidenciaInboundPorIdQueryHandler(
 
 internal static class EvidenciasInboundProyeccion
 {
+    /// <summary>
+    /// ¿La evidencia está Aceptada (y no Rechazada)? Quien solo necesita saberlo (p. ej. «Aptos hoy») lo pregunta aquí y no
+    /// nombra <c>EstadoAcreditacion</c>, que es del Núcleo compartido con Outbound (K-5, lista cerrada Inbound a Outbound).
+    /// </summary>
+    public static bool EstaAceptada(EvidenciaInbound evidencia) =>
+        evidencia.Estado == Domain.Documentos.EstadoAcreditacion.Aceptada;
+
     public static async Task<IReadOnlyList<EvidenciaInboundDto>> ADtosAsync(
         IReadOnlyList<EvidenciaInbound> evidencias, ITiposDocumentoQueryContext tiposContext, CancellationToken cancellationToken)
     {

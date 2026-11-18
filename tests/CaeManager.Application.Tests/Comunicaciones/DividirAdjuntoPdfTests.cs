@@ -222,14 +222,20 @@ public class DividirAdjuntoPdfTests
         SinEfectos(adjunto, _mediador, _unitOfWork);
     }
 
-    [Fact]
-    public async Task Un_hilo_sin_ancla_lo_divide_un_Gestor_CAE()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_hilo_sin_ancla_lo_divide_un_Gestor_CAE_solo_si_ve_la_cola_de_triaje(bool triajeVisible)
     {
+        // D-6 b, R-3a: un hilo sin ancla lo decide IAlcanceDatosService.TriajeVisibleAsync; con un ámbito acotado, no (A-16).
         var adjunto = await Sembrar(conversacion: new Conversacion("Sin ancla"));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [_empresaHilo, _empresaGestionada],
+            empresaIdsParaGestion: [_empresaHilo, _empresaGestionada], triajeVisible: triajeVisible);
 
-        var resultado = await Dividir(rol: "GestorCae").Handle(Orden(adjunto), CancellationToken.None);
+        var resultado = await Dividir(alcance, rol: "GestorCae").Handle(Orden(adjunto), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue();
+        resultado.EsExitoso.Should().Be(triajeVisible);
+        if (!triajeVisible) SinEfectos(adjunto, _mediador, _unitOfWork);
     }
 
     [Fact]

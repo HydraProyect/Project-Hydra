@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -19,11 +20,14 @@ public record ObtenerContratosAccesoQuery(Guid? CentroId = null, Guid? EmpresaCo
 /// del actor (sin restricción para acceso total). Ordenado por inicio, el más reciente primero.
 /// </summary>
 public class ObtenerContratosAccesoQueryHandler(
-    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
+    IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerContratosAccesoQuery, IReadOnlyList<ContratoAccesoDto>>
 {
     public async Task<IReadOnlyList<ContratoAccesoDto>> Handle(ObtenerContratosAccesoQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return [];
+
         var consulta = contratosContext.ContratosAcceso;
 
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);

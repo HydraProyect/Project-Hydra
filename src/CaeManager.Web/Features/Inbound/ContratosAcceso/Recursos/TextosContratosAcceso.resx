@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -494,5 +494,32 @@
   </data>
   <data name="AltaMotivoGuardar" xml:space="preserve">
     <value>Para dar de alta hacen falta una Empresa contratista, un Centro y la fecha de inicio.</value>
+  </data>
+  <data name="AptosSiguienteVencimiento" xml:space="preserve">
+    <value>Siguiente vencimiento: {0}</value>
+  </data>
+  <data name="AptosVencidoEl" xml:space="preserve">
+    <value>Vencido el {0}</value>
+  </data>
+  <data name="AptosVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="AptosToleranciaEl" xml:space="preserve">
+    <value>Vencido el {0}, en tolerancia</value>
+  </data>
+  <data name="AptosTolerancia" xml:space="preserve">
+    <value>Vencido, en tolerancia</value>
+  </data>
+  <data name="AptosSinFechaVencimiento" xml:space="preserve">
+    <value>El documento no trae fecha de vencimiento</value>
+  </data>
+  <data name="AptosNotaRequisito" xml:space="preserve">
+    <value>Enseña el requisito que bloquea o vence, nunca su motivo.</value>
+  </data>
+  <data name="AptosSinDocumento" xml:space="preserve">
+    <value>Sin documento validado</value>
+  </data>
+  <data name="AptosRequisitoDeLaEmpresa" xml:space="preserve">
+    <value>Requisito de la Empresa contratista · {0}</value>
   </data>
 </root>

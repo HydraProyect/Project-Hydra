@@ -50,7 +50,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// sin requisito base.</item>
 /// <item>Las evidencias Inbound (validado, rechazado): solo nacen de leer el documento original del Tenant TEC a través del
 /// contrato y la autorización (<c>RegistrarEvidenciaInboundCommand</c>), y su modelo no tiene «por validar», «incompleto» ni
-/// «vencido en tolerancia». Los documentos originales del Tenant TEC sí se siembran, en varios estados de vigencia.</item>
+/// «vencido en tolerancia». Los documentos originales del Tenant TEC sí se siembran, en varios estados de vigencia, y los
+/// del Tenant TEC Montajes Moncayo (el de la autorización de lectura) llevan un PDF de prueba adjunto (<see cref="InboundDemoPdf"/>),
+/// para que el Gestor CAE pueda validarlos en directo: sin archivo, el registro de la Evidencia lo rechaza.</item>
 /// <item>Dos estados no tienen Command todavía: rechazar por el Tenant TEC (B-09) y suspender (B-18). El Rechazado y el
 /// Suspendido usan los métodos de dominio <see cref="ContratoAcceso.RechazarPorTenantContratista"/> y
 /// <see cref="ContratoAcceso.Suspender"/>; el resto, los mismos métodos de dominio que llaman los Commands de B-05.</item>
@@ -67,8 +69,16 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// interfaz no puede alterar en el Tenant TCE (su historial de vigencia), y Trabajadores o Documentos, dados de baja incluidos,
 /// en cada Tenant TEC; cada Tenant se siembra en una transacción: una pasada cortada no deja nada a medias y la siguiente lo
 /// siembra entero. Lo que el revisor edite después (el rol o la cartera de la Gestora CAE, las notas de un contrato, las bajas
-/// de un Tenant TEC) no se vuelve a tocar; la única reparación es la de una cuenta que una pasada cortada dejó sin ningún rol,
-/// que recibe el suyo y la aceptación de términos (para empezar de cero, se retiran los Tenants de la demo).
+/// de un Tenant TEC) no se vuelve a tocar; las únicas reparaciones son la de una cuenta que una pasada cortada dejó sin ningún
+/// rol, que recibe el suyo y la aceptación de términos, y la de un Documento vivo del Tenant TEC Montajes Moncayo sin archivo,
+/// que recibe su PDF de prueba (para empezar de cero, se retiran los Tenants de la demo).
+/// </para>
+///
+/// <para>
+/// <b>El mismo lote en staging, por otra puerta.</b> <see cref="InboundDemoAdministrativa"/> (modo de línea de órdenes
+/// <c>--sembrar-demo-inbound</c>) llama al mismo núcleo, <see cref="SembrarLoteInboundAsync"/>, con una contraseña aleatoria por
+/// cuenta, las cuentas en un dominio de quien la lanza, la fecha de la demostración y el catálogo sin tipos de salud (D7):
+/// allí la aptitud médica se sustituye por <see cref="TipoTrabajosEnAltura"/>. Esta clase sigue negándose fuera de Development.
 /// </para>
 ///
 /// <para>
@@ -76,7 +86,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Tenant que la posee: el contrato de acceso, su historial y las plantillas en el Tenant TCE; la autorización de lectura,
 /// en el Tenant TEC que la concede. Ninguna escritura cruza de Tenant: el Tenant TEC del contrato y el contrato de la
 /// autorización son Ids, como en el producto. La cartera pasa por el mismo <see cref="AsignacionesOperativasWriter"/> que la
-/// aplicación. Es Composición en el registro de módulos: compone el aprovisionamiento de la demo con las tablas Inbound.
+/// aplicación. Los PDF de prueba se guardan por el almacén de la aplicación dentro del ámbito del Tenant TEC que los posee.
+/// Es Composición en el registro de módulos: compone el aprovisionamiento de la demo con las tablas Inbound.
 /// </para>
 /// </summary>
 public static class InboundDemoSeeder
@@ -134,8 +145,30 @@ public static class InboundDemoSeeder
     private const string CorrienteHacienda = "Certificado de estar al corriente con Hacienda";
     private const string SeguroResponsabilidadCivil = "Seguro de Responsabilidad Civil";
 
+    /// <summary>
+    /// El sustituto de <see cref="AptitudMedica"/> en el lote sin tipos de salud (D7, DECISION_LOG 2026-11-17: los tipos
+    /// de documento de salud existen solo en Development): la formación en trabajos en altura, que es de Trabajador, no
+    /// revela salud y cuadra con el criterio del requisito del Centro.
+    /// </summary>
+    public const string TipoTrabajosEnAltura = "Trabajos en altura";
+
     /// <summary>Días de tolerancia de los requisitos que la admiten (R-6 la niega a salud, formación PRL y seguros).</summary>
     public const int ToleranciaDias = 15;
+
+    /// <summary>
+    /// Lo que separa la siembra de Development de la administrativa (<see cref="InboundDemoAdministrativa"/>): de dónde sale
+    /// la contraseña de cada cuenta NUEVA, en qué dominio están las cuentas, el día al que se anclan las fechas y si el
+    /// catálogo de cada Tenant se copia sin los tipos de salud (D7), con la formación en altura en el lugar de la aptitud
+    /// médica. El lote es el mismo en todo lo demás.
+    /// </summary>
+    internal sealed record Parametros(
+        Func<string, CredencialesDemo> CredencialesDe, CuentasInboundDemo Cuentas, DateOnly Hoy, bool SinTiposDeSalud)
+    {
+        /// <summary>El tipo de Trabajador que bloquea el acceso al Centro de Zaragoza, y su criterio.</summary>
+        public (string Tipo, string Criterio) Bloqueante => SinTiposDeSalud
+            ? (TipoTrabajosEnAltura, "Formación vigente en trabajos en altura.")
+            : (AptitudMedica, "Apto para trabajos en altura.");
+    }
 
     public static bool EstaActiva(IConfiguration configuration) =>
         configuration.GetValue<bool>("DatosPrueba:Activo") && configuration.GetValue<bool>(ClaveConfiguracion);
@@ -159,6 +192,7 @@ public static class InboundDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IFileStorageService almacen,
         IConfiguration configuration,
         IHostEnvironment entorno,
         ILogger logger,
@@ -170,12 +204,51 @@ public static class InboundDemoSeeder
         RechazarFueraDeDevelopment(configuration, entorno);
 
         var credenciales = CredencialesDemo.Resolver(configuration, entorno);
-        var hoy = DiaDeNegocio.Hoy();
+        await SembrarLoteInboundAsync(
+            dbContext, userManager, userStore, almacen, entorno,
+            new Parametros(_ => credenciales, CuentasInboundDemo.Locales, DiaDeNegocio.Hoy(), SinTiposDeSalud: false),
+            logger, cancellationToken);
+    }
+
+    /// <summary>
+    /// Antes de escribir nada: un Tenant que ya se llame como uno de esta siembra y no tenga el marcador de datos de demo no
+    /// es de esta siembra (podría ser real), y <c>AprovisionarTenantAsync</c> lo adoptaría por su nombre.
+    /// </summary>
+    internal static async Task RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(
+        CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var ajenos = await dbContext.Tenants
+            .Where(t => NombresTenants.Contains(t.Nombre) && t.DatosDemoCompletadosEnUtc == null)
+            .Select(t => t.Nombre)
+            .ToListAsync(cancellationToken);
+        if (ajenos.Count > 0)
+            throw new InvalidOperationException(
+                $"La siembra Inbound no escribe en {string.Join(", ", ajenos)}: ya existen sin el marcador de datos de demo.");
+    }
+
+    /// <summary>
+    /// El lote, SIN la guarda de Development: lo llaman <see cref="SeedAsync"/> (después de su guarda) y la vía
+    /// administrativa <see cref="InboundDemoAdministrativa"/> (después de las suyas, solo desde su modo de línea de órdenes;
+    /// lo vigila <c>InboundDemoSoloDesdeElModoCliTests</c>). No envía correo ni llama a ningún Command de aprovisionamiento:
+    /// las cuentas nacen confirmadas y con su contraseña, sin invitación.
+    /// </summary>
+    internal static async Task SembrarLoteInboundAsync(
+        CaeManagerDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        IUserStore<ApplicationUser> userStore,
+        IFileStorageService almacen,
+        IHostEnvironment entorno,
+        Parametros parametros,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var hoy = parametros.Hoy;
+        var cuentas = parametros.Cuentas;
 
         async Task<ApplicationUser> UsuarioAsync(Guid tenantId, string email, string nombre, string rol, bool segundoFactor)
         {
             var usuario = await Aprovisionamiento.CrearUsuarioConsultoraAsync(
-                              dbContext, userManager, credenciales, logger, tenantId, email, nombre, rol, cancellationToken)
+                              dbContext, userManager, parametros.CredencialesDe(email), logger, tenantId, email, nombre, rol, cancellationToken)
                           ?? throw new InvalidOperationException($"No se pudo sembrar el usuario Inbound {email}.");
 
             using (AmbitoTenantExplicito.Establecer(tenantId))
@@ -206,38 +279,30 @@ public static class InboundDemoSeeder
         async Task<Guid> TenantAsync(string nombre) =>
             await Aprovisionamiento.AprovisionarTenantAsync(
                 dbContext, nombre, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
-                esOperadorCaeExterno: false, marcarComoDemo: true);
+                esOperadorCaeExterno: false, marcarComoDemo: true, sinTiposDeSalud: parametros.SinTiposDeSalud);
 
-        // Antes de escribir nada: un Tenant que ya se llame como uno de esta siembra y no tenga el marcador de datos de demo
-        // no es de esta siembra (podría ser real), y AprovisionarTenantAsync lo adoptaría por su nombre.
-        var ajenos = await dbContext.Tenants
-            .Where(t => NombresTenants.Contains(t.Nombre) && t.DatosDemoCompletadosEnUtc == null)
-            .Select(t => t.Nombre)
-            .ToListAsync(cancellationToken);
-        if (ajenos.Count > 0)
-            throw new InvalidOperationException(
-                $"La siembra Inbound no escribe en {string.Join(", ", ajenos)}: ya existen sin el marcador de datos de demo.");
+        await RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(dbContext, cancellationToken);
 
         // ── Tenants y cuentas ─────────────────────────────────────────────────────────────────────────────────────
         var tceId = await TenantAsync(NombreTenantTce);
         var administradorTce = await UsuarioAsync(
-            tceId, EmailAdministradorTce, "Administración Logística Delta Sur (Inbound demo)", Roles.Administrador, segundoFactor: true);
+            tceId, cuentas.AdministradorTce, "Administración Logística Delta Sur (Inbound demo)", Roles.Administrador, segundoFactor: true);
         var gestoraTce = await UsuarioAsync(
-            tceId, EmailGestoraTce, "Gestora CAE Logística Delta Sur (Inbound demo)", Roles.GestorCae, segundoFactor: false);
+            tceId, cuentas.GestoraTce, "Gestora CAE Logística Delta Sur (Inbound demo)", Roles.GestorCae, segundoFactor: false);
 
         var tecs = new List<TenantTec>();
         foreach (var (nombreTenant, razonSocial, email, indice) in new[]
                  {
-                     (NombreTenantMoncayo, Moncayo, EmailUsuarioMoncayo, 0),
-                     (NombreTenantRibera, Ribera, EmailUsuarioRibera, 1),
-                     (NombreTenantSomontano, Somontano, EmailUsuarioSomontano, 2),
+                     (NombreTenantMoncayo, Moncayo, cuentas.UsuarioMoncayo, 0),
+                     (NombreTenantRibera, Ribera, cuentas.UsuarioRibera, 1),
+                     (NombreTenantSomontano, Somontano, cuentas.UsuarioSomontano, 2),
                  })
         {
             var tenantId = await TenantAsync(nombreTenant);
             // El Usuario único del Tenant TEC es su Administrador: con 2FA de siembra, como todo Administrador.
             var usuario = await UsuarioAsync(
                 tenantId, email, $"Usuario único {razonSocial} (Inbound demo)", Roles.Administrador, segundoFactor: true);
-            tecs.Add(new TenantTec(tenantId, indice, razonSocial, DatosPruebaSeeder.GenerarCifValido(8_300_001 + indice), usuario.Id));
+            tecs.Add(new TenantTec(tenantId, indice, razonSocial, CifDeTec(indice), usuario.Id));
         }
 
         // ── Tenant TCE ───────────────────────────────────────────────────────────────────────────────────────────
@@ -261,7 +326,7 @@ public static class InboundDemoSeeder
                     await writer.AsegurarCarteraTenantEnteroAsync(tceId, gestoraTce.Id, c);
                     await dbContext.SaveChangesAsync(c);
 
-                    await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs).ConstruirAsync(c);
+                    await new ConstructorTce(dbContext, hoy, administradorTce.Id, tecs, parametros.Bloqueante).ConstruirAsync(c);
                 }, cancellationToken);
 
             tceSembrado = await dbContext.HistorialVigenciaContratos.AnyAsync(cancellationToken);
@@ -295,16 +360,30 @@ public static class InboundDemoSeeder
                 {
                     var contratos = contratosPorTec.GetValueOrDefault(tec.Id) ?? new Dictionary<string, Guid>();
                     await EnUnaTransaccionAsync(dbContext, logger, tec.RazonSocial,
-                        c => new ConstructorTec(dbContext, hoy, tec, tceId, contratos).ConstruirAsync(c), cancellationToken);
+                        c => new ConstructorTec(dbContext, hoy, tec, tceId, contratos, parametros.Bloqueante.Tipo).ConstruirAsync(c), cancellationToken);
                 }
+                dbContext.ChangeTracker.Clear();
+
+                // El único Tenant TEC con una autorización de lectura al Tenant TCE: sus Documentos son los que el Gestor CAE
+                // puede abrir, y solo con archivo llegan a una Evidencia.
+                if (tec.RazonSocial == Moncayo)
+                    await AdjuntarArchivosDePruebaAsync(dbContext, almacen, tec.Id, cancellationToken);
                 dbContext.ChangeTracker.Clear();
             }
 
         logger.LogInformation(
-            "Siembra Inbound de Development lista: {Tce} y sus Tenants TEC {Tecs}.", NombreTenantTce, string.Join(", ", tecs.Select(t => t.RazonSocial)));
+            "Siembra Inbound lista en {Entorno}: {Tce} y sus Tenants TEC {Tecs}.",
+            entorno.EnvironmentName, NombreTenantTce, string.Join(", ", tecs.Select(t => t.RazonSocial)));
     }
 
     private sealed record TenantTec(Guid Id, int Indice, string RazonSocial, string Cif, Guid UsuarioUnicoId);
+
+    /// <summary>Los Tenants TEC del lote, en el orden en que se aprovisionan (su índice fija el CIF y los DNI).</summary>
+    internal static readonly IReadOnlyList<(string NombreTenant, string RazonSocial, int Indice)> TenantsTec =
+        [(NombreTenantMoncayo, Moncayo, 0), (NombreTenantRibera, Ribera, 1), (NombreTenantSomontano, Somontano, 2)];
+
+    /// <summary>El CIF de la Empresa propia del Tenant TEC de ese índice: es la marca de versión del lote en ese Tenant.</summary>
+    internal static string CifDeTec(int indice) => DatosPruebaSeeder.GenerarCifValido(8_300_001 + indice);
 
     /// <summary>
     /// Siembra un Tenant entero en una transacción (la de <see cref="TransaccionDeComando"/>, dentro de la estrategia de
@@ -333,6 +412,68 @@ public static class InboundDemoSeeder
         }
     }
 
+    /// <summary>
+    /// Adjunta el PDF de prueba (<see cref="InboundDemoPdf"/>) a cada Documento vivo del Tenant que aún no tiene archivo, por
+    /// el camino de la subida real: <see cref="IFileStorageService.GuardarAsync"/> bajo el Tenant propietario (el ámbito
+    /// explícito del llamante) y <see cref="Documento.AdjuntarArchivo"/>. Es idempotente por construcción: un Documento con
+    /// archivo no se toca, así que una segunda pasada no escribe nada y no duplica ficheros. Cubre también los Documentos de una
+    /// base ya sembrada antes de este paso, que no entran en la siembra inicial del Tenant (ya cuenta como sembrado).
+    ///
+    /// <para>
+    /// Regla declarada: en este Tenant de demo, «sin archivo» significa «sin el PDF de prueba», también para un Documento que
+    /// alguien creó a mano sin archivo. Lo que sí se respeta es la supresión: un Documento anonimizado (su archivo se borró
+    /// por retención) no recupera uno, y los dados de baja y los sustituidos del historial (inmutable) tampoco se tocan.
+    /// </para>
+    ///
+    /// <para>
+    /// Un Documento por guardado: si el guardado falla, el fichero recién escrito se retira (sin el token de la siembra, que
+    /// puede ser la causa) y no queda nada en el almacén sin fila que lo referencie. No crea Evidencias: nacen de la
+    /// validación del Gestor CAE. La retirada de los Tenants de la demo (<see cref="RetiradaTenantDemoService"/>) no borra
+    /// los ficheros del almacén de un Tenant, como con cualquier Documento que se suba a mano en él.
+    /// </para>
+    /// </summary>
+    private static async Task AdjuntarArchivosDePruebaAsync(
+        CaeManagerDbContext db, IFileStorageService almacen, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var sinArchivo = await db.Documentos
+            .Operativos()
+            .Where(d => d.TenantId == tenantId && d.ArchivoUrl == null && d.AnonimizadoEnUtc == null)
+            .ToListAsync(cancellationToken);
+        if (sinArchivo.Count == 0)
+            return;
+
+        var soloConclusionPorTipo = await db.TiposDocumento
+            .ToDictionaryAsync(t => t.Id, t => t.SoloConclusionAptitud || t.Nombre == AptitudMedica, cancellationToken);
+
+        foreach (var documento in sinArchivo)
+        {
+            var texto = InboundDemoPdf.TextoDe(soloConclusionPorTipo.GetValueOrDefault(documento.TipoDocumentoId));
+            string clave;
+            using (var pdf = new MemoryStream(InboundDemoPdf.Generar(texto), writable: false))
+                clave = await almacen.GuardarAsync(pdf, "documento.pdf", cancellationToken);
+
+            try
+            {
+                documento.AdjuntarArchivo(clave);
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                try
+                {
+                    await almacen.EliminarAsync(clave, CancellationToken.None);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Limpieza de mejor esfuerzo: no puede sustituir a la excepción original.
+                }
+
+                db.ChangeTracker.Clear();
+                throw;
+            }
+        }
+    }
+
     private static async Task<Dictionary<string, TipoDocumento>> TiposAsync(CaeManagerDbContext db, CancellationToken cancellationToken) =>
         await db.TiposDocumento.ToDictionaryAsync(t => t.Nombre, cancellationToken);
 
@@ -342,7 +483,8 @@ public static class InboundDemoSeeder
             : throw new InvalidOperationException($"El catálogo del Tenant no tiene el Tipo de documento «{nombre}».");
 
     /// <summary>El Tenant TCE: Cliente empresarial, Centros, contrapartes locales, contratos de acceso y plantillas.</summary>
-    private sealed class ConstructorTce(CaeManagerDbContext db, DateOnly hoy, Guid administradorId, IReadOnlyList<TenantTec> tecs)
+    private sealed class ConstructorTce(
+        CaeManagerDbContext db, DateOnly hoy, Guid administradorId, IReadOnlyList<TenantTec> tecs, (string Tipo, string Criterio) bloqueante)
     {
         private readonly DateTime _ahora = DateTime.UtcNow;
 
@@ -482,8 +624,8 @@ public static class InboundDemoSeeder
             void PlantillaDelCentro()
             {
                 var delCentro = PlantillaRequisitos.ParaCentro(centro.Id);
-                Requisito(delCentro, AptitudMedica, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.Fija, 12, true,
-                    "Apto para trabajos en altura.", AmbitoDocumentoRequisito.GeneralTec);
+                Requisito(delCentro, bloqueante.Tipo, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.Fija, 12, true,
+                    bloqueante.Criterio, AmbitoDocumentoRequisito.GeneralTec);
                 Requisito(delCentro, FormacionArt19, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, true,
                     null, AmbitoDocumentoRequisito.GeneralTec);
                 Requisito(delCentro, EntregaEpi, OrigenRequisito.PropioTenant, ModoVigenciaRequisito.SinVencimiento, null, false,
@@ -512,7 +654,7 @@ public static class InboundDemoSeeder
     /// admita, la autorización de lectura al Tenant TCE.
     /// </summary>
     private sealed class ConstructorTec(
-        CaeManagerDbContext db, DateOnly hoy, TenantTec tec, Guid tceId, IReadOnlyDictionary<string, Guid> contratos)
+        CaeManagerDbContext db, DateOnly hoy, TenantTec tec, Guid tceId, IReadOnlyDictionary<string, Guid> contratos, string tipoBloqueante)
     {
         // Personas inventadas, tres por Tenant TEC en el orden en que se aprovisionan.
         private static readonly (string Nombre, string Apellidos)[,] Personas =
@@ -566,10 +708,12 @@ public static class InboundDemoSeeder
                 return documento;
             }
 
-            DeTrabajador(trabajadores[0], AptitudMedica, hoy.AddMonths(-2), VigenciaDocumento.VenceEl(hoy.AddMonths(10)));
+            // El tipo que bloquea el acceso al Centro: la aptitud médica en Development y, sin tipos de salud (D7), la
+            // formación en trabajos en altura, con las mismas fechas.
+            DeTrabajador(trabajadores[0], tipoBloqueante, hoy.AddMonths(-2), VigenciaDocumento.VenceEl(hoy.AddMonths(10)));
             DeTrabajador(trabajadores[0], FormacionArt19, hoy.AddMonths(-8), VigenciaDocumento.NoCaduca);
             DeTrabajador(trabajadores[0], EntregaEpi, hoy.AddMonths(-1), VigenciaDocumento.NoCaduca);
-            DeTrabajador(trabajadores[1], AptitudMedica, hoy.AddMonths(-13), VigenciaDocumento.VenceEl(hoy.AddDays(-30)));
+            DeTrabajador(trabajadores[1], tipoBloqueante, hoy.AddMonths(-13), VigenciaDocumento.VenceEl(hoy.AddDays(-30)));
             DeTrabajador(trabajadores[1], FormacionArt19, hoy.AddMonths(-20), VigenciaDocumento.NoCaduca);
             DeTrabajador(trabajadores[2], EntregaEpi, hoy.AddDays(-60), VigenciaDocumento.SinConfirmar);
             await db.SaveChangesAsync(cancellationToken);
@@ -620,5 +764,26 @@ public static class InboundDemoSeeder
                 await db.SaveChangesAsync(cancellationToken);
             }
         }
+    }
+}
+
+/// <summary>
+/// Las cinco cuentas de la siembra Inbound: el Administrador y la Gestora CAE del Tenant TCE y el Usuario único de cada
+/// Tenant TEC. <see cref="Locales"/> son las de Development (<c>@caemanager.local</c>); <see cref="EnDominio"/> da las mismas
+/// partes locales en el dominio de la vía administrativa.
+/// </summary>
+public sealed record CuentasInboundDemo(
+    string AdministradorTce, string GestoraTce, string UsuarioMoncayo, string UsuarioRibera, string UsuarioSomontano)
+{
+    public static CuentasInboundDemo Locales { get; } = new(
+        InboundDemoSeeder.EmailAdministradorTce, InboundDemoSeeder.EmailGestoraTce, InboundDemoSeeder.EmailUsuarioMoncayo,
+        InboundDemoSeeder.EmailUsuarioRibera, InboundDemoSeeder.EmailUsuarioSomontano);
+
+    public IReadOnlyList<string> Todas => [AdministradorTce, GestoraTce, UsuarioMoncayo, UsuarioRibera, UsuarioSomontano];
+
+    public CuentasInboundDemo EnDominio(string dominio)
+    {
+        string En(string email) => $"{email[..email.IndexOf('@')]}@{dominio}";
+        return new(En(AdministradorTce), En(GestoraTce), En(UsuarioMoncayo), En(UsuarioRibera), En(UsuarioSomontano));
     }
 }

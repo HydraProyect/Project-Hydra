@@ -26,6 +26,7 @@ using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Importacion;
+using CaeManager.Web.Features.Inbound.Validacion;
 using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
@@ -40,6 +41,7 @@ using CaeManager.Web.Features.Trabajadores;
 using CaeManager.Web.Features.Contacto;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
@@ -297,6 +299,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // exista la impersonacion.
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+// Guarda de pestaña obsoleta (D-6 b, R-2): la selección vigente de cada sesión de navegador, en memoria del proceso.
+builder.Services.AddSingleton<CaeManager.Web.Services.RegistroSeleccionVigente>();
+builder.Services.AddScoped<IGuardaSeleccionVigente, CaeManager.Web.Services.GuardaSeleccionVigente>();
 // Una petición de la extensión ya resuelta no se vuelve a autenticar (ver EvaluadorPoliticaExtension).
 builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyEvaluator, CaeManager.Web.Services.EvaluadorPoliticaExtension>();
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
@@ -341,8 +346,12 @@ CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExt
 CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
-// Validación Inbound (Documentos por validar y Validación): puerto con implementación vacía hasta B-21/B-22/B-24/B-26/B-27.
-CaeManager.Web.Features.Inbound.Validacion.ValidacionInboundServiceCollectionExtensions.AddValidacionInbound(builder.Services);
+// Validación Inbound (Documentos por validar y Validación): cola real, y Validar y Rechazar uno a uno solo con
+// Inbound:Validacion:Habilitado=true, en cualquier entorno (OpcionesValidacionInbound; DECISION_LOG 2026-11-17, 2757bac y
+// cc7e68e). Producción queda cerrada solo porque allí no se pone la clave: hueco declarado hasta D-12 y B-22.
+// Lo demás, «no disponible» hasta B-22/B-24/B-26/B-27.
+CaeManager.Web.Features.Inbound.Validacion.ValidacionInboundServiceCollectionExtensions.AddValidacionInbound(
+    builder.Services, builder.Configuration);
 // Pantallas del Tenant TEC (Inbound): servicios sin backend hasta que entren B-09, B-11 y B-20.
 CaeManager.Web.Features.Inbound.TenantTec.Servicios.InboundTenantTecServiceCollectionExtensions.AddInboundTenantTec(builder.Services);
 builder.Services.AddScoped<BusquedaGlobalService>();
@@ -452,6 +461,15 @@ builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationH
 // Con ámbito (no singleton): consulta la política de la Nota interna, que depende de la sesión del circuito.
 builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotalHandler>();
+// Páginas de Outbound por papel (cierre del hueco de B-02b): niega toda página marcada con [PaginaDeOutbound] a quien
+// trabaja con papel Inbound, aunque su rol cumpla el [Authorize]. Con ámbito: consulta el papel de la sesión, que se
+// resuelve en cada petición HTTP.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    CaeManager.Web.Services.Autorizacion.PaginaDeOutboundPorPapelAuthorizationHandler>();
+// Núcleo y Facturación por papel (decisión O-1 (b)): con papel Inbound niega toda página del Núcleo y de Facturación y
+// todo endpoint del grupo de abajo, salvo los abiertos de forma explícita. Con ámbito, por lo mismo que el anterior.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    CaeManager.Web.Services.Autorizacion.NucleoCerradoConPapelInboundAuthorizationHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -1076,6 +1094,51 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
     return;
 }
 
+// Siembra administrativa de la demo Inbound en un servidor que arranca como Production
+// (staging): el mismo lote que InboundDemoSeeder y LineaInboundDemoSeeder siembran en
+// Development (el Tenant TCE de Logística Delta Sur S.A., con su línea Inbound, y los tres
+// Tenants TEC), sin CredencialesDemo: una contraseña aleatoria por cuenta, solo en un fichero
+// del directorio de credenciales (tmpfs). Exige InboundDemo:ConfirmarEntorno igual al entorno,
+// InboundDemo:FechaDemostracion, un dominio propio y DatosPrueba apagado; el catálogo se copia
+// sin los tipos de documento de salud (D7). No envía correo. Sale con 1 si se niega, si falla
+// o si la autoverificación no cuadra. Se lanza con el servicio "migrador": la línea Inbound y
+// el backfill de asignaciones piden la identidad de bootstrap.
+if (args.Contains(InboundDemoAdministrativa.ArgumentoSembrar))
+{
+    using var scopeSiembraInbound = app.Services.CreateScope();
+    var serviciosSiembraInbound = scopeSiembraInbound.ServiceProvider;
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoInbound = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        InboundDemoAdministrativa.ArgumentoSembrar);
+
+    try
+    {
+        // Las piezas (contexto de tráfico, fábrica del de bootstrap, gestores de Identity, almacén) las resuelve la
+        // siembra de este ámbito: la capa Web no nombra los gestores de Identity.
+        var resultadoInbound = await InboundDemoAdministrativa.SembrarAsync(
+            serviciosSiembraInbound, app.Configuration, app.Environment,
+            InboundDemoAdministrativa.LeerOpciones(app.Configuration),
+            serviciosSiembraInbound.GetRequiredService<ILogger<Program>>());
+
+        Environment.ExitCode = InboundDemoAdministrativa.Informar(
+            resultadoInbound, app.Environment.EnvironmentName, Console.Out, Console.Error);
+    }
+    // Cualquier excepción, con su tipo y su mensaje y sin la traza, como en el piloto Outbound.
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(InboundDemoAdministrativa.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoInbound, app.Services.GetRequiredService<IServiceScopeFactory>(),
+            serviciosSiembraInbound.GetRequiredService<ILogger<Program>>());
+    }
+
+    return;
+}
+
 // Retirada completa de la siembra del piloto Outbound (sus Tenants, con marcador de
 // demo, y los ficheros que sus filas nombran en el almacén): mismo patrón de dos pasos que --retirar-demo-direccion,
 // más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
@@ -1312,7 +1375,9 @@ using (var scope = app.Services.CreateScope())
         // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
         // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
         // nuevo y establece su propio AmbitoTenantExplicito internamente.
-        await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await DelegacionDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore, app.Configuration, app.Environment, logger,
+            almacen: scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>());
 
         // Matriz de estados de la demo a dirección — inerte salvo que
         // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
@@ -1345,12 +1410,21 @@ using (var scope = app.Services.CreateScope())
         // Siembra de la línea Inbound para la revisión de sus pantallas: un Tenant TCE con contratos de acceso en cada
         // estado y plantillas de requisitos, y tres Tenants TEC con su Usuario único — inerte salvo
         // DatosPrueba:Inbound:Activo (con DatosPrueba:Activo), y lanza fuera de Development (ver InboundDemoSeeder).
-        await InboundDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+        await InboundDemoSeeder.SeedAsync(
+            dbContext, userManager, userStore,
+            scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Configuration, app.Environment, logger);
 
         // Su línea Inbound del Producto Contratado, la única fila de esa siembra con el rol propietario: en
         // ProductosContratados solo inserta cae_app_aprovisionamiento bajo Sesión Privilegiada (DECISION_LOG 2026-11-16;
         // ver LineaInboundDemoSeeder y FronteraDeSeedersDeBootstrapTests). Mismas claves y misma guarda de Development.
         await LineaInboundDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
+
+        // Su línea Outbound de gestión propia (P), con el mismo rol y la misma razón: los Tenants de demostración que gestionan
+        // su CAE con su propio personal (hoy el Tenant Beta de la cobertura) la llevan y ningún otro. Sin backfill en
+        // producción: un Tenant sin el marcador de TEC participante y sin P es «Outbound heredado». Después de la cobertura, que crea ese Tenant; inerte fuera de
+        // Development (ver LineaOutboundGestionPropiaDemoSeeder).
+        await LineaOutboundGestionPropiaDemoSeeder.SeedAsync(dbContextBootstrap, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
@@ -1537,42 +1611,51 @@ app.UseRevisionEnSalud(Environment.GetEnvironmentVariable(CaeManager.Web.Service
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
 app.MapStaticAssets().AllowAnonymous();
 app.MapHealthChecks("/salud").AllowAnonymous();
-app.MapIdentityEndpoints();
-app.MapIdiomaEndpoints();
+// Los endpoints con sesión del Núcleo y de Facturación van en este grupo (decisión O-1 (b)): con papel Inbound nacen
+// cerrados, salvo los que llevan .AbiertoConPapelInbound(). Prefijo vacío: el grupo solo añade el metadato, no cambia
+// ninguna ruta. Los de Outbound se cierran ruta a ruta con .DeOutbound(); los anónimos (webhooks, token de la API v1)
+// y la API v1 quedan fuera, sin sesión ni papel. NucleoPorPapelInboundTests exige que no quede ninguno fuera.
+var nucleoYFacturacion = app.MapGroup(string.Empty).DelNucleoOFacturacion();
+nucleoYFacturacion.MapIdentityEndpoints();
+nucleoYFacturacion.MapIdiomaEndpoints();
 app.MapClientesEndpoints();
-app.MapAsignacionesEndpoints();
-app.MapEmpresasEndpoints();
-app.MapCentrosEndpoints();
+nucleoYFacturacion.MapAsignacionesEndpoints();
+nucleoYFacturacion.MapEmpresasEndpoints();
+nucleoYFacturacion.MapCentrosEndpoints();
 app.MapIncidenciasEndpoints();
-app.MapFacturacionEndpoints();
-app.MapDocumentosEndpoints();
+nucleoYFacturacion.MapFacturacionEndpoints();
+nucleoYFacturacion.MapDocumentosEndpoints();
 app.MapImportacionEndpoints();
-app.MapTrabajadoresEndpoints();
-app.MapFirmasGuardadasEndpoints();
-app.MapLogoTenantEndpoints();
-app.MapRequisitosDocumentalesEndpoints();
+nucleoYFacturacion.MapTrabajadoresEndpoints();
+nucleoYFacturacion.MapFirmasGuardadasEndpoints();
+nucleoYFacturacion.MapLogoTenantEndpoints();
+nucleoYFacturacion.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
 app.MapVisitasEndpoints();
-app.MapVehiculosEndpoints();
+nucleoYFacturacion.MapVehiculosEndpoints();
 app.MapProyectosEndpoints();
 app.MapGestionesEndpoints();
 app.MapCuadroDireccionEndpoints();
 app.MapReportesEndpoints();
-app.MapAuditoriaEndpoints();
-app.MapClienteActivoEndpoints();
+nucleoYFacturacion.MapAuditoriaEndpoints();
+nucleoYFacturacion.MapClienteActivoEndpoints();
 // Entrada por sesión privilegiada (plano 3, B1). Aparte del anterior a
 // propósito: aquél acumula ramas de autorización en un OR y éste no debe
 // añadirse a ese OR — ver SesionSoporteEndpoints.
-app.MapSesionSoporteEndpoints();
+nucleoYFacturacion.MapSesionSoporteEndpoints();
 app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
 app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
-app.MapVistaVocabularioPreviewEndpoints();
-app.MapVistaDemoEndpoints();
-app.MapConectarMicrosoft365Endpoints();
+// Inbound (demo P6): el archivo de un Documento del Tenant TEC desde la validación del Gestor CAE del Tenant TCE. Fuera del
+// grupo del Núcleo a propósito: es de Inbound y lo decide ObtenerArchivoParaValidarInboundQuery (ValidarInbound, cartera y
+// autorización de lectura del Tenant TEC).
+app.MapArchivoValidacionInboundEndpoints();
+nucleoYFacturacion.MapVistaVocabularioPreviewEndpoints();
+nucleoYFacturacion.MapVistaDemoEndpoints();
+nucleoYFacturacion.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();
 app.MapWebhookStripeEndpoints();

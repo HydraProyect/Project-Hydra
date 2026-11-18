@@ -24,8 +24,17 @@
   <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
     <value>Sense verificar: no hem pogut comprovar en l'últim dia que aquesta adreça continua sent la mateixa bústia. El correu entrant queda en espera, sense perdre's, i no s'envia res des d'aquesta bústia fins que es comprovi en la renovació diària. Si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
   </data>
+  <data name="AvisoCorreoNoRecuperadoTitulo" xml:space="preserve">
+    <value>Possible correu no recuperat des del {0}</value>
+  </data>
+  <data name="AvisoCorreoNoRecuperadoEnLinea" xml:space="preserve">
+    <value>{0}. {1}</value>
+  </data>
   <data name="AvisoCorreoNoRecuperado" xml:space="preserve">
-    <value>Possible correu no recuperat des del {0}: mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
+    <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
+  </data>
+  <data name="AvisoCorreoNoRecuperadoConfirmable" xml:space="preserve">
+    <value>Mentre la connexió no funcionava podia arribar correu que encara no ha entrat a l'aplicació. Mentre la bústia estigui connectada i la ingesta de correu activada, s'intenta recuperar cada pocs minuts, i aquest avís desapareix quan s'ha recuperat tot o quan es dona per revisat amb Confirma; fins aleshores, revisa'l a la mateixa bústia de Microsoft 365.</value>
   </data>
   <data name="AvisoRecuperacionDetenida" xml:space="preserve">
     <value>Recuperació aturada a {0}: massa correus en el mateix segon o pàgina parcial de Graph. El correu rebut des d'aquell moment pot no haver entrat a l'aplicació; revisa'l a la mateixa bústia de Microsoft 365.</value>
@@ -84,7 +93,52 @@
   <data name="ErrorRepararHueco" xml:space="preserve">
     <value>No vam poder registrar el buit. Torna-ho a provar.</value>
   </data>
+  <data name="AccionConfirmarAvisoHueco" xml:space="preserve">
+    <value>Confirma</value>
+  </data>
+  <data name="ModalConfirmarAvisoHuecoTitulo" xml:space="preserve">
+    <value>Donar l'avís per revisat</value>
+  </data>
+  <data name="ModalConfirmarAvisoHuecoTexto" xml:space="preserve">
+    <value>Pot haver-hi correu de {0} no recuperat des del {1}: mentre la connexió no funcionava podia arribar correu que no ha entrat a l'aplicació.</value>
+  </data>
+  <data name="ModalConfirmarAvisoHuecoConsecuencia" xml:space="preserve">
+    <value>Confirma només si ja l'has revisat a la mateixa bústia de Microsoft 365. En confirmar, l'avís desapareix, es deixa d'intentar recuperar aquest correu i queda registrat qui el va donar per revisat i quan.</value>
+  </data>
+  <data name="AccionCancelarAvisoHueco" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="AvisoHuecoConfirmado" xml:space="preserve">
+    <value>Avís donat per revisat.</value>
+  </data>
+  <data name="ErrorConfirmarAvisoHueco" xml:space="preserve">
+    <value>No vam poder donar l'avís per revisat. Torna-ho a provar.</value>
+  </data>
   <data name="AvisoRecargaFallida" xml:space="preserve">
     <value>No vam poder actualitzar el llistat de connexions. Recarrega la pàgina per veure'n l'estat.</value>
+  </data>
+  <data name="AvisoConexionNoDisponible" xml:space="preserve">
+    <value>La connexió amb Microsoft 365 encara no està disponible en aquest entorn. Avisa el Suport TALVEG perquè l&apos;activi.</value>
+  </data>
+  <data name="ErrorSoloAdministrador" xml:space="preserve">
+    <value>Només l&apos;Administrador pot connectar una bústia de Microsoft 365.</value>
+  </data>
+  <data name="ErrorAutenticacion" xml:space="preserve">
+    <value>No hem pogut autenticar amb Microsoft. Torna-ho a provar; si es repeteix, avisa el Suport TALVEG.</value>
+  </data>
+  <data name="ErrorConfiguracionIncompleta" xml:space="preserve">
+    <value>La connexió amb Microsoft 365 està a mitges en aquest entorn: falta part de la seva configuració. Avisa el Suport TALVEG; repetir la connexió no ho arregla.</value>
+  </data>
+  <data name="ErrorCanjeTokens" xml:space="preserve">
+    <value>Microsoft no ha acceptat l&apos;autorització per connectar la bústia. Torna-la a connectar; si es repeteix, avisa el Suport TALVEG.</value>
+  </data>
+  <data name="ErrorPermisosMicrosoft" xml:space="preserve">
+    <value>Microsoft no ha concedit els permisos necessaris. Torna a connectar i accepta els permisos, o demana al teu administrador de Microsoft 365 que els concedeixi.</value>
+  </data>
+  <data name="ErrorSinBuzonExchange" xml:space="preserve">
+    <value>Aquest compte de Microsoft no té bústia d&apos;Exchange Online (llicència sense correu o compte només d&apos;administració). Connecta un compte amb correu d&apos;Outlook.</value>
+  </data>
+  <data name="ErrorMicrosoft" xml:space="preserve">
+    <value>Microsoft ha cancel·lat la connexió o ha retornat un error. No s&apos;ha connectat cap bústia; pots tornar-ho a provar.</value>
   </data>
 </root>

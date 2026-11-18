@@ -4,11 +4,16 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Inbound.Validacion.Components
+@using CaeManager.Web.Features.Inbound.Validacion.Recursos
+@inject Microsoft.Extensions.Localization.IStringLocalizer<TextosValidacionInbound> TextosValidacion
 
 <LimiteDeErrores Pagina="this">
-@* Tarjeta 8 de la maqueta de Inbound, «Validación»: el Gestor CAE del Tenant TCE decide sobre un documento. Sin backend
-   fusionado: el documento y su lectura previa son B-22, el veredicto del sistema B-24 y la propuesta de la IA B-26. Con
-   la implementación vacía la pantalla dice que no está disponible y no pinta ningún dato. *@
+@* Tarjeta 8 de la maqueta de Inbound, «Validación»: el Gestor CAE del Tenant TCE decide sobre un documento. En la demo
+   mínima (ServicioValidacionInboundConBackend) el documento sale de la cola real, sin páginas y con «Descargar» del
+   original autorizado (ArchivoValidacionInboundEndpoints, demo P6), y Validar y
+   Rechazar registran la evidencia detrás de OpcionesValidacionInbound (solo la clave Inbound:Validacion:Habilitado=true,
+   en cualquier entorno: DECISION_LOG 2026-11-17, 2757bac y cc7e68e); la lectura previa y Deshacer son B-22, el veredicto
+   del sistema B-24 y la propuesta de la IA B-26. Lo que el servicio no tiene lo dice como «no disponible». *@
 <PageTitle>Validación — @Marca.Nombre</PageTitle>
 <TituloDePaginaSinPrerender Titulo="@($"Validación — {Marca.Nombre}")" />
 
@@ -125,7 +130,10 @@
                         <button type="button" class="@("vd-chip" + (_pagina == numero ? " vd-chip-activo" : ""))" aria-pressed="@(_pagina == numero ? "true" : "false")"
                                 @onclick="() => _pagina = numero">Pág. @(numero + 1)</button>
                     }
-                    <a class="vd-descargar" href="@doc.UrlDescarga" download>Descargar</a>
+                    @if (!string.IsNullOrEmpty(doc.UrlDescarga))
+                    {
+                        <a class="vd-descargar" href="@doc.UrlDescarga" download>@TextosValidacion["Descargar"]</a>
+                    }
                 </div>
                 @if (_anterior is { } anterior)
                 {
@@ -136,7 +144,7 @@
                 }
                 @if (PaginasVisibles.Count == 0)
                 {
-                    <p class="vd-mut vd-sin-paginas">El documento no se puede mostrar. Descárgalo para revisarlo.</p>
+                    <p class="vd-mut vd-sin-paginas">@(string.IsNullOrEmpty(doc.UrlDescarga) ? TextosValidacion["SinPaginasNiDescarga"] : TextosValidacion["SinPaginasConDescarga"])</p>
                 }
                 else
                 {
@@ -294,7 +302,7 @@
                             }
                         </select>
                         <label class="vd-etiqueta" for="vd-explicacion-rechazo">Qué tiene que corregir (lo verá la Empresa contratista)</label>
-                        <textarea id="vd-explicacion-rechazo" class="vd-campo vd-area" rows="3" value="@_explicacion" @oninput="e => _explicacion = e.Value?.ToString() ?? string.Empty"></textarea>
+                        <textarea id="vd-explicacion-rechazo" class="vd-campo vd-area" rows="3" maxlength="@ServicioValidacionInboundConBackend.LongitudMaximaExplicacion" value="@_explicacion" @oninput="e => _explicacion = e.Value?.ToString() ?? string.Empty"></textarea>
                     </section>
                 }
                 else if (_modo == ModoVeredicto.Incompleto)

@@ -288,6 +288,42 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             "de los tres Trabajadores asignados solo Ana se puede leer: Eva está eliminada e Iker anonimizado");
     }
 
+    /// <summary>
+    /// Demo P2: lo que deja en la base la subida del Tenant TEC a un requerimiento (<c>SubirDocumentoRequerimientoTecCommand</c>,
+    /// que con un vigente propio del mismo tipo lo renueva). El Documento nuevo se escribe bajo el runtime con el contexto
+    /// firmado del Tenant TEC, queda en su Tenant y es el que lee el Tenant TCE; el renovado sale del alcance. La composición
+    /// del handler la prueban sus tests de Application; aquí, solo que el resultado llega a
+    /// <c>app_inbound_documentos_autorizados</c>.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_subido_por_el_Tenant_TEC_a_un_requerimiento_aparece_para_el_Tenant_TCE()
+    {
+        Guid subido;
+        await using (var contexto = Contexto(_contratista.Id, _usuarioContratista))
+        {
+            var anterior = await contexto.Documentos.SingleAsync(d => d.Id == _deTrabajador);
+            var nuevo = Documento.DeTrabajador(anterior.TrabajadorId!.Value, anterior.TipoDocumentoId, _hoy,
+                VigenciaDocumento.VenceEl(_hoy.AddYears(2)), "y/ana-subido.pdf");
+            contexto.Documentos.Add(nuevo);
+            await contexto.SaveChangesAsync();
+            anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+            subido = nuevo.Id;
+        }
+
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            var lector = new LectorDocumentosInboundEnBase(contexto);
+            var documentos = await lector.DocumentosAutorizadosAsync(_vigente.Id);
+            documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([_deEmpresa, subido],
+                "el subido ocupa el lugar del que renovó, que sale del alcance");
+            documentos.Single(d => d.DocumentoId == subido).FechaVencimiento.Should().Be(_hoy.AddYears(2));
+            (await lector.ArchivoAutorizadoAsync(_vigente.Id, subido))
+                .Should().Be(new ArchivoInboundDto(subido, _contratista.Id, "y/ana-subido.pdf", false),
+                    "el Documento subido es del Tenant TEC, nunca del Tenant TCE que lo pide");
+        }
+    }
+
     [Fact]
     public async Task Un_tipo_de_categoria_especial_de_salud_nunca_aparece()
     {
@@ -497,6 +533,10 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             ["app_inbound_autorizacion_del_contrato"] = "p_contrato uuid",
             ["app_inbound_documentos_autorizados"] = "p_contrato uuid",
             ["app_inbound_archivo_autorizado"] = "p_contrato uuid, p_documento uuid",
+            // Lectura inversa X-2 (demo Inbound, P0a): sin parámetros, el Tenant TEC sale del contexto firmado.
+            ["app_inbound_tec_requerimientos"] = "",
+            // Lectura inversa X-2 (demo Inbound, P0b): los veredictos, también sin parámetros.
+            ["app_inbound_tec_veredictos"] = "",
         };
         var auxiliares = new[]
         {
@@ -516,7 +556,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
             f.Soporte.Should().BeFalse(nombre);
             f.Aprovisionamiento.Should().BeFalse(nombre);
             f.Public.Should().BeFalse($"{nombre}: REVOKE ALL ... FROM PUBLIC");
-            f.Volatilidad.Should().Be('v', $"{nombre}: no es STABLE, porque escribe la traza");
+            f.Volatilidad.Should().Be('v', $"{nombre}: no es STABLE, porque escribe la traza o compara con clock_timestamp()");
         }
 
         foreach (var nombre in auxiliares)
@@ -585,6 +625,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [InlineData("app_inbound_autorizacion_del_contrato(uuid)", "SELECT * FROM public.app_inbound_autorizacion_del_contrato(NULL)")]
     [InlineData("app_inbound_documentos_autorizados(uuid)", "SELECT * FROM public.app_inbound_documentos_autorizados(NULL)")]
     [InlineData("app_inbound_archivo_autorizado(uuid,uuid)", "SELECT * FROM public.app_inbound_archivo_autorizado(NULL, NULL)")]
+    [InlineData("app_inbound_tec_requerimientos()", "SELECT * FROM public.app_inbound_tec_requerimientos()")]
+    [InlineData("app_inbound_tec_veredictos()", "SELECT * FROM public.app_inbound_tec_veredictos()")]
     public async Task Sin_propietario_que_evita_rls_la_lectura_falla_cerrada(string firma, string consulta)
     {
         await using var conexion = new NpgsqlConnection(_cadena);
@@ -961,8 +1003,9 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Una_linea_Inbound_vigente_con_inicio_futuro_no_abre_la_lectura()
     {
-        // El dominio no deja contratar con inicio futuro (ProductoContratado.Contratar), pero la base sí lo admitiría: el
-        // gate sigue el criterio de EstaVigenteEn y no da por vigente lo que aún no ha empezado.
+        // El dominio no deja contratar con inicio futuro (ProductoContratado.Contratar), y la política de INSERT de
+        // cae_app_aprovisionamiento tampoco (issue #2259), pero el propietario de la base no pasa por ella: el gate sigue el
+        // criterio de EstaVigenteEn como defensa y no da por vigente lo que aún no ha empezado.
         await FinalizarLineaInboundDelLectorAsync();
         await using (var conexion = new NpgsqlConnection(_cadena))
         {

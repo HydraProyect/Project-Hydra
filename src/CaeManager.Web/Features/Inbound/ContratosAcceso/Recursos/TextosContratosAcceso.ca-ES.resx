@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -494,5 +494,32 @@
   </data>
   <data name="AltaMotivoGuardar" xml:space="preserve">
     <value>Per donar d&apos;alta calen una Empresa contractista, un Centre i la data d&apos;inici.</value>
+  </data>
+  <data name="AptosSiguienteVencimiento" xml:space="preserve">
+    <value>Següent venciment: {0}</value>
+  </data>
+  <data name="AptosVencidoEl" xml:space="preserve">
+    <value>Vençut el {0}</value>
+  </data>
+  <data name="AptosVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="AptosToleranciaEl" xml:space="preserve">
+    <value>Vençut el {0}, en tolerància</value>
+  </data>
+  <data name="AptosTolerancia" xml:space="preserve">
+    <value>Vençut, en tolerància</value>
+  </data>
+  <data name="AptosSinFechaVencimiento" xml:space="preserve">
+    <value>El document no porta data de venciment</value>
+  </data>
+  <data name="AptosNotaRequisito" xml:space="preserve">
+    <value>Mostra el requisit que bloqueja o venç, mai el seu motiu.</value>
+  </data>
+  <data name="AptosSinDocumento" xml:space="preserve">
+    <value>Sense document validat</value>
+  </data>
+  <data name="AptosRequisitoDeLaEmpresa" xml:space="preserve">
+    <value>Requisit de l&apos;Empresa contractista · {0}</value>
   </data>
 </root>

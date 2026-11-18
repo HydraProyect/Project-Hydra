@@ -121,6 +121,9 @@
   <data name="DescartarCambiosMensaje" xml:space="preserve">
     <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
   </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar cambios</value>
   </data>
@@ -803,6 +806,9 @@
   <data name="EstadoComercialNotaAcceso" xml:space="preserve">
     <value>La columna «Acceso» es otra cosa: «Suspendido» es la suspensión por incidente o seguridad.</value>
   </data>
+  <data name="EstadoComercialNotaExencionImpago" xml:space="preserve">
+    <value>salvo la exportación completa de sus datos y las solicitudes de derechos del interesado.</value>
+  </data>
   <data name="EstadoComercialTituloSuspender" xml:space="preserve">
     <value>¿Suspender esta organización?</value>
   </data>
@@ -908,6 +914,12 @@
   <data name="CampoFechaInstrucciones" xml:space="preserve">
     <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
   </data>
+  <data name="MenuLineaOutbound" xml:space="preserve">
+    <value>Outbound</value>
+  </data>
+  <data name="MenuLineaInboundTce" xml:space="preserve">
+    <value>Inbound · Tenant TCE</value>
+  </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contratos de acceso</value>
   </data>
@@ -920,10 +932,22 @@
   <data name="MenuInboundInformacionCentro" xml:space="preserve">
     <value>Información del Centro</value>
   </data>
+  <data name="MenuInboundPlantillas" xml:space="preserve">
+    <value>Plantillas de requisitos</value>
+  </data>
   <data name="MenuInboundReglasAviso" xml:space="preserve">
     <value>Reglas de aviso</value>
   </data>
   <data name="MenuInboundGobierno" xml:space="preserve">
     <value>Gobierno de Inbound</value>
+  </data>
+  <data name="MenuGrupoInboundTec" xml:space="preserve">
+    <value>Mis Clientes</value>
+  </data>
+  <data name="MenuInboundRequerimientos" xml:space="preserve">
+    <value>Requerimientos</value>
+  </data>
+  <data name="MenuInboundQuienLee" xml:space="preserve">
+    <value>Quién lee mis documentos</value>
   </data>
 </root>

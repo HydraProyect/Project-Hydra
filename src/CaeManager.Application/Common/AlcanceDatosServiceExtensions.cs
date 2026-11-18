@@ -21,17 +21,30 @@ public static class AlcanceDatosServiceExtensions
     public static async Task<bool> ClienteVisibleAsync(
         this IAlcanceDatosService alcance, Guid clienteId, CancellationToken cancellationToken = default)
     {
-        var ids = await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var ids = await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken);
         return ids is null || ids.Contains(clienteId);
     }
 
     /// <summary>
-    /// Alcance sobre una entidad cuyo cliente es opcional: una
-    /// <c>Conversacion</c> todavía en la cola de triage (§ 12.4) o una
-    /// <c>MacroRespuesta</c> genérica del tenant. En ambos casos "sin cliente"
-    /// significa compartido dentro del tenant, así que es visible — quién
-    /// llega a esas pantallas lo decide el rol, no la cartera (ver
-    /// <c>RolesComunicaciones</c>).
+    /// La cartera de Clientes empresariales visible (<c>null</c> = sin restricción), con su nombre canónico. Es la misma
+    /// lista que <see cref="IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync"/>; los consumidores nuevos la piden por
+    /// aquí para no extender el identificador legacy (<c>ClienteIdNoSeExtiendeTests</c>).
+    /// </summary>
+    public static Task<IReadOnlyList<Guid>?> ClientesEmpresarialesVisiblesAsync(
+        this IAlcanceDatosService alcance, CancellationToken cancellationToken = default) =>
+        alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+
+    /// <summary>
+    /// Alcance sobre una entidad no conversacional cuyo cliente es opcional:
+    /// una <c>MacroRespuesta</c> genérica del tenant o una
+    /// <c>ConexionIntegracion</c> (buzón) sin Cliente empresarial. Ahí "sin
+    /// cliente" significa compartido dentro del tenant, así que es visible —
+    /// quién llega a esas pantallas lo decide el rol, no la cartera.
+    ///
+    /// No sirve para una <c>Conversacion</c>: una conversación sin ancla solo
+    /// la ve quien cumple <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>
+    /// o el propietario del buzón personal por el que entra; su regla es
+    /// <see cref="ConversacionVisibleAsync"/> (D-6 b, R-3a).
     ///
     /// Método propio en vez de repetir la condición en cada handler: invertir
     /// por error el caso "sin cliente" abre justo el agujero que esto cierra
@@ -83,7 +96,7 @@ public static class AlcanceDatosServiceExtensions
         this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> clientesEmpresariales, CancellationToken cancellationToken = default)
     {
         if (clientesEmpresariales.Count == 0) return true;
-        var ids = await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var ids = await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken);
         return ids is null || clientesEmpresariales.All(ids.Contains);
     }
 
@@ -142,17 +155,25 @@ public static class AlcanceDatosServiceExtensions
     /// Alcance completo de una <c>Conversacion</c> existente: la cartera de
     /// su ancla —Cliente (<paramref name="clienteId"/>) o Empresa contraparte
     /// (<paramref name="empresaId"/>), excluyentes entre sí; sin ninguna de
-    /// las dos es triage compartido, vía <see cref="ClienteOpcionalVisibleAsync"/>—
+    /// las dos la ve quien cumple
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> o, si entra por
+    /// su buzón personal, su propietario
+    /// (<see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>)— con la misma
+    /// regla que la lista de la bandeja (<see cref="VisibilidadConversacion"/>).
+    /// No pasa por <see cref="ClienteOpcionalVisibleAsync"/>, que no conoce el
+    /// rol y sirve a macros y buzones, donde «sin cliente» sigue siendo
+    /// compartido en el Tenant (D-6 b, R-3a).
     /// Y, si el hilo está atado a un buzón personal de un gestor
     /// (<c>ConexionIntegracion.GestorPropietarioId</c>), que sea el propio
     /// dueño. Sin esto, un hilo de un buzón personal ajeno —que también tiene
-    /// ClienteId null— se colaba en la cola de triage compartida como si
-    /// fuera de cualquiera.
+    /// ClienteId null— se colaba en la cola de triaje como si fuera de
+    /// cualquiera.
     ///
     /// <paramref name="empresaId"/> es obligatorio en la firma, y no un
     /// parámetro opcional, a propósito: un llamador que se olvidara de
-    /// pasarlo trataría un hilo anclado a una Empresa como triage compartido
-    /// —visible para toda la gestión CAE— sin que nada lo delatara. Que el
+    /// pasarlo trataría un hilo anclado a una Empresa como triaje —visible
+    /// para quien pasa <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>
+    /// aunque esa Empresa no esté en su alcance— sin que nada lo delatara. Que el
     /// compilador lo exija es lo que impide esa migración a medias.
     /// </summary>
     public static async Task<bool> ConversacionVisibleAsync(
@@ -162,14 +183,13 @@ public static class AlcanceDatosServiceExtensions
         if (conexionIntegracionId is { } conexionId && !await alcance.ConexionIntegracionVisibleAsync(conexionId, cancellationToken))
             return false;
 
-        // Alcance de GESTIÓN, no de lectura: un hilo con una contratista es un
-        // artefacto interno, y la cartera de Empresas de un usuario de portal
-        // sale de su propio Cliente (ver ObtenerEmpresaIdsParaGestionAsync).
-        // Con EmpresaVisibleAsync aquí, un contacto de una empresa cliente
-        // descargaba los adjuntos de esos hilos conociendo el Guid.
-        if (empresaId is { } id)
-            return await alcance.EmpresaParaGestionVisibleAsync(id, cancellationToken);
-
-        return await alcance.ClienteOpcionalVisibleAsync(clienteId, cancellationToken);
+        // Ancla Empresa por alcance de GESTIÓN, no de lectura: un hilo con una
+        // contratista es un artefacto interno, y la cartera de Empresas de un
+        // usuario de portal sale de su propio Cliente (ver
+        // ObtenerEmpresaIdsParaGestionAsync). Con EmpresaVisibleAsync, un
+        // contacto de una empresa cliente descargaba los adjuntos de esos hilos
+        // conociendo el Guid. La regla entera vive en VisibilidadConversacion.
+        // Sin ancla, la ve quien pasa el triaje o el propietario de su buzón personal (condición 2 de la regla).
+        return await VisibilidadConversacion.PermiteAsync(alcance, clienteId, empresaId, conexionIntegracionId, cancellationToken);
     }
 }

@@ -114,12 +114,18 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         IReadOnlyList<Guid>? Clientes, IReadOnlyList<Guid>? Centros, IReadOnlyList<Guid>? CentrosGestion,
         IReadOnlyList<Guid>? Empresas, IReadOnlyList<Guid>? EmpresasGestion,
         IReadOnlyList<Guid>? Subcontratas, IReadOnlyList<Guid>? SubcontratasGestion,
-        IReadOnlyList<Guid>? Trabajadores, IReadOnlyList<Guid>? Vehiculos);
+        IReadOnlyList<Guid>? Trabajadores, IReadOnlyList<Guid>? Vehiculos,
+        // D-6 b, R-3a: la cola de triaje de Comunicaciones (IAlcanceDatosService.TriajeVisibleAsync).
+        bool Triaje);
 
-    private async Task<Alcance> MedirAsync(Guid usuarioId, string? rol, Guid tenant, Guid? gestorDeLente = null)
+    /// <param name="tenantOrigen">Tenant de origen de la sesión; por defecto el que se opera.</param>
+    /// <param name="porOperacion">El rol se resolvió por la Asignación de Operación de un Tenant beneficiario (lo pasa al doble).</param>
+    private async Task<Alcance> MedirAsync(Guid usuarioId, string? rol, Guid tenant, Guid? gestorDeLente = null,
+        Guid? tenantOrigen = null, bool porOperacion = false)
     {
         await using var contexto = CrearContexto(tenant);
-        var s = new AlcanceDatosService(contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: tenant),
+        var s = new AlcanceDatosService(contexto,
+            new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: tenantOrigen ?? tenant, porOperacion: porOperacion),
             new TenantActualAmbiental { TenantId = tenant }, new SesionPrivilegiadaAusente(),
             gestorDeLente is { } g ? new LenteGestorFija(g) : null);
         return new Alcance(
@@ -127,7 +133,8 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
             await s.ObtenerClienteIdsVisiblesAsync(), await s.ObtenerCentroIdsVisiblesAsync(), await s.ObtenerCentroIdsParaGestionAsync(),
             await s.ObtenerEmpresaIdsVisiblesAsync(), await s.ObtenerEmpresaIdsParaGestionAsync(),
             await s.ObtenerSubcontrataIdsVisiblesAsync(), await s.ObtenerSubcontrataIdsParaGestionAsync(),
-            await s.ObtenerTrabajadorIdsVisiblesAsync(), await s.ObtenerVehiculoIdsVisiblesAsync());
+            await s.ObtenerTrabajadorIdsVisiblesAsync(), await s.ObtenerVehiculoIdsVisiblesAsync(),
+            await s.TriajeVisibleAsync());
     }
 
     private static void DebeAlcanzarTodoElTenant(Alcance a, Escenario e)
@@ -150,6 +157,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.Trabajadores.Should().NotBeNull().And.Contain([e.TrabajadorPropio, e.TrabajadorDeSubcontrata],
             "un Trabajador de Subcontrata sin Asignación también es del Tenant");
         a.Vehiculos.Should().NotBeNull().And.Contain([e.VehiculoPropio, e.VehiculoDeSubcontrata]);
+        a.Triaje.Should().BeTrue("un rol de gestión de Comunicaciones con el Tenant entero ve la cola de triaje");
     }
 
     private static void NoDebeAlcanzarNada(Alcance a)
@@ -159,6 +167,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         foreach (var lista in new[] { a.Clientes, a.Centros, a.CentrosGestion, a.Empresas, a.EmpresasGestion,
                      a.Subcontratas, a.SubcontratasGestion, a.Trabajadores, a.Vehiculos })
             lista.Should().NotBeNull("sin cartera el alcance es [] (falla cerrado), no null").And.BeEmpty();
+        a.Triaje.Should().BeFalse("sin ámbito no se ve la cola de triaje");
     }
 
     [Fact]
@@ -226,8 +235,10 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     [Fact]
     public async Task Coordinador_sigue_heredando_la_cartera_universal_de_un_Gestor_desactivado()
     {
-        // Decisión del propietario, opción C (2026-09-24): desactivar a un Gestor CAE no cierra sus
-        // Asignaciones de Cartera y su Coordinador CAE las sigue heredando, por continuidad del servicio.
+        // Desactivar a un Gestor CAE retira sus Asignaciones de Cartera externas de Tenants beneficiarios
+        // (decisión del 2026-11-14), pero conserva la interna de la operación raíz (decisión del
+        // 2026-11-16), que es la que siembra este test; su Coordinador CAE la sigue heredando, por
+        // continuidad del servicio.
         var e = await SembrarAsync(_tenant, "A");
         var coordinador = Guid.NewGuid();
         var gestor = Guid.NewGuid();
@@ -263,6 +274,29 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         await OtorgarCarteraAsync(_tenant, Guid.NewGuid(), AmbitoAsignacion.Universal);
 
         NoDebeAlcanzarNada(await MedirAsync(coordinador, "CoordinadorCae", _tenant));
+    }
+
+    /// <summary>
+    /// Decisión de Chris del 2026-10-20 (<c>AlcanceDatosService</c>, rama <c>OperaPorAsignacionDeOperacionAsync</c>): en
+    /// un Tenant beneficiario que opera por la Asignación de Operación de su Operador CAE externo, el Coordinador CAE
+    /// alcanza el Tenant entero sin Asignación de Cartera, y el Gestor CAE no. Es la condición que pide la confirmación del
+    /// aviso del hueco de correo (<c>ReconocerAvisoHuecoCommand</c>, issue #2124): sin esta prueba, que el Coordinador CAE
+    /// por Asignación de Operación confirme sin cartera propia solo lo decía el comentario. Ninguno de los dos tiene
+    /// cartera: el Tenant de origen es otro y no se otorga ninguna.
+    /// </summary>
+    [Theory]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("GestorCae", false)]
+    public async Task Por_Asignacion_de_Operacion_sin_cartera_el_Coordinador_alcanza_el_Tenant_entero_y_el_Gestor_no(
+        string rol, bool alcanzaElTenantEntero)
+    {
+        await SembrarAsync(_tenant, "A");
+
+        var a = await MedirAsync(Guid.NewGuid(), rol, _tenant, tenantOrigen: _otroTenant, porOperacion: true);
+
+        a.TenantEntero.Should().Be(alcanzaElTenantEntero);
+        a.AccesoTotal.Should().BeFalse("la vía de Operación da el Tenant entero por cartera universal, no el acceso total");
+        a.Triaje.Should().Be(alcanzaElTenantEntero, "la cola de triaje sigue al Tenant entero, no al rol");
     }
 
     [Fact]
@@ -314,6 +348,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.CentrosGestion.Should().BeEmpty();
         a.EmpresasGestion.Should().BeEmpty();
         a.SubcontratasGestion.Should().BeEmpty();
+        a.Triaje.Should().BeFalse("el rol Cliente no ve la cola de triaje");
     }
 
     [Fact]
@@ -326,6 +361,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.AccesoTotal.Should().BeTrue();
         a.TenantEntero.Should().BeTrue("el acceso total de lectura es el Tenant entero");
         a.Trabajadores.Should().BeNull();
+        a.Triaje.Should().BeTrue();
     }
 
     [Fact]
@@ -337,6 +373,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         a.AccesoTotal.Should().BeTrue();
         a.TenantEntero.Should().BeTrue();
+        a.Triaje.Should().BeTrue();
     }
 
     [Fact]
@@ -350,6 +387,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         a.AccesoTotal.Should().BeFalse();
         a.TenantEntero.Should().BeFalse("sin rol de negocio en la sesión falla cerrado");
+        a.Triaje.Should().BeFalse("D-6 b, A-14: sin rol efectivo no se ve la cola de triaje");
     }
 
     [Fact]
@@ -361,7 +399,9 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         // Un Administrador (Tenant entero) mirando con la lente de un Gestor CAE de cartera acotada, o sin cartera.
         (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant)).TenantEntero.Should().BeTrue("control positivo sin lente");
-        (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: acotado)).TenantEntero.Should().BeFalse();
+        var conLenteAcotada = await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: acotado);
+        conLenteAcotada.TenantEntero.Should().BeFalse();
+        conLenteAcotada.Triaje.Should().BeFalse("la lente de demo solo estrecha: con la de un Gestor acotado, sin triaje");
         (await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: Guid.NewGuid())).TenantEntero.Should().BeFalse();
     }
 
@@ -393,6 +433,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.Subcontratas.Should().NotContain(e.Subcontrata);
         a.Trabajadores.Should().NotContain(e.TrabajadorDeSubcontrata);
         a.Vehiculos.Should().NotContain(e.VehiculoDeSubcontrata);
+        a.Triaje.Should().BeFalse("D-6 b, A-16: bajo una Asignación de Operación acotada no se ve la cola de triaje");
     }
 
     /// <summary>

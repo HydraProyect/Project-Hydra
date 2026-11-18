@@ -55,7 +55,7 @@ public partial class GestionesListaGen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public List<GestionListaDto> Almacen { get; } = [];
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
 
         public Result ResultadoCompletar { get; set; } = Result.Exito();
         public Exception? FalloConsulta { get; set; }

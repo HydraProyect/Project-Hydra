@@ -55,11 +55,58 @@ public static class Ayudas
     /// Playwright rellena en dos pasos (enfocar y luego insertar); si algo mueve el foco entre ambos (la trampa de foco de
     /// un Drawer o un Modal que se activa tarde, #2194) el texto se pierde, y esta comprobación lo dice en el paso en que
     /// ocurre en vez de dejarlo para un «Las fechas no son válidas» al guardar.
+    /// <para>
+    /// Si la comprobación falla, el mensaje dice dónde está el foco, qué valor tiene el campo y qué «hoy» ven el test
+    /// (Europe/Madrid y UTC) y el navegador (su huso y su fecha local): separa en el primer fallo un foco robado (#2194,
+    /// #2296) de un desfase de fecha entre el test, el producto y el navegador cerca de medianoche.
+    /// </para>
     /// </summary>
     public static async Task RellenarFechaAsync(ILocator campo, DateOnly fecha)
     {
         await campo.FillAsync(fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
-        await Assertions.Expect(campo).ToHaveValueAsync(fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+        try
+        {
+            await Assertions.Expect(campo).ToHaveValueAsync(fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (PlaywrightException ex)
+        {
+            throw new InvalidOperationException(
+                $"El campo de fecha no muestra {fecha.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)} tras rellenarlo. {await DiagnosticoFechaAsync(campo)}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Foco, valor del campo y relojes del test y del navegador en el instante del fallo de <see cref="RellenarFechaAsync"/>.
+    /// De mejor esfuerzo: si el navegador ya no responde, lo dice en vez de tapar el fallo original.
+    /// </summary>
+    private static async Task<string> DiagnosticoFechaAsync(ILocator campo)
+    {
+        var test = $"Test: hoy de negocio {HoyDeNegocio():yyyy-MM-dd}, UTC {DateTimeOffset.UtcNow:O}.";
+        try
+        {
+            var navegador = await campo.EvaluateAsync<string>(
+                """
+                el => {
+                    const activo = document.activeElement;
+                    const foco = !activo ? 'ninguno'
+                        : activo === el ? 'en el propio campo'
+                        : `${activo.tagName.toLowerCase()}#${activo.id || '-'}.${(activo.getAttribute('class') || '').trim().replace(/\s+/g, '.')}`
+                          + ` [role=${activo.getAttribute('role') || '-'}, aria-label=${activo.getAttribute('aria-label') || '-'}]`;
+                    const ahora = new Date();
+                    const local = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
+                    return `Campo: valor «${el.value}». Foco: ${foco}. Navegador: huso ${Intl.DateTimeFormat().resolvedOptions().timeZone}, `
+                        + `fecha local ${local}, UTC ${ahora.toISOString()}.`;
+                }
+                """,
+                null,
+                // Corto: si el campo ya no está (drawer cerrado, campo recreado), el fallo original no espera 30 s más.
+                new LocatorEvaluateOptions { Timeout = 2_000 });
+            return $"{navegador} {test}";
+        }
+        catch (PlaywrightException diagnostico)
+        {
+            return $"Sin diagnóstico del navegador ({diagnostico.Message}). {test}";
+        }
     }
 
     /// <summary>
@@ -855,8 +902,9 @@ public static class Ayudas
 
     /// <summary>
     /// Abre una conversación desde la tabla de la bandeja plana de
-    /// <c>/comunicaciones</c> (<c>TablaConversaciones.razor</c>), que es lo que
-    /// el centro muestra mientras no hay ningún hilo abierto. Mismo modo de
+    /// <c>/comunicaciones</c> (<c>TablaConversaciones.razor</c>), que es el modo
+    /// secundario del centro: solo se ve tras pulsar «Tabla» en la lista (por
+    /// defecto la bandeja muestra la lista de filas). Mismo modo de
     /// fallo que <see cref="SeleccionarFilaBandejaAsync"/>: el botón tiene un
     /// <c>@onclick</c> server-side en una página <c>InteractiveServer</c>, así
     /// que un clic en la ventana del prerenderizado se pierde en silencio. La

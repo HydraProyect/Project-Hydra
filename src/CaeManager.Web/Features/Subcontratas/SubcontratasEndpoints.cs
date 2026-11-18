@@ -1,4 +1,3 @@
-using CaeManager.Web.Services;
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -7,6 +6,8 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Subcontratas.Recursos;
+using CaeManager.Web.Services.Autorizacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.Extensions.Localization;
@@ -62,10 +63,10 @@ public static class SubcontratasEndpoints
 
     public static IEndpointRouteBuilder MapSubcontratasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", ServirEvidenciaAsync);
+        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", ServirEvidenciaAsync).DeOutbound();
 
         // Mismo patrón de referencia que ClientesEndpoints.
-        endpoints.MapGet("/subcontratas/exportar.xlsx", ExportarAsync);
+        endpoints.MapGet("/subcontratas/exportar.xlsx", ExportarAsync).DeOutbound();
 
         return endpoints;
     }

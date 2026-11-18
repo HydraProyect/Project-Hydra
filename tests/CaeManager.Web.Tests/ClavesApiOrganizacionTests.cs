@@ -18,7 +18,7 @@ public class ClavesApiOrganizacionTests : BunitContext
 
     private sealed class Mediador : IMediator
     {
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public IReadOnlyList<ClaveApiDto>? Claves { get; set; } = [];
         public string? FallaRevocarCon { get; set; }
         public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)

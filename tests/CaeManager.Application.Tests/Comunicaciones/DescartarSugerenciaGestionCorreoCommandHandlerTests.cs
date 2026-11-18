@@ -42,8 +42,9 @@ public class DescartarSugerenciaGestionCorreoCommandHandlerTests
     private DescartarSugerenciaGestionCorreoCommandHandler Crear(IAlcanceDatosService alcance) =>
         new(_repositorio, _contexto, alcance, new CurrentUserServiceFalso(), _unitOfWork);
 
-    private AlcanceDatosServiceFalso GestorConCarteraExplicita() =>
-        new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], conexionesIntegracionAjenas: [_buzonPersonalDeOtroGestor]);
+    private AlcanceDatosServiceFalso GestorConCarteraExplicita(bool? triajeVisible = null) =>
+        new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], conexionesIntegracionAjenas: [_buzonPersonalDeOtroGestor],
+            triajeVisible: triajeVisible);
 
     [Fact]
     public async Task Un_Gestor_con_cartera_explicita_no_descarta_el_de_un_hilo_anclado_a_una_Empresa_fuera_de_su_cartera()
@@ -70,14 +71,27 @@ public class DescartarSugerenciaGestionCorreoCommandHandlerTests
     }
 
     [Fact]
-    public async Task Un_Gestor_con_cartera_explicita_descarta_el_de_un_hilo_de_triage_sin_ancla()
+    public async Task Un_Gestor_con_el_Tenant_entero_descarta_el_de_un_hilo_de_triage_sin_ancla()
     {
+        var deTriage = SembrarEn(new Conversacion("Sin Cliente todavía"));
+
+        var resultado = await Crear(GestorConCarteraExplicita(triajeVisible: true))
+            .Handle(new DescartarSugerenciaGestionCorreoCommand(deTriage.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("quien ve la cola de triaje la lee y la descarta desde el lado de gestión");
+        deTriage.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_con_un_ambito_acotado_no_descarta_el_de_un_hilo_de_triage_sin_ancla()
+    {
+        // D-6 b, A-16: sin el Tenant entero no se ve la cola de triaje (IAlcanceDatosService.TriajeVisibleAsync).
         var deTriage = SembrarEn(new Conversacion("Sin Cliente todavía"));
 
         var resultado = await Crear(GestorConCarteraExplicita()).Handle(new DescartarSugerenciaGestionCorreoCommand(deTriage.Id), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue("la cola de triage es compartida: se lee y se descarta desde el lado de gestión");
-        deTriage.Resolucion.Should().Be(ResolucionSugerencia.Descartada);
+        resultado.EsFallido.Should().BeTrue();
+        deTriage.Resuelta.Should().BeFalse();
     }
 
     [Fact]

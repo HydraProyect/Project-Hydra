@@ -127,10 +127,12 @@ public static class LogicaValidacionInbound
     };
 
     /// <summary>La lectura de una fila de la cola: «✓ Todo correcto», «✕ 2 datos con error» o «! 1 sin detectar».</summary>
-    public static string TextoLectura(DocumentoPorValidar documento) => documento.Lectura switch
+    public static string TextoLectura(DocumentoPorValidar documento, string sinLectura) => documento.Lectura switch
     {
         ResultadoLectura.Correcto => "✓ Todo correcto",
         ResultadoLectura.ConError => "✕ " + (documento.DatosAfectados == 1 ? "1 dato con error" : documento.DatosAfectados + " datos con error"),
+        // Sin ningún dato leído, la lectura con IA no corrió: no hay «0 sin detectar», hay «sin lectura».
+        _ when documento.DatosAfectados == 0 => sinLectura,
         _ => "! " + documento.DatosAfectados + " sin detectar"
     };
 

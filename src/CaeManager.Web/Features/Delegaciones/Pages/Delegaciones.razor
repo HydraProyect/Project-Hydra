@@ -261,7 +261,7 @@
                         <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _personasCompletas.Add(delegacion.Id)">@TextosLista["VerRestantes", delegacion.Operadores.Count - 3]</Boton>
                     }
                     <div class="delegaciones-pie">
-                        @if (delegacion.EsSoporte)
+                        @if (delegacion.EsSoporte && PuedeVerActividadRegistrada(delegacion))
                         {
                             <Boton Tamano="TamanoBoton.Pequeno"
                                    Variante="VarianteBoton.Fantasma"
@@ -352,6 +352,7 @@
                             <th>@TextosAccesos["ColumnaTicket"]</th>
                             <th>@TextosAccesos["ColumnaVentana"]</th>
                             <th>@TextosAccesos["ColumnaEstado"]</th>
+                            <th>@TextosAccesos["ColumnaActividad"]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -364,6 +365,13 @@
                                 <td>@(acceso.Ticket ?? TextosAccesos["SinTicket"])</td>
                                 <td>@TextoVentanaAcceso(acceso)</td>
                                 <td><Badge Tono="@TonoEstadoAcceso(acceso.Estado)">@TextoEstadoAcceso(acceso.Estado)</Badge></td>
+                                <td>
+                                    <Boton Tamano="TamanoBoton.Pequeno"
+                                           Variante="VarianteBoton.Fantasma"
+                                           OnClick="() => VerActividadDeSesionAsync(acceso)">
+                                        @TextosAccesos["VerActividad"]
+                                    </Boton>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -375,7 +383,7 @@
     }
 </div>
 
-<Drawer Visible="_verActividadDe is not null"
+<Drawer Visible="_verActividadDe is not null || _verActividadDeSesion is not null"
         VisibleChanged="v => CerrarActividad(v)"
         Titulo="Actividad de soporte registrada">
     @if (_cargandoActividad)
@@ -385,11 +393,19 @@
     else if (_actividad.Count == 0)
     {
         <EstadoVacio Titulo="Sin actividad registrada"
-                     Descripcion="No hay actividad disponible para esta delegación." />
+                     Descripcion="@(_verActividadDeSesion is not null ? TextosAccesos["ActividadVacia"].Value : "No hay actividad disponible para esta delegación.")" />
     }
     else
     {
-        <div class="delegaciones-actividad-cabecera">Soporte · @_verActividadDe?.ClienteNombre</div>
+        @if (_verActividadDeSesion is { } sesionVista)
+        {
+            <div class="delegaciones-actividad-cabecera">@TextosAccesos["ValorQuien"] · @TextoVentanaAcceso(sesionVista) · @sesionVista.Motivo</div>
+            <p class="delegaciones-nota">@TextosAccesos["ActividadAlcance"]</p>
+        }
+        else
+        {
+            <div class="delegaciones-actividad-cabecera">Soporte · @_verActividadDe?.ClienteNombre</div>
+        }
         <TarjetaListado>
                     <Contenido>
 <table class="tabla-datos delegaciones-tabla">

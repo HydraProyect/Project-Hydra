@@ -134,4 +134,56 @@ public class AltaBuzonMicrosoft365ServiceTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorAutenticacion);
     }
+
+    /// <summary>
+    /// El perfil (<c>/me</c>) responde 401/403 con el token delegado: Microsoft no concedió los permisos. Se distingue por el
+    /// código del fallo (que sale del estado HTTP), nunca por su texto; cualquier otro fallo del perfil sigue siendo genérico.
+    /// </summary>
+    [Fact]
+    public async Task Un_perfil_que_Microsoft_niega_con_401_o_403_se_explica_como_permisos_no_concedidos()
+    {
+        var (servicio, graph) = Crear();
+        graph.ErrorBuzonEmail = Error.Crear(CodigosErrorMicrosoft365.SinPermisosDelegados, "texto cualquiera");
+
+        var resultado = await servicio.PrepararAsync(TokensDelegados, buzonCompartido: null, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorSinPermisos);
+        graph.BuzonesUsados.Should().BeEmpty("sin perfil no se llega a abrir el buzón");
+    }
+
+    [Fact]
+    public async Task Un_perfil_que_falla_por_otra_causa_no_se_presenta_como_falta_de_permisos()
+    {
+        var (servicio, graph) = Crear();
+        graph.ErrorBuzonEmail = Error.Crear("Integraciones.Microsoft365.ErrorApi", "Microsoft no concedió los permisos necesarios.");
+
+        var resultado = await servicio.PrepararAsync(TokensDelegados, buzonCompartido: null, CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorAutenticacion, "el texto no clasifica: solo el código");
+    }
+
+    /// <summary>Una cuenta sin buzón de Exchange Online (404 MailboxNotEnabledForRESTAPI) se explica aparte del resto de fallos de identidad.</summary>
+    [Fact]
+    public async Task Una_cuenta_sin_buzon_de_Exchange_Online_se_explica_aparte()
+    {
+        var (servicio, graph) = Crear();
+        graph.ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinBuzonExchange, "texto cualquiera");
+
+        var resultado = await servicio.PrepararAsync(TokensDelegados, buzonCompartido: null, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorSinBuzonExchange);
+    }
+
+    [Fact]
+    public async Task Un_404_de_buzon_en_un_compartido_sigue_siendo_sin_acceso_al_compartido()
+    {
+        var (servicio, graph) = Crear();
+        graph.ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinBuzonExchange, "texto cualquiera");
+
+        var resultado = await servicio.PrepararAsync(TokensDelegados, "cae@operador.test", CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorSinAccesoCompartido);
+    }
 }

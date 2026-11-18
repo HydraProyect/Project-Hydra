@@ -6,7 +6,8 @@
 
 .tabla-conversaciones-fila {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1.7fr) minmax(0, 1fr) 168px 116px;
+    /* La sexta columna, «Plazo», cabe «Fuera de plazo · 25 min» (la pieza más larga) en 12/16 600 con su punto con aro. */
+    grid-template-columns: 92px minmax(0, 1.7fr) minmax(0, 1fr) 148px 108px 148px;
     align-items: start;
     gap: 14px;
     padding: 8px 12px;
@@ -96,6 +97,14 @@
     background: var(--color-danger-500);
 }
 
+/* Nota de plazos al pie (maqueta, `.m-d` con relleno 8/12): 12/16 en 500, apagada. */
+.tabla-conversaciones-nota {
+    margin: 0;
+    padding: 8px 12px;
+    color: var(--color-text-muted);
+    font: 500 12px/16px var(--font-family);
+}
+
 /* El ancho mínimo de 860 px de la maqueta solo cabe cuando la columna central lo tiene. A 1440 px son 876 (menú de 260,
    relleno de 2 x 32 y filtros de 240), pero la barra vertical de 15 px lo deja en 861: sin margen. Desde 1460 px sobran 21 px
    con la barra puesta. Por debajo, la tabla pasa a la composición apilada en vez de desbordar con una barra horizontal. */
@@ -115,6 +124,11 @@
     }
 
     .tabla-conversaciones-cabecera > :nth-child(n+4) {
+        display: none;
+    }
+
+    /* Sin plazo la celda de Plazo queda vacía: apilada, dejaría una fila de alto 0 más su hueco. */
+    .tabla-conversaciones-fila > [role=cell]:empty {
         display: none;
     }
 }

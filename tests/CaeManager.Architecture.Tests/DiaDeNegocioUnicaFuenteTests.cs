@@ -70,14 +70,20 @@ public class DiaDeNegocioUnicaFuenteTests
     /// </summary>
     private static readonly Dictionary<string, int> InstanteUtcEnCrudoTecnico = new()
     {
+        // Nombre del zip de la exportación completa en autoservicio (#2008): nombre de fichero, no pantalla.
+        ["src/CaeManager.Application/Exportacion/DescargarExportacionCompletaCommand.cs"] = 1,
         // Fecha de cada mensaje dentro del prompt al modelo de relevancia CAE: contexto para la IA, no pantalla.
         ["src/CaeManager.Application/Comunicaciones/Deteccion/IRelevanciaCaeService.cs"] = 1,
         // Nombre de fichero de un adjunto de WhatsApp sin nombre: identificador técnico.
         ["src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
+        // Segundo del cursor en el $filter de Graph (receivedDateTime eq ...Z) del recorrido por Id: formato máquina, zona explícita.
+        ["src/CaeManager.Infrastructure/Integraciones/Microsoft365GraphClient.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra demo, con sufijo Z: zona explícita.
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra administrativa del piloto Outbound, con sufijo Z: zona explícita.
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAdministrativa.cs"] = 1,
+        // Nombre del fichero de credenciales de la siembra administrativa de la demo Inbound, con sufijo Z: zona explícita.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoAdministrativa.cs"] = 1,
     };
 
     [Fact]

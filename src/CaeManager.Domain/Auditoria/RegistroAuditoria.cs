@@ -43,6 +43,19 @@ public class RegistroAuditoria : EntidadConTenant
     public const string AccionRestaurado = "Restaurado";
 
     /// <summary>
+    /// Acción del <b>cambio de contexto con éxito</b> a un Tenant (D-6 b, R-2): se registra solo en el Tenant de
+    /// destino y nunca nombra el Tenant seleccionado antes. <see cref="EntidadId"/> es el Tenant de destino.
+    /// </summary>
+    public const string AccionCambioDeContexto = "CambioDeContexto";
+
+    /// <summary>
+    /// Acción del <b>comando rechazado por pestaña obsoleta</b> (D-6 b, R-2): la selección con la que pintó la
+    /// pestaña ya no era la vigente. <see cref="DatosDespues"/> lleva el comando y el motivo, nunca su contenido.
+    /// El valor cabe en la columna <c>Accion</c> (varchar(20)).
+    /// </summary>
+    public const string AccionComandoRechazadoPorContextoObsoleto = "ComandoObsoleto";
+
+    /// <summary>
     /// Acción de la <b>emisión de un enlace de activación</b> para una cuenta que sigue
     /// pendiente de activación, sea el del alta o un reenvío. El enlace es una credencial
     /// al portador, así que cada emisión deja fila propia sobre la cuenta afectada. La
@@ -79,6 +92,40 @@ public class RegistroAuditoria : EntidadConTenant
 
     /// <inheritdoc cref="AccionRenovado"/>
     public const string AccionCondicionesFijadas = "CondicionesFijadas";
+
+    /// <summary>
+    /// Revocación de una capacidad del Tenant (<c>ConcesionCapacidadTenant</c>, decisión D-3 del 2026-11-15). La
+    /// concesión queda como «Creado»; la revocación, con esta acción. Las escribe el interceptor a petición de la
+    /// concesión, vía <see cref="IAccionAuditoriaPropia"/>.
+    /// </summary>
+    public const string AccionCapacidadRevocada = "CapacidadRevocada";
+
+    /// <summary>
+    /// Transiciones de una <c>SolicitudDerechoInteresado</c> (#2002): el registro queda como «Creado» y cada paso
+    /// posterior con su propia acción, escrita por el interceptor a petición de la solicitud, vía
+    /// <see cref="IAccionAuditoriaPropia"/>, con el actor real del guardado.
+    /// </summary>
+    public const string AccionIdentidadVerificada = "IdentidadVerificada";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionTramitacionIniciada = "TramitacionIniciada";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionPlazoProrrogado = "PlazoProrrogado";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionSolicitudResuelta = "SolicitudResuelta";
+
+    /// <inheritdoc cref="AccionIdentidadVerificada"/>
+    public const string AccionSolicitudDenegada = "SolicitudDenegada";
+
+    /// <summary>
+    /// Acción de la <b>confirmación del aviso de posible correo no recuperado</b> de un buzón de Microsoft 365 (issue
+    /// #2124): un usuario autorizado da el aviso por revisado y la marca del hueco se limpia sin recuperar el correo. La
+    /// escribe el interceptor a petición de la conexión, vía <see cref="IAccionAuditoriaPropia"/>, con el Actor real, el
+    /// Usuario simulado si lo hay y la fecha; <see cref="DatosAntes"/> lleva la marca reconocida.
+    /// </summary>
+    public const string AccionHuecoReconocido = "HuecoReconocido";
 
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }

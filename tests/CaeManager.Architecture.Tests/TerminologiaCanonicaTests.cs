@@ -529,7 +529,13 @@ public class TerminologiaCanonicaTests
         // DelegacionDelParAsync. Baja con la migración de DelegacionTenant, que es un incremento propio.
         // 397 → 398 (2026-11-16, siembra Inbound de Development): el alias de DelegacionDemoSeeder en InboundDemoSeeder.cs,
         // para reutilizar el aprovisionamiento de Tenants y cuentas de la demo; el mismo uso que CoberturaPantallasSeeder.
-        ["Delegacion"] = 398,
+        // 398 → 400 (2026-11-17, siembra de la línea P de Development): +2, usos de los tipos legacy existentes
+        // (DelegacionesTenant y PropositoDelegacion) en la guarda de gestión propia de LineaOutboundGestionPropiaDemoSeeder,
+        // que lee si el Tenant de su lista tiene una delegación activa de Operador CAE externo; ningún nombre nuevo con el
+        // término. Baja con la migración de DelegacionTenant, que es un incremento propio.
+        // 400 → 401 (2026-11-17, siembra Inbound de staging): +1, la llamada a DelegacionesSoporteSeeder.SeedAsync de
+        // InboundDemoAdministrativa.cs, el mismo uso que PilotoOutboundAdministrativa.cs; ningún nombre nuevo con el término.
+        ["Delegacion"] = 401,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

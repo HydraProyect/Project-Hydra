@@ -1,0 +1,144 @@
+@page "/inbound/plantillas/{Id:guid}/requisitos"
+@* Tarjeta 9 · Editar requisito (Inbound): los requisitos de una plantilla y el panel para añadir o editar uno. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@using CaeManager.Domain.Inbound.Requisitos
+@using CaeManager.Web.Features.Inbound.Plantillas.Components
+@using CaeManager.Web.Features.Inbound.Plantillas.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosPlantillasRequisitos> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["RequisitosTitulo"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["RequisitosTitulo"]} — {Marca.Nombre}")" />
+
+<div class="contenedor-pagina lista-design">
+    <CabeceraListado Grupo="@KickerPlantilla" Titulo="@Textos["RequisitosTitulo"]" Contador="@(_cargando || _plantilla is null ? null : Activos.Count)">
+        <Primaria>
+            @if (_plantilla is not null)
+            {
+                @if (_plantilla.Activa)
+                {
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
+                }
+            }
+        </Primaria>
+    </CabeceraListado>
+    <p class="inbound-secundario"><a href="/inbound/plantillas">@Textos["VolverPlantillas"]</a></p>
+    @if (_plantilla is { Activa: false })
+    {
+        <p class="inbound-secundario" data-pieza="plantilla-retirada">@Textos["PlantillaRetiradaAviso"]</p>
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (_plantilla is null)
+    {
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["PlantillaNoEncontradaTitulo"]" Descripcion="@Textos["PlantillaNoEncontradaDetalle"]">
+            <Accion><Boton Variante="VarianteBoton.Secundario" Href="/inbound/plantillas">@Textos["VolverPlantillas"]</Boton></Accion>
+        </EstadoVacio>
+    }
+    else if (Activos.Count == 0)
+    {
+        <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["PlantillaSinRequisitos"]" Descripcion="@Textos["RequisitosVacioDescripcion"]">
+            <Accion>@if (_plantilla?.Activa == true) { <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAlta">@Textos["BotonAnadir"]</Boton></SoloConEscritura> }</Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        <TarjetaListado>
+            <Contenido>
+                <table class="tabla-datos rq-tabla" aria-label="@Textos["RequisitosTitulo"]">
+                    <thead><tr>
+                        <th scope="col">@Textos["ColRequisito"]</th>
+                        <th scope="col" class="rq-col-entidad">@Textos["CampoEntidad"]</th>
+                        <th scope="col" class="rq-col-vigencia">@Textos["CampoVigencia"]</th>
+                        <th scope="col" class="rq-col-ia">@Textos["CampoDatosIa"]</th>
+                        <th scope="col" class="rq-col-acc"><span class="sr-only">@Textos["ColAccion"]</span></th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach (var r in Activos)
+                    {
+                        <tr @key="r.Id" data-requisito="@r.Id">
+                            <td>
+                                <span class="pl-prin rq-trunc">@NombreRequisito(r)</span>
+                                <div class="rq-badges">
+                                    <Badge Tono="PlantillaRequisitosUi.TonoOrigen(r.Origen)" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveOrigen(r.Origen)]</Badge>
+                                    @if (r.Entidad == EntidadRequisito.Trabajador && r.TiposContratacion != CaeManager.Domain.Trabajadores.TiposContratacion.Todos)
+                                    {
+                                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["BadgeContratacion", TextoContrataciones(r)]</Badge>
+                                    }
+                                    @* shortcut: SePideA queda sin leerse en el Trabajador, al que se le pide con la contratación
+                                       Extranjero; en la Empresa contratista se sigue enseñando (decisión 2026-11-17). *@
+                                    @if (r.Entidad == EntidadRequisito.Empresa && r.SePideA != DestinatarioRequisito.Todos)
+                                    {
+                                        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos[PlantillaRequisitosUi.ClaveDestinatario(r.SePideA)]</Badge>
+                                    }
+                                    @if (r.Equivalencias.Count > 0)
+                                    {
+                                        <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["BadgeEquivalencias", r.Equivalencias.Count]</Badge>
+                                    }
+                                </div>
+                            </td>
+                            <td>@Textos[PlantillaRequisitosUi.ClaveEntidad(r.Entidad)]</td>
+                            <td>
+                                @PlantillaRequisitosUi.Vigencia(r, Textos)
+                                <span class="pl-sec">@PlantillaRequisitosUi.Tolerancia(r, Textos)</span>
+                            </td>
+                            <td>
+                                @* shortcut: sin backend, cablear cuando haya dónde guardar los datos que lee la IA por requisito (B-14 no los guarda). *@
+                                <span title="@Textos["SinDatoTitulo"]">@Textos["SinDato"]</span>
+                            </td>
+                            <td class="rq-col-acc">
+                                @if (r.Origen == OrigenRequisito.LegalN1)
+                                {
+                                    <span class="pl-fijo" title="@Textos["LoPoneTalvegTitulo"]">@Textos["LoPoneTalveg"]</span>
+                                }
+                                else
+                                {
+                                    <SoloConEscritura>
+                                        @if (_plantilla.Activa)
+                                        {
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirEditar(r)"
+                                               aria-label="@Textos["AccionEditarAria", NombreRequisito(r)]">@Textos["BotonEditar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _retirando = r"
+                                               aria-label="@Textos["AccionRetirarAria", NombreRequisito(r)]">@Textos["BotonRetirar"]</Boton>
+                                        }
+                                    </SoloConEscritura>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </Contenido>
+        </TarjetaListado>
+    }
+</div>
+
+@if (_plantilla is not null)
+{
+    <EditarRequisitoDrawer Visible="_drawerVisible" VisibleChanged="CerrarDrawer" Plantilla="_plantilla" NombrePlantilla="@NombrePlantilla"
+                           Referencias="_refs" Requisito="_editando" OnGuardado="GuardadoAsync" OnFallo="RefrescarTrasFalloAsync" Serie="_serie" />
+}
+
+<DialogoConfirmacion Visible="_retirando is not null" VisibleChanged="CerrarRetirar" Titulo="@Textos["RetirarRequisitoTitulo"]"
+                     Mensaje="@Textos["RetirarRequisitoMensaje", _retirando is null ? string.Empty : NombreRequisito(_retirando)]"
+                     TextoBotonConfirmar="@Textos["BotonRetirar"]" TextoBotonDescartar="@Textos["BotonCancelar"]"
+                     VarianteConfirmar="VarianteBoton.Destructivo" EnProgreso="_enProgreso" OnConfirmar="RetirarAsync">
+    @if (_errorRetirar is not null)
+    {
+        <p class="campo-mensaje-error" role="alert">@_errorRetirar</p>
+    }
+</DialogoConfirmacion>
+</LimiteDeErrores>

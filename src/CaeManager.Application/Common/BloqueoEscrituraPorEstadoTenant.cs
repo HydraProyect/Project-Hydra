@@ -15,6 +15,9 @@ namespace CaeManager.Application.Common;
 /// </list>
 /// No cubre lo que el behavior decide fuera del propio Tenant: la exención del Tenant de plataforma, el Tenant actual
 /// sin resolver y la suspensión del Tenant de origen del Actor real cuando no es el Tenant actual.
+/// Tampoco la exención por impago: un <see cref="IComandoDePortabilidadDelTenantPropietario"/> o un
+/// <see cref="IComandoDeDerechosDelInteresado"/> pasa el estado comercial bloqueante y solo lo detiene la suspensión
+/// operativa.
 /// </summary>
 public static class BloqueoEscrituraPorEstadoTenant
 {

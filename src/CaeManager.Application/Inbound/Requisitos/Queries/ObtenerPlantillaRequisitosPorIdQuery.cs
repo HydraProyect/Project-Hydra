@@ -1,3 +1,4 @@
+using CaeManager.Application.Inbound.Autorizacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using MediatR;
@@ -9,11 +10,14 @@ namespace CaeManager.Application.Inbound.Requisitos.Queries;
 [AreaDelEncargo("TiposDocumento")]
 public record ObtenerPlantillaRequisitosPorIdQuery(Guid Id) : IRequest<PlantillaRequisitosDto?>;
 
-public class ObtenerPlantillaRequisitosPorIdQueryHandler(IPlantillasRequisitosQueryContext contexto, IAlcanceDatosService alcanceDatos)
+public class ObtenerPlantillaRequisitosPorIdQueryHandler(IPlantillasRequisitosQueryContext contexto, IAlcanceDatosService alcanceDatos, IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerPlantillaRequisitosPorIdQuery, PlantillaRequisitosDto?>
 {
     public async Task<PlantillaRequisitosDto?> Handle(ObtenerPlantillaRequisitosPorIdQuery request, CancellationToken cancellationToken)
     {
+        if (!await autorizacionInbound.TieneAsync(CapacidadInbound.LeerInbound, cancellationToken))
+            return null;
+
         var filtro = await PlantillaRequisitosAutorizacion.FiltroDeLecturaAsync(alcanceDatos, cancellationToken);
         if (filtro is null)
             return null;
@@ -26,6 +30,7 @@ public class ObtenerPlantillaRequisitosPorIdQueryHandler(IPlantillasRequisitosQu
 
         var requisitos = plantilla.Requisitos
             .OrderByDescending(r => r.Activo).ThenBy(r => r.Id)
+            // shortcut: SePideA queda sin leerse en el Trabajador; en la Empresa contratista sigue vigente (decisión 2026-11-17)
             .Select(r => new RequisitoPlantillaDto(
                 r.Id, r.TipoDocumentoId, r.RequisitoBaseId, r.Entidad, r.Origen, r.ModoVigencia, r.VigenciaMeses, r.ToleranciaDias,
                 r.BloqueaAcceso, r.Criterio, r.SePideA, r.TiposContratacion, r.Equivalencias, r.AmbitoDocumento, r.Activo))

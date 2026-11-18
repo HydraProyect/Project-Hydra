@@ -22,7 +22,7 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 /// </para>
 /// </summary>
 [AreaDelEncargo("Documentos")]
-public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
+public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>, ICambiaEstadoDeAcreditacion;
 
 public class MarcarAcreditacionAceptadaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,

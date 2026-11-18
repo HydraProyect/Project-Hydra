@@ -170,7 +170,9 @@ public record ParteMiTrabajoDto(
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
     ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos,
-    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger, PuertaAccesoDatos? puerta = null)
+    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger,
+    CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada coordenadaSesionPrivilegiada, ITenantActual tenantActual,
+    PuertaAccesoDatos? puerta = null)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
       IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
 {
@@ -203,7 +205,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     private async IAsyncEnumerable<ParteMiTrabajoDto> RecorrerAsync(
         bool serializarPorTenant, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var tenants = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var tenants = SoloElTenantObjetivoDeLaSesionPrivilegiada(
+            await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken));
         var hoy = DiaDeNegocio.Hoy();
 
         yield return new ParteMiTrabajoDto(tenants.Count, 0);
@@ -218,6 +221,28 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             completados++;
             yield return parte with { Total = tenants.Count, Completados = completados };
         }
+    }
+
+    /// <summary>
+    /// Con una Sesión Privilegiada seleccionada, solo su Tenant objetivo. Una Sesión Privilegiada se concede sobre un
+    /// Tenant, y el interceptor de RLS deja sin Tenant cualquier ámbito explícito sobre otro (issue #2351): consultar los
+    /// demás solo daría Tenants no consultados y un error en el registro por cada uno. Con la sesión, el selector
+    /// tampoco cambia de Tenant, así que sus pendientes no le sirven a nadie.
+    ///
+    /// <para>
+    /// La coordenada es la misma que decide el rol de la conexión, y sirve para negar: con la sesión seleccionada, el
+    /// Tenant objetivo es el que resuelve <see cref="ITenantActual"/> (la selección de la sesión), y sin Tenant resuelto
+    /// no se recorre ninguno. Las dos dependencias son obligatorias: un host sin ellas no construye el handler, en vez de
+    /// saltarse el recorte.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> SoloElTenantObjetivoDeLaSesionPrivilegiada(IReadOnlyList<ClienteAutorizadoDto> tenants)
+    {
+        if (!coordenadaSesionPrivilegiada.HaySeleccionada)
+            return tenants;
+
+        var objetivo = tenantActual.TenantId;
+        return objetivo is null ? [] : tenants.Where(t => t.TenantId == objetivo).ToList();
     }
 
     private async Task<ParteMiTrabajoDto> ConsultarTenantAsync(

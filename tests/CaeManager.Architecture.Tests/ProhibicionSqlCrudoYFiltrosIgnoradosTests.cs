@@ -154,6 +154,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Visita eliminada sigue fuera: su filtro global no se quita.
         [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
+        // Bandeja de Comunicaciones (D-6 b, R-3a): la exclusión de hilos de una conexión eliminada, con la que el
+        // detalle falla cerrado (ConexionIntegracionVisibleAsync). Sentencia aparte de solo Ids, seguida de la comparación
+        // del TenantId con el Tenant actual; solo puede estrechar la lista.
+        [("src/CaeManager.Application/Comunicaciones/ConversacionesVisibles.cs", ".IgnoreQueryFilters()")] = 1,
+
         // Resolución del Tenant de un webhook entrante (Graph/WhatsApp, S-C-5): en ese punto no hay Tenant en el
         // contexto, que es justo lo que se calcula, y bajo FORCE RLS IgnoreQueryFilters() no veía ninguna fila.
         // Las funciones SECURITY DEFINER devuelven solo el Tenant propietario (la de Graph, NULL si la conexión
@@ -214,6 +219,19 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             """var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
         [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorDocumentosInboundEnBase.cs",
             """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
+
+        // Lectura inversa X-2 de Inbound (demo P1): app_inbound_tec_requerimientos() de la migración
+        // AnadeLecturaRequerimientosTec. Los requisitos son del Tenant TCE y RLS los oculta, como debe, a la conexión del
+        // Tenant TEC; la función SECURITY DEFINER toma el Tenant TEC del contexto firmado y solo devuelve los de contratos de
+        // acceso Activos y vinculados con la línea Inbound vigente del Tenant TCE (D10). Sin parámetros.
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorRequerimientosTecEnBase.cs",
+            """.SqlQuery<FilaRequisito>($"SELECT * FROM app_inbound_tec_requerimientos()")""")] = 1,
+
+        // Lectura inversa X-2 de la demo Inbound (P0b): app_inbound_tec_veredictos() de la migración AnadeLecturaVeredictosTec.
+        // Las evidencias son del Tenant TCE y RLS las oculta, como debe, a la conexión del Tenant TEC; la función toma el Tenant
+        // TEC del contexto firmado, exige el gate D10 y no devuelve ninguna identidad de Gestor CAE. Sin parámetros.
+        [("src/CaeManager.Infrastructure/Inbound/Autorizacion/LectorVeredictosTecEnBase.cs",
+            """var filas = await dbContext.Database.SqlQuery<FilaVeredicto>($"SELECT * FROM app_inbound_tec_veredictos()").ToListAsync(cancellationToken);""")] = 1,
 
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
@@ -613,6 +631,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // D-P11 (revisión Codex r1 de la PR #2193, ALTO): mismo candado, por Tenant propietario, para que dos altas o
         // restauraciones concurrentes no dejen dos Empresas propias activas. Solo toma pg_advisory_xact_lock; no toca filas.
         [("src/CaeManager.Infrastructure/Persistence/CandadoEmpresaPropia.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2008 (D-8), una exportación completa cada 24 h por Tenant: mismo patrón de candado por Tenant propietario
+        // para que dos solicitudes concurrentes no pasen las dos la comprobación del límite. Solo toma
+        // pg_advisory_xact_lock con la clave interpolada como parámetro; no toca filas.
+        [("src/CaeManager.Infrastructure/Exportacion/CandadoExportacionCompleta.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // #2008: el servicio de fondo reclama la solicitud pendiente del Tenant en curso con FOR UPDATE SKIP LOCKED,
+        // como TrabajoAnalisisDocumentoRepository, para que dos réplicas no generen la misma exportación si la
+        // elección de líder se pierde a mitad. Corre bajo cae_app_runtime con el Tenant explícito: RLS acota la fila.
+        [("src/CaeManager.Infrastructure/Exportacion/GeneradorExportacionCompletaHostedService.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
 
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,

@@ -124,7 +124,7 @@ public class VisionCarteraGen2Tests : BunitContext
 
     private sealed class MediadorConFanOut(Escenario escenario) : IMediator
     {
-        public List<(object Peticion, Guid? Ambito, CancellationToken Token)> Enviadas { get; } = [];
+        public ListaSegura<(object Peticion, Guid? Ambito, CancellationToken Token)> Enviadas { get; } = [];
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {

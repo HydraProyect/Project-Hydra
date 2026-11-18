@@ -1,6 +1,7 @@
 @page "/cuenta/cambiar-contrasena"
 @layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.AbiertaConPapelInbound]
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
 @using CaeManager.Application.Common

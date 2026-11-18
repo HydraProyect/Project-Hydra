@@ -69,6 +69,12 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(
         if (tenant is null || tenant.EsPlataforma)
             return await next(cancellationToken);
 
+        // El impago no impide al Tenant propietario sacar sus propios datos ni atender los derechos del interesado
+        // (D-3, opción (b) del 2026-11-17); la suspensión operativa sí.
+        if (request is IComandoDePortabilidadDelTenantPropietario or IComandoDeDerechosDelInteresado
+            && tenant.Estado is not EstadoTenant.Suspendido)
+            return await next(cancellationToken);
+
         if (BloqueoEscrituraPorEstadoTenant.ErrorDe(tenant.Estado, tenant.EstadoComercial) is { } error)
             return CrearRespuestaFallo<TResponse>(error);
 

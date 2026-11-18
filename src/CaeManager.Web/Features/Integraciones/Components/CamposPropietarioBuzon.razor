@@ -1,0 +1,45 @@
+@* Los tres campos que dicen de quién es el buzón que se va a conectar (Conexiones y el cajón «Añadir buzón» de Buzones). «Empresa sin rol CAE»
+   es el rótulo legado de la Empresa cliente (deuda terminológica E29): no se renombra aquí. Las reglas están en SeleccionPropietarioBuzon. *@
+@using CaeManager.Web.Features.Integraciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConexiones> Textos
+
+<CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(Seleccion.EmpresaSeleccionadaId?.ToString() ?? string.Empty)"
+             ValorChanged="v => Cambiar(() => Seleccion.SeleccionarCliente(v))"
+             Deshabilitado="@(Seleccion.GestorPropietarioId is not null || Seleccion.HayBuzonCompartido)">
+    <option value="">Buzón de la organización propia</option>
+    @foreach (var empresa in Empresas)
+    {
+        <option value="@empresa.Id">@empresa.RazonSocial</option>
+    }
+</CampoSelect>
+
+<CampoSelect Etiqueta="Buzón personal de un Gestor CAE (opcional)"
+             Valor="@(Seleccion.GestorPropietarioId?.ToString() ?? string.Empty)"
+             ValorChanged="v => Cambiar(() => Seleccion.SeleccionarGestorPropietario(v))"
+             Deshabilitado="@(Seleccion.EmpresaSeleccionadaId is not null || Seleccion.HayBuzonCompartido)">
+    <option value="">—</option>
+    @foreach (var gestor in Gestores)
+    {
+        <option value="@gestor.Id">@gestor.NombreCompleto</option>
+    }
+</CampoSelect>
+
+<CampoTexto Etiqueta="@Textos["EtiquetaBuzonCompartido"]" Valor="@Seleccion.BuzonCompartido" ValorChanged="v => Cambiar(() => Seleccion.FijarBuzonCompartido(v))"
+            Placeholder="@Textos["PlaceholderBuzonCompartido"]" Type="email"
+            Deshabilitado="@(Seleccion.GestorPropietarioId is not null || Seleccion.EmpresaSeleccionadaId is not null)" />
+
+@code {
+    [Parameter, EditorRequired] public SeleccionPropietarioBuzon Seleccion { get; set; } = default!;
+    [Parameter] public IReadOnlyList<EmpresaParaElegir> Empresas { get; set; } = [];
+    [Parameter] public IReadOnlyList<GestorParaElegir> Gestores { get; set; } = [];
+
+    /// <summary>Tras cada elección: quien contiene los campos repinta lo que depende de ella (el enlace de conectar).</summary>
+    [Parameter] public EventCallback AlCambiar { get; set; }
+
+    private Task Cambiar(Action cambio)
+    {
+        cambio();
+        return AlCambiar.InvokeAsync();
+    }
+}

@@ -83,16 +83,11 @@ public record ConversacionListaDto(
 public class ObtenerConversacionesQueryHandler(
     IEmpresasQueryContext empresasContext, IComunicacionesQueryContext comunicacionesContext,
     IIntegracionesQueryContext integracionesContext,
-    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService,
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService, ITenantActual tenantActual,
     PlazosConversacionService? plazosService = null)
     : IRequestHandler<ObtenerConversacionesQuery, ResultadoPaginado<ConversacionListaDto>>
 {
     private const int LongitudPreview = 140;
-
-    // Mismo literal repetido que en AutorizacionEscrituraBehavior y por el
-    // mismo motivo: Application no puede referenciar Infrastructure.Identity.Roles
-    // sin invertir la dependencia entre capas.
-    private const string RolCliente = "Cliente";
 
     public async Task<ResultadoPaginado<ConversacionListaDto>> Handle(
         ObtenerConversacionesQuery request, CancellationToken cancellationToken)
@@ -100,56 +95,43 @@ public class ObtenerConversacionesQueryHandler(
         var consulta = comunicacionesContext.Conversaciones.AsQueryable();
         var ahoraUtc = DateTime.UtcNow;
 
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        if (clienteIdsVisibles is not null)
-        {
-            // La cola de triage (ClienteId null) queda visible pese a la
-            // cartera: por definición todavía no tiene cliente resuelto, así
-            // que no se puede acotar a una (ver § 12.4). Pero eso es cierto
-            // solo para los roles de gestión CAE — al rol Cliente, un contacto
-            // de una empresa cliente externa, le daba acceso de lectura al
-            // correo sin triar de las demás (hallazgo N-2 de
-            // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
-            //
-            // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
-            // a propósito: la página cierra la puerta de entrada, esto cierra
-            // el dato para cualquier otra UI o API que llegue después.
-            var rol = await currentUserService.ObtenerRolEfectivoAsync();
-
-            // Un hilo anclado a una Empresa contraparte (Conversacion.EmpresaId,
-            // hoy solo la reclamación de ámbito Empresa) NO es triage: tiene
-            // dueño, solo que en el otro plano. Se acota por la cartera de
-            // Empresas, no por la de Clientes — sin esta rama caería en el
-            // "ClienteId == null" de abajo y quedaría visible para toda la
-            // gestión CAE, que es justo el alcance que la reclamación por
-            // Empresa no puede regalar. Triage sigue siendo, y solo es, un
-            // hilo sin ninguna de las dos anclas.
-            var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken) ?? [];
-
-            consulta = rol == RolCliente
-                ? consulta.Where(c => c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value))
-                : consulta.Where(c =>
-                    (c.ClienteId == null && c.EmpresaId == null) ||
-                    (c.ClienteId != null && clienteIdsVisibles.Contains(c.ClienteId!.Value)) ||
-                    (c.EmpresaId != null && empresaIdsVisibles.Contains(c.EmpresaId!.Value)));
-        }
-
-        // El buzón personal de OTRO gestor (ConexionIntegracion.GestorPropietarioId)
-        // también tiene ClienteId null, igual que la cola de triage genuina —
-        // sin esto, sus hilos se colaban en la bandeja de cualquier gestor con
-        // acceso a Comunicaciones (mismo hueco corregido en ObtenerConversacionPorIdQuery
-        // y en las cuatro consultas que resuelven "el buzón a usar para enviar").
-        var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        var conexionesAjenasPersonales = await integracionesContext.ConexionesIntegracion
-            .Where(c => c.GestorPropietarioId != null && c.GestorPropietarioId != usuarioActualId)
-            .Select(c => c.Id)
-            .ToListAsync(cancellationToken);
-
-        if (conexionesAjenasPersonales.Count > 0)
-        {
-            consulta = consulta.Where(c =>
-                c.ConexionIntegracionId == null || !conexionesAjenasPersonales.Contains(c.ConexionIntegracionId!.Value));
-        }
+        // Regla de visibilidad por anclas, la misma expresión que evalúa el
+        // detalle (ObtenerConversacionPorIdQuery) y todo consumidor de
+        // ConversacionVisibleAsync: ver VisibilidadConversacion (D-6 b, R-3a).
+        //  - Ancla Cliente: en la cartera de Clientes.
+        //  - Ancla Empresa contraparte (Conversacion.EmpresaId, hoy solo la
+        //    reclamación de ámbito Empresa): NO es triaje, tiene dueño en el
+        //    otro plano; se acota por el alcance de gestión de Empresas, que
+        //    para el rol Cliente es vacío.
+        //  - Cola de triaje (sin ninguna de las dos anclas): no tiene cartera
+        //    que la acote, así que solo la ve quien cumple
+        //    IAlcanceDatosService.TriajeVisibleAsync: acceso total en el
+        //    Tenant o, fuera de él, un rol de gestión de Comunicaciones con un
+        //    ámbito efectivo del Tenant entero. Un rol nulo (por ejemplo, una
+        //    selección cuya Asignación de Operación deja de autorizar con el
+        //    circuito abierto), el rol Cliente (hallazgo N-2 de
+        //    Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md) o un
+        //    Gestor CAE bajo una Asignación de Operación acotada a un Cliente
+        //    empresarial (ADR-011: ámbito efectivo = cartera ∩ operación) no
+        //    ven triaje. Falla cerrado: antes de R-3a el triaje se abría a
+        //    todo rol distinto de Cliente, el nulo incluido.
+        //  - Sin ancla, pero entrando por el buzón personal propio
+        //    (IAlcanceDatosService.BuzonesPersonalesPropiosAsync): solo con
+        //    una Asignación de Cartera vigente, el Gestor CAE propietario lo ve
+        //    aunque no alcance el Tenant entero (DECISION_LOG 2026-11-14,
+        //    decisión 2: ese correo «solo vive en la cuenta del Gestor CAE
+        //    propietario»). Es la misma condición que el detalle, dentro de la
+        //    misma expresión.
+        //  - Y la regla del buzón del detalle: fuera los hilos del buzón
+        //    personal de OTRO Gestor CAE (ConexionIntegracion.GestorPropietarioId),
+        //    que también tienen ClienteId null, y los de una conexión eliminada.
+        //
+        // Las dos mitades viven en ConversacionesVisibles.
+        // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
+        // a propósito: la página cierra la puerta de entrada, esto cierra
+        // el dato para cualquier otra UI o API que llegue después.
+        consulta = await ConversacionesVisibles.FiltrarAsync(
+            consulta, alcanceDatos, currentUserService, integracionesContext, tenantActual, cancellationToken);
 
         if (request.Estado is not null)
             consulta = consulta.Where(c => c.Estado == request.Estado);

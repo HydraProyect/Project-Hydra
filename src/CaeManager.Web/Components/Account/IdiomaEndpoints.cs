@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Recursos;
 using CaeManager.Web.Services;
+using CaeManager.Web.Services.Autorizacion;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -48,7 +49,9 @@ public static class IdiomaEndpoints
             ILoggerFactory loggerFactory) =>
             CambiarAsync(idioma, returnUrl, httpContext, preferencias, textos, localizacion.Value,
                 loggerFactory.CreateLogger(typeof(IdiomaEndpoints).FullName!)))
-            .RequireAuthorization();
+            .RequireAuthorization()
+            // El idioma es de la cuenta, no del papel (O-1 (b)).
+            .AbiertoConPapelInbound();
 
         return endpoints;
     }

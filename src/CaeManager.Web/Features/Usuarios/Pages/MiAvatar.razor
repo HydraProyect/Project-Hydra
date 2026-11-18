@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.AbiertaConPapelInbound]
 @using CaeManager.Application.Usuarios
 @using CaeManager.Web.Features.Usuarios.Recursos
 @using Microsoft.AspNetCore.Authorization

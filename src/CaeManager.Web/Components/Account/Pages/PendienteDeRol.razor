@@ -1,6 +1,7 @@
 @page "/cuenta/pendiente-de-rol"
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [Authorize]
+@attribute [CaeManager.Web.Services.Autorizacion.AbiertaConPapelInbound]
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using CaeManager.Web.Components.Account.Recursos

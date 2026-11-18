@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerLogoTenant;
+using CaeManager.Web.Services.Autorizacion;
 using MediatR;
 using Microsoft.AspNetCore.Diagnostics;
 
@@ -23,7 +24,8 @@ public static class LogoTenantEndpoints
 {
     public static IEndpointRouteBuilder MapLogoTenantEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/tenants/{id:guid}/logo", ServirAsync);
+        // Lo pinta el selector de papel, también con papel Inbound (O-1 (b)); la Query autoriza el Tenant.
+        endpoints.MapGet("/tenants/{id:guid}/logo", ServirAsync).AbiertoConPapelInbound();
         return endpoints;
     }
 

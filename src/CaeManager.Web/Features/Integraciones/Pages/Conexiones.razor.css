@@ -60,3 +60,14 @@
 }
 /* Pie de Buzones (maqueta `Buzones.dc.html`, `.pie`, E37): 12/16 500 apagado. */
 .pie-buzones { margin: 0; font: 500 12px/16px var(--font-family); color: var(--color-text-muted); }
+
+/* Sin la URL pública de la aplicación no hay conexión posible: el aviso ocupa el lugar de los campos y del enlace. */
+.aviso-conexion-no-disponible {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-warning-700);
+    border-radius: var(--radius-lg);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: 500 13px/18px var(--font-family);
+}

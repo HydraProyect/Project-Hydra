@@ -102,7 +102,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
         /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
         public bool EsDelPropioTenant { get; set; } = true;
-        public List<object> Enviadas { get; } = [];
+        public ListaSegura<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
         /// <summary>

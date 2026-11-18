@@ -91,7 +91,8 @@ public static class DelegacionDemoSeeder
         IConfiguration configuration,
         IHostEnvironment entorno,
         ILogger logger,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IFileStorageService? almacen = null)
     {
         if (!configuration.GetValue<bool>("DatosPrueba:Activo"))
             return;
@@ -133,6 +134,9 @@ public static class DelegacionDemoSeeder
         {
             await DatosPruebaSeeder.SeedAsync(dbContext, userManager, userStore, configuration, entorno, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
+            // El conjunto curado para revisar toda la pantalla de Comunicaciones y la de Buzones: idempotente por conversación,
+            // con los canales Deshabilitados (nada sale hacia Microsoft Graph, SMTP ni WhatsApp) y con la misma guarda.
+            await ComunicacionesDemoCompletaSeeder.SeedAsync(dbContext, userManager, almacen, configuration, logger, cancellationToken);
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
         }
@@ -755,7 +759,7 @@ public static class DelegacionDemoSeeder
 
     internal static async Task<Guid> AprovisionarTenantAsync(
         CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken,
-        bool esOperadorCaeExterno, bool marcarComoDemo = false)
+        bool esOperadorCaeExterno, bool marcarComoDemo = false, bool sinTiposDeSalud = false)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
@@ -830,7 +834,11 @@ public static class DelegacionDemoSeeder
             // cuenta filas (ese conteo no necesita el join a TiposDocumento).
             // Ids nuevos a propósito — el Id de TipoDocumentoSeedData es
             // fijo para las filas del tenant #1, no reutilizable aquí.
-            dbContext.TiposDocumento.AddRange(TipoDocumentoSeedData.CrearCopiasParaTenant());
+            // Con sinTiposDeSalud (la siembra Inbound de staging, D7 de 2026-11-17: los tipos de documento de salud
+            // existen solo en Development), la copia deja fuera los tipos de categoría especial de salud.
+            dbContext.TiposDocumento.AddRange(sinTiposDeSalud
+                ? TipoDocumentoSeedData.CrearCopiasParaTenantSinTiposDeSalud()
+                : TipoDocumentoSeedData.CrearCopiasParaTenant());
 
             await dbContext.SaveChangesAsync(cancellationToken);
         }

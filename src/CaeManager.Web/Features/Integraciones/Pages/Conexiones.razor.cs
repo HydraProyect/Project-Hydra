@@ -1,17 +1,20 @@
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.ReconocerAvisoHueco;
 using CaeManager.Application.Integraciones.Commands.RepararMarcaHueco;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Infrastructure.Integraciones;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
@@ -23,21 +26,19 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     [Inject] private ILogger<Conexiones> Logger { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
 
+    [Inject] private IOptions<Microsoft365GraphOptions> OpcionesMicrosoft365 { get; set; } = default!;
+
     [SupplyParameterFromQuery] public bool? Conectado { get; set; }
     [SupplyParameterFromQuery] public string? Error { get; set; }
 
-    private record GestorSelectorDto(Guid Id, string NombreCompleto);
-
-    private IReadOnlyList<ClienteSelectorDto> _clientes = [];
+    private IReadOnlyList<EmpresaParaElegir> _empresas = [];
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private IReadOnlyList<LineaWhatsAppListaDto> _lineas = [];
-    private IReadOnlyList<GestorSelectorDto> _gestores = [];
+    private IReadOnlyList<GestorParaElegir> _gestores = [];
     private bool _cargando = true;
 
     /// <summary>La última carga del listado falló: no se muestra ningún listado ni acción, solo el aviso.</summary>
     private bool _cargaFallida;
-    private Guid? _clienteSeleccionadoId;
-    private Guid? _gestorPropietarioSeleccionadoId;
 
     // --- Modal de línea WhatsApp (alta/edición) ---
     private bool _modalLineaVisible;
@@ -71,6 +72,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private ConexionIntegracionListaDto? _conexionADesconectar;
     private bool _desconectando;
+    private ConexionIntegracionListaDto? _avisoHuecoAConfirmar;
+    private bool _confirmandoAvisoHueco;
     private long _generacionDesconexion;
     private Guid? _procesandoId;
     private readonly CancellationTokenSource _cancelacionCarga = new();
@@ -79,46 +82,26 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private long _generacionInicializacion;
     private bool _dispuesto;
 
-    private string _buzonCompartido = string.Empty;
+    // Las reglas del propietario y la URL de conectar son las mismas que usa el cajón «Añadir buzón» de Buzones.
+    private readonly SeleccionPropietarioBuzon _propietario = new();
 
-    private string UrlConectar
+    private string UrlConectar => _propietario.UrlConectar;
+
+    /// <summary>
+    /// Sin la URL pública de la aplicación el endpoint de conectar no puede arrancar el flujo OAuth (no hay redirect_uri): no
+    /// se ofrece el enlace y la página lo explica. Es la misma condición que comprueba el endpoint.
+    /// </summary>
+    // shortcut: el aviso solo mira UrlPublicaBase; sin ClientId o sin credencial el enlace sigue y el endpoint vuelve con
+    // «configuracion». Mejorarlo si un entorno llega a tener la URL pública sin el resto (mirar EstaConfigurado aquí y en Buzones).
+    private bool ConexionDisponible => !string.IsNullOrWhiteSpace(OpcionesMicrosoft365.Value.UrlPublicaBase);
+
+    /// <summary>Los campos del propietario avisan de cada elección: se repinta el enlace de conectar, que depende de ella.</summary>
+    private void Repintar()
     {
-        get
-        {
-            if (_gestorPropietarioSeleccionadoId is { } gestorId)
-                return $"/integraciones/conectar-microsoft365?gestorPropietarioId={gestorId}";
-
-            var parametros = new List<string>();
-            if (_clienteSeleccionadoId is { } clienteId)
-                parametros.Add($"clienteId={clienteId}");
-            if (!string.IsNullOrWhiteSpace(_buzonCompartido))
-                parametros.Add($"buzonCompartido={Uri.EscapeDataString(_buzonCompartido.Trim())}");
-
-            return parametros.Count == 0
-                ? "/integraciones/conectar-microsoft365"
-                : $"/integraciones/conectar-microsoft365?{string.Join('&', parametros)}";
-        }
     }
 
-    /// <summary>Un buzón compartido nunca es el buzón personal de un Gestor CAE: escribir uno limpia esa elección.</summary>
-    private void FijarBuzonCompartido(string valor)
-    {
-        _buzonCompartido = valor;
-        if (!string.IsNullOrWhiteSpace(valor)) _gestorPropietarioSeleccionadoId = null;
-    }
-
-    /// <summary>Cliente y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
-    private void SeleccionarCliente(string valor)
-    {
-        _clienteSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
-        if (_clienteSeleccionadoId is not null) _gestorPropietarioSeleccionadoId = null;
-    }
-
-    private void SeleccionarGestorPropietario(string valor)
-    {
-        _gestorPropietarioSeleccionadoId = Guid.TryParse(valor, out var id) ? id : null;
-        if (_gestorPropietarioSeleccionadoId is not null) _clienteSeleccionadoId = null;
-    }
+    /// <summary>Se conservan para los tests de la elección: la regla vive en <see cref="SeleccionPropietarioBuzon"/>.</summary>
+    private void SeleccionarGestorPropietario(string valor) => _propietario.SeleccionarGestorPropietario(valor);
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,12 +116,10 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         var token = _cancelacionCarga.Token;
         try
         {
-            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), token);
-
-            var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae, token);
+            var opciones = await OpcionesPropietarioBuzon.CargarAsync(Mediator, DirectorioUsuarios, token);
             if (generacion != _generacionInicializacion || token.IsCancellationRequested) return;
-            _clientes = clientes;
-            _gestores = gestores.Select(u => new GestorSelectorDto(u.Id, u.NombreCompleto)).ToList();
+            _empresas = opciones.Empresas;
+            _gestores = opciones.Gestores;
 
             await CargarConexionesAsync(token);
         }
@@ -386,6 +367,71 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     }
 
     /// <summary>
+    /// Confirmar en la fila (issue #2124): solo con el aviso «posible correo no recuperado» y en el estado en que el servidor
+    /// lo acepta, Habilitada y sin marca del hueco por registrar (<see cref="ReconocerAvisoHuecoCommandHandler"/>). Quién
+    /// puede lo fija la página, que es solo de Administrador, y lo vuelve a comprobar el handler. Un buzón personal de un
+    /// Gestor CAE no lo ofrece: el handler solo deja verlo a su dueño (la misma visibilidad que Desconectar), así que el
+    /// Administrador siempre recibiría «no encontrada».
+    /// </summary>
+    private static bool PuedeConfirmarAvisoHueco(ConexionIntegracionListaDto conexion) =>
+        conexion.AvisoHuecoReconocible && conexion.GestorPropietarioId is null;
+
+    /// <summary>
+    /// El aviso en una línea de la fila: el título que Buzón pinta en negrita y su detalle, unidos por el formato del
+    /// recurso, con la variante que nombra Confirmar solo si la fila lo ofrece.
+    /// </summary>
+    private string TextoAvisoCorreoNoRecuperado(ConexionIntegracionListaDto conexion, DateTime noRecuperadoDesdeUtc) =>
+        Textos["AvisoCorreoNoRecuperadoEnLinea",
+            Textos["AvisoCorreoNoRecuperadoTitulo", noRecuperadoDesdeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")].Value,
+            Textos[PuedeConfirmarAvisoHueco(conexion) ? "AvisoCorreoNoRecuperadoConfirmable" : "AvisoCorreoNoRecuperado"].Value];
+
+    private void AbrirConfirmacionAvisoHueco(ConexionIntegracionListaDto conexion)
+    {
+        if (_procesandoId is not null || _desconectando || _confirmandoAvisoHueco) return;
+        _avisoHuecoAConfirmar = conexion;
+    }
+
+    private void CerrarConfirmacionAvisoHueco()
+    {
+        if (!_confirmandoAvisoHueco) _avisoHuecoAConfirmar = null;
+    }
+
+    /// <summary>
+    /// Envía la fecha del aviso que se ve en el diálogo: si la marca ya es otra, el servidor no la reconoce. Éxito o fallo, el
+    /// diálogo se cierra y el listado se recarga para mostrar el estado real.
+    /// </summary>
+    private async Task ConfirmarAvisoHuecoAsync()
+    {
+        if (_avisoHuecoAConfirmar is not { CorreoNoRecuperadoDesdeUtc: { } marca } conexion || _confirmandoAvisoHueco) return;
+
+        _confirmandoAvisoHueco = true;
+        _procesandoId = conexion.Id;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReconocerAvisoHuecoCommand(conexion.Id, marca));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["AvisoHuecoConfirmado"], TonoToast.Exito);
+
+            _avisoHuecoAConfirmar = null;
+            await RecargarSinPropagarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar el aviso del hueco de la conexión {ConexionId}.", conexion.Id);
+            ToastService.Mostrar(Textos["ErrorConfirmarAvisoHueco"], TonoToast.Error);
+        }
+        finally
+        {
+            _confirmandoAvisoHueco = false;
+            _procesandoId = null;
+        }
+    }
+
+    /// <summary>
     /// Reparar en la fila de una conexión Deshabilitada con la marca del hueco por registrar: RepararMarcaHuecoCommand, que
     /// registra lo guardado en la conexión solo si sigue Deshabilitada y nunca cambia su estado ni llama a Graph. No es
     /// Desconectar: si otra sesión la reactivó después de cargar la fila, Desconectar la habría desconectado (Codex, ronda
@@ -463,16 +509,25 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private const string CodigoCancelado = "cancelado";
 
-    // «solicitud» (state caducado o de otra cuenta) cae en el mensaje genérico.
+    // Códigos cerrados de «?error=» (los pone ConectarMicrosoft365Endpoints): un texto fijo por código, y uno desconocido o
+    // manipulado cae en el genérico; nada de la query ni de Microsoft se refleja. «solicitud» (state caducado o de otra
+    // cuenta) también cae en el genérico.
     private string MensajeError(string codigo) => codigo switch
     {
         CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
-        "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
+        "autenticacion" => Textos["ErrorAutenticacion"],
+        "configuracion" => Textos["ErrorConfiguracionIncompleta"],
+        "canje-tokens" => Textos["ErrorCanjeTokens"],
+        "permisos-microsoft" => Textos["ErrorPermisosMicrosoft"],
+        "sin-buzon-exchange" => Textos["ErrorSinBuzonExchange"],
+        "error-microsoft" => Textos["ErrorMicrosoft"],
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
         "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
         "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
         "ya-conectado" => Textos["ErrorBuzonYaConectado"],
         "compartidos-en-pausa" => Textos["ErrorAltaCompartidaEnPausa"],
+        "solo-administrador" => Textos["ErrorSoloAdministrador"],
+        "url-publica" => Textos["AvisoConexionNoDisponible"],
         _ => "No pudimos completar la conexión."
     };
 

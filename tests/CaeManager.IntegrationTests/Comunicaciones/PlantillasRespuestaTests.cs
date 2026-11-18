@@ -45,7 +45,7 @@ public class PlantillasRespuestaTests : IAsyncLifetime
         resultado.Valor.Should().Be("Hola Empresa destinataria");
         contexto.ChangeTracker.Clear();
         var lectura = new ObtenerConversacionPorIdQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto,
-            contexto, contexto, alcance, new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
+            contexto, contexto, alcance, new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
         var detalle = await lectura.Handle(new(conversacion.Id), CancellationToken.None);
         detalle.Should().NotBeNull();

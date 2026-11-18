@@ -1,0 +1,31 @@
+/* Plazo (maqueta 2026-11-01, `.pz`): 12/16 en 600 con cifras tabulares. Holgado, en el apagado de las notas; por vencer (menos de 2 h), en ámbar;
+   fuera de plazo, en rojo con un punto con aro delante, para que no dependa solo del color. */
+.plazo-conversacion {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: 600 12px/16px var(--font-family);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+}
+
+.plazo-conversacion-por-vencer {
+    color: var(--color-warning-700);
+}
+
+.plazo-conversacion-vencido {
+    color: var(--color-danger-700);
+}
+
+.plazo-conversacion-vencido::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-right: 3px;
+    border-radius: var(--radius-full);
+    /* -500 y no -700 como la maqueta: el -700 ya es el color del texto y un mismo token no puede ser texto y fondo a la vez (TokensDeTextoConVarianteEnAmbosTemasTests). */
+    background: var(--color-danger-500);
+    box-shadow: 0 0 0 2px var(--color-danger-50), 0 0 0 3px var(--color-danger-500);
+}

@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion)]
+@attribute [CaeManager.Web.Services.Autorizacion.PaginaDeOutbound]
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Clientes.Commands.CrearCliente
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa

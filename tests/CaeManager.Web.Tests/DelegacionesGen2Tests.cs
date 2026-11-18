@@ -42,7 +42,7 @@ public partial class DelegacionesGen2Tests : BunitContext
     private sealed class Mediador : IMediator
     {
         public TaskCompletionSource? EsperaLista { get; set; }
-        public List<(object Peticion, CancellationToken Token)> Enviadas { get; } = [];
+        public ListaSegura<(object Peticion, CancellationToken Token)> Enviadas { get; } = [];
         public IReadOnlyList<DelegacionDto> Delegaciones { get; set; } = [];
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public TaskCompletionSource? EsperaCreacion { get; set; }
@@ -79,6 +79,9 @@ public partial class DelegacionesGen2Tests : BunitContext
         /// que es lo que recibe quien no es Administrador del Tenant propietario.
         /// </summary>
         public IReadOnlyList<AccesoSoporteTalvegDto>? AccesosSoporteTalveg { get; set; }
+
+        /// <summary>Respuesta de <see cref="ObtenerActividadSoporteQuery"/>; por defecto, ninguna actividad.</summary>
+        public Func<ObtenerActividadSoporteQuery, IReadOnlyList<ActividadSoporteDto>> Actividad { get; set; } = _ => [];
         public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
         public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
 
@@ -113,7 +116,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
                 EsTenantOrigenPlataformaQuery => EsTenantOrigenPlataforma,
                 ObtenerDelegacionesQuery => Delegaciones,
-                ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
+                ObtenerActividadSoporteQuery q => Actividad(q),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
                 RevocarAsignacionOperadorDelegadoCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => ResultadoCreacion,
@@ -420,6 +423,50 @@ public partial class DelegacionesGen2Tests : BunitContext
             "mismo criterio que abrir");
     }
 
+    /// <summary>
+    /// #2016 (revisión): la RLS de <c>RegistrosActividadSoporte</c> solo entrega la traza al Administrador del Tenant
+    /// propietario y a la plataforma de la visita; a cualquier otra cuenta le devuelve una lista vacía, y la pantalla
+    /// diría «Sin actividad registrada» aunque la traza exista. El botón no se pinta a quien no la puede ver.
+    /// Se parte en tres casos con un único <c>Renderizar</c> cada uno: <c>Renderizar</c> registra servicios en el
+    /// contexto bUnit y no admite una segunda llamada tras resolver el primero, y así un render previo tampoco
+    /// puede prestar estado al control positivo (cada <c>[Fact]</c> corre en su propia instancia de la clase, de modo
+    /// que <c>_configurarMediador</c> no se filtra de un caso a otro).
+    /// Falsación: pintar el botón sin condición (<c>PuedeVerActividadRegistrada</c> a <c>true</c>) hace caer el primer
+    /// caso (la cuenta sin rol); los otros dos son los controles positivos que impiden ocultarlo siempre.
+    /// </summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_no_se_ofrece_a_una_cuenta_sin_rol_del_Tenant_propietario()
+    {
+        var (cuentaSinRol, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: false));
+
+        cuentaSinRol.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "una cuenta del Tenant propietario sin rol Administrador recibiría una lista vacía de la RLS");
+    }
+
+    /// <summary>Control positivo de #2016: el Administrador del Tenant propietario sí lee la traza.</summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_se_ofrece_al_Administrador_del_Tenant_propietario()
+    {
+        _configurarMediador = m => m.TenantPropietarioAutorizante = TenantPropietarioRefrielectric;
+
+        var (administrador, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: false));
+
+        administrador.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "control positivo: el Administrador del Tenant propietario sí la lee");
+    }
+
+    /// <summary>Control positivo de #2016: la plataforma de la visita lee la traza desde su Tenant.</summary>
+    [Fact]
+    public void Ver_actividad_registrada_de_una_delegacion_de_soporte_se_ofrece_a_la_plataforma_de_la_visita()
+    {
+        var (plataforma, _, _) = Renderizar(
+            esAdministradorPlataforma: false, Delegacion(soporte: true, activa: true, somosLaConsultora: true));
+
+        plataforma.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Ver actividad registrada",
+            "control positivo: la plataforma de la visita la lee desde su Tenant");
+    }
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
     /// exige ser Administrador del Tenant propietario, desde su casa (decisión SEG-7 del
@@ -957,5 +1004,68 @@ public partial class DelegacionesGen2Tests : BunitContext
         filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado")
             .And.Contain("Aprovisionamiento, con escritura", "un acceso que escribe no se presenta como una lectura");
         seccion.TextContent.Should().Contain("Soporte TALVEG");
+    }
+
+    // ── Issue #2016: las lecturas de Soporte TALVEG en cada Sesión Privilegiada ──
+
+    [Fact]
+    public async Task El_Administrador_ve_las_lecturas_de_una_Sesion_Privilegiada_con_cuando_y_que_operacion()
+    {
+        var ahora = DateTime.UtcNow;
+        var sesion = Guid.NewGuid();
+        var lectura = new DateTime(2026, 11, 16, 9, 15, 30, DateTimeKind.Utc);
+        _configurarMediador = m =>
+        {
+            m.AccesosSoporteTalveg =
+            [
+                new AccesoSoporteTalvegDto(sesion, CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", "TCK-42",
+                    ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
+            ];
+            m.Actividad = q => q.SesionPrivilegiadaId == sesion
+                ? [new ActividadSoporteDto(Guid.NewGuid(), null, TipoActividadSoporte.Lectura, "EjecutarImportacionCommand", lectura, sesion)]
+                : [];
+        };
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        await cut.Find(".accesos-soporte-talveg").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Ver actividad registrada").ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas.Select(x => x.Peticion).OfType<ObtenerActividadSoporteQuery>().Should().ContainSingle().Subject;
+        consulta.SesionPrivilegiadaId.Should().Be(sesion);
+        consulta.DelegacionTenantId.Should().BeNull("la visita cuelga de la Sesión Privilegiada, no de una delegación");
+
+        cut.WaitForAssertion(() =>
+        {
+            var cabecera = cut.Find(".delegaciones-actividad-cabecera").TextContent;
+            cabecera.Should().Contain("Soporte TALVEG", "quién: Soporte TALVEG, sin la identidad del técnico")
+                .And.Contain("Revisar importación fallida", "en qué Sesión Privilegiada");
+            var fila = cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle().Subject.TextContent;
+            fila.Should().Contain("Petición").And.Contain("EjecutarImportacionCommand", "qué operación");
+            fila.Should().Contain(lectura.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm:ss"), "cuándo");
+            cut.Markup.Should().Contain("Hoy solo dejan registro las peticiones marcadas para ello",
+                "lo que no deja fila no se puede presentar como «no hubo actividad»");
+        });
+    }
+
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_sin_lecturas_lo_dice_en_vez_de_hablar_de_una_delegacion()
+    {
+        var ahora = DateTime.UtcNow;
+        _configurarMediador = m => m.AccesosSoporteTalveg =
+        [
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", null,
+                ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
+        ];
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
+
+        await cut.Find(".accesos-soporte-talveg").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Ver actividad registrada").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain(
+                "No hay actividad registrada en esta Sesión Privilegiada. Hoy solo dejan registro las peticiones marcadas para ello");
+            cut.Markup.Should().NotContain("No hay actividad disponible para esta delegación.");
+        });
     }
 }

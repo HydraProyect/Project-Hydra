@@ -137,7 +137,15 @@ public partial class AsistenteIa : IDisposable
 
     /// <summary>Sin ningún proveedor configurado no hay Vega: ni panel, ni atajo, ni pantalla completa.</summary>
     private bool Visible => Disponibilidad.Alguna
+        && _papelAdmiteElAsistente
         && (PantallaCompleta || (AsistenteIaService.Abierto && !_enRutaPantallaCompleta));
+
+    /// <summary>
+    /// El asistente es de Outbound (registro de módulos de ADR-013): con papel Inbound o con una operación que ya no
+    /// autoriza no se pinta, igual que se niegan las páginas de Outbound (<see cref="CriterioDePapel"/>). Falso mientras
+    /// no se conoce el papel: el primer render no enseña el panel.
+    /// </summary>
+    private bool _papelAdmiteElAsistente;
 
     /// <summary>
     /// Comprueba el Tenant efectivo frente al de la conversación. Si ha cambiado (revocación de
@@ -199,7 +207,8 @@ public partial class AsistenteIa : IDisposable
     {
         _sesionPrivilegiada = (await ActorAuditoria.ObtenerAsync()).Via == TipoViaAcceso.SesionPrivilegiada;
         _tenantOrigenId = await UsuarioActual.ObtenerTenantOrigenIdAsync();
-        if (PantallaCompleta)
+        _papelAdmiteElAsistente = CriterioDePapel.AdmiteLoQueNoEsInbound(await UsuarioActual.ObtenerPapelActivoAsync());
+        if (_papelAdmiteElAsistente && PantallaCompleta)
             await CargarEmpresaAsync();
     }
 

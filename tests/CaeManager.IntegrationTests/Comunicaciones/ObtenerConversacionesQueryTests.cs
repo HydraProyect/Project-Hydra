@@ -37,7 +37,7 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         var plazos = new Application.Comunicaciones.PlazosConversacionService(new OperacionSlaFalsa(),
             Microsoft.Extensions.Options.Options.Create(new Application.Comunicaciones.CalendariosOperadorCaeOptions()));
         var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(rol: "GestorCae"), plazos);
+            new CurrentUserServiceFalso(rol: "GestorCae"), new TenantActualAmbiental { TenantId = _tenant }, plazos);
 
         var primera = await handler.Handle(new(SoloFueraDeSla: true), CancellationToken.None);
         var segunda = await handler.Handle(new(SoloFueraDeSla: true, Pagina: 2), CancellationToken.None);
@@ -67,7 +67,7 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         var plazos = new Application.Comunicaciones.PlazosConversacionService(new OperacionSlaFalsa(),
             Microsoft.Extensions.Options.Options.Create(new Application.Comunicaciones.CalendariosOperadorCaeOptions()));
         var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(rol: "GestorCae"), plazos);
+            new CurrentUserServiceFalso(rol: "GestorCae"), new TenantActualAmbiental { TenantId = _tenant }, plazos);
 
         var resultado = await handler.Handle(new(SoloFueraDeSla: true), CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         contexto.Conversaciones.Add(conversacion);
         await contexto.SaveChangesAsync();
         var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(rol: "GestorCae"));
+            new CurrentUserServiceFalso(rol: "GestorCae"), new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(new(), CancellationToken.None);
 
@@ -348,7 +348,8 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         await using var contextoLectura = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
             contextoLectura, contextoLectura, contextoLectura, new AlcanceDatosServiceFalso(),
-            new CurrentUserServiceFalso(usuarioId: gestorPropietarioId, rol: "GestorCae"));
+            new CurrentUserServiceFalso(usuarioId: gestorPropietarioId, rol: "GestorCae"),
+            new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None);
 
@@ -359,7 +360,8 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
-            contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"));
+            contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"),
+            new TenantActualAmbiental { TenantId = _tenant });
 
         return await handler.Handle(query, CancellationToken.None);
     }

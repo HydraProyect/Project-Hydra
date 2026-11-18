@@ -26,7 +26,7 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// El bloqueo de la respuesta sugerida por buzón (<c>ComprobarEnvioPorBuzonAsync</c>) con un <b>Gestor CAE de cartera
 /// restringida</b>, no un Administrador, como <c>cae_app_runtime</c> y con el <see cref="AlcanceDatosService"/> real. Lo que
 /// se mide es que el filtro de alcance, una <c>Expression</c> sobre la conversación que la consulta de candidatas aplica
-/// en SQL, decide lo mismo que <c>ConversacionVisibleAsync</c>, en los dos ejes de ancla y en el triage compartido.
+/// en SQL, decide lo mismo que <c>ConversacionVisibleAsync</c>, en los dos ejes de ancla y en la cola de triaje.
 ///
 /// <para>
 /// Escenario, en el Tenant propietario de la sesión, un buzón general (visible para todos) con cinco hilos, cada uno con
@@ -36,7 +36,9 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// <item>Hilo anclado a otro Cliente empresarial, fuera de la cartera: no visible.</item>
 /// <item>Hilo anclado a una Empresa contraparte con Centro en el Cliente de la cartera, que el Gestor gestiona: visible.</item>
 /// <item>Hilo anclado a una Empresa contraparte que solo tiene Centro en el otro Cliente: no visible.</item>
-/// <item>Hilo sin Cliente empresarial ni Empresa (triage compartido): visible.</item>
+/// <item>Hilo sin Cliente empresarial ni Empresa (cola de triaje): no visible. El ámbito efectivo del Gestor CAE (cartera
+/// universal ∩ operación acotada a un Cliente empresarial, ADR-011) no es el Tenant entero, así que
+/// <c>TriajeVisibleAsync</c> es falso (D-6 b, R-3a); el Administrador sí lo ve.</item>
 /// </list>
 /// La siembra va como propietario de la base, porque no es lo que se mide.
 /// </para>
@@ -58,7 +60,8 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     private Hilo _clienteFueraDeLaCartera = null!;
     private Hilo _empresaQueGestiona = null!;
     private Hilo _empresaQueNoGestiona = null!;
-    private Hilo _triageCompartido = null!;
+    private Hilo _enTriaje = null!;
+    private Guid _clienteDeLaCarteraId;
 
     private sealed record Hilo(Guid ConversacionId, string Texto, string Remitente);
 
@@ -111,7 +114,8 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
 
     /// <summary>
     /// El filtro, traducido a SQL, deja pasar exactamente los hilos que <c>ConversacionVisibleAsync</c> da por visibles
-    /// para el Gestor CAE, y son los tres esperados: ni uno más (los de fuera de la cartera) ni uno menos.
+    /// para el Gestor CAE, y son los dos esperados: ni uno más (los de fuera de la cartera y el de la cola de triaje) ni
+    /// uno menos.
     /// </summary>
     [Fact]
     public async Task El_filtro_en_SQL_decide_igual_que_ConversacionVisibleAsync_para_el_Gestor_de_cartera_restringida()
@@ -133,7 +137,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
 
         enSql.Should().BeEquivalentTo(esperadas);
         enSql.Should().BeEquivalentTo(
-            [_clienteDeLaCartera.ConversacionId, _empresaQueGestiona.ConversacionId, _triageCompartido.ConversacionId]);
+            [_clienteDeLaCartera.ConversacionId, _empresaQueGestiona.ConversacionId]);
     }
 
     [Fact]
@@ -159,10 +163,15 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_hilo_sin_Cliente_empresarial_ni_Empresa_triage_compartido_sigue_siendo_visible()
+    public async Task Un_hilo_en_triaje_no_bloquea_al_Gestor_de_ambito_acotado_y_al_Administrador_si()
     {
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido, _triageCompartido.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _triageCompartido, _triageCompartido.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        // D-6 b, R-3a: sin ancla, el hilo solo lo ve quien pasa TriajeVisibleAsync; el Gestor CAE de ámbito acotado, no.
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _enTriaje, _enTriaje.Texto)).EsExitoso.Should().BeTrue();
+        (await Comprobar(_runtimeDelGestor, UsuarioGestor(), _enTriaje, _enTriaje.Texto + Firma)).EsExitoso.Should().BeTrue();
+
+        // Control positivo: con acceso total el mismo texto sí bloquea, así que el «no bloquea» viene del triaje.
+        (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), _enTriaje, _enTriaje.Texto)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await Comprobar(_runtimeDelAdministrador, UsuarioAdministrador(), _enTriaje, _enTriaje.Texto + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
     /// <summary>
@@ -246,11 +255,14 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         (await Comprobar(runtime, UsuarioGestor(), RemitenteConfirmada, TextoConfirmadoDespues + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
-    /// <summary>La confirma otra conexión (el propietario de la base, no la del Gestor CAE), en un hilo de triage compartido.</summary>
+    /// <summary>
+    /// La confirma otra conexión (el propietario de la base, no la del Gestor CAE), en un hilo del Cliente empresarial de
+    /// su cartera: en la cola de triaje no la vería (D-6 b, R-3a) y el «sí bloquea» final no mediría la instantánea.
+    /// </summary>
     private async Task SembrarConfirmadaPorOtraConexionAsync(string asunto)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
-        await SembrarHiloAsync(asunto, null, null, TextoConfirmadoDespues, RemitenteConfirmada, sinRevisar: true);
+        await SembrarHiloAsync(asunto, _clienteDeLaCarteraId, null, TextoConfirmadoDespues, RemitenteConfirmada, sinRevisar: true);
     }
 
     private const string TextoConfirmadoDespues = "<p>Texto confirmado por otra conexión después de abrir la instantánea, con su documentación.</p>";
@@ -267,7 +279,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
     }
 
     private IEnumerable<Hilo> Todos() =>
-        [_clienteDeLaCartera, _clienteFueraDeLaCartera, _empresaQueGestiona, _empresaQueNoGestiona, _triageCompartido];
+        [_clienteDeLaCartera, _clienteFueraDeLaCartera, _empresaQueGestiona, _empresaQueNoGestiona, _enTriaje];
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 
@@ -288,6 +300,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         var subcontrataQueNoGestiona = Empresa.CrearComoSubcontrata("Soldaduras Ogdenville S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
         _propietario.Empresas.AddRange(clienteDeLaCartera, clienteFuera, propia, subcontrataQueGestiona, subcontrataQueNoGestiona);
         await _propietario.SaveChangesAsync();
+        _clienteDeLaCarteraId = clienteDeLaCartera.Id;
 
         // La Empresa contraparte que el Gestor gestiona es la que trabaja en un Centro de un Cliente de su cartera.
         _propietario.Centros.AddRange(
@@ -322,7 +335,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         _empresaQueNoGestiona = await SembrarHiloAsync(
             "Empresa que no gestiona", null, subcontrataQueNoGestiona.Id, "<p>Texto del hilo de la Empresa contraparte que el Gestor no gestiona, con su documentación.</p>",
             "soldaduras@example.test");
-        _triageCompartido = await SembrarHiloAsync(
+        _enTriaje = await SembrarHiloAsync(
             "Triage compartido", null, null, "<p>Texto del hilo sin Cliente empresarial ni Empresa, en triage compartido, con su documentación.</p>",
             "triage@example.test");
     }

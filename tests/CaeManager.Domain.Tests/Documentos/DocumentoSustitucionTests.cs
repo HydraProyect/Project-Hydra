@@ -43,7 +43,7 @@ public class DocumentoSustitucionTests
             Documento.DeEmpresa(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
             Documento.DeVehiculo(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
             Documento.DeProyecto(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
-            DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, reservado)
+            DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, AutorVersionDocumento.Desconocido, reservado)
         ];
 
         documentos.Should().OnlyContain(d => d.Id == reservado);
@@ -57,7 +57,7 @@ public class DocumentoSustitucionTests
         DeTrabajador(Guid.NewGuid()).Id.Should().NotBe(Guid.Empty);
 
         var alta = () => Documento.DeTrabajador(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: Guid.Empty);
-        var renovacion = () => DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, Guid.Empty);
+        var renovacion = () => DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, AutorVersionDocumento.Desconocido, Guid.Empty);
 
         alta.Should().Throw<ArgumentException>();
         renovacion.Should().Throw<ArgumentException>();
@@ -435,7 +435,7 @@ public class DocumentoSustitucionTests
         var trabajador = Guid.NewGuid();
         var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
 
-        var nuevo = anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, "archivos/nuevo.pdf", "Renovado");
+        var nuevo = anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, "archivos/nuevo.pdf", "Renovado", AutorVersionDocumento.Desconocido);
 
         nuevo.Id.Should().NotBe(anterior.Id);
         nuevo.TrabajadorId.Should().Be(trabajador);
@@ -457,7 +457,7 @@ public class DocumentoSustitucionTests
         var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
         anterior.SustituirPor(DeTrabajador(trabajador), MotivoSustitucionDocumento.Renovacion, Ahora);
 
-        var crear = () => anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, null, null);
+        var crear = () => anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, null, null, AutorVersionDocumento.Desconocido);
 
         crear.Should().Throw<InvalidOperationException>();
     }

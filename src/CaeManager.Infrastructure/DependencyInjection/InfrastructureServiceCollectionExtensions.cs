@@ -462,6 +462,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Inbound.CatalogoBase.ICatalogoBaseQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Requisitos.IPlantillasRequisitosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Inbound.Comercial.ILineaInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.ILineaOutboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Inbound.Requisitos.IPlantillaRequisitosRepository, PlantillaRequisitosRepository>();
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
@@ -510,6 +511,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.IContactoSeguridadTenantRepository, ContactoSeguridadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.Tenants.IConcesionCapacidadTenantRepository, ConcesionCapacidadTenantRepository>();
+        services.AddScoped<CaeManager.Domain.DerechosInteresado.ISolicitudDerechoInteresadoRepository, SolicitudDerechoInteresadoRepository>();
+        // Capacidades del Tenant (decisión D-3 del 2026-11-15): quién resuelve derechos del interesado.
+        services.AddScoped<CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant,
+            CaeManager.Application.CapacidadesTenant.AutoridadCapacidadesTenant>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
         services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -715,6 +721,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        // Lectura inversa X-2 (demo Inbound, P1): los requisitos que los Tenants TCE piden al Tenant TEC del contexto firmado.
+        services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec, LectorRequerimientosTecEnBase>();
         services.AddScoped<CaeManager.Domain.Inbound.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         // ADR-013, mecanismo 10 (K-17): Inbound aporta sus claves de archivo a los barridos del Núcleo. La declaración de
@@ -723,6 +731,9 @@ public static class InfrastructureServiceCollectionExtensions
             [CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound.NombreDelModulo]));
         services.AddSingleton<CaeManager.Infrastructure.FileStorage.IContribucionReferenciasArchivo,
             CaeManager.Infrastructure.Inbound.FileStorage.ReferenciasArchivoInbound>();
+        // Lectura inversa X-2 (demo Inbound, P0b): el veredicto de los Tenants TCE sobre los Documentos del Tenant TEC del
+        // contexto firmado. Sin consumidor todavía: la Query del Tenant TEC lo cablea en su PR.
+        services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.ILectorVeredictosTec, LectorVeredictosTecEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -853,6 +864,19 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Documentos.Verificacion.ITransaccionDocumentoBloqueado, TransaccionDocumentoBloqueado>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
+        // Exportación completa en autoservicio del Tenant propietario (#2008, D-8): la solicitud, su candado por
+        // Tenant, la contraseña protegida con Data Protection, el almacén de zips y la cola durable que los genera
+        // bajo la RLS de cada Tenant, con el patrón de la cola de análisis de arriba.
+        services.Configure<CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas>(
+            configuration.GetSection(CaeManager.Infrastructure.Exportacion.OpcionesAlmacenExportacionesCompletas.SeccionConfiguracion));
+        services.AddScoped<CaeManager.Domain.Exportacion.ISolicitudExportacionCompletaRepository, SolicitudExportacionCompletaRepository>();
+        services.AddScoped<CaeManager.Application.Exportacion.ICandadoExportacionCompleta, CaeManager.Infrastructure.Exportacion.CandadoExportacionCompleta>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IProtectorContrasenaExportacion, CaeManager.Infrastructure.Exportacion.ProtectorContrasenaExportacion>();
+        services.AddSingleton<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>();
+        services.AddSingleton<CaeManager.Application.Exportacion.IAlmacenExportacionesCompletas>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>());
+        services.AddHostedService<CaeManager.Infrastructure.Exportacion.GeneradorExportacionCompletaHostedService>();
+
         // Fase F: comprobación horaria y aviso agregado por destinatario (solo campana, sin correo en v1) de
         // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen
@@ -887,11 +911,12 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
         // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
-        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código. Y bloqueada mientras
+        // no exista la confirmación de un Gestor CAE para los Pendientes que crea (D-4, #2005): encenderla hace fallar el arranque.
         var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
         configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
             .Bind(opcionesConciliacionAcreditaciones);
-        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        if (Documentos.ConciliacionAcreditacionesEmpresaOptions.DebeRegistrarse(opcionesConciliacionAcreditaciones))
         {
             services.AddSingleton(opcionesConciliacionAcreditaciones);
             services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();

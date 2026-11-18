@@ -1,0 +1,9 @@
+.modal-confirmar-aviso-hueco {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.modal-confirmar-aviso-hueco p {
+    margin: 0;
+}

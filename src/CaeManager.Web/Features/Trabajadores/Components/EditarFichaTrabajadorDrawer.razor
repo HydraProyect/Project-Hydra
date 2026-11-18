@@ -53,6 +53,7 @@
             <option value="CuentaAjena">@Textos["TipoContratacionCuentaAjena"]</option>
             <option value="Autonomo">@Textos["TipoContratacionAutonomo"]</option>
             <option value="Voluntario">@Textos["TipoContratacionVoluntario"]</option>
+            <option value="Extranjero">@Textos["TipoContratacionExtranjero"]</option>
         </CampoSelect>
         <CampoTexto Etiqueta="@Textos["FichaTipoVinculo"]" Valor="@_vinculo" ValorChanged="v => _vinculo = v" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.TipoVinculo))" />
         <CampoTexto Etiqueta="@Textos["FichaAltaEmpresa"]" Type="date" Valor="@_alta" ValorChanged="v => _alta = v" FechaNoValida="@_fechasNoValidas.Contains(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" FechaNoValidaChanged="v => MarcarFechaNoValida(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa), v)" MensajeError="@Error(nameof(EditarFichaTrabajadorCommand.FechaAltaEmpresa))" />

@@ -275,7 +275,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new AcreditacionDocumentoPlataformaRepository(contexto), AltaAcreditacionesDePrueba.Con(contexto),
             new SerializacionAltasSinBloqueo(), new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo(),
-            AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
+            AltaAcreditacionesDePrueba.GestionAutomatica(contexto), new ActorAuditoriaFijoFalso());
 
     private static CrearDocumentoCommandHandler ConstruirHandlerCrear(CaeManagerDbContext contexto) =>
         new(
@@ -283,7 +283,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             AltaAcreditacionesDePrueba.Con(contexto),
             new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(),
-            new SerializacionAltasSinBloqueo(), AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
+            new SerializacionAltasSinBloqueo(), AltaAcreditacionesDePrueba.GestionAutomatica(contexto), new ActorAuditoriaFijoFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

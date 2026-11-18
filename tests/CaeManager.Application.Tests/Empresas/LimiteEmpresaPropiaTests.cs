@@ -201,7 +201,7 @@ public class LimiteEmpresaPropiaTests
             new CaeManager.Application.Tests.Reportes.AsignacionesQueryContextFalso(), new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(),
             new DocumentosQueryContextFalso(), empresas, new CaeManager.Application.Tests.TiposDocumento.TiposDocumentoQueryContextFalso(),
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(), new AdministracionTotal(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), limite);
+            new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), limite, new ActorAuditoriaFijoFalso());
 
     private sealed class AdministracionTotal : IAutorizacionEscrituraEfectiva
     {
