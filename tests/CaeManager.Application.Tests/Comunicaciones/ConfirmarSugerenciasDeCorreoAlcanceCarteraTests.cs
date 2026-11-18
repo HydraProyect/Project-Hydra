@@ -220,7 +220,8 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
     // ---- CrearGestionesParaTrabajadorCommand (DetalleSugerenciaGestionCorreoId y MensajeOrigenId)
 
     private (CrearGestionesParaTrabajadorCommandHandler Handler, GestionRepositorioFalso Gestiones, CrearGestionesParaTrabajadorCommand Comando, DetalleSugerenciaGestionCorreo Detalle)
-        PrepararGestiones(Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null, Guid? conexionIntegracionId = null)
+        PrepararGestiones(Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null, Guid? conexionIntegracionId = null,
+            bool? triajeVisible = null)
     {
         var trabajadorId = Guid.NewGuid();
         var centroId = Guid.NewGuid();
@@ -243,7 +244,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
             asignaciones, tipos, gestiones, detalles, _comunicaciones,
             alcance ?? new AlcanceDatosServiceFalso(
                 tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], trabajadorIdsVisibles: [trabajadorId], centroIdsVisibles: [centroId],
-                conexionesIntegracionAjenas: [_conexionDeOtroGestor]),
+                conexionesIntegracionAjenas: [_conexionDeOtroGestor], triajeVisible: triajeVisible),
             new CurrentUserServiceFalso(Guid.NewGuid()), new UnitOfWorkFalso());
 
         return (handler, gestiones, new CrearGestionesParaTrabajadorCommand(trabajadorId, tipo.Id, detalle.Id, mensaje.Id), detalle);
@@ -309,6 +310,46 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         resultado.EsExitoso.Should().BeTrue();
         detalle.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
         gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// D-6 b, R-3a: un mensaje de un hilo de la cola de triaje (sin Cliente empresarial ni Empresa) solo es visible para
+    /// quien pasa <c>TriajeVisibleAsync</c>. Al Gestor CAE de cartera acotada, las Gestiones le siguen naciendo, pero sin
+    /// <c>MensajeOrigenId</c>: el enlace se descarta en silencio, como con un mensaje de otra cartera.
+    /// </summary>
+    [Fact]
+    public async Task CrearGestiones_con_un_mensaje_de_la_cola_de_triaje_y_cartera_acotada_no_lo_enlaza()
+    {
+        var (handler, gestiones, comando, detalle) = PrepararGestiones(_clienteDeMiCartera);
+        var mensajeEnTriaje = SembrarMensajeEnTriaje();
+
+        var resultado = await handler.Handle(comando with { MensajeOrigenId = mensajeEnTriaje.Id }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        detalle.Resolucion.Should().Be(ResolucionSugerencia.Confirmada);
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CrearGestiones_con_un_mensaje_de_la_cola_de_triaje_y_triaje_visible_lo_enlaza()
+    {
+        // Control positivo del anterior: la misma cartera acotada, con el triaje abierto (ámbito del Tenant entero).
+        var (handler, gestiones, comando, _) = PrepararGestiones(_clienteDeMiCartera, triajeVisible: true);
+        var mensajeEnTriaje = SembrarMensajeEnTriaje();
+
+        var resultado = await handler.Handle(comando with { MensajeOrigenId = mensajeEnTriaje.Id }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        gestiones.Gestiones.Should().ContainSingle().Which.MensajeOrigenId.Should().Be(mensajeEnTriaje.Id);
+    }
+
+    private Mensaje SembrarMensajeEnTriaje()
+    {
+        var conversacion = new Conversacion("Correo sin triar");
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "obra@contraparte.es", "<p>Sin ancla.</p>");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMensajes.Add(mensaje);
+        return mensaje;
     }
 
     [Fact]

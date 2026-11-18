@@ -97,9 +97,50 @@ public class TriajeVisibleTests
         (await alcance.TriajeVisibleAsync()).Should().BeTrue();
     }
 
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_de_Aprovisionamiento_en_su_Tenant_objetivo_ve_el_triaje_por_su_acceso_total()
+    {
+        // Aprovisionamiento (PD-A3) tiene acceso total real en su Tenant objetivo, como SoporteLectura y BreakGlass, para
+        // el alta de contenido CAE; sin lente de demo, ese es también el acceso total efectivo, y con él se ve el triaje.
+        // Sin rol de negocio: decide el acceso total, no la lista de roles.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(null, PapelActivo.Outbound),
+            new ConSesion(TenantActual, CapacidadPrivilegio.Aprovisionamiento));
+
+        (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("control: Aprovisionamiento tiene acceso total en su Tenant objetivo");
+        (await alcance.TriajeVisibleAsync()).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("Cliente", false)]
+    public async Task Con_la_misma_identidad_y_el_mismo_ambito_solo_el_rol_decide_que_el_rol_Cliente_no_ve_el_triaje(
+        string rol, bool esperado)
+    {
+        // El rol es la única variable: el mismo doble, por la vía de Operación, con papel Inbound dentro de una petición de
+        // Inbound y sin Sesión Privilegiada. Con CoordinadorCae ese ámbito es el Tenant entero sin acceso total (control
+        // del instrumento). Con Cliente, TriajeVisibleAsync contesta sin leer la base (el contexto no tiene servidor y
+        // la cartera del rol Cliente sí la leería), así que ninguna cartera, ni la total ni la del Tenant entero, puede
+        // abrirle la cola: la cierra el rol antes de mirar el ámbito.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario(rol, PapelActivo.Inbound));
+
+        using (AmbitoPeticionInbound.Abrir())
+        {
+            if (esperado)
+            {
+                (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("control: no es el acceso total el que lo abre");
+                (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue("control: este ámbito es el Tenant entero");
+            }
+
+            (await alcance.TriajeVisibleAsync()).Should().Be(esperado);
+        }
+    }
+
     [Theory]
     [InlineData(CapacidadPrivilegio.SoporteLectura, "Administrador")]
     [InlineData(CapacidadPrivilegio.BreakGlass, "GestorCae")]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento, "Administrador")]
     public async Task Una_Sesion_Privilegiada_abierta_para_otro_Tenant_no_ve_el_triaje_aqui_ni_con_un_rol_de_la_lista(
         CapacidadPrivilegio capacidad, string rol)
     {

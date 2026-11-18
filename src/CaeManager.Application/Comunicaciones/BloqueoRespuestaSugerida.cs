@@ -111,9 +111,10 @@ public static class BloqueoRespuestaSugerida
     /// desbloquea y no provoca ninguna lectura de texto, con o sin coincidencia. Por eso tampoco se nota por el tiempo. El
     /// filtro es la regla de
     /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>
-    /// traducida a una expresión: buzón visible, y con Empresa contraparte que esté en la cartera de gestión; sin ella, que
-    /// no haya Cliente empresarial (triage compartido) o que esté entre los visibles; un conjunto nulo es acceso total.
-    /// Un test compara ambas sobre los mismos casos para que no diverjan.
+    /// traducida a una expresión: buzón visible y, por las anclas, la expresión única de <see cref="VisibilidadConversacion"/>:
+    /// con Cliente empresarial, que esté entre los visibles; con Empresa contraparte, que esté en la cartera de gestión; sin
+    /// ninguna de las dos (cola de triaje), solo si <see cref="IAlcanceDatosService.TriajeVisibleAsync"/> es verdadero. Un
+    /// conjunto nulo es acceso total. Un test compara ambas sobre los mismos casos para que no diverjan.
     /// </para>
     ///
     /// <para>

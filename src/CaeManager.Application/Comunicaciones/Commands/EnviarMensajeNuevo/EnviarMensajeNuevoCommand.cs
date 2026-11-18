@@ -34,7 +34,8 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// <paramref name="ClienteId"/> (ver <see cref="Conversacion.EmpresaId"/>).
 /// Hoy solo la usa la reclamación de documentos de empresa
 /// (<c>EnviarReclamacionEmpresaCommand</c>), que no tiene Cliente al que
-/// anclar el hilo y no puede dejarlo caer en la cola de triage compartida.
+/// anclar el hilo y no puede dejarlo caer en la cola de triage, que no tiene
+/// cartera que la acote.
 /// </param>
 /// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
 /// <param name="Origen">Camino del producto que envía; solo etiqueta el rastro de salida (<see cref="RegistroSalidaComunicaciones"/>).</param>

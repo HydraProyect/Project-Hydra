@@ -61,8 +61,9 @@ public class Conversacion : EntidadBase
     /// documentación — hoy solo lo pone la reclamación de ámbito Empresa
     /// (DEC-7). Es un ancla de ALCANCE, no un segundo "cliente": existe
     /// para que el hilo se acote a quien tiene esa Empresa en cartera en vez
-    /// de caer en la cola de triage, que por definición es compartida
-    /// (ver § 12.4 y AlcanceDatosServiceExtensions.ConversacionVisibleAsync).
+    /// de caer en la cola de triage, que no tiene cartera que la acote y solo
+    /// ve quien alcanza el Tenant entero (D-6 b, R-3a; ver
+    /// AlcanceDatosServiceExtensions.ConversacionVisibleAsync).
     ///
     /// Excluyente con <see cref="ClienteId"/>: un hilo tiene como mucho un
     /// ancla. Con las dos en null sigue significando lo de siempre —

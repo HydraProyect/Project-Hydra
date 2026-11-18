@@ -35,12 +35,16 @@ public static class AlcanceDatosServiceExtensions
         alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
     /// <summary>
-    /// Alcance sobre una entidad cuyo cliente es opcional: una
-    /// <c>Conversacion</c> todavía en la cola de triage (§ 12.4) o una
-    /// <c>MacroRespuesta</c> genérica del tenant. En ambos casos "sin cliente"
-    /// significa compartido dentro del tenant, así que es visible — quién
-    /// llega a esas pantallas lo decide el rol, no la cartera (ver
-    /// <c>RolesComunicaciones</c>).
+    /// Alcance sobre una entidad no conversacional cuyo cliente es opcional:
+    /// una <c>MacroRespuesta</c> genérica del tenant o una
+    /// <c>ConexionIntegracion</c> (buzón) sin Cliente empresarial. Ahí "sin
+    /// cliente" significa compartido dentro del tenant, así que es visible —
+    /// quién llega a esas pantallas lo decide el rol, no la cartera.
+    ///
+    /// No sirve para una <c>Conversacion</c>: una conversación sin ancla está
+    /// en la cola de triaje y solo la ve quien cumple
+    /// <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>; su regla es
+    /// <see cref="ConversacionVisibleAsync"/> (D-6 b, R-3a).
     ///
     /// Método propio en vez de repetir la condición en cada handler: invertir
     /// por error el caso "sin cliente" abre justo el agujero que esto cierra
@@ -160,13 +164,14 @@ public static class AlcanceDatosServiceExtensions
     /// Y, si el hilo está atado a un buzón personal de un gestor
     /// (<c>ConexionIntegracion.GestorPropietarioId</c>), que sea el propio
     /// dueño. Sin esto, un hilo de un buzón personal ajeno —que también tiene
-    /// ClienteId null— se colaba en la cola de triage compartida como si
-    /// fuera de cualquiera.
+    /// ClienteId null— se colaba en la cola de triaje como si fuera de
+    /// cualquiera.
     ///
     /// <paramref name="empresaId"/> es obligatorio en la firma, y no un
     /// parámetro opcional, a propósito: un llamador que se olvidara de
-    /// pasarlo trataría un hilo anclado a una Empresa como triage compartido
-    /// —visible para toda la gestión CAE— sin que nada lo delatara. Que el
+    /// pasarlo trataría un hilo anclado a una Empresa como triaje —visible
+    /// para quien pasa <see cref="IAlcanceDatosService.TriajeVisibleAsync"/>
+    /// aunque esa Empresa no esté en su alcance— sin que nada lo delatara. Que el
     /// compilador lo exija es lo que impide esa migración a medias.
     /// </summary>
     public static async Task<bool> ConversacionVisibleAsync(

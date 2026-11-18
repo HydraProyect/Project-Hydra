@@ -61,21 +61,24 @@ public class VisibilidadTriageTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_rol_Cliente_no_ve_la_cola_de_triage_en_la_lista()
+    public async Task El_rol_Cliente_no_ve_la_cola_de_triage_en_la_lista_ni_con_la_cartera_total_y_el_Tenant_entero()
     {
-        var conversaciones = await ListarComo("Cliente");
+        // El rol es la única variable: cartera sin restricción, ámbito del Tenant entero, y la cola cerrada solo porque
+        // TriajeVisibleAsync es falso para el rol Cliente (lo fija contra el servicio real TriajeVisibleTests). Con la
+        // cartera de lista de antes, el «no ve» lo podía explicar la cartera y no el rol.
+        var conversaciones = await ListarComo("Cliente", AlcanceDelRolClienteConTodoLoDemasAbierto());
 
-        conversaciones.Should().ContainSingle("solo debe ver lo suyo")
+        conversaciones.Should().ContainSingle("con la cartera total ve su hilo anclado, pero no la cola de triaje")
             .Which.ClienteId.Should().Be(_clientePropio);
     }
 
     [Fact]
-    public async Task El_rol_Cliente_no_abre_un_hilo_sin_triar_aunque_tenga_el_Guid()
+    public async Task El_rol_Cliente_no_abre_un_hilo_sin_triar_aunque_tenga_el_Guid_ni_con_la_cartera_total_y_el_Tenant_entero()
     {
         // Acotar solo el listado dejaba el hilo accesible por Id.
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, AlcanceDelRolClienteConTodoLoDemasAbierto(),
             new GanssSanitizadorHtmlService(),
             new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
@@ -84,6 +87,14 @@ public class VisibilidadTriageTests : IAsyncLifetime
 
         detalle.Should().BeNull();
     }
+
+    /// <summary>
+    /// Cartera de Clientes y alcance de Empresas sin restricción (con ellos, el doble daría acceso total y el Tenant
+    /// entero), y solo el triaje cerrado, que es lo que <c>AlcanceDatosService.TriajeVisibleAsync</c> contesta al rol
+    /// Cliente antes de mirar el ámbito. Así la única diferencia con un Gestor CAE del Tenant entero es la del rol.
+    /// </summary>
+    private static AlcanceDatosServiceFalso AlcanceDelRolClienteConTodoLoDemasAbierto() =>
+        new(triajeVisible: false);
 
     [Fact]
     public async Task Un_gestor_no_abre_por_Id_un_hilo_del_buzon_personal_de_otro_gestor()
@@ -148,14 +159,17 @@ public class VisibilidadTriageTests : IAsyncLifetime
         (await DetalleSinClienteComo(triajeVisible: true)).Should().NotBeNull();
     }
 
-    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, bool? triajeVisible = null)
+    private Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, bool? triajeVisible = null) =>
+        ListarComo(rol, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], triajeVisible: triajeVisible));
+
+    private async Task<IReadOnlyList<ConversacionListaDto>> ListarComo(string rol, AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
             contexto,
             contexto,
             contexto,
-            new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], triajeVisible: triajeVisible),
+            alcance,
             new CurrentUserServiceFalso(rol: rol));
 
         return (await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None)).Elementos;
