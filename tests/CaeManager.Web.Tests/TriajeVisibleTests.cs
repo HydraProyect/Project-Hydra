@@ -265,6 +265,23 @@ public class TriajeVisibleTests
         (await alcance.BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Con_el_papel_Inbound_dentro_de_una_peticion_de_Inbound_el_buzon_personal_propio_se_busca_en_la_base()
+    {
+        // Control positivo de la guarda de papel: el papel Inbound solo se cierra fuera de una petición de Inbound. Dentro
+        // tiene alcance de datos (el de Inbound), así que la guarda no corta y se llega a la consulta (que aquí falla, porque
+        // no hay servidor). Una guarda que cerrara el papel Inbound sin mirar el ámbito de la petición lo pondría en rojo.
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("GestorCae", PapelActivo.Inbound));
+
+        using (AmbitoPeticionInbound.Abrir())
+        {
+            var buscar = () => alcance.BuzonesPersonalesPropiosAsync();
+
+            await buscar.Should().ThrowAsync<Exception>("control: con alcance de Inbound, la guarda de papel no corta");
+        }
+    }
+
     private static AlcanceDatosService Alcance(
         CaeManagerDbContext contexto, ICurrentUserService usuario, ISesionPrivilegiadaActual? sesion = null) =>
         new(contexto, usuario, new TenantActualAmbiental { TenantId = TenantActual }, sesion ?? new ConSesion(null));
