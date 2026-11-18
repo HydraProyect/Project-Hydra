@@ -159,7 +159,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     public async Task Retirar_la_sesion_privilegiada_a_mitad_de_operacion_devuelve_el_rol_en_el_comando_siguiente()
     {
         var puerta = new PuertaAccesoDatos();
-        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = Guid.NewGuid() };
+        var seleccion = new SeleccionMutable { TenantIdSeleccionado = TenantA, SesionPrivilegiadaIdSeleccionada = Guid.NewGuid() };
         var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
         await using var _ = contexto;
 
@@ -195,7 +195,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     {
         var puerta = new PuertaAccesoDatos();
         var sesion = Guid.NewGuid();
-        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var seleccion = new SeleccionMutable { TenantIdSeleccionado = TenantA, SesionPrivilegiadaIdSeleccionada = sesion };
         var (contexto, aperturas) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
         await using var _ = contexto;
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
@@ -259,7 +259,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     {
         var puerta = new PuertaAccesoDatos();
         var sesion = Guid.NewGuid();
-        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var seleccion = new SeleccionMutable { TenantIdSeleccionado = TenantA, SesionPrivilegiadaIdSeleccionada = sesion };
         var (contexto, _) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
         await using var __ = contexto;
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
@@ -299,7 +299,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     {
         var puerta = new PuertaAccesoDatos();
         var sesion = Guid.NewGuid();
-        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var seleccion = new SeleccionMutable { TenantIdSeleccionado = TenantA, SesionPrivilegiadaIdSeleccionada = sesion };
         var (contexto, _) = CrearContextoRuntime(new TenantMutable(TenantA), seleccion, puerta);
         await using var __ = contexto;
         var elevacion = new ElevacionEscrituraPrivilegiada(contexto);
@@ -352,7 +352,7 @@ public class ConexionPorOperacionTests : IAsyncLifetime
     {
         var puerta = new PuertaAccesoDatos();
         var sesion = Guid.NewGuid();
-        var seleccion = new SeleccionMutable { SesionPrivilegiadaIdSeleccionada = sesion };
+        var seleccion = new SeleccionMutable { TenantIdSeleccionado = TenantA, SesionPrivilegiadaIdSeleccionada = sesion };
         var tenant = new TenantMutable(TenantA);
         var usuario = new UsuarioQueFallaAlResolver(Guid.NewGuid(), () => tenant.TenantId);
         var fallosDeTransaccion = new AccionesDeTransaccionFallidas();
@@ -790,7 +790,12 @@ public class ConexionPorOperacionTests : IAsyncLifetime
 
     internal sealed class SeleccionMutable : IClienteActivoSeleccionado
     {
-        public Guid? TenantIdSeleccionado => null;
+        /// <summary>
+        /// Con una Sesión Privilegiada, el Tenant objetivo que nombra la selección. En producción la cookie no
+        /// trae sesión sin Tenant (<c>ClienteActivoSeleccionado.LeerCargaUtil</c>), y la guarda del interceptor
+        /// (#2351) deja sin Tenant y en soporte una sesión cuyo Tenant efectivo no es el seleccionado.
+        /// </summary>
+        public Guid? TenantIdSeleccionado { get; set; }
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada { get; set; }
     }
