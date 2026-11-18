@@ -15,7 +15,7 @@ namespace CaeManager.Infrastructure.Inbound;
 /// llavero de Data Protection, con la privada protegida por Data Protection (que a su vez se cifra en reposo con el
 /// certificado o KMS que ya configura <c>RegistroDataProtection</c>). La pública va en claro (no es secreta), pero el
 /// conjunto de claves de confianza lleva una marca de integridad protegida por Data Protection: sin Data Protection ni se
-/// firma ni se verifica, y un JSON manipulado se rechaza. Sin tabla nueva ni migración.
+/// firma ni se verifica, y un JSON manipulado se rechaza (no impide volver a una versión anterior del fichero: tras restaurar un backup posterior a una rotación de emergencia hay que repetirla). Sin tabla nueva ni migración.
 ///
 /// Varios procesos (durante un relevo azul/verde conviven dos contenedores y el migrador monta el mismo volumen):
 /// toda escritura toma un cerrojo de fichero, relee el estado del disco y escribe con un temporal único; las lecturas
@@ -38,6 +38,7 @@ public sealed class LlaveroCredencialAcceso
     private readonly object _cerrojo = new();
     private List<ClaveLlavero>? _claves;
     private (bool Existe, DateTime Escritura, long Longitud) _sello;
+    private (bool Existe, DateTime Escritura, long Longitud) _selloAvisado;
 
     public LlaveroCredencialAcceso(string rutaFichero, IDataProtectionProvider proveedor, ILogger? registrador = null)
     {
@@ -216,9 +217,13 @@ public sealed class LlaveroCredencialAcceso
                                        or CryptographicException or FormatException)
         {
             _claves = null;
-            _registrador?.LogError(ex,
+            if (_selloAvisado != _sello) // un aviso por versión ilegible del fichero, no uno por cada lectura de QR
+            {
+                _selloAvisado = _sello;
+                _registrador?.LogError(ex,
                 "El llavero de credenciales de acceso ({Ruta}) no se puede leer: toda verificación se deniega y no se firma hasta repararlo.",
                 _ruta);
+            }
             throw ex is InvalidOperationException
                 ? ex
                 : new InvalidOperationException("El llavero de credenciales de acceso no se puede leer.", ex);
@@ -232,7 +237,7 @@ public sealed class LlaveroCredencialAcceso
     private static string ResumenDe(IEnumerable<ClaveLlavero> claves) =>
         Convert.ToBase64String(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join('\n',
             claves.OrderBy(c => c.Kid, StringComparer.Ordinal).Select(c =>
-                $"{c.Kid}|{c.Activa}|{c.SpkiBase64}|{c.MaxFechaFirmada?.ToString("yyyyMMdd")}")))));
+                $"{c.Kid}|{c.Activa}|{c.SpkiBase64}|{c.MaxFechaFirmada?.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture)}")))));
 
     private bool IntegridadValida(FicheroLlavero fichero) =>
         fichero.Integridad is not null
@@ -243,8 +248,23 @@ public sealed class LlaveroCredencialAcceso
     private void Guardar(List<ClaveLlavero> claves)
     {
         var temporal = _ruta + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(temporal, JsonSerializer.Serialize(new FicheroLlavero(1, claves, _protector.Protect(ResumenDe(claves))), OpcionesJson));
-        File.Move(temporal, _ruta, overwrite: true);
+        try
+        {
+            using (var salida = new FileStream(temporal, FileMode.CreateNew, FileAccess.Write))
+            {
+                salida.Write(System.Text.Encoding.UTF8.GetBytes(
+                    JsonSerializer.Serialize(new FicheroLlavero(1, claves, _protector.Protect(ResumenDe(claves))), OpcionesJson)));
+                salida.Flush(flushToDisk: true); // sin esto un corte de luz podría dejar el fichero vacío o con la versión anterior
+            }
+
+            File.Move(temporal, _ruta, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(temporal); } catch (IOException) { }
+            throw;
+        }
+
         _claves = claves;
         var info = new FileInfo(_ruta);
         _sello = (true, info.LastWriteTimeUtc, info.Length);

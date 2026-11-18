@@ -31,7 +31,10 @@ public interface IFirmanteCredencialAcceso
 /// <summary>Rotación del llavero. La de emergencia invalida todos los tokens emitidos hasta ese momento.</summary>
 public interface IAdministradorLlaveroCredencialAcceso
 {
-    /// <summary>La activa pasa a anterior (sigue verificando), la anterior se retira y nace una activa nueva.</summary>
+    /// <summary>
+    /// Nace una activa nueva y la activa pasa a anterior (solo verifica). Las anteriores se conservan mientras hayan firmado
+    /// alguna fecha máxima no vencida (plan AF-03: conviven «hasta la mayor fecha máxima emitida») y se retiran después.
+    /// </summary>
     void Rotar();
 
     /// <summary>Retira todas las claves y crea una nueva: ningún token emitido hasta ahora vuelve a verificar.</summary>

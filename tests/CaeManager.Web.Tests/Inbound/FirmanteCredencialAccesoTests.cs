@@ -326,7 +326,7 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
     public void Un_tope_desmesurado_se_recorta_y_todos_los_tokens_emitidos_verifican()
     {
         var f = Crear(tope: 100_000);
-        var centros = Enumerable.Range(1, 50).Select(i => new CentroConFechaMaxima(
+        var centros = Enumerable.Range(1, 95).Select(i => new CentroConFechaMaxima(
             Guid.Parse($"bbbbbbbb-0000-0000-0000-{i:D12}"), new DateOnly(2026, 12, 31))).ToList();
 
         var tokens = f.Firmar(new CredencialParaFirmar(CredencialId, 3, centros));
@@ -334,7 +334,37 @@ public sealed class FirmanteCredencialAccesoTests : IDisposable
         tokens.Should().NotBeEmpty();
         tokens.Should().OnlyContain(t => t.Length <= 4096);
         tokens.Select(t => f.Verificar(t)).Should().OnlyContain(v => v != null);
-        tokens.SelectMany(t => f.Verificar(t)!.Centros).Should().HaveCount(50);
+        tokens.SelectMany(t => f.Verificar(t)!.Centros).Should().HaveCount(95);
+    }
+
+    [Fact]
+    public void Una_clave_anterior_se_conserva_el_mismo_dia_de_su_fecha_maxima_y_se_retira_al_dia_siguiente()
+    {
+        var f = Crear();
+        var t0 = UnToken(f); // 2026-12-31
+        f.Rotar();
+        f.Rotar();
+
+        _reloj.Ahora = new DateTimeOffset(2026, 12, 31, 12, 0, 0, TimeSpan.Zero);
+        f.Rotar();
+        f.Verificar(t0).Should().NotBeNull("el 31 la credencial aún vale");
+
+        _reloj.Ahora = new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        f.Rotar();
+        f.Verificar(t0).Should().BeNull();
+    }
+
+    [Fact]
+    public void Instancias_en_paralelo_sobre_el_mismo_fichero_no_pierden_la_primera_clave()
+    {
+        // Cada instancia hace de proceso distinto (caché propia); el cerrojo de fichero y la relectura impiden que dos
+        // «primeras emisiones» creen dos claves y la segunda pise a la primera.
+        var tokens = Enumerable.Range(0, 8).AsParallel().WithDegreeOfParallelism(8)
+            .Select(_ => { var f = Crear(); return (f, token: UnToken(f)); }).ToList();
+
+        var uno = Crear();
+        tokens.Select(x => uno.Verificar(x.token)).Should().OnlyContain(v => v != null, "todos firmaron con la misma clave persistida");
+        uno.ClavesPublicasVigentes().Should().ContainSingle();
     }
 
     private IReadOnlyList<System.Text.Json.JsonElement> LeerClavesDelFichero() =>
