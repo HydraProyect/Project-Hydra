@@ -354,7 +354,7 @@ public partial class AsistenteIa : IDisposable
         ClienteAutorizadoDto? empresa;
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true });
             empresa = ClientesAutorizados.Activo(autorizados, tenantEfectivo);
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)

@@ -198,6 +198,172 @@ public class ClienteActivoEndpointsAutorizacionTests
     }
 
     /// <summary>
+    /// D-4: el papel recordado es una preferencia del selector, protegida y ligada al usuario. Una cookie de otro usuario,
+    /// manipulada o de otra clave se lee como vacía.
+    /// </summary>
+    [Theory]
+    [InlineData("propia", true)]
+    [InlineData("de-otro-usuario", false)]
+    [InlineData("manipulada", false)]
+    [InlineData("de-otra-clave", false)]
+    [InlineData("en-claro", false)]
+    public void El_papel_recordado_solo_se_lee_si_es_del_usuario_y_de_esta_clave(string caso, bool seLee)
+    {
+        var valor = caso switch
+        {
+            "de-otro-usuario" => CookiePapel(_protector, Guid.NewGuid(), ServicioCae.Inbound),
+            "manipulada" => CookiePapel(_protector, Usuario, ServicioCae.Inbound)[..^4] + "AAAA",
+            "de-otra-clave" => CookiePapel(new EphemeralDataProtectionProvider(), Usuario, ServicioCae.Inbound),
+            "en-claro" => $"{Usuario:N}|{Destino:N}:I",
+            _ => CookiePapel(_protector, Usuario, ServicioCae.Inbound),
+        };
+
+        var leidos = PapelRecordadoSelectorTenant.Interpretar(valor, _protector, Usuario);
+
+        if (seLee) leidos.Should().Equal(new System.Collections.Generic.Dictionary<Guid, ServicioCae> { [Destino] = ServicioCae.Inbound });
+        else leidos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El endpoint no lee el papel recordado: sin <c>servicio</c> (Mi trabajo, Visión de cartera, enlaces a una ficha) abre
+    /// Outbound aunque la cookie recuerde Inbound, y la cookie nunca abre por sí misma un Tenant que no autoriza.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Sin_servicio_el_papel_recordado_no_cambia_la_via_que_se_pide(bool conOutbound)
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var inbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        db.AddRange(inbound,
+            AsignacionCartera.Externa(inbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        AsignacionOperacion? outbound = null;
+        if (conOutbound)
+        {
+            var delegacion = new DelegacionTenant(Origen, Destino);
+            outbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+                ahora.AddDays(-2), null, ahora);
+            outbound.FijarOrigen(delegacion);
+            db.AddRange(delegacion, outbound,
+                AsignacionCartera.Externa(outbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        }
+        db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        var http = ContextoConPapelRecordado(CookiePapel(_protector, Usuario, ServicioCae.Inbound));
+
+        Comprobar(await Cambiar(Destino, http, db), http, conOutbound, outbound?.Id);
+        if (conOutbound) PapelRecordadoEn(http).Should().Be(ServicioCae.Outbound, "se recuerda el papel que se acaba de abrir");
+    }
+
+    [Fact]
+    public async Task Con_servicio_Inbound_autorizado_se_recuerda_Inbound_para_ese_Tenant()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var inbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        db.AddRange(inbound,
+            AsignacionCartera.Externa(inbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        var http = Contexto();
+        Comprobar(await Cambiar(Destino, http, db, ServicioCae.Inbound), http, true, inbound.Id);
+        PapelRecordadoEn(http).Should().Be(ServicioCae.Inbound);
+    }
+
+    [Fact]
+    public async Task Con_servicio_explicito_el_papel_recordado_no_cuenta_y_se_recuerda_el_elegido()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        var outbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        outbound.FijarOrigen(delegacion);
+        var inbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Inbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        db.AddRange(delegacion, outbound, inbound,
+            AsignacionCartera.Externa(outbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora),
+            AsignacionCartera.Externa(inbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        db.TenantsConLineaInbound.Add(Destino);
+        await db.SaveChangesAsync();
+
+        var http = ContextoConPapelRecordado(CookiePapel(_protector, Usuario, ServicioCae.Inbound));
+        Comprobar(await Cambiar(Destino, http, db, ServicioCae.Outbound), http, true, outbound.Id);
+        PapelRecordadoEn(http).Should().Be(ServicioCae.Outbound);
+    }
+
+    /// <summary>La vía heredada no llega por una Asignación de Operación: abre el Tenant, pero no recuerda ningún papel.</summary>
+    [Fact]
+    public async Task La_via_heredada_no_recuerda_ningun_papel()
+    {
+        await using var db = await CrearContexto();
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
+        await db.SaveChangesAsync();
+        var http = Contexto();
+
+        Comprobar(await Cambiar(Destino, http, db), http, true, null);
+        http.Response.Headers.SetCookie.Should().NotContain(c => c!.StartsWith(PapelRecordadoSelectorTenant.NombreCookie + "=", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Con una Asignación de Operación que autoriza, si la auditoría del cambio falla no se emite nada: ni la selección ni
+    /// el papel recordado, que va después de la auditoría.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_auditoria_falla_con_una_operacion_que_autoriza_no_se_recuerda_el_papel()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        var outbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        outbound.FijarOrigen(delegacion);
+        db.AddRange(delegacion, outbound,
+            AsignacionCartera.Externa(outbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        await db.SaveChangesAsync();
+        var http = Contexto();
+
+        var cambiar = () => CambiarAuditado(Destino, http, db, new RegistroCambioFalso { Lanzar = true });
+
+        await cambiar.Should().ThrowAsync<InvalidOperationException>();
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+
+        // Control: la misma petición con la auditoría en pie sí recuerda el papel.
+        var control = Contexto();
+        await CambiarAuditado(Destino, control, db, new RegistroCambioFalso());
+        PapelRecordadoEn(control).Should().Be(ServicioCae.Outbound);
+    }
+
+    private static string CookiePapel(IDataProtectionProvider proveedor, Guid usuario, ServicioCae servicio)
+    {
+        var http = new DefaultHttpContext();
+        PapelRecordadoSelectorTenant.Registrar(http, proveedor, usuario, Destino, servicio);
+        var cabecera = http.Response.Headers.SetCookie.Single()!;
+        return Uri.UnescapeDataString(cabecera.Split(';')[0][(PapelRecordadoSelectorTenant.NombreCookie.Length + 1)..]);
+    }
+
+    private DefaultHttpContext ContextoConPapelRecordado(string valor)
+    {
+        var http = Contexto();
+        http.Request.Headers.Cookie = http.Request.Headers.Cookie + "; " + PapelRecordadoSelectorTenant.NombreCookie + "=" + valor;
+        return http;
+    }
+
+    private ServicioCae? PapelRecordadoEn(HttpContext http)
+    {
+        var cabecera = http.Response.Headers.SetCookie
+            .Single(c => c!.StartsWith(PapelRecordadoSelectorTenant.NombreCookie + "=", StringComparison.Ordinal))!;
+        var valor = Uri.UnescapeDataString(cabecera.Split(';')[0][(PapelRecordadoSelectorTenant.NombreCookie.Length + 1)..]);
+        return PapelRecordadoSelectorTenant.Interpretar(valor, _protector, Usuario).TryGetValue(Destino, out var s) ? s : null;
+    }
+
+    /// <summary>
     /// D-6 b, R-2: el cambio con éxito queda auditado en el Tenant de destino, con la operación y la versión de la
     /// selección nueva (la de la cookie que se emite), antes de emitir la cookie; un rechazo no lo registra.
     /// </summary>

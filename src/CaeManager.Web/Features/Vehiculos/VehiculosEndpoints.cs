@@ -36,7 +36,7 @@ public static class VehiculosEndpoints
     {
         // Estado 4a, igual que /trabajadores/exportar.xlsx: quien tiene que elegir una empresa
         // de su cartera no ve en la página los datos del Tenant de origen y tampoco los exporta.
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/vehiculos");
 

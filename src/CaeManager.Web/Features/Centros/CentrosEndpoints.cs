@@ -32,7 +32,7 @@ public static class CentrosEndpoints
         // Estado 4a, igual que /trabajadores/exportar.xlsx: Centros.razor no muestra los Centros del
         // Tenant de origen a quien tiene que elegir una empresa de su cartera
         // (ContextoEmpresaActiva.ResolverAsync); el endpoint tampoco los consulta ni genera el archivo.
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/centros");
 

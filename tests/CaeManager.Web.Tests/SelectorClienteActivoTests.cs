@@ -11,6 +11,7 @@ using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Marco.Queries.ObtenerContextoMarco;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
@@ -47,7 +48,8 @@ public class SelectorClienteActivoTests : BunitContext
 
     private sealed class Mediador(
         Func<IReadOnlyList<ClienteAutorizadoDto>> lista, Func<Task<MiTrabajoAgregadoDto>> miTrabajo, Action alCalcularMiTrabajo,
-        Func<bool> participaEnIncorporacion, Action alPedirContextoMarco) : IMediator
+        Func<bool> participaEnIncorporacion, Action alPedirContextoMarco,
+        Func<IReadOnlyList<ClienteAutorizadoDto>?> listaPorPapel) : IMediator
     {
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
@@ -58,6 +60,7 @@ public class SelectorClienteActivoTests : BunitContext
                 alPedirContextoMarco();
                 return (T)(object)await ContextoMarcoDePrueba.ComponerAsync(this, cancellationToken);
             }
+            if (request is ObtenerClientesAutorizadosQuery { PorPapel: true } && listaPorPapel() is { } porPapel) return (T)(object)porPapel;
             if (request is ObtenerClientesAutorizadosQuery) return (T)(object)lista();
             if (request is CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery)
                 return (T)(object)participaEnIncorporacion();
@@ -78,14 +81,21 @@ public class SelectorClienteActivoTests : BunitContext
         public Task Publish<T>(T notification, CancellationToken cancellationToken = default) where T : INotification => Task.CompletedTask;
     }
 
-    private sealed class UsuarioFalso : ICurrentUserService
+    private sealed class UsuarioFalso(Func<PapelActivo>? papel = null, Func<string>? rol = null) : ICurrentUserService
     {
+        public Task<PapelActivo> ObtenerPapelActivoAsync() => Task.FromResult(papel?.Invoke() ?? PapelActivo.SinPapel);
         public static readonly Guid Id = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Id);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol?.Invoke() ?? "GestorCae");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Origen);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class PapelesRecordadosFalsos(Func<IReadOnlyDictionary<Guid, ServicioCae>> papeles) : ILectorPapelRecordadoSelectorTenant
+    {
+        public IReadOnlyDictionary<Guid, ServicioCae> Leer(Guid usuarioId) =>
+            usuarioId == UsuarioFalso.Id ? papeles() : new Dictionary<Guid, ServicioCae>();
     }
 
     private sealed class RecientesFalsos(Func<IReadOnlyList<Guid>> lista) : ILectorRecientesSelectorTenant
@@ -95,6 +105,10 @@ public class SelectorClienteActivoTests : BunitContext
 
     private IReadOnlyList<ClienteAutorizadoDto> _lista = [];
     private IReadOnlyList<Guid> _recientes = [];
+    private IReadOnlyList<ClienteAutorizadoDto>? _listaPorPapel;
+    private PapelActivo _papel = PapelActivo.SinPapel;
+    private string _rol = "GestorCae";
+    private IReadOnlyDictionary<Guid, ServicioCae> _papelesRecordados = new Dictionary<Guid, ServicioCae>();
     private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
     private int _cuantasVecesSeCalculoMiTrabajo;
     private bool _participaEnIncorporacion;
@@ -107,10 +121,11 @@ public class SelectorClienteActivoTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++,
-            () => _participaEnIncorporacion, () => _contextosPedidos++));
+            () => _participaEnIncorporacion, () => _contextosPedidos++, () => _listaPorPapel));
         Services.AddScoped<ContextoMarcoDelAmbito>();
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
-        Services.AddScoped<ICurrentUserService, UsuarioFalso>();
+        Services.AddScoped<ICurrentUserService>(_ => new UsuarioFalso(() => _papel, () => _rol));
+        Services.AddScoped<ILectorPapelRecordadoSelectorTenant>(_ => new PapelesRecordadosFalsos(() => _papelesRecordados));
         // El Tenant efectivo es el seleccionado, como en la composición real: entra en la clave de la presentación.
         Services.AddScoped<ITenantActual>(sp =>
             sp.GetRequiredService<IClienteActivoSeleccionado>() as ITenantActual ?? new SeleccionEmpresaGestionadaDePrueba());
@@ -339,13 +354,20 @@ public class SelectorClienteActivoTests : BunitContext
 
         await Abrir(cut);
 
-        var formulario = cut.Find(".selector-tenant-panel form");
-        formulario.GetAttribute("method").Should().Be("post");
-        formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
-        formulario.QuerySelector("input[name=__RequestVerificationToken]")!.GetAttribute("value").Should().Be("token-de-prueba");
-        formulario.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Be("/trabajadores",
-            "los filtros con Ids del Tenant anterior no sobreviven al cambio (I14)");
-        var botones = formulario.QuerySelectorAll("button[type=submit][name=tenantId]");
+        // Cada opción es su propio formulario (D-4: así una entrada con papel puede enviar también su servicio).
+        var formularios = cut.FindAll(".selector-tenant-panel form");
+        formularios.Should().HaveCount(3);
+        foreach (var formulario in formularios)
+        {
+            formulario.GetAttribute("method").Should().Be("post");
+            formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+            formulario.QuerySelector("input[name=__RequestVerificationToken]")!.GetAttribute("value").Should().Be("token-de-prueba");
+            formulario.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Be("/trabajadores",
+                "los filtros con Ids del Tenant anterior no sobreviven al cambio (I14)");
+            formulario.QuerySelector("input[name=servicio]").Should().BeNull("una entrada sin papel no envía servicio");
+            formulario.QuerySelectorAll("button[type=submit][name=tenantId]").Should().HaveCount(1);
+        }
+        var botones = cut.FindAll(".selector-tenant-panel form button[type=submit][name=tenantId]");
         botones.Select(b => b.GetAttribute("value")).Should().BeEquivalentTo(
             new[] { Norte, Sur, Origen }.Select(id => id.ToString()));
     }
@@ -961,5 +983,266 @@ public class SelectorClienteActivoTests : BunitContext
         while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "src", "CaeManager.Web")))
             dir = dir.Parent;
         return Path.Combine([dir!.FullName, "src", "CaeManager.Web", .. partes]);
+    }
+
+    // --- Selector de papel (D-4): una entrada por Asignación de Operación -----------------------
+
+    private static ClienteAutorizadoDto ConPapel(Guid id, string nombre, ServicioCae servicio) =>
+        Gestionado(id, nombre) with { Servicio = servicio };
+
+    /// <summary>El formulario de la entrada de ese Tenant con ese papel (o sin papel), dentro de un grupo dado.</summary>
+    private static AngleSharp.Dom.IElement? FormularioDe(
+        IRenderedComponent<SelectorClienteActivo> cut, Guid tenant, ServicioCae? servicio, string ambito = ".selector-tenant-panel") =>
+        cut.FindAll($"{ambito} form.selector-tenant-fila-envoltorio").FirstOrDefault(f =>
+            f.QuerySelector($"button[name='tenantId'][value='{tenant}']") is not null
+            && f.QuerySelector("input[name='servicio']")?.GetAttribute("value") == servicio?.ToString());
+
+    private void DosPapelesSobreNorte()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel =
+        [
+            Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound),
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound),
+        ];
+    }
+
+    [Fact]
+    public async Task D4_cada_Asignacion_de_Operacion_es_una_entrada_con_su_pastilla_y_envia_su_servicio()
+    {
+        DosPapelesSobreNorte();
+        var cut = Renderizar(seleccionado: Sur);
+        await Abrir(cut);
+
+        cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
+            .Should().BeEquivalentTo(["Outbound", "Inbound", "Outbound"]);
+
+        var inbound = FormularioDe(cut, Norte, ServicioCae.Inbound);
+        inbound.Should().NotBeNull("la entrada Inbound de Empresa Norte envía servicio=Inbound");
+        inbound!.GetAttribute("method").Should().Be("post");
+        inbound.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+        inbound.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
+        inbound.QuerySelector(".selector-tenant-papel")!.TextContent.Trim().Should().Be("Inbound");
+        inbound.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Empresa Norte · Inbound");
+        FormularioDe(cut, Norte, ServicioCae.Outbound).Should().NotBeNull("la de Outbound es otra entrada del mismo Tenant");
+
+        // El origen no tiene papel: su formulario no envía servicio.
+        FormularioDe(cut, Origen, null, "[data-selector-tenant-origen]").Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// O-2 (b), Chris 2026-11-17: el selector de papel no mira el rol. El Administrador, la Dirección CAE, el
+    /// Coordinador CAE y la Consulta del Operador CAE externo que llegan por una Asignación de Operación Inbound reciben
+    /// sus entradas con pastilla (la consulta las decide con los predicados del POST) y el selector las pinta.
+    /// </summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("Consulta")]
+    public async Task O2_otro_perfil_del_Operador_CAE_externo_con_Asignacion_de_Operacion_ve_el_selector_de_papel(string rol)
+    {
+        _rol = rol;
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte") with { EsCarteraGestorCae = false }];
+        _listaPorPapel =
+        [
+            Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound) with { EsCarteraGestorCae = false },
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Inbound) with { EsCarteraGestorCae = false },
+        ];
+
+        var cut = Renderizar();
+        cut.FindAll(".selector-tenant").Should().NotBeEmpty();
+        await Abrir(cut);
+
+        cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
+            .Should().BeEquivalentTo(["Outbound", "Inbound"]);
+        FormularioDe(cut, Sur, ServicioCae.Inbound).Should().NotBeNull("la entrada Inbound envía servicio=Inbound al POST, que revalida");
+    }
+
+    [Fact]
+    public void O2_el_Administrador_del_Tenant_propio_sigue_sin_selector_de_papel()
+    {
+        // Sin ninguna Asignación de Operación la consulta devuelve la lista sin papel (lo fija el handler real en
+        // ObtenerClientesAutorizadosPorPapelTests); el selector no pinta nada.
+        _rol = "Administrador";
+        _lista = [Propio()];
+        _listaPorPapel = [Propio()];
+
+        var cut = Renderizar();
+
+        cut.FindAll(".selector-tenant").Should().BeEmpty();
+        cut.FindAll(".selector-tenant-papel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task D4_la_entrada_activa_es_la_del_Tenant_y_el_papel_que_resolvio_el_servidor()
+    {
+        DosPapelesSobreNorte();
+        _papel = PapelActivo.Inbound;
+        var cut = Renderizar(seleccionado: Norte);
+
+        cut.Find(".selector-tenant-disparador .selector-tenant-papel").TextContent.Trim().Should().Be("Inbound");
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true");
+        FormularioDe(cut, Norte, ServicioCae.Outbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("false",
+            "un papel cada vez: la otra entrada del mismo Tenant no está activa");
+    }
+
+    [Fact]
+    public async Task D4_las_recientes_preseleccionan_el_ultimo_papel_recordado_para_ese_Tenant()
+    {
+        DosPapelesSobreNorte();
+        _recientes = [Norte];
+        _papelesRecordados = new Dictionary<Guid, ServicioCae> { [Norte] = ServicioCae.Inbound };
+        var cut = Renderizar(seleccionado: Sur);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound, "[aria-labelledby='selector-tenant-recientes']")
+            .Should().NotBeNull("la reciente de Empresa Norte abre el papel que eligió la última vez");
+        FormularioDe(cut, Norte, ServicioCae.Outbound, "[aria-labelledby='selector-tenant-recientes']").Should().BeNull();
+        FormularioDe(cut, Norte, ServicioCae.Outbound, ".selector-tenant-lista").Should().NotBeNull(
+            "la otra entrada del mismo Tenant sigue en la lista");
+    }
+
+    [Fact]
+    public async Task D4_un_papel_recordado_que_ya_no_esta_entre_las_entradas_se_ignora()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound), ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound)];
+        _recientes = [Norte];
+        _papelesRecordados = new Dictionary<Guid, ServicioCae> { [Norte] = ServicioCae.Inbound };
+        var cut = Renderizar(seleccionado: Sur);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Outbound, "[aria-labelledby='selector-tenant-recientes']")
+            .Should().NotBeNull("sin entrada Inbound vigente, la reciente abre la que haya");
+    }
+
+    [Fact]
+    public void D4_una_entrada_Inbound_hace_visible_el_selector_aunque_la_lista_por_Tenant_no_lo_pida()
+    {
+        _lista = [Propio()];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound)];
+
+        Renderizar().FindAll(".selector-tenant").Should().NotBeEmpty("el selector es el único sitio donde se elige el papel Inbound");
+    }
+
+    [Fact]
+    public async Task D4_la_via_heredada_conserva_su_entrada_sin_papel_junto_a_la_de_Inbound_del_mismo_Tenant()
+    {
+        // Norte llega por la vía heredada (sin servicio) y además por una Asignación de Operación Inbound.
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel =
+        [
+            Propio(), Gestionado(Norte, "Empresa Norte"), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound),
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound),
+        ];
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, null).Should().NotBeNull("la vía heredada sigue siendo una opción autorizada");
+        FormularioDe(cut, Norte, ServicioCae.Inbound).Should().NotBeNull();
+        FormularioDe(cut, Norte, null)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true",
+            "sin papel resuelto, la entrada activa es la de la vía heredada");
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("false");
+    }
+
+    [Fact]
+    public async Task D4_con_el_papel_Inbound_resuelto_la_entrada_sin_papel_del_mismo_Tenant_no_esta_activa()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _listaPorPapel =
+        [
+            Propio(), Gestionado(Norte, "Empresa Norte"), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound),
+            ConPapel(Sur, "Empresa Sur", ServicioCae.Outbound),
+        ];
+        _papel = PapelActivo.Inbound;
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true");
+        FormularioDe(cut, Norte, null)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("false",
+            "un listbox de selección única: solo la entrada del papel resuelto está activa");
+        cut.FindAll(".selector-tenant-lista [aria-selected='true']").Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void D4_el_disparador_anuncia_el_papel_activo_al_lector_de_pantalla()
+    {
+        DosPapelesSobreNorte();
+        _papel = PapelActivo.Inbound;
+        var disparador = Renderizar(seleccionado: Norte).Find(".selector-tenant-disparador");
+
+        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Inbound",
+            "la pastilla es aria-hidden: el papel solo llega al lector de pantalla por la etiqueta");
+    }
+
+    /// <summary>
+    /// Con papel Inbound, /trabajadores la cierra NucleoCerradoConPapelInbound: la entrada Inbound vuelve al inicio en vez
+    /// de aterrizar en «Acceso denegado»; la de Outbound conserva la ruta. El formulario de Alt+1…5 lleva las dos.
+    /// </summary>
+    [Fact]
+    public async Task D4_la_entrada_Inbound_desde_una_pagina_cerrada_con_Inbound_vuelve_al_inicio()
+    {
+        DosPapelesSobreNorte();
+        var cut = Renderizar(seleccionado: Sur, url: "trabajadores");
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be("/");
+        FormularioDe(cut, Norte, ServicioCae.Outbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be("/trabajadores");
+        var atajo = cut.Find("form[data-selector-atajo]");
+        atajo.GetAttribute("data-retorno").Should().Be("/trabajadores");
+        atajo.GetAttribute("data-retorno-inbound").Should().Be("/");
+    }
+
+    [Fact]
+    public async Task D4_la_entrada_Inbound_desde_una_ficha_de_Inbound_vuelve_a_su_lista()
+    {
+        DosPapelesSobreNorte();
+        var cut = Renderizar(seleccionado: Sur, url: "inbound/contratos/" + Guid.NewGuid());
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value")
+            .Should().Be("/inbound/contratos");
+    }
+
+    /// <summary>
+    /// Caso puro D-4: solo un Tenant beneficiario alcanzado solo por Inbound. Lo hace visible su entrada Inbound, y con el
+    /// mismo criterio se cargan las fijadas: la guardada se pinta y Alt+1…5 la tiene.
+    /// </summary>
+    [Fact]
+    public void D4_con_solo_un_Tenant_alcanzado_por_Inbound_se_cargan_sus_fijadas()
+    {
+        _lista = [Propio()];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound)];
+        ConFijadas(Norte);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().Be(Norte.ToString()));
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas-servicios").Should().Be($"{Norte}:Inbound");
+    }
+
+    /// <summary>
+    /// Mixto: Norte por Outbound y Sur solo por Inbound. Sur se puede fijar con su estrella y una Sur ya guardada no se
+    /// trata como ajena: lo que se puede fijar es lo que se pinta, no solo la lista por Tenant.
+    /// </summary>
+    [Fact]
+    public async Task D4_un_Tenant_alcanzado_solo_por_Inbound_se_fija_y_no_se_trata_como_ajeno()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound), ConPapel(Sur, "Empresa Sur", ServicioCae.Inbound)];
+        var modulo = ConFijadas(Sur);
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().Be(Sur.ToString()));
+
+        await cut.Find("[role=option][value='" + Sur + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!.ClickAsync(new MouseEventArgs());
+
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().BeNullOrEmpty("la estrella de Sur la desfija");
+        ((string[])modulo.Invocations["guardarFijadas"].Single().Arguments[1]!).Should().BeEmpty(
+            "Sur no estaba entre las ajenas: al desfijarla no queda guardada");
     }
 }

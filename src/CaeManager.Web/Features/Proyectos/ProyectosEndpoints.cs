@@ -41,7 +41,7 @@ public static class ProyectosEndpoints
         string? cliente = null, string? q = null, string? estado = null)
     {
         // Estado 4a, igual que /trabajadores/exportar.xlsx.
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true }, cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/proyectos");
 

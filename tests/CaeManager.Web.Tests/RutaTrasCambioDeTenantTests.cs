@@ -55,6 +55,39 @@ public class RutaTrasCambioDeTenantTests
         RutaTrasCambioDeTenant.Calcular(camino).Should().Be(esperado);
 
     /// <summary>
+    /// D-4: con papel Inbound solo se conserva la ruta de una página que se abre con papel Inbound (las de Inbound y las
+    /// marcadas como abiertas); las del Núcleo y las de Outbound, y las rutas que no son de una página, vuelven al inicio.
+    /// Sin papel o con Outbound, la ruta de siempre.
+    /// </summary>
+    [Theory]
+    [InlineData("/trabajadores", "Inbound", "/")]
+    [InlineData("/trabajadores/" + Id, "Inbound", "/")]
+    [InlineData("/configuracion/usuarios", "Inbound", "/")]
+    [InlineData("/clientes", "Inbound", "/")]
+    [InlineData("/trabajadores/no-es-un-guid", "Inbound", "/")]
+    [InlineData("/inbound/contratos", "Inbound", "/inbound/contratos")]
+    [InlineData("/inbound/contratos/" + Id, "Inbound", "/inbound/contratos")]
+    [InlineData("/", "Inbound", "/")]
+    [InlineData("/trabajadores", "Outbound", "/trabajadores")]
+    [InlineData("/trabajadores/" + Id, null, "/trabajadores")]
+    [InlineData("/inbound/contratos", "Outbound", "/inbound/contratos")]
+    public void Con_papel_Inbound_solo_conserva_una_pagina_que_se_abre_con_Inbound(string camino, string? papel, string esperado) =>
+        RutaTrasCambioDeTenant.Calcular(camino, papel is null ? null : Enum.Parse<CaeManager.Domain.Operaciones.ServicioCae>(papel))
+            .Should().Be(esperado);
+
+    /// <summary>
+    /// Instrumento: la tabla de páginas que lee <see cref="RutaTrasCambioDeTenant.Calcular(string?, CaeManager.Domain.Operaciones.ServicioCae?)"/>
+    /// tiene que conocer el inicio y una página de Inbound, o el test de arriba pasaría devolviendo siempre «/».
+    /// </summary>
+    [Fact]
+    public void La_tabla_de_paginas_reconoce_el_inicio_y_las_de_Inbound_como_abiertas_con_Inbound()
+    {
+        RutaTrasCambioDeTenant.SeAbreConPapelInbound("/").Should().BeTrue();
+        RutaTrasCambioDeTenant.SeAbreConPapelInbound("/inbound/contratos").Should().BeTrue();
+        RutaTrasCambioDeTenant.SeAbreConPapelInbound("/trabajadores").Should().BeFalse();
+    }
+
+    /// <summary>
     /// Toda página con un Id en la ruta, también las que se añadan después, aterriza tras el cambio en
     /// una página que existe y que no lleva Id: nunca en un 404 ni en otra ficha del Tenant anterior.
     /// </summary>

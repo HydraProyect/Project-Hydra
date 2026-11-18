@@ -163,6 +163,18 @@
   <data name="SelectorTenantEtiqueta" xml:space="preserve">
     <value>Context operatiu actual</value>
   </data>
+  <data name="SelectorTenantPapelOutbound" xml:space="preserve">
+    <value>Outbound</value>
+  </data>
+  <data name="SelectorTenantPapelInbound" xml:space="preserve">
+    <value>Inbound</value>
+  </data>
+  <data name="SelectorTenantSubOutbound" xml:space="preserve">
+    <value>Assignació d'Operació Outbound</value>
+  </data>
+  <data name="SelectorTenantSubInbound" xml:space="preserve">
+    <value>Assignació d'Operació Inbound</value>
+  </data>
   <data name="SelectorTenantRotulo" xml:space="preserve">
     <value>Empresa gestionada</value>
   </data>

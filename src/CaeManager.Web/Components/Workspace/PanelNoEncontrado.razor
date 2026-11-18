@@ -34,7 +34,7 @@
     {
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true });
             var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
             if (activa is not null && ClientesAutorizados.SelectorVisible(autorizados, activa))
                 _nombreActiva = activa.Nombre;

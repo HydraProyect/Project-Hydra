@@ -63,7 +63,7 @@
 
         try
         {
-            _autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            _autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery { ParaTenantActivo = true });
         }
         catch (Exception)
         {

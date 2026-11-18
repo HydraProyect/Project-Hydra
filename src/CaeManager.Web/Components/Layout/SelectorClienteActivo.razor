@@ -22,32 +22,42 @@
     en línea.
 *@
 <LimiteDeErrores Islote="this">
-@if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!, _activo))
+@if (Visible)
 {
     <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla"
-         data-activo="@_activo.TenantId" data-autorizados="@IdsFijables" data-fijadas="@IdsFijadas">
+         data-activo="@_activo.TenantId" data-autorizados="@IdsFijables" data-fijadas="@IdsFijadas"
+         data-fijadas-servicios="@ServiciosFijadas">
         @* Alt+1…5 (selector-tenant-fijadas.js) cambia a la 1.ª…5.ª empresa fijada (data-fijadas) con este mismo POST: el
            formulario existe aunque la lista esté cerrada, con el token antiforgery y la ruta de retorno
            de siempre, y el servidor revalida la Asignación de Cartera y la de Operación como en cualquier
            cambio. El Id que escribe el JS sale de lo ya autorizado (data-autorizados): una fijada es una
            preferencia del navegador, no un permiso. *@
-        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden>
+        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden
+              data-retorno="@RutaDeRetorno"
+              data-retorno-inbound="@RutaDeRetornoPara(CaeManager.Domain.Operaciones.ServicioCae.Inbound)">
             @if (_token is not null)
             {
                 <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
             }
+            @* El JS cambia la ruta a data-retorno-inbound cuando la fijada va con papel Inbound, como su fila. *@
             <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
             <input type="hidden" name="tenantId" value="" />
+            @* El papel de la fijada (D-4, data-fijadas-servicios); el JS lo deshabilita si esa fijada no tiene papel. *@
+            <input type="hidden" name="servicio" value="" disabled />
         </form>
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
                 aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
-                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre" title="@_activo.Nombre"
+                aria-label="@Textos["SelectorTenantEtiqueta"]: @NombreConPapel(_activo)" title="@NombreConPapel(_activo)"
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
-            <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
+            <AvatarTenant Nombre="@_activo!.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
                 <span class="selector-tenant-sub">@Textos[_activo.EsOrigen ? "SelectorTenantOrigen" : "SelectorTenantRotulo"]</span>
                 <span class="selector-tenant-nombre" title="@_activo.Nombre">@_activo.Nombre</span>
             </span>
+            @if (_activo.Servicio is { } papelActivo)
+            {
+                @Pastilla(papelActivo)
+            }
             <span class="selector-tenant-chevron @(_abierto ? "selector-tenant-chevron-abierto" : null)" aria-hidden="true">
                 <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
             </span>
@@ -82,13 +92,9 @@
                     <p class="selector-tenant-ayuda" role="status">@AyudaDelBuscador</p>
                 }
 
-                <form method="post" action="/cuenta/cliente-activo">
-                    @if (_token is not null)
-                    {
-                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
-                    }
-                    <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
-
+                @* Cada opción es su propio <form> POST (con su token y su ruta de retorno): así una entrada con papel envía
+                   también su «servicio» (D-4), que un botón de envío solo no puede añadir a un formulario compartido. *@
+                <div class="selector-tenant-opciones">
                     @* Fijadas (estrella; Alt+1…5 para las cinco primeras) arriba, después las recientes y
                        el resto de la cartera. Mientras se busca, la búsqueda ve la cartera entera y plana. *@
                     @if (Fijadas.Count > 0)
@@ -147,7 +153,7 @@
                             @Opcion(_origen, true)
                         </div>
                     }
-                </form>
+                </div>
             </div>
         }
     </div>
@@ -158,18 +164,30 @@
     /// <param name="atajo">1…5 si la empresa está entre las cinco primeras fijadas (Alt + ese número); 0 si no.</param>
     private RenderFragment Opcion(ClienteAutorizadoDto cliente, bool esOrigen, int atajo = 0) => __builder =>
     {
-        var esActivo = cliente.TenantId == _activo!.TenantId;
+        var esActivo = EsActiva(cliente);
         var pendientes = Pendientes(cliente);
-        var etiqueta = pendientes is { } n ? $"{cliente.Nombre}, {(n == 1 ? Textos["SelectorTenantPendientesUno"].Value : Textos["SelectorTenantPendientes", n].Value)}" : cliente.Nombre;
+        var nombre = NombreConPapel(cliente);
+        var etiqueta = pendientes is { } n ? $"{nombre}, {(n == 1 ? Textos["SelectorTenantPendientesUno"].Value : Textos["SelectorTenantPendientes", n].Value)}" : nombre;
         var fijable = PuedeFijar && !esOrigen;
         var fijada = fijable && _fijadas.Contains(cliente.TenantId);
         var etiquetaFijar = fijada
             ? Textos["SelectorTenantQuitarFijada"].Value
             : Textos["SelectorTenantFijar"].Value;
-        <div class="selector-tenant-fila-envoltorio" role="presentation">
+        <form class="selector-tenant-fila-envoltorio" role="presentation" method="post" action="/cuenta/cliente-activo">
+            @if (_token is not null)
+            {
+                <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            }
+            @* Con papel Inbound, la ruta solo se conserva si esa página se abre con Inbound; si no, el inicio. *@
+            <input type="hidden" name="returnUrl" value="@RutaDeRetornoPara(cliente.Servicio)" />
+            @if (cliente.Servicio is { } servicio)
+            {
+                @* Solo elige qué predicado pide el POST; el servidor revalida esa Asignación de Operación (D-4, DN-21). *@
+                <input type="hidden" name="servicio" value="@servicio" />
+            }
             <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
                     class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
-                    title="@cliente.Nombre" aria-label="@etiqueta" aria-keyshortcuts="@(atajo > 0 ? $"Alt+{atajo}" : null)">
+                    title="@nombre" aria-label="@etiqueta" aria-keyshortcuts="@(atajo > 0 ? $"Alt+{atajo}" : null)">
                 <AvatarTenant Nombre="@cliente.Nombre" LogoUrl="@UrlLogo(cliente)" Tamano="TamanoAvatarTenant.Pequeno" />
                 <span class="selector-tenant-texto">
                     <span class="selector-tenant-nombre">@cliente.Nombre</span>
@@ -177,7 +195,15 @@
                     {
                         <span class="selector-tenant-sub">@Textos["SelectorTenantOrigen"]</span>
                     }
+                    else if (cliente.Servicio is { } papelSub)
+                    {
+                        <span class="selector-tenant-sub">@Textos[papelSub == CaeManager.Domain.Operaciones.ServicioCae.Inbound ? "SelectorTenantSubInbound" : "SelectorTenantSubOutbound"]</span>
+                    }
                 </span>
+                @if (cliente.Servicio is { } papelFila)
+                {
+                    @Pastilla(papelFila)
+                }
                 @if (atajo > 0)
                 {
                     <kbd class="selector-tenant-atajo" aria-hidden="true">Alt @atajo</kbd>
@@ -200,6 +226,20 @@
                     <Icono Nombre="estrella" Tamano="TamanoIcono.Pequeno" />
                 </button>
             }
-        </div>
+        </form>
+    };
+
+    /// <summary>
+    /// El nombre con su papel («Empresa Norte · Inbound») para el aria-label y el title: la pastilla es aria-hidden, así
+    /// que el lector de pantalla solo sabe el papel por aquí.
+    /// </summary>
+    private string NombreConPapel(ClienteAutorizadoDto cliente) =>
+        cliente.Servicio is { } papel ? $"{cliente.Nombre} · {TextoPapel(papel)}" : cliente.Nombre;
+
+    /// <summary>Pastilla de papel de la maqueta (V1-Gestor y V2-Gestor): «Outbound» o «Inbound».</summary>
+    private RenderFragment Pastilla(CaeManager.Domain.Operaciones.ServicioCae papel) => __builder =>
+    {
+        <span class="selector-tenant-papel @(papel == CaeManager.Domain.Operaciones.ServicioCae.Inbound ? "selector-tenant-papel-inbound" : "selector-tenant-papel-outbound")"
+              data-papel="@papel" aria-hidden="true">@TextoPapel(papel)</span>
     };
 }

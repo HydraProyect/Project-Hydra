@@ -76,8 +76,11 @@ public sealed class AsignacionHeredadaVigente
 /// origen sobre otro Tenant, y con la línea Inbound del Producto Contratado de ese Tenant vigente
 /// (<see cref="IOperacionesQueryContext.OperacionesInboundAmparadas"/>). Se revoca cerrando la operación. Los mismos
 /// perfiles que en Outbound: sin cartera los de <see cref="RolesConAccesoPorOperacion"/> si la operación es del Tenant
-/// entero, y el Gestor CAE con su Asignación de Cartera vigente bajo ella. La selección por defecto, la lista del
-/// selector y las etiquetas siguen siendo de Outbound; la revalidación (<see cref="SigueAutorizadoPorOperacionAsync"/>)
+/// entero, y el Gestor CAE con su Asignación de Cartera vigente bajo ella. La selección por defecto, la lista por Tenant
+/// (menú y migas) y las etiquetas siguen siendo de Outbound; los lectores del Tenant activo añaden el Tenant activo que
+/// la persona alcanza solo por Inbound (<c>ObtenerClientesAutorizadosQuery.ParaTenantActivo</c>); el selector de la cabecera,
+/// además, ofrece una entrada por Asignación de Operación con su papel a cualquiera de esos perfiles (D-4 y O-2 (b),
+/// <c>ObtenerClientesAutorizadosQuery.PorPapel</c>); la revalidación (<see cref="SigueAutorizadoPorOperacionAsync"/>)
 /// acepta una operación de cualquiera de los dos servicios, cada una por su propio predicado.
 /// </para>
 ///
