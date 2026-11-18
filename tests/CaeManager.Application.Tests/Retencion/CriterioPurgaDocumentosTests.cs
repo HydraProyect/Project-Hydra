@@ -1,4 +1,5 @@
 using CaeManager.Application.Retencion;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
@@ -66,18 +67,41 @@ public class CriterioPurgaDocumentosTests
         candidatos.Should().ContainSingle().Which.DocumentoId.Should().Be(vencidaAntes.Id);
     }
 
+    /// <summary>
+    /// La sustitución cuenta por su día de negocio en Europe/Madrid (<see cref="DiaDeNegocio"/>), como el resto de
+    /// fechas del producto: el corte de 5 años es el 2026-06-10, que en Madrid (horario de verano, UTC+2) termina a las
+    /// 22:00 UTC. A las 22:00 UTC ya es el 11 en Madrid y se conserva, aunque en UTC todavía sea el 10.
+    /// </summary>
     [Fact]
-    public void La_sustitucion_cuenta_por_su_fecha_UTC_hasta_el_final_del_dia_de_corte()
+    public void La_sustitucion_cuenta_por_su_dia_de_negocio_en_Madrid_hasta_el_final_del_dia_de_corte()
     {
         var tipo = Tipo(null);
         var ultimoInstante = Doc(tipo, new DateOnly(2025, 1, 1), vence: new DateOnly(2030, 1, 1));
-        Sustituir(ultimoInstante, new DateTime(2026, 6, 10, 23, 59, 59, DateTimeKind.Utc));
-        var diaSiguiente = Doc(tipo, new DateOnly(2025, 1, 1), vence: new DateOnly(2030, 1, 1));
-        Sustituir(diaSiguiente, new DateTime(2026, 6, 11, 0, 0, 0, DateTimeKind.Utc));
+        Sustituir(ultimoInstante, new DateTime(2026, 6, 10, 21, 59, 59, DateTimeKind.Utc));
+        var diaSiguienteEnMadrid = Doc(tipo, new DateOnly(2025, 1, 1), vence: new DateOnly(2030, 1, 1));
+        Sustituir(diaSiguienteEnMadrid, new DateTime(2026, 6, 10, 22, 0, 0, DateTimeKind.Utc));
 
-        var candidatos = Candidatos([tipo], aniosTenant: 5, ultimoInstante, diaSiguiente);
+        DiaDeNegocio.De(diaSiguienteEnMadrid.SustituidoEnUtc!.Value).Should().Be(new DateOnly(2026, 6, 11));
+
+        var candidatos = Candidatos([tipo], aniosTenant: 5, ultimoInstante, diaSiguienteEnMadrid);
 
         candidatos.Should().ContainSingle().Which.DocumentoId.Should().Be(ultimoInstante.Id);
+    }
+
+    /// <summary>En horario de invierno (UTC+1) el día de corte en Madrid termina a las 23:00 UTC.</summary>
+    [Fact]
+    public void En_horario_de_invierno_el_dia_de_corte_en_Madrid_termina_a_las_23_UTC()
+    {
+        var tipo = Tipo(null);
+        var hoy = new DateOnly(2031, 1, 10);
+        var ultimoInstante = Doc(tipo, new DateOnly(2025, 1, 1), vence: new DateOnly(2030, 1, 1));
+        Sustituir(ultimoInstante, new DateTime(2026, 1, 10, 22, 59, 59, DateTimeKind.Utc));
+        var diaSiguienteEnMadrid = Doc(tipo, new DateOnly(2025, 1, 1), vence: new DateOnly(2030, 1, 1));
+        Sustituir(diaSiguienteEnMadrid, new DateTime(2026, 1, 10, 23, 0, 0, DateTimeKind.Utc));
+
+        CriterioPurgaDocumentos.Candidatos(
+                new[] { ultimoInstante, diaSiguienteEnMadrid }.AsQueryable(), new[] { tipo }.AsQueryable(), 5, hoy)
+            .Should().ContainSingle().Which.DocumentoId.Should().Be(ultimoInstante.Id);
     }
 
     [Fact]
@@ -137,7 +161,7 @@ public class CriterioPurgaDocumentosTests
             {
                 var esperado = CalculadoraRetencionDocumento.PuedePurgarse(
                     documento.FechaEmision, documento.FechaVencimiento,
-                    documento.SustituidoEnUtc is { } s ? DateOnly.FromDateTime(s) : null,
+                    documento.SustituidoEnUtc is { } s ? DiaDeNegocio.De(s) : null,
                     Hoy, anios, CriterioInicioRetencion.EventoMasTemprano);
                 candidatos.Contains(documento.Id).Should().Be(esperado,
                     $"plazo {anios}, vence {documento.FechaVencimiento}, sustituido {documento.SustituidoEnUtc}");

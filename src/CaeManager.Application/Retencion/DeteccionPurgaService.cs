@@ -128,10 +128,8 @@ public class DeteccionPurgaService(
     private async Task<IQueryable<CandidatoPurgaDocumento>> DocumentosPurgablesAsync(
         Guid tenantId, DateOnly hoy, CancellationToken cancellationToken)
     {
-        var aniosTenant = await configuracionContext.ParametrosSistema
-            .Where(p => p.TenantId == tenantId)
-            .Select(p => (int?)p.AniosRetencionDocumentos)
-            .FirstOrDefaultAsync(cancellationToken) ?? PlazoRetencionDocumentos.PorDefecto;
+        var aniosTenant = await CriterioPurgaDocumentos.PlazoDelTenantAsync(
+            configuracionContext.ParametrosSistema, tenantId, cancellationToken);
 
         var documentos = documentosContext.Documentos
             .IgnoreQueryFilters()
