@@ -104,10 +104,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -132,7 +133,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -198,10 +199,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -220,7 +222,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -292,10 +294,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -321,7 +324,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -364,8 +367,10 @@ public class EjecucionPurgaTests : IAsyncLifetime
             archivoUrl: archivoUrl);
         contexto.Documentos.Add(documento);
 
-        var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+        // R4: la solicitud de Documentos purga solo la lista que se propuso al detectarla.
+        var (solicitud, propuestos) = SolicitudPurga.DeDocumentos([documento.Id], _hoy.AddYears(-5));
         contexto.SolicitudesPurga.Add(solicitud);
+        contexto.DocumentosPropuestosPurga.AddRange(propuestos);
         await contexto.SaveChangesAsync();
 
         solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
@@ -389,7 +394,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
@@ -443,7 +448,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -474,6 +479,54 @@ public class EjecucionPurgaTests : IAsyncLifetime
 
         (await contextoVerificacion.IncidenciasPurga.AnyAsync(i => i.SolicitudPurgaId == solicitudId))
             .Should().BeFalse("una ejecución completa no deja incidencias");
+    }
+
+    /// <summary>
+    /// R4 (decisión del 2026-11-18): la ejecución purga la lista que propuso la detección y nada más. Un Documento que
+    /// también ha cumplido su plazo, pero no estaba en la propuesta (subido después, o alcanzado al acortar un plazo),
+    /// espera a una propuesta nueva: una solicitud abierta nunca se amplía.
+    /// </summary>
+    [Fact]
+    public async Task La_ejecucion_no_purga_un_Documento_que_no_estaba_en_la_propuesta()
+    {
+        var (propuestoId, solicitudId) = await SembrarDocumentoPurgableAsync("tenant/propuesto.pdf");
+
+        Guid fueraId;
+        await using (var contexto = CrearContexto())
+        {
+            var fuera = Documento.DeCliente(
+                _clienteId, _tipoDocumentoId,
+                fechaEmision: _hoy.AddYears(-9),
+                vigencia: VigenciaDocumento.VenceEl(_hoy.AddYears(-8)),
+                archivoUrl: "tenant/fuera.pdf");
+            contexto.Documentos.Add(fuera);
+            await contexto.SaveChangesAsync();
+            fueraId = fuera.Id;
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
+                new AlertaOperativaFalsa(),
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            (await servicioEjecucion.EjecutarAsync(solicitudId, _hoy)).Should().Be(1);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        (await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == propuestoId))
+            .EstaAnonimizado.Should().BeTrue();
+        var noPropuesto = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == fueraId);
+        noPropuesto.EstaAnonimizado.Should().BeFalse("no estaba en la lista de la solicitud");
+        noPropuesto.ArchivoUrl.Should().Be("tenant/fuera.pdf");
     }
 
     private CaeManagerDbContext CrearContexto(bool tenantEnLaSesion = true)

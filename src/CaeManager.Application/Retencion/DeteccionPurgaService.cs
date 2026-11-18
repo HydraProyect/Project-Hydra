@@ -1,6 +1,8 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Retencion;
@@ -31,6 +33,7 @@ public record ResultadoDiagnosticoPurga(int DocumentosPurgables, int Trabajadore
 /// </summary>
 public class DeteccionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
+    IConfiguracionQueryContext configuracionContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IOptions<RetencionDatosOptions> opciones,
     ITenantActual tenantActual,
@@ -74,8 +77,7 @@ public class DeteccionPurgaService(
     {
         if (tenantActual.TenantId is not { } tenantId) return new ResultadoDiagnosticoPurga(0, 0);
 
-        var documentos = await ContarDocumentosPurgablesAsync(
-            tenantId, hoy.AddYears(-_opciones.AniosRetencionDocumentos), cancellationToken);
+        var documentos = await (await DocumentosPurgablesAsync(tenantId, hoy, cancellationToken)).CountAsync(cancellationToken);
 
         var trabajadores = _opciones.AniosRetencionTrabajadores is { } anios
             ? await ContarTrabajadoresPurgablesAsync(tenantId, hoy.AddYears(-anios), cancellationToken)
@@ -89,21 +91,25 @@ public class DeteccionPurgaService(
         if (await solicitudRepositorio.ExisteAbiertaAsync(TipoDatoPurgable.Documentos, cancellationToken))
             return false;
 
-        // Solo cuenta lo que YA está vencido o sin vigencia: un documento
-        // vigente no ha empezado siquiera a contar su plazo.
-        var limite = hoy.AddYears(-_opciones.AniosRetencionDocumentos);
-        var candidatos = await ContarDocumentosPurgablesAsync(tenantId, limite, cancellationToken);
+        // Solo los Ids de los candidatos, no el histórico: la solicitud guarda la lista exacta de lo propuesto (R4), y
+        // la ejecución purga esa lista y nada más, aunque después cambie un plazo o se sustituya otra versión.
+        var candidatos = await (await DocumentosPurgablesAsync(tenantId, hoy, cancellationToken)).ToListAsync(cancellationToken);
 
-        if (candidatos == 0) return false;
+        if (candidatos.Count == 0) return false;
 
-        solicitudRepositorio.Agregar(new SolicitudPurga(TipoDatoPurgable.Documentos, candidatos, limite));
+        // Informativa: el corte más reciente que se aplicó, el del plazo más corto entre los propuestos.
+        var (solicitud, propuestos) = SolicitudPurga.DeDocumentos(
+            candidatos.Select(c => c.DocumentoId), hoy.AddYears(-candidatos.Min(c => c.Anios)));
+        solicitudRepositorio.Agregar(solicitud);
+        solicitudRepositorio.AgregarDocumentosPropuestos(propuestos);
         return true;
     }
 
     /// <summary>
-    /// El filtro se traduce a fechas para que lo resuelva SQL, igual que en
-    /// el listado de Documentos: traer todo el histórico a memoria para
-    /// decidir qué purgar sería justo el problema que se corrigió allí.
+    /// Los Documentos con el plazo cumplido (<see cref="CriterioPurgaDocumentos"/>): plazo del tipo ?? plazo del
+    /// Tenant propietario (5 años si no tiene fila de configuración, R2), contado desde el primero entre el evento
+    /// propio del Documento y su sustitución (R3). El filtro lo resuelve SQL, igual que en el listado de Documentos:
+    /// traer todo el histórico a memoria para decidir qué purgar sería justo el problema que se corrigió allí.
     ///
     /// IgnoreQueryFilters() + Where(TenantId) explícito (revisión
     /// deliberada, ver CLAUDE.md): el filtro global oculta también las
@@ -116,16 +122,25 @@ public class DeteccionPurgaService(
     /// AnonimizadoEnUtc y no EstaAnonimizado: la segunda es calculada y EF
     /// no la traduce a SQL, así que filtrar por ella traería el histórico
     /// entero a memoria.
+    ///
+    /// Los tipos de documento no tienen borrado lógico: basta su filtro de Tenant, con el TenantId repetido a mano.
     /// </summary>
-    private Task<int> ContarDocumentosPurgablesAsync(Guid tenantId, DateOnly limite, CancellationToken cancellationToken) =>
-        documentosContext.Documentos
+    private async Task<IQueryable<CandidatoPurgaDocumento>> DocumentosPurgablesAsync(
+        Guid tenantId, DateOnly hoy, CancellationToken cancellationToken)
+    {
+        var aniosTenant = await configuracionContext.ParametrosSistema
+            .Where(p => p.TenantId == tenantId)
+            .Select(p => (int?)p.AniosRetencionDocumentos)
+            .FirstOrDefaultAsync(cancellationToken) ?? PlazoRetencionDocumentos.PorDefecto;
+
+        var documentos = documentosContext.Documentos
             .IgnoreQueryFilters()
             .Where(d => d.TenantId == tenantId)
-            .Where(d => d.AnonimizadoEnUtc == null)
-            .Where(d => d.FechaVencimiento != null
-                ? d.FechaVencimiento <= limite
-                : d.FechaEmision <= limite)
-            .CountAsync(cancellationToken);
+            .Where(d => d.AnonimizadoEnUtc == null);
+
+        return CriterioPurgaDocumentos.Candidatos(
+            documentos, tiposDocumentoContext.TiposDocumento.Where(t => t.TenantId == tenantId), aniosTenant, hoy);
+    }
 
     private async Task<bool> DetectarTrabajadoresAsync(Guid tenantId, DateOnly hoy, CancellationToken cancellationToken)
     {

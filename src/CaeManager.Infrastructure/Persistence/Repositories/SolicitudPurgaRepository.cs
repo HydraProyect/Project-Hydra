@@ -40,5 +40,8 @@ public class SolicitudPurgaRepository(CaeManagerDbContext dbContext) : ISolicitu
 
     public void Agregar(SolicitudPurga solicitud) => dbContext.SolicitudesPurga.Add(solicitud);
 
+    public void AgregarDocumentosPropuestos(IEnumerable<DocumentoPropuestoPurga> propuestos) =>
+        dbContext.DocumentosPropuestosPurga.AddRange(propuestos);
+
     public void AgregarIncidencia(IncidenciaPurga incidencia) => dbContext.IncidenciasPurga.Add(incidencia);
 }

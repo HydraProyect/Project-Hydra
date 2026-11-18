@@ -407,10 +407,9 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         {
             var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             var deteccion = new DeteccionPurgaService(
-                contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
+                contexto, contexto, contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5,
                 }),
                 ambito.ServiceProvider.GetRequiredService<ITenantActual>(), contexto);
@@ -426,7 +425,7 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
         {
             var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             var ejecucion = new EjecucionPurgaService(
-                contexto, contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
+                contexto, contexto, contexto, contexto, contexto, new SolicitudPurgaRepository(contexto),
                 new ExtraccionIaCacheRepository(contexto), new AlmacenamientoSinArchivos(),
                 ambito.ServiceProvider.GetRequiredService<ITenantActual>(), contexto,
                 new TransaccionDeComando(contexto), new EnmascaradoAuditoriaTrabajadorAnonimizado(contexto),

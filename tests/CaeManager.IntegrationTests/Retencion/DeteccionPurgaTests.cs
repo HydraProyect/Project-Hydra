@@ -320,11 +320,10 @@ public class DeteccionPurgaTests : IAsyncLifetime
     }
 
     private DeteccionPurgaService CrearServicio(CaeManagerDbContext contexto, int? aniosTrabajadores = CincoAnios) =>
-        new(contexto, contexto, contexto,
+        new(contexto, contexto, contexto, contexto, contexto,
             new SolicitudPurgaRepository(contexto),
             Options.Create(new RetencionDatosOptions
             {
-                AniosRetencionDocumentos = CincoAnios,
                 AniosRetencionTrabajadores = aniosTrabajadores
             }),
             new TenantActualAmbiental { TenantId = _tenant },

@@ -25,7 +25,11 @@ namespace CaeManager.Application.Retencion;
 /// Se usa la <see cref="SolicitudPurga.FechaCorte"/> guardada y no "hoy": la
 /// propuesta se revisó y autorizó sobre un conjunto concreto de registros, y
 /// ejecutarla no puede llevarse por delante nada que no estuviera en él por el
-/// tiempo transcurrido entre la autorización y la ejecución.
+/// tiempo transcurrido entre la autorización y la ejecución. En Documentos, desde que
+/// el plazo va por Tenant propietario y por tipo (decisión del 2026-11-18, R4), ni
+/// siquiera la fecha basta: se purga la lista de <see cref="DocumentoPropuestoPurga"/>
+/// que guardó la detección, nunca más, aunque después cambie un plazo, se sustituya
+/// una versión o se suba un Documento con fechas antiguas.
 ///
 /// Todo ocurre en una sola transacción (<see cref="ITransaccionDeComando"/>):
 /// anonimizar a un Trabajador y enmascarar sus datos personales en el historial
@@ -35,7 +39,7 @@ namespace CaeManager.Application.Retencion;
 /// </summary>
 public class EjecucionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
-    IVisitasQueryContext visitasContext,
+    IVisitasQueryContext visitasContext, IRetencionQueryContext retencionContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IExtraccionIaCacheRepository extraccionIaCacheRepositorio,
     IFileStorageService almacenamiento,
@@ -87,7 +91,7 @@ public class EjecucionPurgaService(
 
         var resultado = solicitud.TipoDato switch
         {
-            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, solicitud.FechaCorte, ahora, cancellationToken),
+            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, ahora, cancellationToken),
             TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
             _ => new ResultadoAnonimizacion(0, 0, [], [])
         };
@@ -123,8 +127,10 @@ public class EjecucionPurgaService(
     }
 
     private async Task<ResultadoAnonimizacion> AnonimizarDocumentosAsync(
-        Guid tenantId, Guid solicitudId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
+        Guid tenantId, Guid solicitudId, DateTime ahora, CancellationToken cancellationToken)
     {
+        // Los propuestos de ESTA solicitud (R4), con la subconsulta en SQL: ni la fecha de corte ni el plazo vigente
+        // hoy deciden nada aquí. Una solicitud de Documentos sin lista no purga nada.
         // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
         // equivalente en DeteccionPurgaService (P0-1/P0-3 de
         // Project-Hydra-Negocio/MATURITY_REVIEW.md): sin esto, un Documento
@@ -135,9 +141,8 @@ public class EjecucionPurgaService(
             .IgnoreQueryFilters()
             .Where(d => d.TenantId == tenantId)
             .Where(d => d.AnonimizadoEnUtc == null)
-            .Where(d => d.FechaVencimiento != null
-                ? d.FechaVencimiento <= fechaCorte
-                : d.FechaEmision <= fechaCorte)
+            .Where(d => retencionContext.DocumentosPropuestosPurga
+                .Any(p => p.SolicitudPurgaId == solicitudId && p.TenantId == tenantId && p.DocumentoId == d.Id))
             .ToListAsync(cancellationToken);
 
         // El orden importa y antes estaba al revés. Anonimizar primero borra
