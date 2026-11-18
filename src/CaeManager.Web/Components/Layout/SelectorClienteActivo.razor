@@ -32,11 +32,14 @@
            de siempre, y el servidor revalida la Asignación de Cartera y la de Operación como en cualquier
            cambio. El Id que escribe el JS sale de lo ya autorizado (data-autorizados): una fijada es una
            preferencia del navegador, no un permiso. *@
-        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden>
+        <form data-selector-atajo method="post" action="/cuenta/cliente-activo" hidden
+              data-retorno="@RutaDeRetorno"
+              data-retorno-inbound="@RutaDeRetornoPara(CaeManager.Domain.Operaciones.ServicioCae.Inbound)">
             @if (_token is not null)
             {
                 <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
             }
+            @* El JS cambia la ruta a data-retorno-inbound cuando la fijada va con papel Inbound, como su fila. *@
             <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
             <input type="hidden" name="tenantId" value="" />
             @* El papel de la fijada (D-4, data-fijadas-servicios); el JS lo deshabilita si esa fijada no tiene papel. *@
@@ -175,7 +178,8 @@
             {
                 <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
             }
-            <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
+            @* Con papel Inbound, la ruta solo se conserva si esa página se abre con Inbound; si no, el inicio. *@
+            <input type="hidden" name="returnUrl" value="@RutaDeRetornoPara(cliente.Servicio)" />
             @if (cliente.Servicio is { } servicio)
             {
                 @* Solo elige qué predicado pide el POST; el servidor revalida esa Asignación de Operación (D-4, DN-21). *@

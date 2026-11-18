@@ -155,6 +155,9 @@ public class ExportacionesDeListadosEstado4aTests
     [MemberData(nameof(Listados))]
     public async Task D4_con_un_Tenant_alcanzado_solo_por_Inbound_activo_no_hay_estado_4a(string listado, string pagina, string archivo)
     {
+        // Prueba la guarda del estado 4a, llamando a ExportarAsync sin la autorización del endpoint. No es una descarga
+        // alcanzable con papel Inbound: en la aplicación la niegan antes NucleoCerradoConPapelInbound o
+        // PaginaDeOutboundPorPapel (O-1 (b), B-02b). Lo que fija es que la guarda lee la lista del Tenant activo.
         // La lista por Tenant no trae el Tenant activo; la del Tenant activo, con su entrada Inbound, sí (D-4). Sin ella,
         // la guarda creería que el activo es el origen y redirigiría a «Selecciona una empresa».
         var soloInbound = Guid.NewGuid();

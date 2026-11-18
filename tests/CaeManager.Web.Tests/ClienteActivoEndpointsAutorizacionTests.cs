@@ -297,6 +297,49 @@ public class ClienteActivoEndpointsAutorizacionTests
         PapelRecordadoEn(http).Should().Be(ServicioCae.Outbound);
     }
 
+    /// <summary>La vía heredada no llega por una Asignación de Operación: abre el Tenant, pero no recuerda ningún papel.</summary>
+    [Fact]
+    public async Task La_via_heredada_no_recuerda_ningun_papel()
+    {
+        await using var db = await CrearContexto();
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        db.AddRange(delegacion, new AsignacionOperadorDelegado(delegacion.Id, Usuario, "Consulta"));
+        await db.SaveChangesAsync();
+        var http = Contexto();
+
+        Comprobar(await Cambiar(Destino, http, db), http, true, null);
+        http.Response.Headers.SetCookie.Should().NotContain(c => c!.StartsWith(PapelRecordadoSelectorTenant.NombreCookie + "=", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Con una Asignación de Operación que autoriza, si la auditoría del cambio falla no se emite nada: ni la selección ni
+    /// el papel recordado, que va después de la auditoría.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_auditoria_falla_con_una_operacion_que_autoriza_no_se_recuerda_el_papel()
+    {
+        await using var db = await CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var delegacion = new DelegacionTenant(Origen, Destino);
+        var outbound = AsignacionOperacion.Externa(Destino, Origen, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            ahora.AddDays(-2), null, ahora);
+        outbound.FijarOrigen(delegacion);
+        db.AddRange(delegacion, outbound,
+            AsignacionCartera.Externa(outbound, Usuario, "GestorCae", AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+        await db.SaveChangesAsync();
+        var http = Contexto();
+
+        var cambiar = () => CambiarAuditado(Destino, http, db, new RegistroCambioFalso { Lanzar = true });
+
+        await cambiar.Should().ThrowAsync<InvalidOperationException>();
+        http.Response.Headers.SetCookie.Should().BeEmpty();
+
+        // Control: la misma petición con la auditoría en pie sí recuerda el papel.
+        var control = Contexto();
+        await CambiarAuditado(Destino, control, db, new RegistroCambioFalso());
+        PapelRecordadoEn(control).Should().Be(ServicioCae.Outbound);
+    }
+
     private static string CookiePapel(IDataProtectionProvider proveedor, Guid usuario, ServicioCae servicio)
     {
         var http = new DefaultHttpContext();

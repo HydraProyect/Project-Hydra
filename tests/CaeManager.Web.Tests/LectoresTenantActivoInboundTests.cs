@@ -14,8 +14,9 @@ using Xunit;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Precondición de fusión de la PR #2313 (D-4): cuando el Gestor CAE elige en el selector la entrada Inbound de un Tenant
-/// beneficiario al que solo llega por una Asignación de Operación Inbound, los lectores del Tenant activo de la interfaz
+/// D-4 y O-2 (b): cuando una persona del Operador CAE externo que llega por una Asignación de Operación, sea cual sea su
+/// perfil (Gestor CAE, Administrador, Dirección CAE, Coordinador CAE o Consulta), elige en el selector la entrada Inbound
+/// de un Tenant beneficiario al que solo llega por una Asignación de Operación Inbound, los lectores del Tenant activo de la interfaz
 /// pintan ese Tenant, y no el Tenant de origen ni «Selecciona una empresa». Todos leen la misma fuente,
 /// <see cref="ObtenerClientesAutorizadosQuery.ParaTenantActivo"/>; el handler real se prueba en
 /// <see cref="ObtenerClientesAutorizadosPorPapelTests"/>. Aquí, el lector que compone la cabecera de las pantallas de un

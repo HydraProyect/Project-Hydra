@@ -89,6 +89,10 @@ export function registrarAtajos() {
                 .find((p) => p[0] === destino && (p[1] === 'Outbound' || p[1] === 'Inbound'));
             campoServicio.value = par ? par[1] : '';
             campoServicio.disabled = !par;
+            // La misma ruta de retorno que su fila: con papel Inbound, la que se abre con Inbound o el inicio.
+            const campoRetorno = formulario.querySelector('input[name="returnUrl"]');
+            const retorno = formulario.getAttribute(par && par[1] === 'Inbound' ? 'data-retorno-inbound' : 'data-retorno');
+            if (campoRetorno && retorno) campoRetorno.value = retorno;
         }
         formulario.requestSubmit();
     };

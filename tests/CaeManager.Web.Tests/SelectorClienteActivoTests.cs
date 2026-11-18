@@ -1177,4 +1177,72 @@ public class SelectorClienteActivoTests : BunitContext
         disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Inbound",
             "la pastilla es aria-hidden: el papel solo llega al lector de pantalla por la etiqueta");
     }
+
+    /// <summary>
+    /// Con papel Inbound, /trabajadores la cierra NucleoCerradoConPapelInbound: la entrada Inbound vuelve al inicio en vez
+    /// de aterrizar en «Acceso denegado»; la de Outbound conserva la ruta. El formulario de Alt+1…5 lleva las dos.
+    /// </summary>
+    [Fact]
+    public async Task D4_la_entrada_Inbound_desde_una_pagina_cerrada_con_Inbound_vuelve_al_inicio()
+    {
+        DosPapelesSobreNorte();
+        var cut = Renderizar(seleccionado: Sur, url: "trabajadores");
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be("/");
+        FormularioDe(cut, Norte, ServicioCae.Outbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be("/trabajadores");
+        var atajo = cut.Find("form[data-selector-atajo]");
+        atajo.GetAttribute("data-retorno").Should().Be("/trabajadores");
+        atajo.GetAttribute("data-retorno-inbound").Should().Be("/");
+    }
+
+    [Fact]
+    public async Task D4_la_entrada_Inbound_desde_una_ficha_de_Inbound_vuelve_a_su_lista()
+    {
+        DosPapelesSobreNorte();
+        var cut = Renderizar(seleccionado: Sur, url: "inbound/contratos/" + Guid.NewGuid());
+        await Abrir(cut);
+
+        FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("input[name='returnUrl']")!.GetAttribute("value")
+            .Should().Be("/inbound/contratos");
+    }
+
+    /// <summary>
+    /// Caso puro D-4: solo un Tenant beneficiario alcanzado solo por Inbound. Lo hace visible su entrada Inbound, y con el
+    /// mismo criterio se cargan las fijadas: la guardada se pinta y Alt+1…5 la tiene.
+    /// </summary>
+    [Fact]
+    public void D4_con_solo_un_Tenant_alcanzado_por_Inbound_se_cargan_sus_fijadas()
+    {
+        _lista = [Propio()];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Inbound)];
+        ConFijadas(Norte);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().Be(Norte.ToString()));
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas-servicios").Should().Be($"{Norte}:Inbound");
+    }
+
+    /// <summary>
+    /// Mixto: Norte por Outbound y Sur solo por Inbound. Sur se puede fijar con su estrella y una Sur ya guardada no se
+    /// trata como ajena: lo que se puede fijar es lo que se pinta, no solo la lista por Tenant.
+    /// </summary>
+    [Fact]
+    public async Task D4_un_Tenant_alcanzado_solo_por_Inbound_se_fija_y_no_se_trata_como_ajeno()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
+        _listaPorPapel = [Propio(), ConPapel(Norte, "Empresa Norte", ServicioCae.Outbound), ConPapel(Sur, "Empresa Sur", ServicioCae.Inbound)];
+        var modulo = ConFijadas(Sur);
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().Be(Sur.ToString()));
+
+        await cut.Find("[role=option][value='" + Sur + "']").ParentElement!.QuerySelector(".selector-tenant-fijar")!.ClickAsync(new MouseEventArgs());
+
+        cut.Find(".selector-tenant").GetAttribute("data-fijadas").Should().BeNullOrEmpty("la estrella de Sur la desfija");
+        ((string[])modulo.Invocations["guardarFijadas"].Single().Arguments[1]!).Should().BeEmpty(
+            "Sur no estaba entre las ajenas: al desfijarla no queda guardada");
+    }
 }

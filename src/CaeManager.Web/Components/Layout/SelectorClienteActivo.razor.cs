@@ -221,7 +221,14 @@ public partial class SelectorClienteActivo
     /// pertenece al Tenant que se deja y en el nuevo solo pintaría el estado vacío de «sin acceso».
     /// </para>
     /// </summary>
-    private string RutaDeRetorno => RutaTrasCambioDeTenant.Calcular(new Uri(NavigationManager.Uri).AbsolutePath);
+    private string RutaDeRetorno => RutaDeRetornoPara(null);
+
+    /// <summary>
+    /// La ruta de retorno de una entrada con su papel (D-4): con Inbound, solo la de una página que se abra con papel
+    /// Inbound y, si no, el inicio (<see cref="RutaTrasCambioDeTenant.Calcular(string?, CaeManager.Domain.Operaciones.ServicioCae?)"/>).
+    /// </summary>
+    private string RutaDeRetornoPara(CaeManager.Domain.Operaciones.ServicioCae? servicio) =>
+        RutaTrasCambioDeTenant.Calcular(new Uri(NavigationManager.Uri).AbsolutePath, servicio);
 
     /// <summary>
     /// «Recientes»: los últimos Tenants abiertos con éxito, recortados SIEMPRE al conjunto autorizado que
@@ -286,8 +293,8 @@ public partial class SelectorClienteActivo
     /// </summary>
     private async Task IniciarFijadasAsync()
     {
-        if (_fijadasIniciadas || _desechado || _activo is null || _clientes is null || ClaveFijadas is not { } clave
-            || !ClientesAutorizados.SelectorVisible(_clientes, _activo))
+        // Con el mismo criterio que pinta el selector (Visible): también cuando solo lo hace visible una entrada Inbound (D-4).
+        if (_fijadasIniciadas || _desechado || _clientes is null || ClaveFijadas is not { } clave || !Visible)
             return;
 
         _fijadasIniciadas = true;
@@ -318,7 +325,8 @@ public partial class SelectorClienteActivo
             // aviso lo da la página nueva al ver que la empresa activa ya no es la de la última carga de esta pestaña.
             await AvisarSiCambioDeEmpresaAsync(modulo, clave);
 
-            var permitidas = _clientes.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
+            // Lo que se pinta (_entradas), no solo la lista por Tenant: un Tenant alcanzado solo por Inbound también se fija.
+            var permitidas = _entradas.Where(c => !c.EsOrigen).Select(c => c.TenantId).ToHashSet();
             foreach (var texto in guardadas ?? []) // null si el interop no responde
             {
                 if (Guid.TryParse(texto, out var id) && permitidas.Contains(id))
@@ -360,7 +368,7 @@ public partial class SelectorClienteActivo
     private async Task AlternarFijadaAsync(Guid tenantId)
     {
         if (!PuedeFijar || ClaveFijadas is not { } clave
-            || _clientes?.FirstOrDefault(c => c.TenantId == tenantId) is not { EsOrigen: false })
+            || !_entradas.Any(c => c.TenantId == tenantId && !c.EsOrigen))
             return;
 
         if (!_fijadas.Remove(tenantId))

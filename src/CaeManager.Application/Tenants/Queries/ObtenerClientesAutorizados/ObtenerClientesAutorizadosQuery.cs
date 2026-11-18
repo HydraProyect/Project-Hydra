@@ -64,6 +64,12 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
     /// caería al Tenant de origen o al estado 4a. Con el papel Outbound, sin papel, sin una Asignación de Operación Inbound
     /// que lo autorice o con un Tenant activo que ya está en la lista, devuelve la lista por Tenant sin cambios. Es presentación: no autoriza nada, y el Tenant efectivo, la
     /// revalidación de la selección y RLS siguen decidiendo qué se lee.
+    /// <para>
+    /// Con papel Inbound, los lectores que de verdad llegan a pedirla son los de la cabecera, la paleta y, en las páginas
+    /// de Inbound, las fichas y paneles no encontrados y el aviso de enlace profundo. En las exportaciones de los listados
+    /// y en el asistente IA no tiene efecto con papel Inbound: <c>NucleoCerradoConPapelInboundAuthorizationHandler</c> y
+    /// <c>PaginaDeOutboundPorPapelAuthorizationHandler</c> los niegan antes de llegar aquí (O-1 (b), B-02b).
+    /// </para>
     /// </summary>
     public bool ParaTenantActivo { get; init; }
 }

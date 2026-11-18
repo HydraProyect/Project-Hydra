@@ -1,3 +1,8 @@
+using System.Reflection;
+using CaeManager.Domain.Operaciones;
+using CaeManager.Web.Services.Autorizacion;
+using Microsoft.AspNetCore.Components;
+
 namespace CaeManager.Web.Components.Layout;
 
 /// <summary>
@@ -49,6 +54,40 @@ public static class RutaTrasCambioDeTenant
 
         return "/" + segmentos[0];
     }
+
+    /// <summary>
+    /// La ruta de <see cref="Calcular(string?)"/> para una entrada del selector con su papel (D-4). Con papel Inbound,
+    /// solo se conserva si la página de esa ruta se abre con papel Inbound (las de Inbound y las marcadas como abiertas,
+    /// el mismo criterio que <see cref="NucleoCerradoConPapelInboundAuthorizationHandler"/> y
+    /// <see cref="PaginaDeOutboundPorPapelAuthorizationHandler"/>); si no, o si la ruta no es de una página conocida,
+    /// se vuelve al inicio, que está abierto con papel Inbound. Así elegir «Empresa X · Inbound» desde /trabajadores no
+    /// aterriza en «Acceso denegado». Sin papel o con Outbound, la de siempre. Como el resto de esta clase, solo decide
+    /// la navegación: los handlers siguen siendo los que niegan.
+    /// </summary>
+    public static string Calcular(string? camino, ServicioCae? papelDestino)
+    {
+        var ruta = Calcular(camino);
+        return papelDestino == ServicioCae.Inbound && !SeAbreConPapelInbound(ruta) ? "/" : ruta;
+    }
+
+    /// <summary>
+    /// ¿La página registrada en <paramref name="ruta"/> (sin parámetros) se abre con papel Inbound? Pública para los
+    /// tests (sin InternalsVisibleTo en CaeManager.Web).
+    /// </summary>
+    public static bool SeAbreConPapelInbound(string ruta) =>
+        PaginasSinParametros.Value.TryGetValue(ruta, out var pagina)
+        && !NucleoCerradoConPapelInboundAuthorizationHandler.SeCierraConPapelInbound(pagina)
+        && !PaginaDeOutboundPorPapelAuthorizationHandler.EsPaginaDeOutbound(pagina);
+
+    private static readonly Lazy<IReadOnlyDictionary<string, Type>> PaginasSinParametros = new(() =>
+    {
+        var paginas = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tipo in typeof(RutaTrasCambioDeTenant).Assembly.GetTypes())
+            foreach (var ruta in tipo.GetCustomAttributes<RouteAttribute>(inherit: false))
+                if (!ruta.Template.Contains('{'))
+                    paginas.TryAdd(ruta.Template.Length > 1 ? ruta.Template.TrimEnd('/') : ruta.Template, tipo);
+        return paginas;
+    });
 
     private const string ArbolPlataforma = "plataforma";
     private const string ArbolInbound = "inbound";
