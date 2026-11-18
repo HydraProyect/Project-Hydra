@@ -116,7 +116,7 @@ public class ValidacionInboundConBackendTests : BunitContext
     private static DocumentoPendienteInboundDto Pendiente(Guid documento, string titular, Guid? tipo = null) =>
         new(Contrato, documento, "Formación PRL", tipo ?? TipoTce, Guid.NewGuid(), titular, "12345678Z", "Montajes Moncayo S.L.",
             "B12345674", "Planta Zaragoza Norte", new DateOnly(2026, 3, 1), new DateOnly(2027, 3, 1),
-            EstadoVigenciaDocumento.VenceEnFecha, SoloConclusionAptitud: false);
+            EstadoVigenciaDocumento.VenceEnFecha, SoloConclusionAptitud: false, SubidoPorQuienValida: false);
 
     private static Guid Fila(Guid documento) => ServicioValidacionInboundConBackend.IdDeFila(Contrato, documento);
 
@@ -210,6 +210,59 @@ public class ValidacionInboundConBackendTests : BunitContext
         _mediador.Comandos.Should().ContainSingle();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse(
             "el veredicto no se registró: el documento sigue pendiente");
+    }
+
+    /// <summary>
+    /// D-12: la marca de la base (<c>SubidoPorQuienValida</c>) llega por el adaptador real hasta la pantalla: en esa fila
+    /// solo Validar se deshabilita, y la otra fila de la cola sigue validable.
+    /// </summary>
+    [Fact]
+    public void La_marca_de_D12_del_backend_deshabilita_Validar_solo_en_su_documento()
+    {
+        _mediador.Cola.Clear();
+        _mediador.Cola.AddRange([Pendiente(DocA, "Ana Pérez") with { SubidoPorQuienValida = true }, Pendiente(DocB, "Luis Gil")]);
+
+        var propio = Detalle(DocA);
+        propio.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeTrue();
+        propio.FindAll("button").Single(b => b.TextContent.Trim() == "Rechazar").HasAttribute("disabled").Should().BeFalse();
+
+        var ajeno = Detalle(DocB);
+        ajeno.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// D-12: los dos bloqueos de Validar que decide el Command (lo subió quien valida; hay impersonación) se dicen con el
+    /// texto de la pantalla en su idioma, no con el literal español del error.
+    /// </summary>
+    [Theory]
+    [InlineData("EvidenciaInbound.ValidaLoQueSubio", "es-ES", "Lo subiste tú: lo valida otra persona.")]
+    [InlineData("EvidenciaInbound.ValidaLoQueSubio", "ca-ES", "L'has pujat tu: el valida una altra persona.")]
+    [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "es-ES",
+        "Mientras actúas en nombre de otro usuario no se puede validar en Inbound. Rechazar sigue disponible.")]
+    [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "ca-ES",
+        "Mentre actues en nom d'un altre usuari no es pot validar a Inbound. Rebutjar continua disponible.")]
+    public void Un_bloqueo_D12_del_servidor_se_dice_en_el_idioma_de_la_pantalla(string codigo, string cultura, string esperado)
+    {
+        var error = codigo == EvidenciaInboundErrores.ValidaLoQueSubio.Codigo
+            ? EvidenciaInboundErrores.ValidaLoQueSubio
+            : EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible;
+        _mediador.Respuesta = Result.Fallo<Guid>(error);
+        var culturaPrevia = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(cultura);
+            var cut = Detalle(DocA);
+
+            Pulsar(cut, "Validar");
+            Confirmar(cut);
+
+            _mediador.Comandos.Should().ContainSingle();
+            Services.GetRequiredService<ToastService>().Mensajes.Select(m => m.Mensaje).Should().Contain(esperado);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = culturaPrevia;
+        }
     }
 
     [Fact]

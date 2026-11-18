@@ -31,7 +31,8 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         return filas
             .Select(d => new DocumentoInboundDto(
                 d.DocumentoId, d.TrabajadorId, d.TrabajadorNombre, d.TrabajadorApellidos, d.TrabajadorDni, d.TipoDocumentoNombre,
-                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia, d.SoloConclusionAptitud))
+                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia, d.SoloConclusionAptitud,
+                d.SubidoPorQuienLee))
             .ToList();
     }
 
@@ -80,6 +81,10 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         public DateOnly? FechaVencimiento { get; init; }
         public int EstadoVigencia { get; init; }
         public bool SoloConclusionAptitud { get; init; }
+
+        // D-12: la función compara los dos autores de la versión con el usuario del contexto firmado
+        // (migración MarcaInboundSubidoPorQuienLee); ningún identificador de usuario del Tenant propietario sale de ella.
+        public bool SubidoPorQuienLee { get; init; }
     }
 
     private sealed class FilaArchivo

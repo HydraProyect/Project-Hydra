@@ -237,7 +237,8 @@
             <aside class="vd-lateral" aria-label="Veredicto">
                 @if (doc.Propio)
                 {
-                    <div class="vd-aviso-propio" role="alert">No puedes validarlo: lo subiste tú en nombre de la Empresa contratista. Tiene que validarlo otro Gestor CAE con este contrato en su cartera.</div>
+                    @* D-12: Validar queda deshabilitado para quien subió la versión; Rechazar sigue disponible. *@
+                    <div class="vd-aviso-propio" role="alert">@TextosValidacion["SubidoPorTi"] @TextosValidacion["SubidoPorTiQuienValida"]</div>
                 }
 
                 <section class="vd-bloque">
@@ -341,7 +342,7 @@
                     }
 
                     <div class="vd-botones">
-                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeActuar || FechaMala || _enviando)" OnClick="ValidarPulsado">Validar</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(!PuedeValidar || FechaMala || _enviando)" OnClick="ValidarPulsado">Validar</Boton>
                         <Boton Variante="@(Lectura == ResultadoLectura.ConError ? VarianteBoton.Destructivo : VarianteBoton.Secundario)" Deshabilitado="@(!PuedeActuar || _enviando)" OnClick="RechazarPulsado">Rechazar</Boton>
                         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(!PuedeActuar || _enviando)" OnClick="IncompletoPulsado">Marcar incompleto</Boton>
                         @if (_modo != ModoVeredicto.Ninguno)

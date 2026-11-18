@@ -215,15 +215,43 @@ public class ValidacionInboundTests : BunitContext
     }
 
     [Fact]
-    public void Un_documento_subido_por_el_propio_gestor_no_se_puede_validar()
+    public async Task Un_documento_subido_por_el_propio_gestor_no_se_puede_validar()
     {
         _servicio.Documento = RespuestaValidacion<DocumentoAValidar>.Correcta(Documento(IdA, propio: true));
+        _servicio.Veredicto = RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(Guid.NewGuid(), VeredictoValidacion.Rechazado));
 
         var cut = RenderDetalle(IdA);
 
-        cut.Markup.Should().Contain("No puedes validarlo: lo subiste tú en nombre de la Empresa contratista.");
+        // D-12 solo habla de Validar: Rechazar y Marcar incompleto siguen disponibles (la maqueta deshabilitaba los tres).
+        cut.Find(".vd-aviso-propio").TextContent.Should().Contain("Lo subiste tú: lo valida otra persona.")
+            .And.Contain("Puede validarlo otro Gestor CAE con este contrato en su cartera o el Administrador de esta organización.");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Validar").HasAttribute("disabled").Should().BeTrue();
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Rechazar").HasAttribute("disabled").Should().BeTrue();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Rechazar").HasAttribute("disabled").Should().BeFalse();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Marcar incompleto").HasAttribute("disabled").Should().BeFalse();
+
+        // El atajo de teclado tampoco valida: la guarda vive en el handler, no en el marcado.
+        var atajos = cut.FindComponent<CaeManager.Web.Features.Inbound.Validacion.Components.AtajosValidacion>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("Espacio"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("v"));
+        _servicio.Llamadas.Should().NotContain(l => l.StartsWith("validar"));
+
+        Pulsar(cut, "Rechazar");
+        Pulsar(cut, "Rechazar");
+        _servicio.Llamadas.Should().ContainSingle(l => l.StartsWith("rechazar"), "quien lo subió sí puede rechazarlo");
+    }
+
+    [Fact]
+    public void La_cola_senala_el_documento_que_subio_quien_valida_y_lo_deja_en_la_cola()
+    {
+        _servicio.Cola = RespuestaValidacion<ColaValidacion>.Correcta(Cola(
+            Fila(IdA, "Aptitud médica", "Ana Pérez", "Montajes Ebro", ResultadoLectura.Correcto) with { Propio = true },
+            Fila(IdB, "Aptitud médica", "Luis Gil", "Montajes Ebro", ResultadoLectura.Correcto)));
+
+        var cut = Render<DocumentosPorValidar>();
+
+        var senales = cut.FindAll(".dpv-propio");
+        senales.Should().ContainSingle().Which.TextContent.Should().Be("Lo subiste tú: lo valida otra persona.");
+        cut.Markup.Should().Contain("Ana Pérez").And.Contain("Luis Gil");
     }
 
     // ---------------------------------------------------------------- Reglas puras
