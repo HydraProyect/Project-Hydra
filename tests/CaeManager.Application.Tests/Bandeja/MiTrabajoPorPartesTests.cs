@@ -40,7 +40,8 @@ public class MiTrabajoPorPartesTests
 
         return new ObtenerMiTrabajoAgregadoQueryHandler(
             mediator, configuracion, new EmpresasQueryContextFalso(), new CalculoEstadoCentroSinUso(),
-            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance, puerta);
+            new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance,
+            new CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente(), new TenantActualDeMiTrabajo(), puerta);
     }
 
     private static async Task<List<ParteMiTrabajoDto>> Recorrer(

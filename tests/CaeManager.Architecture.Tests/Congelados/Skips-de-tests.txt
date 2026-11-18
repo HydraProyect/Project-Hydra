@@ -1,13 +1,10 @@
-# Tests omitidos (Skip) en tests/ (SkipsDeTestsCongeladosTests, MJ-08, 2026-11-02): 9 omisiones en 7 ficheros.
+# Tests omitidos (Skip) en tests/ (SkipsDeTestsCongeladosTests, MJ-08, 2026-11-02): 8 omisiones en 6 ficheros.
 # Solo baja. Una nueva lleva aquí su línea con un comentario '#' que diga qué condición la dispara y quién es su dueño.
 # Medida: 'Skip =' (atributo o inicializador) y 'Skip.If/IfNot' fuera de comentarios. Excluidos los dos ficheros de
 # esta carpeta que traen ejemplos sintéticos (hueco declarado en el test).
 #
 # Necesita los mockups de Project-Hydra-Negocio (variable de entorno); sin ellos se omite.
 tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: Skip (atributo) = 1
-# Defecto (D-6 b, R-0, P-6): un ámbito explícito sobre otro Tenant manda sobre la Sesión Privilegiada. Dueña: la línea
-# D-6 b; se quita el Skip con el arreglo del defecto (issue #2351).
-tests/CaeManager.IntegrationTests/Comunicaciones/LineaBaseRlsComunicacionesBajoRuntimeTests.cs :: Skip (atributo) = 1
 # Requiere una clave real de IA en la variable de entorno; en CI sin clave se omite.
 tests/CaeManager.IntegrationTests/RegresionPromptsIa/TheorySiHayClaveIaAttribute.cs :: Skip (atributo) = 1
 # PERMANENTE SIN DUEÑO (MJ-09): CryptographicException de causa no aislada. Ver el issue de MJ-09.

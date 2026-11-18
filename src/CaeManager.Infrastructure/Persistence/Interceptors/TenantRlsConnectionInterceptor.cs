@@ -201,7 +201,9 @@ public class TenantRlsConnectionInterceptor(
     /// Lo que fijaría una apertura de conexión en este instante: las cuatro
     /// coordenadas del contexto firmado y el rol (ninguno, soporte o
     /// Aprovisionamiento). Leer el tenant, el claim y los <c>AsyncLocal</c> no
-    /// toca la base, así que es seguro llamarlo antes de cada comando.
+    /// toca la base, así que es seguro llamarlo antes de cada comando. El
+    /// Tenant y el rol los decide <see cref="DecidirTenantYRol"/>, con la
+    /// guarda de la Sesión Privilegiada.
     /// </summary>
     private async Task<SesionRls> SesionDeseadaAsync()
     {
@@ -213,11 +215,54 @@ public class TenantRlsConnectionInterceptor(
             : AmbitoTenantExplicito.TenantIdActual is not null ? OrigenContextoRls.Ambito
             : OrigenContextoRls.Anonimo;
 
-        var rol = DebeAdoptarRolDeAprovisionamiento() ? RolAprovisionamiento
-            : clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null ? RolSoporte
-            : null;
+        var (tenantContexto, rol) = DecidirTenantYRol(
+            tenantId,
+            clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada,
+            clienteActivoSeleccionado.TenantIdSeleccionado,
+            DebeAdoptarRolDeAprovisionamiento());
 
-        return new SesionRls(new ContextoSesionRls(tenantId, tenantOrigenId, usuarioId, origen), rol);
+        return new SesionRls(new ContextoSesionRls(tenantContexto, tenantOrigenId, usuarioId, origen), rol);
+    }
+
+    /// <summary>
+    /// El Tenant que se firma y el rol que se adopta, sin tocar la base.
+    ///
+    /// <para>
+    /// <b>Guarda de la Sesión Privilegiada (D-6 b, R-0b, issue #2351).</b> Una Sesión Privilegiada se concede
+    /// sobre un Tenant objetivo, el que su selección nombra. <see cref="ITenantActual.TenantId"/> deja que un
+    /// <see cref="AmbitoTenantExplicito"/> mande sobre esa selección, así que sin esta guarda un ámbito sobre
+    /// otro Tenant firmaba ese Tenant con <c>cae_app_soporte</c> y la conexión leía sus filas: la garantía B
+    /// (solo lectura) no aísla nada por sí misma y la A (las políticas) solo mira el Tenant del contexto.
+    /// Con una Sesión Privilegiada seleccionada y un Tenant efectivo distinto del seleccionado, la conexión
+    /// <b>conserva <c>cae_app_soporte</c></b> y <b>se queda sin Tenant</b>: ninguna política por Tenant del contexto
+    /// casa un Tenant nulo, así que no lee filas de ningún Tenant por esa vía. Las políticas que miran el Tenant de
+    /// origen (<c>app.tenant_origen_id</c>, que sale del claim del Actor real y no del ámbito ni de la selección; por
+    /// ejemplo <c>posicion_en_la_asignacion</c>) siguen viendo lo que ese Actor ya ve sin Sesión Privilegiada. El rol
+    /// no tiene privilegio de escritura sobre ninguna tabla, tenga RLS o no. Las funciones <c>SECURITY DEFINER</c> por las que soporte sí registra exigen un Tenant en el contexto.
+    /// </para>
+    /// <para>
+    /// Alcance: esta guarda decide lo que se aplica a la conexión. El sellado de un lote de <c>SaveChanges</c> dentro
+    /// de una transacción vuelve a firmar el Tenant del lote (<c>TenantSelladoInterceptor</c>) sin pasar por aquí; con
+    /// el rol de soporte ese lote no escribe (42501).
+    /// </para>
+    /// <para>
+    /// Lo que la guarda nunca hace es quitar el rol: la conexión volvería al rol de login
+    /// <c>cae_app_runtime</c>, que escribe, y en una tabla sin RLS esa escritura pasaría aunque no hubiera Tenant.
+    /// Tampoco adopta el de Aprovisionamiento, que escribe: soporte es lo más restrictivo que hay. Un camino que
+    /// de verdad necesite otro Tenant con la selección puesta se resuelve en un ámbito de servicios sin la
+    /// selección (ver <c>CierreSesionEnServidor</c>), nunca con una excepción aquí.
+    /// </para>
+    /// </summary>
+    internal static (Guid? TenantId, string? Rol) DecidirTenantYRol(
+        Guid? tenantEfectivo, Guid? sesionPrivilegiadaSeleccionada, Guid? tenantSeleccionado, bool ambitoDeAprovisionamiento)
+    {
+        if (sesionPrivilegiadaSeleccionada is not null && tenantEfectivo != tenantSeleccionado)
+            return (null, RolSoporte);
+
+        var rol = ambitoDeAprovisionamiento ? RolAprovisionamiento
+            : sesionPrivilegiadaSeleccionada is not null ? RolSoporte
+            : null;
+        return (tenantEfectivo, rol);
     }
 
     /// <summary>

@@ -68,7 +68,8 @@ public class VisitasUrgentesEnLaColaTests
 
         var resultado = await new ObtenerMiTrabajoAgregadoQueryHandler(
                 cola, cola.Configuracion, new EmpresasQueryContextFalso(), new CalculoEstadoCentroSinUso(),
-                new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance)
+                new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance,
+                new CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente(), new TenantActualDeMiTrabajo())
             .Handle(new ObtenerMiTrabajoAgregadoQuery(), default);
 
         var bloqueoActuacion = resultado.Tenants.Should().ContainSingle().Which.BloqueoActuacion;

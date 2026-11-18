@@ -274,7 +274,8 @@ public class OrdenUnicoDeLaColaTests
     {
         var handler = new ObtenerMiTrabajoAgregadoQueryHandler(
             cola, cola.Configuracion, new EmpresasQueryContextFalso(), new CentroBloqueadoPorUnRechazo(), new AlcanceDatosServiceFalso(),
-            NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance);
+            NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance,
+            new CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente(), new TenantActualDeMiTrabajo());
 
         var resultado = await handler.Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 
