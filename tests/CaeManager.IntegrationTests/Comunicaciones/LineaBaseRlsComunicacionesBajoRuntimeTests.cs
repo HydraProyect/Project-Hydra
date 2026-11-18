@@ -261,19 +261,50 @@ public class LineaBaseRlsComunicacionesBajoRuntimeTests : IAsyncLifetime
         }
     }
 
-    /// <summary>P-6, negativo real. Una Sesión Privilegiada sobre Ebro con un <see cref="AmbitoTenantExplicito"/> sobre
-    /// Norte no debe leer Norte. Hoy el ámbito manda sobre la selección en <see cref="TenantActual"/>, el interceptor
-    /// firma ese Tenant y adopta <c>cae_app_soporte</c>, y <c>aislamiento_tenant</c> solo compara el Tenant del contexto:
-    /// por lectura del código, la prueba sale en rojo. Marcada como defecto, sin tocar producción.</summary>
-    [Fact(Skip = "defecto #2351: el ámbito explícito manda sobre la Sesión Privilegiada (D-6 b, R-0, P-6)")]
+    /// <summary>P-6, negativo real (R-0b, issue #2351). Una Sesión Privilegiada sobre Ebro con un
+    /// <see cref="AmbitoTenantExplicito"/> sobre Norte: el ámbito manda sobre la selección en <see cref="TenantActual"/>,
+    /// pero la guarda del interceptor conserva <c>cae_app_soporte</c> y deja la conexión sin Tenant. No lee Norte (ni
+    /// Ebro: sin Tenant ninguna política casa) y no escribe ni en una tabla sin RLS que el rol de login sí escribe.
+    /// Mutaciones: quitar la guarda firma Norte con <c>cae_app_soporte</c> y la lectura devuelve Norte; quitar el
+    /// <c>SET ROLE</c> o devolver un rol nulo en la guarda deja <c>cae_app_runtime</c>, y fallan
+    /// <c>current_user</c> y el 42501 del INSERT.</summary>
+    [Fact]
     public async Task P6_una_Sesion_Privilegiada_sobre_un_Tenant_no_lee_otro_por_un_ambito_explicito()
     {
+        string tablaSinRls;
+        await using (var propietaria = await AbrirAsync(_cadena))
+        {
+            tablaSinRls = (string?)await EscalarAsync(propietaria, """
+                SELECT c.relname::text FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+                   AND has_table_privilege('cae_app_runtime', c.oid, 'INSERT')
+                 ORDER BY c.relname LIMIT 1
+                """) ?? throw new InvalidOperationException("barrera: hace falta una tabla sin RLS que el rol de login escriba");
+            (await EscalarAsync(propietaria, "SELECT has_any_column_privilege('cae_app_soporte', format('public.%I', @t), 'INSERT')",
+                ("t", tablaSinRls))).Should().Be(false, $"barrera: {tablaSinRls} no la escribe el rol de soporte, ni por columna");
+        }
+
+        // Conexión retenida, como la de una operación de la puerta (D3): el paso al ámbito y la vuelta son
+        // realineaciones de la misma conexión física, no aperturas nuevas.
         await using var contexto = ContextoDeSesionPrivilegiada(objetivo: _ebro);
+        await contexto.Database.OpenConnectionAsync();
+        var pid = ((NpgsqlConnection)contexto.Database.GetDbConnection()).ProcessID;
         (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().Equal([_ebro], "control positivo");
 
         using (AmbitoTenantExplicito.Establecer(_norte))
-            (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().NotContain(_norte,
-                "la Sesión Privilegiada se concedió sobre Ebro; un ámbito explícito no la lleva a Norte");
+        {
+            (await contexto.Database.SqlQueryRaw<string>("""SELECT current_user::text AS "Value" """).ToListAsync())
+                .Should().Equal(["cae_app_soporte"], "la guarda conserva el rol de soporte; nunca cae al rol de login");
+            (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().BeEmpty(
+                "la Sesión Privilegiada se concedió sobre Ebro; un ámbito explícito sobre Norte deja la conexión sin Tenant");
+            await DebeRechazarAsync(
+                () => contexto.Database.ExecuteSqlRawAsync(string.Format("INSERT INTO \"{0}\" DEFAULT VALUES", tablaSinRls)), null);
+        }
+
+        (await TenantsLeidosAsync(contexto, ["Conversaciones", "Mensajes"])).Should().Equal([_ebro],
+            "al cerrar el ámbito, la misma conexión vuelve a la Sesión Privilegiada sobre Ebro");
+        ((NpgsqlConnection)contexto.Database.GetDbConnection()).ProcessID.Should().Be(pid, "barrera: misma conexión física");
+        await contexto.Database.CloseConnectionAsync();
     }
 
     /// <summary>P-7. El Actor de Plataforma TALVEG visita Ebro con ámbito explícito (Tenant del contexto Ebro, Tenant de

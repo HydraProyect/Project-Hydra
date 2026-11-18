@@ -1397,7 +1397,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
         var texto = File.ReadAllText(interceptor);
 
-        texto.Should().Contain("ContextoSesionRls(tenantId, tenantOrigenId, usuarioId", "la coordenada de identidad tiene que seguir firmándose");
+        texto.Should().Contain("ContextoSesionRls(tenantContexto, tenantOrigenId, usuarioId", "la coordenada de identidad tiene que seguir firmándose");
         texto.Should().NotContain("set_config('app.usuario_plataforma_id",
             "la pertenencia a plataforma se deriva de las filas de concesión, no se declara en la sesión");
     }

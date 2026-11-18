@@ -89,6 +89,12 @@ public class TenantActual(
         }
     }
 
+    /// <summary>
+    /// El ámbito explícito manda sobre la sesión y sobre la selección, también sobre una que nombre una Sesión
+    /// Privilegiada. Lo que eso no concede lo corta el interceptor de RLS: con una Sesión Privilegiada seleccionada
+    /// y un ámbito sobre otro Tenant, la conexión conserva el rol de soporte y se queda sin Tenant
+    /// (<c>TenantRlsConnectionInterceptor.DecidirTenantYRol</c>, issue #2351).
+    /// </summary>
     public Guid? TenantId
     {
         get
