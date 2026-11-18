@@ -36,8 +36,8 @@ namespace CaeManager.Application.Common;
 ///
 /// <para>
 /// El buzón personal ajeno (<c>ConexionIntegracion.GestorPropietarioId</c> de otro gestor) se cierra además fuera de
-/// esta expresión, contra la tabla de conexiones y para cualquier ancla: los listados
-/// (<c>ConversacionesVisibles</c>, en Comunicaciones) excluyen las conexiones personales ajenas y las eliminadas del
+/// esta expresión, contra la tabla de conexiones y para cualquier ancla: la bandeja de Comunicaciones
+/// (<c>ConversacionesVisibles</c>) excluye las conexiones personales ajenas y las eliminadas del
 /// Tenant, y el detalle pregunta <see cref="IAlcanceDatosService.ConexionIntegracionVisibleAsync"/>, que falla cerrado
 /// con una conexión eliminada o inexistente (esta última, sin clave foránea, sigue en la lista). Los dos aplican la
 /// misma regla de propiedad del buzón, con el mismo usuario que la condición 2. Ni el Administrador abre un buzón

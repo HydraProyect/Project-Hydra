@@ -8,9 +8,10 @@ namespace CaeManager.Application.Comunicaciones;
 /// <summary>
 /// Las conversaciones que un listado puede mostrar, con la misma regla que la acción que abre cada una
 /// (<see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync"/>, y con ella
-/// <see cref="AlcanceDeMensajesDeConversacion.MensajeVisibleAsync"/>), traducida a SQL (D-6 b, R-3a). La usan la bandeja de
-/// Comunicaciones y todo listado de un objeto nacido de un mensaje (las sugerencias de visita de Mi trabajo y de la
-/// Bandeja del Gestor CAE), para que el listado no muestre lo que la acción rechaza ni al revés. Son las dos mitades de
+/// <see cref="AlcanceDeMensajesDeConversacion.MensajeVisibleAsync"/>), traducida a SQL (D-6 b, R-3a). La usa la bandeja de
+/// Comunicaciones (<c>ObtenerConversacionesQuery</c>), para que el listado no muestre lo que la acción rechaza ni al revés.
+/// Las sugerencias de visita de Mi trabajo y de la Bandeja del Gestor CAE todavía no la usan: listan por Centro, y su
+/// alineación con la acción va en un incremento propio, con su presupuesto de SQL. Son las dos mitades de
 /// <c>ConversacionVisibleAsync</c>:
 /// <list type="number">
 /// <item>La regla por anclas de <see cref="VisibilidadConversacion"/> (<see cref="VisibilidadConversacion.Predicado{T}"/>),

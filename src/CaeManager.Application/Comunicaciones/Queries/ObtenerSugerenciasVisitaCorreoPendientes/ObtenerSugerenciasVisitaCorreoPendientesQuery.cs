@@ -1,7 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
-using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Comunicaciones;
 using MediatR;
@@ -25,28 +24,12 @@ public record SugerenciaVisitaCorreoPendienteDto(
 
 public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
     IComunicacionesQueryContext comunicacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos, IIntegracionesQueryContext integracionesContext,
-    ICurrentUserService currentUserService, ITenantActual tenantActual)
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerSugerenciasVisitaCorreoPendientesQuery, IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>
 {
-    /// <summary>
-    /// Para el usuario de la sesión: el alcance de Centros y, además, la visibilidad de la conversación de la que nace la
-    /// sugerencia (D-6 b, R-3a), con la misma regla que las acciones que la resuelven, descartarla
-    /// (<c>DescartarSugerenciaVisitaCorreoCommand</c>) y crear la Visita desde ella (<c>CrearVisitaCommand</c>), que
-    /// autorizan con <see cref="AlcanceDeMensajesDeConversacion.MensajeVisibleAsync"/>. Sin esto, un Gestor CAE acotado
-    /// veía en Mi trabajo y en la Bandeja del Gestor CAE la sugerencia, y su resumen, nacida de un hilo de triaje que ya
-    /// no puede abrir, y al descartarla recibía «No encontramos esta sugerencia». El filtro de Centro se mantiene: el
-    /// listado sigue siendo más estrecho que la acción en esa dimensión, nunca más ancho.
-    /// </summary>
     public async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> Handle(
-        ObtenerSugerenciasVisitaCorreoPendientesQuery request, CancellationToken cancellationToken)
-    {
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var conversacionesVisibles = await ConversacionesVisibles.FiltrarAsync(
-            comunicacionesContext.Conversaciones, alcanceDatos, currentUserService, integracionesContext, tenantActual,
-            cancellationToken);
-        return await CalcularAsync(centroIdsVisibles, conversacionesVisibles, cancellationToken);
-    }
+        ObtenerSugerenciasVisitaCorreoPendientesQuery request, CancellationToken cancellationToken) =>
+        await CalcularAsync(await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
 
     /// <summary>
     /// Las sugerencias con el alcance de Centros ya resuelto. <see cref="Handle"/> lo resuelve para el
@@ -56,18 +39,14 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
     /// sugerencias sin Centro resuelto, igual que las ve quien tiene acceso total. Es un parámetro de este
     /// método, y la Query no lleva ningún campo de alcance, para que ninguna sesión de usuario pueda pedirlo.
     /// </summary>
-    public Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> CalcularAsync(
-        IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken) =>
-        CalcularAsync(centroIdsVisibles, comunicacionesContext.Conversaciones, cancellationToken);
-
-    private async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> CalcularAsync(
-        IReadOnlyList<Guid>? centroIdsVisibles, IQueryable<Conversacion> conversaciones, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> CalcularAsync(
+        IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var consulta =
             from sugerencia in comunicacionesContext.SugerenciasVisitaCorreo
             where !sugerencia.Resuelta
             join mensaje in comunicacionesContext.Mensajes on sugerencia.MensajeId equals mensaje.Id
-            join conversacion in conversaciones on mensaje.ConversacionId equals conversacion.Id
+            join conversacion in comunicacionesContext.Conversaciones on mensaje.ConversacionId equals conversacion.Id
             select new { sugerencia, conversacion.Canal };
 
         // Sin Centro resuelto no hay forma de acotar por cartera — se

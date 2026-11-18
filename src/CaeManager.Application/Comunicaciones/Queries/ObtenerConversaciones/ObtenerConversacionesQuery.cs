@@ -126,8 +126,7 @@ public class ObtenerConversacionesQueryHandler(
         //    personal de OTRO Gestor CAE (ConexionIntegracion.GestorPropietarioId),
         //    que también tienen ClienteId null, y los de una conexión eliminada.
         //
-        // Las dos mitades viven en ConversacionesVisibles, que comparten los
-        // listados de objetos nacidos de un mensaje (sugerencias de visita).
+        // Las dos mitades viven en ConversacionesVisibles.
         // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
         // a propósito: la página cierra la puerta de entrada, esto cierra
         // el dato para cualquier otra UI o API que llegue después.
