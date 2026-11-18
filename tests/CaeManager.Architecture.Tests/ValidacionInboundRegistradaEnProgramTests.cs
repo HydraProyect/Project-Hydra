@@ -51,8 +51,10 @@ public class ValidacionInboundRegistradaEnProgramTests
     public void Program_no_nombra_la_clave_de_la_validacion_Inbound()
     {
         // Reescribir Inbound:Validacion:Habilitado según el entorno antes de la llamada ataría la validación al entorno sin
-        // tocar la llamada ni OpcionesValidacionInbound. La clave solo se lee dentro de AddValidacionInbound.
-        Regex.Matches(ProgramSinComentarios(), @"Inbound:Validacion|""Validacion""").Count.Should().Be(0);
+        // tocar la llamada ni OpcionesValidacionInbound. La clave solo se lee dentro de AddValidacionInbound. Cualquier literal
+        // de texto que nombre «validacion» (sin distinguir mayúsculas, como las claves de configuración) sobra en Program.cs:
+        // cubre Inbound:Validacion:Habilitado, una sección o una variable de entorno Inbound__Validacion__Habilitado.
+        Regex.Matches(ProgramSinComentarios(), @"""[^""\n]*validacion[^""\n]*""", RegexOptions.IgnoreCase).Count.Should().Be(0);
     }
 
     // Los comentarios de línea y de bloque se quitan de una sola pasada: gana el que empieza antes, así que un «/*» dentro de

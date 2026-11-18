@@ -15,9 +15,10 @@ namespace CaeManager.Domain.Inbound.ContratosAcceso;
 /// <b>Los requisitos no se guardan aquí.</b> Lo que se exige a la Empresa contratista mientras el contrato está
 /// vigente son los requisitos activos de las <see cref="Requisitos.PlantillaRequisitos"/> que le aplican (por Actividad,
 /// por riesgo, del Centro o exigencia del Cliente empresarial: CA-1, capas que se resuelven al leer, B-15; hoy «Aptos hoy»
-/// solo cuenta la del Centro y las exigencias del Cliente): un contrato no copia ni congela requisitos, y cambiar una
+/// solo cuenta la del Centro y las exigencias del Cliente empresarial): un contrato no copia ni congela requisitos, y cambiar una
 /// plantilla cambia lo que se pide a todos los contratos vigentes a los que alcanza. Las filas <c>TipoDocumentoCentro</c>
-/// (opción 1 de DI-04) eran el modelo anterior y ningún código de Inbound lee ya sus filas. Por eso el contrato tampoco tiene
+/// (opción 1 de DI-04) eran el modelo anterior para el contrato de acceso y ningún código de Inbound lee ya sus filas; siguen
+/// vivas como documentación requerida del Centro fuera de Inbound. Por eso el contrato tampoco tiene
 /// nombre propio: se identifica por sus tres coordenadas y su periodo.
 /// </para>
 ///
