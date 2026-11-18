@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
@@ -36,10 +37,12 @@ public static class ClienteActivoEndpoints
             IDataProtectionProvider dataProtectionProvider,
             IContadorPendientesSelectorTenant contadorPendientes,
             [FromServices] CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
+            [FromServices] IRegistroCambioContexto registroCambioContexto,
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio))
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente, servicio,
+                registroCambioContexto))
             // Con papel Inbound hace falta para volver a cambiar de papel (O-1 (b)); la selección la revalida CambiarAsync.
             .AbiertoConPapelInbound();
 
@@ -59,13 +62,21 @@ public static class ClienteActivoEndpoints
         CancellationToken cancellationToken,
         IContadorPendientesSelectorTenant? contadorPendientes = null,
         CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
-        ServicioCae? servicio = null)
+        ServicioCae? servicio = null,
+        IRegistroCambioContexto? registroCambioContexto = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
 
         if (usuarioId is null || tenantOrigenId is null)
             return Results.Unauthorized();
+
+        // Con una Sesión Privilegiada activa el selector no cambia nada, ni siquiera vuelve al origen: fallo cerrado
+        // (D-6 b, R-2; A-23). La entrada y la salida del Tenant visitado van por SesionSoporteEndpoints, que las deja
+        // en RegistroActividadSoporte; por aquí serían una salida del plano 3 sin cerrar la sesión.
+        if (httpContext.RequestServices?.GetService<IClienteActivoSeleccionado>()?.SesionPrivilegiadaIdSeleccionada
+            is not null)
+            return Results.Forbid();
 
         var ahora = DateTime.UtcNow;
 
@@ -121,12 +132,22 @@ public static class ClienteActivoEndpoints
             return Results.Forbid();
         }
 
-        if (tenantId == tenantOrigenId.Value)
+        // Cambio de contexto con éxito, auditado en el Tenant de destino y solo en él (D-6 b, R-2; propuesta § 5.5),
+        // antes de emitir la cookie: si no queda registrado, la excepción corta aquí y el contexto no cambia. Con la
+        // versión de la cookie que se emite después, que además deja obsoleta la selección de las demás pestañas.
+        var token = tenantId == tenantOrigenId.Value
+            ? null
+            : CookieDeContextoTenant.ProtegerSeleccion(dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
+        if (registroCambioContexto is not null)
+            await registroCambioContexto.RegistrarCambioAsync(
+                tenantId, asignacionOperacionId, RegistroCambioContextoService.OrigenSelector,
+                CookieDeContextoTenant.VersionDe(token), cancellationToken);
+
+        if (token is null)
             CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);
         else
         {
-            CookieDeContextoTenant.EmitirSeleccion(
-                httpContext, dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
+            CookieDeContextoTenant.EmitirSeleccion(httpContext, token);
             // Preferencia de interfaz («Recientes» del selector), solo tras la autorización de arriba.
             RecientesSelectorTenant.Registrar(httpContext, usuarioId.Value, tenantId);
         }

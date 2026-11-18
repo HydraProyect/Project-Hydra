@@ -140,6 +140,8 @@ public static class SesionSoporteEndpoints
             SameSite = SameSiteMode.Lax,
             MaxAge = ClienteActivoSeleccionado.Vigencia,
         });
+        // Como cualquier emisión de la cookie de contexto: pasa a ser la selección vigente (D-6 b, R-2).
+        CookieDeContextoTenant.RegistrarSeleccionVigente(httpContext, token);
 
         // A la raíz, no a returnUrl: la pantalla desde la que se abre es de
         // plataforma y no existe dentro del tenant visitado. Y bajo sesión
@@ -191,6 +193,9 @@ public static class SesionSoporteEndpoints
             return Results.Forbid();
 
         httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
+        // La vuelta al origen es la selección vigente desde aquí: el POST de cierre llega sin cookie y, sin esto, la
+        // guarda de pestaña obsoleta lo rechazaría si ningún circuito la hubiera adoptado antes (D-6 b, R-2).
+        CookieDeContextoTenant.RegistrarSeleccionVigente(httpContext, tokenEmitido: null);
 
         return Results.LocalRedirect($"/configuracion/plataforma?sesionParaCerrar={sesionId}");
     }
@@ -211,10 +216,12 @@ public static class SesionSoporteEndpoints
     ///
     /// <para>
     /// <b>La guarda vive aquí y no en la pantalla</b>, y no es una preferencia. Dentro
-    /// de un circuito de Blazor no hay <c>HttpContext</c>, así que
-    /// <c>ClienteActivoSeleccionado</c> resuelve a nulo y memoiza ese nulo
-    /// (<c>SeleccionSinHttpContextTests</c>): una comprobación en la página diría
-    /// siempre «no hay sesión activa» y sería un instrumento ciego. En un endpoint la
+    /// de un circuito de Blazor no hay <c>HttpContext</c> después de la negociación, así que
+    /// <c>ClienteActivoSeleccionado</c> conserva lo que leyó entonces
+    /// (<c>RevalidacionCircuitoActivoHandler.SembrarSeleccionMientrasHayHttpContext</c>) o, sin esa
+    /// lectura, resuelve a nulo y memoiza ese nulo (<c>SeleccionSinHttpContextTests</c>): una
+    /// comprobación en la página vería la sesión de cuando se abrió el circuito, no la de ahora,
+    /// y sería un instrumento ciego. En un endpoint la
     /// cookie sí es legible, así que aquí la comprobación observa de verdad lo que dice
     /// observar.
     /// </para>
