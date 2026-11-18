@@ -52,6 +52,9 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Contactos.ContactoAgenda",
         "CaeManager.Domain.Contactos.ContactoAgendaTipoDocumento",
         "CaeManager.Domain.Inbound.ContratosAcceso.ContratoAcceso",
+        // Centros de portería de una persona con el rol «Control de acceso» (AF-01): apunta al Centro solo para limitar qué
+        // Centros abre la persona; el cálculo no la lee y asignar o retirar uno no cambia el estado de ningún Centro.
+        "CaeManager.Domain.Inbound.ControlAcceso.UsuarioControlAccesoCentro",
         "CaeManager.Domain.Documentos.AprobacionDocumento",
         "CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente",
         "CaeManager.Domain.Documentos.FirmaDigitalDocumento",

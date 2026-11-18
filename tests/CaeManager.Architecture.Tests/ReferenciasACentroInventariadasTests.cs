@@ -63,6 +63,8 @@ public class ReferenciasACentroInventariadasTests
         "CanalGestionDocumental",
         "ContactoAgenda",
         "ContratoAcceso",
+        // AF-01: los Centros de portería de una persona con el rol «Control de acceso», con FK compuesta (TenantId, CentroId) en RESTRICT.
+        "UsuarioControlAccesoCentro",
         // B-14: la plantilla de requisitos de un Centro, con FK compuesta (TenantId, CentroId) en RESTRICT.
         "PlantillaRequisitos",
         "TipoDocumentoCentro",

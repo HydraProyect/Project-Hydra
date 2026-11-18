@@ -37,7 +37,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         [CaeManager.Infrastructure.Identity.Roles.Consulta] =
             "Solo lectura de todos los datos de negocio, sin ninguna acción de creación, edición o eliminación.",
         [CaeManager.Infrastructure.Identity.Roles.Cliente] =
-            "Solo lectura de su propia información: sus Trabajadores, Empresas, Centros y Subcontratas asociadas. Sin ningún tipo de edición."
+            "Solo lectura de su propia información: sus Trabajadores, Empresas, Centros y Subcontratas asociadas. Sin ningún tipo de edición.",
+        [CaeManager.Infrastructure.Identity.Roles.ControlAcceso] =
+            "Portería del Centro: solo ve «Mis Centros», los Centros que le asignan, y nada más de la organización. No lee contratos, requisitos ni Trabajadores."
     };
 
     [Inject] private CaeManager.Infrastructure.Autorizacion.DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;

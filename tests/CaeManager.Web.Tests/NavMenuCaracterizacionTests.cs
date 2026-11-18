@@ -591,6 +591,7 @@ public class NavMenuCaracterizacionTests
             ["control"] = LineaMenu.Outbound,
             ["inbound"] = LineaMenu.Inbound,
             ["inbound-config"] = LineaMenu.Inbound,
+            ["inbound-control-acceso"] = LineaMenu.Inbound,
             ["inbound-tec"] = LineaMenu.SinLinea,
             ["administracion"] = LineaMenu.SinLinea,
             ["plataforma"] = LineaMenu.SinLinea,

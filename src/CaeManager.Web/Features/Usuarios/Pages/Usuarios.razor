@@ -225,6 +225,14 @@
                                         @TextosUsuarios["AsignarEmpresasAccion"]
                                     </ItemMenuAccion>
                                 }
+                                @* AF-01: los Centros de la portería de una cuenta «Control de acceso». Solo se ofrece, y lleva a la
+                                   pantalla de Inbound por URL: quién puede y qué Centros son asignables lo decide el comando. *@
+                                @if (PuedeAsignarCentros(usuario))
+                                {
+                                    <ItemMenuAccion OnClick="() => AbrirAsignarCentros(usuario)">
+                                        @TextosUsuarios["CentrosControlAccesoAccion"]
+                                    </ItemMenuAccion>
+                                }
                                 @* P0-8 (FS-01): la salida de quien perdió el móvil y los
                                    códigos de recuperación. Solo se ofrece a un Administrador,
                                    sobre otra cuenta de su organización con la 2FA activa; la

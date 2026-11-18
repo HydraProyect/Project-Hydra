@@ -926,6 +926,12 @@
   <data name="MenuInboundGobierno" xml:space="preserve">
     <value>Govern d&apos;Inbound</value>
   </data>
+  <data name="MenuGrupoControlAcceso" xml:space="preserve">
+    <value>Control d'accés</value>
+  </data>
+  <data name="MenuInboundControlAccesoCentros" xml:space="preserve">
+    <value>Els meus Centres</value>
+  </data>
   <data name="MenuGrupoInboundTec" xml:space="preserve">
     <value>Els meus Clients</value>
   </data>

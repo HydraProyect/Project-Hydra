@@ -56,6 +56,11 @@ Comercial.Queries.ObtenerEstadoComercialTenants :: ObtenerEstadoComercialTenants
 # Linea Inbound vigente del Tenant activo (plano comercial): lee solo el Producto Contratado del Tenant beneficiario, que no
 # tiene cartera, y devuelve un booleano para la interfaz (menu y paleta), nunca una fila.
 Inbound.Comercial.Queries.LineaInboundVigente :: LineaInboundVigenteQueryHandler[Inbound.Comercial.Queries.LineaInboundVigente.LineaInboundVigenteQuery] = 1
+# AF-01: leen solo las asignaciones de Centro de portería de una persona (la propia, en «Mis Centros»; la de otra, solo con
+# GestionarInbound) y el nombre de esos Centros. Quién ve qué Centro lo decide la tabla de asignación, no la Asignación de
+# Cartera: el alcance de cartera no acota por Centro a un rol que no es de gestión.
+Inbound.ControlAcceso.Queries.ObtenerCentrosDeControlAccesoDeUsuario :: ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler[Inbound.ControlAcceso.Queries.ObtenerCentrosDeControlAccesoDeUsuario.ObtenerCentrosDeControlAccesoDeUsuarioQuery] = 1
+Inbound.ControlAcceso.Queries.ObtenerMisCentrosDeControlAcceso :: ObtenerMisCentrosDeControlAccesoQueryHandler[Inbound.ControlAcceso.Queries.ObtenerMisCentrosDeControlAcceso.ObtenerMisCentrosDeControlAccesoQuery] = 1
 Comunicaciones.Queries.ObtenerCompanerosGestorCae :: ObtenerCompanerosGestorCaeQueryHandler[Comunicaciones.Queries.ObtenerCompanerosGestorCae.ObtenerCompanerosGestorCaeQuery] = 1
 Comunicaciones.Queries.ObtenerMensajesBuzonPersonal :: ObtenerMensajesBuzonPersonalQueryHandler[Comunicaciones.Queries.ObtenerMensajesBuzonPersonal.ObtenerMensajesBuzonPersonalQuery] = 1
 Configuracion.Queries :: ObtenerFiltrosGuardadosQueryHandler[Configuracion.Queries.ObtenerFiltrosGuardadosQuery] = 1

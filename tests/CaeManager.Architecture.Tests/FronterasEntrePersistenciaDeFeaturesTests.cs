@@ -788,6 +788,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Empresa contratista existe en el Tenant, solo por su Id.
         ("ContratosAcceso.CrearContratoAccesoCommandHandler", "ICentrosQueryContext"),
         ("ContratosAcceso.CrearContratoAccesoCommandHandler", "IEmpresasQueryContext"),
+        // Control de acceso (Inbound AF-01): el Centro asignado se comprueba o se nombra, solo por su Id y su nombre.
+        ("ControlAcceso.AsignarCentrosControlAccesoCommandHandler", "ICentrosQueryContext"),
+        ("ControlAcceso.ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler", "ICentrosQueryContext"),
+        ("ControlAcceso.ObtenerMisCentrosDeControlAccesoQueryHandler", "ICentrosQueryContext"),
         // Autorización de lectura documental (Inbound M1): comprueba que los Trabajadores asignados existen en el Tenant,
         // solo por su Id, igual que AsignarTecnicoProyecto.
         ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),

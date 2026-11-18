@@ -231,6 +231,9 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.FijarCondicionesContratoAccesoCommandHandler",
         "ContratosAcceso.RenovarContratoAccesoCommandHandler",
         "ContratosAcceso.VincularTenantContratistaCommandHandler",
+
+        // Control de acceso (Inbound AF-01): los Centros que se asignan salen del alcance de quien asigna.
+        "ControlAcceso.AsignarCentrosControlAccesoCommandHandler",
         // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
         // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.
         "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",
