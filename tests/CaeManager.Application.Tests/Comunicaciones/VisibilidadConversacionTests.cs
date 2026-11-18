@@ -228,6 +228,36 @@ public class VisibilidadConversacionTests
         alcance.PreguntasPorTriaje.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task La_lista_solo_pide_los_buzones_personales_propios_sin_el_triaje_visible(bool triaje, int esperadas)
+    {
+        // Con el triaje visible, el buzón propio no añade nada a la rama sin ancla: no se consulta (una sentencia SQL menos
+        // en la bandeja, presupuesto de EscalaPresupuestoSqlYAislamientoTests). Sin triaje, sí, y la regla lo usa.
+        var buzon = Guid.NewGuid();
+        var alcance = new AlcanceQueCuentaBuzones(triaje, buzon);
+
+        var visibilidad = await VisibilidadConversacion.ResolverAsync(alcance);
+
+        alcance.PreguntasPorBuzones.Should().Be(esperadas);
+        visibilidad.Permite(null, null, buzon).Should().BeTrue("con triaje o con el buzón propio, el hilo sin ancla se ve");
+        visibilidad.Permite(null, null, Guid.NewGuid()).Should().Be(triaje, "otro buzón solo entra por el triaje");
+    }
+
+    /// <summary>Cuenta las llamadas a <see cref="IAlcanceDatosService.BuzonesPersonalesPropiosAsync"/>.</summary>
+    private sealed class AlcanceQueCuentaBuzones(bool triaje, Guid buzonPropio)
+        : AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [ClienteDentro], triajeVisible: triaje), IAlcanceDatosService
+    {
+        public int PreguntasPorBuzones { get; private set; }
+
+        public new Task<IReadOnlyList<Guid>> BuzonesPersonalesPropiosAsync(CancellationToken cancellationToken = default)
+        {
+            PreguntasPorBuzones++;
+            return Task.FromResult<IReadOnlyList<Guid>>([buzonPropio]);
+        }
+    }
+
     /// <summary>Reimplementa la interfaz para que la llamada por <see cref="IAlcanceDatosService"/> llegue al contador.</summary>
     private sealed class AlcanceQueCuentaTriaje : AlcanceDatosServiceFalso, IAlcanceDatosService
     {

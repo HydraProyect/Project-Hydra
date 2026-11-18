@@ -210,19 +210,21 @@ public class VisibilidadTriageTests : IAsyncLifetime
     {
         // AlcanceDatosService real: la consulta de IAlcanceDatosService.BuzonesPersonalesPropiosAsync. Las guardas que
         // cierran antes de leer la base (Sesión Privilegiada, lente de demo, rol) las fija TriajeVisibleTests (Web.Tests).
+        // El esquema admite una sola conexión personal no eliminada por Gestor CAE y Tenant
+        // (IX_ConexionesIntegracion_TenantId_GestorPropietarioId, filtrado por NOT EstaEliminado): aquí el propietario
+        // tiene la habilitada y una eliminada (fuera del índice); la deshabilitada y la de ConError van en sus propios
+        // tests, cada una como única conexión personal de su Gestor CAE, y la de otro Tenant, en otro Tenant.
         var propietario = Guid.NewGuid();
         Guid habilitada;
         await using (var contexto = CrearContexto())
         {
             var personal = new ConexionIntegracion("a@ejemplo.local", "Personal", gestorPropietarioId: propietario);
-            var deshabilitada = new ConexionIntegracion("b@ejemplo.local", "Personal desconectado", gestorPropietarioId: propietario);
-            deshabilitada.Deshabilitar();
             var eliminada = new ConexionIntegracion("c@ejemplo.local", "Personal eliminado", gestorPropietarioId: propietario);
             eliminada.MarcarComoEliminado(propietario);
             var ajena = new ConexionIntegracion("d@ejemplo.local", "Personal ajeno", gestorPropietarioId: Guid.NewGuid());
             var compartido = ConexionIntegracion.CrearBuzonCompartido("e@ejemplo.local", "Compartido", Guid.NewGuid().ToString(), propietario);
             var general = new ConexionIntegracion("f@ejemplo.local", "General");
-            contexto.ConexionesIntegracion.AddRange(personal, deshabilitada, eliminada, ajena, compartido, general);
+            contexto.ConexionesIntegracion.AddRange(personal, eliminada, ajena, compartido, general);
             await contexto.SaveChangesAsync();
             habilitada = personal.Id;
         }
@@ -238,6 +240,23 @@ public class VisibilidadTriageTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         (await AlcanceReal(lectura, propietario).BuzonesPersonalesPropiosAsync()).Should().Equal(habilitada);
         (await AlcanceReal(lectura, Guid.NewGuid()).BuzonesPersonalesPropiosAsync()).Should().BeEmpty("otro Gestor CAE");
+    }
+
+    [Fact]
+    public async Task Una_conexion_personal_deshabilitada_no_es_buzon_personal_propio()
+    {
+        // Única conexión personal de su Gestor CAE en este Tenant (índice único por Tenant y GestorPropietarioId).
+        var propietario = Guid.NewGuid();
+        await using (var contexto = CrearContexto())
+        {
+            var deshabilitada = new ConexionIntegracion("b@ejemplo.local", "Personal desconectado", gestorPropietarioId: propietario);
+            deshabilitada.Deshabilitar();
+            contexto.ConexionesIntegracion.Add(deshabilitada);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        (await AlcanceReal(lectura, propietario).BuzonesPersonalesPropiosAsync()).Should().BeEmpty();
     }
 
     [Fact]

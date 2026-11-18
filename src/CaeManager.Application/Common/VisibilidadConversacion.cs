@@ -88,13 +88,20 @@ public sealed class VisibilidadConversacion
     /// </summary>
     public IReadOnlyList<Guid> BuzonesPersonalesPropios { get; }
 
-    /// <summary>Las cuatro piezas del alcance de quien mira en el Tenant actual, para filtrar una lista.</summary>
+    /// <summary>
+    /// Las cuatro piezas del alcance de quien mira en el Tenant actual, para filtrar una lista. Con el triaje visible no se
+    /// piden los buzones personales propios: la regla solo los mira en la rama sin ancla junto al triaje (<c>Triaje ||
+    /// buzón propio</c>), así que no cambian nada y su consulta sería una sentencia SQL de más en la bandeja
+    /// (presupuesto de <c>EscalaPresupuestoSqlYAislamientoTests</c>). Es el mismo atajo que <see cref="PermiteAsync"/>.
+    /// </summary>
     public static async Task<VisibilidadConversacion> ResolverAsync(
-        IAlcanceDatosService alcance, CancellationToken cancellationToken = default) =>
-        new(await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken),
-            await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken),
-            await alcance.TriajeVisibleAsync(cancellationToken),
-            await alcance.BuzonesPersonalesPropiosAsync(cancellationToken));
+        IAlcanceDatosService alcance, CancellationToken cancellationToken = default)
+    {
+        var clientes = await alcance.ClientesEmpresarialesVisiblesAsync(cancellationToken);
+        var empresas = await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        var triaje = await alcance.TriajeVisibleAsync(cancellationToken);
+        return new(clientes, empresas, triaje, triaje ? [] : await alcance.BuzonesPersonalesPropiosAsync(cancellationToken));
+    }
 
     /// <summary>
     /// La regla para una conversación ya cargada, con sus anclas y su buzón. Solo resuelve las piezas que cuentan para
