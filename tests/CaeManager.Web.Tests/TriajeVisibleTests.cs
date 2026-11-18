@@ -151,6 +151,35 @@ public class TriajeVisibleTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    public async Task Una_Sesion_Privilegiada_sin_acceso_total_aqui_corta_el_triaje_aunque_el_rol_alcance_el_Tenant_entero(
+        CapacidadPrivilegio? capacidad)
+    {
+        // El corte explícito de la Sesión Privilegiada sin acceso total en este Tenant: con el mismo doble, un Coordinador
+        // CAE por la vía de Operación con papel Inbound alcanza el Tenant entero (control, sin sesión). Con una sesión
+        // abierta para otro Tenant (SoporteLectura) o sin capacidad de lectura aquí (AdminPlataforma), el rol y el ámbito
+        // darían triaje, y solo el corte lo cierra. Con un Administrador estos casos no medirían el corte, porque sin
+        // acceso total su ámbito es ninguno.
+        await using var contexto = ContextoSinServidor();
+        ISesionPrivilegiadaActual sesion = capacidad switch
+        {
+            null => new ConSesion(null),
+            CapacidadPrivilegio.AdminPlataforma => new ConSesion(TenantActual, CapacidadPrivilegio.AdminPlataforma),
+            { } otra => new ConSesion(Guid.NewGuid(), otra),
+        };
+        var alcance = Alcance(contexto, new Usuario("CoordinadorCae", PapelActivo.Inbound), sesion);
+
+        using (AmbitoPeticionInbound.Abrir())
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse("control: sin acceso total en este Tenant");
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeTrue("control: el rol y el ámbito darían triaje");
+            (await alcance.TriajeVisibleAsync()).Should().Be(capacidad is null);
+        }
+    }
+
+    [Theory]
     [InlineData(CapacidadPrivilegio.AdminPlataforma)]
     [InlineData(CapacidadPrivilegio.Impersonacion)]
     public async Task Una_Sesion_Privilegiada_sin_capacidad_de_lectura_no_ve_el_triaje_ni_con_un_rol_de_la_lista(

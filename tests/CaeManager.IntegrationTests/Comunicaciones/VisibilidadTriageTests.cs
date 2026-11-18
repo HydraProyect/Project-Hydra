@@ -61,11 +61,12 @@ public class VisibilidadTriageTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_rol_Cliente_no_ve_la_cola_de_triage_en_la_lista_ni_con_la_cartera_total_y_el_Tenant_entero()
+    public async Task Con_el_triaje_cerrado_la_lista_no_muestra_la_cola_ni_con_la_cartera_total()
     {
-        // El rol es la única variable: cartera sin restricción, ámbito del Tenant entero, y la cola cerrada solo porque
-        // TriajeVisibleAsync es falso para el rol Cliente (lo fija contra el servicio real TriajeVisibleTests). Con la
-        // cartera de lista de antes, el «no ve» lo podía explicar la cartera y no el rol.
+        // La lista no mira el rol: obedece solo a TriajeVisibleAsync. Que el rol Cliente lo tenga cerrado lo fija
+        // TriajeVisibleTests (Web.Tests) contra el servicio real, con el rol como única variable. Aquí, con la cartera
+        // sin restricción, el «no ve» solo puede venir del triaje cerrado; con la cartera de lista de antes, lo podía
+        // explicar la cartera.
         var conversaciones = await ListarComo("Cliente", AlcanceDelRolClienteConTodoLoDemasAbierto());
 
         conversaciones.Should().ContainSingle("con la cartera total ve su hilo anclado, pero no la cola de triaje")
@@ -73,9 +74,9 @@ public class VisibilidadTriageTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_rol_Cliente_no_abre_un_hilo_sin_triar_aunque_tenga_el_Guid_ni_con_la_cartera_total_y_el_Tenant_entero()
+    public async Task Con_el_triaje_cerrado_el_detalle_no_abre_un_hilo_sin_triar_aunque_se_tenga_el_Guid_ni_con_la_cartera_total()
     {
-        // Acotar solo el listado dejaba el hilo accesible por Id.
+        // Acotar solo el listado dejaba el hilo accesible por Id. El detalle tampoco mira el rol (ver el test de arriba).
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, AlcanceDelRolClienteConTodoLoDemasAbierto(),
@@ -90,8 +91,9 @@ public class VisibilidadTriageTests : IAsyncLifetime
 
     /// <summary>
     /// Cartera de Clientes y alcance de Empresas sin restricción (con ellos, el doble daría acceso total y el Tenant
-    /// entero), y solo el triaje cerrado, que es lo que <c>AlcanceDatosService.TriajeVisibleAsync</c> contesta al rol
-    /// Cliente antes de mirar el ámbito. Así la única diferencia con un Gestor CAE del Tenant entero es la del rol.
+    /// entero), y solo el triaje cerrado, que es lo que <c>AlcanceDatosService.TriajeVisibleAsync</c> contesta, por
+    /// ejemplo, al rol Cliente antes de mirar el ámbito. El doble no conoce el rol: estos tests fijan que la consulta
+    /// obedece al triaje cerrado, no la decisión por rol, que fija <c>TriajeVisibleTests</c>.
     /// </summary>
     private static AlcanceDatosServiceFalso AlcanceDelRolClienteConTodoLoDemasAbierto() =>
         new(triajeVisible: false);

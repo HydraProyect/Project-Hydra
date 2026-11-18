@@ -164,7 +164,10 @@ public class EnviarMensajeNuevoCommandHandler(
         // mensaje ahí lo metería en la bandeja de quien tenga ese titular en
         // cartera y lo escondería de quien tiene el nuestro — el alcance
         // comprobado arriba se perdería justo en el último paso. Un hilo sin
-        // ancla (triage) sí puede recibirlo: no es de nadie todavía.
+        // ancla (triage) sí puede recibirlo y no se ancla aquí; desde D-6 b
+        // (R-3a) solo lo ve quien pasa TriajeVisibleAsync, así que quien envía
+        // con un ámbito acotado deja de ver ese mensaje. Anclarlo es un
+        // incremento propio.
         if (hiloExistente is not null &&
             ((hiloExistente.ClienteId is not null && hiloExistente.ClienteId != clienteId) ||
              (hiloExistente.EmpresaId is not null && hiloExistente.EmpresaId != request.EmpresaId)))
