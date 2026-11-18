@@ -52,9 +52,12 @@ public class ValidacionInboundRegistradaEnProgramTests
     {
         // Reescribir Inbound:Validacion:Habilitado según el entorno antes de la llamada ataría la validación al entorno sin
         // tocar la llamada ni OpcionesValidacionInbound. La clave solo se lee dentro de AddValidacionInbound. Cualquier literal
-        // de texto que nombre «validacion» (sin distinguir mayúsculas, como las claves de configuración) sobra en Program.cs:
-        // cubre Inbound:Validacion:Habilitado, una sección o una variable de entorno Inbound__Validacion__Habilitado.
-        Regex.Matches(ProgramSinComentarios(), @"""[^""\n]*validacion[^""\n]*""", RegexOptions.IgnoreCase).Count.Should().Be(0);
+        // de texto que empiece una palabra por «validacion» (sin distinguir mayúsculas, como las claves de configuración)
+        // sobra en Program.cs: cubre Inbound:Validacion:Habilitado, una sección o la variable Inbound__Validacion__Habilitado,
+        // y no confunde «revalidacion» ni el código que queda entre dos literales.
+        var literales = Regex.Matches(ProgramSinComentarios(), @"""(?:[^""\\\n]|\\.)*""").Select(m => m.Value);
+
+        literales.Where(l => Regex.IsMatch(l, @"(?<![a-z])validacion", RegexOptions.IgnoreCase)).Should().BeEmpty();
     }
 
     // Los comentarios de línea y de bloque se quitan de una sola pasada: gana el que empieza antes, así que un «/*» dentro de
