@@ -88,6 +88,39 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
         soloInboundFijo.Lecturas.Should().Be(lecturas);
     }
 
+    /// <summary>
+    /// D6 del 2026-11-19: los adjuntos de Comunicaciones siguen abiertos al Tenant de origen solo Inbound (conserva los
+    /// hilos con sus Empresas contratistas); el papel Inbound se sigue negando.
+    /// </summary>
+    [Fact]
+    public async Task Un_endpoint_de_Outbound_abierto_al_solo_Inbound_no_se_niega_al_Tenant_de_origen_solo_Inbound()
+    {
+        var abierto = PeticionA(EndpointDeOutbound.Instancia, EndpointAbiertoAlSoloInbound.Instancia);
+
+        (await AutorizarAsync(Con(Roles.GestorCae), abierto, new UsuarioConPapel(PapelActivo.TenantDeOrigen),
+            soloInbound: new SoloInboundFijo(true))).Succeeded.Should().BeTrue();
+        (await AutorizarAsync(Con(Roles.GestorCae), abierto, new UsuarioConPapel(PapelActivo.Inbound)))
+            .Succeeded.Should().BeFalse("la marca solo abre al Tenant solo Inbound, no al papel Inbound");
+    }
+
+    [Fact]
+    public void El_adjunto_de_Comunicaciones_lleva_las_dos_marcas()
+    {
+        var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
+        builder.Services.AddSingleton(NSubstitute.Substitute.For<MediatR.IMediator>());
+        builder.Services.AddSingleton(NSubstitute.Substitute.For<IFileStorageService>());
+        var app = builder.Build();
+        Features.Comunicaciones.ComunicacionesEndpoints.MapComunicacionesEndpoints(app);
+
+        var adjunto = ((Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)app).DataSources
+            .SelectMany(fuente => fuente.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == "/comunicaciones/adjuntos/{id:guid}/archivo");
+
+        adjunto.Metadata.GetMetadata<EndpointDeOutbound>().Should().NotBeNull();
+        adjunto.Metadata.GetMetadata<EndpointAbiertoAlSoloInbound>().Should().NotBeNull();
+    }
+
     [Fact]
     public async Task Un_endpoint_sin_la_marca_no_mira_el_Producto_Contratado()
     {

@@ -36,6 +36,25 @@ public class AmbitoInboundBehaviorTests
     /// hereda. Es lo que lee <c>AlcanceDatosService</c> para no dar alcance de Outbound al Tenant solo Inbound.
     /// </summary>
     [Fact]
+    public async Task Una_peticion_de_Comunicaciones_no_abre_el_ambito_de_Outbound()
+    {
+        // D6 del 2026-11-19: Comunicaciones sigue abierta al Tenant solo Inbound, así que el alcance de Outbound no se le
+        // cierra dentro de una petición de Comunicaciones.
+        bool? dentro = null;
+        await new AmbitoInboundBehavior<CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery,
+            CaeManager.Application.Comunicaciones.AlertasCriticas.AlertaCriticaDto?>().Handle(
+            new CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery(Guid.NewGuid()), _ =>
+            {
+                dentro = AmbitoPeticionOutbound.Activo;
+                return Task.FromResult<CaeManager.Application.Comunicaciones.AlertasCriticas.AlertaCriticaDto?>(null);
+            }, default);
+
+        PeticionDeOutbound.Es(typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery))
+            .Should().BeTrue("control del instrumento: el área sigue siendo de Outbound para el registro de módulos");
+        dentro.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Abre_el_ambito_de_Outbound_solo_en_una_peticion_de_Outbound_y_una_del_Nucleo_anidada_no_lo_hereda()
     {
         bool? enOutbound = null, enLaAnidada = null, alVolver = null, enInbound = null;

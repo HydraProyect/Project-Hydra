@@ -176,7 +176,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
       IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
 {
-    private static readonly bool EsDeOutbound = PeticionDeOutbound.Es(typeof(ObtenerMiTrabajoPorPartesQuery));
+    private static readonly bool EsDeOutbound = PeticionDeOutbound.CerradaAlSoloInbound(typeof(ObtenerMiTrabajoPorPartesQuery));
 
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
     {

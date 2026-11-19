@@ -9,11 +9,12 @@ namespace CaeManager.Application.Common;
 /// línea nueva del registro que las haga divergir da rojo.
 ///
 /// <para>
-/// La usan <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>, para cerrar los comandos de Outbound a un Tenant
-/// solo Inbound con el papel de Tenant de origen (<see cref="ICriterioDeOutbound"/>), y
-/// <see cref="AmbitoInboundBehavior{TRequest,TResponse}"/>, que fija <see cref="AmbitoPeticionOutbound"/> para que
-/// <c>AlcanceDatosService</c> no dé alcance de Outbound a esas peticiones. Los comandos del Núcleo y de Facturación no
-/// entran: un Tenant solo Inbound sigue administrando sus usuarios, sus Empresas o su configuración.
+/// A través de <see cref="CerradaAlSoloInbound"/> la usan <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>,
+/// para cerrar los comandos de Outbound a un Tenant solo Inbound con el papel de Tenant de origen
+/// (<see cref="ICriterioDeOutbound"/>), y <see cref="AmbitoInboundBehavior{TRequest,TResponse}"/>, que fija
+/// <see cref="AmbitoPeticionOutbound"/> para que <c>AlcanceDatosService</c> no dé alcance de Outbound a esas peticiones.
+/// Los comandos del Núcleo y de Facturación no entran: un Tenant solo Inbound sigue administrando sus usuarios, sus
+/// Empresas o su configuración. Comunicaciones, aunque es de Outbound, tampoco se le cierra (D6 del 2026-11-19).
 /// </para>
 /// </summary>
 public static class PeticionDeOutbound
@@ -77,6 +78,32 @@ public static class PeticionDeOutbound
 
         var punto = relativo.IndexOf('.');
         return punto > 0 && AreasDeOutbound.Contains(relativo[..punto]);
+    }
+
+    /// <summary>
+    /// Áreas de Outbound que siguen abiertas a un Tenant solo Inbound. Comunicaciones: un Tenant TCE con solo Inbound
+    /// conserva los hilos con sus Empresas contratistas (decisión de Chris del 2026-11-19, D6), así que la guarda no la
+    /// cierra entera. El registro de módulos la sigue asignando a Outbound; <see cref="Es"/> no cambia.
+    /// </summary>
+    private static readonly HashSet<string> AreasAbiertasAlSoloInbound = new(StringComparer.Ordinal) { "Comunicaciones" };
+
+    /// <summary>
+    /// Si <paramref name="tipoPeticion"/> se cierra a un Tenant solo Inbound con el papel de Tenant de origen: una petición
+    /// de Outbound (<see cref="Es"/>) fuera de <see cref="AreasAbiertasAlSoloInbound"/>. Lo usan la guarda de comandos y el
+    /// ámbito de petición de Outbound que lee el alcance.
+    /// </summary>
+    public static bool CerradaAlSoloInbound(Type tipoPeticion)
+    {
+        if (!Es(tipoPeticion))
+            return false;
+
+        var raiz = tipoPeticion;
+        while (raiz.DeclaringType is { } contenedor)
+            raiz = contenedor;
+
+        var relativo = raiz.FullName![Raiz.Length..];
+        var punto = relativo.IndexOf('.');
+        return !(punto > 0 && AreasAbiertasAlSoloInbound.Contains(relativo[..punto]));
     }
 
     private static bool Casa(string relativo, string clave) =>

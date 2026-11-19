@@ -73,7 +73,9 @@ public sealed class PaginaDeOutboundPorPapelAuthorizationHandler(
     }
 
     private static bool EsEndpointDeOutbound(object? recurso) =>
-        recurso is HttpContext http && http.GetEndpoint()?.Metadata.GetMetadata<EndpointDeOutbound>() is not null;
+        recurso is HttpContext http && http.GetEndpoint()?.Metadata is { } metadatos
+        && metadatos.GetMetadata<EndpointDeOutbound>() is not null
+        && metadatos.GetMetadata<EndpointAbiertoAlSoloInbound>() is null;
 
     public static bool EsPaginaDeOutbound(Type? pagina) =>
         pagina is not null && pagina.IsDefined(typeof(PaginaDeOutboundAttribute), inherit: false);
@@ -114,4 +116,22 @@ public static class EndpointDeOutboundExtensions
     public static TBuilder DeOutbound<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder =>
         builder.WithMetadata(EndpointDeOutbound.Instancia);
+
+    /// <summary>
+    /// Un endpoint de Outbound que sigue abierto al Tenant solo Inbound con el papel de Tenant de origen, como las
+    /// peticiones de las áreas de <c>PeticionDeOutbound.CerradaAlSoloInbound</c>: los adjuntos de Comunicaciones (D6 del
+    /// 2026-11-19, el Tenant TCE con solo Inbound conserva los hilos con sus Empresas contratistas). El papel Inbound se
+    /// sigue negando por <see cref="DeOutbound{TBuilder}"/>.
+    /// </summary>
+    public static TBuilder AbiertoAlSoloInbound<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder =>
+        builder.WithMetadata(EndpointAbiertoAlSoloInbound.Instancia);
+}
+
+/// <summary>Marca de un endpoint de Outbound que no se cierra al Tenant solo Inbound (ver <c>AbiertoAlSoloInbound</c>).</summary>
+public sealed class EndpointAbiertoAlSoloInbound
+{
+    public static readonly EndpointAbiertoAlSoloInbound Instancia = new();
+
+    private EndpointAbiertoAlSoloInbound() { }
 }

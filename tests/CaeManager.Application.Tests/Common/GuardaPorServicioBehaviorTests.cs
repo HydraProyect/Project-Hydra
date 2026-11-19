@@ -207,11 +207,32 @@ public class GuardaPorServicioBehaviorTests
     }
 
     [Fact]
+    public async Task Con_un_Tenant_solo_Inbound_pasan_los_comandos_de_Comunicaciones()
+    {
+        // D6 del 2026-11-19: un Tenant TCE con solo Inbound conserva los hilos con sus Empresas contratistas.
+        var (respuesta, llegoAlHandler) = await Ejecutar(
+            new CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand(Guid.NewGuid(), Guid.NewGuid(), false),
+            PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true);
+
+        llegoAlHandler.Should().BeTrue("Comunicaciones no se cierra al Tenant solo Inbound");
+        respuesta.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
     public void Los_comandos_de_prueba_estan_donde_el_clasificador_los_espera()
     {
         // Control del instrumento: si el clasificador no viera el comando de prueba como de Outbound, el caso de arriba
         // pasaría por la rama equivocada.
         PeticionDeOutbound.Es(typeof(CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound)).Should().BeTrue();
+        PeticionDeOutbound.CerradaAlSoloInbound(typeof(CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound))
+            .Should().BeTrue();
         PeticionDeOutbound.Es(typeof(ComandoSinServicio)).Should().BeFalse();
+        PeticionDeOutbound.CerradaAlSoloInbound(typeof(ComandoSinServicio)).Should().BeFalse();
+
+        // Comunicaciones sigue siendo de Outbound para el registro de módulos, pero no se cierra al Tenant solo Inbound:
+        // sin la primera línea, el caso de Comunicaciones pasaría también si el área dejara de ser de Outbound.
+        var comunicaciones = typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand);
+        PeticionDeOutbound.Es(comunicaciones).Should().BeTrue();
+        PeticionDeOutbound.CerradaAlSoloInbound(comunicaciones).Should().BeFalse();
     }
 }

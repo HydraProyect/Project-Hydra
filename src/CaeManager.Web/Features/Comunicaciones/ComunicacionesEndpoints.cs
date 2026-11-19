@@ -16,7 +16,7 @@ public static class ComunicacionesEndpoints
 {
     public static IEndpointRouteBuilder MapComunicacionesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/comunicaciones/adjuntos/{id:guid}/archivo", ServirAdjuntoAsync).DeOutbound();
+        endpoints.MapGet("/comunicaciones/adjuntos/{id:guid}/archivo", ServirAdjuntoAsync).DeOutbound().AbiertoAlSoloInbound();
         // Sin .RequireAuthorization() explícito: el FallbackPolicy global de
         // Program.cs (RequireAuthenticatedUser) ya lo cubre, mismo criterio
         // que DocumentosEndpoints.

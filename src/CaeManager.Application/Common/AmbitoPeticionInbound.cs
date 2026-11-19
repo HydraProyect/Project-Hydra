@@ -71,7 +71,7 @@ public sealed class AmbitoInboundBehavior<TRequest, TResponse> : IPipelineBehavi
     where TRequest : notnull
 {
     private static readonly bool EsDeInbound = AmbitoPeticionInbound.EsDeInbound(typeof(TRequest));
-    private static readonly bool EsDeOutbound = PeticionDeOutbound.Es(typeof(TRequest));
+    private static readonly bool EsDeOutbound = PeticionDeOutbound.CerradaAlSoloInbound(typeof(TRequest));
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
