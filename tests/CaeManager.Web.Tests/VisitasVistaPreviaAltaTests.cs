@@ -245,6 +245,56 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         await IntentarGuardarSaltandoElBotonAsync(cut);
 
         mediator.Creaciones.Should().BeEmpty("la defensa de Guardar tampoco deja crear la Visita sin autoridad");
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should()
+            .Be("Resuelve el aviso de la vista previa: con estos trabajadores la visita no se puede crear.", "la defensa no descarta el clic en silencio");
+    }
+
+    [Fact]
+    public async Task Un_Guardar_que_llega_mientras_se_calcula_no_crea_nada_y_dice_por_que_y_al_terminar_el_cajon_sigue_utilizable()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var enVuelo = new TaskCompletionSource<PlanAltaVisitaPreviaDto?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.PlanRetenido[1] = enVuelo;
+        var cut = Renderizar(mediator);
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = Centro.ToString() });
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("sin-datos");
+
+        // El navegador aún veía «Guardar» habilitado cuando llegó el clic: el servidor ya está calculando.
+        var marcar = cut.Find(".drawer-panel .lista-seleccion-multiple input").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("calculando"));
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
+        mediator.Creaciones.Should().BeEmpty();
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().Be("Espera a que termine de calcularse la vista previa.");
+
+        enVuelo.SetResult(mediator.Previa);
+        await marcar;
+
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("lista");
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
+        await GuardarAsync(cut);
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Cambiar_la_fecha_de_fin_deja_Guardar_deshabilitado_enseguida_aunque_la_consulta_tarde()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
+        var enVuelo = new TaskCompletionSource<PlanAltaVisitaPreviaDto?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.PlanRetenido[2] = enVuelo;
+
+        var cambio = CambiarFechaFinAsync(cut, Hoy.AddDays(5));
+
+        cut.WaitForAssertion(() => GuardarDebeEstarDeshabilitado(cut, "Espera a que termine de calcularse la vista previa."));
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("calculando");
+
+        enVuelo.SetResult(mediator.Previa);
+        await cambio;
+
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]

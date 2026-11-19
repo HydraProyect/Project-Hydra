@@ -152,7 +152,23 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         PlanAltaSolapadas is not null || PlanAltaSinPermiso || PlanAltaConAutoridad is not null || PlanAltaCalculando
         || _estadoPlanAlta is EstadoPlanAlta.NoCalculada or EstadoPlanAlta.Fallida or EstadoPlanAlta.SuperaTope;
 
-    private bool PlanAltaCalculando => PlanAltaNecesario && _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
+    /// <summary>
+    /// Estado de la vista previa tal como lo conoce el servidor, para quien lo observa desde fuera (los E2E): con Blazor Server el
+    /// navegador ve el botón «Guardar» habilitado hasta que llega el repintado, y un clic dado en ese intervalo lo descarta el
+    /// servidor; esperar a «lista» es esperar a que el servidor ya haya calculado y repintado.
+    /// </summary>
+    private string EstadoVistaPreviaAlta => !PlanAltaNecesario
+        ? "sin-datos"
+        : _estadoPlanAlta switch
+        {
+            EstadoPlanAlta.Lista => "lista",
+            EstadoPlanAlta.NoCalculada => "no-calculada",
+            EstadoPlanAlta.Fallida => "fallida",
+            EstadoPlanAlta.SuperaTope => "supera-tope",
+            _ => "calculando",
+        };
+
+    private bool PlanAltaCalculando =>PlanAltaNecesario && _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
 
     private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
@@ -1698,9 +1714,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                     return;
                 }
 
-                // Defensa por si el botón no frenó: sin vista previa calculada y sin impedimento no se crea nada.
-                if (MotivoGuardarDeshabilitadoAlta is not null)
+                // Defensa por si el botón no frenó: sin vista previa calculada y sin impedimento no se crea nada, y nunca en
+                // silencio: se dice el mismo motivo que el título del botón.
+                if (MotivoGuardarDeshabilitadoAlta is { } motivoBloqueo)
+                {
+                    _mensajeErrorFormulario = motivoBloqueo;
                     return;
+                }
 
                 // Crear la Visita es la única confirmación: con la vista previa válida se pide siempre asignar y abrir las
                 // Gestiones que ella mostró (el servidor aplica la misma regla bajo el candado).

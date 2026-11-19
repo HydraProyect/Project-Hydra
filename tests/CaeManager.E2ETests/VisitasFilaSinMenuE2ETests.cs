@@ -57,6 +57,8 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(alta.GetByRole(AriaRole.Checkbox, new LocatorGetByRoleOptions { Name = "Solo mostrar relacionados", Exact = true }))
             .ToBeCheckedAsync();
         await alta.Locator(".lista-seleccion-multiple input[type=checkbox]").First.CheckAsync();
+        // «Guardar» solo vale cuando el servidor ha calculado la vista previa (el navegador lo ve habilitado antes de que llegue el repintado).
+        await Ayudas.EsperarVistaPreviaDeVisitaCalculadaAsync(alta);
         await alta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(alta).ToBeHiddenAsync();
 

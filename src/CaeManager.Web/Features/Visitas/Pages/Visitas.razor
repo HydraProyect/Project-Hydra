@@ -472,7 +472,7 @@
        para que un lector de pantalla anuncie cada vista previa. *@
     @if (_editandoId is null)
     {
-    <div @ref="_regionVistaPrevia" tabindex="-1" class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status">
+    <div @ref="_regionVistaPrevia" tabindex="-1" class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status" data-estado="@EstadoVistaPreviaAlta">
     @if (PlanAltaSolapadas is { } solapadas)
     {
         @* Con alguien sin poder asignarse hoy el servidor rechaza la Visita entera (DECISION_LOG 2026-11-19): «Guardar» queda
