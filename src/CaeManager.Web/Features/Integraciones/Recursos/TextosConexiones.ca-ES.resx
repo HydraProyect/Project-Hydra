@@ -82,10 +82,10 @@
     <value>La bústia personal d'un Gestor CAE només la veu el seu propietari; la resta de bústies alimenten les converses compartides de Comunicacions.</value>
   </data>
   <data name="AvisoHuecoSinRegistrar" xml:space="preserve">
-    <value>Buit sense registrar: en desconnectar no vam poder desar des de quan va deixar de rebre's el correu d'aquesta bústia. Prem Reparar per registrar-ho.</value>
+    <value>Buit sense registrar: en desconnectar no vam poder desar des de quan va deixar de rebre's el correu d'aquesta bústia. Prem Repara per registrar-ho.</value>
   </data>
   <data name="AccionRepararHueco" xml:space="preserve">
-    <value>Reparar</value>
+    <value>Repara</value>
   </data>
   <data name="HuecoReparado" xml:space="preserve">
     <value>Buit registrat.</value>

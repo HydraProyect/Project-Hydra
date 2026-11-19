@@ -46,4 +46,19 @@ public class TextosConexionesTests
         Recursos.GetString("AccionCancelarAvisoHueco", cultureInfo).Should().Be(cancelar, "el otro botón del diálogo va en el mismo modo verbal");
         Recursos.GetString("AvisoCorreoNoRecuperadoConfirmable", cultureInfo).Should().Contain(" " + confirmar + ";", "el aviso nombra el botón real");
     }
+
+    /// <summary>
+    /// El botón que repara la marca del hueco va en infinitivo en castellano y en imperativo en catalán, como «Confirma» y
+    /// «Cancel·la» de este mismo fichero, y el aviso del hueco sin registrar nombra el botón con ese mismo verbo.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", "Reparar")]
+    [InlineData("ca-ES", "Repara")]
+    public void El_boton_Reparar_del_hueco_va_en_el_mismo_modo_verbal_que_sus_vecinos_y_el_aviso_lo_nombra(string cultura, string reparar)
+    {
+        var cultureInfo = CultureInfo.GetCultureInfo(cultura);
+
+        Recursos.GetString("AccionRepararHueco", cultureInfo).Should().Be(reparar);
+        Recursos.GetString("AvisoHuecoSinRegistrar", cultureInfo).Should().Contain(" " + reparar + " ", "el aviso nombra el botón real");
+    }
 }
