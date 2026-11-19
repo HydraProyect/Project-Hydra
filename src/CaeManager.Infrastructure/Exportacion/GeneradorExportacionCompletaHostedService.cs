@@ -33,11 +33,13 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// <para>
 /// Dos procesos pueden creerse líderes a la vez (el anterior perdió la conexión que retenía el liderazgo y su
 /// generación sigue). Por eso cada transición de estado se guarda con el estado leído como token de concurrencia
-/// (ASVS 4.0.3 V1.11.3 y V11.1.6): gana el primer guardado, el segundo no se aplica ni se audita, y un fichero solo se
-/// borra después de confirmar la transición que lo deja sin fila que lo nombre, o después de leer ya confirmada una
-/// fila terminal (Fallida o Caducada) que no lo nombra (<c>BorrarSiLaFilaNoLoNombra</c>, en las dos ramas de
-/// <c>FallarAsync</c>: desde un estado terminal no se vuelve a nombrar el fichero y su ruta es única por solicitud),
-/// salvo el de una caducada, que no tiene otro destino posible.
+/// (ASVS 4.0.3 V1.11.3 y V11.1.6): gana el primer guardado y el segundo no se aplica ni se audita. Fuera del barrido
+/// de huérfanos y del descarte de un temporal fallido, un zip de exportación solo se borra después de confirmar la
+/// transición que lo deja sin fila que lo nombre, o después de leer ya confirmada una fila que no lo nombra
+/// (<c>BorrarSiLaFilaNoLoNombra</c>, en las dos ramas de <c>FallarAsync</c>; decide por la ubicación y no por el
+/// estado: una Fallida o una Caducada no nombran fichero y nunca vuelven a nombrarlo, una Lista nombra el suyo y no se
+/// toca, y la ruta es única por solicitud). La excepción es la caducada por vigencia, que <c>CaducarVencidasAsync</c>
+/// borra antes de guardar porque su fichero no tiene otro destino posible.
 /// </para>
 /// </summary>
 public class GeneradorExportacionCompletaHostedService(
