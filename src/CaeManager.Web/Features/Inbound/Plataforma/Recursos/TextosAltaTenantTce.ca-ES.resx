@@ -238,10 +238,10 @@
     <value>Declaro que aquesta organització contracta només Inbound.</value>
   </data>
   <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
-    <value>Si ja opera Outbound i la seva línia Outbound no està registrada, contractar Inbound li tanca Outbound: registra abans la seva línia Outbound.</value>
+    <value>Si l'organització fa servir Outbound, no contractis Inbound des d'aquesta pantalla: contractar-lo li tancaria Outbound.</value>
   </data>
   <data name="ErrorDeclaracionSoloInbound" xml:space="preserve">
-    <value>Marca la declaració «només Inbound» per donar d'alta la línia Inbound. Si l'organització ja opera Outbound, registra abans la seva línia Outbound.</value>
+    <value>Marca la declaració «només Inbound» per donar d'alta la línia Inbound. Si l'organització fa servir Outbound, no contractis Inbound des d'aquesta pantalla.</value>
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>

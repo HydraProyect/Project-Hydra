@@ -99,7 +99,7 @@ public static class ErroresContratarLineaInbound
 
     public static readonly Error SinDeclaracionSoloInbound = Error.Crear(
         "LineaInbound.SinDeclaracionSoloInbound",
-        "Si esta organización ya opera Outbound, registra antes su línea Outbound. Si contrata solo Inbound, decláralo para contratar la línea Inbound.");
+        "Si esta organización contrata solo Inbound, marca la declaración «solo Inbound» en el Resumen del alta. Si usa Outbound, no contrates Inbound desde el alta: le cerraría Outbound.");
 
     public static readonly Error YaContratada = Error.Crear(
         "LineaInbound.YaContratada", "Esta organización ya tiene la línea Inbound contratada y vigente.");

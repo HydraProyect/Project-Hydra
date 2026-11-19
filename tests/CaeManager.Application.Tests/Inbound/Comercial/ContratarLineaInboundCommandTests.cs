@@ -48,13 +48,15 @@ public class ContratarLineaInboundCommandTests
     /// contrata, para que un Tenant con Outbound heredado y sin fila de la línea Outbound no quede cerrado en silencio.
     /// </summary>
     [Fact]
-    public async Task Sin_la_declaracion_solo_Inbound_no_contrata_y_pide_registrar_antes_la_linea_Outbound()
+    public async Task Sin_la_declaracion_solo_Inbound_no_contrata_y_dice_que_puede_hacer_el_Actor_de_Plataforma()
     {
         var resultado = await Handler(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id), _tenant.Id)
             .Handle(Comando(declaraSoloInbound: false), CancellationToken.None);
 
         resultado.Error.Should().Be(ErroresContratarLineaInbound.SinDeclaracionSoloInbound);
-        resultado.Error.Mensaje.Should().Contain("registra antes su línea Outbound");
+        resultado.Error.Mensaje.Should().Contain("marca la declaración «solo Inbound» en el Resumen del alta")
+            .And.Contain("no contrates Inbound desde el alta")
+            .And.NotContain("registra antes su línea Outbound", "no hay comando ni pantalla que registre la línea Outbound de un Tenant");
         _productos.Agregados.Should().BeEmpty();
         _transaccionInterna.Ejecutadas.Should().Be(0, "sin la declaración no se abre la transacción");
         var validacion = new ContratarLineaInboundCommandValidator().Validate(Comando(declaraSoloInbound: false));

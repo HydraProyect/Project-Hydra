@@ -227,7 +227,8 @@ public class AltaTenantTceTests : BunitContext
         var casilla = cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']");
         casilla.HasAttribute("checked").Should().BeFalse("la declaración nunca viene marcada");
         cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("contrata solo Inbound")
-            .And.Contain("registra antes su línea Outbound");
+            .And.Contain("no contrates Inbound desde esta pantalla")
+            .And.NotContain("registra antes su línea Outbound", "no hay comando ni pantalla que registre la línea Outbound de un Tenant");
         Pulsar(cut, "Dar de alta");
 
         _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().BeEmpty();
