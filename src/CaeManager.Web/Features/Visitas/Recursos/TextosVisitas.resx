@@ -145,7 +145,7 @@
     <value>No tienes permiso para asignar a estos trabajadores a este centro, así que la visita se creará sin asignarlos y sin abrir gestiones.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
-    <value>{0} no se puede asignar hoy a este centro: tuvo una asignación anterior cuyo periodo coincide con hoy.</value>
+    <value>{0} no se puede asignar hoy a este centro: tiene una asignación cuyo periodo coincide con hoy.</value>
   </data>
   <data name="PlanAltaSolapadaConsecuencia" xml:space="preserve">
     <value>Quita de la visita a quien no se pueda asignar o revisa su asignación. Si guardas así, la visita se creará sin asignar a nadie y sin abrir gestiones.</value>

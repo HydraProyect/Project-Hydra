@@ -57,6 +57,9 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         /// <summary>Si se informa, crear la Visita devuelve este rechazo del servidor.</summary>
         public Error? RechazoAlCrear { get; set; }
 
+        /// <summary>La vista previa que responde el servidor una vez que ya se ha intentado crear (lo que cambió mientras tanto).</summary>
+        public PlanAltaVisitaPreviaDto? PreviaTrasCrear { get; set; }
+
         /// <summary>Respuestas de la vista previa retenidas por número de consulta (1 = la primera) hasta que el test las libere.</summary>
         public Dictionary<int, TaskCompletionSource<PlanAltaVisitaPreviaDto?>> PlanRetenido { get; } = [];
 
@@ -106,7 +109,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
                         throw new InvalidOperationException("caída simulada de la vista previa");
                     return PlanRetenido.TryGetValue(ConsultasPlan.Count, out var retenido)
                         ? EsperarPlan<TResponse>(retenido.Task)
-                        : Respuesta<TResponse>(Previa);
+                        : Respuesta<TResponse>(Creaciones.Count > 0 && PreviaTrasCrear is not null ? PreviaTrasCrear : Previa);
 
                 case CrearVisitaCommand crear:
                     Creaciones.Add(crear);
@@ -224,7 +227,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
 
         var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
-        texto.Should().Contain("Bruno Pérez no se puede asignar hoy a este centro: tuvo una asignación anterior cuyo periodo coincide con hoy.");
+        texto.Should().Contain("Bruno Pérez no se puede asignar hoy a este centro: tiene una asignación cuyo periodo coincide con hoy.");
         texto.Should().Contain("Quita de la visita a quien no se pueda asignar o revisa su asignación")
             .And.Contain("la visita se creará sin asignar a nadie y sin abrir gestiones");
         texto.Should().NotContainAny("Se asignará", "Se abrirá", "Se abrirán", "Tenant", "Inbound", "Outbound", "Gestor");
@@ -374,7 +377,9 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         var mediator = new MediatorAlta
         {
             Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true),
-            RechazoAlCrear = Error.Crear("Asignacion.SolapaConOtra", "No se puede asignar: la vista previa dice quiénes."),
+            RechazoAlCrear = Error.Crear("Visita.SinAutoridadParaAsignar", "No tienes autoridad para asignar."),
+            // Entre la vista previa y Guardar se perdió la autoridad: la segunda respuesta ya dice que no se puede asignar.
+            PreviaTrasCrear = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: false),
         };
         var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
         mediator.ConsultasPlan.Should().ContainSingle();
@@ -383,6 +388,25 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 
         mediator.Creaciones.Should().ContainSingle();
         mediator.ConsultasPlan.Should().HaveCount(2, "el rechazo puede venir de una vista previa que se quedó vieja");
+        BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("No tienes permiso para asignar");
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().HaveCount(2);
+        mediator.Creaciones[1].AsignarYCrearGestiones.Should().BeFalse("la vista previa nueva ya no promete asignar");
+    }
+
+    [Fact]
+    public async Task Al_abrir_otra_visita_nueva_no_queda_la_vista_previa_de_la_anterior()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+        BloquesDeVistaPrevia(cut).Should().ContainSingle();
+
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+
+        BloquesDeVistaPrevia(cut).Should().BeEmpty("el formulario nuevo no tiene Centro ni Trabajadores");
+        cut.Find(".drawer-panel .vista-previa-alta").ClassList.Should().Contain("vista-previa-alta--vacia", "sin vista previa la región se encoge");
     }
 
     [Fact]
@@ -448,5 +472,6 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 
         mediator.ConsultasPlan.Should().BeEmpty();
         BloquesDeVistaPrevia(cut).Should().BeEmpty();
+        cut.FindAll(".drawer-panel .vista-previa-alta").Should().BeEmpty("en edición no hay vista previa ni región viva");
     }
 }

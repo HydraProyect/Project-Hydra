@@ -123,6 +123,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private PlanAltaVisitaDto? PlanAltaConAutoridad =>
         _planAlta is { PuedeAsignar: true, Plan: { Solapadas.Count: 0 } plan } && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
 
+    /// <summary>Hay algo que enseñar en la región viva; sin vista previa la región se encoge para no añadir un hueco de más al formulario.</summary>
+    private bool HayVistaPreviaAlta => PlanAltaSolapadas is not null || PlanAltaSinPermiso || PlanAltaConAutoridad is not null;
+
     private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
@@ -1553,6 +1556,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
+        var recalcularPlanAlta = false;
 
         try
         {
@@ -1606,19 +1610,20 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             {
                 _mensajeErrorFormulario = mensajeError;
                 // Un rechazo del servidor puede venir de que la vista previa se quedó vieja (autoridad perdida, solape nuevo):
-                // se vuelve a pedir para que el siguiente Guardar prometa y envíe lo que el servidor dice ahora.
-                if (editandoId is null)
-                    await RecalcularPlanAltaAsync();
-                return;
+                // se vuelve a pedir (tras soltar el botón, para no dejar el cajón bloqueado mientras tarda) para que el siguiente
+                // Guardar prometa y envíe lo que el servidor dice ahora.
+                recalcularPlanAlta = editandoId is null;
             }
+            else
+            {
+                ToastService.Mostrar(
+                    editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
+                    TonoToast.Exito);
 
-            ToastService.Mostrar(
-                editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
-                TonoToast.Exito);
-
-            _drawerVisible = false;
-            if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
-                await RecargarAsync();
+                _drawerVisible = false;
+                if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
+                    await RecargarAsync();
+            }
         }
         catch (ValidationException ex)
         {
@@ -1640,6 +1645,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             _guardando = false;
         }
+
+        if (recalcularPlanAlta)
+            await RecalcularPlanAltaAsync();
     }
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);

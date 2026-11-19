@@ -468,7 +468,9 @@
                        MensajeError="@_errorTrabajadores" />
 
     @* Región viva fija: siempre está en el DOM y solo cambia su contenido, para que un lector de pantalla anuncie cada vista previa. *@
-    <div class="vista-previa-alta" role="status">
+    @if (_editandoId is null)
+    {
+    <div class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status">
     @if (PlanAltaSolapadas is { } solapadas)
     {
         @* Con alguien sin poder asignarse hoy el servidor rechazaría la Visita entera si se pidiera asignar: no se pide, y
@@ -505,6 +507,7 @@
         </div>
     }
     </div>
+    }
 
     <label class="campo-checkbox">
         <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]

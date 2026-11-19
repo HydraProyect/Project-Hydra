@@ -11,6 +11,11 @@
     margin-bottom: var(--space-4);
 }
 
+/* Región viva de la vista previa del alta: sin contenido mide 0 pero el gap del cuerpo del cajón la contaría como un hueco más. */
+.vista-previa-alta--vacia {
+    margin-top: calc(-1 * var(--space-5));
+}
+
 .detalle-visita-trabajador h4 {
     font: var(--font-body-md);
     color: var(--color-text);
