@@ -66,7 +66,7 @@
 }
 
 /*
-    Rótulo separador de línea («Outbound», «Inbound · Tenant TCE»), solo cuando el menú enseña las dos líneas (D-2).
+    Rótulo separador de línea («Acredita», «Valida»), solo cuando el menú enseña las dos líneas (D-2).
     Maqueta de Design (.io-linea-tit): 11/16 en seminegrita, mayúsculas, color apagado y una regla que ocupa el resto de la
     fila. No es un enlace ni un control. Con el campo «Buscar en el menú» escrito se oculta (los grupos que no casan se
     ocultan y el rótulo se quedaría solo) y en la barra compacta tampoco hay sitio para el texto.

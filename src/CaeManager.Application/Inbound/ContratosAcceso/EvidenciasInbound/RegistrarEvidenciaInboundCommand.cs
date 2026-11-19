@@ -284,7 +284,7 @@ public static class EvidenciaInboundErrores
 
     public static readonly Error ValidarBajoImpersonacionNoDisponible = Error.Crear(
         "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible",
-        "Mientras actúas en nombre de otro usuario no se puede validar en Inbound. Rechazar sigue disponible.");
+        "Mientras actúas en nombre de otro usuario no se puede validar. Rechazar sigue disponible.");
 
     public static readonly Error OriginalNoVisibleParaRevalidar = Error.Crear(
         "EvidenciaInbound.OriginalNoVisibleParaRevalidar",

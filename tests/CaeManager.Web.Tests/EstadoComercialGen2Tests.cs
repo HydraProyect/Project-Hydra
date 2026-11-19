@@ -292,7 +292,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
     /// </summary>
     private const string MensajeNoAutorizadoDelHandler = "No tienes autorización de plataforma sobre ese cliente.";
 
-    private const string MensajeNoAutorizadoDeLaPantalla = "No tienes autorización de plataforma sobre ese Tenant.";
+    private const string MensajeNoAutorizadoDeLaPantalla = "No tienes autorización de plataforma sobre esa organización.";
 
     private static Error NoAutorizado() => Error.Crear("Comercial.NoAutorizado", MensajeNoAutorizadoDelHandler);
 
@@ -321,7 +321,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         var (cut, mediador, _) = Montar(new Escenario());
 
         Enviados<ObtenerEstadoComercialTenantsQuery>(mediador).Should().ContainSingle();
-        cut.Find("h1").TextContent.Should().Be("Estado comercial de los tenants");
+        cut.Find("h1").TextContent.Should().Be("Estado comercial de las organizaciones");
         cut.Find(".cabecera-pagina-kicker").TextContent.Should().Be("Plataforma");
 
         cut.FindAll("tbody tr").Select(tr => tr.QuerySelector("td")!.TextContent.Trim())
@@ -347,7 +347,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         var (cut, _, _) = Montar(new Escenario(), integrada: true);
 
         cut.FindAll("h1").Should().BeEmpty();
-        cut.Find("h2.titulo-panel-configuracion").TextContent.Should().Be("Estado comercial de los tenants");
+        cut.Find("h2.titulo-panel-configuracion").TextContent.Should().Be("Estado comercial de las organizaciones");
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         var (cut, mediador, logger) = Montar(escenario);
 
         cut.Markup.Should().Contain("No pudimos cargar el estado comercial");
-        cut.Markup.Should().NotContain("No hay ningún tenant todavía");
+        cut.Markup.Should().NotContain("No hay ninguna organización todavía");
         cut.FindAll("tbody tr").Should().BeEmpty();
         Toasts().Should().BeEmpty("el fallo se cuenta en la propia pantalla, no en un aviso que desaparece");
         logger.Errores.Should().ContainSingle();
@@ -376,7 +376,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
     {
         var (cut, _, _) = Montar(new Escenario { AutorizacionGlobal = false });
 
-        cut.Find(".estado-vacio h3").TextContent.Should().Be("No hay ningún tenant todavía");
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("No hay ninguna organización todavía");
         cut.Find(".estado-vacio p").TextContent.Should().Contain("capacidad de administración de plataforma con alcance global");
         cut.FindAll("table").Should().BeEmpty();
     }
@@ -682,10 +682,10 @@ public partial class EstadoComercialGen2Tests : BunitContext
     [InlineData("Comercial.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión.", false)]
     [InlineData("Comercial.NoAutorizado", MensajeNoAutorizadoDeLaPantalla, true)]
     [InlineData("Comercial.NoAutorizado", MensajeNoAutorizadoDeLaPantalla, false)]
-    [InlineData("Comercial.TenantNoEncontrado", "No encontramos ese Tenant.", true)]
-    [InlineData("Comercial.TenantNoEncontrado", "No encontramos ese Tenant.", false)]
-    [InlineData("Comercial.TenantPlataforma", "El tenant de plataforma no es Tenant beneficiario de ninguna suscripción.", true)]
-    [InlineData("Comercial.SinSuscripcionVinculada", "Este Tenant todavía no tiene ninguna suscripción de Stripe vinculada.", false)]
+    [InlineData("Comercial.TenantNoEncontrado", "No encontramos esa organización.", true)]
+    [InlineData("Comercial.TenantNoEncontrado", "No encontramos esa organización.", false)]
+    [InlineData("Comercial.TenantPlataforma", "La organización de plataforma no es beneficiaria de ninguna suscripción.", true)]
+    [InlineData("Comercial.SinSuscripcionVinculada", "Esta organización todavía no tiene ninguna suscripción de Stripe vinculada.", false)]
     [InlineData("Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.", true)]
     [InlineData("Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.", false)]
     public async Task Un_codigo_propio_del_handler_se_cuenta_con_el_mensaje_de_la_pantalla(string codigo, string esperado, bool vincular)
@@ -921,15 +921,15 @@ public partial class EstadoComercialGen2Tests : BunitContext
         var frases = Regex.Split(todo, @"(?<=[.!?])\s+");
 
         todo.Should().Contain("Pagador TALVEG", "si el término no aparece, esta comprobación no está mirando la frase que importa");
-        frases.Should().Contain(f => f.Contains("Pagador TALVEG") && f.Contains("Tenant propietario"),
+        frases.Should().Contain(f => f.Contains("Pagador TALVEG") && f.Contains("organización propietaria"),
             "la entradilla es la frase que separa los dos conceptos; sin ella el resto pasa en vacío");
 
-        frases.Where(f => Regex.IsMatch(f, @"\bpagador\b", RegexOptions.IgnoreCase) && Regex.IsMatch(f, @"\bpropietario\b", RegexOptions.IgnoreCase))
+        frases.Where(f => Regex.IsMatch(f, @"\bpagador\b", RegexOptions.IgnoreCase) && Regex.IsMatch(f, @"\bpropietari[oa]\b", RegexOptions.IgnoreCase))
             .Should().OnlyContain(f => f.Contains("no tiene por qué"),
                 "una frase que junta Pagador y Tenant propietario solo puede ser para decir que no se deducen uno del otro");
 
         frases.Should().NotContain(f => Regex.IsMatch(f,
-                @"\btenant (paga|pagador)\b|\bpaga el tenant\b|\bpagador del tenant\b|\bpagador\b[^.]*\b(es|coincide con|equivale a) (el|al) tenant propietario\b",
+                @"\b(tenant|organización) (paga|pagador)\b|\bpaga (el tenant|la organización)\b|\bpagador de(l tenant| la organización)\b|\bpagador\b[^.]*\b(es|coincide con|equivale a) (el|al|la) (tenant propietario|organización propietaria)\b",
                 RegexOptions.IgnoreCase),
             "el tenant no es quien paga por definición");
 
@@ -942,7 +942,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         Regex.Matches(todo, Regex.Escape(MensajeNoAutorizadoDeLaPantalla)).Should().HaveCount(2,
             "el rechazo de vincular (alerta del formulario) y el de actualizar (aviso de ToastService) tienen que haberse recogido");
         todo.Should().Contain("No pudimos cargar el estado comercial", "el fallo de carga tiene que haberse pintado");
-        todo.Should().Contain("No hay ningún tenant todavía", "la lista vacía tiene que haberse pintado");
+        todo.Should().Contain("No hay ninguna organización todavía", "la lista vacía tiene que haberse pintado");
     }
 
     [Fact]
@@ -950,11 +950,11 @@ public partial class EstadoComercialGen2Tests : BunitContext
     {
         // Control positivo del instrumento de arriba: las mismas reglas sobre
         // una frase que las incumple tienen que saltar.
-        const string mala = "El Pagador TALVEG es el Tenant propietario.";
+        const string mala = "El Pagador TALVEG es la organización propietaria.";
 
         Regex.IsMatch(mala, @"\bpagador\b", RegexOptions.IgnoreCase).Should().BeTrue();
         mala.Contains("no tiene por qué").Should().BeFalse();
-        Regex.IsMatch(mala, @"\bpagador\b[^.]*\b(es|coincide con|equivale a) (el|al) tenant propietario\b", RegexOptions.IgnoreCase)
+        Regex.IsMatch(mala, @"\bpagador\b[^.]*\b(es|coincide con|equivale a) (el|al|la) (tenant propietario|organización propietaria)\b", RegexOptions.IgnoreCase)
             .Should().BeTrue();
     }
 

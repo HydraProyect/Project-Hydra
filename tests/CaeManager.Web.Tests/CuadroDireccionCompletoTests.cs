@@ -549,7 +549,7 @@ public partial class CuadroDireccionTests
         var equipos = cut.Find("[data-tarjeta=cm-equipos]");
         equipos.QuerySelector("h2")!.TextContent.Should().Be("Por equipo");
         equipos.QuerySelector(".insignia-proximamente")!.TextContent.Should().Be("Próximamente");
-        equipos.QuerySelector("[data-sin-modelo=equipos]")!.TextContent.Should().Contain("Mostrará las medidas de tiempo por equipo (Outbound, Validación y Fincas)");
+        equipos.QuerySelector("[data-sin-modelo=equipos]")!.TextContent.Should().Contain("Mostrará las medidas de tiempo por equipo (Acredita, Valida y Fincas)");
         equipos.QuerySelector("table").Should().BeNull("el bloque sin medidas no pinta una tabla vacía");
         equipos.QuerySelector(".cuadro-nota").Should().BeNull("la nota de la tabla no tiene tabla a la que explicar");
         equipos.TextContent.Should().NotMatchRegex(@"\b20\d\d\b", "el texto de ayuda dice qué hará la función, nunca una fecha");

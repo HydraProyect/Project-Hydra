@@ -230,13 +230,13 @@
     };
 
     /// <summary>
-    /// El nombre con su papel («Empresa Norte · Inbound») para el aria-label y el title: la pastilla es aria-hidden, así
+    /// El nombre con su papel («Empresa Norte · Valida») para el aria-label y el title: la pastilla es aria-hidden, así
     /// que el lector de pantalla solo sabe el papel por aquí.
     /// </summary>
     private string NombreConPapel(ClienteAutorizadoDto cliente) =>
         cliente.Servicio is { } papel ? $"{cliente.Nombre} · {TextoPapel(papel)}" : cliente.Nombre;
 
-    /// <summary>Pastilla de papel de la maqueta (V1-Gestor y V2-Gestor): «Outbound» o «Inbound».</summary>
+    /// <summary>Pastilla de papel de la maqueta (V1-Gestor y V2-Gestor): «Acredita» o «Valida» (nombres comerciales de Outbound e Inbound, D2 de Chris, 2026-11-19).</summary>
     private RenderFragment Pastilla(CaeManager.Domain.Operaciones.ServicioCae papel) => __builder =>
     {
         <span class="selector-tenant-papel @(papel == CaeManager.Domain.Operaciones.ServicioCae.Inbound ? "selector-tenant-papel-inbound" : "selector-tenant-papel-outbound")"
