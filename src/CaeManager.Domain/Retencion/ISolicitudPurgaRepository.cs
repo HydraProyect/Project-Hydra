@@ -18,6 +18,9 @@ public interface ISolicitudPurgaRepository
 
     void Agregar(SolicitudPurga solicitud);
 
+    /// <summary>Guarda la lista de Documentos de una propuesta (<see cref="SolicitudPurga.DeDocumentos"/>).</summary>
+    void AgregarDocumentosPropuestos(IEnumerable<DocumentoPropuestoPurga> propuestos);
+
     /// <summary>Registra un candidato que la ejecución no pudo suprimir — ver <see cref="IncidenciaPurga"/>.</summary>
     void AgregarIncidencia(IncidenciaPurga incidencia);
 }

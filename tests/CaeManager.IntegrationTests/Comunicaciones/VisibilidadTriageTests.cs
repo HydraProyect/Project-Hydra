@@ -381,7 +381,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         var usuario = new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant);
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var handler = new ObtenerConversacionesQueryHandler(
-            contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto,
             new AlcanceDatosService(contexto, usuario, tenantActual, new SesionPrivilegiadaAusente()), usuario, tenantActual);
 
         return (await handler.Handle(new ObtenerConversacionesQuery(), CancellationToken.None)).Elementos;
@@ -433,6 +433,9 @@ public class VisibilidadTriageTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerConversacionesQueryHandler(
+            contexto,
+            contexto,
+            contexto,
             contexto,
             contexto,
             contexto,

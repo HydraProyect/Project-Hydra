@@ -10,7 +10,9 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
 {
     public void Configure(EntityTypeBuilder<ParametroSistema> builder)
     {
-        builder.ToTable("ParametrosSistema");
+        // R1 de la decisión del 2026-11-18, repetida en la base: el plazo de conservación va de 1 a 5 años.
+        builder.ToTable("ParametrosSistema", t => t.HasCheckConstraint(
+            "CK_ParametrosSistema_AniosRetencionDocumentos", "\"AniosRetencionDocumentos\" BETWEEN 1 AND 5"));
         builder.HasKey(p => p.Id);
 
         // El Id fijo de la semilla solo protege al tenant #1: cualquier otro
@@ -21,6 +23,8 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
 
         builder.Property(p => p.MinutosInactividadSesion)
             .HasDefaultValue(ParametroSistema.MinutosInactividadSesionPorDefecto);
+        builder.Property(p => p.AniosRetencionDocumentos)
+            .HasDefaultValue(CaeManager.Domain.Retencion.PlazoRetencionDocumentos.PorDefecto);
 
         builder.HasData(new
         {
@@ -37,6 +41,7 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
             ExcluirFueraDeJornadaEnMetricas = ParametroSistemaSeedData.ExcluirFueraDeJornadaEnMetricas,
             MinutosInactividadSesion = ParametroSistema.MinutosInactividadSesionPorDefecto,
             ExigeSegundoFactorTodosLosPerfiles = false,
+            AniosRetencionDocumentos = CaeManager.Domain.Retencion.PlazoRetencionDocumentos.PorDefecto,
             // Un tenant nuevo siembra su propia fila al aprovisionarse (ver
             // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7) — esta es la del tenant #1.
             TenantId = TenantSeedData.IdPorDefecto

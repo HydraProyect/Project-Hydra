@@ -83,6 +83,9 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Proyectos.PlantillaRequisitosEventoTipo",
         "CaeManager.Domain.Reclamaciones.ReclamacionDocumental",
         "CaeManager.Domain.Reclamaciones.ReclamacionDocumentalDocumento",
+        // Lista de Documentos propuestos por una solicitud de purga (R4): solo la lee la ejecución de la purga; el
+        // cálculo no la lee.
+        "CaeManager.Domain.Retencion.DocumentoPropuestoPurga",
         "CaeManager.Domain.Subcontratas.CredencialAccesoSubcontrata",
         "CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata",
         "CaeManager.Domain.Trabajadores.DeteccionTrabajador",

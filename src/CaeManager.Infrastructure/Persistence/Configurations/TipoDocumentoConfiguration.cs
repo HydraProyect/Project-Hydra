@@ -11,9 +11,16 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
     {
         // «Solo conclusión de aptitud» solo en un tipo de salud (TipoDocumento.EstablecerSoloConclusionAptitud): la lectura
         // entre Tenants abre un tipo de salud solo con la marca, y la marca no puede colarse en un tipo que no lo es.
-        builder.ToTable("TiposDocumento", t => t.HasCheckConstraint(
-            "CK_TiposDocumento_SoloConclusionAptitudEsDeSalud",
-            "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'"));
+        // Plazo de conservación propio (decisión del 2026-11-18): nulo hereda el del Tenant propietario; si no, de 1 a 5 años.
+        builder.ToTable("TiposDocumento", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_TiposDocumento_SoloConclusionAptitudEsDeSalud",
+                "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'");
+            t.HasCheckConstraint(
+                "CK_TiposDocumento_AniosRetencionDocumentos",
+                "\"AniosRetencionDocumentos\" IS NULL OR \"AniosRetencionDocumentos\" BETWEEN 1 AND 5");
+        });
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre).IsRequired().HasMaxLength(TipoDocumento.LongitudMaximaNombre);
