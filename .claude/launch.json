@@ -1,11 +1,81 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "hydra-web",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--no-build", "--project", "src/CaeManager.Web", "--launch-profile", "http"],
-      "port": 5186
-    }
-  ]
+    "version":  "0.0.1",
+    "configurations":  [
+                           {
+                               "name":  "hydra-web",
+                               "runtimeExecutable":  "dotnet",
+                               "runtimeArgs":  [
+                                                   "run",
+                                                   "--no-build",
+                                                   "--project",
+                                                   "src/CaeManager.Web",
+                                                   "--launch-profile",
+                                                   "http"
+                                               ],
+                               "port":  5186
+                           },
+                           {
+                               "name":  "hydra-web-comunic",
+                               "runtimeExecutable":  "powershell",
+                               "runtimeArgs":  [
+                                                   "-NoProfile",
+                                                   "-ExecutionPolicy",
+                                                   "Bypass",
+                                                   "-File",
+                                                   "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\b7f6a11913046590\\011ab3c7-14b3-44a4-9ed8-b10309d75e72\\scratchpad\\arrancar-web.ps1"
+                                               ],
+                               "port":  5287
+                           },
+                           {
+                               "name":  "hydra-web-pr2",
+                               "runtimeExecutable":  "powershell",
+                               "runtimeArgs":  [
+                                                   "-NoProfile",
+                                                   "-ExecutionPolicy",
+                                                   "Bypass",
+                                                   "-File",
+                                                   "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\b7f6a11913046590\\011ab3c7-14b3-44a4-9ed8-b10309d75e72\\scratchpad\\arrancar-pr2.ps1"
+                                               ],
+                               "port":  5288
+                           },
+                           {
+                               "name":  "maqueta-comunic",
+                               "runtimeExecutable":  "python",
+                               "runtimeArgs":  [
+                                                   "-I",
+                                                   "-m",
+                                                   "http.server",
+                                                   "8121",
+                                                   "--bind",
+                                                   "127.0.0.1",
+                                                   "--directory",
+                                                   "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\b7f6a11913046590\\011ab3c7-14b3-44a4-9ed8-b10309d75e72\\scratchpad\\maqueta"
+                                               ],
+                               "port":  8121
+                           },
+                           {
+                               "name":  "hydra-web-pr1",
+                               "runtimeExecutable":  "powershell",
+                               "runtimeArgs":  [
+                                                   "-NoProfile",
+                                                   "-ExecutionPolicy",
+                                                   "Bypass",
+                                                   "-File",
+                                                   "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\b7f6a11913046590\\011ab3c7-14b3-44a4-9ed8-b10309d75e72\\scratchpad\\arrancar-pr1.ps1"
+                                               ],
+                               "port":  5289
+                           },
+                           {
+                               "name":  "hydra-web-pr3",
+                               "runtimeExecutable":  "powershell",
+                               "runtimeArgs":  [
+                                                   "-NoProfile",
+                                                   "-ExecutionPolicy",
+                                                   "Bypass",
+                                                   "-File",
+                                                   "C:\\Users\\chris\\AppData\\Local\\Temp\\claude\\b7f6a11913046590\\011ab3c7-14b3-44a4-9ed8-b10309d75e72\\scratchpad\\arrancar-pr3.ps1"
+                                               ],
+                               "port":  5290
+                           }
+                       ]
 }
