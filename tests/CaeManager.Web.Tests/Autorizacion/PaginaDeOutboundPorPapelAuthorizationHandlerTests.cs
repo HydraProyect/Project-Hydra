@@ -107,8 +107,9 @@ public class PaginaDeOutboundPorPapelAuthorizationHandlerTests
     public void El_adjunto_de_Comunicaciones_lleva_las_dos_marcas()
     {
         var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder();
-        builder.Services.AddSingleton(NSubstitute.Substitute.For<MediatR.IMediator>());
-        builder.Services.AddSingleton(NSubstitute.Substitute.For<IFileStorageService>());
+        // Solo para que el enlace de parámetros los infiera como servicios; el test no ejecuta el endpoint.
+        builder.Services.AddSingleton<MediatR.IMediator>(_ => null!);
+        builder.Services.AddSingleton<IFileStorageService>(_ => null!);
         var app = builder.Build();
         Features.Comunicaciones.ComunicacionesEndpoints.MapComunicacionesEndpoints(app);
 
