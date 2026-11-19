@@ -381,7 +381,9 @@ public class ObtenerConversacionesQueryHandler(
             .Select(c => c.MensajeId)
             .ToListAsync(cancellationToken);
 
-        var sugerenciasGestion = await comunicacionesContext.SugerenciasGestionCorreo
+        // Con el marco de Comunicaciones del Tenant solo Inbound (D6=a), el detalle no proyecta sugerencias de Gestión;
+        // la bandeja tampoco las cuenta como ruido, o el número revelaría que existen y no coincidiría con el detalle.
+        var sugerenciasGestion = AmbitoComunicacionesSoloInbound.Activo ? [] : await comunicacionesContext.SugerenciasGestionCorreo
             .Where(s => mensajeIds.Contains(s.MensajeId))
             .Select(s => new { s.Id, s.MensajeId })
             .ToListAsync(cancellationToken);

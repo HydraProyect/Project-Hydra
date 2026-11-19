@@ -264,7 +264,6 @@ src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvi
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteId = 1
 src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ClienteId = 10
-src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteId = 7
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacion/ObtenerLoteReclamacionQuery.cs :: ClienteId = 11

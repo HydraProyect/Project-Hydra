@@ -49,7 +49,7 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 /// 1bff7a7, opción A, aplicada con la forma (c) que fijó la coordinadora): un Tenant que ya opera Outbound sin fila de la
 /// línea Outbound (no hay backfill) pasaría a «solo Inbound» al contratar Inbound, y <c>TenantSoloInbound</c> le cerraría
 /// Outbound en silencio. Por eso el Actor de Plataforma TALVEG declara de forma explícita que contrata solo Inbound; sin la
-/// declaración, el comando rechaza y pide registrar antes la línea Outbound. El comando no lee la línea Outbound ni
+/// declaración, el comando rechaza y su mensaje dice qué puede hacer el Actor: declararla, o no contratar Inbound si la organización usa Outbound sin su línea registrada (no existe un alta de la línea Outbound). El comando no lee la línea Outbound ni
 /// escribe nada de Facturación; la declaración no se guarda.
 /// </para>
 /// </summary>
@@ -99,7 +99,7 @@ public static class ErroresContratarLineaInbound
 
     public static readonly Error SinDeclaracionSoloInbound = Error.Crear(
         "LineaInbound.SinDeclaracionSoloInbound",
-        "Si esta organización contrata solo Inbound, marca la declaración «solo Inbound» en el Resumen del alta. Si usa Outbound, no contrates Inbound desde el alta: le cerraría Outbound.");
+        "Si esta organización contrata solo Inbound, marca la declaración «solo Inbound» en el Resumen del alta. Si usa Outbound sin su línea Outbound registrada, no contrates Inbound desde el alta: le cerraría Outbound.");
 
     public static readonly Error YaContratada = Error.Crear(
         "LineaInbound.YaContratada", "Esta organización ya tiene la línea Inbound contratada y vigente.");

@@ -85,7 +85,7 @@ public class LecturasDeCarteraEnComunicacionesSoloInboundTests
     [Fact]
     public void La_medida_ve_las_peticiones_acotadas_y_las_lecturas_directas()
     {
-        var (_, alcanzan) = Medida.Value;
+        var (grafo, alcanzan) = Medida.Value;
 
         // Control de población: si PeticionDeOutbound dejara de abrir Comunicaciones, el test de arriba pasaría vacío.
         Handles(PeticionDeOutbound.AcotadaAlSoloInbound).Count().Should().BeGreaterThan(30,
@@ -98,11 +98,13 @@ public class LecturasDeCarteraEnComunicacionesSoloInboundTests
                                    && alcanzan.Contains(ClaveMetodo.De(h.Handle)),
                 "ObtenerSugerenciasVisitaCorreoPendientesQueryHandler llama a ObtenerCentroIdsVisiblesAsync directamente");
 
-        // Control de los cortes: quien solo pasa por CentroVisibleAsync no cuenta como lectura directa.
-        Handles(PeticionDeOutbound.AcotadaAlSoloInbound)
-            .Should().Contain(h => h.Handle.DeclaringType!.Name == "ObtenerConversacionesQueryHandler"
-                                   && !alcanzan.Contains(ClaveMetodo.De(h.Handle)),
-                "la bandeja pide los Centros por CentrosVisiblesAsync");
+        // Control de los cortes: la bandeja pide los Centros por CentrosVisiblesAsync, así que sin cortes sí alcanza la
+        // lectura directa y con ellos no. Si la bandeja dejara de tocar Centros, la primera mitad caería.
+        var bandeja = Handles(PeticionDeOutbound.AcotadaAlSoloInbound)
+            .Single(h => h.Handle.DeclaringType!.Name == "ObtenerConversacionesQueryHandler").Handle;
+        grafo.QueAlcanzan(LecturasDirectas).Should().Contain(ClaveMetodo.De(bandeja),
+            "sin cortes, la bandeja llega a ObtenerCentroIdsVisiblesAsync a través de CentrosVisiblesAsync");
+        alcanzan.Should().NotContain(ClaveMetodo.De(bandeja), "con los cortes, ese camino pasa por la extensión con recorte");
     }
 
     private static IEnumerable<(Type Peticion, MethodInfo Handle)> Handles(Func<Type, bool> filtro) =>
