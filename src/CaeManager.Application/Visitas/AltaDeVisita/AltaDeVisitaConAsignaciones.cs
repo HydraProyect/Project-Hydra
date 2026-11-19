@@ -18,14 +18,21 @@ public readonly record struct VisitaAgregada(Guid VisitaId, Guid? MensajeOrigenI
 /// </summary>
 public interface IAltaDeVisitaConAsignaciones
 {
-    /// <param name="agregarVisita">
-    /// Vuelve a comprobar, sobre lo que relee bajo el candado, el alcance del Centro y la admisibilidad de los Trabajadores, y
-    /// agrega la Visita (y lo que el Command guarda con ella) al contexto, sin guardar. Si falla, no se escribe nada. Puede
-    /// llamarse más de una vez: la operación se reintenta con el contexto vacío. No se vuelve a llamar si la Visita que agregó
-    /// un intento anterior ya está confirmada en la base: entonces se devuelve lo que escribió ese intento.
+    /// <param name="revalidar">
+    /// Vuelve a comprobar, sobre lo que relee bajo el candado, el alcance del Centro y la admisibilidad de los Trabajadores,
+    /// con la misma regla y la misma respuesta que el Command fuera del candado. Se llama antes de calcular el plan y de
+    /// cualquier otro rechazo: quien perdió el alcance mientras esperaba recibe la respuesta de «no existe», no otra.
     /// </param>
+    /// <param name="agregarVisita">
+    /// Agrega la Visita (y lo que el Command guarda con ella) al contexto, sin guardar. Si falla, no se escribe nada.
+    /// </param>
+    /// <remarks>
+    /// Los dos pueden llamarse más de una vez: la operación se reintenta con el contexto vacío. No se vuelven a llamar si la
+    /// Visita que agregó un intento anterior ya está confirmada en la base: entonces se devuelve lo que escribió ese intento.
+    /// </remarks>
     Task<Result<(VisitaAgregada Visita, PlanAltaVisitaDto Plan)>> EjecutarAsync(
         Guid centroId, DateOnly fechaFin, IReadOnlyList<Guid> trabajadorIds,
+        Func<CancellationToken, Task<Result>> revalidar,
         Func<CancellationToken, Task<Result<VisitaAgregada>>> agregarVisita, CancellationToken cancellationToken);
 }
 
@@ -41,6 +48,7 @@ public class AltaDeVisitaConAsignaciones(
 
     public async Task<Result<(VisitaAgregada Visita, PlanAltaVisitaDto Plan)>> EjecutarAsync(
         Guid centroId, DateOnly fechaFin, IReadOnlyList<Guid> trabajadorIds,
+        Func<CancellationToken, Task<Result>> revalidar,
         Func<CancellationToken, Task<Result<VisitaAgregada>>> agregarVisita, CancellationToken cancellationToken)
     {
         VisitaAgregada visita = default;
@@ -62,6 +70,12 @@ public class AltaDeVisitaConAsignaciones(
             // La Asignación de Cartera pudo revocarse mientras se esperaba el candado (issue #2118).
             invalidadorAlcance.Invalidar();
 
+            // Lo que decide el Command (Centro dentro del alcance, Trabajadores admisibles), releído aquí dentro y antes que
+            // nada: ningún rechazo posterior (autoridad, solape) habla de un Centro o de un Trabajador que ya no se alcanza.
+            var revalidado = await revalidar(ct);
+            if (revalidado.EsFallido)
+                return revalidado;
+
             resultado = await plan.CalcularAsync(centroId, fechaFin, hoy, trabajadorIds, ct);
             var porAsignar = resultado.Asignaciones.Select(a => a.TrabajadorId).ToList();
 
@@ -71,8 +85,8 @@ public class AltaDeVisitaConAsignaciones(
                 return Result.Fallo(Error.Crear(CodigoSinAutoridad, "No puedes dar de alta a estos trabajadores en este centro."));
 
             // DEC-19: un alta nueva no puede pisar el periodo de una Asignación ya cerrada del mismo par. El plan ya los
-            // separa y la vista previa los enseña por su nombre, tras validarlos. Aquí el mensaje no los nombra: se emite antes
-            // de que agregarVisita vuelva a comprobar el alcance bajo el candado, y un nombre que ya no fuera visible no debe salir.
+            // separa y la vista previa los enseña por su nombre. El mensaje del Command no los nombra: basta con que la vista
+            // previa diga quiénes.
             if (resultado.Solapadas.Count > 0)
                 return Result.Fallo(Error.Crear(CodigoSolape,
                     "Hay trabajadores que no se pueden asignar hoy a este centro: ya tuvieron una asignación a este centro cuyo " +
@@ -86,8 +100,7 @@ public class AltaDeVisitaConAsignaciones(
                         "Un trabajador ya tuvo una asignación a este centro cuyo periodo se solapa con la fecha de hoy."));
             }
 
-            // Lo que decide el Command (Centro dentro del alcance, Trabajadores admisibles), releído aquí dentro. Todo rechazo
-            // va antes de agregar nada.
+            // Todo rechazo va antes de agregar nada.
             var agregada = await agregarVisita(ct);
             if (agregada.EsFallido)
                 return Result.Fallo(agregada.Error);

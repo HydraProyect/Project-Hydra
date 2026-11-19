@@ -44,7 +44,7 @@ public class ObtenerPlanAltaVisitaQueryHandler(
         if (empresaId is null || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return null;
 
-        var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
+        var trabajadorIds = (request.TrabajadorIds ?? []).Distinct().ToList();
 
         // Mismo tope que el Command con AsignarYCrearGestiones (CrearVisitaCommandValidator): por encima, el Command rechazará
         // la Visita, así que no hay plan que enseñar.

@@ -37,7 +37,7 @@ public record GestionPrevistaDto(
 /// <para>
 /// <see cref="Solapadas"/>: Trabajadores sin Asignación activa al Centro a los que no se puede asignar hoy, porque tienen una
 /// Asignación cerrada del mismo par cuyo periodo se solapa con hoy (DEC-19). No están en <see cref="Asignaciones"/>, y mientras
-/// haya alguno el Command rechaza la Visita entera (<see cref="AltaDeVisitaConAsignaciones.CodigoSolape"/>) nombrándolos.
+/// haya alguno el Command rechaza la Visita entera (<see cref="AltaDeVisitaConAsignaciones.CodigoSolape"/>) sin nombrarlos: quiénes son lo dice la vista previa.
 /// </para>
 /// </summary>
 public record PlanAltaVisitaDto(
@@ -60,7 +60,7 @@ public readonly record struct AsignacionEnPlan(DateOnly FechaAlta, DateOnly? Fec
 /// <summary>Un Tipo de documento de ámbito Trabajador, sin archivar, con lo que decide si se exige de serie.</summary>
 public readonly record struct TipoEnPlan(Guid TipoDocumentoId, string Nombre, bool ObligatorioPorDefecto, TiposContratacion TiposContratacionDeSerie);
 
-/// <summary>Un Documento operativo de un Trabajador de la Visita; una renuncia también lo es.</summary>
+/// <summary>Un Documento operativo de un Trabajador de la Visita que no está en renuncia.</summary>
 public readonly record struct DocumentoEnPlan(Guid TrabajadorId, Guid TipoDocumentoId, DocumentoParaAcceso Documento);
 
 /// <summary>
@@ -73,9 +73,9 @@ public readonly record struct DocumentoEnPlan(Guid TrabajadorId, Guid TipoDocume
 /// el criterio global del Tipo filtrado por la serie del tipo de contratación del Trabajador), y nada si el Centro no tiene gestión
 /// CAE (P1-X2). Un Tipo archivado no da Gestión: no admite altas nuevas, así que no se podría cumplir (mismo filtro que
 /// <c>EvaluacionDeAccesoPorCentroService</c>).</item>
-/// <item><b>Falta</b>: el Trabajador no tiene ningún Documento operativo de ese Tipo. Una renuncia operativa cuenta como Documento
-/// existente, igual que en el detalle de la Visita (<c>ObtenerDocumentacionVisitaQuery</c> solo pinta «Faltante» cuando no hay
-/// ningún Documento operativo del Tipo), y vale según su propia vigencia.</item>
+/// <item><b>Falta</b>: el Trabajador no tiene ningún Documento operativo de ese Tipo que no esté en renuncia. Una renuncia nunca
+/// es conforme ni sustituye al apto (<c>CumplimientoDocumental.EsConforme</c>, decisión del 2026-10-17), así que no cubre el
+/// Tipo y nace la Gestión.</item>
 /// <item><b>Caduca antes del fin</b>: el vencimiento efectivo en este Centro (<see cref="ReglaBloqueoDeAcceso.VencimientoEfectivo"/>,
 /// con su periodicidad especial) es anterior a la fecha de fin. La tolerancia no cuenta: Chris habló de lo que caduca, no de lo
 /// que deja de permitir el acceso. «No caduca» y «Sin confirmar» sin periodicidad del Centro no vencen.</item>
@@ -267,9 +267,11 @@ public class PlanAltaVisitaService(
             .Select(tc => new { tc.TipoDocumentoId, tc.Incluido, tc.PeriodicidadEspecialMeses })
             .ToListAsync(cancellationToken);
 
-        // Una renuncia operativa es un Documento existente, como en el detalle de la Visita: no se filtra.
+        // Una renuncia no cubre el Tipo: nunca es conforme, no sustituye al apto (CumplimientoDocumental.EsConforme, decisión
+        // del 2026-10-17). Para el plan es como si faltara.
         var documentos = (await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
+                && !d.EsRenuncia
                 && ids.Contains(d.TrabajadorId!.Value)
                 && tipoIds.Contains(d.TipoDocumentoId))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })

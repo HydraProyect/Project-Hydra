@@ -123,7 +123,7 @@ public class CrearVisitaCommandHandler(
         if (request.AsignarYCrearGestiones)
         {
             var alta = await altaConAsignaciones!.EjecutarAsync(
-                request.CentroId, request.FechaFin, trabajadorIds, AgregarVisitaAsync, cancellationToken);
+                request.CentroId, request.FechaFin, trabajadorIds, RevalidarBajoElCandadoAsync, AgregarVisitaAsync, cancellationToken);
             if (alta.EsFallido)
                 return Result.Fallo<Guid>(alta.Error);
         }
@@ -137,26 +137,28 @@ public class CrearVisitaCommandHandler(
 
         return await DespuesDeGuardarAsync(visita!, conversacionParaPaquete, cancellationToken);
 
+        // Solo con AsignarYCrearGestiones, bajo el candado: lo comprobado arriba no vale (ISerializacionAltasAcreditacionEmpresa),
+        // la Asignación de Cartera pudo revocarse mientras se esperaba. Se relee con la misma regla y la misma respuesta que
+        // fuera, antes de ningún otro rechazo.
+        async Task<Result> RevalidarBajoElCandadoAsync(CancellationToken ct)
+        {
+            if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, ct))
+                return Result.Fallo(CentroNoEncontrado().Error);
+
+            var releidos = await TrabajadoresAdmisiblesEnVisita.CargarAsync(
+                trabajadorIds, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, ct);
+            if (releidos is null)
+                return Result.Fallo(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
+            admitidos = releidos;
+            return Result.Exito();
+        }
+
         // Agrega la Visita, sus Trabajadores y lo que resuelve de la sugerencia, sin guardar. Con AsignarYCrearGestiones corre
         // dentro de la operación serializada de IAltaDeVisitaConAsignaciones, que puede reintentarse con el contexto vacío: por
         // eso la sugerencia se carga aquí dentro y no antes.
         async Task<Result<VisitaAgregada>> AgregarVisitaAsync(CancellationToken ct)
         {
             conversacionParaPaquete = null;
-
-            // Bajo el candado, lo comprobado arriba no vale (ISerializacionAltasAcreditacionEmpresa): la Asignación de Cartera
-            // pudo revocarse mientras se esperaba. Se relee con la misma regla y la misma respuesta que fuera.
-            if (request.AsignarYCrearGestiones)
-            {
-                if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, ct))
-                    return Result.Fallo<VisitaAgregada>(CentroNoEncontrado().Error);
-
-                var releidos = await TrabajadoresAdmisiblesEnVisita.CargarAsync(
-                    trabajadorIds, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, ct);
-                if (releidos is null)
-                    return Result.Fallo<VisitaAgregada>(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
-                admitidos = releidos;
-            }
 
             // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
             // del mensaje que la originó, el mismo criterio con el que ObtenerConversacionPorIdQuery la
