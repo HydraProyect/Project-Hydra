@@ -259,5 +259,5 @@ public static class ErroresCargaMasiva
     /// </summary>
     public static readonly Error AmbitoCambiadoAlConfirmar = Error.Crear(
         "Importacion.AmbitoCambiadoAlConfirmar",
-        "Tu Asignación de Cartera ha cambiado mientras se confirmaba la carga y parte de lo que el archivo escribe ha quedado fuera de tu ámbito: no se ha escrito nada. Vuelve a cargar el archivo.");
+        "Las empresas que tienes asignadas han cambiado mientras se confirmaba la carga y parte de lo que el archivo escribe ha quedado fuera de tu ámbito: no se ha escrito nada. Vuelve a cargar el archivo.");
 }
