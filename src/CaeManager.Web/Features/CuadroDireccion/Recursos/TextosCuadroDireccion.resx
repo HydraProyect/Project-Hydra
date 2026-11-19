@@ -223,7 +223,7 @@
     <value>Siempre por equipo del Operador CAE, nunca por persona. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
   </data>
   <data name="EquiposSinMedidas" xml:space="preserve">
-    <value>Mostrará las medidas de tiempo por equipo (Outbound, Validación y Fincas): primera respuesta, resolución y cumplimiento del SLA.</value>
+    <value>Mostrará las medidas de tiempo por equipo (Acredita, Valida y Fincas): primera respuesta, resolución y cumplimiento del SLA.</value>
   </data>
   <data name="EquipoSuprimido" xml:space="preserve">
     <value>No se muestra: menos de {0} personas o menos de {1} conversaciones</value>
@@ -727,7 +727,7 @@
     <value>Qué mide y qué no mide</value>
   </data>
   <data name="CarteraCriterioTexto" xml:space="preserve">
-    <value>Mide el volumen de la Asignación de Cartera de cada Gestor CAE para repartir mejor. No mide horas, conexiones, velocidad ni errores de nadie, y no ordena a las personas. Las gestiones se atribuyen al Gestor CAE principal de la Empresa, no a quien las hizo.</value>
+    <value>Mide el volumen de empresas asignadas a cada Gestor CAE para repartir mejor. No mide horas, conexiones, velocidad ni errores de nadie, y no ordena a las personas. Las gestiones se atribuyen al Gestor CAE principal de la Empresa, no a quien las hizo.</value>
   </data>
   <data name="ColumnaGestorCae" xml:space="preserve">
     <value>Gestor CAE</value>
@@ -1153,7 +1153,7 @@
     <value>Falta 1 empresa que no alcanzas por completo</value>
   </data>
   <data name="FactSinAlcanceAyuda" xml:space="preserve">
-    <value>No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.</value>
+    <value>No entran en las cifras porque solo tienes asignada una parte de ellas.</value>
   </data>
   <data name="TarifasMonedaEur" xml:space="preserve">
     <value>EUR · euro</value>

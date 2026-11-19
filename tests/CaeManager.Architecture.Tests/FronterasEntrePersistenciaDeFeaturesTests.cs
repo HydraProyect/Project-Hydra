@@ -1054,6 +1054,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Centro (o de una Subcontrata con Relación Empresarial vigente con ella) y visibles
         // (TrabajadoresAdmisiblesEnVisita): leen el Centro, los Trabajadores y las Relaciones.
         ("Visitas.CrearVisitaCommandHandler", "IEmpresasQueryContext"),
+        // Vista previa de «Crear visita» (decisión de Chris, 2026-11-19): las mismas lecturas que CrearVisita para el Centro y
+        // los Trabajadores admisibles; el plan lo calcula PlanAltaVisitaService.
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ICentrosQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),

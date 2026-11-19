@@ -140,16 +140,16 @@
     <value>Contexto operativo actual</value>
   </data>
   <data name="SelectorTenantPapelOutbound" xml:space="preserve">
-    <value>Outbound</value>
+    <value>Acredita</value>
   </data>
   <data name="SelectorTenantPapelInbound" xml:space="preserve">
-    <value>Inbound</value>
+    <value>Valida</value>
   </data>
   <data name="SelectorTenantSubOutbound" xml:space="preserve">
-    <value>Asignación de Operación Outbound</value>
+    <value>Gestionas su documentación</value>
   </data>
   <data name="SelectorTenantSubInbound" xml:space="preserve">
-    <value>Asignación de Operación Inbound</value>
+    <value>Validas a sus contratistas</value>
   </data>
   <data name="SelectorTenantRotulo" xml:space="preserve">
     <value>Empresa gestionada</value>
@@ -915,10 +915,10 @@
     <value>Flechas: cambiar de día. Re Pág y Av Pág: cambiar de mes. Inicio y Fin: principio o final de la semana. Intro: elegir. Esc: cerrar.</value>
   </data>
   <data name="MenuLineaOutbound" xml:space="preserve">
-    <value>Outbound</value>
+    <value>Acredita</value>
   </data>
   <data name="MenuLineaInboundTce" xml:space="preserve">
-    <value>Inbound · Tenant TCE</value>
+    <value>Valida</value>
   </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contratos de acceso</value>
@@ -927,7 +927,7 @@
     <value>Documentos por validar</value>
   </data>
   <data name="MenuInboundCentros" xml:space="preserve">
-    <value>Centros</value>
+    <value>Mis centros</value>
   </data>
   <data name="MenuInboundInformacionCentro" xml:space="preserve">
     <value>Información del Centro</value>
@@ -939,7 +939,7 @@
     <value>Reglas de aviso</value>
   </data>
   <data name="MenuInboundGobierno" xml:space="preserve">
-    <value>Gobierno de Inbound</value>
+    <value>Reglas de validación</value>
   </data>
   <data name="MenuGrupoInboundTec" xml:space="preserve">
     <value>Mis Clientes</value>
@@ -949,5 +949,26 @@
   </data>
   <data name="MenuInboundQuienLee" xml:space="preserve">
     <value>Quién lee mis documentos</value>
+  </data>
+  <data name="MenuGrupoInbound" xml:space="preserve">
+    <value>Validación de contratistas</value>
+  </data>
+  <data name="TimelineOrigenUsuarioCliente" xml:space="preserve">
+    <value>Usuario de Cliente</value>
+  </data>
+  <data name="TimelineOrigenTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="TimelineOrigenSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="TimelineOrigenEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="TimelineOrigenCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="TimelineOrigenDesconocido" xml:space="preserve">
+    <value>Desconocido</value>
   </data>
 </root>

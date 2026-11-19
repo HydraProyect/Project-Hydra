@@ -98,6 +98,6 @@
     <value>Confirmar el cambio</value>
   </data>
   <data name="EnlaceAltaLineaInbound" xml:space="preserve">
-    <value>Contratar la línea Inbound de esta organización →</value>
+    <value>Activar Valida en esta organización →</value>
   </data>
 </root>

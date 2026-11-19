@@ -6,7 +6,6 @@ src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: Leyenda
 src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: VisitaProgramadaUna = 1
 src/CaeManager.Web/Features/Comunicaciones/Recursos/TextosAlertasCriticas.resx :: ModalTitulo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuFechaPista = 1
-src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuRolAdministrador = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: OrdenMenuRolCoordinadorCae = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: AlertaCumplimiento = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: AlertaCumplimientoTipo = 1

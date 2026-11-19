@@ -263,7 +263,7 @@
     <value>Gestor CAE d’aquesta organització</value>
   </data>
   <data name="GestorCaeTitulo" xml:space="preserve">
-    <value>Gestors CAE amb Assignació de Cartera sobre aquesta organització</value>
+    <value>Gestors CAE que porten aquesta organització</value>
   </data>
   <data name="GestorCaePrincipal" xml:space="preserve">
     <value>Principal</value>
@@ -287,16 +287,16 @@
     <value>Operador CAE</value>
   </data>
   <data name="GestorCaeTituloPropietario" xml:space="preserve">
-    <value>Operador CAE que gestiona aquesta organització i els seus Gestors CAE amb Assignació de Cartera</value>
+    <value>Operador CAE que gestiona aquesta organització i els Gestors CAE que la porten</value>
   </data>
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
-    <value>Una altra Assignació d’Operació, sense principal</value>
+    <value>Una altra operació, sense Gestor CAE principal</value>
   </data>
   <data name="GestorCaeMas" xml:space="preserve">
     <value>+{0}</value>
   </data>
   <data name="GestorCaeMasEtiqueta" xml:space="preserve">
-    <value>{0} més. Llista completa de persones amb Assignació de Cartera</value>
+    <value>{0} més. Llista completa de persones que porten aquesta organització</value>
   </data>
   <data name="GestorCaeReintentar" xml:space="preserve">
     <value>Torna-ho a provar</value>
@@ -317,7 +317,7 @@
     <value>Donar accés o desassignar-te a la fitxa</value>
   </data>
   <data name="GestorCaeVentanaTitulo" xml:space="preserve">
-    <value>Gestors CAE amb Assignació de Cartera</value>
+    <value>Gestors CAE que porten aquesta organització</value>
   </data>
   <data name="GestorCaeCerrar" xml:space="preserve">
     <value>Tanca</value>

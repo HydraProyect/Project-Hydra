@@ -159,7 +159,7 @@ public partial class CuadroDireccionTests
 
         var aviso = cut.Find("[data-facturacion=operador] [data-fact=sin-alcance]");
         aviso.TextContent.Trim().Should().Be("Faltan 2 empresas que no alcanzas por completo");
-        aviso.GetAttribute("title").Should().Be("No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.");
+        aviso.GetAttribute("title").Should().Be("No entran en las cifras porque solo tienes asignada una parte de ellas.");
     }
 
     [Fact]

@@ -273,6 +273,9 @@ public static class ApplicationServiceCollectionExtensions
         // D-P11: el límite de una sola Empresa propia por Tenant propietario, el mismo para todos sus escritores.
         services.AddScoped<CaeManager.Application.Empresas.ILimiteEmpresaPropia, CaeManager.Application.Empresas.LimiteEmpresaPropia>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
+        // Visita que asigna al Centro y crea Gestiones (decisión de Chris, 2026-11-19): la misma regla para la vista previa y el alta.
+        services.AddScoped<Visitas.AltaDeVisita.IPlanAltaVisitaService, Visitas.AltaDeVisita.PlanAltaVisitaService>();
+        services.AddScoped<Visitas.AltaDeVisita.IAltaDeVisitaConAsignaciones, Visitas.AltaDeVisita.AltaDeVisitaConAsignaciones>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
         services.AddScoped<CaeManager.Application.Cumplimiento.IInstruccionTratamientoIaService, CaeManager.Application.Cumplimiento.InstruccionTratamientoIaService>();
         services.AddScoped<CaeManager.Application.Cumplimiento.AceptacionContractual.IRegistroAceptacionContractualAlta, CaeManager.Application.Cumplimiento.AceptacionContractual.RegistroAceptacionContractualAlta>();

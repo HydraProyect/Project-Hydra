@@ -200,7 +200,7 @@
     private IReadOnlyList<CatalogoMenuLateral.SubopcionVisible> _subopciones = [];
     private IReadOnlyDictionary<string, LineaMenu> _rotulosDeLinea = new Dictionary<string, LineaMenu>();
 
-    // «Inbound · Tenant TCE» y no «Tenant TEC»: la línea Inbound solo está visible con el Producto Contratado Inbound vigente
+    // «Valida» (nombre comercial de la línea Inbound, D2 de Chris, 2026-11-19) y no la sigla TEC: la línea Inbound solo está visible con el Producto Contratado Inbound vigente
     // del Tenant (ILineaInboundVigente), que es el del Tenant TCE. El Tenant TEC participante no tiene Producto Contratado de
     // Inbound: su menú es el grupo «inbound-tec», sin línea (SinLinea), que se abre por IEsTenantTecInbound y nunca lleva este rótulo.
     private string RotuloDeLinea(LineaMenu linea) => linea == LineaMenu.Inbound ? Textos["MenuLineaInboundTce"].Value : Textos["MenuLineaOutbound"].Value;

@@ -677,7 +677,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 empresasGestionadas.PorCartera.GetValueOrDefault(usuario.Id) ?? [],
                 // «en esta organización» ya no es cierto: las Empresas gestionadas son Tenants beneficiarios.
                 explicacion: TextosUsuarios["AlcanceGestorPorCartera"].Value,
-                explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún Cliente, y toda lista le sale vacía.");
+                explicacionSinAlcance: "Sin empresas asignadas no ve ninguna empresa gestionada, y toda lista le sale vacía.");
 
         return new("—", false, "Esta cuenta todavía no tiene rol, así que no alcanza nada.");
     }
