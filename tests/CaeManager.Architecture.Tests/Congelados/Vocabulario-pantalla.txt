@@ -11,11 +11,9 @@ src/CaeManager.Application/Integraciones/Commands/ActualizarLineaWhatsApp/Actual
 src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: Integraciones.Microsoft365.GestorNoVisible [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
-src/CaeManager.Application/Integraciones/Commands/FijarResponsableBuzon/FijarResponsableBuzonCommand.cs :: Integraciones.Buzon.ResponsableSinCartera [jerga-de-producto-en-pantalla] = 1
 src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [operador-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: WithMessage [operador-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/RevocarAsignacionOperadorDelegado/RevocarAsignacionOperadorDelegadoCommand.cs :: WithMessage [operador-a-secas] = 1
-src/CaeManager.Application/Usuarios/Commands/EliminarUsuarioPendiente/EliminarUsuarioPendienteCommand.cs :: Usuarios.CarteraVigente [jerga-de-producto-en-pantalla] = 1
 src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [tenant-a-secas] = 6
 src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [workspace-a-secas] = 1
 src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [operador-a-secas] = 2

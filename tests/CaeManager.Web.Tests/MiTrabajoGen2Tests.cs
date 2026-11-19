@@ -921,7 +921,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, [])]));
 
         cut.Markup.Should().Contain("La cola está vacía");
-        cut.Markup.Should().NotContain("No tienes empresas asignadas");
+        cut.Markup.Should().NotContain("No tienes empresas asignadas").And.NotContain("Sin empresas asignadas");
     }
 
     // P2.3 de la demo a Dirección: «La cola está vacía» solo con alguna Empresa en

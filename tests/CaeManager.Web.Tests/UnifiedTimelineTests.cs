@@ -74,6 +74,37 @@ public class UnifiedTimelineTests : BunitContext
         }
     }
 
+    /// <summary>
+    /// Cierra el hueco de los casos fijos de arriba: recorre todos los valores de <see cref="TipoParticipanteOrigen"/>, de modo
+    /// que un valor nuevo sin clave localizada en es o ca-ES hace caer la etiqueta a la clave cruda y este test falla.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void Todo_valor_del_origen_del_participante_tiene_texto_localizado(string cultura)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        try
+        {
+            var rol = Enum.GetValues<RolParticipante>()[0];
+            foreach (var origen in Enum.GetValues<TipoParticipanteOrigen>())
+            {
+                var mensaje = CrearMensaje(new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc));
+
+                var cut = Render<UnifiedTimeline>(parametros => parametros
+                    .Add(p => p.Mensajes, [mensaje])
+                    .Add(p => p.Participantes, [new ParticipanteDetalleDto(Guid.NewGuid(), mensaje.Remitente, rol, origen, null)]));
+
+                cut.Find(".timeline-mensaje-fila").TextContent.Should().NotContain("TimelineOrigen", $"el origen {origen} ({cultura}) necesita su clave localizada");
+            }
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
     [Fact]
     public void Intercala_eventos_entre_mensajes_por_orden_cronologico()
     {

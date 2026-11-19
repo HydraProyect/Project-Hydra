@@ -524,7 +524,7 @@ public class NavMenuCaracterizacionTests
     // D2 (Chris, 2026-11-19): en pantalla no hay jerga interna. Mira el texto y los atributos legibles (title, aria-label), no los
     // identificadores (data-*, href, clases), que conservan «inbound» por diseño.
     private static readonly Regex JergaInternaVisible =
-        new(@"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci[oó]n de (Operaci[oó]n|Cartera)|Assignaci[oó] de (Operaci[oó]|Cartera)", RegexOptions.CultureInvariant);
+        new(@"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci(?:[oó]n|ones) de (?:Operaci(?:[oó]n|ones)|Cartera)|Assignaci(?:[oó]|ons) d(?:e |['’])(?:Operaci(?:[oó]|ons)|Cartera)", RegexOptions.CultureInvariant);
 
     private static string TextoYAtributosVisibles(IRenderedComponent<NavMenu> cut) =>
         string.Join(" | ", cut.Nodes.Select(n => n.TextContent))

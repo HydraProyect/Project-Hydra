@@ -346,6 +346,17 @@ public class CabeceraRedisenadaTests : BunitContext
         cut.Find("nav.migas").GetAttribute("aria-label").Should().Be("Ruta de la página");
     }
 
+    /// <summary>D2: la miga del grupo de Inbound sale del recurso localizado («Validación de contratistas»), no de la clave cruda.</summary>
+    [Fact]
+    public void La_miga_de_una_seccion_de_Valida_muestra_el_grupo_localizado_y_no_la_clave_del_recurso()
+    {
+        var cut = RenderMigas("/inbound/centros");
+
+        var migas = cut.FindAll("li.miga");
+        migas.Select(m => m.TextContent.Trim()).Should().Equal("Validación de contratistas", "Mis centros");
+        cut.Markup.Should().NotContain("MenuGrupoInbound");
+    }
+
     [Fact]
     public void Una_ficha_sube_a_su_seccion_con_un_enlace()
     {

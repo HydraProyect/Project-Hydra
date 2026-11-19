@@ -206,7 +206,7 @@
     {
       "id": "jerga-de-producto-en-pantalla",
       "termino": "Inbound / Outbound / TCE / TEC / Asignación de Operación / Asignación de Cartera",
-      "patron": "\\b(?:Inbound|Outbound)\\b|\\b(?:TCE|TEC)\\b|\\b[Aa]ssignaci[oó] de (?:[Oo]peraci[oó]|[Cc]artera)\\b|\\b[Aa]signaci[oó]n de (?:[Oo]peraci[oó]n|[Cc]artera)\\b",
+      "patron": "\\b(?:Inbound|Outbound)\\b|\\b(?:TCE|TEC)\\b|\\b[Aa]ssignaci(?:[oó]|ons) d(?:e |['’])(?:[Oo]peraci(?:[oó]|ons)|[Cc]artera)\\b|\\b[Aa]signaci(?:[oó]n|ones) de (?:[Oo]peraci(?:[oó]n|ones)|[Cc]artera)\\b",
       "ignorarMayusculas": false,
       "sustitucion": "Acredita y Valida (los productos); «Mis centros», «Reglas de validación»; «empresas asignadas», «permiso para gestionar»; sin siglas de Tenant",
       "motivo": "Decisión D2 de Chris (2026-11-19): en la interfaz no hay jerga interna. Los dos productos se llaman Acredita y Valida; el modelo interno (Tenant TCE, Tenant TEC, Asignación de Operación, Asignación de Cartera) se queda en documentación, análisis y código. Auditoría de pantallas Inbound/Outbound del 2026-11-19, § 6.",
@@ -220,6 +220,9 @@
         "Asignación de Operación",
         "Asignación de Cartera",
         "Assignació de Cartera",
+        "Assignació d'Operació",
+        "Assignacions de Cartera",
+        "Asignaciones de Cartera",
         "solicitudes de Inbound"
       ],
       "noCasa": [

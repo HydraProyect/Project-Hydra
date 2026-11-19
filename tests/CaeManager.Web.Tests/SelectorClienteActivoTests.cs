@@ -1030,7 +1030,7 @@ public class SelectorClienteActivoTests : BunitContext
             var visible = panel.TextContent + " " + string.Join(" ",
                 panel.QuerySelectorAll("[title], [aria-label]").Select(e => e.GetAttribute("title") + " " + e.GetAttribute("aria-label")));
             System.Text.RegularExpressions.Regex.Matches(visible,
-                    @"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci[oó]n de (Operaci[oó]n|Cartera)|Assignaci[oó] de (Operaci[oó]|Cartera)")
+                    @"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci(?:[oó]n|ones) de (?:Operaci(?:[oó]n|ones)|Cartera)|Assignaci(?:[oó]|ons) d(?:e |['’])(?:Operaci(?:[oó]|ons)|Cartera)")
                 .Select(m => m.Value).Should().BeEmpty("el selector no nombra el producto ni el modelo interno");
         }
         finally

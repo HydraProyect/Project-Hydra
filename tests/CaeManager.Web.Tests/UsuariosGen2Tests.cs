@@ -2784,7 +2784,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         _identidad.Eliminadas.Should().BeEmpty();
         _identidad.Cuentas.Should().ContainKey(AnderId);
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("Asignación de Cartera vigente");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("ya tiene empresas asignadas");
     }
 
     [Fact]
