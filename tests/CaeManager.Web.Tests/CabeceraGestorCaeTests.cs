@@ -230,7 +230,7 @@ public class CabeceraGestorCaeTests : BunitContext
 
         cut.FindAll("[data-gestor-cae='principal']").Should().ContainSingle();
         cut.Find("[data-gestor-cae='otra-sin-principal']").TextContent.Trim()
-            .Should().Be("Otro Operador CAE, sin Gestor CAE principal");
+            .Should().Be("Otra operación, sin Gestor CAE principal");
         cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty("hay un principal: «Sin principal» a secas sería falso");
         cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle();
     }
@@ -247,7 +247,7 @@ public class CabeceraGestorCaeTests : BunitContext
 
         cut.Find("[data-gestor-cae-mas]").GetAttribute("data-gestor-cae-mas").Should().Be("2", "control: hay personas agrupadas");
         cut.Find(".cabecera-gestor-cae-personas [data-gestor-cae='otra-sin-principal']").TextContent.Trim()
-            .Should().Be("Otro Operador CAE, sin Gestor CAE principal");
+            .Should().Be("Otra operación, sin Gestor CAE principal");
         LineasDelDetalle(cut, "otra-sin-principal").Should().ContainSingle();
     }
 

@@ -208,7 +208,7 @@
     <value>El Gestor CAE ya tenía la Empresa en cartera: la solicitud se ha anulado.</value>
   </data>
   <data name="SinAsignacionTitulo" xml:space="preserve">
-    <value>No tienes empresas asignadas</value>
+    <value>No tienes empresas asignadas aquí</value>
   </data>
   <data name="SinAsignacionDetalle" xml:space="preserve">
     <value>No tienes asignada esta empresa, así que aquí no aparece nada: no es que esté al día ni que falte por dar de alta. Pídela a tu Coordinador CAE.</value>

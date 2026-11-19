@@ -1083,7 +1083,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             [], [new TenantNoConsultadoDto(Guid.NewGuid(), "Laboratorios Dexter", EsOrigen: false)]));
 
         cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should().Contain("Laboratorios Dexter");
-        cut.Markup.Should().NotContain("sin empresas asignadas").And.NotContain("La cola está vacía")
+        cut.Markup.Should().NotContain("Sin empresas asignadas").And.NotContain("La cola está vacía")
             .And.NotContain("Ningún bloqueo hoy");
         cut.Markup.Should().Contain("Lo consultado está al día");
     }

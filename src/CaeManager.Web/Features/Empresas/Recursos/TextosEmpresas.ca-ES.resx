@@ -290,7 +290,7 @@
     <value>Operador CAE que gestiona aquesta organització i els Gestors CAE que la porten</value>
   </data>
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
-    <value>Un altre Operador CAE, sense Gestor CAE principal</value>
+    <value>Una altra operació, sense Gestor CAE principal</value>
   </data>
   <data name="GestorCaeMas" xml:space="preserve">
     <value>+{0}</value>

@@ -55,7 +55,7 @@
     <value>Operador CAE extern autoritzat: {0}.</value>
   </data>
   <data name="NotaEnlacePlataforma" xml:space="preserve">
-    <value>Si l'organització ja existeix, copia l'enllaç d'autorització i envia'l al seu Administrador: l'autorització la dona la seva organització, no TALVEG.</value>
+    <value>Si l'organització propietària ja existeix, copia l'enllaç d'autorització i envia'l al seu Administrador: l'autorització la dona la seva organització, no TALVEG.</value>
   </data>
   <data name="CopiarEnlace" xml:space="preserve">
     <value>Copiar l'enllaç d'autorització</value>
@@ -85,7 +85,7 @@
     <value>«{0}» encara no hi ha posat ningú del seu equip. Les persones les decideix «{0}» des de la seva organització; quan ho faci apareixeran aquí i les podràs retirar.</value>
   </data>
   <data name="AltaIntro" xml:space="preserve">
-    <value>Es crearà l'organització pròpia de l'Operador CAE extern, sense delegacions, i el compte del seu primer Administrador, sense contrasenya: l'estableix aquesta persona des de l'enllaç d'activació que veuràs en crear-lo.</value>
+    <value>Es crearà l'organització propietària de l'Operador CAE extern, sense delegacions, i el compte del seu primer Administrador, sense contrasenya: l'estableix aquesta persona des de l'enllaç d'activació que veuràs en crear-lo.</value>
   </data>
   <data name="AltaEtiquetaCorreoAdministrador" xml:space="preserve">
     <value>Correu del primer Administrador</value>

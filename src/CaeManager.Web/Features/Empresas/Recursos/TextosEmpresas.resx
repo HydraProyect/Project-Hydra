@@ -362,7 +362,7 @@
     <comment>Lo lee el Administrador del Tenant propietario.</comment>
   </data>
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
-    <value>Otro Operador CAE, sin Gestor CAE principal</value>
+    <value>Otra operación, sin Gestor CAE principal</value>
     <comment>Hay más de una Asignación de Operación viva y alguna no tiene Gestor CAE principal.</comment>
   </data>
   <data name="GestorCaeMas" xml:space="preserve">
