@@ -60,7 +60,7 @@ public class LimiteTenantTecDelOperadorCaeTests
     {
         ErroresLimiteTenantTec.OutboundCerrado.Codigo.Should().Be("Autorizacion.CapacidadNoIncluidaEnTenantTec");
         ErroresLimiteTenantTec.OutboundCerrado.Mensaje.Should().Be(
-            "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratada la línea Outbound.");
+            "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratado Acredita.");
         ErroresLimiteTenantTec.OutboundCerrado.Mensaje.Should().NotContainAny("Tu organización", "tu organización", "contratista");
     }
 

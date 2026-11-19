@@ -87,5 +87,5 @@ public static class ErroresLimiteTenantTec
 {
     public static readonly Error OutboundCerrado = Error.Crear(
         "Autorizacion.CapacidadNoIncluidaEnTenantTec",
-        "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratada la línea Outbound.");
+        "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratado Acredita.");
 }

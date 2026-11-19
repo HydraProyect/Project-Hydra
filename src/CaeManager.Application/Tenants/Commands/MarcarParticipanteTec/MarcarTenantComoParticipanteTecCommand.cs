@@ -36,7 +36,7 @@ public static class ErroresMarcarParticipanteTec
 {
     public static readonly Error NoAutorizado = Error.Crear(
         "ParticipanteTec.NoAutorizado",
-        "Solo una sesión de aprovisionamiento de la plataforma sobre esta organización puede marcarla como participante TEC.");
+        "Solo una sesión de aprovisionamiento de la plataforma sobre esta organización puede marcarla como empresa contratista participante.");
 }
 
 public class MarcarTenantComoParticipanteTecCommandHandler(
