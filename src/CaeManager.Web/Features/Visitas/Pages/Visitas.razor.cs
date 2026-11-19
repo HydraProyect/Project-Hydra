@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentr
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas;
+using CaeManager.Application.Visitas.AltaDeVisita;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -25,6 +26,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerPlanAltaVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
@@ -104,6 +106,18 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _avisoCentroSinAsignados;
     private int _cargaRelacionados;
     private SelectorMultiple? _selectorTrabajadores;
+
+    // Vista previa del alta (decisión de Chris, 2026-11-19): qué Trabajadores quedarán asignados al Centro y qué Gestiones
+    // nacerán, calculado por el servidor con la misma regla que aplicará el Command. Solo en alta; null = sin vista previa
+    // (falta algún dato, fuera de alcance o fallo de la consulta). Mientras se recalcula también es null: guardar entonces
+    // no asigna nada en silencio. El contador descarta las respuestas viejas, como _cargaRelacionados.
+    private PlanAltaVisitaPreviaDto? _planAlta;
+    private int _cargaPlanAlta;
+
+    private PlanAltaVisitaDto? PlanAltaConAutoridad =>
+        _planAlta is { PuedeAsignar: true, Plan: { } plan } && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
+
+    private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan.Asignaciones.Count: > 0 };
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
     // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en
@@ -1376,13 +1390,48 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         NavigationManager.NavigateTo($"/documentos?empresaIdFaltante={_documentacion!.EmpresaId}&tipoDocumentoId={item.TipoDocumentoId}");
     }
 
-    private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
+    private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool seleccionado)
     {
         _erroresCampo.Remove("TrabajadorIds");
         if (seleccionado)
             _trabajadorIdsSeleccionados.Add(trabajadorId);
         else
             _trabajadorIdsSeleccionados.Remove(trabajadorId);
+        await RecalcularPlanAltaAsync();
+    }
+
+    private async Task AlCambiarFechaFinAsync(string fechaFin)
+    {
+        _fechaFin = fechaFin;
+        await RecalcularPlanAltaAsync();
+    }
+
+    /// <summary>
+    /// Pide al servidor la vista previa del alta: qué Trabajadores quedarán asignados al Centro y qué Gestiones nacerán.
+    /// Solo en alta y con Centro, fecha de fin válida y al menos un Trabajador. Si la consulta falla o no devuelve nada
+    /// (fuera de alcance), no hay vista previa y el formulario sigue siendo utilizable.
+    /// </summary>
+    private async Task RecalcularPlanAltaAsync()
+    {
+        var carga = ++_cargaPlanAlta;
+        _planAlta = null;
+
+        if (_editandoId is not null || _trabajadorIdsSeleccionados.Count == 0
+            || !Guid.TryParse(_centroId, out var centroId) || !DateOnly.TryParse(_fechaFin, out var fechaFin))
+            return;
+
+        PlanAltaVisitaPreviaDto? previa;
+        try
+        {
+            previa = await Mediator.Send(new ObtenerPlanAltaVisitaQuery(centroId, fechaFin, _trabajadorIdsSeleccionados.Order().ToList()));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            previa = null;
+        }
+
+        if (carga == _cargaPlanAlta)
+            _planAlta = previa;
     }
 
     /// <summary>
@@ -1428,6 +1477,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private void ReiniciarRelacionados()
     {
         _cargaRelacionados++;
+        _cargaPlanAlta++;
+        _planAlta = null;
         _trabajadoresRelacionados = null;
         _soloRelacionados = false;
         _avisoCentroSinAsignados = false;
@@ -1437,6 +1488,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _centroId = centroId;
         await RecalcularRelacionadosAsync();
+        await RecalcularPlanAltaAsync();
     }
 
     /// <summary>
@@ -1527,7 +1579,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                     return;
                 }
 
-                var resultado = await Mediator.Send(new CrearVisitaCommand(centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId, horaEstimada));
+                // Crear la Visita es la única confirmación: se pide asignar y abrir Gestiones solo si la vista previa lo prometió
+                // y quien crea tiene autoridad para asignar. Sin vista previa, con plan vacío o sin permiso: como antes.
+                var asignarYCrearGestiones = PlanAltaConAutoridad is not null;
+                var resultado = await Mediator.Send(new CrearVisitaCommand(
+                    centroId, fechaInicio, fechaFin, trabajadorIds, notas, _sugerenciaVisitaCorreoId, horaEstimada, asignarYCrearGestiones));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else

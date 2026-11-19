@@ -126,6 +126,24 @@
   <data name="AvisoCentroSinTrabajadoresAsignados" xml:space="preserve">
     <value>Aquest centre no té treballadors assignats.</value>
   </data>
+  <data name="PlanAltaAsignacion" xml:space="preserve">
+    <value>S'assignarà a aquest centre a {0}.</value>
+  </data>
+  <data name="PlanAltaGestionesUna" xml:space="preserve">
+    <value>S'obrirà 1 gestió:</value>
+  </data>
+  <data name="PlanAltaGestionesVarias" xml:space="preserve">
+    <value>S'obriran {0} gestions:</value>
+  </data>
+  <data name="PlanAltaGestionFalta" xml:space="preserve">
+    <value>{0} de {1}: falta</value>
+  </data>
+  <data name="PlanAltaGestionCaduca" xml:space="preserve">
+    <value>{0} de {1}: caduca abans del final de la visita</value>
+  </data>
+  <data name="PlanAltaSinPermiso" xml:space="preserve">
+    <value>No tens permís per assignar aquests treballadors a aquest centre, així que la visita es crearà sense assignar-los i sense obrir gestions.</value>
+  </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centre…</value>
   </data>

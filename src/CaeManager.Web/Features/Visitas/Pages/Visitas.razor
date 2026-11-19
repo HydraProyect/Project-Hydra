@@ -22,6 +22,7 @@
 @using CaeManager.Application.Visitas
 @using CaeManager.Application.Common
 @using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
+@using CaeManager.Application.Visitas.AltaDeVisita
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Visitas
 @using CaeManager.Web.Components.Workspace
@@ -446,7 +447,7 @@
     }
 
     <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
-    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_fechaFin" ValorChanged="AlCambiarFechaFinAsync" />
     <CampoTexto Etiqueta="@Textos["EtiquetaHoraEntrada"]" Type="time"
                 Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
 
@@ -462,9 +463,33 @@
                        Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
                        Elementos="@_trabajadoresDisponiblesSelector"
                        Seleccionados="@_trabajadorIdsSeleccionados"
-                       OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"
+                       OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
                        TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
                        MensajeError="@_errorTrabajadores" />
+
+    @if (PlanAltaSinPermiso)
+    {
+        <div class="alerta-info" role="status">@Textos["PlanAltaSinPermiso"]</div>
+    }
+    else if (PlanAltaConAutoridad is { } planAlta)
+    {
+        <div class="alerta-info" role="status">
+            @foreach (var asignacion in planAlta.Asignaciones)
+            {
+                <p>@Textos["PlanAltaAsignacion", asignacion.TrabajadorNombre]</p>
+            }
+            @if (planAlta.Gestiones.Count > 0)
+            {
+                <p>@(planAlta.Gestiones.Count == 1 ? Textos["PlanAltaGestionesUna"].Value : Textos["PlanAltaGestionesVarias", planAlta.Gestiones.Count].Value)</p>
+                <ul>
+                    @foreach (var gestion in planAlta.Gestiones)
+                    {
+                        <li>@Textos[gestion.Motivo == MotivoGestionPrevista.Falta ? "PlanAltaGestionFalta" : "PlanAltaGestionCaduca", gestion.TipoDocumentoNombre, gestion.TrabajadorNombre]</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
 
     <label class="campo-checkbox">
         <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]
