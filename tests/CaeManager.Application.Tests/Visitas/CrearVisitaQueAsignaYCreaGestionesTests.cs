@@ -178,8 +178,40 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
 
         var resultado = await Handler(alcance: alcance, invalidador: alcance).Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
 
-        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Visita.CentroNoEncontrado", "la misma respuesta que fuera del candado: «no existe»");
         alcance.Invalidaciones.Should().BeGreaterThan(0);
+        NadaCreado();
+    }
+
+    [Fact]
+    public async Task Si_la_cartera_se_revoca_mientras_espera_el_candado_el_solape_no_cambia_la_respuesta_de_no_existe()
+    {
+        // Quien perdió el Centro no debe distinguir, por el código de error, si allí había una Asignación cerrada que solapa.
+        var cerrada = new Asignacion(_sinAsignar.Id, _centro.Id, DiaDeNegocio.Hoy().AddDays(-5));
+        cerrada.DarDeBaja(DiaDeNegocio.Hoy().AddDays(1));
+        _asignaciones.Agregar(cerrada);
+        var alcance = new AlcanceMemoizadoFalso(AlcanceDeMiCartera());
+        _serializacion.AlTomarElCandado = alcance.Revocar;
+
+        var resultado = await Handler(alcance: alcance, invalidador: alcance).Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.CentroNoEncontrado");
+        _visitas.Visitas.Should().BeEmpty();
+        _gestiones.Gestiones.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_cartera_se_revoca_mientras_espera_el_candado_la_falta_de_autoridad_no_cambia_la_respuesta_de_no_existe()
+    {
+        var alcance = new AlcanceMemoizadoFalso(AlcanceDeMiCartera());
+        var autoridad = new AutoridadFalsa();
+        _serializacion.AlTomarElCandado = () => { alcance.Revocar(); autoridad.SobreCentro = false; };
+
+        var resultado = await Handler(alcance: alcance, autoridad: autoridad, invalidador: alcance)
+            .Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.CentroNoEncontrado");
         NadaCreado();
     }
 
@@ -259,6 +291,31 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         _asignaciones.Asignaciones.Count(a => a.TrabajadorId == _sinAsignar.Id).Should().Be(1);
         _gestiones.Gestiones.Should().HaveCount(2);
         _unitOfWork.VecesGuardado.Should().Be(1, "el reintento no vuelve a escribir");
+    }
+
+    [Fact]
+    public async Task Un_reintento_tras_un_intento_que_no_llego_a_confirmarse_lo_crea_todo_de_nuevo_una_sola_vez()
+    {
+        // El otro lado de la idempotencia: si el primer intento se deshizo (la Visita no está en la base), el reintento no
+        // puede dar por bueno lo que recuerda en memoria. Se simula el rollback vaciando lo que el intento escribió.
+        _serializacion.AntesDeReintentarTrasConfirmar = () =>
+        {
+            _visitas.Visitas.Clear();
+            _visitaTrabajadores.Agregadas.Clear();
+            _asignaciones.Asignaciones.RemoveAll(a => a.TrabajadorId == _sinAsignar.Id);
+            _altaAcreditaciones.Recibidas.Clear();
+            _gestiones.Gestiones.Clear();
+        };
+
+        var resultado = await Handler().Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        _visitas.Visitas.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor);
+        _visitaTrabajadores.Agregadas.Should().HaveCount(2);
+        _asignaciones.Asignaciones.Count(a => a.TrabajadorId == _sinAsignar.Id).Should().Be(1);
+        _altaAcreditaciones.Recibidas.Should().ContainSingle();
+        _gestiones.Gestiones.Should().HaveCount(2);
+        _unitOfWork.VecesGuardado.Should().Be(2, "el reintento vuelve a escribir lo que el primer intento no confirmó");
     }
 
     [Fact]

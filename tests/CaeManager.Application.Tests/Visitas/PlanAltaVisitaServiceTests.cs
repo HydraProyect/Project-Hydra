@@ -173,14 +173,14 @@ public class PlanAltaVisitaServiceTests
     }
 
     [Fact]
-    public async Task Una_renuncia_operativa_cuenta_como_Documento_existente_y_cubre_el_Tipo()
+    public async Task Una_renuncia_no_cubre_el_Tipo_y_nace_la_Gestion()
     {
-        // Como en el detalle de la Visita (ObtenerDocumentacionVisitaQuery), que no pinta «Faltante» si hay una renuncia.
+        // La renuncia nunca es conforme ni sustituye al apto (CumplimientoDocumental.EsConforme, decisión del 2026-10-17).
         _formacion.EstablecerDatosAdicionales(DatosAdicionalesDocumento.Renuncia);
         var renuncia = DocumentoDeAna(_formacion, VigenciaDocumento.NoCaduca);
         renuncia.EstablecerDatosAdicionales(_formacion, horas: null, nivel: null, esRenuncia: true);
 
-        (await CalcularAsync()).Gestiones.Should().BeEmpty();
+        (await CalcularAsync()).Gestiones.Should().ContainSingle().Which.Motivo.Should().Be(MotivoGestionPrevista.Falta);
     }
 
     // ---- Tipos y configuración del Centro
