@@ -79,7 +79,7 @@ public class ExportacionCompletaTenantTests
         tipos.Should().OnlyContain(t => typeof(EntidadConTenant).IsAssignableFrom(t));
         tipos.Select(t => t.Name).Should().Contain(
             ["Empresa", "Trabajador", "Vehiculo", "Centro", "Documento", "Proyecto", "Visita", "Incidencia",
-             "Conversacion", "Mensaje", "RegistroAuditoria"]);
+             "Conversacion", "Mensaje", "RegistroAuditoria", "CredencialAcceso"]);
         tipos.Select(t => t.Name).Should().NotContain(
             ["Tenant", "AsignacionOperacion", "AsignacionCartera", "ConcesionPrivilegio", "SesionPrivilegiada", "DelegacionTenant",
              "TareaAsistente", "TurnoTareaAsistente", "PasoTareaAsistente"]);
