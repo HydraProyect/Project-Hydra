@@ -183,7 +183,7 @@ public class UsuariosControlAccesoCentroBajoRuntimeTests : IAsyncLifetime
         orden.Parameters.AddWithValue("id", _centroX1);
 
         (await FluentActions.Awaiting(() => orden.ExecuteNonQueryAsync()).Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation, "la FK es Restrict");
+            .Which.SqlState.Should().Be(PostgresErrorCodes.RestrictViolation, "la FK es Restrict: Postgres la señala con 23001, no con 23503 (NoAction)");
     }
 
     private async Task AsignarAsync(Guid tenantId, Guid actor, Guid portero, Guid centroId)
