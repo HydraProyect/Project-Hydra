@@ -60,7 +60,8 @@ public partial class AltaTenantTce
     // Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y la marca el Actor de Plataforma TALVEG;
     // nunca viene marcada, ni en el alta ni en la corrección (la corrección no la copia de la fila sustituida).
     private bool _declaraSoloInbound;
-    private bool _declaraSoloInboundCorr;
+    // null = sin elegir: la corrección exige elegir la declaración «solo Inbound», sin valor por defecto.
+    private bool? _declaraSoloInboundCorr;
 
     private bool _editandoLinea;
     private bool _enviandoLinea;
@@ -157,7 +158,7 @@ public partial class AltaTenantTce
 
     private void CambiarDeclaracionSoloInbound(ChangeEventArgs e) { _declaraSoloInbound = e.Value is true; _error = null; }
 
-    private void CambiarDeclaracionSoloInboundCorr(ChangeEventArgs e) { _declaraSoloInboundCorr = e.Value is true; _errorLinea = null; }
+    private void ElegirDeclaracionSoloInboundCorr(bool declara) { _declaraSoloInboundCorr = declara; _errorLinea = null; }
 
     private void CambiarPagadorCorr(string valor) { _pagadorCorr = valor; _errorLinea = null; }
 
@@ -260,7 +261,7 @@ public partial class AltaTenantTce
         _pagadorCorr = string.Empty;
         _tramoCorr = null;
         _modalidadCorr = null;
-        _declaraSoloInboundCorr = false;
+        _declaraSoloInboundCorr = null;
         _editandoLinea = true;
     }
 
@@ -287,12 +288,18 @@ public partial class AltaTenantTce
             return;
         }
 
+        if (_declaraSoloInboundCorr is not { } declaraSoloInbound)
+        {
+            _errorLinea = Textos["ErrorDeclaracionCorreccion"];
+            return;
+        }
+
         _enviandoLinea = true;
         _errorLinea = null;
         try
         {
             var resultado = await Mediator.Send(new CorregirLineaInboundCommand(
-                _pagadorCorr.Trim(), tramo, modalidad, DeclaraSoloInbound: _declaraSoloInboundCorr));
+                _pagadorCorr.Trim(), tramo, modalidad, DeclaraSoloInbound: declaraSoloInbound));
             if (resultado.EsExitoso)
             {
                 _editandoLinea = false;

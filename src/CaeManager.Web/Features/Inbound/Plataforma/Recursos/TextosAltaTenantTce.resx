@@ -211,7 +211,25 @@
     <value>Si este Tenant ya tiene la línea Inbound, puedes corregir el Pagador TALVEG, el tramo o la modalidad, o darla de baja. Si no la tiene, TALVEG te lo dirá al intentarlo.</value>
   </data>
   <data name="CorreccionNota" xml:space="preserve">
-    <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico. La declaración «solo Inbound» no se copia: márcala otra vez si sigue valiendo.</value>
+    <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico. La declaración «solo Inbound» no se copia: elige abajo cuál vale ahora.</value>
+  </data>
+  <data name="CorreccionDeclaracionLeyenda" xml:space="preserve">
+    <value>Declaración «solo Inbound» (obligatoria)</value>
+  </data>
+  <data name="CorreccionDeclaracionSoloTitulo" xml:space="preserve">
+    <value>Solo Inbound: la organización no usa Outbound</value>
+  </data>
+  <data name="CorreccionDeclaracionSoloAyuda" xml:space="preserve">
+    <value>Con esta declaración y sin línea Outbound, se le cierra Outbound.</value>
+  </data>
+  <data name="CorreccionDeclaracionConservaTitulo" xml:space="preserve">
+    <value>Conserva Outbound</value>
+  </data>
+  <data name="CorreccionDeclaracionConservaAyuda" xml:space="preserve">
+    <value>No se declara «solo Inbound»: la organización mantiene Outbound.</value>
+  </data>
+  <data name="ErrorDeclaracionCorreccion" xml:space="preserve">
+    <value>Elige si la organización es «solo Inbound» o conserva Outbound.</value>
   </data>
   <data name="CorreccionHecha" xml:space="preserve">
     <value>Línea Inbound corregida: el Producto Contratado nuevo está vigente desde ahora.</value>

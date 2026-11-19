@@ -283,6 +283,7 @@ public class AltaTenantTceTests : BunitContext
         cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Elige el tramo y la modalidad");
 
         cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        ElegirDeclaracionCorreccion(cut, "conserva");
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
 
         _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
@@ -290,32 +291,56 @@ public class AltaTenantTceTests : BunitContext
         cut.Find(".alta-tce-linea [role='status']").TextContent.Should().Contain("Línea Inbound corregida");
     }
 
+    private static void ElegirDeclaracionCorreccion(IRenderedComponent<AltaTenantTce> cut, string valor) =>
+        cut.Find($"[data-campo='declara-solo-inbound-corr'] input[type='radio'][value='{valor}']").Change(valor);
+
+    private static void GuardarCorreccion(IRenderedComponent<AltaTenantTce> cut) =>
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
+
+    private static void RellenarLineaCorreccion(IRenderedComponent<AltaTenantTce> cut)
+    {
+        cut.Find("#corr-pagador").Input("cus_Nuevo9");
+        cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.Find("#corr-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
+    }
+
     /// <summary>
     /// Opción A' (DECISION_LOG e496f33): la corrección contrata una fila nueva y no copia la declaración «solo Inbound» de la
-    /// sustituida. La casilla de la corrección empieza sin marcar cada vez que se edita, y lo marcado viaja en el comando.
+    /// sustituida, y la pantalla no lee la línea vigente. Por eso la declaración es una elección obligatoria y sin valor por
+    /// defecto: Guardar no envía nada mientras no se elija, y lo elegido viaja tal cual en el comando.
     /// </summary>
     [Fact]
-    public void La_correccion_manda_la_declaracion_solo_Inbound_que_se_marque_y_empieza_sin_marcar()
+    public void La_correccion_exige_elegir_la_declaracion_solo_Inbound()
     {
         _mediator.RespuestaCorregir = Result.Exito(ProductoId);
         var cut = RenderConSesion();
 
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
-        var casilla = cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']");
-        casilla.HasAttribute("checked").Should().BeFalse("la corrección no copia la declaración");
-        cut.Find(".alta-tce-linea").TextContent.Should().Contain("márcala otra vez si sigue valiendo");
-        cut.Find("#corr-pagador").Input("cus_Nuevo9");
-        cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
-        cut.Find("#corr-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
-        cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']").Change(true);
-        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']").Should().HaveCount(2);
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().OnlyContain(r => !r.HasAttribute("checked"), "ninguna opción viene elegida");
+        RellenarLineaCorreccion(cut);
+
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().BeEmpty("sin elegir la declaración no se envía el comando");
+        cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("solo Inbound");
+
+        ElegirDeclaracionCorreccion(cut, "solo");
+        GuardarCorreccion(cut);
 
         _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
             .Which.DeclaraSoloInbound.Should().BeTrue();
 
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
-        cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']").HasAttribute("checked")
-            .Should().BeFalse("cada edición empieza sin marcar");
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().OnlyContain(r => !r.HasAttribute("checked"), "cada edición empieza sin elegir");
+        RellenarLineaCorreccion(cut);
+        ElegirDeclaracionCorreccion(cut, "conserva");
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().HaveCount(2)
+            .And.Subject.Last().DeclaraSoloInbound.Should().BeFalse();
     }
 
     [Fact]
