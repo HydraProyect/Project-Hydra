@@ -80,16 +80,25 @@ public class ExposicionDeRedDelDespliegueTests
             "el log del HttpClient de CTAIMACAE.net tacha el valor de todas las cabeceras, no solo la clave y el tenantId");
         registro.Split("RedactLoggedHeaders(").Length.Should().Be(2,
             "una segunda llamada a RedactLoggedHeaders, con lista o predicado, sustituiría el tachado total");
-        registro.Should().NotContain("AplicarResilienciaHttp", "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
-        registro.Should().NotContain("AddStandardResilienceHandler");
+        // Ni el pipeline propio (AplicarResilienciaHttp), ni los de Microsoft.Extensions.Http.Resilience (estándar, de
+        // cobertura o a medida), ni un DelegatingHandler añadido, que puede reintentar o reescribir cabeceras.
+        foreach (var prohibido in new[]
+                 {
+                     "AplicarResilienciaHttp", "AddStandardResilienceHandler", "AddStandardHedgingHandler",
+                     "AddResilienceHandler", "AddHttpMessageHandler", "ConfigureAdditionalHttpMessageHandlers",
+                 })
+            registro.Should().NotContain(prohibido, "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
 
-        // Fuera del tramo: un segundo AddHttpClient<CtaimaCaeClient> vuelve al mismo cliente con nombre y su
-        // RedactLoggedHeaders o su resiliencia ganarían; un ConfigureHttpClientDefaults aplicaría reintentos o un
-        // tachado parcial a todos los clientes, este incluido.
-        System.Text.RegularExpressions.Regex.Matches(contenido, @"AddHttpClient<[\w.]*CtaimaCaeClient>").Count.Should().Be(1,
-            "el cliente de CTAIMACAE.net se configura en un único registro");
-        Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.cs", SearchOption.AllDirectories)
-            .Where(f => File.ReadAllText(f).Contains("ConfigureHttpClientDefaults", StringComparison.Ordinal))
+        // En todo src, no solo en este fichero: un segundo AddHttpClient del cliente de CTAIMACAE.net, tipado o por el
+        // nombre que .NET le da ("CtaimaCaeClient"), vuelve al mismo cliente con nombre, y su RedactLoggedHeaders o su
+        // resiliencia se sumarían a las de este tramo sin estar en él. Un ConfigureHttpClientDefaults aplicaría
+        // reintentos o un tachado parcial a todos los clientes, este incluido.
+        var fuentes = Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText)
+            .ToList();
+        fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\bCtaimaCaeClient\b|\([^)]*\bCtaimaCaeClient\b)").Count)
+            .Should().Be(1, "el cliente de CTAIMACAE.net se configura en un único registro de todo src");
+        fuentes.Where(f => f.Contains("ConfigureHttpClientDefaults", StringComparison.Ordinal))
             .Should().BeEmpty("una configuración por defecto de todos los HttpClient alcanzaría también al de CTAIMACAE.net");
     }
 

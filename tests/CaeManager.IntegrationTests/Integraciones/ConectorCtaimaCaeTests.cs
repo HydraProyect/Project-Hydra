@@ -167,6 +167,51 @@ public class ConectorCtaimaCaeTests
         _handler.Peticiones.Should().BeEmpty();
     }
 
+    // El tope de longitud de cabecera es 512: 512 sale, 513 no, y en ese caso la clave no llega al handler ni al log.
+    [Theory]
+    [InlineData(512, true)]
+    [InlineData(513, false)]
+    public async Task Una_clave_mas_larga_que_el_tope_de_cabecera_se_rechaza_sin_llamar(int longitud, bool sale)
+    {
+        var clave = new string('k', longitud);
+        _handler.Responder(HttpStatusCode.Created, """{"employeeId":4711}""");
+
+        var resultado = await Crear().DarDeAltaTrabajadorAsync(new CredencialApiConector(clave), TenantCtaima, Alta, CancellationToken.None);
+
+        if (sale)
+        {
+            resultado.Fallo.Should().BeNull("una clave de 512 caracteres cabe en la cabecera");
+            _handler.Peticiones.Should().ContainSingle();
+            return;
+        }
+
+        resultado.Fallo.Should().Be(MotivoUsoConector.SinCredencial, "la plataforma no llegó a ver la llamada");
+        _handler.Peticiones.Should().BeEmpty();
+        _logger.Todo.Should().NotContain(clave);
+    }
+
+    [Theory]
+    [InlineData(512, true)]
+    [InlineData(513, false)]
+    public async Task Un_tenantId_mas_largo_que_el_tope_de_cabecera_no_llama(int longitud, bool sale)
+    {
+        var tenant = new string('t', longitud);
+        _handler.Responder(HttpStatusCode.Created, """{"employeeId":4711}""");
+
+        var resultado = await Crear().DarDeAltaTrabajadorAsync(new CredencialApiConector(Clave), tenant, Alta, CancellationToken.None);
+
+        if (sale)
+        {
+            resultado.Fallo.Should().BeNull("un tenantId de 512 caracteres cabe en la cabecera");
+            _handler.Peticiones.Should().ContainSingle();
+            return;
+        }
+
+        resultado.Fallo.Should().Be(MotivoUsoConector.DatosInsuficientes);
+        _handler.Peticiones.Should().BeEmpty();
+        _logger.Todo.Should().NotContain(tenant);
+    }
+
     [Fact]
     public void El_manejador_real_no_sigue_redirecciones_ni_guarda_cookies_entre_conexiones()
     {
