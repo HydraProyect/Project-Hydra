@@ -78,11 +78,14 @@ public static class LimiteTenantTecDelOperadorCae
             && await limite.EstaCerradoAsync(operadorCaeTenantId, cancellationToken));
 }
 
-/// <summary>El error de D3, el mismo en todos los puntos que cierra.</summary>
+/// <summary>
+/// El error de D3, el mismo en todos los puntos que cierra. El texto no atribuye la condición a la organización del actor
+/// ni dice cuál de las implicadas está cerrada: quien lo recibe puede ser el Administrador del Tenant propietario, el Actor
+/// de Plataforma TALVEG o Soporte TALVEG en Sesión Privilegiada, y nombrarla revelaría el estado comercial de otro Tenant.
+/// </summary>
 public static class ErroresLimiteTenantTec
 {
     public static readonly Error OutboundCerrado = Error.Crear(
         "Autorizacion.CapacidadNoIncluidaEnTenantTec",
-        "Tu organización participa como empresa contratista y no tiene contratada la línea Outbound, así que esta acción " +
-        "no está incluida.");
+        "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratada la línea Outbound.");
 }

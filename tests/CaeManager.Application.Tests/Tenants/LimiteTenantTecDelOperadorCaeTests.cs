@@ -50,6 +50,20 @@ public class LimiteTenantTecDelOperadorCaeTests
         resultado.Error.Mensaje.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Mensaje, "el mismo error en todos los puntos");
     }
 
+    /// <summary>
+    /// Ronda 4 (R4-3): el texto lo recibe también quien no es de la organización cerrada (el Administrador del Tenant
+    /// propietario que delega, el Actor de Plataforma TALVEG, Soporte TALVEG en Sesión Privilegiada), así que no atribuye
+    /// la condición a la organización del actor ni nombra a la cerrada. El código no cambia.
+    /// </summary>
+    [Fact]
+    public void El_error_de_D3_no_atribuye_el_cierre_a_la_organizacion_del_actor()
+    {
+        ErroresLimiteTenantTec.OutboundCerrado.Codigo.Should().Be("Autorizacion.CapacidadNoIncluidaEnTenantTec");
+        ErroresLimiteTenantTec.OutboundCerrado.Mensaje.Should().Be(
+            "Esta operación no está disponible: una de las organizaciones implicadas no tiene contratada la línea Outbound.");
+        ErroresLimiteTenantTec.OutboundCerrado.Mensaje.Should().NotContainAny("Tu organización", "tu organización", "contratista");
+    }
+
     // ── CrearDelegacionTenant: el Operador CAE es TenantConsultoraId ─────────────────────────────
 
     private CrearDelegacionTenantCommandHandler HandlerDeDelegacion(IOutboundCerradoTenantTec outbound) =>

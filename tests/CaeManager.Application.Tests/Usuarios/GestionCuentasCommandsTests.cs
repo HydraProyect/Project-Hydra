@@ -1302,6 +1302,29 @@ public class GestionCuentasCommandsTests
         catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1, Beneficiario2);
     }
 
+    /// <summary>
+    /// D3 (EP-4): con los Tenants beneficiarios de la cartera abiertos y el Tenant de origen del Operador CAE (el Tenant
+    /// activo) cerrado, el alta con cartera tampoco pasa: no queda ni la cuenta ni ninguna cartera. Fija que el handler
+    /// pregunta también por el Operador CAE, no solo por cada Tenant beneficiario.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_Operador_CAE_con_Outbound_cerrado_no_se_crea_la_cuenta_ni_su_cartera()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == Tenant);
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion, outbound: outbound)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1, Beneficiario2]), default);
+
+        resultado.Error.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+        outbound.Preguntados.Should().Contain(Tenant);
+        transaccion.Confirmadas.Should().Be(0);
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+        catalogo.TenantsAlGuardar.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_Tenant_que_no_opera_el_Operador_CAE_no_entra_en_la_cartera_ni_deja_cuenta()
     {

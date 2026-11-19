@@ -241,23 +241,52 @@ public class LimiteTenantTecClasificacionTests
     }
 
     /// <summary>
-    /// Un Command que llama a una factoría de alta (su fichero se llama como él) no puede estar en <c>no-aplica</c> sin motivo:
-    /// o se cierra, o se deja abierto o fuera con la razón escrita.
+    /// Los Commands declarados en un fichero (<c>record</c> o <c>class</c> cuyo nombre acaba en <c>Command</c>). Se leen del
+    /// contenido y no del nombre del fichero: un fichero que agrupa varios (Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs
+    /// con FijarTarifaOperadorCaeCommand) no se llama como ninguno de ellos (G4 de la ronda 4).
+    /// </summary>
+    private static readonly Regex DeclaracionDeCommand = new(@"\b(?:record|class)\s+(\w+Command)\b");
+
+    private static IEnumerable<string> CommandsDeclarados(string texto) =>
+        texto.Split('\n')
+            .Where(l => !l.TrimStart().StartsWith("//", StringComparison.Ordinal))
+            .SelectMany(l => DeclaracionDeCommand.Matches(l).Select(m => m.Groups[1].Value));
+
+    /// <summary>
+    /// Un Command declarado en un fichero que llama a una factoría de alta no puede estar en <c>no-aplica</c> sin motivo: o se
+    /// cierra, o se deja abierto o fuera con la razón escrita.
     /// </summary>
     [Fact]
     public void Un_Command_que_llama_a_una_factoria_de_alta_no_queda_en_no_aplica_sin_motivo()
     {
         var lista = LeerClasificacion().ToDictionary(l => l.Nombre, StringComparer.Ordinal);
-        var llamadores = Medir(FuentesCSharpDeSrc()).Keys
-            .Select(u => Path.GetFileNameWithoutExtension(u.Lugar))
-            .Where(n => n.EndsWith("Command", StringComparison.Ordinal))
+        var fuentes = FuentesCSharpDeSrc().ToList();
+        var textoPorLugar = fuentes.ToDictionary(f => f.Item1, f => f.Item2, StringComparer.Ordinal);
+        var llamadores = Medir(fuentes).Keys
+            .Select(u => u.Lugar)
+            .Distinct()
+            .SelectMany(lugar => CommandsDeclarados(textoPorLugar[lugar]))
             .Distinct()
             .ToList();
-        llamadores.Should().Contain(["CrearCentroCommand", "CrearUsuarioCommand", "AsumirPrincipalDeOperacionCommand"],
-            "control positivo: el detector ve los Commands que llaman a las altas");
+        llamadores.Should().Contain(
+            ["CrearCentroCommand", "CrearUsuarioCommand", "AsumirPrincipalDeOperacionCommand", "FijarTarifaOperadorCaeCommand"],
+            "control positivo: el detector ve los Commands que llaman a las altas, también los declarados en un fichero que no "
+            + "se llama como ellos");
 
         llamadores.Where(n => !lista.TryGetValue(n, out var l) || (l.Clase == "no-aplica" && string.IsNullOrWhiteSpace(l.Motivo)))
             .Should().BeEmpty("un Command que da de alta algo de Outbound se clasifica con su motivo");
+    }
+
+    [Fact]
+    public void El_detector_de_Commands_declarados_lee_el_contenido_y_no_el_nombre_del_fichero()
+    {
+        CommandsDeclarados(
+                "public sealed record FijarTarifaOperadorCaeCommand(Guid Id) : ICommand;\n"
+                + "public sealed class FijarTarifaOperadorCaeCommandHandler : IRequestHandler<FijarTarifaOperadorCaeCommand, Result>\n"
+                + "public record class OtroCommand;\n"
+                + "// public record ComentadoCommand;\n"
+                + "public class OtroCommandValidator : AbstractValidator<OtroCommand>")
+            .Should().Equal("FijarTarifaOperadorCaeCommand", "OtroCommand");
     }
 
     [Fact]

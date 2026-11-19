@@ -112,8 +112,42 @@ public class IncorporacionCarteraCommandsTests
             .Handle(new SolicitarIncorporacionCarteraCommand(_empresa.Id, "Llevo sus centros"), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
-        _outbound.Preguntados.Should().Equal([_empresa.Id], "decide el Tenant beneficiario, no el Operador CAE");
+        _outbound.Preguntados.Should().Equal([_empresa.Id],
+            "EP-4 cierra si lo está el Tenant beneficiario o el Operador CAE; con el Tenant beneficiario cerrado ya no hace " +
+            "falta preguntar por el Operador CAE");
         _repositorio.Solicitudes.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D3 (EP-4): también se cierra si el Tenant beneficiario está abierto y el cerrado es el Tenant de origen del Operador
+    /// CAE. Fija que el handler pregunta por los dos, no solo por el Tenant beneficiario.
+    /// </summary>
+    [Fact]
+    public async Task D3_no_se_solicita_una_cartera_si_el_Operador_CAE_tiene_Outbound_cerrado()
+    {
+        _outbound = new OutboundCerradoTenantTecFijo(t => t == _operador);
+
+        var resultado = await Solicitar(Como(_gestor, "GestorCae"))
+            .Handle(new SolicitarIncorporacionCarteraCommand(_empresa.Id, "Llevo sus centros"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        _outbound.Preguntados.Should().Equal([_empresa.Id, _operador]);
+        _repositorio.Solicitudes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task D3_no_se_acepta_una_cartera_si_el_Operador_CAE_tiene_Outbound_cerrado()
+    {
+        var solicitud = Pendiente();
+        _outbound = new OutboundCerradoTenantTecFijo(t => t == _operador);
+
+        var resultado = await Aceptar(Como(_coordinador, "CoordinadorCae"))
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        _outbound.Preguntados.Should().Equal([_empresa.Id, _operador]);
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Pendiente);
+        _catalogo.TenantsAlIncorporar.Should().BeEmpty();
     }
 
     [Fact]

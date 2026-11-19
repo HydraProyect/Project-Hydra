@@ -29,7 +29,7 @@ ActualizarPerfilDocumentoOficialGlobalCommand	no-aplica
 ActualizarPresupuestoIaCommand	no-aplica
 ActualizarProyectoCommand	no-aplica
 ActualizarSeguridadAccesoCommand	no-aplica
-ActualizarTarifaClienteCommand	no-aplica
+ActualizarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
 ActualizarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 ActualizarVerificacionIaGlobalCommand	no-aplica
 AgregarTurnoTareaAsistenteCommand	no-aplica
@@ -114,7 +114,7 @@ CrearProyectoCommand	no-aplica
 CrearRequisitoPropioCommand	no-aplica
 CrearSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 CrearTareaAsistenteCommand	no-aplica
-CrearTarifaClienteCommand	no-aplica
+CrearTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
 CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
 CrearTipoDocumentoCommand	no-aplica
 CrearTrabajadorCommand	no-aplica
@@ -186,7 +186,7 @@ EliminarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Ou
 EliminarProyectoCommand	no-aplica
 EliminarSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 EliminarSubcontratasCommand	pendiente	D5 (Subcontratas del Tenant TEC)
-EliminarTarifaClienteCommand	no-aplica
+EliminarTarifaClienteCommand	no-aplica	Facturación: configuración comercial propia; sin Clientes empresariales (CrearCliente cerrado). T-2, a la espera de confirmación.
 EliminarTrabajadorCommand	no-aplica
 EliminarTrabajadoresCommand	no-aplica
 EliminarUsuarioPendienteCommand	no-aplica
