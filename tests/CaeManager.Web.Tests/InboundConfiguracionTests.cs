@@ -319,6 +319,35 @@ public class InboundConfiguracionTests : BunitContext
         cut.FindAll("[data-pieza=convalidacion] input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("disabled"));
     }
 
+    // ---------------------------------------------------------------- Alineación con Outbound: cabecera, barra de filtros y marco de lista
+
+    [Fact]
+    public void Las_reglas_de_aviso_usan_la_cabecera_sin_antetitulo()
+    {
+        _reglas.Datos = ReglasEjemplo();
+
+        var cut = Render<ReglasAvisoInbound>();
+
+        cut.Find("h1").TextContent.Should().Contain("Reglas de aviso");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
+    [Fact]
+    public void El_gobierno_usa_la_cabecera_sin_antetitulo_y_el_marco_de_lista_de_diseño_y_sus_interruptores_siguen_siendo_switch()
+    {
+        _gobierno.Datos = GobiernoEjemplo();
+
+        var cut = Render<GobiernoDeInbound>();
+
+        cut.Find("h1").TextContent.Should().Contain("Gobierno de Inbound");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
+        cut.Find(".contenedor-pagina").ClassList.Should().Contain("lista-design");
+        var interruptores = cut.FindAll("[role=switch]");
+        interruptores.Should().HaveCountGreaterThan(1);
+        interruptores.Should().OnlyContain(s => s.HasAttribute("aria-checked"), "PastillaInterruptor es una pastilla con aria-pressed y no sustituye a un switch de ajuste");
+        cut.FindAll("[aria-pressed][role=switch]").Should().BeEmpty();
+    }
+
 
     // ---------------------------------------------------------------- Revisión del revisor-puente: propiedades que faltaban
 

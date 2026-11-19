@@ -212,6 +212,17 @@ public class ContratosAccesoPantallasTests : BunitContext
         cut.Markup.Should().NotContain("Dar de alta").And.NotContain("Renovar");
     }
 
+    [Fact]
+    public void El_listado_usa_la_cabecera_sin_antetitulo()
+    {
+        Preparar(Contrato(fin: new DateOnly(2099, 12, 31)));
+
+        var cut = Cargada(Render<ContratosAccesoLista>());
+
+        cut.Find("h1").TextContent.Should().Contain("Contratos de acceso");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
     // ------------------------------------------------------------ Detalle (tarjeta 11)
 
     [Fact]
