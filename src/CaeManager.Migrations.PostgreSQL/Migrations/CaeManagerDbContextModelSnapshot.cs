@@ -8521,6 +8521,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.ControlAcceso.UsuarioControlAccesoCentro", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId")
+                        .HasDatabaseName("IX_UsuariosControlAccesoCentro_Centro");
+
+                    b.HasIndex("TenantId", "UsuarioId", "CentroId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UsuariosControlAccesoCentro_Unico");
+
+                    b.ToTable("UsuariosControlAccesoCentro", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound", b =>
                 {
                     b.Property<Guid>("Id")
@@ -13888,6 +13915,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "ContratoAccesoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Inbound.ControlAcceso.UsuarioControlAccesoCentro", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
