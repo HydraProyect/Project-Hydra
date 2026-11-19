@@ -81,7 +81,7 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(
             && await criterioDeOutbound.CierraPorSoloInboundAsync(papel, cancellationToken))
             return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
                 "Autorizacion.ComandoDeOutboundSinLineaOutbound",
-                "Tu organización tiene contratado Inbound y no Outbound: esta acción es de Outbound."));
+                "Tu organización tiene contratado Valida y no Acredita: esta acción es de Acredita."));
 
         return EsAcotada ? await SiguienteAcotadaAsync(papel, next, cancellationToken) : await next(cancellationToken);
     }

@@ -70,7 +70,7 @@ public static class ErroresEnviarMensajeNuevo
 {
     public static readonly Error SinEmpresaContratista = Error.Crear(
         "Conversacion.SinEmpresaContratista",
-        "Tu organización tiene contratado Inbound y no Outbound: un mensaje nuevo va a una empresa contratista. Elige la empresa a la que escribes.");
+        "Tu organización tiene contratado Valida y no Acredita: un mensaje nuevo va a una empresa contratista. Elige la empresa a la que escribes.");
 
     public static readonly Error HiloFueraDeLosHilosConEmpresa = Error.Crear(
         "Conversacion.HiloFueraDeLosHilosConEmpresa",

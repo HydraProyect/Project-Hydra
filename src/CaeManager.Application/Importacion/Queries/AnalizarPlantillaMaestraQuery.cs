@@ -36,7 +36,7 @@ public class AnalizarPlantillaMaestraQueryHandler(
         if (await criterioDeOutbound.CierraPorSoloInboundAsync(await currentUserService.ObtenerPapelActivoAsync(), cancellationToken))
             return Result.Fallo<PlanImportacionMaestraDto>(Error.Crear(
                 "Importacion.SinLineaOutbound",
-                "Tu organización tiene contratado Inbound y no Outbound: analizar la plantilla maestra es de Outbound."));
+                "Tu organización tiene contratado Valida y no Acredita: analizar la plantilla maestra es de Acredita."));
 
         using var stream = new MemoryStream(request.ContenidoArchivo);
         return await servicio.AnalizarAsync(stream, cancellationToken);
