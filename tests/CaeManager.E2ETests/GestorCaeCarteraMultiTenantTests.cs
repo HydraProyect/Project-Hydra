@@ -256,6 +256,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.RellenarFechaAsync(drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }), fechaVisita);
         // CrearVisitaCommandValidator exige al menos un Trabajador que entre.
         await drawerVisita.GetByLabel(NombreCompletoTrabajadorB, new() { Exact = true }).CheckAsync();
+        // «Guardar» solo vale cuando el servidor ha calculado la vista previa (el navegador lo ve habilitado antes de que llegue el repintado).
+        await Ayudas.EsperarVistaPreviaDeVisitaCalculadaAsync(drawerVisita);
         await drawerVisita.GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await Expect(page.GetByText("Visita creada correctamente.")).ToBeVisibleAsync();
 
