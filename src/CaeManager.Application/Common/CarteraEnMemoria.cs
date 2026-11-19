@@ -23,7 +23,9 @@ internal sealed class CarteraEnMemoria(IAlcanceDatosService alcance, bool comoCo
 {
     private readonly ConjuntoVisible _trabajadores = new(alcance.ObtenerTrabajadorIdsVisiblesAsync, comoConjunto);
     private readonly ConjuntoVisible _empresas = new(alcance.ObtenerEmpresaIdsVisiblesAsync, comoConjunto);
-    private readonly ConjuntoVisible _centros = new(alcance.ObtenerCentroIdsVisiblesAsync, comoConjunto);
+    // Por la extensión y no por IAlcanceDatosService: dentro de una petición de Comunicaciones acotada al Tenant solo
+    // Inbound (D6=a) la cartera de Centros es vacía, como en CentroVisibleAsync. Fuera de ese marco es la misma lista.
+    private readonly ConjuntoVisible _centros = new(alcance.CentrosVisiblesAsync, comoConjunto);
     private readonly ConjuntoVisible _vehiculos = new(alcance.ObtenerVehiculoIdsVisiblesAsync, comoConjunto);
 
     /// <summary>Lo mismo que <see cref="AlcanceDatosServiceExtensions.TrabajadorVisibleAsync"/>.</summary>

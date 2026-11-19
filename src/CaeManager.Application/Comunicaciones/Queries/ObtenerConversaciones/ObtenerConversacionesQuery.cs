@@ -193,8 +193,10 @@ public class ObtenerConversacionesQueryHandler(
             // subconsulta y nunca en memoria. Pasan por el filtro global de Tenant y de eliminados de Centro, y por la
             // cartera de Centros de quien busca (la misma que ObtenerCentrosQuery): un Centro de otro Tenant, eliminado
             // o fuera de la cartera no liga con nada ni revela su nombre. Todo se suma con AND al conjunto que ya acotó
-            // la regla de visibilidad: buscar por Centro solo deja ENCONTRAR lo que ya se veía.
-            var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+            // la regla de visibilidad: buscar por Centro solo deja ENCONTRAR lo que ya se veía. Al Tenant solo Inbound
+            // (AmbitoComunicacionesSoloInbound, D6=a) la cartera de Centros le llega vacía: ningún Centro liga, y con él
+            // ningún hilo por participante, intención, Gestión, sugerencia ni Visita.
+            var centroIdsVisibles = await alcanceDatos.CentrosVisiblesAsync(cancellationToken);
             var terminoCentro = request.Busqueda;
             var centrosCoincidentes = centrosContext.Centros.Where(centro => TextoDeBusqueda.Contiene(centro.Nombre, terminoCentro));
             if (centroIdsVisibles is not null)

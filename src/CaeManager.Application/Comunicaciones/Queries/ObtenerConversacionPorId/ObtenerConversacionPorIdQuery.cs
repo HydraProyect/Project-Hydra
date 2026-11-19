@@ -193,7 +193,12 @@ public class ObtenerConversacionPorIdQueryHandler(
             .GroupBy(a => a.MensajeId)
             .ToDictionary(g => g.Key, g => g.Select(a => new AdjuntoDetalleDto(a.Id, a.NombreArchivo, a.TipoContenido, a.TamanoBytes)).ToList());
 
-        var sugerenciasPendientes = await comunicacionesContext.SugerenciasVisitaCorreo
+        // D6=a: al Tenant solo Inbound (AmbitoComunicacionesSoloInbound) no se le proyectan las sugerencias de Visita ni las
+        // de Gestión pendientes: son de Outbound, y llevan el Centro, sus fechas, el Trabajador y el tipo de documento.
+        // Coherente con PeticionDeOutbound, que le cierra ObtenerSugerenciaVisitaCorreo y sus pendientes.
+        var sinSugerencias = AmbitoComunicacionesSoloInbound.Activo;
+
+        var sugerenciasPendientes = sinSugerencias ? [] : await comunicacionesContext.SugerenciasVisitaCorreo
             .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId) && !s.Resuelta)
             .ToListAsync(cancellationToken);
 
@@ -209,7 +214,7 @@ public class ObtenerConversacionPorIdQueryHandler(
                 s.Id, s.CentroId, s.CentroId is not null ? nombresCentro.GetValueOrDefault(s.CentroId.Value) : null,
                 s.FechaInicioSugerida, s.FechaFinSugerida, s.Resumen, s.Confianza, s.ConfianzaCentro, s.ConfianzaFechas));
 
-        var sugerenciasGestionPendientes = await comunicacionesContext.SugerenciasGestionCorreo
+        var sugerenciasGestionPendientes = sinSugerencias ? [] : await comunicacionesContext.SugerenciasGestionCorreo
             .Where(s => mensajesCrudos.Select(m => m.Id).Contains(s.MensajeId))
             .Select(s => new { s.Id, s.MensajeId, s.Resumen, s.Confianza })
             .ToListAsync(cancellationToken);

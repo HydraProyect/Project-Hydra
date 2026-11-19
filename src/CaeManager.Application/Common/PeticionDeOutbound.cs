@@ -159,9 +159,12 @@ public static class PeticionDeOutbound
 /// <item><see cref="VisibilidadConversacion"/> solo deja pasar los hilos anclados a una Empresa (sin Cliente empresarial):
 /// fuera los anclados a un Cliente y los que no tienen ancla (triaje y buzón personal);</item>
 /// <item>los Clientes empresariales y los Centros no son visibles (<see cref="AlcanceDatosServiceExtensions"/>): macros
-/// de un Cliente, mensajes nuevos a un Cliente, Centros de una Visita o de una intención;</item>
-/// <item>el detalle del hilo no proyecta Visitas ni sus Centros.</item>
+/// de un Cliente, mensajes nuevos a un Cliente, Centros de una Visita o de una intención, y la búsqueda por Centro de la
+/// bandeja, que no liga ningún hilo;</item>
+/// <item>el detalle del hilo no proyecta Visitas ni sus Centros, ni las sugerencias de Visita o de Gestión pendientes.</item>
 /// </list>
+/// Los handlers acotados piden la cartera de Clientes y de Centros por <see cref="AlcanceDatosServiceExtensions"/>, nunca a
+/// <see cref="IAlcanceDatosService"/> directamente (<c>LecturasDeCarteraEnComunicacionesSoloInboundTests</c>).
 /// Solo estrecha, nunca abre: no toca RLS ni <c>AlcanceDatosService</c>. Una petición anidada que no es acotada hereda el
 /// marco (también estrecha); una acotada fija el suyo. Mismo patrón de marco que <see cref="AmbitoPeticionInbound"/>.
 /// </summary>

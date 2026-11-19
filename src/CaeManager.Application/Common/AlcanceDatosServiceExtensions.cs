@@ -60,6 +60,19 @@ public static class AlcanceDatosServiceExtensions
         return await alcance.ClienteVisibleAsync(clienteId.Value, cancellationToken);
     }
 
+    /// <summary>
+    /// La cartera de Centros visible (<c>null</c> = sin restricción), para filtrar una lista o una subconsulta. Es la misma
+    /// lista que <see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/> salvo dentro de una petición de
+    /// Comunicaciones acotada al Tenant solo Inbound (<see cref="AmbitoComunicacionesSoloInbound"/>, D6=a), donde es vacía,
+    /// como en <see cref="CentroVisibleAsync"/>. Los handlers que Comunicaciones abre a ese Tenant la piden por aquí y no a
+    /// <see cref="IAlcanceDatosService"/> directamente (<c>LecturasDeCarteraEnComunicacionesSoloInboundTests</c>).
+    /// </summary>
+    public static Task<IReadOnlyList<Guid>?> CentrosVisiblesAsync(
+        this IAlcanceDatosService alcance, CancellationToken cancellationToken = default) =>
+        AmbitoComunicacionesSoloInbound.Activo
+            ? Task.FromResult<IReadOnlyList<Guid>?>([])
+            : alcance.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
     public static async Task<bool> CentroVisibleAsync(
         this IAlcanceDatosService alcance, Guid centroId, CancellationToken cancellationToken = default)
     {
