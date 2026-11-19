@@ -121,7 +121,7 @@ public class UsuariosControlAccesoCentroBajoRuntimeTests : IAsyncLifetime
             (await contexto.Database.ExecuteSqlRawAsync(
                 "DELETE FROM \"UsuariosControlAccesoCentro\" WHERE \"CentroId\" = {0}", _centroX1)).Should().Be(0);
 
-        (await CentrosDeAsync(_x.Id, _usuarioX, _portero)).Should().Equal(_centroX1, "la fila de X sigue ahí");
+        (await CentrosDeAsync(_x.Id, _usuarioX, _portero)).Should().Equal(new[] { _centroX1 }, "la fila de X sigue ahí");
     }
 
     [Fact]
