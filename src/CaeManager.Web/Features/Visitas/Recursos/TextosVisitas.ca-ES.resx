@@ -142,7 +142,7 @@
     <value>{0} ({1}): caduca abans del final de la visita</value>
   </data>
   <data name="PlanAltaSinPermiso" xml:space="preserve">
-    <value>No tens permís per assignar a aquest centre {0}, així que la visita no es pot crear. Treu-los de la visita o demana a qui tingui autoritat que els assigni.</value>
+    <value>No tens permís per assignar treballadors a aquest centre i falta assignar algú de la visita, així que no es pot crear. Demana a qui tingui autoritat que faci aquesta assignació o treu de la visita qui no estigui assignat a aquest centre.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
     <value>{0} no es pot assignar avui a aquest centre: té una assignació tancada amb un període que coincideix amb avui.</value>
@@ -166,7 +166,7 @@
     <value>No s'ha pogut calcular la vista prèvia. Torna-ho a provar.</value>
   </data>
   <data name="PlanAltaReintentar" xml:space="preserve">
-    <value>Reintenta</value>
+    <value>Reintentar</value>
   </data>
   <data name="MotivoGuardarCalculando" xml:space="preserve">
     <value>Espera que acabi de calcular-se la vista prèvia.</value>

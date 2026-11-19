@@ -142,7 +142,7 @@
     <value>{0} de {1}: caduca antes del fin de la visita</value>
   </data>
   <data name="PlanAltaSinPermiso" xml:space="preserve">
-    <value>No tienes permiso para asignar a este centro a {0}, así que la visita no se puede crear. Quítalos de la visita o pide a quien tenga autoridad que los asigne.</value>
+    <value>No tienes permiso para asignar trabajadores a este centro y falta asignar a alguien de la visita, así que no se puede crear. Pide a quien tenga autoridad que haga esa asignación o quita de la visita a quien no esté asignado a este centro.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
     <value>{0} no se puede asignar hoy a este centro: tiene una asignación cerrada cuyo periodo coincide con hoy.</value>

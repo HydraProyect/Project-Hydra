@@ -140,8 +140,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<AsignacionPrevistaDto>? PlanAltaSolapadas =>
         _planAlta is { Plan.Solapadas.Count: > 0 } previa ? previa.Plan.Solapadas : null;
 
+    // El plan que se promete: sin solapadas y con algo que enseñar. Solo hace falta autoridad si hay alguien que asignar; sin
+    // Asignaciones previstas el servidor no la exige, así que ahí PuedeAsignar se ignora (ni bloquea ni esconde las Gestiones).
     private PlanAltaVisitaDto? PlanAltaConAutoridad =>
-        _planAlta is { PuedeAsignar: true, Plan: { Solapadas.Count: 0 } plan } && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
+        _planAlta is { Plan: { Solapadas.Count: 0 } plan } previa
+        && (previa.PuedeAsignar || plan.Asignaciones.Count == 0)
+        && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
 
     /// <summary>Hay algo que enseñar en la región viva; sin aviso la región se encoge para no añadir un hueco de más al formulario.</summary>
     private bool HayVistaPreviaAlta =>
@@ -152,17 +156,17 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
-    /// <summary>A quién no puede asignar quien crea la Visita: los Trabajadores sin Asignación activa al Centro.</summary>
-    private string PlanAltaSinPermisoNombres => string.Join(", ", _planAlta?.Plan.Asignaciones.Select(a => a.TrabajadorNombre) ?? []);
-
     private ElementReference _regionVistaPrevia;
 
     /// <summary>
-    /// «Reintentar» desaparece al empezar a calcular: el foco pasa antes a la región de la vista previa para que un usuario de
-    /// teclado o de lector de pantalla no lo pierda en el cajón.
+    /// «Reintentar» desaparece al empezar a calcular: la pantalla pasa a «Calculando» (y se repinta) antes de mover el foco a la
+    /// región de la vista previa, para que ni se vea la promesa vieja ni un usuario de teclado o de lector de pantalla pierda el foco.
     /// </summary>
     private async Task ReintentarPlanAltaAsync()
     {
+        var carga = PrepararRecalculoPlanAlta();
+        StateHasChanged();
+
         try
         {
             await _regionVistaPrevia.FocusAsync();
@@ -172,7 +176,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             // Sin foco programático (circuito caído, prerrenderizado) el reintento sigue igual.
         }
 
-        await RecalcularPlanAltaAsync();
+        await PedirPlanAltaAsync(carga);
     }
 
     /// <summary>Hay datos para pedir la vista previa: alta con Centro, fecha de fin válida y algún Trabajador.</summary>
@@ -1499,21 +1503,32 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// Solo en alta y con Centro, fecha de fin válida y al menos un Trabajador. Si la consulta falla o no devuelve nada
     /// (fuera de alcance), no hay vista previa y el formulario sigue siendo utilizable.
     /// </summary>
-    private async Task RecalcularPlanAltaAsync()
+    private Task RecalcularPlanAltaAsync() => PedirPlanAltaAsync(PrepararRecalculoPlanAlta());
+
+    /// <summary>
+    /// Descarta la vista previa anterior (y con ella cualquier respuesta en vuelo) y deja el estado que toca ya, de forma
+    /// síncrona: «Calculando» si hay que pedirla, «SuperaTope» si hay demasiados Trabajadores o «SinPedir» si no hay datos. Quien
+    /// la llama repinta después de esto, nunca antes: así no hay un repintado que enseñe la promesa vieja con «Guardar» habilitado.
+    /// </summary>
+    private int PrepararRecalculoPlanAlta()
     {
         InvalidarPlanAlta();
-        var carga = _cargaPlanAlta;
 
         if (!PlanAltaNecesario)
+            return _cargaPlanAlta;
+
+        _estadoPlanAlta = _trabajadorIdsSeleccionados.Count > MaximoTrabajadoresVisitaQueAsigna
+            ? EstadoPlanAlta.SuperaTope
+            : EstadoPlanAlta.Calculando;
+        return _cargaPlanAlta;
+    }
+
+    /// <summary>Pide la vista previa de la carga preparada; si entretanto se preparó otra o ya no hay nada que pedir, no hace nada.</summary>
+    private async Task PedirPlanAltaAsync(int carga)
+    {
+        if (carga != _cargaPlanAlta || _estadoPlanAlta != EstadoPlanAlta.Calculando)
             return;
 
-        if (_trabajadorIdsSeleccionados.Count > MaximoTrabajadoresVisitaQueAsigna)
-        {
-            _estadoPlanAlta = EstadoPlanAlta.SuperaTope;
-            return;
-        }
-
-        _estadoPlanAlta = EstadoPlanAlta.Calculando;
         var centroId = Guid.Parse(_centroId);
         var fechaFin = DateOnly.Parse(_fechaFin);
 
@@ -1742,10 +1757,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (recalcularPlanAlta)
         {
             // El repintado del manejador de eventos solo llega al terminar la tarea: se pide ya para que el mensaje del rechazo se
-            // vea y el botón deje de girar mientras se recalcula. El kit sigue ignorando un segundo «Guardar» hasta que termina
-            // OnGuardar, pero la vista previa en curso deshabilita «Guardar» de todos modos.
+            // vea y el botón deje de girar mientras se recalcula. Antes se invalida la vista previa vieja y se pasa a «Calculando»:
+            // si no, ese repintado enseñaría la promesa que el servidor acaba de rechazar con «Guardar» habilitado.
+            var cargaPlanAlta = PrepararRecalculoPlanAlta();
             StateHasChanged();
-            await RecalcularPlanAltaAsync();
+            await PedirPlanAltaAsync(cargaPlanAlta);
         }
     }
 
