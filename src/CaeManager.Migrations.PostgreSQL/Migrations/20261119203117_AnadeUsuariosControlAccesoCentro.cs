@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.InsertData(
+                table: "AspNetRoles",
+                columns: new[] { "Id", "ConcurrencyStamp", "Name", "NormalizedName" },
+                values: new object[] { new Guid("30000000-0000-0000-0000-000000000007"), "30000000-0000-0000-0000-000000000007", "ControlAcceso", "CONTROLACCESO" });
             migrationBuilder.CreateTable(
                 name: "UsuariosControlAccesoCentro",
                 columns: table => new
@@ -61,6 +65,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DeleteData(
+                table: "AspNetRoles",
+                keyColumn: "Id",
+                keyValue: new Guid("30000000-0000-0000-0000-000000000007"));
             migrationBuilder.DropTable(
                 name: "UsuariosControlAccesoCentro");
         }
