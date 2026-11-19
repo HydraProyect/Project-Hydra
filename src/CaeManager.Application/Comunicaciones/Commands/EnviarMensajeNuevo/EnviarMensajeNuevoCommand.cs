@@ -35,7 +35,8 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// Hoy solo la usa la reclamación de documentos de empresa
 /// (<c>EnviarReclamacionEmpresaCommand</c>), que no tiene Cliente al que
 /// anclar el hilo y no puede dejarlo caer en la cola de triaje, que no tiene
-/// cartera que la acote.
+/// cartera que la acote. Al Tenant solo Inbound con el papel de Tenant de origen (D6=a) se le exige siempre: solo le
+/// quedan los hilos anclados a una Empresa contratista.
 /// </param>
 /// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
 /// <param name="Origen">Camino del producto que envía; solo etiqueta el rastro de salida (<see cref="RegistroSalidaComunicaciones"/>).</param>
@@ -62,6 +63,18 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
             .Must(c => c.ClienteId is null || c.EmpresaId is null)
             .WithMessage("Un hilo se ancla a un Cliente o a una Empresa, nunca a los dos.");
     }
+}
+
+/// <summary>Fallos de «Redactar» propios del Tenant solo Inbound con el papel de Tenant de origen (D6=a).</summary>
+public static class ErroresEnviarMensajeNuevo
+{
+    public static readonly Error SinEmpresaContratista = Error.Crear(
+        "Conversacion.SinEmpresaContratista",
+        "Tu organización tiene contratado Inbound y no Outbound: un mensaje nuevo va a una empresa contratista. Elige la empresa a la que escribes.");
+
+    public static readonly Error HiloFueraDeLosHilosConEmpresa = Error.Crear(
+        "Conversacion.HiloFueraDeLosHilosConEmpresa",
+        "El proveedor agrupó este mensaje en una conversación sin empresa contratista, que tu organización no ve. El correo ya salió, pero no se ha guardado en esa conversación.");
 }
 
 public class EnviarMensajeNuevoCommandHandler(
@@ -107,6 +120,15 @@ public class EnviarMensajeNuevoCommandHandler(
         // Con ancla de Empresa NO se hereda el Cliente de la conexión: sería
         // anclar el hilo a los dos planos a la vez, que es justo lo que
         // Conversacion prohíbe.
+        //
+        // D6=a: al Tenant solo Inbound con el papel de Tenant de origen, Comunicaciones solo le abre los hilos anclados a
+        // una Empresa contratista (AmbitoComunicacionesSoloInbound). Sin Empresa, «Redactar» abriría un hilo sin ancla
+        // (triaje) o anclado al Cliente del buzón, que ese Tenant no ve: se rechaza antes de enviar nada. El marco se lee
+        // una vez aquí y se usa también después del envío.
+        var soloHilosConEmpresa = AmbitoComunicacionesSoloInbound.Activo;
+        if (soloHilosConEmpresa && request.EmpresaId is null)
+            return Result.Fallo<Guid>(ErroresEnviarMensajeNuevo.SinEmpresaContratista);
+
         var clienteId = request.EmpresaId is null ? request.ClienteId ?? conexion.ClienteId : null;
         if (clienteId is not null && !await alcanceDatos.ClienteVisibleAsync(clienteId.Value, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
@@ -168,6 +190,14 @@ public class EnviarMensajeNuevoCommandHandler(
         // (R-3a) solo lo ve quien pasa TriajeVisibleAsync, así que quien envía
         // con un ámbito acotado deja de ver ese mensaje. Anclarlo es un
         // incremento propio.
+        //
+        // D6=a: con el marco del Tenant solo Inbound, ni siquiera el hilo sin ancla: ese Tenant no ve el triaje ni los
+        // hilos de un Cliente, así que el mensaje acabaría en un hilo que no puede ver. El correo ya salió (como en el
+        // caso de otro titular), pero no se guarda en un hilo fuera de su subconjunto.
+        if (soloHilosConEmpresa && hiloExistente is not null &&
+            (hiloExistente.ClienteId is not null || hiloExistente.EmpresaId is null))
+            return Result.Fallo<Guid>(ErroresEnviarMensajeNuevo.HiloFueraDeLosHilosConEmpresa);
+
         if (hiloExistente is not null &&
             ((hiloExistente.ClienteId is not null && hiloExistente.ClienteId != clienteId) ||
              (hiloExistente.EmpresaId is not null && hiloExistente.EmpresaId != request.EmpresaId)))
