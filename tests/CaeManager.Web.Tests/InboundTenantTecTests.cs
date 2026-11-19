@@ -115,7 +115,7 @@ public sealed class InboundTenantTecTests : BunitContext
         var cut = Render<Requerimientos>();
 
         cut.Find("h1").TextContent.Should().Contain("Requerimientos");
-        cut.Markup.Should().Contain("Contratos de acceso");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
         var pestañas = cut.FindAll("[role=tab]").Select(t => t.TextContent).ToList();
         pestañas.Should().HaveCount(2);
         pestañas.Should().Contain(t => t.Contains("Logística Delta Sur S.A.") && t.Contains("2"));
@@ -417,7 +417,7 @@ public sealed class InboundTenantTecTests : BunitContext
         var cut = Render<QuienLeeMisDocumentos>();
 
         cut.Find("h1").TextContent.Should().Contain("Quién lee mis documentos");
-        cut.Markup.Should().Contain("Mi documentación");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
         cut.Markup.Should().Contain("Autorización única de reutilización");
         cut.Markup.Should().Contain("Concedida");
         cut.Markup.Should().Contain("El 10/11/2026, por Javier Lacasa");

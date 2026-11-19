@@ -16,7 +16,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["QlTitulo"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="@Textos["QlGrupo"]" Titulo="@Textos["QlTitulo"]"
+    <CabeceraListado Titulo="@Textos["QlTitulo"]"
                      Contador="@(_panorama is null ? null : _panorama.Clientes.Count)" />
 
     @if (_cargando)
