@@ -97,6 +97,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string? _instantaneaAlAbrir;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
+
+    /// <summary>Último motivo con que la defensa de «Guardar» frenó el alta (no un rechazo del servidor): se retira cuando la vista previa se resuelve.</summary>
+    private string? _motivoDeBloqueoMostrado;
     private Dictionary<string, string> _erroresCampo = new();
     private string? _errorTrabajadores => ObtenerError("TrabajadorIds");
 
@@ -168,7 +171,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             _ => "calculando",
         };
 
-    private bool PlanAltaCalculando =>PlanAltaNecesario && _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
+    private bool PlanAltaCalculando => PlanAltaNecesario && _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
 
     private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
@@ -1531,12 +1534,25 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         InvalidarPlanAlta();
 
         if (!PlanAltaNecesario)
+        {
+            RetirarMotivoDeBloqueoObsoleto();
             return _cargaPlanAlta;
+        }
 
         _estadoPlanAlta = _trabajadorIdsSeleccionados.Count > MaximoTrabajadoresVisitaQueAsigna
             ? EstadoPlanAlta.SuperaTope
             : EstadoPlanAlta.Calculando;
+        if (_estadoPlanAlta != EstadoPlanAlta.Calculando)
+            RetirarMotivoDeBloqueoObsoleto();
         return _cargaPlanAlta;
+    }
+
+    /// <summary>Si el mensaje del formulario sigue siendo el motivo con que la defensa frenó «Guardar», ya no vale: la vista previa se resolvió.</summary>
+    private void RetirarMotivoDeBloqueoObsoleto()
+    {
+        if (_motivoDeBloqueoMostrado is not null && _mensajeErrorFormulario == _motivoDeBloqueoMostrado)
+            _mensajeErrorFormulario = null;
+        _motivoDeBloqueoMostrado = null;
     }
 
     /// <summary>Pide la vista previa de la carga preparada; si entretanto se preparó otra o ya no hay nada que pedir, no hace nada.</summary>
@@ -1564,6 +1580,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         _planAlta = previa;
         _estadoPlanAlta = fallo ? EstadoPlanAlta.Fallida : previa is null ? EstadoPlanAlta.NoCalculada : EstadoPlanAlta.Lista;
+        RetirarMotivoDeBloqueoObsoleto();
     }
 
     /// <summary>
@@ -1622,7 +1639,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         // recalculan los relacionados, el formulario no enseñe ni envíe una promesa que no es de este Centro.
         InvalidarPlanAlta();
         await RecalcularRelacionadosAsync();
-        await RecalcularPlanAltaAsync();
+
+        // Se repinta «Calculando» antes de esperar a la vista previa: el repintado del manejador solo llegaría al terminar, y
+        // una vista previa que ya llegó mientras tardaban los relacionados seguiría a la vista con «Guardar» habilitado.
+        var carga = PrepararRecalculoPlanAlta();
+        StateHasChanged();
+        await PedirPlanAltaAsync(carga);
     }
 
     /// <summary>
@@ -1714,11 +1736,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                     return;
                 }
 
-                // Defensa por si el botón no frenó: sin vista previa calculada y sin impedimento no se crea nada, y nunca en
-                // silencio: se dice el mismo motivo que el título del botón.
+                // Defensa por si el botón no frenó (un evento que llega a la pantalla sin pasar por la guarda del kit): sin vista
+                // previa calculada y sin impedimento no se crea nada, y se dice el mismo motivo que el título del botón. Un clic
+                // sobre el botón ya deshabilitado lo descarta el kit antes; ese intervalo lo cubre la espera de los E2E.
                 if (MotivoGuardarDeshabilitadoAlta is { } motivoBloqueo)
                 {
                     _mensajeErrorFormulario = motivoBloqueo;
+                    _motivoDeBloqueoMostrado = motivoBloqueo;
                     return;
                 }
 

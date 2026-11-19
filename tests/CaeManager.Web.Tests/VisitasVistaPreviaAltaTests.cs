@@ -272,9 +272,39 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         await marcar;
 
         cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("lista");
+        cut.FindComponent<DrawerFormulario>().Instance.MensajeError.Should().BeNullOrEmpty("resuelta la vista previa, el motivo de espera ya no vale");
         BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
         await GuardarAsync(cut);
         mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_los_relacionados_del_centro_llegan_tarde_la_pantalla_pasa_a_Calculando_sin_esperar_a_la_vista_previa()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var puerta = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.AsignadosRetenidos = (Centro, puerta);
+        var cut = Renderizar(mediator);
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+        var cambioCentro = cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = Centro.ToString() });
+
+        // Con los relacionados aún en vuelo se marca a la Trabajadora y su vista previa llega y se enseña.
+        await cut.Find(".drawer-panel .lista-seleccion-multiple input").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("lista");
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
+
+        // Al llegar los relacionados se recalcula la vista previa: desde ese instante lo que ve el navegador es «Calculando».
+        var enVuelo = new TaskCompletionSource<PlanAltaVisitaPreviaDto?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.PlanRetenido[mediator.ConsultasPlan.Count + 1] = enVuelo;
+        puerta.SetResult(true);
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("calculando"), TimeSpan.FromSeconds(5));
+        GuardarDebeEstarDeshabilitado(cut, "Espera a que termine de calcularse la vista previa.");
+
+        enVuelo.SetResult(mediator.Previa);
+        await cambioCentro;
+
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]
@@ -362,6 +392,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
             .And.Contain("no tienes acceso a este centro").And.Contain("algún trabajador no puede entrar en una visita de este centro")
             .And.Contain("Revisa el centro y los trabajadores elegidos");
         GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("no-calculada");
 
         await IntentarGuardarSaltandoElBotonAsync(cut);
 
@@ -398,6 +429,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 
         mediator.ConsultasPlan.Should().ContainSingle("se pidió y falló");
         BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("No se pudo calcular la vista previa. Inténtalo de nuevo.");
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("fallida");
         GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
 
         // Reintentar que vuelve a fallar deja el mismo estado y el botón Reintentar a mano.
@@ -465,6 +497,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         texto.Should().Contain($"Una visita admite como mucho {tope} trabajadores").And.Contain("Quita a algunos de la visita");
         texto.Should().NotContain("asigna", "el aviso no usa la jerga de la regla interna");
         GuardarDebeEstarDeshabilitado(cut, $"Quita trabajadores: una visita admite como mucho {tope}.");
+        cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("data-estado").Should().Be("supera-tope");
         mediator.ConsultasPlan.Should().HaveCount(tope, "con un Trabajador más que el tope ya no se pide");
 
         await IntentarGuardarSaltandoElBotonAsync(cut);
