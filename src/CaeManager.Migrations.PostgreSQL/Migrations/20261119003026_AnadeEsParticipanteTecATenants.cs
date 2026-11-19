@@ -10,8 +10,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Inbound el 2026-11-19). Solo esquema: nace en falso, sin backfill, y su <c>DEFAULT</c> cubre a la
     /// ranura anterior de un relevo azul/verde, que inserta sin conocerla. El <c>UpdateData</c> del
     /// Tenant #1 lo genera EF porque la siembra declara todos los marcadores, y deja el mismo valor.
-    /// <c>Tenants</c> no tiene RLS ni permisos por columna que cambien aquí; quién puede escribir el
-    /// marcador lo fija la PR de lógica de D3.
+    /// <c>Tenants</c> no tiene RLS y esta migración no cambia sus permisos: <c>cae_app_runtime</c> conserva el
+    /// UPDATE de tabla, así que la base todavía no impide que escriba el marcador. Restringirlo al único
+    /// escritor exige DDL de permisos aparte.
     /// </summary>
     public partial class AnadeEsParticipanteTecATenants : Migration
     {
