@@ -63,14 +63,17 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
         ((bool)(await comando.ExecuteScalarAsync())!).Should().Be(esperado);
     }
 
-    // ── Tenants: solo las tres columnas del logo (selector de Tenant, lote 1) ──
+    // ── Tenants: las tres columnas del logo y el marcador EsParticipanteTec ──
     //
     // "Tenants" es administración de plano 3, no contenido CAE del alta: el rol no
     // puede crear, borrar ni cambiar un Tenant. Excepción declarada (contrato del
     // selector de Tenant, decisión 4 e invariante I8): Soporte TALVEG con
     // Aprovisionamiento escribe el logo, así que el rol actualiza esas tres
-    // columnas y ninguna otra. El SELECT de tabla es el que exige cargar la
-    // entidad con EF; cae_app_soporte ya lo tenía para el mismo actor.
+    // columnas. Segunda excepción (D3, AnadeEsParticipanteTecATenants): el rol es
+    // el escritor del marcador de Tenant participante TEC, que el trigger
+    // proteger_es_participante_tec niega a cae_app_runtime. Ninguna otra columna.
+    // El SELECT de tabla es el que exige cargar la entidad con EF; cae_app_soporte
+    // ya lo tenía para el mismo actor.
 
     [Theory]
     [InlineData("SELECT", true)]
@@ -90,7 +93,7 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_rol_solo_puede_actualizar_las_tres_columnas_del_logo_de_Tenants()
+    public async Task El_rol_solo_puede_actualizar_el_logo_y_el_marcador_participante_tec_de_Tenants()
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -107,11 +110,11 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
             while (await lector.ReadAsync())
                 columnas.Add(lector.GetString(0));
 
-        columnas.Should().Equal("LogoActualizadoEnUtc", "LogoArchivoClave", "LogoVersion");
+        columnas.Should().Equal("EsParticipanteTec", "LogoActualizadoEnUtc", "LogoArchivoClave", "LogoVersion");
     }
 
     [Fact]
-    public async Task Por_SQL_el_rol_cambia_el_logo_pero_ninguna_otra_columna_de_un_Tenant()
+    public async Task Por_SQL_el_rol_cambia_el_logo_pero_ninguna_columna_sin_GRANT_de_un_Tenant()
     {
         var tenantId = await CrearTenantAsync();
         await using var conexion = await AbrirComoAprovisionamientoAsync(tenantId);

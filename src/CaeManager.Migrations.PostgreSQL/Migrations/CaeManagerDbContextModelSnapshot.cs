@@ -12191,6 +12191,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("DatosDemoCompletadosEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("EsParticipanteTec")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EsPlataforma")
                         .HasColumnType("boolean");
 
@@ -12262,6 +12265,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             AddOnSubidaAutomaticaActivo = false,
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            EsParticipanteTec = false,
                             EsPlataforma = true,
                             Estado = "Activo",
                             EstadoComercial = "SinSuscripcion",
