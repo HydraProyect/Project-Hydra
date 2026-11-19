@@ -89,17 +89,39 @@ public class ExposicionDeRedDelDespliegueTests
                  })
             registro.Should().NotContain(prohibido, "un reintento tras un timeout puede dar de alta dos veces al mismo Trabajador");
 
+        // La lista de arriba no ve un envoltorio con otro nombre que añada resiliencia, un segundo manejador primario que
+        // gane al de sin redirecciones (ConfigurePrimaryHttpMessageHandler o UseSocketsHttpHandler) ni un AddLogger propio
+        // que reciba las cabeceras sin tachar. Por eso la cadena del registro se fija entera: los métodos encadenados al
+        // AddHttpClient (los que siguen a un salto de línea o a un paréntesis de cierre) son exactamente estos dos, una vez
+        // cada uno; las llamadas de dentro de la lambda de configuración no cuentan.
+        System.Text.RegularExpressions.Regex.Matches(registro, @"(?m)(?:^\s*|\))\s*\.(\w+)\s*[<(]")
+            .Select(m => m.Groups[1].Value)
+            .Should().Equal(["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"],
+                "el cliente de CTAIMACAE.net solo encadena su manejador sin redirecciones y el tachado total");
+        // Y el builder no se guarda en una variable para seguir encadenándole métodos fuera del tramo.
+        var inicioDeLinea = contenido.LastIndexOf('\n', inicio) + 1;
+        contenido[inicioDeLinea..inicio].Trim().Should().Be("services.",
+            "el registro empieza la sentencia; un «var b = services.AddHttpClient…» permitiría seguir configurándolo después");
+
         // En todo src, no solo en este fichero: un segundo AddHttpClient del cliente de CTAIMACAE.net, tipado o por el
         // nombre que .NET le da ("CtaimaCaeClient"), vuelve al mismo cliente con nombre, y su RedactLoggedHeaders o su
         // resiliencia se sumarían a las de este tramo sin estar en él. Un ConfigureHttpClientDefaults aplicaría
-        // reintentos o un tachado parcial a todos los clientes, este incluido.
+        // reintentos o un tachado parcial a todos los clientes, este incluido, y lo mismo sus equivalentes: configurar
+        // HttpClientFactoryOptions (ConfigureAll o por nombre, que es lo que ConfigureHttpClientDefaults hace por dentro),
+        // registrar un IHttpMessageHandlerBuilderFilter o activar AddExtendedHttpClientLogging, que registra las peticiones
+        // de todos los clientes con su propio tachado.
         var fuentes = Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.cs", SearchOption.AllDirectories)
             .Select(File.ReadAllText)
             .ToList();
         fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\bCtaimaCaeClient\b|\([^)]*\bCtaimaCaeClient\b)").Count)
             .Should().Be(1, "el cliente de CTAIMACAE.net se configura en un único registro de todo src");
-        fuentes.Where(f => f.Contains("ConfigureHttpClientDefaults", StringComparison.Ordinal))
-            .Should().BeEmpty("una configuración por defecto de todos los HttpClient alcanzaría también al de CTAIMACAE.net");
+        foreach (var global in new[]
+                 {
+                     "ConfigureHttpClientDefaults", "HttpClientFactoryOptions", "IHttpMessageHandlerBuilderFilter",
+                     "AddExtendedHttpClientLogging",
+                 })
+            fuentes.Where(f => f.Contains(global, StringComparison.Ordinal))
+                .Should().BeEmpty($"{global} alcanzaría a todos los HttpClient, también al de CTAIMACAE.net");
     }
 
     private static string RaizDelRepositorio()
