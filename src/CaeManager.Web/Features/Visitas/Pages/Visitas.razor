@@ -422,6 +422,7 @@
                  Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)"
                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
                  HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 MotivoGuardarDeshabilitado="@MotivoGuardarDeshabilitadoAlta"
                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
     @if (_sugerenciaVisitaResumen is not null)
     {
@@ -467,14 +468,15 @@
                        TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
                        MensajeError="@_errorTrabajadores" />
 
-    @* Región viva fija: siempre está en el DOM y solo cambia su contenido, para que un lector de pantalla anuncie cada vista previa. *@
+    @* Región viva solo en alta (en edición no hay vista previa): está en el DOM aunque no haya aviso y solo cambia su contenido,
+       para que un lector de pantalla anuncie cada vista previa. *@
     @if (_editandoId is null)
     {
     <div class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status">
     @if (PlanAltaSolapadas is { } solapadas)
     {
-        @* Con alguien sin poder asignarse hoy el servidor rechazaría la Visita entera si se pidiera asignar: no se pide, y
-           no se promete ninguna asignación ni Gestión. El aviso nombra a quién y dice qué pasará si se guarda así. *@
+        @* Con alguien sin poder asignarse hoy el servidor rechaza la Visita entera (DECISION_LOG 2026-11-19): «Guardar» queda
+           deshabilitado. El aviso nombra a quién y dice qué hacer. *@
         <div class="alerta-info">
             @foreach (var solapada in solapadas)
             {
@@ -486,6 +488,25 @@
     else if (PlanAltaSinPermiso)
     {
         <div class="alerta-info">@Textos["PlanAltaSinPermiso"]</div>
+    }
+    else if (PlanAltaCalculando)
+    {
+        <div class="alerta-info">@Textos["PlanAltaCalculando"]</div>
+    }
+    else if (_estadoPlanAlta == EstadoPlanAlta.SuperaTope)
+    {
+        <div class="alerta-info">@Textos["PlanAltaSuperaTope", MaximoTrabajadoresVisitaQueAsigna]</div>
+    }
+    else if (_estadoPlanAlta == EstadoPlanAlta.NoCalculada)
+    {
+        <div class="alerta-info">@Textos["PlanAltaNoCalculada"]</div>
+    }
+    else if (_estadoPlanAlta == EstadoPlanAlta.Fallida)
+    {
+        <div class="alerta-info">
+            <p>@Textos["PlanAltaFallida"]</p>
+            <button type="button" class="enlace-nombre-fila" @onclick="RecalcularPlanAltaAsync">@Textos["PlanAltaReintentar"]</button>
+        </div>
     }
     else if (PlanAltaConAutoridad is { } planAlta)
     {

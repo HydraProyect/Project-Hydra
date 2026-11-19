@@ -142,13 +142,37 @@
     <value>{0} ({1}): caduca abans del final de la visita</value>
   </data>
   <data name="PlanAltaSinPermiso" xml:space="preserve">
-    <value>No tens permís per assignar aquests treballadors a aquest centre, així que la visita es crearà sense assignar-los i sense obrir gestions.</value>
+    <value>No tens permís per assignar aquests treballadors a aquest centre, així que la visita no es pot crear. Treu-los de la visita o demana a qui tingui autoritat que els assigni.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
-    <value>{0} no es pot assignar avui a aquest centre: té una assignació amb un període que coincideix amb avui.</value>
+    <value>{0} no es pot assignar avui a aquest centre: té una assignació tancada amb un període que coincideix amb avui.</value>
   </data>
   <data name="PlanAltaSolapadaConsecuencia" xml:space="preserve">
-    <value>Treu de la visita qui no es pugui assignar o revisa'n l'assignació. Si deses així, la visita es crearà sense assignar ningú i sense obrir gestions.</value>
+    <value>La visita no es pot crear així. Treu de la visita qui no es pugui assignar o revisa'n l'assignació.</value>
+  </data>
+  <data name="PlanAltaCalculando" xml:space="preserve">
+    <value>Calculant a qui s'assignarà i quines gestions s'obriran…</value>
+  </data>
+  <data name="PlanAltaSuperaTope" xml:space="preserve">
+    <value>Una visita que assigna admet com a màxim {0} treballadors. Treu-ne alguns de la visita per poder desar-la.</value>
+  </data>
+  <data name="PlanAltaNoCalculada" xml:space="preserve">
+    <value>No es pot calcular què s'assignarà en aquest centre, així que la visita no es pot crear. Comprova el centre o torna-ho a provar més tard.</value>
+  </data>
+  <data name="PlanAltaFallida" xml:space="preserve">
+    <value>No s'ha pogut calcular la vista prèvia. Torna-ho a provar.</value>
+  </data>
+  <data name="PlanAltaReintentar" xml:space="preserve">
+    <value>Reintenta</value>
+  </data>
+  <data name="MotivoGuardarCalculando" xml:space="preserve">
+    <value>Espera que acabi de calcular-se la vista prèvia.</value>
+  </data>
+  <data name="MotivoGuardarSinVistaPrevia" xml:space="preserve">
+    <value>No es pot desar sense la vista prèvia del que s'assignarà.</value>
+  </data>
+  <data name="MotivoGuardarVistaPreviaBloquea" xml:space="preserve">
+    <value>Resol l'avís de la vista prèvia: amb aquests treballadors la visita no es pot crear.</value>
   </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centre…</value>
