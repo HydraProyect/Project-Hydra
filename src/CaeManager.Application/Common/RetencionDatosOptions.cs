@@ -28,10 +28,10 @@ public class RetencionDatosOptions
 
     /// <summary>
     /// "Política de retención aprobada y efectiva" en el sentido de DEC-35:
-    /// hoy equivale a <see cref="Activa"/>, porque los plazos
-    /// (<see cref="AniosRetencionDocumentos"/>, <see cref="AniosRetencionTrabajadores"/>)
-    /// ya llevan siempre un valor decidido por el propietario del producto,
-    /// activos o no — no hacen falta más condiciones para considerar la
+    /// hoy equivale a <see cref="Activa"/>, porque los plazos (el de Documentos,
+    /// por Tenant propietario y por tipo en la base desde la decisión del
+    /// 2026-11-18, y <see cref="AniosRetencionTrabajadores"/>) ya llevan siempre
+    /// un valor decidido, activos o no — no hacen falta más condiciones para considerar la
     /// política "efectiva". Nombre canónico para leer en el barrido
     /// automático (<c>RetencionHostedService</c>) y en el panel de
     /// Automatizaciones, en vez de repetir la pregunta "¿activa Y con qué?"
@@ -40,14 +40,10 @@ public class RetencionDatosOptions
     public bool PoliticaAprobadaYEfectiva => Activa;
 
     /// <summary>
-    /// Plazo para Documentos. Cinco años decididos por el propietario del
-    /// producto (2026-07-18) por coincidir con la prescripción de
-    /// responsabilidades en el orden social.
-    /// </summary>
-    public int AniosRetencionDocumentos { get; set; } = 5;
-
-    /// <summary>
-    /// Desde qué evento cuenta el plazo. El valor por defecto —el evento más
+    /// Desde qué evento cuenta el plazo. Hoy no lo lee nadie: la purga de Documentos aplica siempre
+    /// <see cref="CriterioInicioRetencion.EventoMasTemprano"/> (R3 de la decisión del 2026-11-18, ver
+    /// <c>CriterioPurgaDocumentos</c>), y el plazo de Documentos ya no está en estas opciones sino por Tenant
+    /// propietario y por tipo de documento (<c>PlazoRetencionDocumentos</c>). El valor por defecto —el evento más
     /// temprano— lo decidió el propietario del producto: un documento subido
     /// el último día de su vigencia hay que conservarlo su plazo desde ahí, y
     /// contar desde la emisión haría que dos documentos idénticos se purgaran
