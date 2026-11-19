@@ -323,7 +323,14 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
                 deOtroCentro.Id, mensajeOtroCentro.Id, IntencionCae.CoordinacionAcceso, ConfianzaIntencion.Alta,
                 TipoEntidadIntencion.Centro, centros[1]);
             intencionOtroCentro.Confirmar(IntencionCae.CoordinacionAcceso);
-            contexto.IntencionesConversacion.AddRange(intencionConfirmada, intencionSinConfirmar, intencionOtroCentro);
+            // Confirmada, con el mismo identificador, pero de otro tipo de entidad (Empresa): no es un Centro.
+            var (deOtroTipo, mensajeOtroTipo) = HiloSinTexto("Intención confirmada sobre una Empresa");
+            contexto.Conversaciones.Add(deOtroTipo);
+            var intencionOtroTipo = new IntencionConversacion(
+                deOtroTipo.Id, mensajeOtroTipo.Id, IntencionCae.CoordinacionAcceso, ConfianzaIntencion.Alta,
+                TipoEntidadIntencion.Empresa, centros[0]);
+            intencionOtroTipo.Confirmar(IntencionCae.CoordinacionAcceso);
+            contexto.IntencionesConversacion.AddRange(intencionConfirmada, intencionSinConfirmar, intencionOtroCentro, intencionOtroTipo);
             await contexto.SaveChangesAsync();
         }
 
@@ -412,6 +419,8 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
             var (sinVisita, _) = HiloSinTexto("Sin visita");
             contexto.Conversaciones.AddRange(conVisita, sinVisita);
             contexto.EventosConversacion.Add(new EventoConversacion(conVisita.Id, TipoEventoConversacion.VisitaCreada, visita.Id, DateTime.UtcNow));
+            // Un evento de otro tipo cuyo ReferenciaId es la misma Visita no liga: solo VisitaCreada lo hace.
+            contexto.EventosConversacion.Add(new EventoConversacion(sinVisita.Id, TipoEventoConversacion.DocumentoActualizado, visita.Id, DateTime.UtcNow));
             // La IA propuso otro Centro (Granada) y el Gestor lo corrigió al crear la Visita (Málaga): manda el Centro de
             // la Visita, no el propuesto.
             var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centros[0], null, null, "Pide agendar una entrada.", 90, 90, 90);

@@ -45,7 +45,8 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// <c>TextoDeBusqueda.Contiene</c> sería un incremento propio), mismo nivel que las búsquedas heredadas de este
 /// repositorio — no se introduce tsvector/GIN de Postgres para esto (YAGNI). El vínculo estructurado
 /// Conversación-Centro, cuando exista, es un incremento propio.
-/// </summary>[AreaDelEncargo("Comunicaciones")]
+/// </summary>
+[AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesQuery(
     EstadoConversacion? Estado = null,
     int? Anio = null,
@@ -226,7 +227,7 @@ public class ObtenerConversacionesQueryHandler(
                     && s.CentroId != null && centroIds.Contains(s.CentroId.Value))
                 .Join(comunicacionesContext.Mensajes, s => s.MensajeId, m => m.Id, (s, m) => m.ConversacionId);
             // Vínculo 5: la Visita creada desde el hilo (evento VisitaCreada), en el Centro real de la Visita, también
-            // si el Gestor corrigió el Centro propuesto al crearla. Una Visita eliminada ya no liga.
+            // si el Gestor corrigió el Centro propuesto al crearla. Una Visita eliminada deja de ligar por este vínculo (el 4 sigue ligando).
             var porVisita = comunicacionesContext.EventosConversacion
                 .Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada)
                 .Join(visitasContext.Visitas.Where(v => centroIds.Contains(v.CentroId)), e => e.ReferenciaId, v => v.Id,
@@ -239,6 +240,7 @@ public class ObtenerConversacionesQueryHandler(
                 porParticipante.Contains(c.Id) || porIntencion.Contains(c.Id) || porGestion.Contains(c.Id) ||
                 porSugerencia.Contains(c.Id) || porVisita.Contains(c.Id));
         }
+
         if (request.Intencion is { } intencion)
             consulta = consulta.Where(c => comunicacionesContext.IntencionesConversacion.Any(i => i.ConversacionId == c.Id && i.IntencionActual == intencion));
 
