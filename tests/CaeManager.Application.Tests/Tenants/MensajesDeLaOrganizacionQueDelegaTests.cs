@@ -48,7 +48,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
     }
 
     private CrearDelegacionTenantCommandHandler HandlerDeDelegacion(AutorizacionDelegacionFalsa autorizacion, Guid? tenantActivo = null) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id));
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id), OutboundCerradoTenantTecFijo.Abierto());
 
     // ── CrearDelegacionTenant ───────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             _vinculos, _tenants, _writer, AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id),
             new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(),
             new AsignacionAutomaticaInerte(),
-            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(sinTenant ? null : Guid.NewGuid()));
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(sinTenant ? null : Guid.NewGuid()), OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(
             new CrearDelegacionTenantCommand(_operador.Id, _propietario.Id), CancellationToken.None);
@@ -191,7 +191,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             tenantRepositorio: null!, delegacionRepositorio: null!, asignacionRepositorio: null!,
             parametroSistemaRepositorio: null!, AutorizacionAdminPlataformaFalsa.SinNada(),
             new CurrentUserServiceFalso(_usuario, tenantOrigenId: _operador.Id),
-            asignacionesWriter: null!, unitOfWork: null!, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
+            asignacionesWriter: null!, unitOfWork: null!, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(
             new CrearClienteDeleganteCommand("Constructora Boreal"), CancellationToken.None);

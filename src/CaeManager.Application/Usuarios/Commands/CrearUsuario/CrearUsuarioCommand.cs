@@ -165,6 +165,12 @@ public class CrearUsuarioCommandHandler(
                     falloRol = rol.Error;
                 }
 
+                // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie): las carteras del
+                // alta se cierran también si lo está el Operador CAE, que es el Tenant activo (ResolverCarteraAsync lo
+                // exige); se lee aquí, fuera del ámbito de cada Tenant beneficiario. No se crea ni la cuenta.
+                if (operacionesCartera.Count > 0 && await outboundCerrado.EstaCerradoAsync(tenantId, ct))
+                    return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
                 foreach (var operacion in operacionesCartera)
                 {
                     var incorporada = await IncorporarAsync(operacion, tenantId, usuarioId, ct);

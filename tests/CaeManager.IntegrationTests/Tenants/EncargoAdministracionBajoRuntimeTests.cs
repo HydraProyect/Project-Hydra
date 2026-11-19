@@ -1128,7 +1128,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     private RegistrarEncargoAdministracionCommandHandler Registrar(IServiceScope ambito) =>
         new(_tenantActual, Autoridad(ambito),
             new EncargoAdministracionRepository(ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()),
-            TimeProvider.System);
+            TimeProvider.System, OutboundTenantTecAbierto.Instancia);
 
     private RetirarEncargoAdministracionCommandHandler Retirar(IServiceScope ambito) =>
         new(_tenantActual, Autoridad(ambito),

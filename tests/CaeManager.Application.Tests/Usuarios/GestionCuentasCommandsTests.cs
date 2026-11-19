@@ -650,7 +650,27 @@ public class GestionCuentasCommandsTests
         e.Catalogo.Retiradas.Select(r => r.PropietarioTenantId).Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
         e.Catalogo.IncorporacionesDirectas.Select(i => i.Item1).Should().Equal([Beneficiario1],
             "el destino no recibe una Asignación de Cartera nueva sobre el Tenant beneficiario cerrado");
-        outbound.Preguntados.Should().NotContain(Tenant, "decide el Tenant beneficiario, no el Operador CAE");
+        outbound.Preguntados.Should().Contain(Tenant, "EP-4: decide también el Tenant de origen del Operador CAE, que aquí está abierto");
+        e.Transaccion.Confirmadas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// D3 sobre el Operador CAE (EP-4, ronda 3): con el Tenant de origen del Operador CAE cerrado y los Tenants
+    /// beneficiarios abiertos, ninguna cartera se traspasa (sería un alta para un Operador CAE sin línea P); todas se retiran
+    /// y la desactivación se confirma (DN-7).
+    /// </summary>
+    [Fact]
+    public async Task D3_al_desactivar_con_destino_y_el_Operador_CAE_cerrado_ninguna_cartera_se_traspasa()
+    {
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == Tenant);
+        var e = DesactivacionDeGestorConCartera(outbound: outbound);
+
+        var resultado = await e.Handler.Handle(new(Cuenta, false, Destino), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        e.Catalogo.Retiradas.Select(r => r.PropietarioTenantId).Should().BeEquivalentTo([Beneficiario1, Beneficiario2]);
+        e.Catalogo.IncorporacionesDirectas.Should().BeEmpty("el destino no recibe carteras de un Operador CAE cerrado");
+        outbound.Preguntados.Should().Contain(Tenant);
         e.Transaccion.Confirmadas.Should().Be(1);
     }
 

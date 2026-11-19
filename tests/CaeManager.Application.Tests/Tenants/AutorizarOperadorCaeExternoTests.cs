@@ -72,7 +72,7 @@ public class AutorizarOperadorCaeExternoTests
     }
 
     private CrearDelegacionTenantCommandHandler HandlerComo(AutorizacionDelegacionFalsa autorizacion, Guid? tenantActivo = null) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _transaccion, _asignacionAutomatica, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id));
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _transaccion, _asignacionAutomatica, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id), OutboundCerradoTenantTecFijo.Abierto());
 
     private void NoSeEscribioNada()
     {

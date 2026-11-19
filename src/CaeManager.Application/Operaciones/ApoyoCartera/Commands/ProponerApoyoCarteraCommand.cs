@@ -107,7 +107,7 @@ public class ProponerApoyoCarteraCommandHandler(
             // ProductosContratados como SinLinea, así que un Tenant beneficiario marcado con línea Vigente se cierra en falso
             // (fallo cerrado aceptado); al aceptar se vuelve a decidir con el Tenant beneficiario como Tenant activo. Se
             // resolverá con un contrato de lectura entre Tenants cuando exista B-08.
-            if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, cancellationToken))
+            if (await outboundCerrado.EstaCerradoConOperadorCaeAsync(operacion.PropietarioTenantId, ctx.OperadorTenantId, cancellationToken))
                 return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
             var propuesta = PropuestaApoyoCartera.Crear(

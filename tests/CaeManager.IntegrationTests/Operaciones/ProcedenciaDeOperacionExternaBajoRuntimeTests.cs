@@ -950,7 +950,7 @@ public class ProcedenciaDeOperacionExternaBajoRuntimeTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto), contexto,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual),
             new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<UserManager<ApplicationUser>>()),
-            usuarioActual, contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte(), tenant);
+            usuarioActual, contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte(), tenant, OutboundTenantTecAbierto.Instancia);
 
         using (AmbitoTenantExplicito.Establecer(usuario.TenantId))
             return await handler.Handle(new CrearDelegacionTenantCommand(_operador, _propietario), CancellationToken.None);

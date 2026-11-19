@@ -14,7 +14,10 @@ namespace CaeManager.Application.Comercial.LineaOutbound;
 /// <para>
 /// Solo restringe: un Tenant sin marcador nunca queda cerrado, tenga o no fila de la línea (F-2: sin backfill, los Tenants
 /// que hoy operan Outbound no la tienen). Decide por el Tenant beneficiario, nunca por el actor ni por el Pagador TALVEG
-/// (F-4, DN-6): vale igual con Sesión Privilegiada y para un Operador CAE externo que ya existía.
+/// (F-4, DN-6): vale igual con Sesión Privilegiada y para un Operador CAE externo que ya existía. Donde el Tenant TEC
+/// sería el Operador CAE de otro Tenant (una delegación, una Asignación de Operación, un Encargo de administración o una
+/// Asignación de Cartera en una operación externa), se pregunta también por el Tenant de origen de ese Operador CAE (EP-4:
+/// «sin gestión de la CAE de terceros, ni Operador CAE»): ver <see cref="LimiteTenantTecDelOperadorCae"/>.
 /// </para>
 ///
 /// <para>
@@ -48,6 +51,31 @@ public sealed class OutboundCerradoTenantTecService(ITenantsQueryContext tenants
             true => !await estadoLinea.TieneLineaOutboundVigenteAsync(tenantBeneficiarioId, cancellationToken),
         };
     }
+}
+
+/// <summary>
+/// D3 sobre el Operador CAE (EP-4, ronda 3 del revisor-puente): sin línea Outbound vigente, el Tenant TEC participante no
+/// es Operador CAE de otro Tenant. Una Asignación de Operación, una delegación, un Encargo de administración o una
+/// Asignación de Cartera de una operación externa quedan cerrados si lo está su Tenant beneficiario o el Tenant de origen
+/// de su Operador CAE. Un Tenant sin marcador no lee la línea, así que el caso normal no cambia.
+///
+/// <para>
+/// shortcut: la línea Outbound del Operador CAE se lee bajo la RLS de <c>ProductosContratados</c> del Tenant activo. Cuando
+/// el Operador CAE no es el Tenant activo (lo nombra el Tenant propietario que delega, o el Actor de Plataforma TALVEG), un
+/// Tenant TEC marcado con línea Vigente se lee como «sin línea» y se cierra en falso (fallo cerrado aceptado, como en la vía
+/// de la delegación ajena). Hoy no tiene efecto: no hay escritor de la línea P en producción (F-1). Se resolverá con el
+/// contrato de lectura entre Tenants de B-08.
+/// </para>
+/// </summary>
+public static class LimiteTenantTecDelOperadorCae
+{
+    /// <summary>Si está cerrado para <paramref name="tenantBeneficiarioId"/> o para <paramref name="operadorCaeTenantId"/>.</summary>
+    public static async Task<bool> EstaCerradoConOperadorCaeAsync(
+        this IOutboundCerradoTenantTec limite, Guid tenantBeneficiarioId, Guid operadorCaeTenantId,
+        CancellationToken cancellationToken = default) =>
+        await limite.EstaCerradoAsync(tenantBeneficiarioId, cancellationToken)
+        || (operadorCaeTenantId != tenantBeneficiarioId
+            && await limite.EstaCerradoAsync(operadorCaeTenantId, cancellationToken));
 }
 
 /// <summary>El error de D3, el mismo en todos los puntos que cierra.</summary>

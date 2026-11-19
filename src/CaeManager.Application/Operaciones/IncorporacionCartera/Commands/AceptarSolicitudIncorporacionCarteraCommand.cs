@@ -109,8 +109,10 @@ public class AceptarSolicitudIncorporacionCarteraCommandHandler(
                 {
                     // D3 (DN-4, DN-7): la Asignación de Cartera es un alta en el Tenant beneficiario de la solicitud, que
                     // aquí ya es el Tenant activo; si Outbound está cerrado para él, no se acepta (la solicitud sigue
-                    // pendiente: la transacción se deshace).
-                    if (await outboundCerrado.EstaCerradoAsync(solicitud.PropietarioTenantId, ct))
+                    // pendiente: la transacción se deshace). EP-4: también si está cerrado para el Tenant de origen del
+                    // Operador CAE de la solicitud, que aquí no es el activo: su línea se lee como SinLinea y un Operador CAE
+                    // marcado se cierra en falso (shortcut: LimiteTenantTecDelOperadorCae; sin efecto hoy por F-1).
+                    if (await outboundCerrado.EstaCerradoConOperadorCaeAsync(solicitud.PropietarioTenantId, solicitud.OperadorTenantId, ct))
                         return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
 
                     var incorporacion = await catalogo.IncorporarAsync(solicitud, ct);

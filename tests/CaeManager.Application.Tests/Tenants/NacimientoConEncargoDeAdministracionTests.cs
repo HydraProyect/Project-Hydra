@@ -100,7 +100,7 @@ public class NacimientoConEncargoDeAdministracionTests
         AutorizacionAdminPlataformaFalsa? autorizacion = null) =>
         new(_tenantRepositorio, _tenants, new DelegacionTenantRepositorioFalso(), new ParametrosFalsos(),
             autorizacion ?? AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(_actor),
-            _writer, _unitOfWork, _encargos, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
+            _writer, _unitOfWork, _encargos, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), OutboundCerradoTenantTecFijo.Abierto());
 
     private sealed class TenantRepositoryFalso : ITenantRepository
     {

@@ -18,8 +18,9 @@ namespace CaeManager.Application.Tests.Common;
 /// <summary>
 /// D3 (decisiones de Chris del 2026-11-19): <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> cierra los Commands
 /// de alta de Centros, de Clientes empresariales, de delegaciones y las importaciones cuando Outbound está cerrado para el
-/// Tenant beneficiario, y deja pasar todo lo demás. La tarifa del Operador CAE, la cartera y la Papelera de Empresas se
-/// cierran en su handler (<c>cerrado-handler</c> en <c>LimiteTenantTecClasificacion.txt</c>). La lista de tipos de este test se escribe
+/// Tenant beneficiario o, sobre una delegación, para el Tenant de origen de su Operador CAE (EP-4), y deja pasar todo lo
+/// demás. La tarifa del Operador CAE, la cartera, la edición de una Empresa (<c>EditarEmpresaCommand</c>) y la Papelera de
+/// Empresas se cierran en su handler (<c>cerrado-handler</c> en <c>LimiteTenantTecClasificacion.txt</c>). La lista de tipos de este test se escribe
 /// a mano, aparte de <see cref="RegistroLimiteTenantTec"/>: si alguien quita una entrada del registro, este test da rojo
 /// (la mutación «quitar la guarda de un Command»). Qué es «cerrado» (marcador y línea) lo prueba
 /// <see cref="OutboundCerradoTenantTecServiceTests"/>; la composición con PostgreSQL, <c>LimiteTenantTecBajoRuntimeTests</c>.
@@ -318,6 +319,46 @@ public class LimiteTenantTecBehaviorTests
 
         llego.Should().BeFalse("DN-7: las reactivaciones se deniegan");
         DebeSerElErrorDeD3(respuesta);
+    }
+
+    [Fact]
+    public async Task Sobre_una_delegacion_decide_tambien_por_el_Tenant_de_origen_de_su_Operador_CAE()
+    {
+        // EP-4 («ni Operador CAE», ronda 3 del revisor-puente): el Tenant activo es el Tenant beneficiario (abierto) y el
+        // Operador CAE de la delegación es un Tenant TEC marcado y sin línea Outbound. Ni se reactiva ni recibe operador.
+        var operadorCae = Guid.NewGuid();
+        var delegacion = new DelegacionTenant(operadorCae, TenantActivo);
+
+        foreach (var comando in new ICommandBase[]
+                 {
+                     new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
+                     new ReactivarDelegacionTenantCommand(delegacion.Id),
+                 })
+        {
+            var limite = new OutboundCerradoTenantTecFijo(t => t == operadorCae);
+            var (respuesta, llego) = await Ejecutar<ICommandBase, Result>(
+                comando, Result.Exito(), TenantActivo, limite, new DelegacionesFalsas(delegacion));
+
+            llego.Should().BeFalse(comando.GetType().Name);
+            DebeSerElErrorDeD3(respuesta);
+            limite.Preguntados.Should().Equal(TenantActivo, operadorCae);
+        }
+    }
+
+    [Fact]
+    public async Task Sobre_una_delegacion_con_su_Operador_CAE_con_linea_Outbound_vigente_pasa()
+    {
+        // El mismo Operador CAE, marcado pero con línea P Vigente: la guarda responde abierto y la petición pasa.
+        var operadorCae = Guid.NewGuid();
+        var delegacion = new DelegacionTenant(operadorCae, TenantActivo);
+        var limite = OutboundCerradoTenantTecFijo.Abierto();
+
+        var (_, llego) = await Ejecutar<ReactivarDelegacionTenantCommand, Result>(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), Result.Exito(), TenantActivo, limite,
+            new DelegacionesFalsas(delegacion));
+
+        llego.Should().BeTrue();
+        limite.Preguntados.Should().Equal(TenantActivo, operadorCae);
     }
 
     [Fact]

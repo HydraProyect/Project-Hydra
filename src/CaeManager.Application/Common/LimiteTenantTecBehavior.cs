@@ -14,7 +14,8 @@ namespace CaeManager.Application.Common;
 ///
 /// <para>
 /// El Tenant beneficiario es el Tenant activo (<see cref="ITenantActual"/>) y, en un <see cref="IComandoSobreDelegacionTenant"/>,
-/// también el Tenant beneficiario de esa delegación. No mira al actor (DN-6): con Sesión Privilegiada, por un Operador CAE
+/// también el Tenant beneficiario de esa delegación y el Tenant de origen de su Operador CAE (EP-4: sin línea Outbound, el
+/// Tenant TEC no es Operador CAE de nadie). No mira al actor (DN-6): con Sesión Privilegiada, por un Operador CAE
 /// externo o por un Encargo de administración, se aplica igual; por eso este behavior no depende de quién es el usuario.
 /// Los Commands cuyo Tenant beneficiario sale de los datos cargados (las Asignaciones de Cartera, la tarifa del Operador CAE,
 /// la edición y la restauración de una Empresa) llevan la guarda en su handler (ver <see cref="RegistroLimiteTenantTec"/>).
@@ -72,6 +73,14 @@ public sealed class LimiteTenantTecBehavior<TRequest, TResponse>(ITenantActual t
             var tenantBeneficiarioAjeno = delegacion.TenantClienteId;
             if (tenantBeneficiarioAjeno != tenantId
                 && await outboundCerrado.EstaCerradoAsync(tenantBeneficiarioAjeno, cancellationToken))
+                return Denegar();
+
+            // EP-4 («ni Operador CAE»): reactivar la delegación o darle un operador delegado hace al Tenant de origen del
+            // Operador CAE (TenantConsultoraId, nombre legacy) operar sobre otro Tenant; si Outbound está cerrado para él,
+            // tampoco pasa. Mismo shortcut de lectura entre Tenants que arriba (LimiteTenantTecDelOperadorCae).
+            var operadorCae = delegacion.TenantConsultoraId;
+            if (operadorCae != tenantId && operadorCae != tenantBeneficiarioAjeno
+                && await outboundCerrado.EstaCerradoAsync(operadorCae, cancellationToken))
                 return Denegar();
         }
 

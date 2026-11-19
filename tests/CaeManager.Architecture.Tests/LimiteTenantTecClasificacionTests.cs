@@ -186,6 +186,12 @@ public class LimiteTenantTecClasificacionTests
         (".RelevarPrincipalAsync", new(@"\.RelevarPrincipalAsync\s*\(")),
         ("AsignacionCartera.Externa", new(@"\bAsignacionCartera\.(Externa|Interna)\s*\(")),
         ("TarifaOperadorCae.Registrar", new(@"\bTarifaOperadorCae\.Registrar\s*\(")),
+        // Ronda 3 del revisor-puente (EP-4): las factorías que hacen de un Tenant el Operador CAE de otro o amplían lo que
+        // hace como tal.
+        ("RelacionEmpresarial.Crear", new(@"\bRelacionEmpresarial\.(Crear|Migrar)\s*\(")),
+        ("EncargoAdministracion.Registrar", new(@"\bEncargoAdministracion\.(Registrar|SembrarDeDemostracion)\s*\(")),
+        ("new AsignacionOperadorDelegado", new(@"\bnew\s+AsignacionOperadorDelegado\s*\(")),
+        ("AsignacionOperacion.Externa", new(@"\bAsignacionOperacion\.(Externa|Interna|Raiz)\s*\(")),
     ];
 
     private static readonly Regex ComentarioDeLinea = new(@"^\s*//|//(?=(?:[^""]*""[^""]*"")*[^""]*$).*");

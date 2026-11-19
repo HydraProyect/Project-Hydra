@@ -387,6 +387,11 @@ public class CambiarActivacionUsuarioCommandHandler(
                 return retirada;
         }
 
+        // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie): el traspaso también se
+        // cierra si lo está el Operador CAE, que es el Tenant de origen de quien desactiva y el Tenant activo aquí, fuera
+        // del ámbito de cada Tenant beneficiario. Solo se lee si hay a quién traspasar.
+        var operadorCaeCerrado = destinoId is not null && await outboundCerrado.EstaCerradoAsync(operadorTenantId, ct);
+
         var aRelevar = new List<OperacionConPrincipal>();
         foreach (var tenant in enCartera)
         {
@@ -405,7 +410,7 @@ public class CambiarActivacionUsuarioCommandHandler(
             bool beneficiarioCerrado;
             using (AmbitoTenantExplicito.Establecer(tenant.PropietarioTenantId))
                 beneficiarioCerrado = await outboundCerrado.EstaCerradoAsync(tenant.PropietarioTenantId, ct);
-            if (beneficiarioCerrado)
+            if (operadorCaeCerrado || beneficiarioCerrado)
             {
                 aRelevar.AddRange(principalesDelTenant);
                 continue;

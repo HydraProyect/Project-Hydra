@@ -183,13 +183,19 @@ public class AsignarCarteraGestorCaeCommandHandler(
                         catalogo, sinPrincipal, ctx.OperadorTenantId, coordinadorDeRelevo, ct))
                     return Result.Fallo(CarteraNoGuardada);
 
+                // D3 (EP-4: sin línea Outbound, el Tenant TEC participante no es Operador CAE de nadie): la cartera también
+                // se cierra si lo está el Tenant de origen del Operador CAE. Se lee aquí, fuera del ámbito del Tenant
+                // beneficiario, porque es el Tenant de quien asigna; dentro, su línea se leería como «sin línea».
+                var operadorCaeCerrado = operaciones.Count > 0
+                    && await outboundCerrado.EstaCerradoAsync(ctx.OperadorTenantId, ct);
+
                 foreach (var operacion in operaciones)
                 {
                     var incorporada = await EnPropietarioAsync(operacion.PropietarioTenantId, async () =>
                     {
                         // D3 (DN-4, DN-7): la Asignación de Cartera es un alta en el Tenant beneficiario, que aquí ya es
                         // el Tenant activo; si Outbound está cerrado para él, no se asigna y no se guarda nada.
-                        if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, ct))
+                        if (operadorCaeCerrado || await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, ct))
                             return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
 
                         var r = await catalogo.IncorporarAsync(

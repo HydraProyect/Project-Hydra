@@ -14,7 +14,10 @@ namespace CaeManager.Application.Common;
 /// Asignaciones de Cartera (solicitar y aceptar una incorporación, proponer y aceptar un apoyo, «Asignar empresas», el alta
 /// de un Gestor CAE con cartera y el traspaso al desactivar), que deciden por el Tenant beneficiario de cada cartera; la
 /// tarifa del Operador CAE (F-6), que decide por el Tenant de origen del Operador CAE; y la edición y la restauración de una
-/// Empresa, que solo se cierran si añaden o devuelven Relaciones Empresariales con Clientes empresariales.
+/// Empresa, que solo se cierran si añaden o devuelven Relaciones Empresariales con Clientes empresariales. Desde la ronda 3
+/// (EP-4: sin Producto Contratado P no hay Operador CAE), todas las vías que hacen de un Tenant el Operador CAE de otro
+/// deciden también por el Tenant de origen de ese Operador CAE: las altas de cartera de arriba, la delegación, el alta del
+/// Tenant propietario de un Operador CAE externo, el alta de un cliente delegante y el Encargo de administración.
 /// </para>
 ///
 /// <para>
@@ -122,8 +125,8 @@ public interface ILimiteTenantTecSegunDatos
 /// <summary>
 /// Un Command que actúa sobre una <c>DelegacionTenant</c> (entidad legacy de la vía heredada de la Asignación de Operación:
 /// deuda terminológica) cuyo Tenant beneficiario, su <c>TenantClienteId</c>, puede no ser el Tenant activo.
-/// <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> la lee y aplica el límite también a ese Tenant; si no la
-/// encuentra, deniega.
+/// <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> la lee y aplica el límite también a ese Tenant y al Tenant de
+/// origen de su Operador CAE (<c>TenantConsultoraId</c>, EP-4); si no la encuentra, deniega.
 /// </summary>
 public interface IComandoSobreDelegacionTenant
 {

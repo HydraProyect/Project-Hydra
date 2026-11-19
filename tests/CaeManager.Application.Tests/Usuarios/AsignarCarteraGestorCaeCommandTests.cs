@@ -334,8 +334,8 @@ public class AsignarCarteraGestorCaeCommandTests
 
     /// <summary>
     /// D3 (DN-4): «Asignar empresas» da de alta Asignaciones de Cartera sobre cada Tenant beneficiario; si uno de ellos es
-    /// un Tenant TEC participante sin línea Outbound vigente, no se asigna ninguno (una sola transacción) y decide ese
-    /// Tenant beneficiario, no el Tenant de origen del actor.
+    /// un Tenant TEC participante sin línea Outbound vigente, no se asigna ninguno (una sola transacción) aunque el Tenant
+    /// de origen del Operador CAE esté abierto.
     /// </summary>
     [Fact]
     public async Task D3_no_se_asigna_un_Tenant_beneficiario_con_Outbound_cerrado()
@@ -346,8 +346,25 @@ public class AsignarCarteraGestorCaeCommandTests
         var resultado = await e.Handler().Handle(Asignar(Beneficiario1, Beneficiario2), default);
 
         resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
-        e.Outbound.Preguntados.Should().NotContain(Operador, "decide el Tenant beneficiario de cada cartera");
+        e.Outbound.Preguntados.Should().Contain(Operador, "EP-4: decide también el Tenant de origen del Operador CAE, aquí abierto");
         e.Outbound.Preguntados.Should().Contain(Beneficiario2);
+        e.Transaccion.Confirmadas.Should().Be(0);
+    }
+
+    /// <summary>
+    /// D3 sobre el Operador CAE (EP-4, ronda 3): con los Tenants beneficiarios abiertos y el Tenant de origen del Operador
+    /// CAE cerrado, no se asigna ninguno.
+    /// </summary>
+    [Fact]
+    public async Task D3_no_se_asigna_cartera_si_el_Operador_CAE_esta_cerrado()
+    {
+        var e = new Escenario { Destino = new(true, "GestorCae", Actor, false) }.ActorConRol("Administrador");
+        e.Outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == Operador);
+
+        var resultado = await e.Handler().Handle(Asignar(Beneficiario1, Beneficiario2), default);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        e.Outbound.Preguntados.Should().Contain(Operador);
         e.Transaccion.Confirmadas.Should().Be(0);
     }
 

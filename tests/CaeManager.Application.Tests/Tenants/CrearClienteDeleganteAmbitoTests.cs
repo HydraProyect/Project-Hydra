@@ -25,7 +25,7 @@ public class CrearClienteDeleganteAmbitoTests
             new TenantsFalsos(), new DelegacionTenantRepositorioFalso(),
             new AsignacionOperadorDelegadoRepositorioFalso(), new ParametrosFalsos(),
             AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: origen),
-            new AsignacionesOperativasWriterFalso(), guardados, transaccion);
+            new AsignacionesOperativasWriterFalso(), guardados, transaccion, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
         Func<Task> ejecutar = async () => await handler.Handle(new("Alta fallida"), CancellationToken.None);
         await ejecutar.Should().ThrowAsync<InvalidOperationException>().WithMessage("Guardado fallido");
@@ -53,7 +53,7 @@ public class CrearClienteDeleganteAmbitoTests
         var handler = new CrearClienteDeleganteCommandHandler(
             tenants, delegaciones, asignaciones, new ParametrosFalsos(),
             AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: origen),
-            writer, guardados, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
+            writer, guardados, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(new CrearClienteDeleganteCommand("Organización nueva"), CancellationToken.None);
 

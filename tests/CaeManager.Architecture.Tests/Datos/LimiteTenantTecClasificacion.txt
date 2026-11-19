@@ -9,8 +9,8 @@ AbrirAccesoSoporteCommand	no-aplica	acto del Actor de Plataforma TALVEG (Sesión
 AbrirSesionPrivilegiadaCommand	no-aplica
 AceptarDeteccionesIaEnBloqueCommand	no-aplica
 AceptarDocumentosContractualesCommand	no-aplica
-AceptarPropuestaApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la propuesta cargada
-AceptarSolicitudIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la solicitud cargada
+AceptarPropuestaApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la propuesta cargada y por el Tenant de origen de su Operador CAE (EP-4)
+AceptarSolicitudIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la solicitud cargada y por el Tenant de origen de su Operador CAE (EP-4)
 AceptarTerminosCommand	no-aplica
 ActivarSubencargadoCommand	no-aplica
 ActivarTratamientoIaPorEncargoCommand	no-aplica
@@ -42,7 +42,7 @@ AplicarMacroCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Out
 AprobarRecordatorioConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarAdjuntosLoteCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarAliasTrabajadorCommand	no-aplica
-AsignarCarteraGestorCaeCommand	cerrado-handler	cada Tenant de TenantsAAsignar, por su Tenant beneficiario
+AsignarCarteraGestorCaeCommand	cerrado-handler	cada Tenant de TenantsAAsignar, por su Tenant beneficiario, y por el Tenant de origen del Operador CAE de la cartera (EP-4)
 AsignarClienteConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarEjecutivoConversacionCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 AsignarRolACuentaCommand	abierto	relevo de principal (RelevarPrincipalAsync puede emitir una Asignación de Cartera nueva), consecuencia de una baja o de un cambio de rol (DN-7), a la espera de confirmación de Chris
@@ -53,7 +53,7 @@ AutoConcederPrivilegioCommand	no-aplica
 AvisarCambioSubencargadoCommand	no-aplica
 BorrarCredencialAccesoEmpresaContrasenaCommand	no-aplica
 BuscarDatosPurgablesCommand	no-aplica
-CambiarActivacionUsuarioCommand	cerrado-handler	el traspaso al desactivar retira sin traspasar la cartera de un Tenant beneficiario cerrado; su relevo de principal sigue abierto
+CambiarActivacionUsuarioCommand	cerrado-handler	el traspaso al desactivar retira sin traspasar la cartera de un Tenant beneficiario cerrado o de un Operador CAE cerrado (EP-4); su relevo de principal sigue abierto
 CambiarActivoProveedorPlataformaCommand	no-aplica
 CambiarAddOnSubidaAutomaticaCommand	no-aplica
 CambiarConectorApiProveedorPlataformaCommand	no-aplica
@@ -91,14 +91,14 @@ CorregirDocumentoIdentidadTrabajadorCommand	no-aplica
 CorregirLineaInboundCommand	no-aplica
 CorregirRevisionIaDocumentoCommand	no-aplica
 CrearAsignacionCommand	no-aplica
-CrearAsignacionOperadorDelegadoCommand	cerrado-behavior
+CrearAsignacionOperadorDelegadoCommand	cerrado-behavior	por el Tenant beneficiario y por el Tenant de origen del Operador CAE de la delegación (EP-4)
 CrearAsignacionesCommand	no-aplica
 CrearCanalGestionCommand	cerrado-behavior
 CrearCentroCommand	cerrado-behavior
 CrearClienteCommand	cerrado-behavior
-CrearClienteDeleganteCommand	no-aplica	alta por el Actor de Plataforma TALVEG de un Tenant nuevo, que nace sin el marcador
+CrearClienteDeleganteCommand	cerrado-handler	por el Tenant de origen del Operador CAE que da el alta (EP-4); el Tenant nuevo nace sin el marcador
 CrearContratoAccesoCommand	no-aplica
-CrearDelegacionTenantCommand	cerrado-behavior
+CrearDelegacionTenantCommand	cerrado-behavior	por el Tenant beneficiario en el behavior y por el Tenant de origen del Operador CAE (TenantConsultoraId) en el handler (EP-4)
 CrearDocumentoCommand	no-aplica
 CrearDocumentosDesdeDivisionCommand	no-aplica
 CrearEmpresaCommand	cerrado-datos	solo si la relaciona con Clientes empresariales (ILimiteTenantTecSegunDatos)
@@ -115,10 +115,10 @@ CrearRequisitoPropioCommand	no-aplica
 CrearSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
 CrearTareaAsistenteCommand	no-aplica
 CrearTarifaClienteCommand	no-aplica
-CrearTenantPropietarioDeOperadorCaeExternoCommand	no-aplica	alta por el Actor de Plataforma TALVEG de un Tenant propietario nuevo, que nace sin el marcador
+CrearTenantPropietarioDeOperadorCaeExternoCommand	cerrado-handler	por el Tenant de origen del Operador CAE (TenantOperadorId, EP-4); el Tenant propietario nuevo nace sin el marcador
 CrearTipoDocumentoCommand	no-aplica
 CrearTrabajadorCommand	no-aplica
-CrearUsuarioCommand	cerrado-handler	cada Asignación de Cartera del alta, por su Tenant beneficiario; la asignación automática de principal sigue abierta
+CrearUsuarioCommand	cerrado-handler	cada Asignación de Cartera del alta, por su Tenant beneficiario y por el Tenant de origen del Operador CAE (EP-4); la asignación automática de principal sigue abierta
 CrearVehiculoCommand	no-aplica
 CrearVisitaCommand	no-aplica
 DarDeBajaAsignacionCommand	no-aplica
@@ -266,7 +266,7 @@ PrepararVistaPreviaReclamacionCommand	no-aplica
 PrevisualizarImportacionMaestraCommand	cerrado-behavior
 ProcesarItemLoteGeneracionCommand	no-aplica
 ProgramarPurgaCommand	no-aplica
-ProponerApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la Asignación de Operación
+ProponerApoyoCarteraCommand	cerrado-handler	por el Tenant propietario de la Asignación de Operación y por el Tenant de origen de su Operador CAE (EP-4)
 ProponerContactoSeguridadCommand	no-aplica
 ProponerPlanDeTareaAsistenteCommand	no-aplica
 ProponerSubencargadoCommand	no-aplica
@@ -279,7 +279,7 @@ ReabrirMesCuadroDireccionCommand	no-aplica
 ReabrirProyectoCommand	no-aplica
 ReactivarAsignacionCommand	no-aplica
 ReactivarConexionCommand	no-aplica
-ReactivarDelegacionTenantCommand	cerrado-behavior
+ReactivarDelegacionTenantCommand	cerrado-behavior	por el Tenant beneficiario y por el Tenant de origen del Operador CAE de la delegación (EP-4)
 ReactivarTenantCommand	no-aplica
 ReactivarVisitaCommand	no-aplica
 ReasignarEjecutivoClienteCommand	cerrado-behavior
@@ -289,7 +289,7 @@ RechazarPropuestaApoyoCarteraCommand	abierto	no da de alta nada de Outbound (rec
 RechazarSolicitudIncorporacionCarteraCommand	abierto	no da de alta nada de Outbound (rechaza, retira o revoca), DN-7
 ReconocerAvisoHuecoCommand	no-aplica
 ReenviarAcuseAceptacionContractualCommand	no-aplica
-RegistrarEncargoAdministracionCommand	cerrado-behavior
+RegistrarEncargoAdministracionCommand	cerrado-behavior	por el Tenant beneficiario en el behavior y por el Tenant de origen del Operador CAE de la operación en el handler (EP-4)
 RegistrarEvidenciaInboundCommand	no-aplica
 RegistrarHistorialImportacionCommand	cerrado-behavior
 RegistrarHistorialInformeCommand	no-aplica
@@ -347,7 +347,7 @@ RevocarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
 RevocarOperadorCaeExternoPorSoporteCommand	no-aplica
 SolicitarCertificacionTgssCommand	no-aplica
 SolicitarExportacionCompletaCommand	no-aplica
-SolicitarIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la operación
+SolicitarIncorporacionCarteraCommand	cerrado-handler	por el Tenant propietario de la operación y por el Tenant de origen de su Operador CAE (EP-4)
 SubirDocumentoRequerimientoTecCommand	no-aplica
 SuspenderTenantCommand	no-aplica
 ValidarContactoSeguridadCommand	no-aplica
