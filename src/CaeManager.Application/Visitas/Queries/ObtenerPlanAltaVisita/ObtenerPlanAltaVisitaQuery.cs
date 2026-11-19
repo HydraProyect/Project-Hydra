@@ -1,9 +1,11 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.AltaDeVisita;
+using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -43,6 +45,12 @@ public class ObtenerPlanAltaVisitaQueryHandler(
             return null;
 
         var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
+
+        // Mismo tope que el Command con AsignarYCrearGestiones (CrearVisitaCommandValidator): por encima, el Command rechazará
+        // la Visita, así que no hay plan que enseñar.
+        if (trabajadorIds.Count > CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote)
+            return null;
+
         if (trabajadorIds.Count == 0)
             return new PlanAltaVisitaPreviaDto(PlanAltaVisitaDto.Vacio, PuedeAsignar: true);
 
@@ -51,7 +59,9 @@ public class ObtenerPlanAltaVisitaQueryHandler(
         if (admisibles is null)
             return null;
 
-        var resultado = await plan.CalcularAsync(request.CentroId, request.FechaFin, trabajadorIds, cancellationToken);
+        // El mismo «hoy» con el que el Command daría de alta las Asignaciones y mediría el solape DEC-19.
+        var resultado = await plan.CalcularAsync(
+            request.CentroId, request.FechaFin, DiaDeNegocio.Hoy(), trabajadorIds, cancellationToken);
         var puedeAsignar = await AutoridadParaAsignar.TieneAsync(
             autoridad, request.CentroId, resultado.Asignaciones.Select(a => a.TrabajadorId).ToList(), cancellationToken);
 

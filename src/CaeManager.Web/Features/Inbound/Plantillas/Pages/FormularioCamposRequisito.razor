@@ -20,7 +20,12 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["FormularioTitulo"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="@Kicker" Titulo="@Textos["FormularioTitulo"]" />
+    <CabeceraListado Titulo="@Textos["FormularioTitulo"]" />
+    @* La cabecera ya no lleva antetítulo (Outbound no lo usa): la Plantilla y el requisito se siguen diciendo, ahora en la línea secundaria. *@
+    @if (_plantilla is not null)
+    {
+        <p class="inbound-secundario" data-pieza="contexto-formulario">@Kicker</p>
+    }
     <p class="inbound-secundario"><a href="@($"/inbound/plantillas/{Id}/requisitos")">@Textos["VolverRequisitos"]</a></p>
 
     @if (_cargando)

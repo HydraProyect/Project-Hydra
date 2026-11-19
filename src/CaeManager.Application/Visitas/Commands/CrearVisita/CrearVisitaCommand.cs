@@ -1,3 +1,4 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
@@ -51,6 +52,13 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 
         RuleFor(c => c.TrabajadorIds)
             .NotEmpty().WithMessage("La visita debe incluir al menos un trabajador.");
+
+        // Con AsignarYCrearGestiones, crear la Visita es también un alta de Asignaciones Trabajador–Centro en lote: mismo
+        // tope que CrearAsignacionesCommand, para no cargar en un solo guardado más de lo que el alta en lote admite.
+        RuleFor(c => c.TrabajadorIds.Distinct().Count())
+            .LessThanOrEqualTo(CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote)
+            .When(c => c.AsignarYCrearGestiones && c.TrabajadorIds is not null)
+            .WithMessage($"Selecciona como máximo {CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote} trabajadores por visita.");
 
         RuleFor(c => c.Notas)
             .MaximumLength(Visita.LongitudMaximaNotas)

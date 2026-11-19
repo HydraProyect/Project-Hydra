@@ -112,6 +112,35 @@ public class ReglaGestionesDeVisitaTests
     }
 
     [Fact]
+    public void Quien_solapa_con_una_Asignacion_cerrada_sale_en_Solapadas_y_no_en_Asignaciones()
+    {
+        var dani = new TrabajadorEnPlan(Guid.NewGuid(), "Dani Soler", TipoContratacion.CuentaAjena, AsignadoAlCentro: false, SolapaConAsignacionCerrada: true);
+
+        var plan = Calcular([Ana, Bruno, dani], []);
+
+        plan.Asignaciones.Select(a => a.TrabajadorId).Should().Equal(Bruno.TrabajadorId);
+        plan.Solapadas.Should().ContainSingle().Which.Should().Be(new AsignacionPrevistaDto(dani.TrabajadorId, dani.Nombre));
+    }
+
+    [Fact]
+    public void Situacion_de_asignacion_con_la_semantica_DEC19_de_CrearAsignaciones()
+    {
+        var hoy = new DateOnly(2026, 11, 19);
+
+        ReglaGestionesDeVisita.SituacionAsignacion([], hoy).Should().Be((false, false), "sin filas: se asigna");
+        ReglaGestionesDeVisita.SituacionAsignacion([new(hoy.AddDays(-30), null)], hoy)
+            .Should().Be((true, false), "una fila activa es «asignado»");
+        ReglaGestionesDeVisita.SituacionAsignacion([new(hoy.AddDays(-30), hoy.AddDays(1))], hoy)
+            .Should().Be((false, true), "cerrada con baja posterior a hoy: solapa");
+        ReglaGestionesDeVisita.SituacionAsignacion([new(hoy.AddDays(-30), hoy)], hoy)
+            .Should().Be((false, false), "la baja es exclusiva: una baja hoy ya no solapa con un alta hoy");
+        ReglaGestionesDeVisita.SituacionAsignacion([new(hoy.AddDays(5), hoy.AddDays(5))], hoy)
+            .Should().Be((false, false), "rango vacío (alta == baja): no ocupó ni un día");
+        ReglaGestionesDeVisita.SituacionAsignacion([new(hoy.AddDays(-30), hoy.AddDays(1)), new(hoy.AddDays(-1), null)], hoy)
+            .Should().Be((true, false), "estar asignado manda sobre solapar");
+    }
+
+    [Fact]
     public void No_duplica_una_Gestion_Pendiente_del_mismo_Trabajador_Centro_y_Tipo()
     {
         var plan = Calcular([Ana, Bruno], [Formacion], pendientes: [(Ana.TrabajadorId, Formacion.TipoDocumentoId)]);

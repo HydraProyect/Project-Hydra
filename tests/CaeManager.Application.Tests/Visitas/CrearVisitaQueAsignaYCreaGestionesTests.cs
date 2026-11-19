@@ -1,3 +1,4 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
@@ -15,6 +16,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerPlanAltaVisita;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
@@ -67,20 +69,23 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
     private AlcanceDatosServiceFalso AlcanceDeMiCartera() =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], centroIdsVisibles: [_centro.Id]);
 
-    private PlanFalso Plan() => new(_asignaciones, _trabajadores.ListaTrabajadores, _tipoFormacion);
+    private readonly ComunicacionesQueryContextFalso _comunicaciones = new();
+    private readonly SugerenciaVisitaCorreoRepositorioFalso _sugerencias = new();
+
+    private PlanFalso Plan(bool sinSolapadas = false) => new(_asignaciones, _trabajadores.ListaTrabajadores, _tipoFormacion, sinSolapadas);
 
     private CrearVisitaCommandHandler Handler(
         IAlcanceDatosService? alcance = null, IAutoridadAsignacionesService? autoridad = null, IInvalidadorAlcance? invalidador = null,
-        bool sinServicioDeAlta = false)
+        bool sinServicioDeAlta = false, bool planSinSolapadas = false)
     {
         alcance ??= AlcanceDeMiCartera();
         var alta = new AltaDeVisitaConAsignaciones(
-            Plan(), autoridad ?? new AutoridadFalsa(), _asignaciones, _gestiones, _altaAcreditaciones, _serializacion,
-            invalidador ?? new InvalidadorQueNoHaceNada(), _unitOfWork);
+            Plan(planSinSolapadas), autoridad ?? new AutoridadFalsa(), _asignaciones, _gestiones, _altaAcreditaciones, _serializacion,
+            invalidador ?? new InvalidadorQueNoHaceNada(), _unitOfWork, _visitas);
 
         return new CrearVisitaCommandHandler(
-            _visitas, _visitaTrabajadores, _centros, _trabajadores, _empresas, new SugerenciaVisitaCorreoRepositorioFalso(),
-            new ComunicacionesQueryContextFalso(), new PaqueteQueNoEnvia(), new EvaluadorQueNoSella(),
+            _visitas, _visitaTrabajadores, _centros, _trabajadores, _empresas, _sugerencias,
+            _comunicaciones, new PaqueteQueNoEnvia(), new EvaluadorQueNoSella(),
             new CurrentUserServiceFalso(Guid.NewGuid()), new PublisherFalso(), _unitOfWork,
             NullLogger<CrearVisitaCommandHandler>.Instance, alcance, actorAuditoria: null,
             altaConAsignaciones: sinServicioDeAlta ? null : alta);
@@ -215,11 +220,94 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         cerrada.DarDeBaja(DiaDeNegocio.Hoy().AddDays(1));
         _asignaciones.Agregar(cerrada);
 
-        var resultado = await Handler().Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
+        var resultado = await Handler().Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSolape);
+        resultado.Error.Mensaje.Should().NotContain("Bruno", "se emite antes de revalidar el alcance bajo el candado: no nombra a nadie");
+        _visitas.Visitas.Should().BeEmpty();
+        _gestiones.Gestiones.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_el_plan_no_marca_el_solape_el_repositorio_lo_para_igual()
+    {
+        // Cinturón: el plan y DEC-19 separados (aquí, un plan que no calcula Solapadas) no dejan pasar el alta.
+        var cerrada = new Asignacion(_sinAsignar.Id, _centro.Id, DiaDeNegocio.Hoy().AddDays(-5));
+        cerrada.DarDeBaja(DiaDeNegocio.Hoy().AddDays(1));
+        _asignaciones.Agregar(cerrada);
+
+        var resultado = await Handler(planSinSolapadas: true).Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSolape);
         _visitas.Visitas.Should().BeEmpty();
         _gestiones.Gestiones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_reintento_tras_un_COMMIT_confirmado_no_duplica_la_Visita_ni_lo_que_creo()
+    {
+        // La estrategia de reintentos repite la operación cuando el primer intento confirmó pero se comunicó como un error
+        // transitorio. Sin reconocer la Visita ya confirmada, el reintento crearía otra con otro Id.
+        _serializacion.AntesDeReintentarTrasConfirmar = () => { };
+
+        var resultado = await Handler().Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        _visitas.Visitas.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor);
+        _visitaTrabajadores.Agregadas.Should().HaveCount(2);
+        _asignaciones.Asignaciones.Count(a => a.TrabajadorId == _sinAsignar.Id).Should().Be(1);
+        _gestiones.Gestiones.Should().HaveCount(2);
+        _unitOfWork.VecesGuardado.Should().Be(1, "el reintento no vuelve a escribir");
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_que_deja_de_ser_admisible_mientras_espera_el_candado_rechaza_la_Visita()
+    {
+        // La Asignación de Cartera deja de alcanzar a Bruno (y solo a él) mientras se espera: el Centro sigue en cartera.
+        AlcanceDatosServiceFalso Cartera(params Guid[] trabajadores) =>
+            new(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], trabajadorIdsVisibles: trabajadores,
+                centroIdsVisibles: [_centro.Id]);
+        var alcance = new AlcanceMemoizadoFalso(Cartera(_asignada.Id, _sinAsignar.Id));
+        _serializacion.AlTomarElCandado = () => alcance.Sustituir(Cartera(_asignada.Id));
+
+        var resultado = await Handler(alcance: alcance, invalidador: alcance)
+            .Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
+
+        resultado.Error.Should().Be(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
+        NadaCreado();
+    }
+
+    [Fact]
+    public async Task La_autoridad_para_asignar_se_evalua_dentro_del_candado()
+    {
+        var autoridad = new AutoridadFalsa();
+        _serializacion.AlTomarElCandado = () => autoridad.SobreTrabajador = false;
+
+        var resultado = await Handler(autoridad: autoridad).Handle(Crear([_sinAsignar.Id]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSinAutoridad);
+        NadaCreado();
+    }
+
+    [Fact]
+    public async Task Con_una_sugerencia_las_Gestiones_se_enlazan_al_mensaje_del_que_nacio_la_Visita()
+    {
+        var conversacion = new Conversacion("Pide visita el lunes", clienteId: _clienteDeMiCartera);
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "obra@contraparte.es", "<p>El lunes.</p>");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMensajes.Add(mensaje);
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, _centro.Id, Inicio, Fin, "Pide visita", 90, 90, 90);
+        _comunicaciones.ListaSugerenciasVisitaCorreo.Add(sugerencia);
+        _sugerencias.Agregar(sugerencia);
+
+        var resultado = await Handler().Handle(
+            Crear([_asignada.Id, _sinAsignar.Id]) with { SugerenciaVisitaCorreoId = sugerencia.Id }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        var visita = _visitas.Visitas.Should().ContainSingle().Subject;
+        visita.ConversacionOrigenId.Should().Be(conversacion.Id);
+        _gestiones.Gestiones.Should().HaveCount(2).And.OnlyContain(g => g.MensajeOrigenId == mensaje.Id);
     }
 
     [Fact]
@@ -229,6 +317,20 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
 
         resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSinAutoridad);
         NadaCreado();
+    }
+
+    [Fact]
+    public void Con_AsignarYCrearGestiones_el_validador_aplica_el_tope_del_alta_de_Asignaciones_en_lote()
+    {
+        var validador = new CrearVisitaCommandValidator();
+        var tope = CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote;
+        var demasiados = Enumerable.Range(0, tope + 1).Select(_ => Guid.NewGuid()).ToList();
+        var justos = demasiados.Take(tope).ToList();
+
+        validador.Validate(Crear(demasiados)).IsValid.Should().BeFalse();
+        validador.Validate(Crear(justos)).IsValid.Should().BeTrue();
+        validador.Validate(Crear([.. justos, justos[0]])).IsValid.Should().BeTrue("cuenta los Trabajadores distintos");
+        validador.Validate(Crear(demasiados, asignar: false)).IsValid.Should().BeTrue("sin asignar, la Visita no da de alta Asignaciones");
     }
 
     // ---- Vista previa: las mismas comprobaciones, sin escribir nada
@@ -262,6 +364,17 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
     }
 
     [Fact]
+    public async Task La_vista_previa_por_encima_del_tope_del_Command_no_devuelve_plan()
+    {
+        // Mismo tope que CrearVisitaCommandValidator con AsignarYCrearGestiones: el Command rechazaría la Visita.
+        var demasiados = Enumerable.Range(0, CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote).Select(_ => Guid.NewGuid())
+            .Append(_sinAsignar.Id).ToList();
+
+        (await Vista(AlcanceDeMiCartera()).Handle(new ObtenerPlanAltaVisitaQuery(_centro.Id, Fin, demasiados), CancellationToken.None))
+            .Should().BeNull();
+    }
+
+    [Fact]
     public async Task La_vista_previa_avisa_cuando_falta_autoridad_para_asignar()
     {
         var previa = await Vista(AlcanceDeMiCartera(), new AutoridadFalsa { SobreTrabajador = false })
@@ -270,28 +383,57 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         previa!.PuedeAsignar.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task La_vista_previa_ensena_quien_solapa_y_no_lo_ofrece_asignar()
+    {
+        var cerrada = new Asignacion(_sinAsignar.Id, _centro.Id, DiaDeNegocio.Hoy().AddDays(-5));
+        cerrada.DarDeBaja(DiaDeNegocio.Hoy().AddDays(1));
+        _asignaciones.Agregar(cerrada);
+
+        var previa = await Vista(AlcanceDeMiCartera())
+            .Handle(new ObtenerPlanAltaVisitaQuery(_centro.Id, Fin, [_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
+
+        previa!.Plan.Asignaciones.Should().BeEmpty();
+        previa.Plan.Solapadas.Select(s => s.TrabajadorId).Should().Equal(_sinAsignar.Id);
+    }
+
     // ---- Falsos
 
-    /// <summary>Asigna a quien no tiene Asignación activa y pide un único Tipo a todos: la regla en sí la prueba ReglaGestionesDeVisitaTests.</summary>
-    private sealed class PlanFalso(AsignacionRepositorioFalso asignaciones, List<Trabajador> trabajadores, Guid tipoId) : IPlanAltaVisitaService
+    /// <summary>
+    /// Asigna a quien no tiene Asignación activa, separa a quien solapa (DEC-19, salvo con <paramref name="sinSolapadas"/>) y pide
+    /// un único Tipo a todos: la regla en sí la prueban ReglaGestionesDeVisitaTests y PlanAltaVisitaServiceTests.
+    /// </summary>
+    private sealed class PlanFalso(AsignacionRepositorioFalso asignaciones, List<Trabajador> trabajadores, Guid tipoId, bool sinSolapadas)
+        : IPlanAltaVisitaService
     {
         public Task<PlanAltaVisitaDto> CalcularAsync(
-            Guid centroId, DateOnly fechaFin, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
+            Guid centroId, DateOnly fechaFin, DateOnly hoy, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
         {
             var deLaVisita = trabajadores.Where(t => trabajadorIds.Contains(t.Id)).ToList();
+            var situacion = deLaVisita.ToDictionary(t => t.Id, t => ReglaGestionesDeVisita.SituacionAsignacion(
+                asignaciones.Asignaciones.Where(a => a.TrabajadorId == t.Id && a.CentroId == centroId)
+                    .Select(a => new AsignacionEnPlan(a.FechaAlta, a.FechaBaja)),
+                hoy));
+            bool Solapa(Trabajador t) => !sinSolapadas && situacion[t.Id].Solapa;
+            string NombreCompleto(Trabajador t) => t.Nombre + " " + t.Apellidos;
+
             return Task.FromResult(new PlanAltaVisitaDto(
                 deLaVisita
-                    .Where(t => !asignaciones.Asignaciones.Any(a => a.TrabajadorId == t.Id && a.CentroId == centroId && a.FechaBaja is null))
-                    .Select(t => new AsignacionPrevistaDto(t.Id, t.Nombre))
+                    .Where(t => !situacion[t.Id].Asignado && !Solapa(t))
+                    .Select(t => new AsignacionPrevistaDto(t.Id, NombreCompleto(t)))
                     .ToList(),
-                deLaVisita.Select(t => new GestionPrevistaDto(t.Id, t.Nombre, tipoId, "Formación PRL", MotivoGestionPrevista.Falta)).ToList()));
+                deLaVisita.Select(t => new GestionPrevistaDto(t.Id, NombreCompleto(t), tipoId, "Formación PRL", MotivoGestionPrevista.Falta)).ToList(),
+                deLaVisita
+                    .Where(t => !situacion[t.Id].Asignado && Solapa(t))
+                    .Select(t => new AsignacionPrevistaDto(t.Id, NombreCompleto(t)))
+                    .ToList()));
         }
     }
 
     private sealed class AutoridadFalsa : IAutoridadAsignacionesService
     {
-        public bool SobreCentro { get; init; } = true;
-        public bool SobreTrabajador { get; init; } = true;
+        public bool SobreCentro { get; set; } = true;
+        public bool SobreTrabajador { get; set; } = true;
 
         public Task<bool> PuedeModificarAsignacionesDelCentroAsync(Guid centroId, CancellationToken cancellationToken = default) =>
             Task.FromResult(SobreCentro);
