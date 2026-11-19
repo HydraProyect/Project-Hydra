@@ -751,6 +751,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Lectura inversa X-2 (demo Inbound, P1): los requisitos que los Tenants TCE piden al Tenant TEC del contexto firmado.
         services.AddScoped<CaeManager.Application.Inbound.AutorizacionesLectura.Queries.ObtenerRequerimientosTec.ILectorRequerimientosTec, LectorRequerimientosTecEnBase>();
         services.AddScoped<CaeManager.Domain.Inbound.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Domain.Inbound.AccesoFisico.ICredencialAccesoRepository, CredencialAccesoRepository>();
         services.AddScoped<CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         // ADR-013, mecanismo 10 (K-17): Inbound aporta sus claves de archivo a los barridos del Núcleo. La declaración de
         // módulos hace que la reparación de adjuntos falle cerrada si a uno le falta su contribución.

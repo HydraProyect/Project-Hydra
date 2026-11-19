@@ -7973,6 +7973,102 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("OperacionesImportacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CaducadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EmitidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmitidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MotivoRevocacion")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("RegeneradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RegeneradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Serie")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SujetoDocumentoIdentidad")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SujetoNombre")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantOrigenId", "TrabajadorOrigenId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CredencialesAcceso_TenantId_Trabajador_Emitida")
+                        .HasFilter("\"Estado\" = 'Emitida'");
+
+                    b.ToTable("CredencialesAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CredencialesAcceso_CaducidadCoherente", "(\"Estado\" = 'Caducada') = (\"CaducadaEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_EstadoValido", "\"Estado\" IN ('Emitida', 'Revocada', 'Caducada')");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_MotivoRevocacionCerrado", "\"MotivoRevocacion\" IS NULL OR \"MotivoRevocacion\" IN ('PerdidaOExtravio', 'UsoIndebido', 'FinDeLaRelacion', 'Otro')");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_RevocacionCoherente", "(\"Estado\" = 'Revocada' AND \"MotivoRevocacion\" IS NOT NULL AND \"RevocadaEnUtc\" IS NOT NULL AND \"RevocadaPorUsuarioId\" IS NOT NULL) OR (\"Estado\" <> 'Revocada' AND \"MotivoRevocacion\" IS NULL AND \"RevocadaEnUtc\" IS NULL AND \"RevocadaPorUsuarioId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_SerieDesdeUno", "\"Serie\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound", b =>
                 {
                     b.Property<Guid>("Id")
