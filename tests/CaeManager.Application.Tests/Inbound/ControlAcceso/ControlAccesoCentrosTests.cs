@@ -90,7 +90,7 @@ public class ControlAccesoCentrosTests
     [Fact]
     public async Task Quien_tiene_el_rol_solo_ve_los_Centros_que_le_asignaron_y_en_otro_Centro_del_Tenant_recibe_vacio()
     {
-        var (centros, a, _) = DosCentros();
+        var (centros, a, b) = DosCentros();
         var repo = new Repositorio();
         var guardado = new Guardado();
 
@@ -103,6 +103,7 @@ public class ControlAccesoCentrosTests
         var resultado = await mis.Handle(new ObtenerMisCentrosDeControlAccesoQuery(), default);
 
         resultado.Should().ContainSingle().Which.CentroId.Should().Be(a.Id);
+        resultado.Should().NotContain(c => c.CentroId == b.Id, "el otro Centro del mismo Tenant no se asignó");
     }
 
     [Fact]
@@ -279,11 +280,37 @@ public class ControlAccesoCentrosTests
         repo.Filas.Add(new UsuarioControlAccesoCentro(Portero, a.Id));
         repo.Filas.Add(new UsuarioControlAccesoCentro(Portero, Guid.NewGuid()));
 
-        var gestor = new ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(repo, centros, new Puerta(CapacidadInbound.GestionarInbound));
+        var gestor = new ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(
+            repo, centros, new AlcanceDatosServiceFalso(), new Puerta(CapacidadInbound.GestionarInbound));
         (await gestor.Handle(new ObtenerCentrosDeControlAccesoDeUsuarioQuery(Portero), default))
             .Should().ContainSingle().Which.CentroId.Should().Be(a.Id);
 
-        var sinGestion = new ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(repo, centros, new Puerta(CapacidadInbound.ControlarAcceso));
+        var sinGestion = new ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(
+            repo, centros, new AlcanceDatosServiceFalso(), new Puerta(CapacidadInbound.ControlarAcceso));
         (await sinGestion.Handle(new ObtenerCentrosDeControlAccesoDeUsuarioQuery(Portero), default)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Quien_asigna_con_alcance_parcial_no_retira_ni_ve_las_asignaciones_de_Centros_fuera_de_su_alcance()
+    {
+        var (centros, a, b) = DosCentros();
+        var repo = new Repositorio();
+        repo.Filas.Add(new UsuarioControlAccesoCentro(Portero, a.Id));
+        repo.Filas.Add(new UsuarioControlAccesoCentro(Portero, b.Id));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsParaGestion: [a.Id]);
+
+        // Lista vacía: solo retira lo que está en su alcance (A); la asignación a B, ajena a su cartera, sigue.
+        var resultado = await Asignador(repo, DirectorioConPortero(), centros, alcance, new Guardado())
+            .Handle(new AsignarCentrosControlAccesoCommand(Portero, []), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        repo.Filas.Should().ContainSingle().Which.CentroId.Should().Be(b.Id);
+
+        // La lectura del drawer tampoco nombra el Centro de fuera de su alcance.
+        repo.Filas.Add(new UsuarioControlAccesoCentro(Portero, a.Id));
+        var lectura = new ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(
+            repo, centros, alcance, new Puerta(CapacidadInbound.GestionarInbound));
+        (await lectura.Handle(new ObtenerCentrosDeControlAccesoDeUsuarioQuery(Portero), default))
+            .Should().ContainSingle().Which.CentroId.Should().Be(a.Id);
     }
 }

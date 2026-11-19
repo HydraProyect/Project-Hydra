@@ -632,6 +632,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return new("Todos los Clientes", false,
                 "Su rol alcanza toda la organización; no depende de ninguna Asignación de Cartera.");
 
+        // Control de acceso (AF-01): ni cartera ni Tenant entero; opera solo los Centros que se le asignan.
+        if (rol == Roles.ControlAcceso)
+            return new("Centros asignados", false,
+                "Portería: solo abre los Centros que se le asignan; no depende de ninguna Asignación de Cartera.");
+
         if (rol == Roles.Cliente)
             return usuario.ClienteId is not null
                 ? new("1 Cliente", false,

@@ -13,8 +13,11 @@ namespace CaeManager.Application.Inbound.ControlAcceso.Commands.AsignarCentrosCo
 
 /// <summary>
 /// Fija los Centros en los que una persona con el rol «Control de acceso» opera la portería del Tenant TCE (AF-01). Reemplaza la
-/// lista entera: los Centros que no vienen se retiran, y una lista vacía deja a la persona sin ningún Centro. Lo hace quien tiene
-/// <see cref="CapacidadInbound.GestionarInbound"/> (el Gestor CAE, o un Operador CAE externo por su Asignación de Cartera).
+/// lista entera dentro del alcance de quien asigna: los Centros de su alcance que no vienen se retiran (una lista vacía los retira
+/// todos), y las asignaciones a Centros fuera de su alcance no se tocan. Lo hace quien tiene
+/// <see cref="CapacidadInbound.GestionarInbound"/>. La pantalla de asignación solo la abren, hoy, quienes gestionan cuentas
+/// (Administrador y Dirección CAE) del Tenant TCE; el Operador CAE externo y el Gestor CAE no tienen pantalla desde la que
+/// asignar (hueco declarado de AF-01).
 /// </summary>
 [AreaDelEncargo("ContratosAcceso")]
 public record AsignarCentrosControlAccesoCommand(Guid UsuarioId, IReadOnlyList<Guid> CentroIds) : ICommand, IComandoInbound;
@@ -34,6 +37,10 @@ public static class ControlAccesoErrores
     /// <summary>La cuenta no existe en este Tenant, está desactivada o no tiene el rol: el mismo error para las tres.</summary>
     public static readonly Error UsuarioNoValido = Error.Crear(
         "ControlAcceso.UsuarioNoValido", "Esa persona no tiene el rol de Control de acceso en esta organización.");
+
+    /// <summary>Otra persona cambió a la vez las asignaciones de esta cuenta.</summary>
+    public static readonly Error CambioConcurrente = Error.Crear(
+        "ControlAcceso.CambioConcurrente", "Otra persona acaba de cambiar los Centros de esta cuenta. Vuelve a abrirla y repite el cambio.");
 
     /// <summary>El Centro no existe en el Tenant o queda fuera del alcance de quien asigna: el mismo error para las dos.</summary>
     public static readonly Error CentroNoEncontrado = Error.Crear(
@@ -64,9 +71,9 @@ public class AsignarCentrosControlAccesoCommandHandler(
 
         // Solo Centros del Tenant activo y dentro del alcance de quien asigna (null = sin restricción). El filtro de Tenant y de
         // borrado lógico del contexto hace que un Id de otro Tenant «no exista».
+        var alcance = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         if (centroIds.Count > 0)
         {
-            var alcance = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
             var existentes = await centros.Centros
                 .Where(c => centroIds.Contains(c.Id))
                 .Select(c => c.Id)
@@ -77,7 +84,10 @@ public class AsignarCentrosControlAccesoCommandHandler(
         }
 
         var actuales = await repositorio.ObtenerDeUsuarioAsync(request.UsuarioId, cancellationToken);
-        var aRetirar = actuales.Where(a => !centroIds.Contains(a.CentroId)).ToList();
+        // Quien asigna solo retira lo que está dentro de su alcance: las asignaciones de Centros fuera de él se conservan intactas.
+        var aRetirar = actuales
+            .Where(a => !centroIds.Contains(a.CentroId) && (alcance is null || alcance.Contains(a.CentroId)))
+            .ToList();
         var yaAsignados = actuales.Select(a => a.CentroId).ToHashSet();
         var aAnadir = centroIds.Where(id => !yaAsignados.Contains(id)).ToList();
 
@@ -89,7 +99,15 @@ public class AsignarCentrosControlAccesoCommandHandler(
         foreach (var centroId in aAnadir)
             repositorio.Agregar(new UsuarioControlAccesoCentro(request.UsuarioId, centroId));
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Dos guardados a la vez sobre la misma persona: el índice único detiene al segundo. Se pide recargar, no se rompe el circuito.
+            return Result.Fallo(ControlAccesoErrores.CambioConcurrente);
+        }
 
         return Result.Exito();
     }

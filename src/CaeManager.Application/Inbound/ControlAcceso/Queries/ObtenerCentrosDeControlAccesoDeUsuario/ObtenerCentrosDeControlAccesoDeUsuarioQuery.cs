@@ -20,6 +20,7 @@ public record ObtenerCentrosDeControlAccesoDeUsuarioQuery(Guid UsuarioId) : IReq
 public class ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(
     IUsuarioControlAccesoCentroRepository repositorio,
     ICentrosQueryContext centros,
+    IAlcanceDatosService alcanceDatos,
     IAutorizacionInbound autorizacionInbound)
     : IRequestHandler<ObtenerCentrosDeControlAccesoDeUsuarioQuery, IReadOnlyList<CentroDeControlAccesoDto>>
 {
@@ -29,8 +30,11 @@ public class ObtenerCentrosDeControlAccesoDeUsuarioQueryHandler(
         if (!await autorizacionInbound.TieneAsync(CapacidadInbound.GestionarInbound, cancellationToken))
             return [];
 
+        // Solo los Centros que quien consulta puede gestionar (null = sin restricción): los de fuera de su alcance no se nombran.
+        var alcance = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var asignados = (await repositorio.ObtenerDeUsuarioAsync(request.UsuarioId, cancellationToken))
             .Select(a => a.CentroId)
+            .Where(id => alcance is null || alcance.Contains(id))
             .ToList();
         if (asignados.Count == 0)
             return [];

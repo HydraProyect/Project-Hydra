@@ -1,10 +1,11 @@
 @page "/inbound/control-acceso/asignar/{UsuarioId:guid}"
 @* AF-01 · Asignación de Centros a una persona con el rol «Control de acceso». Se abre desde la gestión de usuarios del Tenant TCE
-   por URL (el Núcleo no referencia tipos de Inbound). Solo se ofrece: quién puede y qué Centros son asignables lo decide
-   AsignarCentrosControlAccesoCommand (pide GestionarInbound). Un Centro del mismo Tenant que no se marca no se abre en portería. *@
+   por URL (el Núcleo no referencia tipos de Inbound). Solo entra quien gestiona cuentas (RolesQueGestionanCuentas: la query de la
+   cuenta lo exige); qué Centros son asignables lo decide AsignarCentrosControlAccesoCommand (pide GestionarInbound y solo toca los
+   Centros de su alcance). El Gestor CAE puede llamar al comando, pero no tiene pantalla de cuentas desde la que abrir esta. Un Centro del mismo Tenant que no se marca no se abre en portería. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Inbound.ControlAcceso.Commands.AsignarCentrosControlAcceso
 @using CaeManager.Application.Inbound.ControlAcceso.Queries.ObtenerCentrosDeControlAccesoDeUsuario
