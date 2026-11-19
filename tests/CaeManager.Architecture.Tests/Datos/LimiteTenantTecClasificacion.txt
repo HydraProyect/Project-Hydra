@@ -193,6 +193,7 @@ EliminarUsuarioPendienteCommand	no-aplica
 EliminarVehiculoCommand	no-aplica
 EliminarVehiculosCommand	no-aplica
 EliminarVerificacionExternaSubcontrataCommand	pendiente	D5 (Subcontratas del Tenant TEC)
+EmitirCredencialCommand	no-aplica
 EnviarMensajeNuevoCommand	pendiente	DN-5 (Comunicaciones del Tenant TEC sin línea Outbound)
 EnviarNotificacionCompletaCommand	no-aplica
 EnviarPaqueteAcreditacionVisitaCommand	no-aplica
@@ -289,6 +290,7 @@ RechazarPropuestaApoyoCarteraCommand	abierto	no da de alta nada de Outbound (rec
 RechazarSolicitudIncorporacionCarteraCommand	abierto	no da de alta nada de Outbound (rechaza, retira o revoca), DN-7
 ReconocerAvisoHuecoCommand	no-aplica
 ReenviarAcuseAceptacionContractualCommand	no-aplica
+RegenerarCredencialCommand	no-aplica
 RegistrarEncargoAdministracionCommand	cerrado-behavior	por el Tenant beneficiario en el behavior y por el Tenant de origen del Operador CAE de la operación en el handler (EP-4)
 RegistrarEvidenciaInboundCommand	no-aplica
 RegistrarHistorialImportacionCommand	cerrado-behavior
@@ -342,6 +344,7 @@ RevocarCapacidadTenantCommand	no-aplica
 RevocarClaveApiCommand	no-aplica
 RevocarClaveApiDeMiOrganizacionCommand	no-aplica
 RevocarConcesionPrivilegioCommand	no-aplica
+RevocarCredencialCommand	no-aplica
 RevocarIncorporacionCarteraCommand	abierto	baja (DN-7); su relevo de principal (RelevoDePrincipalDeCartera) puede emitir una cartera nueva, a la espera de confirmación de Chris
 RevocarInstruccionTratamientoIaTenantPropietarioCommand	no-aplica
 RevocarOperadorCaeExternoPorSoporteCommand	no-aplica
