@@ -48,7 +48,10 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// también con el papel de Tenant de origen en un Tenant cuyo Producto Contratado es solo Inbound
 /// (<see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/>), igual que los comandos y el alcance. Las páginas
 /// todavía no: qué ve ese Tenant en una página de Outbound (oculta, en gris con explicación o ruta mixta) es presentación
-/// y está pendiente de decisión; hasta entonces entra, pero sus comandos y su alcance de Outbound se niegan. El criterio
+/// y está pendiente de decisión; hasta entonces entra, pero sus comandos de Outbound se niegan y sus queries de Outbound
+/// salen vacías solo si consultan el alcance (<c>IAlcanceDatosService</c>). Una query de Outbound que no lo consulta lee
+/// lo que el filtro de Tenant y la RLS le dejan: las que hay hoy están inventariadas, con su motivo, en
+/// <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de los tests de arquitectura. El criterio
 /// se resuelve solo para un endpoint marcado con el papel de Tenant de origen, y sin registrar falla al resolverlo.
 /// </para>
 /// </summary>

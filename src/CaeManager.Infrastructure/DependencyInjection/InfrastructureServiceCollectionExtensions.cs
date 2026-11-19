@@ -620,6 +620,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<CaducidadAlcanceOptions>(opciones => opciones.Caducidad = CaducidadAlcanceOptions.DesdeSegundos(
             configuration.GetValue(CaducidadAlcanceOptions.ClaveConfiguracion, CaducidadAlcanceOptions.MaximoSegundos)));
         services.AddScoped<AlcanceDatosService>();
+        // El criterio de Outbound memoiza «¿es solo Inbound?» con la misma caducidad que el alcance (BAJA 4 de la PR #2379).
+        // Sustituye el registro de Application; ICriterioDeOutbound e IMemoPorContexto ya apuntan a esta instancia.
+        services.AddScoped(sp => new CaeManager.Application.Common.CriterioDeOutbound(sp,
+            CaducidadAlcanceOptions.Acotar(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaducidadAlcanceOptions>>().Value.Caducidad)));
         services.AddScoped<IAlcanceDatosService>(sp => sp.GetRequiredService<AlcanceDatosService>());
         // La MISMA instancia que memoiza: invalidar otra sería no invalidar nada.
         services.AddScoped<IInvalidadorAlcance>(sp => sp.GetRequiredService<AlcanceDatosService>());

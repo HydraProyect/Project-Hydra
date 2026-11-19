@@ -1,0 +1,34 @@
+# Queries de Outbound (PeticionDeOutbound.CerradaAlSoloInbound) cuyo handler no recibe IAlcanceDatosService,
+# ICriterioDeOutbound ni el mediador, directamente o a traves de una clase concreta de Application (dos saltos)
+# (LlamadaAlAlcanceDeCarteraEnLecturaTests.SoloInbound). Al Tenant solo Inbound con el papel de Tenant de origen el
+# alcance no le da nada dentro de una peticion de Outbound, pero estas queries no lo preguntan.
+#
+# Medida el 2026-11-19 sobre la PR #2379 (base f708a4736): 12 entradas. Se corrigieron dos antes de congelar:
+# ObtenerProximaVisitaPorCentroQuery (cruza con ObtenerCentroIdsVisiblesAsync) y AnalizarPlantillaMaestraQuery
+# (pregunta ICriterioDeOutbound: su YaExiste revelaba las Empresas, Centros y Trabajadores del Tenant). Las cuatro de
+# Importacion que recortan con RecorteDeAnalisisAlAmbito salen al seguir la medida las clases concretas. Quedan 7.
+#
+# Cada entrada lleva encima el motivo por el que no devuelve datos de Outbound al Tenant solo Inbound, o que la
+# cierra en su lugar. Es una revision, no una medida: una NUEVA tiene que consultar el alcance o llevar su motivo,
+# y la lista solo deberia encoger.
+#
+# Tareas del Asistente IA del propio usuario: se crean con comandos de Outbound que la guarda ya cierra al Tenant
+# solo Inbound, y el filtro por usuario y Tenant activo las acota a las suyas.
+AsistenteIa.Tareas.Queries :: ListarTareasAsistenteQueryHandler[AsistenteIa.Tareas.Queries.ListarTareasAsistenteQuery] = 1
+# Igual que ListarTareasAsistenteQuery, para una sola tarea del propio usuario.
+AsistenteIa.Tareas.Queries :: ObtenerTareaAsistenteQueryHandler[AsistenteIa.Tareas.Queries.ObtenerTareaAsistenteQuery] = 1
+# Solo la envia ObtenerCuadroDireccionQuery, y solo para un Tenant tras AlcanzaElTenantEnteroAsync, que al Tenant
+# solo Inbound dentro de una peticion de Outbound le dice que no (cartera Ninguno).
+Dashboard.Queries :: ObtenerCumplimientoExigidoTenantQueryHandler[Dashboard.Queries.ObtenerCumplimientoExigidoTenantQuery] = 1
+# Plano de Operacion, no de Outbound del Tenant: las vigencias de las Asignaciones de Operacion externas en las que el
+# Tenant de origen es el Operador CAE (filas suyas, leidas con AmbitoTenantExplicito en su Tenant), tras
+# AutorizacionCuadroDireccion. Si un Tenant solo Inbound puede ser Operador CAE externo esta sin decidir: hueco
+# declarado en la PR #2379, no se cierra aqui.
+Dashboard.Queries :: ObtenerEmpresasGestionadasDelMesQueryHandler[Dashboard.Queries.ObtenerEmpresasGestionadasDelMesQuery] = 1
+# Preferencia de presentacion del propio usuario (que tarjetas ve): no son datos de Outbound.
+Dashboard.Queries :: ObtenerPreferenciaDashboardQueryHandler[Dashboard.Queries.ObtenerPreferenciaDashboardQuery] = 1
+# Catalogo global de proveedores de plataforma CAE (ProveedorPlataformaCae no es una entidad con Tenant).
+Integraciones.Queries.ObtenerProveedoresPlataformaCae :: ObtenerProveedoresPlataformaCaeQueryHandler[Integraciones.Queries.ObtenerProveedoresPlataformaCae.ObtenerProveedoresPlataformaCaeQuery] = 1
+# Avisos de revision normativa: catalogo global (AvisoRevisionNormativa no es una entidad con Tenant), sin datos de
+# Empresas, Centros ni Trabajadores.
+VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa :: ObtenerAvisosRevisionNormativaQueryHandler[VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa.ObtenerAvisosRevisionNormativaQuery] = 1

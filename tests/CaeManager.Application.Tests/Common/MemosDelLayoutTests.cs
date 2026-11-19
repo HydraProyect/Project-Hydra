@@ -413,6 +413,8 @@ public class MemosDelLayoutTests
         typeof(MemoParticipaEnIncorporacionCartera),
         typeof(MemoAvatarPropio),
         typeof(MemoAdministradorPlataforma),
+        // No es un MemoPorContexto, pero memoiza «¿es solo Inbound?» y se descarta igual (BAJA 4 de la PR #2379).
+        typeof(CaeManager.Application.Common.CriterioDeOutbound),
     ];
 
     /// <summary>

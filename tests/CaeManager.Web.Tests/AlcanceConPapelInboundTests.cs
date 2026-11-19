@@ -190,6 +190,47 @@ public class AlcanceConPapelInboundTests
         (await alcance.TieneAccesoTotalAsync()).Should().BeTrue("fuera de una petición de Outbound el Núcleo no cambia");
     }
 
+    /// <summary>
+    /// Hallazgo de la segunda opinión sobre la PR #2379: el badge de Visitas de <c>/centros</c> (página del Núcleo) usa
+    /// <c>ObtenerProximaVisitaPorCentroQuery</c>, que es de Outbound. Con el alcance real dentro de la petición de Outbound,
+    /// al Tenant de origen solo Inbound no le llega ningún Centro y el handler responde vacío sin leer Visitas; al Tenant de
+    /// origen con Outbound el alcance no restringe (y el handler lee todas, ver <c>ObtenerProximaVisitaPorCentroAlcanceTests</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Al_Tenant_de_origen_solo_Inbound_el_badge_de_Visitas_no_le_da_ningun_Centro(bool soloInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("Administrador", PapelActivo.TenantDeOrigen), Criterio(soloInbound));
+        var handler = new CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro
+            .ObtenerProximaVisitaPorCentroQueryHandler(new VisitasQueNoSeLeen(), alcance);
+
+        using (AmbitoPeticionOutbound.Fijar(true))
+        {
+            var centros = await alcance.ObtenerCentroIdsVisiblesAsync();
+            if (soloInbound)
+            {
+                centros.Should().BeEmpty();
+                (await handler.Handle(new([Guid.NewGuid()]), CancellationToken.None)).Should().BeEmpty(
+                    "sin ningún Centro visible el handler no llega a leer Visitas");
+            }
+            else
+            {
+                centros.Should().BeNull("el Tenant de origen con Outbound conserva su alcance sin restricción");
+            }
+        }
+    }
+
+    /// <summary>Unas Visitas que no se pueden leer: si el handler llegara a consultarlas, el test falla.</summary>
+    private sealed class VisitasQueNoSeLeen : CaeManager.Application.Visitas.IVisitasQueryContext
+    {
+        public IQueryable<CaeManager.Domain.Visitas.Visita> Visitas =>
+            throw new InvalidOperationException("el handler no debía leer Visitas");
+        public IQueryable<CaeManager.Domain.Visitas.VisitaTrabajador> VisitasTrabajadores =>
+            throw new InvalidOperationException("el handler no debía leer VisitasTrabajadores");
+    }
+
     private static CriterioDeOutbound Criterio(bool soloInbound) => new(new ServiceCollection()
         .AddSingleton<ITenantActual>(new TenantActualAmbiental { TenantId = TenantTce })
         .AddSingleton<CaeManager.Application.Comercial.LineaOutbound.ITenantSoloInbound>(new SoloInboundFijo(soloInbound))

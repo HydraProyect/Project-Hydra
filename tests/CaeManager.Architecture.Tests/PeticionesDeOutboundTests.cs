@@ -121,10 +121,11 @@ public class PeticionesDeOutboundTests
             "las páginas de Outbound: presentación pendiente de decisión (rama inbound/solo-inbound-presentacion); los " +
             "endpoints mínimos del mismo handler ya preguntan a ICriterioDeOutbound",
         ["CaeManager.Web/Features/AsistenteIa/AsistenteIa.razor.cs"] =
-            "presentación pendiente de decisión: lo que el asistente ejecuta es de Outbound y lo cierran la guarda y el alcance",
+            "presentación pendiente de decisión: lo que el asistente ejecuta es de Outbound; la guarda cierra sus comandos y " +
+            "el alcance las queries que lo consultan (las que no, en Queries-de-Outbound-sin-alcance.txt)",
         ["CaeManager.Web/Features/Configuracion/Pages/Configuracion.razor.cs"] =
-            "presentación pendiente de decisión: los paneles de Outbound del hub ejecutan peticiones de Outbound, que cierran " +
-            "la guarda y el alcance",
+            "presentación pendiente de decisión: los paneles de Outbound del hub ejecutan peticiones de Outbound; la guarda " +
+            "cierra sus comandos y el alcance las queries que lo consultan (las que no, en Queries-de-Outbound-sin-alcance.txt)",
     };
 
     [Fact]

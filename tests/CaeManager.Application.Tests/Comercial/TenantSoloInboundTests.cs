@@ -145,9 +145,90 @@ public class TenantSoloInboundTests
         (await Criterio(null).AdmiteOutboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue();
     }
 
+    /// <summary>
+    /// BAJA 4 de la revisión de Outbound: la respuesta se memoiza por Tenant pedido y Tenant activo con la misma vida que el
+    /// alcance (caducidad y descarte en cada Command), en vez de leer ProductosContratados en cada comando y en cada
+    /// petición de Comunicaciones.
+    /// </summary>
+    private (CriterioDeOutbound Criterio, RelojFijo Reloj, TenantMutable Activo) CriterioMemoizado(
+        TimeSpan? caducidad, Action? alLeer = null)
+    {
+        var reloj = new RelojFijo(Ahora);
+        var activo = new TenantMutable { TenantId = Tenant };
+        var criterio = new CriterioDeOutbound(new ServiceCollection()
+            .AddSingleton<ITenantActual>(activo)
+            .AddSingleton<TimeProvider>(reloj)
+            .AddSingleton<ITenantSoloInbound>(new TenantSoloInboundService(
+                new ContextoFalso(_filas, () => { _lecturas++; alLeer?.Invoke(); }), reloj))
+            .BuildServiceProvider(), caducidad);
+        return (criterio, reloj, activo);
+    }
+
+    [Fact]
+    public async Task La_respuesta_se_memoiza_hasta_la_caducidad_o_el_descarte()
+    {
+        Contratar(LineaProductoContratado.Inbound);
+        var (criterio, reloj, activo) = CriterioMemoizado(TimeSpan.FromSeconds(30));
+
+        (await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue();
+        var outbound = Contratar(LineaProductoContratado.OutboundGestionPropia);
+        (await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue("dentro de la caducidad sirve lo memoizado");
+        _lecturas.Should().Be(1);
+
+        reloj.Avanzar(TimeSpan.FromSeconds(31));
+        (await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeFalse("caducada, vuelve a leer");
+        _lecturas.Should().Be(2);
+
+        _filas.Remove(outbound);
+        criterio.Invalidar();
+        (await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue("un Command descarta lo memoizado");
+        _lecturas.Should().Be(3);
+
+        activo.TenantId = Guid.NewGuid();
+        (await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeFalse(
+            "con otro Tenant activo es otra clave: no hereda lo de Tenant");
+        _lecturas.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task Una_lectura_que_empezo_antes_de_un_descarte_no_se_guarda()
+    {
+        Contratar(LineaProductoContratado.Inbound);
+        CriterioDeOutbound? criterio = null;
+        criterio = CriterioMemoizado(null, () => { if (_lecturas == 1) criterio!.Invalidar(); }).Criterio;
+
+        await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen);
+        await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen);
+
+        _lecturas.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData(3600, 60)]
+    [InlineData(0, 1)]
+    public async Task La_caducidad_se_acota_al_rango_del_alcance(int segundosPedidos, int segundosEfectivos)
+    {
+        Contratar(LineaProductoContratado.Inbound);
+        var (criterio, reloj, _) = CriterioMemoizado(TimeSpan.FromSeconds(segundosPedidos));
+
+        await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen);
+        reloj.Avanzar(TimeSpan.FromSeconds(segundosEfectivos) - TimeSpan.FromMilliseconds(1));
+        await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen);
+        _lecturas.Should().Be(1);
+
+        reloj.Avanzar(TimeSpan.FromMilliseconds(1));
+        await criterio.CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen);
+        _lecturas.Should().Be(2);
+    }
+
     private sealed class TenantFijo(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId { get; } = tenantId;
+    }
+
+    private sealed class TenantMutable : ITenantActual
+    {
+        public Guid? TenantId { get; set; }
     }
 
     private sealed class ContextoFalso(List<ProductoContratado> filas, Action alLeer) : ILineaOutboundQueryContext
@@ -164,6 +245,11 @@ public class TenantSoloInboundTests
 
     private sealed class RelojFijo(DateTime ahora) : TimeProvider
     {
+        private long _marca = 1_000;
+
         public override DateTimeOffset GetUtcNow() => new(ahora);
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _marca;
+        public void Avanzar(TimeSpan tiempo) => _marca += tiempo.Ticks;
     }
 }

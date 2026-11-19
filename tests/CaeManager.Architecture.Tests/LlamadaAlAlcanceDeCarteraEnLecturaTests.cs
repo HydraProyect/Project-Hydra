@@ -79,7 +79,7 @@ namespace CaeManager.Architecture.Tests;
 /// <see cref="GrafoDeLlamadasIl"/>, que comparte la red de escritura, y no se ha hecho en este incremento.
 /// </para>
 /// </summary>
-public class LlamadaAlAlcanceDeCarteraEnLecturaTests
+public partial class LlamadaAlAlcanceDeCarteraEnLecturaTests
 {
     private const string NombreDeLista = "Queries-sin-comprobacion-de-cartera";
 
