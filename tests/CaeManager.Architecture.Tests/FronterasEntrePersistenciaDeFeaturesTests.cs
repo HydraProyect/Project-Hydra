@@ -386,8 +386,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ISubcontratasQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ITiposDocumentoQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ITrabajadoresQueryContext"),
+        // La búsqueda de la bandeja encuentra por el nombre del Centro ligado a la conversación: lee Centros, las
+        // Gestiones nacidas de un mensaje del hilo y las Visitas creadas desde él, siempre como semi-join dentro de la
+        // misma consulta y sumado con AND a la regla de visibilidad (que no cambia).
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IClientesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "IGestionesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IIntegracionesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "IVisitasQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IDocumentosQueryContext"),
