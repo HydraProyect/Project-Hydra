@@ -14,7 +14,9 @@ namespace CaeManager.Application.Common;
 /// (<see cref="ICriterioDeOutbound"/>), y <see cref="AmbitoInboundBehavior{TRequest,TResponse}"/>, que fija
 /// <see cref="AmbitoPeticionOutbound"/> para que <c>AlcanceDatosService</c> no dé alcance de Outbound a esas peticiones.
 /// Los comandos del Núcleo y de Facturación no entran: un Tenant solo Inbound sigue administrando sus usuarios, sus
-/// Empresas o su configuración. Comunicaciones, aunque es de Outbound, tampoco se le cierra (D6 del 2026-11-19).
+/// Empresas o su configuración. Comunicaciones, aunque es de Outbound, no se le cierra entera: se le abre acotada a los
+/// hilos con sus Empresas contratistas (D6=a del 2026-11-19; <see cref="AcotadaAlSoloInbound"/> y
+/// <see cref="AmbitoComunicacionesSoloInbound"/>).
 /// </para>
 /// </summary>
 public static class PeticionDeOutbound
@@ -81,33 +83,118 @@ public static class PeticionDeOutbound
     }
 
     /// <summary>
-    /// Áreas de Outbound que siguen abiertas a un Tenant solo Inbound. Comunicaciones: un Tenant TCE con solo Inbound
-    /// conserva los hilos con sus Empresas contratistas (decisión de Chris del 2026-11-19, D6), así que la guarda no la
-    /// cierra entera. El registro de módulos la sigue asignando a Outbound; <see cref="Es"/> no cambia.
+    /// Áreas de Outbound que siguen abiertas, acotadas, a un Tenant solo Inbound. Comunicaciones: un Tenant TCE con solo
+    /// Inbound conserva los hilos con sus Empresas contratistas (decisión de Chris del 2026-11-19, D6, opción a: «abrir un
+    /// subconjunto»), así que la guarda no la cierra entera. El subconjunto lo acotan
+    /// <see cref="CerradasDentroDeLasAreasAbiertas"/> (las peticiones que tocan Clientes empresariales, Centros de Cliente,
+    /// Visitas, Gestiones o Incidencias, cerradas enteras) y <see cref="AmbitoComunicacionesSoloInbound"/> (el resto solo
+    /// alcanza los hilos anclados a una Empresa). El registro de módulos la sigue asignando a Outbound; <see cref="Es"/> no
+    /// cambia.
     /// </summary>
     private static readonly HashSet<string> AreasAbiertasAlSoloInbound = new(StringComparer.Ordinal) { "Comunicaciones" };
 
     /// <summary>
+    /// Peticiones (tipo o subnamespace) de las áreas abiertas que siguen cerradas al Tenant solo Inbound, porque su objeto
+    /// es de Outbound aunque vivan en Comunicaciones: una Incidencia (resolver o deshacer la derivación de una alerta
+    /// crítica), una Visita (sugerencias de visita del correo), una Gestión (sugerencias de gestión), un Cliente empresarial
+    /// (anclar un hilo a un Cliente) o un Centro de Cliente (pedir prioridad de validación, sus formatos requeridos).
+    /// </summary>
+    private static readonly string[] CerradasDentroDeLasAreasAbiertas =
+    [
+        "Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand",
+        "Comunicaciones.AlertasCriticas.DeshacerDerivacionAlertaCriticaCommand",
+        "Comunicaciones.Commands.AsignarClienteConversacion",
+        "Comunicaciones.Commands.DescartarSugerenciaGestion",
+        "Comunicaciones.Commands.DescartarSugerenciaVisita",
+        "Comunicaciones.Commands.PedirPrioridadValidacion",
+        "Comunicaciones.Queries.ObtenerBorradorPedirPrioridad",
+        "Comunicaciones.Queries.ObtenerFormatosRequeridosCentro",
+        "Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo",
+        "Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes",
+    ];
+
+    /// <summary>
     /// Si <paramref name="tipoPeticion"/> se cierra a un Tenant solo Inbound con el papel de Tenant de origen: una petición
-    /// de Outbound (<see cref="Es"/>) fuera de <see cref="AreasAbiertasAlSoloInbound"/>. Lo usan la guarda de comandos y el
-    /// ámbito de petición de Outbound que lee el alcance.
+    /// de Outbound (<see cref="Es"/>) fuera de <see cref="AreasAbiertasAlSoloInbound"/>, o dentro de ellas y en
+    /// <see cref="CerradasDentroDeLasAreasAbiertas"/>. Lo usan la guarda de comandos y el ámbito de petición de Outbound que
+    /// lee el alcance.
     /// </summary>
     public static bool CerradaAlSoloInbound(Type tipoPeticion)
     {
         if (!Es(tipoPeticion))
             return false;
 
+        var relativo = Relativo(tipoPeticion);
+        var punto = relativo.IndexOf('.');
+        if (!(punto > 0 && AreasAbiertasAlSoloInbound.Contains(relativo[..punto])))
+            return true;
+        return CerradasDentroDeLasAreasAbiertas.Any(clave => Casa(relativo, clave));
+    }
+
+    /// <summary>
+    /// Si <paramref name="tipoPeticion"/> es una petición de Outbound que queda abierta, acotada, al Tenant solo Inbound:
+    /// la guarda fija para ella <see cref="AmbitoComunicacionesSoloInbound"/>, que la limita a los hilos anclados a una
+    /// Empresa.
+    /// </summary>
+    public static bool AcotadaAlSoloInbound(Type tipoPeticion) => Es(tipoPeticion) && !CerradaAlSoloInbound(tipoPeticion);
+
+    private static string Relativo(Type tipoPeticion)
+    {
         var raiz = tipoPeticion;
         while (raiz.DeclaringType is { } contenedor)
             raiz = contenedor;
-
-        var relativo = raiz.FullName![Raiz.Length..];
-        var punto = relativo.IndexOf('.');
-        return !(punto > 0 && AreasAbiertasAlSoloInbound.Contains(relativo[..punto]));
+        return raiz.FullName![Raiz.Length..];
     }
 
     private static bool Casa(string relativo, string clave) =>
         relativo == clave || relativo.StartsWith(clave + ".", StringComparison.Ordinal);
+}
+
+/// <summary>
+/// El subconjunto de Comunicaciones que conserva un Tenant solo Inbound con el papel de Tenant de origen (D6=a del
+/// 2026-11-19, «hilos con sus Empresas contratistas»). Lo fija <see cref="GuardaPorServicioBehavior{TRequest,TResponse}"/>
+/// alrededor de cada petición acotada (<see cref="PeticionDeOutbound.AcotadaAlSoloInbound"/>) cuando
+/// <see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/> lo dice; no lo decide el cliente. Mientras está activo:
+/// <list type="bullet">
+/// <item><see cref="VisibilidadConversacion"/> solo deja pasar los hilos anclados a una Empresa (sin Cliente empresarial):
+/// fuera los anclados a un Cliente y los que no tienen ancla (triaje y buzón personal);</item>
+/// <item>los Clientes empresariales y los Centros no son visibles (<see cref="AlcanceDatosServiceExtensions"/>): macros
+/// de un Cliente, mensajes nuevos a un Cliente, Centros de una Visita o de una intención;</item>
+/// <item>el detalle del hilo no proyecta Visitas ni sus Centros.</item>
+/// </list>
+/// Solo estrecha, nunca abre: no toca RLS ni <c>AlcanceDatosService</c>. Una petición anidada que no es acotada hereda el
+/// marco (también estrecha); una acotada fija el suyo. Mismo patrón de marco que <see cref="AmbitoPeticionInbound"/>.
+/// </summary>
+public static class AmbitoComunicacionesSoloInbound
+{
+    private static readonly AsyncLocal<Marco?> Actual = new();
+
+    /// <summary>Si el flujo actual está dentro de una petición acotada al subconjunto de D6, todavía en curso.</summary>
+    public static bool Activo => Actual.Value is { Acotada: true, Vigente: true };
+
+    /// <summary>Fija el marco de una petición acotada: activo si se acota, inactivo si no. Al liberar restaura el anterior.</summary>
+    public static IDisposable Fijar(bool acotada)
+    {
+        var anterior = Actual.Value;
+        var marco = new Marco(acotada);
+        Actual.Value = marco;
+        return new Cierre(marco, anterior);
+    }
+
+    private sealed class Marco(bool acotada)
+    {
+        public bool Acotada { get; } = acotada;
+        public bool Vigente { get; set; } = true;
+    }
+
+    private sealed class Cierre(Marco marco, Marco? anterior) : IDisposable
+    {
+        public void Dispose()
+        {
+            marco.Vigente = false;
+            Actual.Value = anterior;
+        }
+    }
 }
 
 /// <summary>

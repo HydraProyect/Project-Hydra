@@ -22,6 +22,9 @@ namespace CaeManager.Application.Common;
 /// (<see cref="ICriterioDeOutbound.CierraPorSoloInboundAsync"/>; decisión del 2026-11-18, «Inbound sin Outbound»), un
 /// comando del módulo Outbound (<see cref="PeticionDeOutbound"/>) no pasa salvo que sea de autoservicio. Los del Núcleo,
 /// de Facturación y de Inbound siguen pasando: ese Tenant administra sus usuarios y opera Inbound.</item>
+/// <item>En ese mismo caso, las peticiones (comandos y consultas) de Comunicaciones que no se cierran
+/// (<see cref="PeticionDeOutbound.AcotadaAlSoloInbound"/>, D6=a del 2026-11-19) corren con
+/// <see cref="AmbitoComunicacionesSoloInbound"/> activo: solo alcanzan los hilos anclados a una Empresa.</item>
 /// </list>
 ///
 /// <para>
@@ -37,12 +40,15 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(
     where TRequest : notnull
 {
     private static readonly bool EsDeOutbound = PeticionDeOutbound.CerradaAlSoloInbound(typeof(TRequest));
+    private static readonly bool EsAcotada = PeticionDeOutbound.AcotadaAlSoloInbound(typeof(TRequest));
 
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
         if (request is not ICommandBase)
-            return await next(cancellationToken);
+            return EsAcotada
+                ? await SiguienteAcotadaAsync(await currentUserService.ObtenerPapelActivoAsync(), next, cancellationToken)
+                : await next(cancellationToken);
 
         var papel = await currentUserService.ObtenerPapelActivoAsync();
 
@@ -77,6 +83,18 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(
                 "Autorizacion.ComandoDeOutboundSinLineaOutbound",
                 "Tu organización tiene contratado Inbound y no Outbound: esta acción es de Outbound."));
 
-        return await next(cancellationToken);
+        return EsAcotada ? await SiguienteAcotadaAsync(papel, next, cancellationToken) : await next(cancellationToken);
+    }
+
+    /// <summary>
+    /// Una petición de Outbound abierta, acotada, al Tenant solo Inbound (<see cref="PeticionDeOutbound.AcotadaAlSoloInbound"/>,
+    /// D6=a): corre con <see cref="AmbitoComunicacionesSoloInbound"/> activo si el criterio cierra Outbound a este papel, y
+    /// con él inactivo si no, también para no heredar el de una petición que la envía.
+    /// </summary>
+    private async Task<TResponse> SiguienteAcotadaAsync(
+        PapelActivo papel, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    {
+        using (AmbitoComunicacionesSoloInbound.Fijar(await criterioDeOutbound.CierraPorSoloInboundAsync(papel, cancellationToken)))
+            return await next(cancellationToken);
     }
 }

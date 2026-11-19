@@ -31,15 +31,13 @@ public class AmbitoInboundBehaviorTests
     }
 
     /// <summary>
-    /// «Inbound sin Outbound» (decisión del 2026-11-18): el mismo behavior abre <see cref="AmbitoPeticionOutbound"/> solo
-    /// alrededor de una petición del módulo Outbound (<see cref="PeticionDeOutbound"/>), y una del Núcleo anidada no lo
-    /// hereda. Es lo que lee <c>AlcanceDatosService</c> para no dar alcance de Outbound al Tenant solo Inbound.
+    /// D6=a del 2026-11-19: Comunicaciones sigue abierta, acotada, al Tenant solo Inbound, así que el alcance de Outbound
+    /// no se le cierra dentro de una petición acotada de Comunicaciones; el subconjunto lo acota
+    /// <see cref="AmbitoComunicacionesSoloInbound"/>, que fija la guarda.
     /// </summary>
     [Fact]
     public async Task Una_peticion_de_Comunicaciones_no_abre_el_ambito_de_Outbound()
     {
-        // D6 del 2026-11-19: Comunicaciones sigue abierta al Tenant solo Inbound, así que el alcance de Outbound no se le
-        // cierra dentro de una petición de Comunicaciones.
         bool? dentro = null;
         await new AmbitoInboundBehavior<CaeManager.Application.Comunicaciones.AlertasCriticas.ObtenerAlertaCriticaQuery,
             CaeManager.Application.Comunicaciones.AlertasCriticas.AlertaCriticaDto?>().Handle(
@@ -54,6 +52,11 @@ public class AmbitoInboundBehaviorTests
         dentro.Should().BeFalse();
     }
 
+    /// <summary>
+    /// «Inbound sin Outbound» (decisión del 2026-11-18): el mismo behavior abre <see cref="AmbitoPeticionOutbound"/> solo
+    /// alrededor de una petición del módulo Outbound (<see cref="PeticionDeOutbound"/>), y una del Núcleo anidada no lo
+    /// hereda. Es lo que lee <c>AlcanceDatosService</c> para no dar alcance de Outbound al Tenant solo Inbound.
+    /// </summary>
     [Fact]
     public async Task Abre_el_ambito_de_Outbound_solo_en_una_peticion_de_Outbound_y_una_del_Nucleo_anidada_no_lo_hereda()
     {

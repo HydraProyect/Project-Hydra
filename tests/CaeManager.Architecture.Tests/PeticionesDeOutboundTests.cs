@@ -53,6 +53,63 @@ public class PeticionesDeOutboundTests
             "copia ahí la línea del registro que la hace divergir");
     }
 
+    /// <summary>
+    /// Las peticiones de Comunicaciones que siguen cerradas al Tenant solo Inbound (D6=a del 2026-11-19): su objeto es una
+    /// Incidencia, una Visita, una Gestión, un Cliente empresarial o un Centro de Cliente. Retirar una de aquí, o de
+    /// <c>PeticionDeOutbound</c>, es abrirla y da rojo.
+    /// </summary>
+    private static readonly string[] ComunicacionesCerradas =
+    [
+        "CaeManager.Application.Comunicaciones.AlertasCriticas.DeshacerDerivacionAlertaCriticaCommand",
+        "CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand",
+        "CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion.AsignarClienteConversacionCommand",
+        "CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaGestion.DescartarSugerenciaGestionCorreoCommand",
+        "CaeManager.Application.Comunicaciones.Commands.DescartarSugerenciaVisita.DescartarSugerenciaVisitaCorreoCommand",
+        "CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion.PedirPrioridadValidacionCommand",
+        "CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad.ObtenerBorradorPedirPrioridadQuery",
+        "CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro.ObtenerFormatosRequeridosCentroQuery",
+        "CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo.ObtenerSugerenciaVisitaCorreoQuery",
+        "CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes.ObtenerSugerenciasVisitaCorreoPendientesQuery",
+    ];
+
+    /// <summary>
+    /// Hallazgo 6 del revisor-puente (ronda 2): sobre todo el inventario de peticiones, lo que queda abierto al Tenant solo
+    /// Inbound con el papel de Tenant de origen es exactamente Comunicaciones menos <see cref="ComunicacionesCerradas"/>, y
+    /// todo lo abierto de Outbound corre acotado (<see cref="PeticionDeOutbound.AcotadaAlSoloInbound"/>). Abrir otra área
+    /// (por ejemplo, Visitas) o una petición de Comunicaciones cerrada da rojo aquí, no solo en los tests cuyos tipos de
+    /// prueba caigan en esa área.
+    /// </summary>
+    [Fact]
+    public void Lo_abierto_al_Tenant_solo_Inbound_es_solo_Comunicaciones_menos_sus_peticiones_de_Outbound()
+    {
+        static bool EsDeComunicaciones(Type t)
+        {
+            var raiz = t;
+            while (raiz.DeclaringType is { } contenedor)
+                raiz = contenedor;
+            return raiz.FullName!.StartsWith("CaeManager.Application.Comunicaciones.", StringComparison.Ordinal);
+        }
+
+        var divergentes = Peticiones.Value
+            .Where(t =>
+            {
+                var cerradaEsperada = PeticionDeOutbound.Es(t)
+                    && (!EsDeComunicaciones(t) || ComunicacionesCerradas.Contains(t.FullName, StringComparer.Ordinal));
+                var acotadaEsperada = PeticionDeOutbound.Es(t) && !cerradaEsperada;
+                return PeticionDeOutbound.CerradaAlSoloInbound(t) != cerradaEsperada
+                       || PeticionDeOutbound.AcotadaAlSoloInbound(t) != acotadaEsperada;
+            })
+            .Select(t => $"{t.FullName}: cerrada={PeticionDeOutbound.CerradaAlSoloInbound(t)}, acotada={PeticionDeOutbound.AcotadaAlSoloInbound(t)}")
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        divergentes.Should().BeEmpty("D6=a abre al Tenant solo Inbound un subconjunto de Comunicaciones y nada más");
+        ComunicacionesCerradas.Where(n => Peticiones.Value.All(t => t.FullName != n)).Should().BeEmpty(
+            "control del instrumento: cada petición cerrada de la lista existe en el ensamblado");
+        Peticiones.Value.Count(PeticionDeOutbound.AcotadaAlSoloInbound).Should().BeGreaterThan(30,
+            "control del instrumento: el inventario ve las peticiones abiertas de Comunicaciones");
+    }
+
     /// <summary>Ficheros de <c>src</c> que pueden llamar al criterio de papel puro, con su motivo.</summary>
     private static readonly Dictionary<string, string> PuertasConocidas = new(StringComparer.Ordinal)
     {

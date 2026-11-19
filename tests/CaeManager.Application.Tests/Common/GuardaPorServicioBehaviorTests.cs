@@ -5,6 +5,8 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using ComandoDeComunicaciones = CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion.CambiarEstadoConversacionCommand;
+using ConsultaDeComunicaciones = CaeManager.Application.Comunicaciones.Queries.ObtenerIntencionConversacion.ObtenerIntencionConversacionQuery;
 
 namespace CaeManager.Application.Tests.Common;
 
@@ -20,6 +22,10 @@ public class GuardaPorServicioBehaviorTests
     private sealed record ComandoSinServicio : ICommand;
     private sealed record ComandoDeAutoservicio : ICommand, IComandoDeAutoservicio;
     private sealed record Consulta : IRequest<Result>;
+    private sealed record ConversacionDetalle;
+
+    private static ComandoDeComunicaciones ComandoDeComunicacionesDePrueba() =>
+        new(Guid.NewGuid(), CaeManager.Domain.Comunicaciones.EstadoConversacion.Cerrada);
 
     /// <summary>Un usuario cualquiera; <paramref name="papel"/> nulo deja la implementación por defecto de la interfaz.</summary>
     private sealed class UsuarioConPapel(PapelActivo? papel) : ICurrentUserService
@@ -207,15 +213,94 @@ public class GuardaPorServicioBehaviorTests
     }
 
     [Fact]
-    public async Task Con_un_Tenant_solo_Inbound_pasan_los_comandos_de_Comunicaciones()
+    public async Task Con_un_Tenant_solo_Inbound_pasan_los_comandos_de_Comunicaciones_acotados_a_los_hilos_con_una_Empresa()
     {
-        // D6 del 2026-11-19: un Tenant TCE con solo Inbound conserva los hilos con sus Empresas contratistas.
-        var (respuesta, llegoAlHandler) = await Ejecutar(
-            new CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand(Guid.NewGuid(), Guid.NewGuid(), false),
-            PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true);
+        // D6=a del 2026-11-19: un Tenant TCE con solo Inbound conserva los hilos con sus Empresas contratistas, y solo esos.
+        bool? acotada = null;
+        var respuesta = await new GuardaPorServicioBehavior<ComandoDeComunicaciones, Result>(
+            new UsuarioConPapel(PapelActivo.TenantDeOrigen), Criterio(soloInbound: true)).Handle(
+            ComandoDeComunicacionesDePrueba(), _ =>
+            {
+                acotada = AmbitoComunicacionesSoloInbound.Activo;
+                return Task.FromResult(Result.Exito());
+            }, default);
 
-        llegoAlHandler.Should().BeTrue("Comunicaciones no se cierra al Tenant solo Inbound");
-        respuesta.EsExitoso.Should().BeTrue();
+        respuesta.EsExitoso.Should().BeTrue("Comunicaciones no se cierra entera al Tenant solo Inbound");
+        acotada.Should().BeTrue("el handler corre acotado a los hilos con una Empresa");
+        AmbitoComunicacionesSoloInbound.Activo.Should().BeFalse("el marco se cierra al terminar");
+    }
+
+    [Theory]
+    [InlineData(PapelActivo.TenantDeOrigen, true, true)]
+    [InlineData(PapelActivo.TenantDeOrigen, false, false)]
+    [InlineData(PapelActivo.Outbound, true, false)]
+    [InlineData(PapelActivo.SinPapel, true, false)]
+    [InlineData(PapelActivo.Inbound, true, false)]
+    public async Task Una_consulta_de_Comunicaciones_solo_se_acota_al_Tenant_solo_Inbound_con_el_papel_de_Tenant_de_origen(
+        PapelActivo papel, bool soloInbound, bool acotadaEsperada)
+    {
+        bool? acotada = null;
+        await new GuardaPorServicioBehavior<ConsultaDeComunicaciones, ConversacionDetalle?>(
+            new UsuarioConPapel(papel), Criterio(soloInbound)).Handle(
+            new ConsultaDeComunicaciones(Guid.NewGuid()), _ =>
+            {
+                acotada = AmbitoComunicacionesSoloInbound.Activo;
+                return Task.FromResult<ConversacionDetalle?>(null);
+            }, default);
+
+        acotada.Should().Be(acotadaEsperada);
+    }
+
+    [Fact]
+    public async Task Una_peticion_acotada_anidada_fija_su_propio_marco_y_una_del_Nucleo_lo_hereda()
+    {
+        bool? enLaDelNucleo = null, enLaAcotadaSinCierre = null, alVolver = null;
+        await new GuardaPorServicioBehavior<ConsultaDeComunicaciones, ConversacionDetalle?>(
+            new UsuarioConPapel(PapelActivo.TenantDeOrigen), Criterio(soloInbound: true)).Handle(
+            new ConsultaDeComunicaciones(Guid.NewGuid()), async _ =>
+            {
+                await new GuardaPorServicioBehavior<Consulta, Result>(
+                    new UsuarioConPapel(PapelActivo.TenantDeOrigen), Criterio(soloInbound: true)).Handle(
+                    new Consulta(), _ => { enLaDelNucleo = AmbitoComunicacionesSoloInbound.Activo; return Task.FromResult(Result.Exito()); },
+                    default);
+                await new GuardaPorServicioBehavior<ConsultaDeComunicaciones, ConversacionDetalle?>(
+                    new UsuarioConPapel(PapelActivo.Outbound), Criterio(soloInbound: true)).Handle(
+                    new ConsultaDeComunicaciones(Guid.NewGuid()), _ =>
+                    {
+                        enLaAcotadaSinCierre = AmbitoComunicacionesSoloInbound.Activo;
+                        return Task.FromResult<ConversacionDetalle?>(null);
+                    }, default);
+                alVolver = AmbitoComunicacionesSoloInbound.Activo;
+                return null;
+            }, default);
+
+        enLaDelNucleo.Should().BeTrue("una petición no acotada hereda el marco, que solo estrecha");
+        enLaAcotadaSinCierre.Should().BeFalse("una petición acotada fija el suyo");
+        alVolver.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand))]
+    [InlineData(typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.DeshacerDerivacionAlertaCriticaCommand))]
+    public async Task Con_un_Tenant_solo_Inbound_se_niegan_los_comandos_de_alertas_criticas_que_tocan_una_Incidencia(Type tipo)
+    {
+        // Resolver con derivación ata una Incidencia y deshacer la derivación la elimina: Incidencias es de Outbound.
+        var comando = tipo == typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand)
+            ? (ICommand)new CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand(
+                Guid.NewGuid(), Guid.NewGuid(), true, Guid.NewGuid())
+            : new CaeManager.Application.Comunicaciones.AlertasCriticas.DeshacerDerivacionAlertaCriticaCommand(
+                Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+
+        var (respuesta, llego) = comando is CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand r
+            ? await Ejecutar(r, PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true)
+            : await Ejecutar((CaeManager.Application.Comunicaciones.AlertasCriticas.DeshacerDerivacionAlertaCriticaCommand)comando,
+                PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: true);
+
+        llego.Should().BeFalse();
+        respuesta.Error!.Codigo.Should().Be("Autorizacion.ComandoDeOutboundSinLineaOutbound");
+        (await Ejecutar(new CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand(
+            Guid.NewGuid(), Guid.NewGuid(), true, Guid.NewGuid()), PapelActivo.TenantDeOrigen, Result.Exito(), soloInbound: false))
+            .LlegoAlHandler.Should().BeTrue("control: sin el cierre por Producto Contratado, el comando pasa");
     }
 
     [Fact]
@@ -229,10 +314,16 @@ public class GuardaPorServicioBehaviorTests
         PeticionDeOutbound.Es(typeof(ComandoSinServicio)).Should().BeFalse();
         PeticionDeOutbound.CerradaAlSoloInbound(typeof(ComandoSinServicio)).Should().BeFalse();
 
-        // Comunicaciones sigue siendo de Outbound para el registro de módulos, pero no se cierra al Tenant solo Inbound:
-        // sin la primera línea, el caso de Comunicaciones pasaría también si el área dejara de ser de Outbound.
-        var comunicaciones = typeof(CaeManager.Application.Comunicaciones.AlertasCriticas.ResolverAlertaCriticaCommand);
-        PeticionDeOutbound.Es(comunicaciones).Should().BeTrue();
-        PeticionDeOutbound.CerradaAlSoloInbound(comunicaciones).Should().BeFalse();
+        // Comunicaciones sigue siendo de Outbound para el registro de módulos, pero no se cierra entera al Tenant solo
+        // Inbound: sin la primera línea, el caso de Comunicaciones pasaría también si el área dejara de ser de Outbound.
+        foreach (var comunicaciones in new[] { typeof(ComandoDeComunicaciones), typeof(ConsultaDeComunicaciones) })
+        {
+            PeticionDeOutbound.Es(comunicaciones).Should().BeTrue();
+            PeticionDeOutbound.CerradaAlSoloInbound(comunicaciones).Should().BeFalse();
+            PeticionDeOutbound.AcotadaAlSoloInbound(comunicaciones).Should().BeTrue();
+        }
+        PeticionDeOutbound.AcotadaAlSoloInbound(typeof(ComandoSinServicio)).Should().BeFalse();
+        PeticionDeOutbound.AcotadaAlSoloInbound(
+            typeof(CaeManager.Application.Subcontratas.PruebasDeGuarda.ComandoDeOutbound)).Should().BeFalse();
     }
 }

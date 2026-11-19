@@ -28,11 +28,14 @@ public static class AlcanceDatosServiceExtensions
     /// <summary>
     /// La cartera de Clientes empresariales visible (<c>null</c> = sin restricción), con su nombre canónico. Es la misma
     /// lista que <see cref="IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync"/>; los consumidores nuevos la piden por
-    /// aquí para no extender el identificador legacy (<c>ClienteIdNoSeExtiendeTests</c>).
+    /// aquí para no extender el identificador legacy (<c>ClienteIdNoSeExtiendeTests</c>). Dentro de una petición de
+    /// Comunicaciones acotada al Tenant solo Inbound (<see cref="AmbitoComunicacionesSoloInbound"/>, D6=a), vacía.
     /// </summary>
     public static Task<IReadOnlyList<Guid>?> ClientesEmpresarialesVisiblesAsync(
         this IAlcanceDatosService alcance, CancellationToken cancellationToken = default) =>
-        alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        AmbitoComunicacionesSoloInbound.Activo
+            ? Task.FromResult<IReadOnlyList<Guid>?>([])
+            : alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
     /// <summary>
     /// Alcance sobre una entidad no conversacional cuyo cliente es opcional:
@@ -60,6 +63,8 @@ public static class AlcanceDatosServiceExtensions
     public static async Task<bool> CentroVisibleAsync(
         this IAlcanceDatosService alcance, Guid centroId, CancellationToken cancellationToken = default)
     {
+        // D6=a: dentro de una petición de Comunicaciones acotada al Tenant solo Inbound, ningún Centro.
+        if (AmbitoComunicacionesSoloInbound.Activo) return false;
         var ids = await alcance.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         return ids is null || ids.Contains(centroId);
     }
@@ -68,6 +73,7 @@ public static class AlcanceDatosServiceExtensions
     public static async Task<bool> CentroParaGestionVisibleAsync(
         this IAlcanceDatosService alcance, Guid centroId, CancellationToken cancellationToken = default)
     {
+        if (AmbitoComunicacionesSoloInbound.Activo) return false;
         var ids = await alcance.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         return ids is null || ids.Contains(centroId);
     }

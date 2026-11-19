@@ -464,7 +464,11 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         if (eventosCrudos.Count == 0) return [];
 
-        var visitaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada).Select(e => e.ReferenciaId).ToList();
+        // D6=a: al Tenant solo Inbound no se le proyectan Visitas ni sus Centros, que son de Outbound; el evento queda con
+        // su texto genérico.
+        var visitaIds = AmbitoComunicacionesSoloInbound.Activo
+            ? []
+            : eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada).Select(e => e.ReferenciaId).ToList();
         var visitas = await visitasContext.Visitas
             .Where(v => visitaIds.Contains(v.Id))
             .Select(v => new VisitaResumenParaEvento(v.Id, v.CentroId, v.FechaInicio, v.FechaFin))
