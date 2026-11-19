@@ -15,7 +15,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Reglas de aviso — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design ra">
-    <CabeceraListado Grupo="Configuración" Titulo="Reglas de aviso" Contador="@(_datos is null ? null : _datos.Reglas.Count)">
+    <CabeceraListado Titulo="Reglas de aviso" Contador="@(_datos is null ? null : _datos.Reglas.Count)">
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_datos is null)" OnClick="Anadir">Añadir</Boton></SoloConEscritura>
         </Primaria>

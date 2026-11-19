@@ -10,7 +10,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"Centros — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="Inbound" Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _filas.Count)" />
+    <CabeceraListado Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _filas.Count)" />
     <p class="inbound-secundario" data-pieza="subtitulo-centros">Los Centros que reciben Empresas contratistas con un contrato de acceso.</p>
 
     @if (_cargando)

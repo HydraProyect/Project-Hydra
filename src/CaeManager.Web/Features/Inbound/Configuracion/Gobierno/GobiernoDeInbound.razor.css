@@ -1,55 +1,58 @@
 .gb { max-width: 1100px; }
-.gb-subtitulo { margin: 0 0 var(--space-2); font-size: 13px; color: var(--color-text-muted); }
-.gb-mut { font-size: 13px; color: var(--color-text-muted); }
+.gb-subtitulo { margin: 0 0 var(--space-2); font: var(--font-body-md); color: var(--color-text-muted); }
+.gb-mut { font: var(--font-body-md); color: var(--color-text-muted); }
 .gb-cifras { font-variant-numeric: tabular-nums; }
 
-.gb-sec { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; padding: 20px 24px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); }
+.gb-sec { display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-4); padding: var(--space-5) var(--space-6); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .gb-sec-off { background: var(--color-surface-subtle); }
-.gb-sec h2 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; }
-.gb-sec-tabla { padding: 20px 0 0; overflow: hidden; }
-.gb-sec-tabla h2 { padding: 0 24px; }
-.gb-sec-tabla .gb-vacio { margin: 0; padding: 16px 24px; color: var(--color-text-muted); }
+.gb-sec h2 { margin: 0; font: var(--font-heading-sm); }
+.gb-sec-tabla { padding: var(--space-5) 0 0; overflow: hidden; }
+.gb-sec-tabla h2 { padding: 0 var(--space-6); }
+.gb-sec-tabla .gb-vacio { margin: 0; padding: var(--space-4) var(--space-6); color: var(--color-text-muted); }
 .gb-tabla { width: 100%; table-layout: fixed; }
 .gb-tabla th:first-child { width: 140px; }
 .gb-tabla th:nth-child(2) { width: 200px; }
 .gb-tabla td, .gb-tabla th { vertical-align: top; }
 
-.gb-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.gb-top p { margin: 2px 0 0; font-size: 13px; line-height: 19px; color: var(--color-text-muted); }
+.gb-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.gb-top p { margin: 2px 0 0; font: var(--font-body-md); color: var(--color-text-muted); }
 
-.gb-sw { flex: none; position: relative; width: 44px; height: 24px; border-radius: 999px; border: 0; padding: 0; background: var(--color-border-strong); cursor: pointer; }
-.gb-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .15s; }
+/* Interruptor de ajuste (role="switch"). No hay un componente compartido de interruptor de ajuste: PastillaInterruptor es una pastilla de
+   filtro con aria-pressed, no un interruptor. Hasta que lo haya, mismo trazo que los interruptores de Configuración: pista con el borde de
+   control (3:1) y pomo con el token de superficie blanca. */
+.gb-sw { flex: none; position: relative; width: 44px; height: 24px; border-radius: var(--radius-full); border: 0; padding: 0; background: var(--color-border-control); cursor: pointer; }
+.gb-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--color-neutral-0); box-shadow: var(--shadow-tarjeta-lista); transition: left .15s; }
 .gb-sw[aria-checked="true"] { background: var(--color-primary-500); }
 .gb-sw[aria-checked="true"]::after { left: 22px; }
 .gb-sw:disabled { cursor: not-allowed; opacity: .55; }
-.gb-sw:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
+.gb-sw:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
 
-.gb-b { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; line-height: 18px; font-weight: 600; white-space: nowrap; vertical-align: middle; }
+.gb-b { display: inline-block; border-radius: var(--radius-full); padding: 1px var(--space-2); font: var(--font-body-sm); font-weight: 600; white-space: nowrap; vertical-align: middle; }
 .gb-b-ok { background: var(--color-success-50); color: var(--color-success-700); }
 .gb-b-info { background: var(--color-primary-50); color: var(--color-primary-700); }
 .gb-b-sin { background: var(--color-surface-subtle); color: var(--color-text-muted); border: 1px solid var(--color-border); }
 
-.gb-sub { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.gb-sub { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
 .gb-sub-apagado { opacity: .5; }
-.gb-sub h3 { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; }
-.gb-lista { display: flex; flex-direction: column; gap: 6px; }
-.gb-chk { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 20px; cursor: pointer; }
+.gb-sub h3 { margin: 0; font: var(--font-label-md); }
+.gb-lista { display: flex; flex-direction: column; gap: var(--space-2); }
+.gb-chk { display: flex; align-items: flex-start; gap: var(--space-2); font: var(--font-body-md); cursor: pointer; }
 .gb-chk input { margin: 3px 0 0; }
-.gb-chk small { display: block; font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+.gb-chk small { display: block; font: var(--font-body-sm); font-weight: 400; color: var(--color-text-muted); }
 .gb-buscador { align-self: flex-start; width: 360px; max-width: 100%; }
-.gb-buscador input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); font: inherit; background: var(--color-surface); color: var(--color-text); }
-.gb-ents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
-.gb-ent { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-.gb-ent-t { font-size: 13px; line-height: 18px; font-weight: 600; }
+.gb-buscador input { width: 100%; height: 36px; padding: 0 var(--space-3); border: 1px solid var(--color-border-control); border-radius: var(--radius-sm); font: inherit; background: var(--color-surface); color: var(--color-text); }
+.gb-ents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); align-items: start; }
+.gb-ent { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.gb-ent-t { font: var(--font-label-md); }
 .gb-ent-t .gb-mut { font-weight: 400; }
-.gb-cond { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 19px; }
-.gb-nota { margin: 0; padding: 10px 12px; border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font-size: 13px; line-height: 19px; }
+.gb-cond { display: flex; gap: var(--space-2); align-items: flex-start; font: var(--font-body-md); }
+.gb-nota { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
 .gb-nota-aviso { background: var(--color-warning-50); color: var(--color-warning-700); }
 
-.gb-dl { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
-.gb-dl dt { font-size: 13px; color: var(--color-text-muted); }
+.gb-dl { display: grid; grid-template-columns: 200px 1fr; gap: var(--space-2) var(--space-4); margin: 0; font: var(--font-body-md); }
+.gb-dl dt { font: var(--font-body-md); color: var(--color-text-muted); }
 .gb-dl dd { margin: 0; }
 
-.gb-barra { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); }
-.gb-estado { margin-right: auto; font-size: 13px; color: var(--color-text-muted); }
-.gb-error { font-size: 13px; color: var(--color-danger-700); }
+.gb-barra { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.gb-estado { margin-right: auto; font: var(--font-body-md); color: var(--color-text-muted); }
+.gb-error { font: var(--font-body-md); color: var(--color-danger-700); }

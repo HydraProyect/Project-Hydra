@@ -15,7 +15,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["RequisitosTitulo"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="@KickerPlantilla" Titulo="@Textos["RequisitosTitulo"]" Contador="@(_cargando || _plantilla is null ? null : Activos.Count)">
+    <CabeceraListado Titulo="@Textos["RequisitosTitulo"]" Contador="@(_cargando || _plantilla is null ? null : Activos.Count)">
         <Primaria>
             @if (_plantilla is not null)
             {
@@ -26,6 +26,11 @@
             }
         </Primaria>
     </CabeceraListado>
+    @* La cabecera ya no lleva antetítulo (Outbound no lo usa): la Plantilla a la que pertenecen los requisitos se sigue diciendo, ahora en la línea secundaria. *@
+    @if (_plantilla is not null)
+    {
+        <p class="inbound-secundario" data-pieza="contexto-plantilla">@KickerPlantilla</p>
+    }
     <p class="inbound-secundario"><a href="/inbound/plantillas">@Textos["VolverPlantillas"]</a></p>
     @if (_plantilla is { Activa: false })
     {
