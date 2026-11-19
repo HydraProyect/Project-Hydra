@@ -76,6 +76,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // El plazo de conservación de los Documentos (decisión del 2026-11-18) pasa por la misma autoridad.
+        ("Configuracion.FijarPlazoRetencionDocumentosCommandHandler", "ITenantsQueryContext"),
+        ("TiposDocumento.FijarPlazoRetencionTipoDocumentoCommandHandler", "ITenantsQueryContext"),
         // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
         // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
         // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
@@ -386,8 +389,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ISubcontratasQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ITiposDocumentoQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ITrabajadoresQueryContext"),
+        // La búsqueda de la bandeja encuentra por el nombre del Centro ligado a la conversación: lee Centros, las
+        // Gestiones nacidas de un mensaje del hilo y las Visitas creadas desde él, siempre como semi-join dentro de la
+        // misma consulta y sumado con AND a la regla de visibilidad (que no cambia).
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IClientesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "IGestionesQueryContext"),
         ("Comunicaciones.ObtenerConversacionesQueryHandler", "IIntegracionesQueryContext"),
+        ("Comunicaciones.ObtenerConversacionesQueryHandler", "IVisitasQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerConversacionPorIdQueryHandler", "IDocumentosQueryContext"),
@@ -812,6 +821,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // (Domain.Inbound.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
         // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
         // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
+        // Credencial de acceso físico (AF-02): el sujeto acreditable sale de las evidencias de los contratos de acceso que el actor
+        // ve (supuesto H5 del plan). Solo lectura de esos dos contextos; la credencial vive en su propia feature.
+        ("AccesoFisico.EmitirCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.EmitirCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
+        ("AccesoFisico.RegenerarCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.RegenerarCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
+        ("AccesoFisico.RevocarCredencialCommandHandler", "IContratosAccesoQueryContext"),
+        ("AccesoFisico.RevocarCredencialCommandHandler", "IEvidenciasInboundQueryContext"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "ITiposDocumentoQueryContext"),
         ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEmpresasQueryContext"),
@@ -992,6 +1009,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IToleranciaDocumentoClienteEmpresarialRepository"),
         ("TiposDocumento.ActualizarPerfilDocumentoOficialGlobalCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.ActualizarVerificacionIaGlobalCommandHandler", "ITipoDocumentoRepository"),
+        ("TiposDocumento.FijarPlazoRetencionTipoDocumentoCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ICentrosQueryContext"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ITipoDocumentoCentroRepository"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ITipoDocumentoRepository"),
@@ -1045,6 +1063,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Centro (o de una Subcontrata con Relación Empresarial vigente con ella) y visibles
         // (TrabajadoresAdmisiblesEnVisita): leen el Centro, los Trabajadores y las Relaciones.
         ("Visitas.CrearVisitaCommandHandler", "IEmpresasQueryContext"),
+        // Vista previa de «Crear visita» (decisión de Chris, 2026-11-19): las mismas lecturas que CrearVisita para el Centro y
+        // los Trabajadores admisibles; el plan lo calcula PlanAltaVisitaService.
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerPlanAltaVisitaQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ICentrosQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),

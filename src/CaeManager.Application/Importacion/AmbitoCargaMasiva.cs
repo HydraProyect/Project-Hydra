@@ -172,7 +172,7 @@ public sealed class AmbitoCargaMasiva
     /// </summary>
     public string? AvisoEmpresaCreadaFueraDeCartera(Guid id, string razonSocial) =>
         EsEmpresaCreadaFueraDelAmbito(id)
-            ? $"Empresa «{razonSocial}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla."
+            ? $"Empresa «{razonSocial}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe las empresas que tienes asignadas para verla."
             : null;
 
     /// <summary>
@@ -181,11 +181,11 @@ public sealed class AmbitoCargaMasiva
     /// motivo uniforme: la Empresa no es «algo de fuera» que ocultar, la creó quien carga.
     /// </summary>
     public static string MotivoEmpresaCreadaFueraDeCartera(string razonSocial) =>
-        $"La empresa «{razonSocial}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.";
+        $"La empresa «{razonSocial}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe las empresas que tienes asignadas para verla.";
 
     /// <summary>Motivo uniforme con el que se omite y se cuenta una fila fuera del ámbito; nunca nombra qué hay fuera.</summary>
     public static string Motivo(string quePide) =>
-        $"{quePide} queda fuera de tu ámbito (tu Asignación de Cartera): la fila no se ha escrito. Pídele la carga a quien tenga ese ámbito.";
+        $"{quePide} queda fuera de tu ámbito (las empresas que tienes asignadas): la fila no se ha escrito. Pídele la carga a quien tenga ese ámbito.";
 
     /// <summary>
     /// Motivo de una fila cuyo DNI está en la Papelera. La Papelera no tiene ámbito decidible (el eliminado no está en
@@ -259,5 +259,5 @@ public static class ErroresCargaMasiva
     /// </summary>
     public static readonly Error AmbitoCambiadoAlConfirmar = Error.Crear(
         "Importacion.AmbitoCambiadoAlConfirmar",
-        "Tu Asignación de Cartera ha cambiado mientras se confirmaba la carga y parte de lo que el archivo escribe ha quedado fuera de tu ámbito: no se ha escrito nada. Vuelve a cargar el archivo.");
+        "Las empresas que tienes asignadas han cambiado mientras se confirmaba la carga y parte de lo que el archivo escribe ha quedado fuera de tu ámbito: no se ha escrito nada. Vuelve a cargar el archivo.");
 }

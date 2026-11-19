@@ -58,6 +58,11 @@ public class RegistrarEvidenciaInboundCommandValidator : AbstractValidator<Regis
 /// <item>Lectura por <see cref="ILectorDocumentosInbound"/> <b>fuera de transacción</b>: el lector lo exige porque cada
 /// lectura deja su traza en el Tenant propietario, y un rollback la borraría. Este handler no abre ninguna; la única es la
 /// implícita de <c>SaveChangesAsync</c>, al final y después de leer.</item>
+/// <item>D-12.2: si el veredicto es Validar y hay impersonación, <see cref="EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible"/>
+/// antes de leer nada (<see cref="GuardaD12"/>).</item>
+/// <item>D-12: si el veredicto es Validar y la lectura marca la versión como subida por quien lee
+/// (<see cref="DocumentoInboundDto.SubidoPorQuienLee"/>), <see cref="EvidenciaInboundErrores.ValidaLoQueSubio"/> sin abrir
+/// ni copiar nada. Rechazar sigue permitido.</item>
 /// <item>Si la evidencia es de «solo conclusión de aptitud» (el tipo elegido o el del original lleva la marca): no se
 /// abre ni se copia ningún binario; se guardan la conclusión transcrita, el nombre y el documento de identidad del
 /// Trabajador. Un Documento de Empresa no la admite.</item>
@@ -80,7 +85,8 @@ public class RegistrarEvidenciaInboundCommandHandler(
     IUnitOfWork unitOfWork,
     TimeProvider reloj,
     IEvidenciasInboundQueryContext evidenciasContext,
-    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound)
+    ILogger<RegistrarEvidenciaInboundCommandHandler> logger, IAutorizacionInbound autorizacionInbound,
+    IActorAuditoria actorAuditoria)
     : IRequestHandler<RegistrarEvidenciaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RegistrarEvidenciaInboundCommand request, CancellationToken cancellationToken)
@@ -91,6 +97,10 @@ public class RegistrarEvidenciaInboundCommandHandler(
         if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
             || await currentUser.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        // D-12.2, antes de leer el otro Tenant: bajo impersonación no se valida (ver GuardaD12).
+        if (request.Rechazo is null && await GuardaD12.HayImpersonacionAsync(actorAuditoria))
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible);
 
         var contrato = await contratosContext.ContratosAcceso
             .Where(c => c.Id == request.ContratoAccesoId)
@@ -119,6 +129,12 @@ public class RegistrarEvidenciaInboundCommandHandler(
             .FirstOrDefault(d => d.DocumentoId == request.DocumentoOrigenId);
         if (original is null)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        // D-12: nadie valida la versión que subió él mismo, antes de abrir ni copiar nada. La marca la calcula la lectura
+        // en la base con los dos autores de la versión (D-12.2) y un autor nulo no la enciende (D-12.1). Rechazar no se
+        // bloquea: D-12 solo habla de Validar, y un rechazo no da por buena la documentación de nadie.
+        if (request.Rechazo is null && original.SubidoPorQuienLee)
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.ValidaLoQueSubio);
 
         var soloConclusion = tipo.SoloConclusionAptitud || original.SoloConclusionAptitud;
         if (soloConclusion != (request.Conclusion is not null))
@@ -261,6 +277,18 @@ public static class EvidenciaInboundErrores
 
     public static readonly Error OriginalSinArchivo = Error.Crear(
         "EvidenciaInbound.OriginalSinArchivo", "El Documento original no tiene un archivo disponible.");
+
+    public static readonly Error ValidaLoQueSubio = Error.Crear(
+        "EvidenciaInbound.ValidaLoQueSubio",
+        "Lo subiste tú: lo valida otra persona, otro Gestor CAE con este contrato en su cartera o el Administrador de esta organización.");
+
+    public static readonly Error ValidarBajoImpersonacionNoDisponible = Error.Crear(
+        "EvidenciaInbound.ValidarBajoImpersonacionNoDisponible",
+        "Mientras actúas en nombre de otro usuario no se puede validar. Rechazar sigue disponible.");
+
+    public static readonly Error OriginalNoVisibleParaRevalidar = Error.Crear(
+        "EvidenciaInbound.OriginalNoVisibleParaRevalidar",
+        "El Documento original ya no se puede leer (sustituido, revocado o fuera de la autorización): no se puede volver a validar esta evidencia.");
 
     public static readonly Error EstadoNoAdmite = Error.Crear(
         "EvidenciaInbound.EstadoNoAdmite", "La evidencia no está en un estado que admita este cambio.");

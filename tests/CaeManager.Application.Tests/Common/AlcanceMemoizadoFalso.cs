@@ -18,6 +18,9 @@ public sealed class AlcanceMemoizadoFalso(IAlcanceDatosService inicial) : IAlcan
     /// <summary>A partir de aquí la base ya no da cartera; la memoización, si la hay, sigue con la de antes.</summary>
     public void Revocar() => enLaBase = new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
 
+    /// <summary>Como <see cref="Revocar"/>, pero la base pasa a dar <paramref name="nuevo"/>: p. ej. la misma cartera sin un Trabajador.</summary>
+    public void Sustituir(IAlcanceDatosService nuevo) => enLaBase = nuevo;
+
     public void Invalidar()
     {
         Invalidaciones++;

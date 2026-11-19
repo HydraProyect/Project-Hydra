@@ -34,7 +34,7 @@
     <value>Perderá el acceso en cuanto confirmes: su sesión abierta se cierra. Podrás reactivarla después.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
-    <value>Su Asignación de Cartera interna, la de toda la operación de esta organización, no se toca: la sigue heredando su Coordinador CAE.</value>
+    <value>Su cartera interna, la de toda la operación de esta organización, no se toca: la sigue heredando su Coordinador CAE.</value>
   </data>
   <data name="DesactivarVolver" xml:space="preserve">
     <value>Volver</value>
@@ -103,7 +103,7 @@
     <value>{0}: {1}</value>
   </data>
   <data name="AlcanceCoordinadorCarteraPropia" xml:space="preserve">
-    <value>Por su propia Asignación de Cartera.</value>
+    <value>Por sus propias empresas asignadas.</value>
   </data>
   <data name="PrincipalJuntoAlRotulo" xml:space="preserve">
     <value>· {0}</value>
@@ -355,13 +355,13 @@
     <value>Erizo</value>
   </data>
   <data name="AlcanceGestorPorCartera" xml:space="preserve">
-    <value>Por sus Asignaciones de Cartera vigentes.</value>
+    <value>Por sus empresas asignadas vigentes.</value>
   </data>
   <data name="AlcanceCoordinadorPorOperacion" xml:space="preserve">
-    <value>Además entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.</value>
+    <value>Además entra, sin tenerlas asignadas, en las Empresas gestionadas que su organización opera enteras.</value>
   </data>
   <data name="AlcanceCoordinadorSoloPorOperacion" xml:space="preserve">
-    <value>Entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.</value>
+    <value>Entra, sin tenerlas asignadas, en las Empresas gestionadas que su organización opera enteras.</value>
   </data>
   <data name="AlcanceEmpresaGestionada" xml:space="preserve">
     <value>Empresa gestionada</value>

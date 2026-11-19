@@ -73,7 +73,7 @@
     <value>Falten {0} empreses que no abastes per complet</value>
   </data>
   <data name="AlcanceParcialAyuda" xml:space="preserve">
-    <value>No entren a les xifres perquè la teva Assignació de Cartera sobre elles és parcial.</value>
+    <value>No entren a les xifres perquè només en tens assignada una part.</value>
   </data>
   <data name="ExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
@@ -178,7 +178,7 @@
     <value>Fixar tarifa</value>
   </data>
   <data name="AvisoImportesOcultos" xml:space="preserve">
-    <value>Els imports i les tarifes els veuen Administrador del Tenant propietari i Direcció CAE.</value>
+    <value>Els imports i les tarifes els veuen Administrador de l'organització i Direcció CAE.</value>
   </data>
   <data name="Gestiones" xml:space="preserve">
     <value>Gestions</value>

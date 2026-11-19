@@ -1,44 +1,26 @@
-/* Tarjeta 31 (AltaTenantTCE.dc.html): mismas medidas que la maqueta (at-*). Los campos de la línea llevan su propio CamposLinea.razor.css. */
+/* Tarjeta 31 (AltaTenantTCE.dc.html). La cabecera es CabeceraPagina; los tokens, los de tokens.css. Los campos de la línea llevan su propio CamposLinea.razor.css. */
 .alta-tce {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--space-4);
 }
 
-.alta-tce-cab {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.alta-tce-cab .titulo-pagina {
-    margin: 0;
-}
-
-.alta-tce-kicker {
-    font: 600 12px/16px var(--font-family);
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-}
-
-.alta-tce-subtitulo,
 .alta-tce-mut {
     margin: 0;
-    font-size: 13px;
+    font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
 .alta-tce-aviso {
     display: flex;
-    gap: 10px;
+    gap: var(--space-3);
     align-items: flex-start;
-    padding: 10px 14px;
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-md);
     background: var(--color-warning-50);
     border: 1px solid var(--color-warning-700);
     color: var(--color-text);
-    font: 400 13px/19px var(--font-family);
+    font: var(--font-body-md);
 }
 
 .alta-tce-aviso strong {
@@ -57,106 +39,93 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
-    padding: 24px;
+    gap: var(--space-3);
+    padding: var(--space-6);
 }
 
 .alta-tce-bloqueo h2,
 .alta-tce-ok h2 {
     margin: 0;
-    font: 600 20px/26px var(--font-family);
+    font: var(--font-heading-sm);
 }
 
 .alta-tce-bloqueo p,
 .alta-tce-ok p {
     margin: 0;
-    font-size: 13px;
+    font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
 .alta-tce-pasos {
-    padding: 16px 24px 0;
+    padding: var(--space-4) var(--space-6) 0;
 }
 
 .alta-tce-cuerpo {
-    padding: 20px 24px;
+    padding: var(--space-5) var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-4);
 }
 
 .alta-tce-fila {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: var(--space-4);
 }
 
-.campo {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
+/* El contenedor .campo es el de base.css; aquí solo las dos piezas que no son <label> ni mensaje de error. */
 .campo-label {
-    font: 600 13px/18px var(--font-family);
+    font: var(--font-label-md);
     color: var(--color-text);
 }
 
-.campo-obligatorio {
-    margin-left: 2px;
-    color: var(--color-danger-700);
-}
-
 .campo-ayuda {
-    font: 400 12px/17px var(--font-family);
+    font: var(--font-body-sm);
+    font-weight: 400;
     color: var(--color-text-muted);
 }
 
 .alta-tce-solo-lectura {
     box-sizing: border-box;
-    min-height: 40px;
-    padding: 8px 12px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: 400 14px/20px var(--font-family);
-}
-
-.alta-tce-solo-lectura {
     display: flex;
     align-items: center;
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
     background: var(--color-surface-subtle);
+    color: var(--color-text);
+    font: var(--font-body-md);
 }
 
 .alta-tce-nota {
     margin: 0;
-    padding: 10px 14px;
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-md);
     background: var(--color-primary-50);
     color: var(--color-text);
-    font: 400 13px/19px var(--font-family);
+    font: var(--font-body-md);
 }
 
 .alta-tce-radios {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--space-2);
     margin: 0;
     padding: 0;
     border: 0;
 }
 
 .alta-tce-radios legend {
-    margin-bottom: 8px;
-    font: 600 13px/18px var(--font-family);
+    margin-bottom: var(--space-2);
+    font: var(--font-label-md);
 }
 
 .alta-tce-opc {
     display: flex;
-    gap: 10px;
+    gap: var(--space-3);
     align-items: flex-start;
-    padding: 10px 14px;
+    padding: var(--space-3) var(--space-4);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
 }
@@ -172,12 +141,14 @@
 
 .alta-tce-opc b {
     display: block;
-    font: 600 14px/20px var(--font-family);
+    font: var(--font-body-md);
+    font-weight: 600;
 }
 
 .alta-tce-opc span span {
     display: block;
-    font: 400 12px/17px var(--font-family);
+    font: var(--font-body-sm);
+    font-weight: 400;
     color: var(--color-text-muted);
 }
 
@@ -192,19 +163,19 @@
     justify-content: space-between;
     min-height: 40px;
     margin: 0;
-    padding: 0 12px 0 16px;
+    padding: 0 var(--space-3) 0 var(--space-4);
     border-bottom: 1px solid var(--color-border);
-    font: 600 14px/20px var(--font-family);
+    font: var(--font-body-md);
+    font-weight: 600;
 }
 
 .alta-tce-res {
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);
     margin: 0;
-    padding: 12px 16px;
-    gap: 6px 16px;
-    font-size: 13px;
-    line-height: 19px;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2) var(--space-4);
+    font: var(--font-body-md);
 }
 
 .alta-tce-res dt {
@@ -218,21 +189,23 @@
 
 .alta-tce-err {
     margin: 0;
-    font: 600 12px/16px var(--font-family);
+    font: var(--font-body-sm);
+    font-weight: 600;
     color: var(--color-danger-700);
 }
 
 .alta-tce-exito {
     margin: 0;
-    font: 600 12px/16px var(--font-family);
+    font: var(--font-body-sm);
+    font-weight: 600;
     color: var(--color-success-700);
 }
 
 .alta-tce-pie {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-6);
     border-top: 1px solid var(--color-border);
     background: var(--color-surface-subtle);
 }
@@ -244,33 +217,33 @@
 .alta-tce-ok {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 28px 24px;
+    gap: var(--space-3);
+    padding: var(--space-8) var(--space-6);
     align-items: flex-start;
 }
 
 .alta-tce-linea {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 24px 20px;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6) var(--space-5);
 }
 
 .alta-tce-linea-cab {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .alta-tce-linea-cab h2 {
     margin: 0;
-    font: 600 16px/22px var(--font-family);
+    font: var(--font-heading-sm);
 }
 
 .alta-tce-linea-acciones {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     justify-content: flex-end;
 }
 

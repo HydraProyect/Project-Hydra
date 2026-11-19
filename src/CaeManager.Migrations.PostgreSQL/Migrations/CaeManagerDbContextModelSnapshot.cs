@@ -2659,6 +2659,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AniosRetencionDocumentos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(5);
+
                     b.Property<bool>("ExcluirFueraDeJornadaEnMetricas")
                         .HasColumnType("boolean");
 
@@ -2708,12 +2713,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId")
                         .IsUnique();
 
-                    b.ToTable("ParametrosSistema", (string)null);
+                    b.ToTable("ParametrosSistema", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ParametrosSistema_AniosRetencionDocumentos", "\"AniosRetencionDocumentos\" BETWEEN 1 AND 5");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
+                            AniosRetencionDocumentos = 5,
                             ExcluirFueraDeJornadaEnMetricas = true,
                             ExigeSegundoFactorTodosLosPerfiles = false,
                             HoraFinJornada = new TimeOnly(18, 0, 0),
@@ -3998,6 +4007,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int?>("AniosRetencionDocumentos")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("AplicaVencimientoAutomatico")
                         .HasColumnType("boolean");
 
@@ -4095,6 +4107,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("TiposDocumento", null, t =>
                         {
+                            t.HasCheckConstraint("CK_TiposDocumento_AniosRetencionDocumentos", "\"AniosRetencionDocumentos\" IS NULL OR \"AniosRetencionDocumentos\" BETWEEN 1 AND 5");
+
                             t.HasCheckConstraint("CK_TiposDocumento_SoloConclusionAptitudEsDeSalud", "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'");
                         });
 
@@ -7959,6 +7973,102 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("OperacionesImportacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CaducadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EmitidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmitidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MotivoRevocacion")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("RegeneradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RegeneradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Serie")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SujetoDocumentoIdentidad")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SujetoNombre")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantOrigenId", "TrabajadorOrigenId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CredencialesAcceso_TenantId_Trabajador_Emitida")
+                        .HasFilter("\"Estado\" = 'Emitida'");
+
+                    b.ToTable("CredencialesAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CredencialesAcceso_CaducidadCoherente", "(\"Estado\" = 'Caducada') = (\"CaducadaEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_EstadoValido", "\"Estado\" IN ('Emitida', 'Revocada', 'Caducada')");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_MotivoRevocacionCerrado", "\"MotivoRevocacion\" IS NULL OR \"MotivoRevocacion\" IN ('PerdidaOExtravio', 'UsoIndebido', 'FinDeLaRelacion', 'Otro')");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_RevocacionCoherente", "(\"Estado\" = 'Revocada' AND \"MotivoRevocacion\" IS NOT NULL AND \"RevocadaEnUtc\" IS NOT NULL AND \"RevocadaPorUsuarioId\" IS NOT NULL) OR (\"Estado\" <> 'Revocada' AND \"MotivoRevocacion\" IS NULL AND \"RevocadaEnUtc\" IS NULL AND \"RevocadaPorUsuarioId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_CredencialesAcceso_SerieDesdeUno", "\"Serie\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Inbound.AutorizacionesLectura.AccesoLecturaInbound", b =>
                 {
                     b.Property<Guid>("Id")
@@ -11462,6 +11572,31 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("HistorialInformes", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Retencion.DocumentoPropuestoPurga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SolicitudPurgaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DocumentoId");
+
+                    b.HasIndex("TenantId", "SolicitudPurgaId", "DocumentoId")
+                        .IsUnique();
+
+                    b.ToTable("DocumentosPropuestosPurga", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Retencion.IncidenciaPurga", b =>
                 {
                     b.Property<Guid>("Id")
@@ -12191,6 +12326,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("DatosDemoCompletadosEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("EsParticipanteTec")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EsPlataforma")
                         .HasColumnType("boolean");
 
@@ -12262,6 +12400,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             AddOnSubidaAutomaticaActivo = false,
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
+                            EsParticipanteTec = false,
                             EsPlataforma = true,
                             Estado = "Activo",
                             EstadoComercial = "SinSuscripcion",
@@ -14209,6 +14348,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "ProveedoraId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Retencion.DocumentoPropuestoPurga", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Retencion.SolicitudPurga", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SolicitudPurgaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

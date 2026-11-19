@@ -34,7 +34,7 @@
     <value>Perdrà l'accés en el moment que confirmis: la seva sessió oberta es tanca. Podràs reactivar-la després.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
-    <value>La seva Assignació de Cartera interna, la de tota l'operació d'aquesta organització, no es toca: la continua heretant el seu Coordinador CAE.</value>
+    <value>La seva cartera interna, la de tota l'operació d'aquesta organització, no es toca: la continua heretant el seu Coordinador CAE.</value>
   </data>
   <data name="DesactivarVolver" xml:space="preserve">
     <value>Volver</value>
@@ -103,7 +103,7 @@
     <value>{0}: {1}</value>
   </data>
   <data name="AlcanceCoordinadorCarteraPropia" xml:space="preserve">
-    <value>Per la seva pròpia Assignació de Cartera.</value>
+    <value>Per les seves pròpies empreses assignades.</value>
   </data>
   <data name="PrincipalJuntoAlRotulo" xml:space="preserve">
     <value>· {0}</value>
@@ -355,13 +355,13 @@
     <value>Eriçó</value>
   </data>
   <data name="AlcanceGestorPorCartera" xml:space="preserve">
-    <value>Per les seves Assignacions de Cartera vigents.</value>
+    <value>Per les seves empreses assignades vigents.</value>
   </data>
   <data name="AlcanceCoordinadorPorOperacion" xml:space="preserve">
-    <value>A més, entra sense Assignació de Cartera a les Empreses gestionades que la seva organització opera senceres.</value>
+    <value>A més, hi entra, sense tenir-les assignades, a les Empreses gestionades que la seva organització opera senceres.</value>
   </data>
   <data name="AlcanceCoordinadorSoloPorOperacion" xml:space="preserve">
-    <value>Entra sense Assignació de Cartera a les Empreses gestionades que la seva organització opera senceres.</value>
+    <value>Hi entra, sense tenir-les assignades, a les Empreses gestionades que la seva organització opera senceres.</value>
   </data>
   <data name="AlcanceEmpresaGestionada" xml:space="preserve">
     <value>Empresa gestionada</value>

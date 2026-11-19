@@ -164,16 +164,16 @@
     <value>Context operatiu actual</value>
   </data>
   <data name="SelectorTenantPapelOutbound" xml:space="preserve">
-    <value>Outbound</value>
+    <value>Acredita</value>
   </data>
   <data name="SelectorTenantPapelInbound" xml:space="preserve">
-    <value>Inbound</value>
+    <value>Valida</value>
   </data>
   <data name="SelectorTenantSubOutbound" xml:space="preserve">
-    <value>Assignació d'Operació Outbound</value>
+    <value>Gestiones la seva documentació</value>
   </data>
   <data name="SelectorTenantSubInbound" xml:space="preserve">
-    <value>Assignació d'Operació Inbound</value>
+    <value>Valides els seus contractistes</value>
   </data>
   <data name="SelectorTenantRotulo" xml:space="preserve">
     <value>Empresa gestionada</value>
@@ -900,10 +900,10 @@
     <value>Fletxes: canviar de dia. Re Pàg i Av Pàg: canviar de mes. Inici i Fi: principi o final de la setmana. Retorn: triar. Esc: tancar.</value>
   </data>
   <data name="MenuLineaOutbound" xml:space="preserve">
-    <value>Outbound</value>
+    <value>Acredita</value>
   </data>
   <data name="MenuLineaInboundTce" xml:space="preserve">
-    <value>Inbound · Tenant TCE</value>
+    <value>Valida</value>
   </data>
   <data name="MenuInboundContratos" xml:space="preserve">
     <value>Contractes d&apos;accés</value>
@@ -912,7 +912,7 @@
     <value>Documents per validar</value>
   </data>
   <data name="MenuInboundCentros" xml:space="preserve">
-    <value>Centres</value>
+    <value>Els meus centres</value>
   </data>
   <data name="MenuInboundInformacionCentro" xml:space="preserve">
     <value>Informació del Centre</value>
@@ -924,7 +924,7 @@
     <value>Regles d&apos;avís</value>
   </data>
   <data name="MenuInboundGobierno" xml:space="preserve">
-    <value>Govern d&apos;Inbound</value>
+    <value>Regles de validació</value>
   </data>
   <data name="MenuGrupoControlAcceso" xml:space="preserve">
     <value>Control d'accés</value>
@@ -940,5 +940,26 @@
   </data>
   <data name="MenuInboundQuienLee" xml:space="preserve">
     <value>Qui llegeix els meus documents</value>
+  </data>
+  <data name="MenuGrupoInbound" xml:space="preserve">
+    <value>Validació de contractistes</value>
+  </data>
+  <data name="TimelineOrigenUsuarioCliente" xml:space="preserve">
+    <value>Usuari de Client</value>
+  </data>
+  <data name="TimelineOrigenTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="TimelineOrigenSubcontrata" xml:space="preserve">
+    <value>Subcontracta</value>
+  </data>
+  <data name="TimelineOrigenEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="TimelineOrigenCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="TimelineOrigenDesconocido" xml:space="preserve">
+    <value>Desconegut</value>
   </data>
 </root>

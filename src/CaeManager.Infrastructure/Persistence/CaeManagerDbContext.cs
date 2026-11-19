@@ -318,6 +318,8 @@ public class CaeManagerDbContext(
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
+    // Control de acceso físico (AF-02): credencial de un Trabajador en el Tenant TCE, sin FK hacia el otro Tenant.
+    public DbSet<CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso> CredencialesAcceso => Set<CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso>();
     // Estado materializado: las tablas (PR 2), que escribe el recálculo (PR 3 y 4) y leen los lectores de Centro (PR 6) por
     // IEstadoMaterializadoQueryContext.
     public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> EstadosRequisito => Set<CaeManager.Domain.EstadoMaterializado.EstadoRequisito>();
@@ -385,6 +387,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<CaeManager.Domain.Retencion.IncidenciaPurga> IncidenciasPurga => Set<CaeManager.Domain.Retencion.IncidenciaPurga>();
+    public DbSet<CaeManager.Domain.Retencion.DocumentoPropuestoPurga> DocumentosPropuestosPurga => Set<CaeManager.Domain.Retencion.DocumentoPropuestoPurga>();
+    IQueryable<CaeManager.Domain.Retencion.DocumentoPropuestoPurga> IRetencionQueryContext.DocumentosPropuestosPurga => DocumentosPropuestosPurga;
     /// <summary>
     /// Las asignaciones de Operador Delegado que conceden su rol: excluye las
     /// revocadas (P8, 2026-09-23). Es la única vía de lectura, así que ningún

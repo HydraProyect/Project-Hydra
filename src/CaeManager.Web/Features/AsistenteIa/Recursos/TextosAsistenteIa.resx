@@ -64,19 +64,19 @@
     <value>Orden reconocida con una confianza del {0} %</value>
   </data>
   <data name="Plan_SeEjecutaraEn" xml:space="preserve">
-    <value>Se ejecutará en el Tenant beneficiario {0}</value>
+    <value>Se ejecutará en la empresa gestionada {0}</value>
   </data>
   <data name="Plan_SinTenant" xml:space="preserve">
     <value>Sin organización de destino</value>
   </data>
   <data name="Plan_SinTenantAria" xml:space="preserve">
-    <value>Todavía no hay un Tenant beneficiario en el que se ejecute el plan</value>
+    <value>Todavía no hay una empresa gestionada en la que se ejecute el plan</value>
   </data>
   <data name="Plan_ElegirTenantEtiqueta" xml:space="preserve">
-    <value>Tenant beneficiario en el que se ejecuta el plan</value>
+    <value>Empresa gestionada en la que se ejecuta el plan</value>
   </data>
   <data name="Plan_Destino_Elegir" xml:space="preserve">
-    <value>Elige en qué Tenant beneficiario se ejecuta</value>
+    <value>Elige en qué empresa gestionada se ejecuta</value>
   </data>
   <data name="Plan_Destino_Mezcla" xml:space="preserve">
     <value>Este plan mezcla datos de dos organizaciones: no se puede confirmar</value>
@@ -85,7 +85,7 @@
     <value>La organización elegida no es la de los datos: no se puede confirmar</value>
   </data>
   <data name="Plan_Destino_SinCartera" xml:space="preserve">
-    <value>No hay ninguna organización en tu Asignación de Cartera</value>
+    <value>No hay ninguna organización entre tus empresas asignadas</value>
   </data>
   <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
     <value>Tu texto nombra a {0}. El plan sigue en la organización elegida.</value>

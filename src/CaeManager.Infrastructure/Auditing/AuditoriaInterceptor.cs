@@ -111,6 +111,9 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    interesado, el Trabajador al que se refiere y los textos libres (descripción, motivo de prórroga,
 ///    resultado, motivo de denegación).
 ///    Ver el comentario de esa entrada.
+/// 15. Lo que una entidad declara por sí misma con <see cref="IPropiedadesSensiblesAuditoria"/>, sin que este
+///    interceptor nombre su tipo (ADR-013): hoy, la instantánea del Trabajador (nombre y documento, de otro Tenant) en la
+///    credencial de acceso físico de Inbound, que <c>cae_app_soporte</c> no puede leer en su tabla y sí en RegistrosAuditoria.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -549,7 +552,8 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             var (entidadTipo, entidadId) = ResolverTipoEId(entrada);
             var sensibles = EsAnonimizacionDeTrabajador(entrada)
                 ? CamposPersonalesDeTrabajador
-                : PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
+                : PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType())
+                  ?? (entrada.Entity as IPropiedadesSensiblesAuditoria)?.PropiedadesSensiblesAuditoria.ToHashSet();
             var silenciosas = PropiedadesSilenciosasPorTipo.GetValueOrDefault(entrada.Entity.GetType());
 
             // En Added/Deleted no hay "propiedad modificada" que distinguir —

@@ -273,6 +273,19 @@ public class TipoDocumento : EntidadConTenant
     public bool SoloConclusionAptitud { get; private set; }
 
     /// <summary>
+    /// Plazo de conservación propio de los Documentos de este tipo, en años enteros de 1 a 5, o nulo para heredar el
+    /// del Tenant propietario (<c>ParametroSistema.AniosRetencionDocumentos</c>; decisión del 2026-11-18, «por
+    /// operación» leído como por tipo de documento). Cambiarlo solo afecta a las propuestas de purga futuras.
+    /// </summary>
+    public int? AniosRetencionDocumentos { get; private set; }
+
+    /// <summary>Nulo quita el plazo propio. Lanza <see cref="ArgumentOutOfRangeException"/> fuera de 1 a 5 años y no cambia nada.</summary>
+    public void FijarPlazoRetencionDocumentos(int? anios) =>
+        AniosRetencionDocumentos = anios is { } valor
+            ? Retencion.PlazoRetencionDocumentos.Validar(valor, nameof(anios))
+            : null;
+
+    /// <summary>
     /// Marca o desmarca el tipo «solo conclusión de aptitud». Solo un tipo de salud y de ámbito Trabajador admite la marca:
     /// la conclusión de aptitud es de una persona, y una evidencia de solo conclusión necesita su Trabajador y su documento
     /// de identidad.

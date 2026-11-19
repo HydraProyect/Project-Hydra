@@ -631,4 +631,29 @@ public class CentroInboundPantallasTests : BunitContext
 
         cut.Markup.Should().Contain("Ningún Centro ha publicado información");
     }
+
+    // ---------------------------------------------------------------- Alineación con Outbound: cabecera sin antetítulo y barra compartida
+
+    [Fact]
+    public async Task El_listado_de_Centros_usa_la_cabecera_sin_antetitulo()
+    {
+        Preparar(contratos: [Contrato()]);
+
+        var cut = await CargadaAsync(Render<CentrosInbound>());
+
+        cut.Find("h1").TextContent.Should().Contain("Mis centros");
+        cut.Find("table.tabla-datos").GetAttribute("aria-label").Should().Be("Mis centros", "el nombre accesible de la tabla es el mismo que el del título");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
+    [Fact]
+    public async Task Informacion_del_Centro_usa_la_cabecera_sin_antetitulo()
+    {
+        Preparar(docs: [Documento("Riesgos de la zona de muelles", alDia: true)]);
+
+        var cut = await CargadaAsync(Render<InformacionDelCentroPagina>());
+
+        cut.Find("h1").TextContent.Should().Contain("Información del Centro");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
+    }
 }

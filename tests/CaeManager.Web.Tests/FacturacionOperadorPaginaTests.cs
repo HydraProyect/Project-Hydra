@@ -421,7 +421,7 @@ public class FacturacionOperadorPaginaTests : BunitContext
         Filas(cut)[0].Should().Contain("14 extranjeros").And.NotContain("€");
         cut.FindAll(".fct-total").Should().BeEmpty();
         cut.FindAll(".fct-detalle-cabecera button").Should().BeEmpty();
-        cut.Find(".fct-aviso").TextContent.Should().Contain("Los importes y las tarifas los ven Administrador del Tenant propietario y Dirección CAE.");
+        cut.Find(".fct-aviso").TextContent.Should().Contain("Los importes y las tarifas los ven Administrador de la organización y Dirección CAE.");
         cut.Markup.Should().NotContain("Coordinación CAE").And.NotContain("Administración y");
     }
 

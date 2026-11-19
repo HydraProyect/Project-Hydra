@@ -80,7 +80,11 @@ public partial class ValidacionDocumento
 
     // Sin documento cargado, con la cola terminada o con un veredicto en vuelo no se actúa: los atajos de teclado
     // siguen vivos aunque los botones se oculten, así que la guarda vive aquí y no en el marcado.
-    private bool PuedeActuar => _doc is { Propio: false } && !_resuelto && !_cargando && !_terminado && !_error && !_enviando;
+    private bool PuedeActuar => _doc is not null && !_resuelto && !_cargando && !_terminado && !_error && !_enviando;
+
+    // D-12: quien subió la versión no la valida, pero sí puede rechazarla. El servidor lo vuelve a decidir
+    // (RegistrarEvidenciaInboundCommand); esta guarda solo evita ofrecer lo que rechazaría.
+    private bool PuedeValidar => PuedeActuar && _doc is { Propio: false };
 
     private IReadOnlyList<PaginaDocumento> PaginasVisibles => _anterior?.Paginas ?? _doc?.Paginas ?? [];
 
@@ -125,9 +129,9 @@ public partial class ValidacionDocumento
     {
         get
         {
-            if (_doc is { Propio: true }) return "Lo subiste tú: no puedes validarlo.";
             if (_modo == ModoVeredicto.Rechazando) return "Revisa el motivo y pulsa Rechazar otra vez (R) para confirmar.";
             if (_modo == ModoVeredicto.Incompleto) return "Elige qué falta y pulsa Marcar incompleto otra vez (I) para confirmar.";
+            if (_doc is { Propio: true }) return TextosValidacion["SubidoPorTi"];
             if (FechaMala) return "Corrige la fecha para poder validar.";
             return Lectura switch
             {
@@ -283,7 +287,7 @@ public partial class ValidacionDocumento
     // Validar: con errores o datos sin detectar pide confirmarlo; con todo correcto, valida directamente.
     private async Task ValidarPulsado()
     {
-        if (!PuedeActuar || FechaMala || _enviando) return;
+        if (!PuedeValidar || FechaMala || _enviando) return;
         if (Lectura != ResultadoLectura.Correcto)
         {
             _confirmandoValidar = true;
@@ -293,7 +297,7 @@ public partial class ValidacionDocumento
         await EnviarValidarAsync(confirmado: false);
     }
 
-    private Task ConfirmarValidarAsync() => PuedeActuar && !FechaMala ? EnviarValidarAsync(confirmado: true) : Task.CompletedTask;
+    private Task ConfirmarValidarAsync() => PuedeValidar && !FechaMala ? EnviarValidarAsync(confirmado: true) : Task.CompletedTask;
 
     private async Task EnviarValidarAsync(bool confirmado)
     {

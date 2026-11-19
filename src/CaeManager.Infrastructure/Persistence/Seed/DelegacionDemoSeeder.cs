@@ -705,16 +705,38 @@ public static class DelegacionDemoSeeder
         var hoy = DiaDeNegocio.Hoy();
         var fechaCorte = hoy.AddYears(-5);
 
-        dbContext.SolicitudesPurga.Add(new SolicitudPurga(TipoDatoPurgable.Documentos, 18, fechaCorte));
+        // Una solicitud de Documentos guarda qué Documentos propone y, sin esa lista, no se ejecuta (R4). Se siembran
+        // sobre Documentos reales del Tenant demo 2, los más antiguos y sin repetir entre solicitudes; si la demo
+        // tuviera menos, cada solicitud lleva los que queden, y la que se quede sin ninguno no se siembra. Ejecutar la
+        // programada solo purgaría lo que, además de estar en su lista, haya cumplido el plazo ese día.
+        var documentos = await dbContext.Documentos
+            .OrderBy(d => d.FechaVencimiento ?? d.FechaEmision)
+            .ThenBy(d => d.Id)
+            .Select(d => d.Id)
+            .Take(18 + 12 + 9)
+            .ToListAsync(cancellationToken);
+
+        SolicitudPurga? DeDocumentos(IEnumerable<Guid> ids, DateOnly corte)
+        {
+            var lista = ids.ToList();
+            if (lista.Count == 0) return null;
+            var (solicitud, propuestos) = SolicitudPurga.DeDocumentos(lista, corte);
+            dbContext.SolicitudesPurga.Add(solicitud);
+            dbContext.DocumentosPropuestosPurga.AddRange(propuestos);
+            return solicitud;
+        }
+
+        DeDocumentos(documentos.Take(18), fechaCorte);
 
         var avisada = new SolicitudPurga(TipoDatoPurgable.TrabajadoresDadosDeBaja, 6, fechaCorte);
         avisada.MarcarTenantAvisado();
         dbContext.SolicitudesPurga.Add(avisada);
 
-        var programada = new SolicitudPurga(TipoDatoPurgable.Documentos, 12, fechaCorte.AddMonths(-2));
-        programada.MarcarTenantAvisado();
-        programada.Programar(hoy.AddDays(14), autorizadaPorUsuarioId, hoy);
-        dbContext.SolicitudesPurga.Add(programada);
+        if (DeDocumentos(documentos.Skip(18).Take(12), fechaCorte.AddMonths(-2)) is { } programada)
+        {
+            programada.MarcarTenantAvisado();
+            programada.Programar(hoy.AddDays(14), autorizadaPorUsuarioId, hoy);
+        }
 
         var ejecutada = new SolicitudPurga(TipoDatoPurgable.TrabajadoresDadosDeBaja, 4, fechaCorte.AddMonths(-6));
         ejecutada.MarcarTenantAvisado();
@@ -722,10 +744,11 @@ public static class DelegacionDemoSeeder
         ejecutada.Ejecutar(hoy);
         dbContext.SolicitudesPurga.Add(ejecutada);
 
-        var cancelada = new SolicitudPurga(TipoDatoPurgable.Documentos, 9, fechaCorte.AddMonths(-4));
-        cancelada.MarcarTenantAvisado();
-        cancelada.Cancelar("El tenant pidió más plazo para revisar los expedientes afectados.");
-        dbContext.SolicitudesPurga.Add(cancelada);
+        if (DeDocumentos(documentos.Skip(30).Take(9), fechaCorte.AddMonths(-4)) is { } cancelada)
+        {
+            cancelada.MarcarTenantAvisado();
+            cancelada.Cancelar("El tenant pidió más plazo para revisar los expedientes afectados.");
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

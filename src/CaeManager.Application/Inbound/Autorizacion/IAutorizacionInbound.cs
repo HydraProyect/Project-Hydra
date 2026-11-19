@@ -53,7 +53,7 @@ public interface IAutorizacionInbound
 public static class AutorizacionInboundErrores
 {
     public static readonly Error SinCapacidad = Error.Crear(
-        "AutorizacionInbound.SinCapacidad", "No tienes permiso para esta acción de Inbound en esta organización.");
+        "AutorizacionInbound.SinCapacidad", "No tienes permiso para esta acción de Valida en esta organización.");
 }
 
 /// <summary>

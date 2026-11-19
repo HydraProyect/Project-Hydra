@@ -234,6 +234,11 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Control de acceso (Inbound AF-01): los Centros que se asignan salen del alcance de quien asigna.
         "ControlAcceso.AsignarCentrosControlAccesoCommandHandler",
+        // Credencial de acceso físico (AF-02): el sujeto es acreditable solo si el actor ve el contrato de acceso de su evidencia
+        // (ContratoAccesoAutorizacion.VisibleAsync, por el Cliente empresarial del contrato).
+        "AccesoFisico.EmitirCredencialCommandHandler",
+        "AccesoFisico.RegenerarCredencialCommandHandler",
+        "AccesoFisico.RevocarCredencialCommandHandler",
         // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
         // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.
         "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",
@@ -377,6 +382,11 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         [new(typeof(CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant),
             nameof(CaeManager.Application.CapacidadesTenant.IAutoridadCapacidadesTenant.TieneCapacidadAsync))];
 
+    /// <summary>Administrador del Tenant propietario actual, en base y fuera de Sesión Privilegiada (decisión del 2026-11-18).</summary>
+    private static readonly Guarda[] AutoridadPlazoRetencion =
+        [new(typeof(CaeManager.Application.Configuracion.AutoridadPlazoRetencionDocumentos),
+            nameof(CaeManager.Application.Configuracion.AutoridadPlazoRetencionDocumentos.PuedeFijarAsync))];
+
     /// <summary>
     /// Handlers que no llaman a la comprobación, con el motivo por el que es correcto. Leídos uno a
     /// uno el 2026-10-18; el motivo dice qué fila escriben y quién decide en su lugar.
@@ -497,6 +507,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "mismo motivo que ActualizarDeteccionTrabajadoresGlobalCommandHandler", Guardas: SoloAdministrador),
         ["TiposDocumento.ActualizarVerificacionIaGlobalCommandHandler"] = new(
             "mismo motivo que ActualizarDeteccionTrabajadoresGlobalCommandHandler", Guardas: SoloAdministrador),
+        ["TiposDocumento.FijarPlazoRetencionTipoDocumentoCommandHandler"] = new(
+            "plazo de conservación de un Tipo de documento para todo el Tenant propietario; solo su Administrador, en " +
+            "base y fuera de Sesión Privilegiada, y excluido del Encargo (ActosExcluidosDelEncargo)",
+            Guardas: AutoridadPlazoRetencion),
         ["Importacion.RegistrarHistorialImportacionCommandHandler"] = new(
             "anota la operación de carga masiva ya ejecutada (una fila de historial del Tenant, sin cartera); exige la " +
             "misma autoridad de carga masiva que quien ejecuta (Administrador, Dirección CAE o Coordinador CAE), y las filas " +
@@ -579,7 +593,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 50;
+    private const int MaximoDeExentos = 51;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

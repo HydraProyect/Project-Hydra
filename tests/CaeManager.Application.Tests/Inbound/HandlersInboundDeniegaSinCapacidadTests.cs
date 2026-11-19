@@ -24,6 +24,9 @@ public class HandlersInboundDeniegaSinCapacidadTests
     /// <summary>La capacidad que pide cada handler (sin el prefijo <see cref="Espacio"/>).</summary>
     private static readonly Dictionary<string, CapacidadInbound> Esperada = new()
     {
+        ["AccesoFisico.Credenciales.EmitirCredencialCommandHandler"] = CapacidadInbound.GestionarInbound,
+        ["AccesoFisico.Credenciales.RegenerarCredencialCommandHandler"] = CapacidadInbound.GestionarInbound,
+        ["AccesoFisico.Credenciales.RevocarCredencialCommandHandler"] = CapacidadInbound.GestionarInbound,
         ["AutorizacionesLectura.Commands.AsignarTrabajadoresAutorizacion.AsignarTrabajadoresAutorizacionCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Commands.ConcederAutorizacionLectura.ConcederAutorizacionLecturaCommandHandler"] = CapacidadInbound.ParticipanteTec,
         ["AutorizacionesLectura.Commands.RetirarTrabajadorAutorizacion.RetirarTrabajadorAutorizacionCommandHandler"] = CapacidadInbound.ParticipanteTec,

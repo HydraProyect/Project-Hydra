@@ -100,7 +100,7 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
 
     private string MensajeConfirmacionVincular => _tenantAVincular is null
         ? string.Empty
-        : $"Se vinculará {_stripeSubscriptionId.Trim()} al tenant {_tenantAVincular.Nombre}. TALVEG consultará esa " +
+        : $"Se vinculará {_stripeSubscriptionId.Trim()} a la organización {_tenantAVincular.Nombre}. TALVEG consultará esa " +
           "suscripción en Stripe, guardará quién la paga según Stripe y aplicará el estado comercial que Stripe " +
           $"devuelva: si es «Solo lectura» o «Suspendida», {_tenantAVincular.Nombre} dejará de poder escribir. " +
           "Esta pantalla no ofrece desvincularla después.";
@@ -118,17 +118,17 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
     /// <c>ActualizarEstadoComercialTenantCommand</c>) el mensaje es de la
     /// pantalla, en el vocabulario del plano comercial, y no depende del que
     /// traiga el handler: el de <c>Comercial.NoAutorizado</c> dice «ese
-    /// cliente», y aquí cada fila es un Tenant. Un código que no está en la
+    /// cliente», y aquí cada fila es una organización. Un código que no está en la
     /// lista —los del proveedor de pago, los de validación, los del gate— se
     /// enseña con el mensaje que trae, porque la pantalla no sabe decirlo mejor.
     /// </summary>
     private static string MensajeDeError(Error error) => error.Codigo switch
     {
         "Comercial.SinUsuario" => "No pudimos identificarte. Vuelve a iniciar sesión.",
-        "Comercial.NoAutorizado" => "No tienes autorización de plataforma sobre ese Tenant.",
-        "Comercial.TenantNoEncontrado" => "No encontramos ese Tenant.",
-        "Comercial.TenantPlataforma" => "El tenant de plataforma no es Tenant beneficiario de ninguna suscripción.",
-        "Comercial.SinSuscripcionVinculada" => "Este Tenant todavía no tiene ninguna suscripción de Stripe vinculada.",
+        "Comercial.NoAutorizado" => "No tienes autorización de plataforma sobre esa organización.",
+        "Comercial.TenantNoEncontrado" => "No encontramos esa organización.",
+        "Comercial.TenantPlataforma" => "La organización de plataforma no es beneficiaria de ninguna suscripción.",
+        "Comercial.SinSuscripcionVinculada" => "Esta organización todavía no tiene ninguna suscripción de Stripe vinculada.",
         "Comercial.EstadoNoReconocido" =>
             "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe.",
         _ => error.Mensaje,

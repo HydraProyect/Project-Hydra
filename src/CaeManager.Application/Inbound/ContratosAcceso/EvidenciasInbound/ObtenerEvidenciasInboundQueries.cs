@@ -68,6 +68,10 @@ internal static class EvidenciasInboundProyeccion
     public static bool EstaAceptada(EvidenciaInbound evidencia) =>
         evidencia.Estado == Domain.Documentos.EstadoAcreditacion.Aceptada;
 
+    /// <summary>La misma pregunta que <see cref="EstaAceptada"/>, como expresión traducible a SQL para filtrar en consulta.</summary>
+    public static System.Linq.Expressions.Expression<Func<EvidenciaInbound, bool>> AceptadaEnConsulta { get; } =
+        e => e.Estado == Domain.Documentos.EstadoAcreditacion.Aceptada;
+
     public static async Task<IReadOnlyList<EvidenciaInboundDto>> ADtosAsync(
         IReadOnlyList<EvidenciaInbound> evidencias, ITiposDocumentoQueryContext tiposContext, CancellationToken cancellationToken)
     {

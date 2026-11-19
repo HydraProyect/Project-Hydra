@@ -17,7 +17,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => _altaVisible = true">@Textos["BotonAnadir"]</Boton></SoloConEscritura>
         </Primaria>

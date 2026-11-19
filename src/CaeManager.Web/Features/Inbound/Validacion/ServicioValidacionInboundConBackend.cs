@@ -163,12 +163,21 @@ public sealed class ServicioValidacionInboundConBackend(
             // La validación del Command (ValidationBehavior) se dice en la pantalla, no cae al límite de errores.
             return RespuestaValidacion<VeredictoRegistrado>.Rechazada(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage)));
         }
+        // D-12: el bloqueo lo decide el Command; aquí solo se dice en el idioma de la pantalla.
         if (resultado.EsFallido)
-            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(resultado.Error.Mensaje);
+            return RespuestaValidacion<VeredictoRegistrado>.Rechazada(MensajeDeFallo(resultado.Error));
 
         _filas.Remove(id);
         // Sin B-22 no hay plazo de Deshacer: el veredicto es firme desde el guardado.
         return RespuestaValidacion<VeredictoRegistrado>.Correcta(new VeredictoRegistrado(resultado.Valor, veredicto, Deshacible: false));
+    }
+
+    // Los dos bloqueos de D-12 se dicen con el texto de la pantalla (es y ca-ES); el resto, con el del Command.
+    private string MensajeDeFallo(Error error)
+    {
+        if (error == EvidenciaInboundErrores.ValidaLoQueSubio) return textos["SubidoPorTi"];
+        if (error == EvidenciaInboundErrores.ValidarBajoImpersonacionNoDisponible) return textos["ValidarBajoImpersonacion"];
+        return error.Mensaje;
     }
 
     private RespuestaValidacion<VeredictoRegistrado> NoEncontrado() =>
@@ -183,7 +192,8 @@ public sealed class ServicioValidacionInboundConBackend(
 
     private static DocumentoPorValidar AFila(Guid id, DocumentoPendienteInboundDto fila) =>
         new(id, fila.TipoDocumentoNombre, Entidad(fila), fila.Titular, fila.Identificador ?? "—", fila.EmpresaContratista,
-            RolEmpresaContratista, [fila.Centro], Subido(fila), ResultadoLectura.SinDetectar, DatosAfectados: 0);
+            RolEmpresaContratista, [fila.Centro], Subido(fila), ResultadoLectura.SinDetectar, DatosAfectados: 0,
+            Propio: fila.SubidoPorQuienValida);
 
     private DocumentoAValidar ADocumento(Guid id, DocumentoPendienteInboundDto fila) =>
         new(id, fila.TipoDocumentoNombre, Entidad(fila), fila.Titular, fila.Identificador ?? "—", fila.EmpresaContratista,
@@ -192,7 +202,8 @@ public sealed class ServicioValidacionInboundConBackend(
             UrlDescarga: ArchivoValidacionInboundEndpoints.Ruta(fila.ContratoAccesoId, fila.DocumentoOrigenId), Paginas: [], DatosAVerificar: DatosDeLaFicha(fila), Chequeos: [], new CriterioAceptacion(string.Empty, []),
             fila.FechaEmision, fila.FechaVencimiento, VigenciaMeses: null, Vigencia(fila.FechaVencimiento), Anteriores: [],
             Destinos: [], Propuesta: null, NotaSinPropuesta: textos["SinPropuesta"],
-            MotivoRechazoSugerido: string.Empty, FaltaSugerida: string.Empty, ExplicacionSugerida: string.Empty, Propio: false);
+            MotivoRechazoSugerido: string.Empty, FaltaSugerida: string.Empty, ExplicacionSugerida: string.Empty,
+            Propio: fila.SubidoPorQuienValida);
 
     // Sin lectura con IA solo se conoce el lado de la ficha: el titular y su identificador, para que el Gestor CAE sepa de
     // quién es el documento. El lado del documento queda «No detectado», que es lo que hay.

@@ -50,7 +50,7 @@ public class EliminarUsuarioPendienteCommandHandler(
 
     public static readonly Error CarteraVigente = Error.Crear(
         "Usuarios.CarteraVigente",
-        "Esta persona ya tiene una Asignación de Cartera vigente; reasígnala o retírala antes de eliminar la cuenta.");
+        "Esta persona ya tiene empresas asignadas; reasígnalas o retíralas antes de eliminar la cuenta.");
 
     public async Task<Result> Handle(EliminarUsuarioPendienteCommand request, CancellationToken cancellationToken)
     {

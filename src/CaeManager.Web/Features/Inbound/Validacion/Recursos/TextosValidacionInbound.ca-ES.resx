@@ -60,4 +60,13 @@
   <data name="TipoFueraDeCatalogo" xml:space="preserve">
     <value>«{0}» no és al teu catàleg de tipus de document: encara no es pot registrar el veredicte.</value>
   </data>
+  <data name="SubidoPorTi" xml:space="preserve">
+    <value>L'has pujat tu: el valida una altra persona.</value>
+  </data>
+  <data name="SubidoPorTiQuienValida" xml:space="preserve">
+    <value>El pot validar un altre Gestor CAE amb aquest contracte a la seva cartera o l'Administrador d'aquesta organitzaci&#243;.</value>
+  </data>
+  <data name="ValidarBajoImpersonacion" xml:space="preserve">
+    <value>Mentre actues en nom d'un altre usuari no es pot validar. Rebutjar continua disponible.</value>
+  </data>
 </root>

@@ -1,9 +1,11 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas.AltaDeVisita;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Eventos;
 using CaeManager.Application.Visitas.PaqueteDocumental;
@@ -23,11 +25,19 @@ namespace CaeManager.Application.Visitas.Commands.CrearVisita;
 /// en un correo (ver SugerenciaVisitaCorreo), viene con el Id de esa
 /// sugerencia para marcarla resuelta en la misma operación — así no queda
 /// pendiente en la Bandeja una sugerencia que ya se atendió.
+///
+/// <para>
+/// <paramref name="AsignarYCrearGestiones"/> (decisión de Chris, 2026-11-19): la interfaz lo pone tras enseñar la vista previa
+/// (<c>ObtenerPlanAltaVisitaQuery</c>), y crear la Visita es la única confirmación. En el mismo guardado, cada Trabajador sin
+/// Asignación Trabajador–Centro activa al Centro queda asignado y nacen las Gestiones de <see cref="ReglaGestionesDeVisita"/>
+/// (<see cref="IAltaDeVisitaConAsignaciones"/>). Sin él, la Visita se crea como antes y no asigna ni crea nada: así la crea el
+/// plan de Vega, que no enseña esa vista previa.
+/// </para>
 /// </summary>
 [AreaDelEncargo("Visitas")]
 public record CrearVisitaCommand(
     Guid CentroId, DateOnly FechaInicio, DateOnly FechaFin, IReadOnlyList<Guid> TrabajadorIds, string? Notas,
-    Guid? SugerenciaVisitaCorreoId = null, TimeOnly? HoraEstimadaAcceso = null)
+    Guid? SugerenciaVisitaCorreoId = null, TimeOnly? HoraEstimadaAcceso = null, bool AsignarYCrearGestiones = false)
     : ICommand<Guid>;
 
 public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
@@ -43,6 +53,13 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
         RuleFor(c => c.TrabajadorIds)
             .NotEmpty().WithMessage("La visita debe incluir al menos un trabajador.");
 
+        // Con AsignarYCrearGestiones, crear la Visita es también un alta de Asignaciones Trabajador–Centro en lote: mismo
+        // tope que CrearAsignacionesCommand, para no cargar en un solo guardado más de lo que el alta en lote admite.
+        RuleFor(c => c.TrabajadorIds.Distinct().Count())
+            .LessThanOrEqualTo(CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote)
+            .When(c => c.AsignarYCrearGestiones && c.TrabajadorIds is not null)
+            .WithMessage($"Selecciona como máximo {CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote} trabajadores por visita.");
+
         RuleFor(c => c.Notas)
             .MaximumLength(Visita.LongitudMaximaNotas)
             .WithMessage($"Las notas no pueden superar {Visita.LongitudMaximaNotas} caracteres.");
@@ -56,7 +73,10 @@ public class CrearVisitaCommandHandler(
     IPaqueteDocumentalVisitaService paqueteDocumental, IEvaluadorExpedienteVisitaService evaluadorExpediente,
     ICurrentUserService currentUserService, IPublisher publisher, IUnitOfWork unitOfWork,
     ILogger<CrearVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
-    IActorAuditoria? actorAuditoria = null)
+    IActorAuditoria? actorAuditoria = null,
+    // Opcional para no reescribir los tests que construyen el handler sin asignar; el contenedor siempre lo resuelve. Sin él,
+    // una petición con AsignarYCrearGestiones se rechaza en vez de crear la Visita sin asignar.
+    IAltaDeVisitaConAsignaciones? altaConAsignaciones = null)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
@@ -90,74 +110,130 @@ public class CrearVisitaCommandHandler(
             trabajadorIds, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken);
         if (trabajadores is null)
             return Result.Fallo<Guid>(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
+        var admitidos = trabajadores;
 
-        // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
-        // del mensaje que la originó, el mismo criterio con el que ObtenerConversacionPorIdQuery la
-        // enseña. Fuera de alcance se trata igual que un Id que no existe: la Visita nace, pero la
-        // sugerencia de otra cartera no se resuelve, su Conversación no se enlaza y no se le envía
-        // ningún paquete documental.
-        var sugerencia = request.SugerenciaVisitaCorreoId is { } sugerenciaId
-            ? await ObtenerSugerenciaDentroDeAlcanceAsync(sugerenciaId, cancellationToken)
-            : null;
+        // Fallar cerrado: sin el servicio que asigna, la Visita no se crea a medias.
+        if (request.AsignarYCrearGestiones && altaConAsignaciones is null)
+            return Result.Fallo<Guid>(Error.Crear(
+                AltaDeVisitaConAsignaciones.CodigoSinAutoridad, "No puedes dar de alta a estos trabajadores en este centro."));
 
-        // El origen sale del canal del mensaje del que nació la sugerencia, no de que exista una:
-        // una sugerencia detectada por WhatsApp crea una Visita de origen WhatsApp.
-        CanalConversacion? canalDelMensaje = null;
-        if (sugerencia is not null)
-        {
-            canalDelMensaje = await comunicacionesContext.Mensajes
-                .Where(m => m.Id == sugerencia.MensajeId)
-                .Select(m => (CanalConversacion?)m.Canal)
-                .FirstOrDefaultAsync(cancellationToken);
-        }
-
-        var origen = Visita.OrigenAlCrear(sugerencia is not null, canalDelMensaje);
-        var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
-        visita.RellenarContactoDesdeCentro(centro.Contacto);
-        repositorio.Agregar(visita);
-
-        var gestionadoPor = await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria);
-        foreach (var trabajadorId in trabajadorIds)
-            visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadores[trabajadorId], gestionadoPor));
-
+        Visita? visita = null;
         Guid? conversacionParaPaquete = null;
-        if (sugerencia is not null)
+
+        if (request.AsignarYCrearGestiones)
         {
-            // Si el Gestor tuvo que corregir centro o fechas antes de confirmar, la
-            // sugerencia ahorró menos trabajo que una aceptada de un clic. No hace
-            // falta que la UI lo declare: los propios datos lo dicen.
-            var huboEdicion =
-                sugerencia.CentroId != request.CentroId
-                || (sugerencia.FechaInicioSugerida is { } inicio && inicio != request.FechaInicio)
-                || (sugerencia.FechaFinSugerida is { } fin && fin != request.FechaFin);
-
-            sugerencia.Resolver(
-                huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
-                await currentUserService.ObtenerUsuarioActualIdAsync());
-            conversacionParaPaquete = await comunicacionesContext.Mensajes
-                .Where(m => m.Id == sugerencia.MensajeId)
-                .Select(m => (Guid?)m.ConversacionId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            // Instante que el cliente considera "yo avisé": el primer mensaje entrante
-            // del hilo, no el mensaje del que la IA sacó la sugerencia — si el hilo
-            // arrancó pidiendo la visita y luego hubo idas y venidas, el margen se
-            // cuenta desde el principio, a favor del cliente.
-            if (conversacionParaPaquete is { } conversacionOrigenId)
-            {
-                var solicitudUtc = await comunicacionesContext.Mensajes
-                    .Where(m => m.ConversacionId == conversacionOrigenId && m.Direccion == DireccionMensaje.Entrante)
-                    .OrderBy(m => m.FechaUtc)
-                    .Select(m => (DateTime?)m.FechaUtc)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (solicitudUtc is not null)
-                    visita.RegistrarOrigenSolicitud(conversacionOrigenId, solicitudUtc.Value);
-            }
+            var alta = await altaConAsignaciones!.EjecutarAsync(
+                request.CentroId, request.FechaFin, trabajadorIds, RevalidarBajoElCandadoAsync, AgregarVisitaAsync, cancellationToken);
+            if (alta.EsFallido)
+                return Result.Fallo<Guid>(alta.Error);
+        }
+        else
+        {
+            var agregada = await AgregarVisitaAsync(cancellationToken);
+            if (agregada.EsFallido)
+                return Result.Fallo<Guid>(agregada.Error);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return await DespuesDeGuardarAsync(visita!, conversacionParaPaquete, cancellationToken);
 
+        // Solo con AsignarYCrearGestiones, bajo el candado: lo comprobado arriba no vale (ISerializacionAltasAcreditacionEmpresa),
+        // la Asignación de Cartera pudo revocarse mientras se esperaba. Se relee con la misma regla y la misma respuesta que
+        // fuera, antes de ningún otro rechazo.
+        async Task<Result> RevalidarBajoElCandadoAsync(CancellationToken ct)
+        {
+            if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, ct))
+                return Result.Fallo(CentroNoEncontrado().Error);
+
+            var releidos = await TrabajadoresAdmisiblesEnVisita.CargarAsync(
+                trabajadorIds, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, ct);
+            if (releidos is null)
+                return Result.Fallo(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
+            admitidos = releidos;
+            return Result.Exito();
+        }
+
+        // Agrega la Visita, sus Trabajadores y lo que resuelve de la sugerencia, sin guardar. Con AsignarYCrearGestiones corre
+        // dentro de la operación serializada de IAltaDeVisitaConAsignaciones, que puede reintentarse con el contexto vacío: por
+        // eso la sugerencia se carga aquí dentro y no antes.
+        async Task<Result<VisitaAgregada>> AgregarVisitaAsync(CancellationToken ct)
+        {
+            conversacionParaPaquete = null;
+
+            // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
+            // del mensaje que la originó, el mismo criterio con el que ObtenerConversacionPorIdQuery la
+            // enseña. Fuera de alcance se trata igual que un Id que no existe: la Visita nace, pero la
+            // sugerencia de otra cartera no se resuelve, su Conversación no se enlaza y no se le envía
+            // ningún paquete documental.
+            var sugerencia = request.SugerenciaVisitaCorreoId is { } sugerenciaId
+                ? await ObtenerSugerenciaDentroDeAlcanceAsync(sugerenciaId, ct)
+                : null;
+
+            // El origen sale del canal del mensaje del que nació la sugerencia, no de que exista una:
+            // una sugerencia detectada por WhatsApp crea una Visita de origen WhatsApp.
+            CanalConversacion? canalDelMensaje = null;
+            if (sugerencia is not null)
+            {
+                canalDelMensaje = await comunicacionesContext.Mensajes
+                    .Where(m => m.Id == sugerencia.MensajeId)
+                    .Select(m => (CanalConversacion?)m.Canal)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            var origen = Visita.OrigenAlCrear(sugerencia is not null, canalDelMensaje);
+            var nueva = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
+            nueva.RellenarContactoDesdeCentro(centro.Contacto);
+            repositorio.Agregar(nueva);
+            visita = nueva;
+
+            var gestionadoPor = await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria);
+            foreach (var trabajadorId in trabajadorIds)
+                visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(nueva.Id, admitidos[trabajadorId], gestionadoPor));
+
+            if (sugerencia is not null)
+            {
+                // Si el Gestor tuvo que corregir centro o fechas antes de confirmar, la
+                // sugerencia ahorró menos trabajo que una aceptada de un clic. No hace
+                // falta que la UI lo declare: los propios datos lo dicen.
+                var huboEdicion =
+                    sugerencia.CentroId != request.CentroId
+                    || (sugerencia.FechaInicioSugerida is { } inicio && inicio != request.FechaInicio)
+                    || (sugerencia.FechaFinSugerida is { } fin && fin != request.FechaFin);
+
+                sugerencia.Resolver(
+                    huboEdicion ? ResolucionSugerencia.ConfirmadaConEdicion : ResolucionSugerencia.Confirmada,
+                    await currentUserService.ObtenerUsuarioActualIdAsync());
+                conversacionParaPaquete = await comunicacionesContext.Mensajes
+                    .Where(m => m.Id == sugerencia.MensajeId)
+                    .Select(m => (Guid?)m.ConversacionId)
+                    .FirstOrDefaultAsync(ct);
+
+                // Instante que el cliente considera "yo avisé": el primer mensaje entrante
+                // del hilo, no el mensaje del que la IA sacó la sugerencia — si el hilo
+                // arrancó pidiendo la visita y luego hubo idas y venidas, el margen se
+                // cuenta desde el principio, a favor del cliente.
+                if (conversacionParaPaquete is { } conversacionOrigenId)
+                {
+                    var solicitudUtc = await comunicacionesContext.Mensajes
+                        .Where(m => m.ConversacionId == conversacionOrigenId && m.Direccion == DireccionMensaje.Entrante)
+                        .OrderBy(m => m.FechaUtc)
+                        .Select(m => (DateTime?)m.FechaUtc)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (solicitudUtc is not null)
+                        nueva.RegistrarOrigenSolicitud(conversacionOrigenId, solicitudUtc.Value);
+                }
+            }
+
+            // Las Gestiones que nacen con la Visita se enlazan al mensaje del que nació la sugerencia, ya comprobado dentro
+            // del alcance: así se ve en la Gestión de qué conversación salió.
+            return Result.Exito(new VisitaAgregada(nueva.Id, sugerencia?.MensajeId));
+        }
+    }
+
+    private async Task<Result<Guid>> DespuesDeGuardarAsync(
+        Visita visita, Guid? conversacionParaPaquete, CancellationToken cancellationToken)
+    {
         // Una visita puede nacer ya con todo el papeleo en regla — si es así, el
         // expediente se sella aquí mismo y la antelación efectiva coincide con la nominal.
         try

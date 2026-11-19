@@ -266,7 +266,8 @@ public class InboundConfiguracionTests : BunitContext
     {
         var cut = Render<GobiernoDeInbound>();
 
-        cut.Markup.Should().Contain("Gobierno de Inbound").And.Contain("El gobierno de Inbound no está disponible");
+        cut.Markup.Should().Contain("Reglas de validación").And.Contain("Las reglas de validación no están disponibles");
+        cut.Markup.Should().NotContain("Gobierno de Inbound").And.NotContain("gobierno de Inbound");
         cut.FindAll("[role=switch]").Should().BeEmpty("sin backend no se enseña ningún ajuste");
     }
 
@@ -277,9 +278,12 @@ public class InboundConfiguracionTests : BunitContext
         var cut = Render<GobiernoDeInbound>();
 
         foreach (var rotulo in new[] { "Convalidación entre organizaciones", "Con qué organizaciones", "Qué tipos de requisito", "Condición fija", "Validado por convalidación",
-                     "Validación automática por tipo de documento", "Próximamente", "Quién gestiona", "Gestiones CAE Ebro S.L.", "Asignación de Operación", "Registro de cambios",
+                     "Validación automática por tipo de documento", "Próximamente", "Quién gestiona", "Gestiones CAE Ebro S.L.", "Permiso para gestionar", "Registro de cambios",
                      "Sin cambios por guardar." })
             cut.Markup.Should().Contain(rotulo);
+        // D2: la pantalla habla en llano; ni el modelo interno (Asignación de Operación, Operador CAE, Gestor CAE) ni el producto (Inbound).
+        foreach (var jerga in new[] { "Asignación de Operación", "Operador CAE", "Gestor CAE", "Gestores CAE", "Inbound" })
+            cut.Find(".contenedor-pagina").TextContent.Should().NotContain(jerga);
         var auto = cut.Find("[data-pieza=validacion-automatica] [role=switch]");
         auto.HasAttribute("disabled").Should().BeTrue("la validación automática llega en la ola siguiente");
         cut.Find("[data-pieza=registro]").TextContent.Should().Contain("02/11/2026 11:05").And.Contain("Elena Gracia Sanz");
@@ -304,7 +308,7 @@ public class InboundConfiguracionTests : BunitContext
 
         var cut = Render<GobiernoDeInbound>();
 
-        cut.Markup.Should().Contain("no está disponible con el encargo de administración");
+        cut.Markup.Should().Contain("no están disponibles con el encargo de administración");
         cut.FindAll("[role=switch]").Should().BeEmpty();
     }
 
@@ -317,6 +321,35 @@ public class InboundConfiguracionTests : BunitContext
 
         cut.Find("[data-pieza=convalidacion] [role=switch]").GetAttribute("aria-checked").Should().Be("false");
         cut.FindAll("[data-pieza=convalidacion] input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("disabled"));
+    }
+
+    // ---------------------------------------------------------------- Alineación con Outbound: cabecera, barra de filtros y marco de lista
+
+    [Fact]
+    public void Las_reglas_de_aviso_usan_la_cabecera_sin_antetitulo()
+    {
+        _reglas.Datos = ReglasEjemplo();
+
+        var cut = Render<ReglasAvisoInbound>();
+
+        cut.Find("h1").TextContent.Should().Contain("Reglas de aviso");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
+    [Fact]
+    public void El_gobierno_usa_la_cabecera_sin_antetitulo_y_el_marco_de_lista_de_diseño_y_sus_interruptores_siguen_siendo_switch()
+    {
+        _gobierno.Datos = GobiernoEjemplo();
+
+        var cut = Render<GobiernoDeInbound>();
+
+        cut.Find("h1").TextContent.Should().Contain("Reglas de validación").And.NotContain("Inbound");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
+        cut.Find(".contenedor-pagina").ClassList.Should().Contain("lista-design");
+        var interruptores = cut.FindAll("[role=switch]");
+        interruptores.Should().HaveCountGreaterThan(1);
+        interruptores.Should().OnlyContain(s => s.HasAttribute("aria-checked"), "PastillaInterruptor es una pastilla con aria-pressed y no sustituye a un switch de ajuste");
+        cut.FindAll("[aria-pressed][role=switch]").Should().BeEmpty();
     }
 
 
@@ -380,7 +413,7 @@ public class InboundConfiguracionTests : BunitContext
 
         RenderPanel().Markup.Should().Contain("No se pudieron cargar los requerimientos").And.Contain("Sin permiso sobre este contrato").And.Contain("Reintentar");
         Render<ReglasAvisoInbound>().Markup.Should().Contain("No se pudieron cargar las reglas").And.Contain("Sin permiso sobre las reglas").And.NotContain("no están disponibles");
-        Render<GobiernoDeInbound>().Markup.Should().Contain("No se pudo cargar el gobierno de Inbound").And.Contain("Sin permiso sobre el gobierno").And.NotContain("no está disponible");
+        Render<GobiernoDeInbound>().Markup.Should().Contain("No se pudieron cargar las reglas de validación").And.Contain("Sin permiso sobre el gobierno").And.NotContain("no está disponible");
     }
 
     [Fact]

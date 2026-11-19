@@ -60,4 +60,13 @@
   <data name="TipoFueraDeCatalogo" xml:space="preserve">
     <value>«{0}» no está en tu catálogo de tipos de documento: no se puede registrar el veredicto todavía.</value>
   </data>
+  <data name="SubidoPorTi" xml:space="preserve">
+    <value>Lo subiste tú: lo valida otra persona.</value>
+  </data>
+  <data name="SubidoPorTiQuienValida" xml:space="preserve">
+    <value>Puede validarlo otro Gestor CAE con este contrato en su cartera o el Administrador de esta organizaci&#243;n.</value>
+  </data>
+  <data name="ValidarBajoImpersonacion" xml:space="preserve">
+    <value>Mientras actúas en nombre de otro usuario no se puede validar. Rechazar sigue disponible.</value>
+  </data>
 </root>

@@ -28,7 +28,7 @@ public partial class AvisoSinAsignacionCartera : ComponentBase
     [Inject] private IStringLocalizer<TextosIncorporacionCartera> Textos { get; set; } = default!;
     [Inject] private ILogger<AvisoSinAsignacionCartera> Logger { get; set; } = default!;
 
-    /// <summary>Título propio de la pantalla; por defecto, «Sin Asignación de Cartera».</summary>
+    /// <summary>Título propio de la pantalla; por defecto, «No tienes empresas asignadas aquí».</summary>
     [Parameter] public string? Titulo { get; set; }
 
     /// <summary>Descripción propia de la pantalla; por defecto, la genérica que remite al Coordinador CAE.</summary>
