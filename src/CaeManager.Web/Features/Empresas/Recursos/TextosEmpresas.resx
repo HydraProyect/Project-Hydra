@@ -331,7 +331,7 @@
     <value>Gestor CAE de esta organización</value>
   </data>
   <data name="GestorCaeTitulo" xml:space="preserve">
-    <value>Gestores CAE con Asignación de Cartera sobre esta organización</value>
+    <value>Gestores CAE que llevan esta organización</value>
   </data>
   <data name="GestorCaePrincipal" xml:space="preserve">
     <value>Principal</value>
@@ -358,11 +358,11 @@
     <comment>Antecede al nombre de la organización que gestiona el Tenant. Operador CAE = organización; Gestor CAE = persona.</comment>
   </data>
   <data name="GestorCaeTituloPropietario" xml:space="preserve">
-    <value>Operador CAE que gestiona esta organización y sus Gestores CAE con Asignación de Cartera</value>
+    <value>Operador CAE que gestiona esta organización y los Gestores CAE que la llevan</value>
     <comment>Lo lee el Administrador del Tenant propietario.</comment>
   </data>
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
-    <value>Otra Asignación de Operación, sin principal</value>
+    <value>Otra operación, sin Gestor CAE principal</value>
     <comment>Hay más de una Asignación de Operación viva y alguna no tiene Gestor CAE principal.</comment>
   </data>
   <data name="GestorCaeMas" xml:space="preserve">
@@ -370,7 +370,7 @@
     <comment>Pastilla de la cabecera «Gestor CAE»: cuántas personas con cartera no caben en la línea. {0} = número.</comment>
   </data>
   <data name="GestorCaeMasEtiqueta" xml:space="preserve">
-    <value>{0} más. Lista completa de personas con Asignación de Cartera</value>
+    <value>{0} más. Lista completa de personas que llevan esta organización</value>
     <comment>Nombre accesible de la pastilla «+N» de la cabecera «Gestor CAE». {0} = número de personas agrupadas.</comment>
   </data>
   <data name="GestorCaeReintentar" xml:space="preserve">
@@ -398,7 +398,7 @@
     <comment>Botón del pie de la hoja inferior de la ventana «+N» en móvil: sustituye al texto y al enlace de escritorio.</comment>
   </data>
   <data name="GestorCaeVentanaTitulo" xml:space="preserve">
-    <value>Gestores CAE con Asignación de Cartera</value>
+    <value>Gestores CAE que llevan esta organización</value>
     <comment>Título de la ventana «+N» (revisión de Design, §C). El title de la línea sigue usando GestorCaeTitulo.</comment>
   </data>
   <data name="GestorCaeCerrar" xml:space="preserve">

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -16,7 +16,7 @@
     <value>Contratos de acceso</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Inbound</value>
+    <value>Contrato de acceso</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
     <value>Qué Empresas contratistas pueden entrar en cada Centro, bajo qué condiciones y hasta cuándo.</value>
@@ -316,7 +316,7 @@
     <value>Aún no se muestran las solicitudes</value>
   </data>
   <data name="VacioSolicitudesDescripcion" xml:space="preserve">
-    <value>Aquí verás las solicitudes de acceso de este contrato para confirmarlas o rechazarlas. Llegará con las solicitudes de Inbound.</value>
+    <value>Aquí verás las solicitudes de acceso de este contrato para confirmarlas o rechazarlas. Llegará con las solicitudes de acceso.</value>
   </data>
   <data name="VacioTrabajadoresTitulo" xml:space="preserve">
     <value>Aún no se muestran los Trabajadores</value>

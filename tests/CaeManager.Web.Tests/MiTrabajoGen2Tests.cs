@@ -921,12 +921,12 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, [])]));
 
         cut.Markup.Should().Contain("La cola está vacía");
-        cut.Markup.Should().NotContain("Sin Asignación de Cartera");
+        cut.Markup.Should().NotContain("No tienes empresas asignadas").And.NotContain("Sin empresas asignadas");
     }
 
     // P2.3 de la demo a Dirección: «La cola está vacía» solo con alguna Empresa en
     // cartera con alcance y ningún pendiente. Con alcance cero —un Gestor CAE
-    // sin Asignación de Cartera vigente, o el Administrador que ve los Tenants
+    // sin empresas asignadas vigentes, o el Administrador que ve los Tenants
     // delegados sin cartera en ellos— no hay nada que vigilar, y decir «al día»
     // afirmaría un cumplimiento que nadie ha mirado.
 
@@ -941,14 +941,14 @@ public partial class MiTrabajoGen2Tests : BunitContext
         ]));
 
         var vacio = cut.Find(".mi-trabajo-cola");
-        vacio.TextContent.Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        vacio.TextContent.Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("La cola está vacía").And.NotContain("Ningún bloqueo hoy");
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Nada que vigilar todavía");
         cut.FindAll(".mi-trabajo-cartera-sub").Select(e => e.TextContent)
-            .Should().Contain("Sin Asignación de Cartera").And.NotContain("Sin trabajo pendiente");
+            .Should().Contain("Sin empresas asignadas").And.NotContain("Sin trabajo pendiente");
     }
 
-    // D-15 (residuo): al propio Coordinador CAE no se le dice «pídesela a tu Coordinador CAE»,
+    // D-15 (residuo): al propio Coordinador CAE no se le dice «pídele una a tu Coordinador CAE»,
     // ni en la cartera entera ni con una Empresa filtrada.
     [Fact]
     public void Al_Coordinador_CAE_sin_alcance_no_se_le_remite_a_su_propio_rol()
@@ -957,7 +957,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             rol: CaeManager.Infrastructure.Identity.Roles.CoordinadorCae);
 
         var vacio = cut.Find(".mi-trabajo-cola").TextContent;
-        vacio.Should().Contain("Sin Asignación de Cartera").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
+        vacio.Should().Contain("No tienes empresas asignadas").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídele una").And.NotContain("Pide a tu");
         cut.Find(".mi-trabajo-cola a[data-enlace=usuarios]").GetAttribute("href").Should().Be("/usuarios");
     }
 
@@ -973,7 +973,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Refrielectric")).Click();
 
         var vacio = cut.Find(".mi-trabajo-cola").TextContent;
-        vacio.Should().Contain("Refrielectric").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
+        vacio.Should().Contain("Refrielectric").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídele una").And.NotContain("Pide a tu");
     }
 
     [Fact]
@@ -982,7 +982,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]),
             rol: CaeManager.Infrastructure.Identity.Roles.GestorCae);
 
-        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Pídele una a tu Coordinador CAE");
         cut.FindAll(".mi-trabajo-cola a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
@@ -991,7 +991,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
     {
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]));
 
-        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("No tienes empresas asignadas");
         cut.Markup.Should().NotContain("La cola está vacía");
     }
 
@@ -1004,7 +1004,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
         ]));
 
-        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("La cola está vacía").And.NotContain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("La cola está vacía").And.NotContain("No tienes empresas asignadas");
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Ningún bloqueo hoy");
     }
 
@@ -1018,7 +1018,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         ]));
 
         TitulosVisibles(cut).Should().Equal("Reconocimiento médico");
-        cut.Find(".mi-trabajo-cola").TextContent.Should().NotContain("La cola está vacía").And.NotContain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().NotContain("La cola está vacía").And.NotContain("No tienes empresas asignadas");
     }
 
     [Fact]
@@ -1032,7 +1032,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
 
-        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Laboratorios Dexter, sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Laboratorios Dexter, sin empresas asignadas");
         cut.Markup.Should().NotContain("Laboratorios Dexter, al día");
     }
 
@@ -1061,7 +1061,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
     /// <summary>
     /// FS-07: una Empresa de la cartera cuya cola no se pudo consultar no
     /// deja sin cola a las demás. Lo que sí cargó se pinta, y el aviso nombra
-    /// la que falló; nunca se la da por «sin Asignación de Cartera» ni al día.
+    /// la que falló; nunca se la da por «sin empresas asignadas» ni al día.
     /// </summary>
     [Fact]
     public void Si_una_Empresa_de_la_cartera_no_se_pudo_consultar_se_pinta_el_resto_y_se_nombra_la_que_fallo()
@@ -1083,7 +1083,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             [], [new TenantNoConsultadoDto(Guid.NewGuid(), "Laboratorios Dexter", EsOrigen: false)]));
 
         cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should().Contain("Laboratorios Dexter");
-        cut.Markup.Should().NotContain("sin Asignación de Cartera").And.NotContain("La cola está vacía")
+        cut.Markup.Should().NotContain("No tienes empresas asignadas").And.NotContain("La cola está vacía")
             .And.NotContain("Ningún bloqueo hoy");
         cut.Markup.Should().Contain("Lo consultado está al día");
     }

@@ -241,8 +241,9 @@ public static class CatalogoMenuLateral
         // Inbound (plan de pantallas Inbound, § 1): la sección del Tenant beneficiario que recibe contratistas en sus Centros
         // (Contratos de acceso y Documentos por validar). Existe solo con la línea Inbound activa en el Producto Contratado
         // (ContextoMenuLateral.LineaInboundVigente) y con los roles del menú completo.
-        new("inbound", "Inbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto),
-            Linea: LineaMenu.Inbound),
+        // El título no puede ser «Inbound»: es el nombre interno de la línea y no debe llegar a la pantalla (D2 de Chris, 2026-11-19).
+        new("inbound", "MenuGrupoInbound", AbiertoPorDefecto: true, c => c.LineaInboundVigente && c.TieneAlgunRol(RolesConMenuCompleto),
+            Linea: LineaMenu.Inbound, ClaveTitulo: "MenuGrupoInbound"),
 
         // Configuración de Inbound (pantallas 18 y 20 del plan): los ajustes del Tenant TCE. Mismo gate que «Inbound» (línea vigente), pero
         // sin el rol Consulta: ninguna de sus páginas lo autoriza. «Reglas de aviso» hereda esta condición (un test la compara con el [Authorize] de su página); Gobierno añade la suya.
@@ -255,7 +256,7 @@ public static class CatalogoMenuLateral
         // la capacidad ParticipanteTec de B-03 en la Query): el Tenant TEC no tiene Producto Contratado de Inbound. Solo el
         // Administrador, el rol que autorizan sus dos
         // páginas ([Authorize(Roles = Administrador)] en Requerimientos y en Quién lee mis documentos). Sin línea de producto
-        // (SinLinea): no es de la sección «Inbound · Tenant TCE», y así no lleva ese rótulo ni cuenta como una segunda línea.
+        // (SinLinea): no es de la sección «Valida», y así no lleva ese rótulo ni cuenta como una segunda línea.
         new("inbound-tec", "MenuGrupoInboundTec", AbiertoPorDefecto: true,
             c => c.EsTenantTecInbound && c.TieneAlgunRol(Roles.Administrador), ClaveTitulo: "MenuGrupoInboundTec"),
 
@@ -535,7 +536,7 @@ public static class CatalogoMenuLateral
 
     /// <summary>
     /// Los rótulos separadores de línea (D-2): para cada grupo que abre un tramo de su línea, la línea cuyo rótulo
-    /// («Outbound», «Inbound · Tenant TCE») se pinta justo antes. Solo hay rótulos cuando <paramref name="visibles"/>
+    /// («Acredita», «Valida») se pinta justo antes. Solo hay rótulos cuando <paramref name="visibles"/>
     /// enseña grupos con enlaces de las DOS líneas; con una sola el menú queda como si los rótulos no existieran.
     /// Se rotula cada cambio de línea en el orden pintado (con el orden por defecto, un rótulo por línea; si el
     /// orden guardado por el Actor de Plataforma TALVEG las intercala, el rótulo se repite en vez de mentir sobre

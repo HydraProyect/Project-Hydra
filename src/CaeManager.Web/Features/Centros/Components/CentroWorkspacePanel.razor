@@ -1908,7 +1908,7 @@ else
             return;
         }
 
-        ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global del tenant.", TonoToast.Exito);
+        ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global de la organización.", TonoToast.Exito);
         WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
         if (EdicionAbiertaDe(item))
             _edicionRequisitoAbierta = false;

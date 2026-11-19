@@ -16,7 +16,8 @@ namespace CaeManager.Application.Common;
 /// <c>ISerializacionAltasAcreditacionEmpresa</c> (RestaurarDocumento, RestaurarCentro,
 /// EliminarDocumentacionRequeridaCentro, EstablecerDocumentacionRequeridaCentro, EstablecerGestionCaeCentro,
 /// CrearCanalGestion, CrearDocumento, RenovarDocumento, EditarTipoDocumento, CrearAsignacion, CrearAsignaciones,
-/// ReactivarAsignacion y GenerarDocumentoIndividual; EjecutarImportacion sigue pendiente, issue #2118), para no
+/// ReactivarAsignacion, GenerarDocumentoIndividual y CrearVisita con AsignarYCrearGestiones, que lo hace en
+/// AltaDeVisitaConAsignaciones; EjecutarImportacion sigue pendiente, issue #2118), para no
 /// decidir con el alcance de antes de esperarlo. Solo la
 /// memoización de esta instancia: no toca el ámbito de Tenant, la cartera ni la autorización.
 /// </summary>

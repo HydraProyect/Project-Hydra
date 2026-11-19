@@ -347,7 +347,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
         var cut = Renderizar();
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
-            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+            .Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("Aún no hay Clientes");
         cut.Markup.Should().NotContain("+ Nuevo Cliente", "invitar a crear con alcance cero termina en un duplicado");
         cut.Markup.Should().NotContain("Alta guiada", "invitar a crear con alcance cero termina en un duplicado");

@@ -343,7 +343,7 @@
     <value>Configuració · Plataforma</value>
   </data>
   <data name="OrdenMenuDescripcion" xml:space="preserve">
-    <value>Ordena els grups del menú lateral i els enllaços de cada grup. L'ordre és el mateix per a tots els usuaris de tots els Tenants.</value>
+    <value>Ordena els grups del menú lateral i els enllaços de cada grup. L'ordre és el mateix per a tots els usuaris de totes les organitzacions.</value>
   </data>
   <data name="OrdenMenuSinAccesoTitulo" xml:space="preserve">
     <value>Només l'equip de TALVEG pot canviar l'ordre del menú.</value>
@@ -355,7 +355,7 @@
     <value>El canvi és global</value>
   </data>
   <data name="OrdenMenuGlobalTodos" xml:space="preserve">
-    <value>El veuran tots els usuaris de tots els Tenants la pròxima vegada que carreguin una pàgina.</value>
+    <value>El veuran tots els usuaris de totes les organitzacions la pròxima vegada que carreguin una pàgina.</value>
   </data>
   <data name="OrdenMenuGlobalVisibilidad" xml:space="preserve">
     <value>Ordenar no mostra ni amaga res: cada usuari continua veient només els enllaços que el seu rol li permet.</value>
@@ -367,7 +367,7 @@
     <value>Pla de Plataforma</value>
   </data>
   <data name="OrdenMenuChipTenants" xml:space="preserve">
-    <value>Tots els Tenants</value>
+    <value>Totes les organitzacions</value>
   </data>
   <data name="OrdenMenuChipAuditado" xml:space="preserve">
     <value>Queda auditat amb l'Actor real</value>
@@ -478,7 +478,7 @@
     <value>Veure el menú com a</value>
   </data>
   <data name="OrdenMenuRolAdministrador" xml:space="preserve">
-    <value>Administrador de Tenant</value>
+    <value>Administrador de l'organització</value>
   </data>
   <data name="OrdenMenuRolDireccionCae" xml:space="preserve">
     <value>Direcció CAE</value>
@@ -514,7 +514,7 @@
     <value>El menú de tots els usuaris coincideix amb el que veus aquí.</value>
   </data>
   <data name="OrdenMenuDetalleConCambios" xml:space="preserve">
-    <value>Encara no ho veu ningú. En desar, s'aplica a tots els usuaris de tots els Tenants.</value>
+    <value>Encara no ho veu ningú. En desar, s'aplica a tots els usuaris de totes les organitzacions.</value>
   </data>
   <data name="OrdenMenuRestablecer" xml:space="preserve">
     <value>Restablir l'ordre per defecte</value>
@@ -562,7 +562,7 @@
     <value>Vols restablir l'ordre per defecte?</value>
   </data>
   <data name="OrdenMenuDialogoTexto" xml:space="preserve">
-    <value>Es torna a l'ordre amb què es lliura TALVEG, per a tots els usuaris de tots els Tenants. Queda auditat com qualsevol altre desament i es pot tornar a ordenar després.</value>
+    <value>Es torna a l'ordre amb què es lliura TALVEG, per a tots els usuaris de totes les organitzacions. Queda auditat com qualsevol altre desament i es pot tornar a ordenar després.</value>
   </data>
   <data name="OrdenMenuCancelar" xml:space="preserve">
     <value>Cancel·lar</value>

@@ -238,9 +238,9 @@ public class ValidacionInboundConBackendTests : BunitContext
     [InlineData("EvidenciaInbound.ValidaLoQueSubio", "es-ES", "Lo subiste tú: lo valida otra persona.")]
     [InlineData("EvidenciaInbound.ValidaLoQueSubio", "ca-ES", "L'has pujat tu: el valida una altra persona.")]
     [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "es-ES",
-        "Mientras actúas en nombre de otro usuario no se puede validar en Inbound. Rechazar sigue disponible.")]
+        "Mientras actúas en nombre de otro usuario no se puede validar. Rechazar sigue disponible.")]
     [InlineData("EvidenciaInbound.ValidarBajoImpersonacionNoDisponible", "ca-ES",
-        "Mentre actues en nom d'un altre usuari no es pot validar a Inbound. Rebutjar continua disponible.")]
+        "Mentre actues en nom d'un altre usuari no es pot validar. Rebutjar continua disponible.")]
     public void Un_bloqueo_D12_del_servidor_se_dice_en_el_idioma_de_la_pantalla(string codigo, string cultura, string esperado)
     {
         var error = codigo == EvidenciaInboundErrores.ValidaLoQueSubio.Codigo

@@ -28,6 +28,91 @@ public class UnifiedTimelineTests : BunitContext
         DateTime fechaUtc, string descripcion = "Se ha creado una visita.", TipoEventoConversacion tipo = TipoEventoConversacion.VisitaCreada) =>
         new(Guid.NewGuid(), tipo, Guid.NewGuid(), fechaUtc, descripcion);
 
+    /// <summary>
+    /// D2 (2026-11-19): el origen del participante se dice con un recurso en el idioma de la pantalla, nunca con el
+    /// nombre crudo del enum. Un valor de <see cref="TipoParticipanteOrigen"/> sin clave en es o ca-ES, o un renombrado,
+    /// hace caer la etiqueta a la clave cruda y este test lo detecta.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", TipoParticipanteOrigen.UsuarioCliente, "Usuario de Cliente")]
+    [InlineData("es-ES", TipoParticipanteOrigen.Trabajador, "Trabajador")]
+    [InlineData("es-ES", TipoParticipanteOrigen.Subcontrata, "Subcontrata")]
+    [InlineData("es-ES", TipoParticipanteOrigen.Empresa, "Empresa")]
+    [InlineData("es-ES", TipoParticipanteOrigen.Centro, "Centro")]
+    [InlineData("es-ES", TipoParticipanteOrigen.Desconocido, "Desconocido")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.UsuarioCliente, "Usuari de Client")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.Trabajador, "Treballador")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.Subcontrata, "Subcontracta")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.Empresa, "Empresa")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.Centro, "Centre")]
+    [InlineData("ca-ES", TipoParticipanteOrigen.Desconocido, "Desconegut")]
+    public void El_origen_del_participante_se_dice_con_texto_localizado_y_no_con_la_clave_del_recurso(
+        string cultura, TipoParticipanteOrigen origen, string esperado)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        try
+        {
+            var rol = Enum.GetValues<RolParticipante>()[0];
+            var otroOrigen = origen == TipoParticipanteOrigen.Centro ? TipoParticipanteOrigen.Empresa : TipoParticipanteOrigen.Centro;
+            var mensaje = CrearMensaje(new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc));
+
+            var cut = Render<UnifiedTimeline>(parametros => parametros
+                .Add(p => p.Mensajes, [mensaje])
+                .Add(p => p.Participantes,
+                [
+                    new ParticipanteDetalleDto(Guid.NewGuid(), mensaje.Remitente, rol, origen, null),
+                    new ParticipanteDetalleDto(Guid.NewGuid(), "otra@ejemplo.com", rol, otroOrigen, null)
+                ]));
+
+            var fila = cut.Find(".timeline-mensaje-fila").TextContent;
+            fila.Should().Contain(esperado).And.NotContain("TimelineOrigen");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    /// <summary>
+    /// Cierra el hueco de los casos fijos de arriba: recorre todos los valores de <see cref="TipoParticipanteOrigen"/>, de modo
+    /// que un valor nuevo sin clave localizada en es o ca-ES hace caer la etiqueta a la clave cruda y este test falla.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void Todo_valor_del_origen_del_participante_tiene_texto_localizado(string cultura)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+        try
+        {
+            var rol = Enum.GetValues<RolParticipante>()[0];
+            foreach (var origen in Enum.GetValues<TipoParticipanteOrigen>())
+            {
+                var mensaje = CrearMensaje(new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc));
+                // La etiqueta de origen solo se pinta cuando hay más de un origen distinto: hace falta un segundo participante.
+                var otroOrigen = origen == TipoParticipanteOrigen.Centro ? TipoParticipanteOrigen.Empresa : TipoParticipanteOrigen.Centro;
+
+                var cut = Render<UnifiedTimeline>(parametros => parametros
+                    .Add(p => p.Mensajes, [mensaje])
+                    .Add(p => p.Participantes,
+                    [
+                        new ParticipanteDetalleDto(Guid.NewGuid(), mensaje.Remitente, rol, origen, null),
+                        new ParticipanteDetalleDto(Guid.NewGuid(), "otra@ejemplo.com", rol, otroOrigen, null)
+                    ]));
+
+                var etiqueta = Services.GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes>>()["TimelineOrigen" + origen];
+                etiqueta.ResourceNotFound.Should().BeFalse($"el origen {origen} necesita su clave TimelineOrigen{origen} en {cultura}");
+                cut.Find(".timeline-mensaje-fila").TextContent.Should().Contain(etiqueta.Value, $"con dos orígenes distintos la fila pinta la etiqueta de origen ({origen}, {cultura})");
+            }
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
     [Fact]
     public void Intercala_eventos_entre_mensajes_por_orden_cronologico()
     {

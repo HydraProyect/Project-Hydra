@@ -68,14 +68,14 @@ public sealed class GuardaPorServicioBehavior<TRequest, TResponse>(
             return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
                 "Autorizacion.ComandoInboundFueraDePapel",
                 papel == PapelActivo.Outbound
-                    ? "Esta acción es de Inbound y estás trabajando en Outbound. Cambia al papel Inbound en el selector."
-                    : "Esta acción es de Inbound y el contexto actual no tiene papel Inbound."));
+                    ? "Esta acción es de Valida y estás trabajando en Acredita. Cambia a Valida en el selector."
+                    : "Esta acción es de Valida y el contexto actual no es de Valida."));
         }
 
         if (papel == PapelActivo.Inbound && request is not IComandoDeAutoservicio)
             return AutorizacionEscrituraBehavior<TRequest, TResponse>.CrearRespuestaFallo<TResponse>(Error.Crear(
                 "Autorizacion.ComandoFueraDelPapelInbound",
-                "Estás trabajando en Inbound y esta acción no es de Inbound. Cambia de papel en el selector."));
+                "Estás trabajando en Valida y esta acción no es de Valida. Cambia de papel en el selector."));
 
         if (EsDeOutbound && request is not IComandoDeAutoservicio
             && await criterioDeOutbound.CierraPorSoloInboundAsync(papel, cancellationToken))

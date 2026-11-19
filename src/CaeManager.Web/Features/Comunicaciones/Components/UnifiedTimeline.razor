@@ -13,6 +13,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosNotasInternas> TextosNotas
 @inject IStringLocalizer<TextosSugerenciasIa> TextosSugerencias
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosOrigen
 
 <div class="timeline-mensajes">
     @{ DateOnly? fechaSeparadorAnterior = null; }
@@ -84,7 +85,7 @@
                         }
                         @if (participante is not null && Participantes.Select(p => p.TipoOrigen).Distinct().Count() > 1)
                         {
-                            <Badge Tono="TonoBadge.Neutro">@participante.TipoOrigen</Badge>
+                            <Badge Tono="TonoBadge.Neutro">@TextoDeOrigen(participante.TipoOrigen)</Badge>
                         }
                         @if (esRuidoSinConfirmar)
                         {
@@ -182,6 +183,9 @@
     /// <summary>Ronda de reducción de ruido en Comunicaciones — mismo criterio en las dos formas en que un mensaje llega marcado como ruido, ver MensajeDetalleDto.</summary>
     private static bool EsRuidoSinConfirmar(MensajeDetalleDto mensaje) =>
         (mensaje.MotivoRuido != MotivoRuidoMensaje.Ninguno || mensaje.TieneSoloRepeticionesPendientes) && !mensaje.RuidoConfirmadoManualmente;
+
+    /// <summary>Texto de pantalla del origen de un participante: el nombre del valor del enum no llega a la interfaz (D2 de Chris, 2026-11-19).</summary>
+    private string TextoDeOrigen(TipoParticipanteOrigen origen) => TextosOrigen["TimelineOrigen" + origen].Value;
 
     private static string DescribirMotivoRuido(MensajeDetalleDto mensaje) => mensaje.MotivoRuido switch
     {

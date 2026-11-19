@@ -93,6 +93,14 @@ public class Tenant : Entity
     public bool IntegracionHabilitada { get; private set; }
 
     /// <summary>
+    /// Marcador único de Tenant participante TEC (D3, acordado con Inbound el 2026-11-19): solo
+    /// restringe, nunca concede. Nace en falso y sin backfill, así que ningún Tenant actual cambia.
+    /// Todavía no lo lee ni lo escribe nada: el único escritor, un servicio de plataforma, y su
+    /// método de dominio llegan en la PR de lógica de D3, con la tabla de escritores.
+    /// </summary>
+    public bool EsParticipanteTec { get; private set; }
+
+    /// <summary>
     /// Marca de finalización de <c>DatosPruebaSeeder</c> para ESTE tenant —
     /// null hasta que una siembra completa termina sin cortarse. Incidente de
     /// producción del 2026-08-28: el guard anterior ("¿existe algún Cliente

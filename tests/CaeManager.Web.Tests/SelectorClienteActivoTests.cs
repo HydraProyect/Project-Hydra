@@ -1007,6 +1007,38 @@ public class SelectorClienteActivoTests : BunitContext
         ];
     }
 
+    // D2 (Chris, 2026-11-19): los subtítulos del selector dicen qué hace la persona en esa empresa, no el nombre del producto ni el
+    // modelo interno; lo que se ve y lo que se lee en voz alta (title, aria-label) va sin jerga.
+    [Theory]
+    [InlineData("es-ES", "Gestionas su documentación", "Validas a sus contratistas")]
+    [InlineData("ca-ES", "Gestiones la seva documentació", "Valides els seus contractistes")]
+    public async Task D2_los_subtitulos_del_selector_hablan_en_llano_y_sin_jerga_interna(string cultura, string subOutbound, string subInbound)
+    {
+        var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            DosPapelesSobreNorte();
+            var cut = Renderizar(seleccionado: Sur);
+            await Abrir(cut);
+
+            cut.FindAll(".selector-tenant-lista .selector-tenant-sub").Select(s => s.TextContent.Trim())
+                .Should().Equal(subOutbound, subInbound, subOutbound);
+
+            var panel = cut.Find(".selector-tenant-panel");
+            var visible = panel.TextContent + " " + string.Join(" ",
+                panel.QuerySelectorAll("[title], [aria-label]").Select(e => e.GetAttribute("title") + " " + e.GetAttribute("aria-label")));
+            System.Text.RegularExpressions.Regex.Matches(visible,
+                    @"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci(?:[oó]n|ones) de (?:Operaci(?:[oó]n|ones)|Cartera)|Assignaci(?:[oó]|ons) d(?:e |['’])(?:Operaci(?:[oó]|ons)|Cartera)")
+                .Select(m => m.Value).Should().BeEmpty("el selector no nombra el producto ni el modelo interno");
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = anterior;
+        }
+    }
+
     [Fact]
     public async Task D4_cada_Asignacion_de_Operacion_es_una_entrada_con_su_pastilla_y_envia_su_servicio()
     {
@@ -1015,15 +1047,15 @@ public class SelectorClienteActivoTests : BunitContext
         await Abrir(cut);
 
         cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
-            .Should().BeEquivalentTo(["Outbound", "Inbound", "Outbound"]);
+            .Should().BeEquivalentTo(["Acredita", "Valida", "Acredita"]);
 
         var inbound = FormularioDe(cut, Norte, ServicioCae.Inbound);
         inbound.Should().NotBeNull("la entrada Inbound de Empresa Norte envía servicio=Inbound");
         inbound!.GetAttribute("method").Should().Be("post");
         inbound.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
         inbound.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
-        inbound.QuerySelector(".selector-tenant-papel")!.TextContent.Trim().Should().Be("Inbound");
-        inbound.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Empresa Norte · Inbound");
+        inbound.QuerySelector(".selector-tenant-papel")!.TextContent.Trim().Should().Be("Valida");
+        inbound.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Empresa Norte · Valida");
         FormularioDe(cut, Norte, ServicioCae.Outbound).Should().NotBeNull("la de Outbound es otra entrada del mismo Tenant");
 
         // El origen no tiene papel: su formulario no envía servicio.
@@ -1055,7 +1087,7 @@ public class SelectorClienteActivoTests : BunitContext
         await Abrir(cut);
 
         cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
-            .Should().BeEquivalentTo(["Outbound", "Inbound"]);
+            .Should().BeEquivalentTo(["Acredita", "Valida"]);
         FormularioDe(cut, Sur, ServicioCae.Inbound).Should().NotBeNull("la entrada Inbound envía servicio=Inbound al POST, que revalida");
     }
 
@@ -1081,7 +1113,7 @@ public class SelectorClienteActivoTests : BunitContext
         _papel = PapelActivo.Inbound;
         var cut = Renderizar(seleccionado: Norte);
 
-        cut.Find(".selector-tenant-disparador .selector-tenant-papel").TextContent.Trim().Should().Be("Inbound");
+        cut.Find(".selector-tenant-disparador .selector-tenant-papel").TextContent.Trim().Should().Be("Valida");
         await Abrir(cut);
 
         FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true");
@@ -1174,7 +1206,7 @@ public class SelectorClienteActivoTests : BunitContext
         _papel = PapelActivo.Inbound;
         var disparador = Renderizar(seleccionado: Norte).Find(".selector-tenant-disparador");
 
-        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Inbound",
+        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Valida",
             "la pastilla es aria-hidden: el papel solo llega al lector de pantalla por la etiqueta");
     }
 

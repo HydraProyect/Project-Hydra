@@ -85,7 +85,7 @@ public class FijarResponsableBuzonCommandHandler(
             "Ese usuario no tiene un rol de gestión: no podría responder a este buzón."),
         MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa => Error.Crear(
             "Integraciones.Buzon.ResponsableSinCartera",
-            "Esa persona no tiene una Asignación de Cartera sobre la Empresa de este buzón."),
+            "Esa persona no tiene asignada la Empresa de este buzón."),
         _ => Error.Crear(
             "Integraciones.Buzon.ResponsableNoValido", "No encontramos a ese usuario activo en tu organización."),
     };
