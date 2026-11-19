@@ -147,13 +147,13 @@ public class CriterioPurgaDocumentosTests
             var tipo = Tipo(anios);
             var documentos = new List<Documento>();
             foreach (var vence in fechas)
-            foreach (var sustituido in fechas.Select(f => (DateOnly?)f).Append(null))
-            {
-                var documento = Doc(tipo, new DateOnly(2024, 1, 1), vence);
-                if (sustituido is { } s)
-                    Sustituir(documento, s.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
-                documentos.Add(documento);
-            }
+                foreach (var sustituido in fechas.Select(f => (DateOnly?)f).Append(null))
+                {
+                    var documento = Doc(tipo, new DateOnly(2024, 1, 1), vence);
+                    if (sustituido is { } s)
+                        Sustituir(documento, s.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc));
+                    documentos.Add(documento);
+                }
 
             var candidatos = Candidatos([tipo], aniosTenant: 5, [.. documentos]).Select(c => c.DocumentoId).ToHashSet();
 
