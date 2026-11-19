@@ -144,6 +144,12 @@
   <data name="PlanAltaSinPermiso" xml:space="preserve">
     <value>No tens permís per assignar aquests treballadors a aquest centre, així que la visita es crearà sense assignar-los i sense obrir gestions.</value>
   </data>
+  <data name="PlanAltaSolapada" xml:space="preserve">
+    <value>{0} no es pot assignar avui a aquest centre: va tenir una assignació anterior amb un període que coincideix amb avui.</value>
+  </data>
+  <data name="PlanAltaSolapadaConsecuencia" xml:space="preserve">
+    <value>Treu de la visita qui no es pugui assignar o revisa'n l'assignació. Si deses així, la visita es crearà sense assignar ningú i sense obrir gestions.</value>
+  </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centre…</value>
   </data>

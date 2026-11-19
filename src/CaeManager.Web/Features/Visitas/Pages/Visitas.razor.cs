@@ -114,10 +114,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private PlanAltaVisitaPreviaDto? _planAlta;
     private int _cargaPlanAlta;
 
-    private PlanAltaVisitaDto? PlanAltaConAutoridad =>
-        _planAlta is { PuedeAsignar: true, Plan: { } plan } && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
+    // Trabajadores que no se pueden asignar hoy porque una Asignación anterior al Centro tiene un periodo que se solapa con
+    // hoy. Mientras haya alguno, pedir asignar rechazaría la Visita entera: se crea como antes (sin asignar ni abrir
+    // Gestiones) y el aviso lo dice. Tiene prioridad sobre el plan y sobre el aviso de permiso.
+    private IReadOnlyList<AsignacionPrevistaDto>? PlanAltaSolapadas =>
+        _planAlta is { Plan.Solapadas.Count: > 0 } previa ? previa.Plan.Solapadas : null;
 
-    private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan.Asignaciones.Count: > 0 };
+    private PlanAltaVisitaDto? PlanAltaConAutoridad =>
+        _planAlta is { PuedeAsignar: true, Plan: { Solapadas.Count: 0 } plan } && (plan.Asignaciones.Count > 0 || plan.Gestiones.Count > 0) ? plan : null;
+
+    private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
     // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en

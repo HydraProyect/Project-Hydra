@@ -100,7 +100,14 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         [
             new GestionPrevistaDto(Trabajador, "Ana García Ruiz", TipoPrl, "Formación PRL", MotivoGestionPrevista.Falta),
             new GestionPrevistaDto(Trabajador, "Ana García Ruiz", TipoMedico, "Reconocimiento médico", MotivoGestionPrevista.CaducaAntesDelFin),
-        ]);
+        ],
+        Solapadas: []);
+
+    /// <summary>Ana se asignaría y abriría Gestiones, pero Bruno tuvo una Asignación anterior al Centro cuyo periodo coincide con hoy.</summary>
+    private static PlanAltaVisitaDto PlanConUnaSolapada() => PlanConAsignacionYGestiones() with
+    {
+        Solapadas = [new AsignacionPrevistaDto(Guid.NewGuid(), "Bruno Pérez")],
+    };
 
     private IRenderedComponent<Visitas> Renderizar(MediatorAlta mediator)
     {
@@ -122,7 +129,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 
     private static IElement[] BloquesDeVistaPrevia(IRenderedComponent<Visitas> cut) => cut
         .FindAll(".drawer-panel .alerta-info[role=status]")
-        .Where(b => b.TextContent.Contains("Se asignará") || b.TextContent.Contains("No tienes permiso"))
+        .Where(b => b.TextContent.Contains("Se asignará") || b.TextContent.Contains("No tienes permiso") || b.TextContent.Contains("no se puede asignar hoy"))
         .ToArray();
 
     /// <summary>La fecha de fin es el segundo campo de fecha del formulario (el primero es el de inicio).</summary>
@@ -174,6 +181,52 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
         texto.Should().Contain("No tienes permiso para asignar").And.Contain("sin asignarlos y sin abrir gestiones");
         texto.Should().NotContain("Se abrirán", "sin permiso no se promete nada");
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Con_una_asignacion_solapada_el_aviso_nombra_a_la_persona_y_no_promete_nada()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConUnaSolapada(), PuedeAsignar: true) };
+
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+        texto.Should().Contain("Bruno Pérez no se puede asignar hoy a este centro: tuvo una asignación anterior cuyo periodo coincide con hoy.");
+        texto.Should().Contain("Quita de la visita a quien no se pueda asignar o revisa su asignación")
+            .And.Contain("la visita se creará sin asignar a nadie y sin abrir gestiones");
+        texto.Should().NotContainAny("Se asignará", "Se abrirá", "Se abrirán", "Tenant", "Inbound", "Outbound", "Gestor");
+    }
+
+    [Fact]
+    public async Task Con_una_asignacion_solapada_se_crea_la_visita_sin_pedir_asignar_ni_crear_gestiones()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConUnaSolapada(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeFalse(
+            "pedir asignar con una solapada haría que el servidor rechazase la Visita entera");
+    }
+
+    [Fact]
+    public async Task Con_varias_solapadas_el_aviso_las_nombra_a_todas_y_sin_permiso_prima_el_aviso_de_solape()
+    {
+        var plan = PlanConAsignacionYGestiones() with
+        {
+            Solapadas = [new AsignacionPrevistaDto(Guid.NewGuid(), "Bruno Pérez"), new AsignacionPrevistaDto(Guid.NewGuid(), "Carla Sanz")],
+        };
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(plan, PuedeAsignar: false) };
+
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+        texto.Should().Contain("Bruno Pérez no se puede asignar hoy").And.Contain("Carla Sanz no se puede asignar hoy");
+        texto.Should().NotContain("No tienes permiso");
 
         await GuardarAsync(cut);
 

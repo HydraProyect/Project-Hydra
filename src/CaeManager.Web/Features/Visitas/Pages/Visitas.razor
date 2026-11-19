@@ -467,7 +467,19 @@
                        TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
                        MensajeError="@_errorTrabajadores" />
 
-    @if (PlanAltaSinPermiso)
+    @if (PlanAltaSolapadas is { } solapadas)
+    {
+        @* Con alguien sin poder asignarse hoy el servidor rechazaría la Visita entera si se pidiera asignar: no se pide, y
+           no se promete ninguna asignación ni Gestión. El aviso nombra a quién y dice qué pasará si se guarda así. *@
+        <div class="alerta-info" role="status">
+            @foreach (var solapada in solapadas)
+            {
+                <p>@Textos["PlanAltaSolapada", solapada.TrabajadorNombre]</p>
+            }
+            <p>@Textos["PlanAltaSolapadaConsecuencia"]</p>
+        </div>
+    }
+    else if (PlanAltaSinPermiso)
     {
         <div class="alerta-info" role="status">@Textos["PlanAltaSinPermiso"]</div>
     }
