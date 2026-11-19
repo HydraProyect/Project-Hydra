@@ -185,7 +185,7 @@ public class LecturaInboundAutoridadTests
         {
             Llamadas.Add(("Documentos", contratoAccesoId));
             return Task.FromResult<IReadOnlyList<DocumentoInboundDto>>(
-                [new(Guid.NewGuid(), null, null, null, null, "Tipo", new DateOnly(2026, 3, 1), null, EstadoVigenciaDocumento.SinConfirmar, false)]);
+                [new(Guid.NewGuid(), null, null, null, null, "Tipo", new DateOnly(2026, 3, 1), null, EstadoVigenciaDocumento.SinConfirmar, false, false)]);
         }
 
         public Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)

@@ -57,13 +57,15 @@ public sealed class ColaEnCursoValidacion
 /// También abre la descarga del original del Tenant TEC desde la validación (<see cref="ArchivoValidacionInboundEndpoints"/>,
 /// demo P6): apagado, esa ruta responde 404 sin leer nada, porque cada apertura deja traza en el Tenant TEC.
 /// <para>
-/// HUECO DECLARADO: la guarda de Development se quitó sin que se cumplan las dos condiciones que pedía. D-12 (quien subió
-/// un documento no puede validarlo) no se aplica: desde la #2348 cada versión nace con su autor
-/// (<c>Documento.SubidoPorUsuarioId</c>), pero la validación Inbound no lo compara. B-22 (el veredicto previo a la copia) no
-/// ha entrado: un Rechazar registra la evidencia y copia el binario al Tenant TCE en el mismo guardado
-/// (<c>RegistrarEvidenciaInboundCommand</c>, DN-12 (a)), y esa copia no se borra. Producción usa la misma imagen y queda
-/// protegida solo porque allí nunca se pone la clave: es una consecuencia aceptada por Chris en 2757bac, no una propiedad
-/// del código.
+/// HUECO DECLARADO: la guarda de Development se quitó sin que se cumplan las dos condiciones que pedía, y de ellas queda
+/// una. D-12 (quien subió un documento no puede validarlo) ya se aplica en el servidor: <c>app_inbound_documentos_autorizados</c>
+/// marca la versión que subió quien lee (usuario efectivo o Actor real del autor, D-12.2; un autor nulo se puede validar,
+/// D-12.1), y <c>RegistrarEvidenciaInboundCommand</c> y <c>ValidarEvidenciaInboundCommand</c> rechazan Validar con esa marca
+/// o bajo impersonación (<c>GuardaD12</c>, provisional hasta que el contexto firmado lleve el Actor real); la pantalla solo
+/// deshabilita Validar. B-22 (el veredicto previo a la copia) no ha entrado: un Rechazar registra la evidencia y copia el
+/// binario al Tenant TCE en el mismo guardado (<c>RegistrarEvidenciaInboundCommand</c>, DN-12 (a)), y esa copia no se
+/// borra. Producción usa la misma imagen y queda protegida solo porque allí nunca se pone la clave: es una consecuencia
+/// aceptada por Chris en 2757bac, no una propiedad del código.
 /// </para>
 /// </summary>
 public sealed class OpcionesValidacionInbound

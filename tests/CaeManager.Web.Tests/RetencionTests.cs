@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Retencion;
 using CaeManager.Application.Retencion.Commands;
 using CaeManager.Application.Retencion.Queries;
 using CaeManager.Domain.Common;
@@ -401,6 +402,48 @@ public class RetencionTests : BunitContext
 
         var cuerpo = cut.Find("[role=dialog] .modal-cuerpo").TextContent;
         cuerpo.Should().Contain(dice).And.NotContain(noDice).And.Contain("no se puede deshacer");
+    }
+
+    /// <summary>
+    /// R4: una propuesta de Documentos ejecuta su lista, no una fecha de corte. La confirmación dice cuántos Documentos
+    /// se propusieron y que solo se purgan los que hoy sigan cumpliendo su plazo; no promete purgar «lo que cumplió
+    /// plazo antes del» corte, que con plazos por tipo de documento ya no es el criterio.
+    /// </summary>
+    [Fact]
+    public async Task La_confirmacion_de_Documentos_habla_de_los_Documentos_propuestos_y_no_de_la_fecha_de_corte()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [ListaParaEjecutar(TipoDatoPurgable.Documentos)]);
+
+        await BotonConTexto(cut, "Ejecutar ahora").ClickAsync(new MouseEventArgs());
+
+        var cuerpo = cut.Find("[role=dialog] .modal-cuerpo").TextContent;
+        cuerpo.Should().Contain("los 42 Documentos propuestos")
+            .And.Contain("se conservan")
+            .And.NotContain("cumplieron plazo antes del")
+            .And.NotContain("31/03/2020");
+    }
+
+    /// <summary>
+    /// Una propuesta de Documentos anterior a la lista de propuestos falla cerrada en el servicio, que el comando devuelve
+    /// como <c>SolicitudPurga.NoEjecutable</c>. La pantalla lo trata como rechazo limpio: enseña el motivo, no anuncia
+    /// nada anonimizado y deja el diálogo abierto para cancelar.
+    /// </summary>
+    [Fact]
+    public async Task Una_propuesta_de_Documentos_sin_lista_no_se_da_por_ejecutada_y_dice_por_que()
+    {
+        var (cut, mediator) = Renderizar(
+            politicaActiva: true, solicitudes: [ListaParaEjecutar(TipoDatoPurgable.Documentos)],
+            alEjecutar: _ => Result.Fallo<int>(Error.Crear("SolicitudPurga.NoEjecutable", EjecucionPurgaService.SinListaDePropuestos)));
+
+        await BotonConTexto(cut, "Ejecutar ahora").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Destruir definitivamente").ClickAsync(new MouseEventArgs());
+
+        var mensajes = Services.GetRequiredService<ToastService>().Mensajes;
+        mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error)
+            .Which.Mensaje.Should().Contain("no guarda qué Documentos se propusieron");
+        mensajes.Should().NotContain(m => m.Tono == TonoToast.Exito);
+        mediator.Enviados.OfType<EjecutarPurgaCommand>().Should().ContainSingle();
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("un rechazo limpio deja el diálogo abierto para cancelar");
     }
 
     // ---------------------------------------------------------------- Autorizar y descartar

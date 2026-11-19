@@ -30,6 +30,10 @@ public record ObtenerColaValidacionInboundQuery : IRequest<IReadOnlyList<Documen
 /// no tiene ninguno: la correspondencia completa de tipos es de B-21, y sin tipo no hay veredicto.
 /// </param>
 /// <param name="TrabajadorId">Null en un Documento de la Empresa propia del Tenant de la Empresa contratista.</param>
+/// <param name="SubidoPorQuienValida">
+/// D-12: quien mira la cola subió esta versión del original (<see cref="DocumentoInboundDto.SubidoPorQuienLee"/>). La fila
+/// sigue en su cola, señalada, porque la puede rechazar; Validar la rechaza el Command.
+/// </param>
 public record DocumentoPendienteInboundDto(
     Guid ContratoAccesoId,
     Guid DocumentoOrigenId,
@@ -44,7 +48,8 @@ public record DocumentoPendienteInboundDto(
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
     EstadoVigenciaDocumento EstadoVigencia,
-    bool SoloConclusionAptitud);
+    bool SoloConclusionAptitud,
+    bool SubidoPorQuienValida);
 
 public class ObtenerColaValidacionInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext,
@@ -127,7 +132,8 @@ public class ObtenerColaValidacionInboundQueryHandler(
                     documento.FechaVencimiento,
                     documento.EstadoVigencia,
                     // Basta con que lo sea el original o el tipo del Tenant TCE: el Command pediría la conclusión.
-                    documento.SoloConclusionAptitud || tipo?.SoloConclusionAptitud == true));
+                    documento.SoloConclusionAptitud || tipo?.SoloConclusionAptitud == true,
+                    documento.SubidoPorQuienLee));
             }
         }
 

@@ -34,3 +34,8 @@
     width: 100%; box-sizing: border-box; height: 36px; padding: 0 10px; border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-sm); font: inherit; background: var(--color-bg); color: var(--color-text);
 }
+
+/* D-12: la fila que subió quien mira la cola. */
+.dpv-propio {
+    font-weight: 600;
+}

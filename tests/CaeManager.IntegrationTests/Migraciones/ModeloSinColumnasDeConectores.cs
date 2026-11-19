@@ -12,7 +12,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// Las pruebas de una migración antigua deshacen el esquema hasta ella y siembran con el modelo
 /// actual, que ya pide columnas de migraciones posteriores. Este modelo prescinde de las que añadió
 /// AnadeConexionesPlataformaCae y de las que añadieron CortesTenantYVentanaClaveApi,
-/// AnadeClavesIntegracionTenant y AnadeSolicitudesAltaYCifPropietario, porque ninguna de esas pruebas las necesita y sin esto no podrían
+/// AnadeClavesIntegracionTenant, AnadeSolicitudesAltaYCifPropietario y AnadeEsParticipanteTecATenants, porque ninguna de esas pruebas las necesita y sin esto no podrían
 /// insertar un Tenant ni leer un proveedor sobre el esquema antiguo. Por lo mismo prescinde del ancla del papel por Centro
 /// (<c>Centros.RelacionEmpresarialEntradaId</c>, AnadeAnclaPapelEntradaCentro), con su índice y su FK compuesta: sin esto
 /// no podrían insertar un Centro.
@@ -33,6 +33,7 @@ internal static class ModeloSinColumnasDeConectores
             modelBuilder.Entity<Tenant>().Ignore(t => t.ClavesApiValidasDesdeUtc);
             modelBuilder.Entity<Tenant>().Ignore(t => t.IntegracionHabilitada);
             modelBuilder.Entity<Tenant>().Ignore(t => t.TipoTenant);
+            modelBuilder.Entity<Tenant>().Ignore(t => t.EsParticipanteTec);
             modelBuilder.Entity<ProveedorPlataformaCae>().Ignore(p => p.ConectorApiActivo);
             // La columna es miembro de una FK compuesta y de un índice explícitos (CentroConfiguration): con un Ignore
             // a secas la propiedad sigue en el modelo, así que primero se quitan la FK y el índice que la contienen.

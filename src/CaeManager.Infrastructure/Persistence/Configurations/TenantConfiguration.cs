@@ -88,6 +88,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // exime del gate igualmente por EsPlataforma.
             AddOnSubidaAutomaticaActivo = false,
             IntegracionHabilitada = false,
+            // El tenant #1 no es participante TEC (ver Tenant.EsParticipanteTec).
+            EsParticipanteTec = false,
             EstadoComercial = EstadoComercialTenant.SinSuscripcion,
         });
     }

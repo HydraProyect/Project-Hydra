@@ -139,6 +139,11 @@
                                         }
                                         <a class="dpv-titular" href="/inbound/validacion/@id" @onclick="() => AbrirAsync(id)" @onclick:preventDefault>@documento.Titular</a>
                                         <div class="dpv-mut dpv-pequeno">@documento.Identificador</div>
+                                        @if (documento.Propio)
+                                        {
+                                            @* D-12: la fila sigue en la cola, señalada; Validar lo rechaza la pantalla y el servidor. *@
+                                            <div class="dpv-propio dpv-pequeno">@TextosValidacion["SubidoPorTi"]</div>
+                                        }
                                     </td>
                                     <td>@LogicaValidacionInbound.Texto(documento.Entidad)</td>
                                     <td>
