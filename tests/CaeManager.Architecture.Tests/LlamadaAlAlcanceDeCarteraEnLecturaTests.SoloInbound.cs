@@ -32,7 +32,7 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Lo que esto NO demuestra.</b> (1) Que un handler que recibe el alcance lo use en todas sus ramas, ni que lo cruce con
 /// las filas que devuelve: eso lo mira, para las listas de Ids visibles, <see cref="LlamadaAlAlcanceDeCarteraEnLecturaTests"/>.
 /// (2) Lo que un handler alcanza a través de una interfaz cuya implementación consulta el alcance (la medida sigue las
-    /// clases concretas de Application que recibe, dos saltos, no las interfaces): figura en la lista, con
+/// clases concretas de Application que recibe, dos saltos, no las interfaces): figura en la lista, con
 /// ese motivo. (3) Que el motivo de cada entrada sea correcto: es una revisión, hecha entrada por entrada el 2026-11-19,
 /// no una medida.
 /// </para>
