@@ -1,6 +1,8 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
@@ -25,7 +27,12 @@ namespace CaeManager.Application.Retencion;
 /// Se usa la <see cref="SolicitudPurga.FechaCorte"/> guardada y no "hoy": la
 /// propuesta se revisó y autorizó sobre un conjunto concreto de registros, y
 /// ejecutarla no puede llevarse por delante nada que no estuviera en él por el
-/// tiempo transcurrido entre la autorización y la ejecución.
+/// tiempo transcurrido entre la autorización y la ejecución. En Documentos, desde que
+/// el plazo va por Tenant propietario y por tipo (decisión del 2026-11-18, R4), ni
+/// siquiera la fecha basta: la lista de <see cref="DocumentoPropuestoPurga"/> que guardó
+/// la detección es el tope, nunca se amplía, y de ella se purga solo lo que hoy sigue
+/// cumpliendo el plazo (<see cref="CriterioPurgaDocumentos"/>). Una solicitud de
+/// Documentos sin lista no se ejecuta (<see cref="SinListaDePropuestos"/>).
 ///
 /// Todo ocurre en una sola transacción (<see cref="ITransaccionDeComando"/>):
 /// anonimizar a un Trabajador y enmascarar sus datos personales en el historial
@@ -35,7 +42,8 @@ namespace CaeManager.Application.Retencion;
 /// </summary>
 public class EjecucionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
-    IVisitasQueryContext visitasContext,
+    IVisitasQueryContext visitasContext, IRetencionQueryContext retencionContext,
+    IConfiguracionQueryContext configuracionContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     ISolicitudPurgaRepository solicitudRepositorio,
     IExtraccionIaCacheRepository extraccionIaCacheRepositorio,
     IFileStorageService almacenamiento,
@@ -46,6 +54,11 @@ public class EjecucionPurgaService(
     IAlertaOperativa alertaOperativa,
     ILogger<EjecucionPurgaService> logger)
 {
+    /// <summary>Por qué no se ejecuta una solicitud de Documentos sin lista de propuestos.</summary>
+    public const string SinListaDePropuestos =
+        "Esta propuesta de Documentos es anterior al plazo de conservación por Tenant propietario y no guarda qué " +
+        "Documentos se propusieron: no se ejecuta. Cancélala y vuelve a buscar datos purgables.";
+
     /// <summary>Devuelve cuántos registros se anonimizaron.</summary>
     public async Task<int> EjecutarAsync(Guid solicitudId, DateOnly hoy, CancellationToken cancellationToken = default)
     {
@@ -78,6 +91,14 @@ public class EjecucionPurgaService(
         var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
         if (solicitud is null) return null;
 
+        // Falla cerrada: una solicitud de Documentos sin lista de propuestos es anterior al plazo por Tenant
+        // propietario (R4) y no dice qué Documentos se autorizaron. No se ejecuta ni se cierra como ejecutada; se
+        // cancela y se vuelve a detectar.
+        if (solicitud.TipoDato == TipoDatoPurgable.Documentos
+            && !await retencionContext.DocumentosPropuestosPurga
+                .AnyAsync(p => p.SolicitudPurgaId == solicitud.Id && p.TenantId == tenantId, cancellationToken))
+            throw new InvalidOperationException(SinListaDePropuestos);
+
         // Lanza si no está autorizada o si no ha llegado la fecha. Se deja
         // propagar a propósito: llegar aquí sin autorización es un error de
         // programación, no un caso de negocio que haya que tragar.
@@ -87,7 +108,7 @@ public class EjecucionPurgaService(
 
         var resultado = solicitud.TipoDato switch
         {
-            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, solicitud.FechaCorte, ahora, cancellationToken),
+            TipoDatoPurgable.Documentos => await AnonimizarDocumentosAsync(tenantId, solicitud.Id, hoy, ahora, cancellationToken),
             TipoDatoPurgable.TrabajadoresDadosDeBaja => await AnonimizarTrabajadoresAsync(tenantId, solicitud.FechaCorte, ahora, cancellationToken),
             _ => new ResultadoAnonimizacion(0, 0, [], [])
         };
@@ -123,21 +144,28 @@ public class EjecucionPurgaService(
     }
 
     private async Task<ResultadoAnonimizacion> AnonimizarDocumentosAsync(
-        Guid tenantId, Guid solicitudId, DateOnly fechaCorte, DateTime ahora, CancellationToken cancellationToken)
+        Guid tenantId, Guid solicitudId, DateOnly hoy, DateTime ahora, CancellationToken cancellationToken)
     {
+        // R4: la lista que propuso la detección es el tope y nunca se amplía. Dentro de ella se purga solo lo que
+        // HOY sigue cumpliendo el plazo (CriterioPurgaDocumentos con los plazos y las fechas actuales): si después de
+        // detectar se corrigió una vigencia o se alargó un plazo, el Documento se conserva. El desvío va siempre
+        // hacia conservar. Todo en SQL.
         // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
         // equivalente en DeteccionPurgaService (P0-1/P0-3 de
         // Project-Hydra-Negocio/MATURITY_REVIEW.md): sin esto, un Documento
         // soft-deleted que SÍ hubiera entrado en la SolicitudPurga (porque la
         // detección ya lo ve, tras el fix de arriba) seguiría sin
         // anonimizarse aquí, dejando la purga incompleta a medio camino.
-        var documentos = await documentosContext.Documentos
+        var aniosTenant = await CriterioPurgaDocumentos.PlazoDelTenantAsync(
+            configuracionContext.ParametrosSistema, tenantId, cancellationToken);
+        var propuestos = documentosContext.Documentos
             .IgnoreQueryFilters()
             .Where(d => d.TenantId == tenantId)
             .Where(d => d.AnonimizadoEnUtc == null)
-            .Where(d => d.FechaVencimiento != null
-                ? d.FechaVencimiento <= fechaCorte
-                : d.FechaEmision <= fechaCorte)
+            .Where(d => retencionContext.DocumentosPropuestosPurga
+                .Any(p => p.SolicitudPurgaId == solicitudId && p.TenantId == tenantId && p.DocumentoId == d.Id));
+        var documentos = await CriterioPurgaDocumentos.Purgables(
+                propuestos, tiposDocumentoContext.TiposDocumento.Where(t => t.TenantId == tenantId), aniosTenant, hoy)
             .ToListAsync(cancellationToken);
 
         // El orden importa y antes estaba al revés. Anonimizar primero borra

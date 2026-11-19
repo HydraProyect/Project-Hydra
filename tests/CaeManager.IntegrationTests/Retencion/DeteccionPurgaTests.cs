@@ -2,6 +2,7 @@
 using CaeManager.Application.Retencion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Retencion;
@@ -13,6 +14,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Retencion;
@@ -278,6 +280,143 @@ public class DeteccionPurgaTests : IAsyncLifetime
         resultado.TrabajadoresPurgables.Should().Be(0);
     }
 
+    /// <summary>
+    /// Plazo efectivo = el del tipo ?? el del Tenant propietario, por el servicio real: con 2 años en el Tenant,
+    /// se propone lo vencido hace 3 años de un tipo sin plazo propio y no lo de un tipo con 5; y una versión
+    /// sustituida cuenta desde su sustitución (R3) aunque su propio vencimiento quede lejos.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_anios_en_el_Tenant_y_cinco_en_un_tipo_se_propone_lo_que_toca()
+    {
+        Guid delTenantId, delTipoId, sustituidaId, sustitutaId;
+        await using (var contexto = CrearContexto())
+        {
+            var parametros = new ParametroSistema(30, 15);
+            parametros.FijarPlazoRetencionDocumentos(2);
+            contexto.ParametrosSistema.Add(parametros);
+
+            var tipoConPlazo = new TipoDocumento(
+                "Contrato marco", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
+            tipoConPlazo.FijarPlazoRetencionDocumentos(5);
+            contexto.TiposDocumento.Add(tipoConPlazo);
+            await contexto.SaveChangesAsync();
+
+            // Vencidos hace 3 años: cumplen 2 años, no 5.
+            var delTenant = Documento.DeCliente(
+                _clienteId, _tipoDocumentoId, _hoy.AddYears(-8), VigenciaDocumento.VenceEl(_hoy.AddYears(-3)), "tenant.pdf");
+            var delTipo = Documento.DeCliente(
+                _clienteId, tipoConPlazo.Id, _hoy.AddYears(-8), VigenciaDocumento.VenceEl(_hoy.AddYears(-3)), "tipo.pdf");
+
+            // Vigentes hasta dentro de un año; la primera se sustituye el 2026-09-01, entre el corte de 5 años
+            // (2026-06-01) y el de 2 (2029-06-01): solo la propone el plazo de 2 contado desde la sustitución.
+            var sustituida = Documento.DeCliente(
+                _clienteId, _tipoDocumentoId, new DateOnly(2024, 1, 1), VigenciaDocumento.VenceEl(_hoy.AddYears(1)), "v1.pdf");
+            var sustituta = Documento.DeCliente(
+                _clienteId, _tipoDocumentoId, new DateOnly(2026, 9, 1), VigenciaDocumento.VenceEl(_hoy.AddYears(1)), "v2.pdf");
+            contexto.Documentos.AddRange(delTenant, delTipo, sustituida, sustituta);
+            await contexto.SaveChangesAsync();
+
+            sustituida.SustituirPor(
+                sustituta, MotivoSustitucionDocumento.Renovacion, new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc));
+            await contexto.SaveChangesAsync();
+
+            (delTenantId, delTipoId, sustituidaId, sustitutaId) = (delTenant.Id, delTipo.Id, sustituida.Id, sustituta.Id);
+        }
+
+        await using var contextoDeteccion = CrearContexto();
+        (await CrearServicio(contextoDeteccion).DetectarAsync(_hoy)).Should().Be(1);
+
+        var solicitud = await contextoDeteccion.SolicitudesPurga.SingleAsync(s => s.TipoDato == TipoDatoPurgable.Documentos);
+        solicitud.RegistrosAfectados.Should().Be(2);
+        solicitud.FechaCorte.Should().Be(_hoy.AddYears(-2), "el corte informativo es el del plazo más corto aplicado");
+
+        var propuestos = await contextoDeteccion.DocumentosPropuestosPurga
+            .Where(p => p.SolicitudPurgaId == solicitud.Id)
+            .Select(p => p.DocumentoId)
+            .ToListAsync();
+        propuestos.Should().BeEquivalentTo(
+            new[] { delTenantId, sustituidaId },
+            "{0} es de un tipo con 5 años y {1} es la versión vigente", delTipoId, sustitutaId);
+    }
+
+    /// <summary>
+    /// El plazo de conservación es del Tenant propietario: el de 1 año de otro Tenant no adelanta nada en este, que
+    /// sin configuración conserva 5 años (R2).
+    /// </summary>
+    [Fact]
+    public async Task El_plazo_de_otro_Tenant_no_altera_lo_detectado_en_este()
+    {
+        var tenantB = Guid.NewGuid();
+        Guid documentoB;
+        await using (var contextoB = CrearContexto(tenantB))
+        {
+            var parametros = new ParametroSistema(30, 15);
+            parametros.FijarPlazoRetencionDocumentos(1);
+            contextoB.ParametrosSistema.Add(parametros);
+
+            var clienteB = Empresa.CrearComoCliente("Cliente del Tenant B S.L.", "B12345674", false, null, null);
+            contextoB.Empresas.Add(clienteB);
+            var tipoB = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
+            contextoB.TiposDocumento.Add(tipoB);
+            await contextoB.SaveChangesAsync();
+
+            var documento = Documento.DeCliente(
+                clienteB.Id, tipoB.Id, _hoy.AddYears(-8), VigenciaDocumento.VenceEl(_hoy.AddYears(-2)), "b.pdf");
+            contextoB.Documentos.Add(documento);
+            await contextoB.SaveChangesAsync();
+            documentoB = documento.Id;
+        }
+
+        // Vencido hace 2 años: con el plazo de 1 año de B se propondría; con los 5 de A, no.
+        await SembrarDocumentoAsync(vencimiento: _hoy.AddYears(-2), emision: _hoy.AddYears(-8));
+
+        await using (var contextoA = CrearContexto())
+        {
+            (await CrearServicio(contextoA).DetectarAsync(_hoy)).Should().Be(0);
+            (await contextoA.SolicitudesPurga.AnyAsync()).Should().BeFalse();
+        }
+
+        await using var contextoDeB = CrearContexto(tenantB);
+        (await CrearServicio(contextoDeB, tenant: tenantB).DetectarAsync(_hoy)).Should().Be(1);
+        var solicitudB = await contextoDeB.SolicitudesPurga.SingleAsync();
+        (await contextoDeB.DocumentosPropuestosPurga
+                .Where(p => p.SolicitudPurgaId == solicitudB.Id)
+                .Select(p => p.DocumentoId)
+                .ToListAsync())
+            .Should().Equal(documentoB);
+    }
+
+    /// <summary>El CHECK de la base es la última barrera del rango de 1 a 5 años (R1), aunque se salte el dominio.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    public async Task La_base_rechaza_un_plazo_del_Tenant_fuera_de_rango(int anios)
+    {
+        await using var contexto = CrearContexto();
+        contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
+        await contexto.SaveChangesAsync();
+
+        var actualizar = () => contexto.Database.ExecuteSqlAsync(
+            $"""UPDATE "ParametrosSistema" SET "AniosRetencionDocumentos" = {anios} WHERE "TenantId" = {_tenant}""");
+
+        (await actualizar.Should().ThrowAsync<PostgresException>())
+            .Which.ConstraintName.Should().Be("CK_ParametrosSistema_AniosRetencionDocumentos");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    public async Task La_base_rechaza_un_plazo_del_tipo_fuera_de_rango(int anios)
+    {
+        await using var contexto = CrearContexto();
+
+        var actualizar = () => contexto.Database.ExecuteSqlAsync(
+            $"""UPDATE "TiposDocumento" SET "AniosRetencionDocumentos" = {anios} WHERE "Id" = {_tipoDocumentoId}""");
+
+        (await actualizar.Should().ThrowAsync<PostgresException>())
+            .Which.ConstraintName.Should().Be("CK_TiposDocumento_AniosRetencionDocumentos");
+    }
+
     private async Task<Guid> SembrarDocumentoAsync(DateOnly? vencimiento, DateOnly? emision = null)
     {
         await using var contexto = CrearContexto();
@@ -319,20 +458,20 @@ public class DeteccionPurgaTests : IAsyncLifetime
         return trabajador.Id;
     }
 
-    private DeteccionPurgaService CrearServicio(CaeManagerDbContext contexto, int? aniosTrabajadores = CincoAnios) =>
-        new(contexto, contexto, contexto,
+    private DeteccionPurgaService CrearServicio(
+        CaeManagerDbContext contexto, int? aniosTrabajadores = CincoAnios, Guid? tenant = null) =>
+        new(contexto, contexto, contexto, contexto, contexto,
             new SolicitudPurgaRepository(contexto),
             Options.Create(new RetencionDatosOptions
             {
-                AniosRetencionDocumentos = CincoAnios,
                 AniosRetencionTrabajadores = aniosTrabajadores
             }),
-            new TenantActualAmbiental { TenantId = _tenant },
+            new TenantActualAmbiental { TenantId = tenant ?? _tenant },
             contexto);
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(Guid? tenant = null)
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+        var tenantActual = new TenantActualAmbiental { TenantId = tenant ?? _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))

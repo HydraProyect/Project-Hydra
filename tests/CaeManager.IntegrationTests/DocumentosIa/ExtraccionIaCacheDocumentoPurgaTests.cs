@@ -111,8 +111,9 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
             contexto.ExtraccionesIaCacheDocumentos.Add(ExtraccionIaCacheDocumento.Crear(cacheId, documento.Id));
 
-            var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+            var (solicitud, propuestos) = SolicitudPurga.DeDocumentos([documento.Id], _hoy.AddYears(-5));
             contexto.SolicitudesPurga.Add(solicitud);
+            contexto.DocumentosPropuestosPurga.AddRange(propuestos);
             await contexto.SaveChangesAsync();
 
             solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
@@ -170,9 +171,10 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
                 ExtraccionIaCacheDocumento.Crear(cacheId, documentoViejoId),
                 ExtraccionIaCacheDocumento.Crear(cacheId, documentoRecienteId));
 
-            // Fecha de corte que solo alcanza al Documento viejo.
-            var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+            // La detección solo habría propuesto el Documento viejo (R4: la solicitud purga su lista).
+            var (solicitud, propuestos) = SolicitudPurga.DeDocumentos([documentoViejoId], _hoy.AddYears(-5));
             contexto.SolicitudesPurga.Add(solicitud);
+            contexto.DocumentosPropuestosPurga.AddRange(propuestos);
             await contexto.SaveChangesAsync();
 
             solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
@@ -224,8 +226,9 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             cacheAjenaId = cacheAjena.Id;
 
-            var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+            var (solicitud, propuestos) = SolicitudPurga.DeDocumentos([documento.Id], _hoy.AddYears(-5));
             contexto.SolicitudesPurga.Add(solicitud);
+            contexto.DocumentosPropuestosPurga.AddRange(propuestos);
             await contexto.SaveChangesAsync();
 
             solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
@@ -246,7 +249,7 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
     private EjecucionPurgaService CrearServicioEjecucion(CaeManagerDbContext contexto) =>
         new(
-            contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new SolicitudPurgaRepository(contexto),
             new ExtraccionIaCacheRepository(contexto),
             new AlmacenamientoArchivosFalso(),

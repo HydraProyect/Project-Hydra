@@ -1506,7 +1506,7 @@ public partial class ComunicacionesGen2Tests : BunitContext
         cabecera.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Nuevo correo")
             .And.NotContain("Redactar");
         var buscador = cabecera.QuerySelector("input")!;
-        buscador.GetAttribute("placeholder").Should().Be("Buscar en el asunto y en el texto de los mensajes");
+        buscador.GetAttribute("placeholder").Should().Be("Buscar en el asunto, el Centro y el texto de los mensajes");
 
         cut.FindAll(".bandeja-lista-cabecera").Should().BeEmpty("el título y la acción subieron a la cabecera de la página");
         cut.FindAll(".bandeja-toolbar").Should().BeEmpty(

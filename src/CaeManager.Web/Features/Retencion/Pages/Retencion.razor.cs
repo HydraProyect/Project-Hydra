@@ -4,8 +4,10 @@ using CaeManager.Application.Retencion.Commands;
 using CaeManager.Application.Retencion.Queries;
 using CaeManager.Domain.Retencion;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Retencion.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.Retencion.Pages;
@@ -49,6 +51,7 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Retencion> Logger { get; set; } = default!;
     [Inject] private IOptions<RetencionDatosOptions> OpcionesRetencion { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosRetencion> Textos { get; set; } = default!;
 
     private IReadOnlyList<SolicitudPurgaDto> _solicitudes = [];
     private bool _cargando = true;
@@ -359,17 +362,24 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     /// para ESE tipo: solo los Documentos tienen archivo que borrar;
     /// anonimizar un Trabajador vacía sus campos identificativos y no toca
     /// ningún fichero, y se dice expresamente para que nadie suponga un
-    /// borrado que no ocurre. Y el número es el de la detección: la ejecución
-    /// vuelve a seleccionar por la fecha de corte, así que se dice de dónde sale.
+    /// borrado que no ocurre.
+    /// <para>
+    /// Y el alcance es el que la ejecución aplica. En Documentos, los N Documentos propuestos al detectarla, y de ellos
+    /// solo los que hoy sigan cumpliendo su plazo (R4: la lista es el tope; lo que ya no lo cumple se conserva); la
+    /// fecha de corte de la propuesta solo informa, porque cada Documento cuenta con el plazo de su tipo o el del Tenant
+    /// propietario. En Trabajadores la ejecución vuelve a seleccionar por la fecha de corte, así que se dice de dónde
+    /// sale el número.
+    /// </para>
     /// </summary>
     private string MensajeEjecutar => _aEjecutar is not { } solicitud
         ? string.Empty
         : string.Concat(
-            $"Se van a anonimizar los registros de {DescribirTipo(solicitud.TipoDato)} que cumplieron plazo antes del ",
-            $"{solicitud.FechaCorte:dd/MM/yyyy} ({solicitud.RegistrosAfectados} al detectarlos)",
             solicitud.TipoDato == TipoDatoPurgable.Documentos
-                ? " y a borrar sus archivos asociados. "
-                : ". No se borra ningún archivo: solo se vacían sus datos identificativos. ",
+                ? Textos["ConfirmarEjecutarDocumentos", solicitud.RegistrosAfectados].Value
+                : string.Concat(
+                    $"Se van a anonimizar los registros de {DescribirTipo(solicitud.TipoDato)} que cumplieron plazo antes del ",
+                    $"{solicitud.FechaCorte:dd/MM/yyyy} ({solicitud.RegistrosAfectados} al detectarlos)",
+                    ". No se borra ningún archivo: solo se vacían sus datos identificativos. "),
             "Esto no se puede deshacer: los datos personales dejarán de existir; el histórico se conserva sin ellos.");
 
     private static string DescribirTipo(TipoDatoPurgable tipo) => tipo switch
