@@ -52,9 +52,12 @@ public static class AutoridadSobreCuentas
 {
     public const string Administrador = "Administrador";
 
-    /// <summary>Los seis roles de negocio que una cuenta puede tener (exactamente uno).</summary>
+    /// <summary>Los siete roles de negocio que una cuenta puede tener (exactamente uno).</summary>
     public static readonly IReadOnlyList<string> RolesExistentes =
-        [Administrador, "DireccionCae", "CoordinadorCae", "GestorCae", "Consulta", "Cliente"];
+        [Administrador, "DireccionCae", "CoordinadorCae", "GestorCae", "Consulta", "Cliente", RolControlAcceso];
+
+    /// <summary>Control de acceso (portería del Tenant TCE, AF-01): <c>Roles.ControlAcceso</c>.</summary>
+    public const string RolControlAcceso = "ControlAcceso";
 
     /// <summary>Dan de alta, editan, activan y eliminan cuentas (la página /usuarios).</summary>
     public static readonly IReadOnlyList<string> RolesQueGestionanCuentas = [Administrador, "DireccionCae"];

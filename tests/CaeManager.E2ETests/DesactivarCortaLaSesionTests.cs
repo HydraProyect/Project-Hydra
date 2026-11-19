@@ -205,6 +205,9 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
             paginaAdmin, fixture.BaseUrl, Ayudas.EmailPrueba("direccioncae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(paginaAdmin, $"{fixture.BaseUrl}/usuarios");
 
+        // La lista pagina de 20 en 20 y las cuentas de siembra ya no caben en la primera página (las del rol «Control de acceso»,
+        // AF-01, se suman a las demás): se filtra por el correo, como haría una persona, para que la fila esté siempre.
+        await paginaAdmin.GetByPlaceholder("Filtrar esta pantalla: nombre o correo").FillAsync(emailUsuario);
         var fila = paginaAdmin.Locator("tr").Filter(new LocatorFilterOptions { HasText = emailUsuario });
         await Ayudas.PulsarAccionDeMenuAsync(fila.Locator(".menu-acciones-disparador"), accion);
 

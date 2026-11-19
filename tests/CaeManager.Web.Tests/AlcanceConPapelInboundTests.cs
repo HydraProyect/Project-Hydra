@@ -35,6 +35,27 @@ public class AlcanceConPapelInboundTests
     }
 
     /// <summary>
+    /// El rol «Control de acceso» (AF-01) no tiene alcance de cartera ni de Tenant entero con ningún papel, dentro ni fuera de una
+    /// petición de Inbound: lo único que abre son los Centros de <c>UsuariosControlAccesoCentro</c>, que lee su propia consulta.
+    /// </summary>
+    [Theory]
+    [InlineData(PapelActivo.Inbound, true)]
+    [InlineData(PapelActivo.Inbound, false)]
+    [InlineData(PapelActivo.Outbound, false)]
+    public async Task El_rol_Control_de_acceso_no_alcanza_ni_cartera_ni_el_Tenant_entero_con_ningun_papel(PapelActivo papel, bool dentroDePeticionInbound)
+    {
+        await using var contexto = ContextoSinServidor();
+        var alcance = Alcance(contexto, new Usuario("ControlAcceso", papel));
+
+        using (dentroDePeticionInbound ? AmbitoPeticionInbound.Abrir() : null)
+        {
+            (await alcance.TieneAccesoTotalAsync()).Should().BeFalse();
+            (await alcance.AlcanzaElTenantEnteroAsync()).Should().BeFalse();
+            (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
     /// Fuera de una petición de Inbound (Trabajadores, Documentos, Empresas… de Outbound), el papel Inbound no da alcance a
     /// ningún perfil: el papel Inbound no abre los lectores de Outbound del Tenant TCE (revisor-puente Opus, ronda 1 de B-03).
     /// </summary>

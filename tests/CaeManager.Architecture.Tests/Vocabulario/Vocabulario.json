@@ -25,6 +25,15 @@
       "noConfundirCon": "Cliente (la organización, rótulo de interfaz del Cliente empresarial)"
     },
     {
+      "id": "control-de-acceso",
+      "forma": "Control de acceso",
+      "plural": "Control de acceso",
+      "formasCortasPermitidas": [],
+      "significado": "Rótulo en pantalla del rol de autorización Roles.ControlAcceso (decisión D-12 del plan de control de acceso físico, 2026-11-18): la persona de portería del Tenant TCE, que comprueba credenciales y registra entradas y salidas solo en los Centros que se le asignan. Es un rol, no una organización ni un Gestor CAE, y no lee contratos, documentos ni validación.",
+      "contrato": "§ 3.2",
+      "noConfundirCon": "Gestor CAE (persona que gestiona una cartera); Operador CAE (organización)"
+    },
+    {
       "id": "cliente-comercial-talveg",
       "forma": "Cliente comercial TALVEG",
       "plural": "Clientes comerciales TALVEG",

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MisCentrosTitulo" xml:space="preserve">
+    <value>Els meus Centres</value>
+  </data>
+  <data name="MisCentrosGrupo" xml:space="preserve">
+    <value>Control d'accés</value>
+  </data>
+  <data name="MisCentrosErrorTitulo" xml:space="preserve">
+    <value>No s'han pogut carregar els teus Centres</value>
+  </data>
+  <data name="MisCentrosErrorDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar en uns segons.</value>
+  </data>
+  <data name="MisCentrosReintentar" xml:space="preserve">
+    <value>Reintenta</value>
+  </data>
+  <data name="MisCentrosVacioTitulo" xml:space="preserve">
+    <value>Encara no tens cap Centre assignat</value>
+  </data>
+  <data name="MisCentrosVacioDescripcion" xml:space="preserve">
+    <value>Qui gestiona la teva organització t'assignarà els Centres on controles l'accés.</value>
+  </data>
+  <data name="AsignarTitulo" xml:space="preserve">
+    <value>Centres de {0}</value>
+  </data>
+  <data name="AsignarAyuda" xml:space="preserve">
+    <value>Només obrirà la porteria dels Centres que marquis. En desmarcar-ne un, deixa de veure'l.</value>
+  </data>
+  <data name="AsignarCargando" xml:space="preserve">
+    <value>Carregant Centres…</value>
+  </data>
+  <data name="AsignarSinCambios" xml:space="preserve">
+    <value>Marca o desmarca algun Centre</value>
+  </data>
+  <data name="AsignarVacio" xml:space="preserve">
+    <value>No hi ha cap Centre que es pugui assignar.</value>
+  </data>
+  <data name="AsignarGuardar" xml:space="preserve">
+    <value>Desar</value>
+  </data>
+  <data name="AsignarVolver" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="AsignarGuardados" xml:space="preserve">
+    <value>Centres de {0} actualitzats.</value>
+  </data>
+  <data name="AsignarErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar els Centres. Tanca i torna a obrir.</value>
+  </data>
+  <data name="AsignarCuentaNoValida" xml:space="preserve">
+    <value>Aquest compte no té el rol Control d'accés.</value>
+  </data>
+</root>
