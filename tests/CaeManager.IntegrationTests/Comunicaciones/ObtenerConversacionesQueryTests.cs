@@ -340,6 +340,35 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Buscar_por_Centro_no_liga_por_una_intencion_que_la_persona_confirmo_cambiandola()
+    {
+        var (_, _, centros) = await CrearCentrosAsync(_tenant, "B12345674", "B87654323", "Nave Logística Zaragoza", "Nave Frío Valencia");
+        await using (var contexto = CrearContexto())
+        {
+            // Control: confirmada tal cual sobre el Centro buscado, sí liga.
+            var (tal, mensajeTal) = HiloSinTexto("Intención confirmada tal cual");
+            // Señuelo: mismo Centro propuesto y confirmada, pero la persona cambió la intención al confirmar.
+            var (cambiada, mensajeCambiada) = HiloSinTexto("Intención confirmada cambiándola");
+            contexto.Conversaciones.AddRange(tal, cambiada);
+            var intencionTal = new IntencionConversacion(
+                tal.Id, mensajeTal.Id, IntencionCae.CoordinacionAcceso, ConfianzaIntencion.Alta,
+                TipoEntidadIntencion.Centro, centros[0]);
+            intencionTal.Confirmar(IntencionCae.CoordinacionAcceso);
+            var intencionCambiada = new IntencionConversacion(
+                cambiada.Id, mensajeCambiada.Id, IntencionCae.CoordinacionAcceso, ConfianzaIntencion.Alta,
+                TipoEntidadIntencion.Centro, centros[0]);
+            intencionCambiada.Confirmar(IntencionCae.DocumentacionMensual);
+            intencionCambiada.CambiadaPorPersona.Should().BeTrue("el señuelo debe ser una intención confirmada y cambiada");
+            contexto.IntencionesConversacion.AddRange(intencionTal, intencionCambiada);
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(Busqueda: "logistica zaragoza"));
+
+        resultado.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Intención confirmada tal cual");
+    }
+
+    [Fact]
     public async Task Buscar_por_Centro_encuentra_por_la_Gestion_nacida_de_un_mensaje_del_hilo_y_ni_la_manual_ni_la_de_otro_hilo_ligan()
     {
         var (_, empresaId, centros) = await CrearCentrosAsync(_tenant, "B12345674", "B87654323", "Obra Hospital Norte", "Obra Colegio Sur");

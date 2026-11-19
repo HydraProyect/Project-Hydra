@@ -208,11 +208,15 @@ public class ObtenerConversacionesQueryHandler(
                 .Where(p => p.TipoOrigen == TipoParticipanteOrigen.Centro
                     && p.EntidadRelacionadaId != null && centroIds.Contains(p.EntidadRelacionadaId.Value))
                 .Select(p => p.ConversacionId);
-            // Vínculo 2: la intención del hilo propone un Centro y una persona confirmó la intención. OJO: confirmar la
-            // intención (ConfirmarIntencionConversacionCommand) no confirma por separado el Centro propuesto: solo una
-            // propuesta que nadie confirmó queda fuera; una intención confirmada con un Centro mal leído sí liga.
+            // Vínculo 2: la intención del hilo propone un Centro y una persona confirmó la propuesta sin cambiarla
+            // (ConfirmadaPorPersona y la intención actual sigue siendo la propuesta, es decir, !CambiadaPorPersona;
+            // esa propiedad no está mapeada, así que la comparación se escribe aquí). La propuesta que nadie confirmó y
+            // la que la persona confirmó cambiándola no ligan: si corrigió la intención, el Centro propuesto con ella
+            // tampoco queda respaldado. Confirmar no confirma por separado el Centro: una propuesta aceptada tal cual
+            // con un Centro mal leído sí liga.
             var porIntencion = comunicacionesContext.IntencionesConversacion
-                .Where(i => i.ConfirmadaPorPersona && i.TipoEntidadPropuesta == TipoEntidadIntencion.Centro
+                .Where(i => i.ConfirmadaPorPersona && i.IntencionActual == i.IntencionPropuesta
+                    && i.TipoEntidadPropuesta == TipoEntidadIntencion.Centro
                     && i.EntidadPropuestaId != null && centroIds.Contains(i.EntidadPropuestaId.Value))
                 .Select(i => i.ConversacionId);
             // Vínculo 3: una Gestión nacida de un mensaje del hilo, en el Centro de esa Gestión.
