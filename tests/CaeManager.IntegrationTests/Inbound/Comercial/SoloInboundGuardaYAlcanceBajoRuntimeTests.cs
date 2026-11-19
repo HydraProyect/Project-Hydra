@@ -85,14 +85,34 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
                 await _propietario.SaveChangesAsync();
 
                 _propietario.Visitas.Add(new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(2), notas: null));
-                if (lineas is Lineas.Ambas or Lineas.SoloInbound)
-                    _propietario.ProductosContratados.Add(Contratar(LineaProductoContratado.Inbound, $"cus_Inbound{lineas}", ahora));
-                if (lineas is Lineas.Ambas)
-                    _propietario.ProductosContratados.Add(Contratar(LineaProductoContratado.OutboundGestionPropia, $"cus_Outbound{lineas}", ahora));
                 await _propietario.SaveChangesAsync();
+
+                // ProductosContratados tiene FORCE RLS con WITH CHECK sobre app_ctx_tenant_id(): se siembra con el
+                // interceptor de sesión RLS del Tenant, como LineaInboundVigenteBajoRuntimeTests.
+                if (lineas is not Lineas.Ninguna)
+                {
+                    await using var siembra = ContextoDeSiembraConRls(tenant.Id);
+                    siembra.ProductosContratados.Add(Contratar(LineaProductoContratado.Inbound, $"cus_Inbound{lineas}", ahora));
+                    if (lineas is Lineas.Ambas)
+                        siembra.ProductosContratados.Add(Contratar(LineaProductoContratado.OutboundGestionPropia, $"cus_Outbound{lineas}", ahora));
+                    await siembra.SaveChangesAsync();
+                }
 
                 _casos[lineas] = (tenant.Id, centro.Id);
             }
+        }
+
+        private CaeManagerDbContext ContextoDeSiembraConRls(Guid tenant)
+        {
+            var tenantActual = new TenantActualDeLaPeticion(tenant);
+            var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+                .UseNpgsql(_cadenaConexion)
+                .AddInterceptors(
+                    new TenantSelladoInterceptor(tenantActual),
+                    new TenantRlsConnectionInterceptor(tenantActual, new SinClienteActivo(),
+                        new CurrentUserServiceFalso(_usuario, tenantOrigenId: tenant), BaseDatosPostgresDePruebas.FirmanteContextoRls))
+                .Options;
+            return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
         }
 
         public async Task DisposeAsync()

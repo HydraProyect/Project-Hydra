@@ -74,7 +74,7 @@ public class AnalizarPlantillaMaestraQueryTests
         criterio.PapelPreguntado.Should().Be(PapelActivo.TenantDeOrigen);
         r.EsExitoso.Should().Be(!soloInbound);
         servicio.Llamadas.Should().Be(soloInbound ? 0 : 1);
-        if (soloInbound) r.Error.Codigo.Should().Be("Autorizacion.ComandoDeOutboundSinLineaOutbound");
+        if (soloInbound) r.Error.Codigo.Should().Be("Importacion.SinLineaOutbound");
     }
     [Fact]
     public async Task Sin_ser_Administrador_no_se_lee_el_archivo_ni_se_consulta_nada()

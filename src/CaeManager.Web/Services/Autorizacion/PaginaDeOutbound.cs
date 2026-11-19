@@ -50,8 +50,9 @@ public sealed class PaginaDeOutboundAttribute : Attribute
 /// todavía no: qué ve ese Tenant en una página de Outbound (oculta, en gris con explicación o ruta mixta) es presentación
 /// y está pendiente de decisión; hasta entonces entra, pero sus comandos de Outbound se niegan y sus queries de Outbound
 /// salen vacías solo si consultan el alcance (<c>IAlcanceDatosService</c>). Una query de Outbound que no lo consulta lee
-/// lo que el filtro de Tenant y la RLS le dejan: las que hay hoy están inventariadas, con su motivo, en
-/// <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de los tests de arquitectura. El criterio
+/// lo que el filtro de Tenant y la RLS le dejan. Las de Application cuyo handler no recibe el alcance, el criterio ni el
+/// mediador están inventariadas, con su motivo, en <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de los tests de
+/// arquitectura; las lecturas que la página hace fuera del mediador, no. El criterio
 /// se resuelve solo para un endpoint marcado con el papel de Tenant de origen, y sin registrar falla al resolverlo.
 /// </para>
 /// </summary>

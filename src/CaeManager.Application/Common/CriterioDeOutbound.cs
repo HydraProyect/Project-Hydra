@@ -17,8 +17,10 @@ namespace CaeManager.Application.Common;
 /// decida qué ve ese Tenant (ocultar, mostrar en gris con explicación o rutas mixtas). De lo que esas pantallas ejecutan,
 /// la guarda cierra los comandos de Outbound, y el alcance cierra solo las queries de Outbound que lo consultan
 /// (<c>IAlcanceDatosService</c>): una query de Outbound que no lo consulta lee lo que el filtro de Tenant y la RLS le
-/// dejan. Las que hay hoy están inventariadas, con su motivo, en <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de
-/// los tests de arquitectura, para que una nueva no entre sin verse.
+/// dejan. Los handlers de Application cuyo constructor no recibe el alcance, este criterio ni el mediador están
+/// inventariados, con su motivo, en <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c> de los tests de arquitectura. Esa
+/// medida no ve un handler que recibe el alcance o el mediador y además lee otra tabla sin cruzarla, ni las lecturas que
+/// una página hace fuera del mediador.
 /// </para>
 ///
 /// <para>
