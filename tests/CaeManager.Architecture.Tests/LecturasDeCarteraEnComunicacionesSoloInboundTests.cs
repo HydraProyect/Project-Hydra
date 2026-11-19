@@ -98,12 +98,14 @@ public class LecturasDeCarteraEnComunicacionesSoloInboundTests
                                    && alcanzan.Contains(ClaveMetodo.De(h.Handle)),
                 "ObtenerSugerenciasVisitaCorreoPendientesQueryHandler llama a ObtenerCentroIdsVisiblesAsync directamente");
 
-        // Control de los cortes: la bandeja pide los Centros por CentrosVisiblesAsync, así que sin cortes sí alcanza la
-        // lectura directa y con ellos no. Si la bandeja dejara de tocar Centros, la primera mitad caería.
+        // Control de los cortes: la bandeja pide los Centros por CentrosVisiblesAsync y los Clientes empresariales por
+        // VisibilidadConversacion (ClientesEmpresarialesVisiblesAsync), así que sin cortes sí alcanza las lecturas directas
+        // y con ellos no. La primera mitad solo caería si la bandeja dejara de tocar las dos carteras, no una sola.
         var bandeja = Handles(PeticionDeOutbound.AcotadaAlSoloInbound)
             .Single(h => h.Handle.DeclaringType!.Name == "ObtenerConversacionesQueryHandler").Handle;
         grafo.QueAlcanzan(LecturasDirectas).Should().Contain(ClaveMetodo.De(bandeja),
-            "sin cortes, la bandeja llega a ObtenerCentroIdsVisiblesAsync a través de CentrosVisiblesAsync");
+            "sin cortes, la bandeja llega a ObtenerCentroIdsVisiblesAsync por CentrosVisiblesAsync y a " +
+            "ObtenerClienteIdsVisiblesAsync por ClientesEmpresarialesVisiblesAsync");
         alcanzan.Should().NotContain(ClaveMetodo.De(bandeja), "con los cortes, ese camino pasa por la extensión con recorte");
     }
 

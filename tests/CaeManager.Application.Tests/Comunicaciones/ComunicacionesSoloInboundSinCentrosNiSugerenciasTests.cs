@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.ConfirmarClasificacionRuidoMensaje;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Gestiones;
@@ -11,6 +12,7 @@ using CaeManager.Application.Tests.Reclamaciones;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Visitas;
@@ -131,6 +133,72 @@ public class ComunicacionesSoloInboundSinCentrosNiSugerenciasTests
             resultado.Elementos.Should().ContainSingle(c => c.Id == mensaje.ConversacionId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_bandeja_no_cuenta_como_ruido_las_sugerencias_de_Gestion_al_Tenant_solo_Inbound(bool soloInbound)
+    {
+        // Ronda 11 del revisor-puente: el único test de la bandeja con el marco salía por «total == 0» antes de contar el
+        // ruido. Aquí el hilo con Empresa sí se lista en los dos casos, y lo único que cambia es el contador.
+        var escenario = new Escenario();
+        var mensaje = escenario.HiloConEmpresaYMensaje();
+        escenario.SugerenciaDeGestionSoloConRepeticiones(mensaje);
+
+        ResultadoPaginado<ConversacionListaDto> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: soloInbound))
+            resultado = await escenario.Bandeja().Handle(new ObtenerConversacionesQuery(), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle(c => c.Id == mensaje.ConversacionId)
+            .Which.MensajesRuido.Should().Be(soloInbound ? 0 : 1);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Confirmar_el_ruido_de_un_mensaje_no_toca_ni_revela_sus_sugerencias_de_Gestion_al_Tenant_solo_Inbound(bool soloInbound)
+    {
+        // Ronda 11 del revisor-puente: el comando está acotado, no cerrado. Con el marco, un mensaje que solo tiene una
+        // sugerencia de Gestión responde igual que uno sin nada, y los detalles de esa Gestión no se confirman.
+        var escenario = new Escenario();
+        var mensaje = escenario.HiloConEmpresaYMensaje();
+        var clasificacion = escenario.SugerenciaDeGestionSoloConRepeticiones(mensaje);
+        var detalles = new ClasificacionesDeDetalleFalsas(clasificacion);
+        var unidad = new UnitOfWorkFalso();
+        var handler = new ConfirmarClasificacionRuidoMensajeCommandHandler(
+            new ClasificacionRuidoMensajeRepositorioFalso(), detalles, escenario.Comunicaciones, escenario.AlcanceDelEscenario(), unidad);
+
+        Result resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: soloInbound))
+            resultado = await handler.Handle(new ConfirmarClasificacionRuidoMensajeCommand(mensaje.Id), CancellationToken.None);
+
+        if (soloInbound)
+        {
+            resultado.EsExitoso.Should().BeFalse();
+            resultado.Error.Codigo.Should().Be("ClasificacionRuidoMensaje.NoEncontrada");
+            clasificacion.ConfirmadaManualmente.Should().BeFalse();
+            detalles.Consultas.Should().Be(0);
+            unidad.VecesGuardado.Should().Be(0);
+        }
+        else
+        {
+            resultado.EsExitoso.Should().BeTrue();
+            clasificacion.ConfirmadaManualmente.Should().BeTrue();
+        }
+    }
+
+    private sealed class ClasificacionesDeDetalleFalsas(ClasificacionRuidoDetalleGestion clasificacion) : IClasificacionRuidoDetalleGestionRepository
+    {
+        public int Consultas { get; private set; }
+
+        public void Agregar(ClasificacionRuidoDetalleGestion nueva) => throw new NotSupportedException();
+
+        public Task<ClasificacionRuidoDetalleGestion?> ObtenerPorDetalleIdAsync(Guid detalleSugerenciaGestionCorreoId, CancellationToken cancellationToken = default)
+        {
+            Consultas++;
+            return Task.FromResult(clasificacion.DetalleSugerenciaGestionCorreoId == detalleSugerenciaGestionCorreoId ? clasificacion : null);
+        }
+    }
+
     private sealed class Escenario
     {
         public ComunicacionesQueryContextFalso Comunicaciones { get; } = new();
@@ -152,6 +220,20 @@ public class ComunicacionesSoloInboundSinCentrosNiSugerenciasTests
             Comunicaciones.ListaConversaciones.Add(conversacion);
             Comunicaciones.ListaMensajes.Add(mensaje);
             return mensaje;
+        }
+
+        public AlcanceDatosServiceFalso AlcanceDelEscenario() => Alcance();
+
+        /// <summary>Una sugerencia de Gestión con un detalle pendiente que es repetición de algo ya reclamado: ruido.</summary>
+        public ClasificacionRuidoDetalleGestion SugerenciaDeGestionSoloConRepeticiones(Mensaje mensaje)
+        {
+            var sugerencia = new SugerenciaGestionCorreo(mensaje.Id, "Renovar el reconocimiento médico", 80);
+            var detalle = sugerencia.AgregarDetalle(Guid.NewGuid(), Guid.NewGuid(), 80, 80);
+            var clasificacion = new ClasificacionRuidoDetalleGestion(detalle.Id, Guid.NewGuid());
+            Comunicaciones.ListaSugerenciasGestionCorreo.Add(sugerencia);
+            Comunicaciones.ListaDetallesSugerenciaGestionCorreo.Add(detalle);
+            Comunicaciones.ListaClasificacionesRuidoDetalleGestion.Add(clasificacion);
+            return clasificacion;
         }
 
         public Centro Centro(string nombre)
