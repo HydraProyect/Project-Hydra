@@ -108,7 +108,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             // Deseado: quitar clienteUno, añadir clienteDos.
             var resultado = await handler.Handle(
@@ -153,7 +154,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                new AlcanceDatosServiceFalso(clienteIds: [clienteDos], empresaIds: [empresaId]), contexto);
+                new AlcanceDatosServiceFalso(clienteIds: [clienteDos], empresaIds: [empresaId]), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             var resultado = await handler.Handle(
                 new EditarEmpresaCommand(empresaId, "Empresa Cartera Uno S.L.", "B10380921", [clienteDos]),
@@ -265,7 +267,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                new AlcanceDatosServiceFalso(clienteIds: [], empresaIds: [empresaId]), contexto);
+                new AlcanceDatosServiceFalso(clienteIds: [], empresaIds: [empresaId]), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             var resultado = await handler.Handle(
                 new EditarEmpresaCommand(empresaId, "Empresa Cartera Tres S.L.", "B10380996", [clienteAjeno]),
@@ -362,7 +365,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             var handler = new EditarEmpresaCommandHandler(
                 new EmpresaRepository(contexto), new RelacionEmpresarialRepository(contexto), contexto,
                 new GuardDeCierreDeArista(contexto, contexto, contexto),
-                CrearAlcanceConAccesoTotal(contexto), contexto);
+                CrearAlcanceConAccesoTotal(contexto), contexto,
+                new TenantActualDeLimiteTenantTec(Guid.NewGuid()), OutboundTenantTecAbierto.Instancia);
 
             // El request trae SOLO el cliente vivo — exactamente lo que la UI
             // enviaría, porque el eliminado no se pinta en ningún selector.

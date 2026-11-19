@@ -53,6 +53,9 @@ src/CaeManager.Application/Clientes/ReasignadorCarteraCliente.cs :: clienteId = 
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Common/AlcanceDatosServiceExtensions.cs :: clienteId = 7
 src/CaeManager.Application/Common/IAlcanceDatosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
+# D3 (2026-11-19): el límite del Tenant TEC lee el Tenant propietario de la Asignación de Operación por su nombre legacy
+# (DelegacionTenant.TenantClienteId); no es un Cliente empresarial ni un nombre nuevo.
+src/CaeManager.Application/Common/LimiteTenantTecBehavior.cs :: TenantClienteId = 1
 src/CaeManager.Application/Comunicaciones/AlcanceDeMensajesDeConversacion.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/BloqueoRespuestaSugerida.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/AprobarRecordatorioConversacion/AprobarRecordatorioConversacionCommand.cs :: ClienteId = 1
@@ -150,14 +153,16 @@ src/CaeManager.Application/Documentos/SituacionEnCentro/SituacionDocumentosEnCen
 src/CaeManager.Application/Documentos/SituacionEnCentro/SituacionDocumentosEnCentrosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Documentos/ValidacionOficial/ValidacionDocumentoOficialService.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/ValidacionOficial/ValidacionDocumentoOficialService.cs :: clienteId = 2
-src/CaeManager.Application/Empresas/Commands/CrearEmpresa/CrearEmpresaCommand.cs :: ClienteIds = 2
+# D3 (2026-11-19): +1 en CrearEmpresa (ClienteIds) y +1 en EditarEmpresa (clienteIdsNuevos), lecturas de los mismos
+# campos para cerrar el alta de Relaciones Empresariales al Tenant TEC participante sin línea Outbound.
+src/CaeManager.Application/Empresas/Commands/CrearEmpresa/CrearEmpresaCommand.cs :: ClienteIds = 3
 src/CaeManager.Application/Empresas/Commands/CrearEmpresa/CrearEmpresaCommand.cs :: clienteId = 2
 src/CaeManager.Application/Empresas/Commands/CrearEmpresa/CrearEmpresaCommand.cs :: clienteIds = 5
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: ClienteIds = 3
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: actualesClienteIds = 3
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: clienteId = 6
 src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
-src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: clienteIdsNuevos = 5
+src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: clienteIdsNuevos = 6
 src/CaeManager.Application/Empresas/PaqueteDocumental/PaqueteDocumentalEmpresaService.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerCentrosConActividadDeEmpresa/ObtenerCentrosConActividadDeEmpresaQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerClientesDeEmpresa/ObtenerClientesDeEmpresaQuery.cs :: ClienteId = 1

@@ -111,7 +111,8 @@ public class DuplicadosCifEmpresaTests
                 .Handle(new EditarClienteCommand(empresa.Id, "Nueva identidad", cif, false, null, empresa.Version), default),
             "CrearEmpresa" => await new CrearEmpresaCommandHandler(repo, relaciones, contexto, alcance, uow, CaeManager.Application.Tests.Empresas.LimitesDePrueba.SinEmpresaPropia())
                 .Handle(new CrearEmpresaCommand("Nueva identidad", cif, []), default),
-            "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow)
+            "EditarEmpresa" => await new EditarEmpresaCommandHandler(repo, relaciones, contexto, null!, alcance, uow,
+                    new Configuracion.TenantActualFijo(Guid.NewGuid()), Comercial.OutboundCerradoTenantTecFijo.Abierto())
                 .Handle(new EditarEmpresaCommand(empresa.Id, "Nueva identidad", cif, [], Version: empresa.Version), default),
             "CrearSubcontrata" => await new CrearSubcontrataCommandHandler(repo, relaciones, contexto, alcance, uow)
                 .Handle(new CrearSubcontrataCommand("Nueva identidad", cif, [], []), default),

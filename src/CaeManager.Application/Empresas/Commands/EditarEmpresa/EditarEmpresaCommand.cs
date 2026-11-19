@@ -1,4 +1,5 @@
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -50,7 +51,8 @@ public class EditarEmpresaCommandHandler(
     IEmpresaRepository repositorio,
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     IEmpresasQueryContext empresasContext, IGuardDeCierreDeArista guardDeCierre,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ITenantActual tenantActual, IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<EditarEmpresaCommand, Result>
 {
     public async Task<Result> Handle(EditarEmpresaCommand request, CancellationToken cancellationToken)
@@ -92,6 +94,15 @@ public class EditarEmpresaCommandHandler(
         // Solo hace falta verificar las vinculaciones NUEVAS: las que ya
         // estaban antes ya pasaron por esta comprobación cuando se crearon.
         var clienteIdsNuevos = deseados.Except(actualesClienteIds).ToList();
+
+        // D3 (DN-4, DN-7): una Relación Empresarial nueva con un Cliente empresarial es un alta de Outbound, cerrada al
+        // Tenant TEC participante sin línea Outbound. Quitar Clientes empresariales (bajas) y editar la identidad siguen
+        // abiertos, así que la guarda va aquí, sobre el diff, y no en el pipeline. Falla cerrado sin Tenant activo.
+        if (clienteIdsNuevos.Count > 0
+            && (tenantActual.TenantId is not { } tenantId
+                || await outboundCerrado.EstaCerradoAsync(tenantId, cancellationToken)))
+            return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
         var clientesNuevosEncontrados = await empresasContext.Empresas
             .Where(e => clienteIdsNuevos.Contains(e.Id))
             .CountAsync(cancellationToken);

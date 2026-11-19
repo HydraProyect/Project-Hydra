@@ -95,8 +95,11 @@ public class Tenant : Entity
     /// <summary>
     /// Marcador único de Tenant participante TEC (D3, acordado con Inbound el 2026-11-19): solo
     /// restringe, nunca concede. Nace en falso y sin backfill, así que ningún Tenant actual cambia.
-    /// Todavía no lo lee ni lo escribe nada: el único escritor, un servicio de plataforma, y su
-    /// método de dominio llegan en la PR de lógica de D3, con la tabla de escritores.
+    /// Lo lee <c>IOutboundCerradoTenantTec</c>: un Tenant marcado sin línea Outbound vigente no
+    /// ejecuta lo que D3 cierra. Solo lo escribe <see cref="MarcarComoParticipanteTec"/>, y a ese
+    /// método solo lo llama el servicio de plataforma <c>MarcarTenantComoParticipanteTecCommand</c>
+    /// (test de arquitectura de único escritor); en la base, el trigger
+    /// <c>proteger_es_participante_tec</c> solo deja cambiarlo a <c>cae_app_aprovisionamiento</c>.
     /// </summary>
     public bool EsParticipanteTec { get; private set; }
 
@@ -186,6 +189,14 @@ public class Tenant : Entity
     /// interino que sustituye, que tampoco se revocaba).
     /// </summary>
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
+
+    /// <summary>
+    /// Marca este Tenant como participante TEC (D3). Idempotente y sin método inverso: el marcador
+    /// solo restringe, y retirarlo abriría Outbound sin línea de pago, que no tiene regla de producto.
+    /// Su único llamador es el servicio de plataforma <c>MarcarTenantComoParticipanteTecCommand</c>,
+    /// que escribe como <c>cae_app_aprovisionamiento</c>.
+    /// </summary>
+    public void MarcarComoParticipanteTec() => EsParticipanteTec = true;
 
     /// <summary>
     /// Declara el tipo de Tenant. Solo una vez: cambiar el tipo de un Tenant propietario ya declarado no

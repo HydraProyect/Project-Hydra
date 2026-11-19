@@ -773,8 +773,10 @@ public class UsosDeEsPlataformaCongeladosTests
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",
         "EsPlataforma",
-        // Marcador de Tenant participante TEC (D3): solo la propiedad, sin mutador público todavía.
+        // Marcador de Tenant participante TEC (D3): la propiedad y su único mutador, que solo pone ese marcador y solo lo
+        // llama MarcarTenantComoParticipanteTecCommand (UnicoEscritorDeEsParticipanteTecTests).
         "EsParticipanteTec",
+        "MarcarComoParticipanteTec",
         "Estado",
         "EstadoComercial",
         "EstadoComercialActualizadoEnUtc",

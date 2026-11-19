@@ -108,6 +108,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.IEstadoLineaOutbound,
             CaeManager.Application.Comercial.LineaOutbound.EstadoLineaOutboundService>();
+        services.AddScoped<CaeManager.Application.Comercial.LineaOutbound.IOutboundCerradoTenantTec,
+            CaeManager.Application.Comercial.LineaOutbound.OutboundCerradoTenantTecService>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
         // Foto a PDF: fuera de MediatR, para no retener la puerta de acceso a datos del circuito mientras decodifica.
@@ -202,6 +204,10 @@ public static class ApplicationServiceCollectionExtensions
         // La guarda por servicio (DN-21, B-02b), después del rol y del estado del Tenant: un comando de Inbound con papel
         // Outbound, o uno que no es de Inbound con papel Inbound, falla cerrado antes del handler.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GuardaPorServicioBehavior<,>));
+        // El límite del Tenant TEC participante (D3, 2026-11-19), después del papel: Outbound cerrado para el Tenant
+        // beneficiario marcado y sin línea Outbound vigente. Antes de la elevación a cae_app_aprovisionamiento, que no ve
+        // la línea.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(LimiteTenantTecBehavior<,>));
         // El ámbito de petición de Inbound (B-03), dentro de la guarda: con papel Inbound, AlcanceDatosService solo da alcance
         // dentro de una petición de Inbound; los lectores de otros módulos siguen en alcance cero.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AmbitoInboundBehavior<,>));

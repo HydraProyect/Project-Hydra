@@ -24,7 +24,12 @@ namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 /// </para>
 /// </summary>
 [AreaDelEncargo("Tenants")]
-public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
+// IComandoSobreAsignacionDeOperacion: el límite del Tenant TEC (D3, DN-7) mira también al Tenant propietario de la
+// Asignación de Operación.
+public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand, IComandoSobreAsignacionDeOperacion
+{
+    Guid IComandoSobreAsignacionDeOperacion.AsignacionDeOperacionId => DelegacionTenantId;
+}
 
 public class ReactivarDelegacionTenantCommandValidator : AbstractValidator<ReactivarDelegacionTenantCommand>
 {
