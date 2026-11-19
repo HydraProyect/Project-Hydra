@@ -127,7 +127,7 @@
                     {
                         <span class="gb-cifras">desde @Fecha(desde)@(_datos.AsignacionHasta is { } hasta ? $" hasta {Fecha(hasta)}" : "")</span>
                     }</dd>
-                <dt>Otras organizaciones que gestiona</dt><dd>@(_datos.OtrosTenantsGestionados.Count == 0 ? "Ninguno" : string.Join(", ", _datos.OtrosTenantsGestionados))</dd>
+                <dt>Otras organizaciones que gestiona</dt><dd>@(_datos.OtrosTenantsGestionados.Count == 0 ? "Ninguna" : string.Join(", ", _datos.OtrosTenantsGestionados))</dd>
             </dl>
             <div class="gb-mut">El permiso para gestionar lo da esta organización; la gestión diaria la hacen las personas de esa empresa.</div>
         </section>

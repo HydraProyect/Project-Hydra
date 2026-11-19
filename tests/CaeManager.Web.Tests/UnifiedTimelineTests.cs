@@ -91,12 +91,20 @@ public class UnifiedTimelineTests : BunitContext
             foreach (var origen in Enum.GetValues<TipoParticipanteOrigen>())
             {
                 var mensaje = CrearMensaje(new DateTime(2026, 8, 8, 9, 0, 0, DateTimeKind.Utc));
+                // La etiqueta de origen solo se pinta cuando hay más de un origen distinto: hace falta un segundo participante.
+                var otroOrigen = origen == TipoParticipanteOrigen.Centro ? TipoParticipanteOrigen.Empresa : TipoParticipanteOrigen.Centro;
 
                 var cut = Render<UnifiedTimeline>(parametros => parametros
                     .Add(p => p.Mensajes, [mensaje])
-                    .Add(p => p.Participantes, [new ParticipanteDetalleDto(Guid.NewGuid(), mensaje.Remitente, rol, origen, null)]));
+                    .Add(p => p.Participantes,
+                    [
+                        new ParticipanteDetalleDto(Guid.NewGuid(), mensaje.Remitente, rol, origen, null),
+                        new ParticipanteDetalleDto(Guid.NewGuid(), "otra@ejemplo.com", rol, otroOrigen, null)
+                    ]));
 
-                cut.Find(".timeline-mensaje-fila").TextContent.Should().NotContain("TimelineOrigen", $"el origen {origen} ({cultura}) necesita su clave localizada");
+                var etiqueta = Services.GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes>>()["TimelineOrigen" + origen];
+                etiqueta.ResourceNotFound.Should().BeFalse($"el origen {origen} necesita su clave TimelineOrigen{origen} en {cultura}");
+                cut.Find(".timeline-mensaje-fila").TextContent.Should().Contain(etiqueta.Value, $"con dos orígenes distintos la fila pinta la etiqueta de origen ({origen}, {cultura})");
             }
         }
         finally

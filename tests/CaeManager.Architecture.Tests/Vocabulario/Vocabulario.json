@@ -576,7 +576,6 @@
     {
       "id": "tenant-en-pagina-de-plataforma",
       "prohibidos": [
-        "tenant-a-secas",
         "alcance-a-secas"
       ],
       "ficheros": [
