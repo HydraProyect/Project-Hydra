@@ -335,6 +335,8 @@ public partial class AltaTenantTce
                 // Tras la baja ya no hay Producto Contratado Inbound activo: la confirmación del alta deja de valer.
                 _contratado = null;
                 _paso = 1;
+                // La declaración «solo Inbound» valía para el alta que se acaba de dar de baja; un alta nueva la pide otra vez.
+                _declaraSoloInbound = false;
             }
             else
                 _errorLinea = resultado.Error.Mensaje;

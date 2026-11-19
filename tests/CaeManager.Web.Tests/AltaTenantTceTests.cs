@@ -352,6 +352,48 @@ public class AltaTenantTceTests : BunitContext
         cut.FindAll(".alta-tce-ok").Should().BeEmpty("la línea ya no está vigente");
     }
 
+    /// <summary>
+    /// DECISION_LOG 1bff7a7: la declaración «solo Inbound» vale para un alta concreta. Ni al cancelar el alta ni tras dar
+    /// de baja la línea contratada puede quedar marcada para la siguiente: el Actor de Plataforma TALVEG la vuelve a hacer.
+    /// </summary>
+    [Theory]
+    [InlineData("cancelar")]
+    [InlineData("dar de baja")]
+    public void La_declaracion_solo_Inbound_no_sobrevive_al_alta_en_la_que_se_hizo(string camino)
+    {
+        var cut = RenderConSesion();
+        LlenarYIrAlResumen(cut);
+        DeclararSoloInbound(cut);
+
+        if (camino == "cancelar")
+        {
+            Pulsar(cut, "Cancelar");
+        }
+        else
+        {
+            Pulsar(cut, "Dar de alta");
+            cut.FindAll(".alta-tce-ok").Should().ContainSingle();
+            cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Dar de baja").Click();
+            cut.FindAll("button").Last(b => b.TextContent.Trim() == "Dar de baja").Click();
+            cut.FindAll(".alta-tce-ok").Should().BeEmpty();
+        }
+
+        LlenarYIrAlResumen(cut);
+        cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']").HasAttribute("checked")
+            .Should().BeFalse($"tras {camino} la declaración se pide otra vez");
+    }
+
+    private static void LlenarYIrAlResumen(IRenderedComponent<AltaTenantTce> cut)
+    {
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De11A40));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Dar de alta", "está en el Resumen");
+    }
+
     private sealed class MediatorFalso : IMediator
     {
         public List<object> Enviados { get; } = [];
