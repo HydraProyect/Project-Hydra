@@ -467,11 +467,13 @@
                        TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
                        MensajeError="@_errorTrabajadores" />
 
+    @* Región viva fija: siempre está en el DOM y solo cambia su contenido, para que un lector de pantalla anuncie cada vista previa. *@
+    <div class="vista-previa-alta" role="status">
     @if (PlanAltaSolapadas is { } solapadas)
     {
         @* Con alguien sin poder asignarse hoy el servidor rechazaría la Visita entera si se pidiera asignar: no se pide, y
            no se promete ninguna asignación ni Gestión. El aviso nombra a quién y dice qué pasará si se guarda así. *@
-        <div class="alerta-info" role="status">
+        <div class="alerta-info">
             @foreach (var solapada in solapadas)
             {
                 <p>@Textos["PlanAltaSolapada", solapada.TrabajadorNombre]</p>
@@ -481,11 +483,11 @@
     }
     else if (PlanAltaSinPermiso)
     {
-        <div class="alerta-info" role="status">@Textos["PlanAltaSinPermiso"]</div>
+        <div class="alerta-info">@Textos["PlanAltaSinPermiso"]</div>
     }
     else if (PlanAltaConAutoridad is { } planAlta)
     {
-        <div class="alerta-info" role="status">
+        <div class="alerta-info">
             @foreach (var asignacion in planAlta.Asignaciones)
             {
                 <p>@Textos["PlanAltaAsignacion", asignacion.TrabajadorNombre]</p>
@@ -502,6 +504,7 @@
             }
         </div>
     }
+    </div>
 
     <label class="campo-checkbox">
         <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]

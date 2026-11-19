@@ -1493,6 +1493,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async Task AlCambiarCentroAsync(string centroId)
     {
         _centroId = centroId;
+        // La vista previa era de otro Centro: se descarta ya (y con ella cualquier respuesta en vuelo) para que, mientras se
+        // recalculan los relacionados, el formulario no enseñe ni envíe una promesa que no es de este Centro.
+        _cargaPlanAlta++;
+        _planAlta = null;
         await RecalcularRelacionadosAsync();
         await RecalcularPlanAltaAsync();
     }
@@ -1601,6 +1605,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (mensajeError is not null)
             {
                 _mensajeErrorFormulario = mensajeError;
+                // Un rechazo del servidor puede venir de que la vista previa se quedó vieja (autoridad perdida, solape nuevo):
+                // se vuelve a pedir para que el siguiente Guardar prometa y envíe lo que el servidor dice ahora.
+                if (editandoId is null)
+                    await RecalcularPlanAltaAsync();
                 return;
             }
 

@@ -32,6 +32,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 {
     private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
     private static readonly Guid Centro = Guid.NewGuid();
+    private static readonly Guid OtroCentro = Guid.NewGuid();
     private static readonly Guid Trabajador = Guid.NewGuid();
     private static readonly Guid TipoPrl = Guid.NewGuid();
     private static readonly Guid TipoMedico = Guid.NewGuid();
@@ -50,7 +51,27 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         public List<CrearVisitaCommand> Creaciones { get; } = [];
         public VisitaListaDto? FilaExistente { get; set; }
 
+        /// <summary>Hace que la consulta de la vista previa lance, como una caída del servidor.</summary>
+        public bool FallaLaConsultaDelPlan { get; set; }
+
+        /// <summary>Si se informa, crear la Visita devuelve este rechazo del servidor.</summary>
+        public Error? RechazoAlCrear { get; set; }
+
+        /// <summary>Respuestas de la vista previa retenidas por número de consulta (1 = la primera) hasta que el test las libere.</summary>
+        public Dictionary<int, TaskCompletionSource<PlanAltaVisitaPreviaDto?>> PlanRetenido { get; } = [];
+
+        /// <summary>Si se informa, la lista de asignados de ese Centro no responde hasta que el test la libere.</summary>
+        public (Guid CentroId, TaskCompletionSource<bool> Puerta)? AsignadosRetenidos { get; set; }
+
         private static Task<T> Respuesta<T>(object? valor) => Task.FromResult((T)valor!);
+
+        private static async Task<T> EsperarPlan<T>(Task<PlanAltaVisitaPreviaDto?> pendiente) => (T)(await pendiente as object)!;
+
+        private static async Task<T> EsperarAsignados<T>(Task puerta, object valor)
+        {
+            await puerta;
+            return (T)valor;
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -61,13 +82,18 @@ public class VisitasVistaPreviaAltaTests : BunitContext
                     return Respuesta<TResponse>(new ResultadoPaginado<VisitaListaDto>(filas, filas.Count, consulta.Pagina, consulta.TamanoPagina));
 
                 case ObtenerCentrosParaSelectorQuery:
-                    return Respuesta<TResponse>((IReadOnlyList<CentroSelectorDto>)[new CentroSelectorDto(Centro, "Planta Norte", "Cliente A", "Empresa A")]);
+                    return Respuesta<TResponse>((IReadOnlyList<CentroSelectorDto>)[
+                        new CentroSelectorDto(Centro, "Planta Norte", "Cliente A", "Empresa A"),
+                        new CentroSelectorDto(OtroCentro, "Planta Sur", "Cliente A", "Empresa A")]);
 
                 case ObtenerTrabajadoresParaSelectorQuery:
                     return Respuesta<TResponse>((IReadOnlyList<TrabajadorSelectorDto>)[TrabajadorSelectorFalso.Crear(Trabajador, "Ana García Ruiz")]);
 
-                case ObtenerTrabajadoresAsignadosDeCentroQuery:
-                    return Respuesta<TResponse>((IReadOnlyList<TrabajadorAsignadoDto>)[new TrabajadorAsignadoDto(Trabajador, "x", "y", Hoy)]);
+                case ObtenerTrabajadoresAsignadosDeCentroQuery asignados:
+                    IReadOnlyList<TrabajadorAsignadoDto> lista = [new TrabajadorAsignadoDto(Trabajador, "x", "y", Hoy)];
+                    return AsignadosRetenidos is { } retenidos && retenidos.CentroId == asignados.CentroId
+                        ? EsperarAsignados<TResponse>(retenidos.Puerta.Task, lista)
+                        : Respuesta<TResponse>(lista);
 
                 case ObtenerVisitaPorIdQuery edicion:
                     return Respuesta<TResponse>(new VisitaDetalleDto(
@@ -76,11 +102,15 @@ public class VisitasVistaPreviaAltaTests : BunitContext
 
                 case ObtenerPlanAltaVisitaQuery plan:
                     ConsultasPlan.Add(plan);
-                    return Respuesta<TResponse>(Previa);
+                    if (FallaLaConsultaDelPlan)
+                        throw new InvalidOperationException("caída simulada de la vista previa");
+                    return PlanRetenido.TryGetValue(ConsultasPlan.Count, out var retenido)
+                        ? EsperarPlan<TResponse>(retenido.Task)
+                        : Respuesta<TResponse>(Previa);
 
                 case CrearVisitaCommand crear:
                     Creaciones.Add(crear);
-                    return Respuesta<TResponse>(Result.Exito(Guid.NewGuid()));
+                    return Respuesta<TResponse>(RechazoAlCrear is { } rechazo ? Result.Fallo<Guid>(rechazo) : Result.Exito(Guid.NewGuid()));
 
                 default:
                     throw new NotSupportedException(request.GetType().Name);
@@ -128,8 +158,7 @@ public class VisitasVistaPreviaAltaTests : BunitContext
     }
 
     private static IElement[] BloquesDeVistaPrevia(IRenderedComponent<Visitas> cut) => cut
-        .FindAll(".drawer-panel .alerta-info[role=status]")
-        .Where(b => b.TextContent.Contains("Se asignará") || b.TextContent.Contains("No tienes permiso") || b.TextContent.Contains("no se puede asignar hoy"))
+        .FindAll(".drawer-panel [role=status].vista-previa-alta .alerta-info")
         .ToArray();
 
     /// <summary>La fecha de fin es el segundo campo de fecha del formulario (el primero es el de inicio).</summary>
@@ -258,6 +287,133 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         await GuardarAsync(cut);
 
         mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Con_solo_gestiones_el_aviso_dice_una_gestion_en_singular_y_crear_pide_asignar_y_crear()
+    {
+        var plan = new PlanAltaVisitaDto(
+            [], [new GestionPrevistaDto(Trabajador, "Ana García Ruiz", TipoPrl, "Formación PRL", MotivoGestionPrevista.Falta)], Solapadas: []);
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(plan, PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+        texto.Should().Contain("Se abrirá 1 gestión:").And.Contain("Formación PRL de Ana García Ruiz: falta");
+        texto.Should().NotContain("Se asignará", "no hay nadie que asignar");
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeTrue("hay Gestiones prometidas aunque no haya Asignaciones");
+    }
+
+    [Fact]
+    public async Task Si_la_consulta_de_la_vista_previa_falla_el_formulario_sigue_y_crea_como_antes()
+    {
+        var mediator = new MediatorAlta { FallaLaConsultaDelPlan = true };
+
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        mediator.ConsultasPlan.Should().ContainSingle("se pidió y falló");
+        BloquesDeVistaPrevia(cut).Should().BeEmpty();
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Al_cambiar_de_centro_la_vista_previa_del_centro_anterior_desaparece_enseguida_y_no_se_envia()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+        BloquesDeVistaPrevia(cut).Should().ContainSingle();
+
+        // Los Trabajadores asignados del otro Centro tardan en llegar: mientras tanto no puede verse ni enviarse la promesa del Centro anterior.
+        var puerta = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.AsignadosRetenidos = (OtroCentro, puerta);
+        var cambio = cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = OtroCentro.ToString() });
+
+        cut.WaitForAssertion(() => BloquesDeVistaPrevia(cut).Should().BeEmpty("la vista previa era de otro Centro"));
+        await GuardarAsync(cut);
+
+        var creacion = mediator.Creaciones.Should().ContainSingle().Which;
+        creacion.CentroId.Should().Be(OtroCentro);
+        creacion.AsignarYCrearGestiones.Should().BeFalse("no se envía una promesa que se enseñó para otro Centro");
+
+        puerta.SetResult(true);
+        await cambio;
+    }
+
+    [Fact]
+    public async Task Una_respuesta_vieja_de_la_vista_previa_no_pisa_a_la_nueva()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        // La segunda consulta (fecha de fin a 10 días) se queda en vuelo; la tercera (a 20 días) responde antes que ella.
+        var vieja = new TaskCompletionSource<PlanAltaVisitaPreviaDto?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.PlanRetenido[2] = vieja;
+        var cambioViejo = CambiarFechaFinAsync(cut, Hoy.AddDays(10));
+        cut.WaitForAssertion(() => mediator.ConsultasPlan.Should().HaveCount(2));
+        await CambiarFechaFinAsync(cut, Hoy.AddDays(20));
+
+        vieja.SetResult(new PlanAltaVisitaPreviaDto(PlanConUnaSolapada(), PuedeAsignar: true));
+        await cambioViejo;
+
+        var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+        texto.Should().Contain("Se asignará").And.NotContain("no se puede asignar hoy", "la respuesta tardía era de una fecha de fin que ya no es la del formulario");
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle().Which.AsignarYCrearGestiones.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Tras_un_rechazo_del_servidor_la_vista_previa_se_vuelve_a_pedir()
+    {
+        var mediator = new MediatorAlta
+        {
+            Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true),
+            RechazoAlCrear = Error.Crear("Asignacion.SolapaConOtra", "No se puede asignar: la vista previa dice quiénes."),
+        };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+        mediator.ConsultasPlan.Should().ContainSingle();
+
+        await GuardarAsync(cut);
+
+        mediator.Creaciones.Should().ContainSingle();
+        mediator.ConsultasPlan.Should().HaveCount(2, "el rechazo puede venir de una vista previa que se quedó vieja");
+    }
+
+    [Fact]
+    public async Task La_vista_previa_vive_en_una_region_viva_fija_y_en_catalan_se_lee_bien()
+    {
+        var culturaAnterior = System.Globalization.CultureInfo.CurrentUICulture;
+        var formatoAnterior = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+                System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+            var cut = Renderizar(mediator);
+            await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nova visita")).ClickAsync(new MouseEventArgs());
+
+            // La región viva ya está en el DOM, vacía, antes de que haya vista previa: así el lector de pantalla anuncia su contenido al llegar.
+            cut.Find(".drawer-panel .vista-previa-alta").GetAttribute("role").Should().Be("status");
+            cut.FindAll(".drawer-panel .vista-previa-alta .alerta-info").Should().BeEmpty();
+
+            await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = Centro.ToString() });
+            await cut.Find(".drawer-panel .lista-seleccion-multiple input").ChangeAsync(new ChangeEventArgs { Value = true });
+
+            var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+            texto.Should().Contain("S'assignarà Ana García Ruiz a aquest centre.").And.Contain("S'obriran 2 gestions:");
+            texto.Should().NotContainAny("Falta", "CaducaAntesDelFin", "Tenant", "Inbound", "Outbound");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = formatoAnterior;
+            System.Globalization.CultureInfo.CurrentUICulture = culturaAnterior;
+        }
     }
 
     [Fact]
