@@ -284,7 +284,7 @@ public class InboundConfiguracionTests : BunitContext
         // D2: la pantalla habla en llano; ni el modelo interno (Asignación de Operación, Operador CAE, Gestor CAE) ni el producto (Inbound).
         foreach (var jerga in new[] { "Asignación de Operación", "Operador CAE", "Gestor CAE", "Gestores CAE", "Inbound" })
             cut.Find(".contenedor-pagina").TextContent.Should().NotContain(jerga);
-        var auto =cut.Find("[data-pieza=validacion-automatica] [role=switch]");
+        var auto = cut.Find("[data-pieza=validacion-automatica] [role=switch]");
         auto.HasAttribute("disabled").Should().BeTrue("la validación automática llega en la ola siguiente");
         cut.Find("[data-pieza=registro]").TextContent.Should().Contain("02/11/2026 11:05").And.Contain("Elena Gracia Sanz");
         cut.FindAll("button").Last(b => b.TextContent.Trim() == "Guardar").HasAttribute("disabled").Should().BeTrue();
@@ -308,7 +308,7 @@ public class InboundConfiguracionTests : BunitContext
 
         var cut = Render<GobiernoDeInbound>();
 
-        cut.Markup.Should().Contain("no está disponible con el encargo de administración");
+        cut.Markup.Should().Contain("no están disponibles con el encargo de administración");
         cut.FindAll("[role=switch]").Should().BeEmpty();
     }
 
