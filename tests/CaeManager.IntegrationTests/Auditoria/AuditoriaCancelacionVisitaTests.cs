@@ -124,6 +124,47 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// La instantánea del Trabajador en la credencial de acceso físico (AF-02: nombre y documento, de otro Tenant) no llega
+    /// en claro al historial, ni al emitir ni al regenerar: Soporte TALVEG lee RegistrosAuditoria pero no CredencialesAcceso.
+    /// </summary>
+    [Fact]
+    public async Task La_instantanea_del_Trabajador_en_la_credencial_de_acceso_se_enmascara_en_la_auditoria()
+    {
+        await SembrarVisitaAsync();
+        var usuario = Guid.NewGuid();
+        Guid credencialId;
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(usuario))))
+        {
+            var credencial = CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso.Emitir(
+                new CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso.Sujeto(Guid.NewGuid(), Guid.NewGuid(), "Ana Pérez", "12345678Z"),
+                usuario, DateTime.UtcNow);
+            contexto.CredencialesAcceso.Add(credencial);
+            await contexto.SaveChangesAsync();
+            credencialId = credencial.Id;
+        }
+
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(usuario))))
+        {
+            var credencial = await contexto.CredencialesAcceso.SingleAsync(c => c.Id == credencialId);
+            credencial.Regenerar("Ana María Pérez", "87654321X", usuario, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
+        var registros = await lectura.RegistrosAuditoria
+            .Where(r => r.EntidadTipo == "CredencialAcceso" && r.EntidadId == credencialId).ToListAsync();
+
+        registros.Should().HaveCount(2, "la emisión y la regeneración");
+        foreach (var registro in registros)
+        {
+            var texto = (registro.DatosAntes ?? "") + (registro.DatosDespues ?? "");
+            texto.Should().NotContain("Ana").And.NotContain("12345678Z").And.NotContain("87654321X");
+        }
+        registros.Single(r => r.Accion == "Modificado").DatosDespues.Should().Contain("\"Serie\":2",
+            "la serie no es dato personal y queda en claro");
+    }
+
+    /// <summary>
     /// D-4 (#2005, contrato del 2026-11-15; revisor-puente y Codex r3 #2266): la reapertura del expediente por el Gestor
     /// CAE con cartera y el resello son dos registros de auditoría de una misma transacción, los dos con el Actor real
     /// separado del Usuario simulado. El «antes» de la reapertura conserva el sello retirado completo aunque el resello

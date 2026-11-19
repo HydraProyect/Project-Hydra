@@ -317,6 +317,8 @@ public class CaeManagerDbContext(
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.Inbound.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.Inbound.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
+    // Control de acceso físico (AF-02): credencial de un Trabajador en el Tenant TCE, sin FK hacia el otro Tenant.
+    public DbSet<CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso> CredencialesAcceso => Set<CaeManager.Domain.Inbound.AccesoFisico.CredencialAcceso>();
     // Estado materializado: las tablas (PR 2), que escribe el recálculo (PR 3 y 4) y leen los lectores de Centro (PR 6) por
     // IEstadoMaterializadoQueryContext.
     public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> EstadosRequisito => Set<CaeManager.Domain.EstadoMaterializado.EstadoRequisito>();
