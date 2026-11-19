@@ -211,7 +211,7 @@
     <value>Si aquest Tenant ja té la línia Inbound, pots corregir el Pagador TALVEG, el tram o la modalitat, o donar-la de baixa. Si no la té, TALVEG t&apos;ho dirà quan ho intentis.</value>
   </data>
   <data name="CorreccionNota" xml:space="preserve">
-    <value>En desar, el Producte Contractat vigent es tanca i se n&apos;obre un altre des d&apos;ara amb les dades noves; l&apos;anterior queda a l&apos;historial.</value>
+    <value>En desar, el Producte Contractat vigent es tanca i se n&apos;obre un altre des d&apos;ara amb les dades noves; l&apos;anterior queda a l&apos;historial. La declaració «només Inbound» no es copia: torna-la a marcar si encara és vàlida.</value>
   </data>
   <data name="CorreccionHecha" xml:space="preserve">
     <value>Línia Inbound corregida: el Producte Contractat nou és vigent des d&apos;ara.</value>
@@ -238,10 +238,7 @@
     <value>Declaro que aquesta organització contracta només Inbound.</value>
   </data>
   <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
-    <value>Si l'organització fa servir Outbound sense la seva línia Outbound registrada, no contractis Inbound des d'aquesta pantalla: contractar-lo li tancaria Outbound.</value>
-  </data>
-  <data name="ErrorDeclaracionSoloInbound" xml:space="preserve">
-    <value>Marca la declaració «només Inbound» per donar d'alta la línia Inbound. Si l'organització fa servir Outbound sense la seva línia Outbound registrada, no contractis Inbound des d'aquesta pantalla.</value>
+    <value>Opcional. Marca-la només si l'organització no fa servir Outbound: amb la declaració i sense línia Outbound, se li tanca Outbound. Sense marcar, conserva Outbound.</value>
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>

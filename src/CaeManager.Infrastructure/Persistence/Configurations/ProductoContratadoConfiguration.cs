@@ -16,6 +16,13 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// <c>CorregirLineaInboundCommand</c>, opción B del 2026-11-15). La de A6 desde <c>CompletarAltaAutonomaCommand</c>
 /// sigue sin abrir.
 /// <para>
+/// <c>DeclaraSoloInbound</c> (opción A', DECISION_LOG e496f33) la escribe el INSERT de tabla entera de
+/// <c>cae_app_aprovisionamiento</c> y la lee <c>cae_app_runtime</c> con su SELECT de tabla entera
+/// (<c>TenantSoloInbound</c>). El SELECT por columnas del rol elevado no la incluye: ni la baja ni la corrección la leen.
+/// La migración <c>AnadeDeclaraSoloInboundAProductosContratados</c> la crea con <c>DEFAULT false</c>, sin tocar
+/// políticas ni privilegios.
+/// </para>
+/// <para>
 /// Fuera de esas vías de la aplicación, dos siembras de Development insertan filas con el rol propietario y el contexto de
 /// bootstrap: <c>LineaInboundDemoSeeder</c> (la línea Inbound del Tenant TCE de demostración) y
 /// <c>LineaOutboundGestionPropiaDemoSeeder</c> (la línea Outbound de gestión propia de los Tenants de demostración de gestión
@@ -46,6 +53,9 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
     /// <summary>CHECK de coherencia entre estado y vigencia: la baja lo traduce cuando el fin quedaría antes del inicio.</summary>
     public const string RestriccionEstadoYVigencia = "CK_ProductosContratados_EstadoYVigencia";
 
+    /// <summary>CHECK: la declaración «solo Inbound» solo se marca en la línea Inbound (opción A', DECISION_LOG e496f33).</summary>
+    public const string RestriccionDeclaraSoloInboundEnInbound = "CK_ProductosContratados_DeclaraSoloInboundEnInbound";
+
     public void Configure(EntityTypeBuilder<ProductoContratado> builder)
     {
         builder.ToTable("ProductosContratados", t =>
@@ -58,6 +68,8 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
             t.HasCheckConstraint(RestriccionEstadoYVigencia,
                 "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR " +
                 "(\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");
+            // La declaración «solo Inbound» (opción A', DECISION_LOG e496f33) solo va marcada en una fila de la línea Inbound.
+            t.HasCheckConstraint(RestriccionDeclaraSoloInboundEnInbound, "NOT \"DeclaraSoloInbound\" OR \"Linea\" = 'Inbound'");
         });
         builder.HasKey(p => p.Id);
 

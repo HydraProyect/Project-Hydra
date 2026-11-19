@@ -40,14 +40,16 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
     /// por la RLS de verdad.
     ///
     /// <para>
-    /// Tres Tenants de origen, cada uno con su Cliente empresarial, su Centro y una Visita: sin ninguna fila de línea (el
-    /// Outbound histórico, que conserva Outbound), con las dos líneas, y solo con la línea Inbound, que es el control de
-    /// que el instrumento ve el cierre. El usuario es Administrador con el papel de Tenant de origen.
+    /// Cuatro Tenants de origen, cada uno con su Cliente empresarial, su Centro y una Visita: sin ninguna fila de línea (el
+    /// Outbound histórico, que conserva Outbound), con las dos líneas y la declaración, solo con la línea Inbound sin la
+    /// declaración «solo Inbound» (el Tenant histórico de la opción A', DECISION_LOG e496f33, que conserva Outbound), y solo
+    /// con la línea Inbound declarada, que es el control de que el instrumento ve el cierre. El usuario es Administrador con
+    /// el papel de Tenant de origen.
     /// </para>
     /// </summary>
     public class SoloInboundGuardaYAlcanceBajoRuntimeTests : IAsyncLifetime
     {
-        public enum Lineas { Ninguna, Ambas, SoloInbound }
+        public enum Lineas { Ninguna, Ambas, SoloInbound, InboundSinDeclaracion }
 
         private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
         private readonly Guid _usuario = Guid.NewGuid();
@@ -93,7 +95,10 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
                 if (lineas is not Lineas.Ninguna)
                 {
                     await using var siembra = ContextoDeSiembraConRls(tenant.Id);
-                    siembra.ProductosContratados.Add(Contratar(LineaProductoContratado.Inbound, $"cus_Inbound{lineas}", ahora));
+                    // Opción A' (DECISION_LOG e496f33): la línea Inbound lleva la declaración «solo Inbound» salvo en el
+                    // Tenant histórico, que la contrató sin ella. En Ambas va declarada: la línea Outbound basta para no cerrar.
+                    siembra.ProductosContratados.Add(Contratar(LineaProductoContratado.Inbound, $"cus_Inbound{lineas}", ahora,
+                        declaraSoloInbound: lineas is not Lineas.InboundSinDeclaracion));
                     if (lineas is Lineas.Ambas)
                         siembra.ProductosContratados.Add(Contratar(LineaProductoContratado.OutboundGestionPropia, $"cus_Outbound{lineas}", ahora));
                     await siembra.SaveChangesAsync();
@@ -124,9 +129,10 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
             await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
         }
 
-        private static ProductoContratado Contratar(LineaProductoContratado linea, string pagador, DateTime ahora) =>
+        private static ProductoContratado Contratar(
+            LineaProductoContratado linea, string pagador, DateTime ahora, bool declaraSoloInbound = false) =>
             ProductoContratado.Contratar(linea, pagador, TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual,
-                ahora.AddDays(-30), ahoraUtc: ahora);
+                ahora.AddDays(-30), ahoraUtc: ahora, declaraSoloInbound: declaraSoloInbound);
 
         /// <summary>Control del instrumento: la lectura de las filas de línea va de verdad bajo RLS.</summary>
         [Fact]
@@ -141,6 +147,7 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
         [Theory]
         [InlineData(Lineas.Ninguna, false)]
         [InlineData(Lineas.Ambas, false)]
+        [InlineData(Lineas.InboundSinDeclaracion, false)]
         [InlineData(Lineas.SoloInbound, true)]
         public async Task La_guarda_cierra_el_comando_de_Outbound_solo_al_Tenant_solo_Inbound(Lineas lineas, bool cierra)
         {
@@ -162,6 +169,7 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
         [Theory]
         [InlineData(Lineas.Ninguna, false)]
         [InlineData(Lineas.Ambas, false)]
+        [InlineData(Lineas.InboundSinDeclaracion, false)]
         [InlineData(Lineas.SoloInbound, true)]
         public async Task La_query_de_Outbound_con_alcance_ve_sus_Visitas_salvo_el_Tenant_solo_Inbound(Lineas lineas, bool cierra)
         {
@@ -184,6 +192,7 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
         [Theory]
         [InlineData(Lineas.Ninguna, false)]
         [InlineData(Lineas.Ambas, false)]
+        [InlineData(Lineas.InboundSinDeclaracion, false)]
         [InlineData(Lineas.SoloInbound, true)]
         public async Task Comunicaciones_solo_se_acota_al_Tenant_solo_Inbound(Lineas lineas, bool acota)
         {
@@ -202,6 +211,7 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
         [Theory]
         [InlineData(Lineas.Ninguna, false)]
         [InlineData(Lineas.Ambas, false)]
+        [InlineData(Lineas.InboundSinDeclaracion, false)]
         [InlineData(Lineas.SoloInbound, true)]
         public async Task La_parte_de_origen_de_Mi_Trabajo_conserva_su_alcance_salvo_en_el_Tenant_solo_Inbound(Lineas lineas, bool alcanceCero)
         {

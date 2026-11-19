@@ -211,7 +211,7 @@
     <value>Si este Tenant ya tiene la línea Inbound, puedes corregir el Pagador TALVEG, el tramo o la modalidad, o darla de baja. Si no la tiene, TALVEG te lo dirá al intentarlo.</value>
   </data>
   <data name="CorreccionNota" xml:space="preserve">
-    <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico.</value>
+    <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico. La declaración «solo Inbound» no se copia: márcala otra vez si sigue valiendo.</value>
   </data>
   <data name="CorreccionHecha" xml:space="preserve">
     <value>Línea Inbound corregida: el Producto Contratado nuevo está vigente desde ahora.</value>
@@ -238,10 +238,7 @@
     <value>Declaro que esta organización contrata solo Inbound.</value>
   </data>
   <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
-    <value>Si la organización usa Outbound sin su línea Outbound registrada, no contrates Inbound desde esta pantalla: contratarlo le cerraría Outbound.</value>
-  </data>
-  <data name="ErrorDeclaracionSoloInbound" xml:space="preserve">
-    <value>Marca la declaración «solo Inbound» para dar de alta la línea Inbound. Si la organización usa Outbound sin su línea Outbound registrada, no contrates Inbound desde esta pantalla.</value>
+    <value>Opcional. Márcala solo si la organización no usa Outbound: con la declaración y sin línea Outbound, se le cierra Outbound. Sin marcar, conserva Outbound.</value>
   </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>

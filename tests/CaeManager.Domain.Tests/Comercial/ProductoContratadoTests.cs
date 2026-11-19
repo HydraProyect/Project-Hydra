@@ -49,6 +49,31 @@ public class ProductoContratadoTests
         producto.EstaVigenteEn(Desde.AddMonths(1)).Should().BeFalse("finalizada, la línea Inbound deja de cumplir el gate DN-7 de la lectura entre Tenants");
     }
 
+    /// <summary>Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y vale false por defecto.</summary>
+    [Fact]
+    public void La_declaracion_solo_Inbound_vale_false_por_defecto_y_se_guarda_en_la_linea_Inbound()
+    {
+        Contratar().DeclaraSoloInbound.Should().BeFalse();
+        ProductoContratado.Contratar(LineaProductoContratado.Inbound, Pagador, TramoTrabajadoresActivos.De1A10,
+            ModalidadSuscripcionAlta.Anual, Desde, Ahora).DeclaraSoloInbound.Should().BeFalse("la casilla es opcional");
+
+        var declarada = ProductoContratado.Contratar(LineaProductoContratado.Inbound, Pagador, TramoTrabajadoresActivos.De1A10,
+            ModalidadSuscripcionAlta.Anual, Desde, Ahora, declaraSoloInbound: true);
+
+        declarada.DeclaraSoloInbound.Should().BeTrue();
+        declarada.Finalizar(Desde.AddMonths(1), Ahora);
+        declarada.DeclaraSoloInbound.Should().BeTrue("lo contratado no cambia al finalizar");
+    }
+
+    [Fact]
+    public void La_declaracion_solo_Inbound_no_se_registra_en_otra_linea()
+    {
+        var outbound = () => ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, Desde, Ahora, declaraSoloInbound: true);
+
+        outbound.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("declaraSoloInbound");
+    }
+
     [Fact]
     public void Las_lineas_son_exactamente_Outbound_con_gestion_propia_e_Inbound()
     {

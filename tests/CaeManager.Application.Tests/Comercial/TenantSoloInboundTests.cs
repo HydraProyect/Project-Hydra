@@ -10,9 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Application.Tests.Comercial;
 
 /// <summary>
-/// «Inbound sin Outbound» (decisión del 2026-11-18): <see cref="TenantSoloInboundService"/> dice «solo Inbound» con la
-/// línea Inbound vigente y ninguna línea Outbound, y <see cref="CriterioDeOutbound"/> solo lo aplica con el papel de Tenant
-/// de origen. El contexto falso devuelve todas las filas, de todos los Tenants y también las eliminadas, para que el filtro
+/// «Inbound sin Outbound», opción A' (DECISION_LOG e496f33): <see cref="TenantSoloInboundService"/> dice «solo Inbound»
+/// con las tres condiciones (línea Inbound vigente, su declaración «solo Inbound» marcada y ninguna línea Outbound), y
+/// <see cref="CriterioDeOutbound"/> solo lo aplica con el papel de Tenant de origen. El contexto falso devuelve todas las filas, de todos los Tenants y también las eliminadas, para que el filtro
 /// que se prueba sea el del servicio.
 /// </summary>
 public class TenantSoloInboundTests
@@ -27,21 +27,44 @@ public class TenantSoloInboundTests
 
     private Task<bool> EsSoloInboundAsync(Guid? tenant = null) => Servicio().EsSoloInboundAsync(tenant ?? Tenant);
 
-    private ProductoContratado Contratar(LineaProductoContratado linea, Guid? tenant = null, DateTime? desde = null)
+    /// <summary>
+    /// Contrata una fila del Tenant. La línea Inbound lleva por defecto la declaración «solo Inbound» marcada, para que cada
+    /// test cambie una sola de las tres condiciones de la opción A'; <paramref name="declara"/> = false es el Tenant
+    /// histórico. <paramref name="contratadaEn"/> permite un inicio posterior al reloj del servicio (línea programada).
+    /// </summary>
+    private ProductoContratado Contratar(
+        LineaProductoContratado linea, Guid? tenant = null, DateTime? desde = null, bool? declara = null,
+        DateTime? contratadaEn = null)
     {
         var producto = ProductoContratado.Contratar(linea, "cus_PagadorTalveg", TramoTrabajadoresActivos.De1A10,
-            ModalidadSuscripcionAlta.Anual, desde ?? Ahora.AddDays(-30), ahoraUtc: Ahora);
+            ModalidadSuscripcionAlta.Anual, desde ?? Ahora.AddDays(-30), ahoraUtc: contratadaEn ?? Ahora,
+            declaraSoloInbound: declara ?? linea == LineaProductoContratado.Inbound);
         typeof(EntidadConTenant).GetProperty(nameof(EntidadConTenant.TenantId))!.SetValue(producto, tenant ?? Tenant);
         _filas.Add(producto);
         return producto;
     }
 
     [Fact]
-    public async Task Solo_la_linea_Inbound_vigente_es_solo_Inbound()
+    public async Task La_linea_Inbound_vigente_con_la_declaracion_y_sin_Outbound_es_solo_Inbound()
     {
-        Contratar(LineaProductoContratado.Inbound);
+        Contratar(LineaProductoContratado.Inbound, declara: true);
 
         (await EsSoloInboundAsync()).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El defecto que corrige la opción A' (DECISION_LOG e496f33): el Tenant histórico que operaba Outbound sin fila de la
+    /// línea Outbound y contrató Inbound sin la declaración NO es solo Inbound, y conserva Outbound con el papel de Tenant
+    /// de origen.
+    /// </summary>
+    [Fact]
+    public async Task El_Tenant_historico_con_Inbound_sin_declaracion_y_sin_fila_Outbound_conserva_Outbound()
+    {
+        Contratar(LineaProductoContratado.Inbound, declara: false);
+
+        (await EsSoloInboundAsync()).Should().BeFalse("sin la declaración, la falta de fila Outbound no cierra Outbound");
+        (await Criterio(Tenant).AdmiteOutboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue();
+        (await Criterio(Tenant).CierraPorSoloInboundAsync(PapelActivo.TenantDeOrigen)).Should().BeFalse();
     }
 
     [Fact]
@@ -51,10 +74,36 @@ public class TenantSoloInboundTests
     }
 
     [Fact]
-    public async Task Con_las_dos_lineas_no_es_solo_Inbound()
+    public async Task Con_la_declaracion_y_una_linea_Outbound_no_es_solo_Inbound()
     {
-        Contratar(LineaProductoContratado.Inbound);
+        Contratar(LineaProductoContratado.Inbound, declara: true);
         Contratar(LineaProductoContratado.OutboundGestionPropia);
+
+        (await EsSoloInboundAsync()).Should().BeFalse();
+        (await Criterio(Tenant).AdmiteOutboundAsync(PapelActivo.TenantDeOrigen)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_declaracion_de_una_fila_Inbound_finalizada_no_vale_para_la_vigente()
+    {
+        Contratar(LineaProductoContratado.Inbound, declara: true).Finalizar(Ahora.AddDays(-1), ahoraUtc: Ahora);
+        Contratar(LineaProductoContratado.Inbound, desde: Ahora.AddDays(-1), declara: false);
+
+        (await EsSoloInboundAsync()).Should().BeFalse("la declaración cuenta en la misma fila de la línea Inbound vigente");
+    }
+
+    [Fact]
+    public async Task La_declaracion_sin_linea_Inbound_vigente_no_es_solo_Inbound()
+    {
+        Contratar(LineaProductoContratado.Inbound, declara: true).Finalizar(Ahora.AddDays(-1), ahoraUtc: Ahora);
+
+        (await EsSoloInboundAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_linea_Inbound_declarada_cuyo_inicio_no_ha_llegado_no_es_vigente()
+    {
+        Contratar(LineaProductoContratado.Inbound, desde: Ahora.AddDays(1), declara: true, contratadaEn: Ahora.AddDays(2));
 
         (await EsSoloInboundAsync()).Should().BeFalse();
     }

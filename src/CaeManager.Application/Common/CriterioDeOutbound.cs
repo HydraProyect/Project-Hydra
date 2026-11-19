@@ -6,7 +6,8 @@ namespace CaeManager.Application.Common;
 /// El criterio único de «¿abre este papel Outbound en el Tenant activo?» (decisión de Chris del 2026-11-18, «Inbound sin
 /// Outbound»). Es <see cref="CriterioDePapel.AdmiteLoQueNoEsInbound"/> más una condición: con el papel
 /// <see cref="PapelActivo.TenantDeOrigen"/>, un Tenant cuyo Producto Contratado es solo Inbound
-/// (<see cref="ITenantSoloInbound"/>: línea Inbound vigente y ninguna línea Outbound) no ve ni opera Outbound.
+/// (<see cref="ITenantSoloInbound"/>, opción A' de DECISION_LOG e496f33: línea Inbound vigente, su declaración «solo
+/// Inbound» marcada y ninguna línea Outbound) no ve ni opera Outbound.
 ///
 /// <para>
 /// Lo usan las puertas de backend de Outbound: los comandos del módulo Outbound

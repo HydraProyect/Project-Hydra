@@ -112,6 +112,8 @@ public class ContratarLineaInboundPorAprovisionamientoTests : IAsyncLifetime
         fila.PagadorStripeCustomerId.Should().Be("cus_PagadorTce");
         fila.Tramo.Should().Be(TramoTrabajadoresActivos.De41A80);
         fila.Modalidad.Should().Be(ModalidadSuscripcionAlta.Anual);
+        fila.DeclaraSoloInbound.Should().BeTrue(
+            "opción A': el INSERT de tabla entera de cae_app_aprovisionamiento escribe la declaración en la fila Inbound");
         fila.Estado.Should().Be(EstadoProductoContratado.Vigente);
 
         // El guardado pasó por AuditoriaInterceptor con el actor de producción, con la conexión elevada: la fila de

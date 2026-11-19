@@ -44,30 +44,33 @@ public class ContratarLineaInboundCommandTests
         new(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, declaraSoloInbound);
 
     /// <summary>
-    /// DECISION_LOG 1bff7a7 (opción A, forma (c)): sin la declaración «solo Inbound» del Actor de Plataforma TALVEG no se
-    /// contrata, para que un Tenant con Outbound heredado y sin fila de la línea Outbound no quede cerrado en silencio.
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y el comando la guarda en la fila de la
+    /// línea Inbound. Sin ella se contrata igual, la fila queda en <c>false</c> y el Tenant conserva Outbound.
     /// </summary>
-    [Fact]
-    public async Task Sin_la_declaracion_solo_Inbound_no_contrata_y_dice_que_puede_hacer_el_Actor_de_Plataforma()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_comando_persiste_la_declaracion_solo_Inbound_tal_como_llega(bool declara)
     {
         var resultado = await Handler(Sesion(CapacidadPrivilegio.Aprovisionamiento, _tenant.Id), _tenant.Id)
-            .Handle(Comando(declaraSoloInbound: false), CancellationToken.None);
+            .Handle(Comando(declaraSoloInbound: declara), CancellationToken.None);
 
-        resultado.Error.Should().Be(ErroresContratarLineaInbound.SinDeclaracionSoloInbound);
-        resultado.Error.Mensaje.Should().Contain("marca la declaración «solo Inbound» en el Resumen del alta")
-            .And.Contain("no contrates Inbound desde el alta")
-            .And.NotContain("registra antes su línea Outbound", "no hay comando ni pantalla que registre la línea Outbound de un Tenant");
-        _productos.Agregados.Should().BeEmpty();
-        _transaccionInterna.Ejecutadas.Should().Be(0, "sin la declaración no se abre la transacción");
-        var validacion = new ContratarLineaInboundCommandValidator().Validate(Comando(declaraSoloInbound: false));
-        validacion.IsValid.Should().BeFalse();
-        validacion.Errors.Should().ContainSingle().Which.ErrorMessage.Should().Be(ErroresContratarLineaInbound.SinDeclaracionSoloInbound.Mensaje);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        var inbound = _productos.Agregados.Should().ContainSingle().Subject;
+        inbound.DeclaraSoloInbound.Should().Be(declara);
+        new ContratarLineaInboundCommandValidator().Validate(Comando(declaraSoloInbound: declara)).IsValid.Should().BeTrue(
+            "la casilla es opcional");
+
+        // Sin línea Outbound, solo la declaración decide si el Tenant pasa a «solo Inbound».
+        AsignarTenant(inbound, _tenant.Id);
+        (await new TenantSoloInboundService(new LineasFalsas([inbound]), new RelojFijo(AhoraDeLaBase.AddMinutes(1)))
+            .EsSoloInboundAsync(_tenant.Id)).Should().Be(declara);
     }
 
     /// <summary>
-    /// Shortcut de la forma (c): la declaración se pide también a un Tenant con su línea Outbound registrada, porque bajo el
-    /// rol de aprovisionamiento no se puede leer. Declararla no le cierra Outbound: el comando no toca la línea Outbound, y
-    /// <see cref="TenantSoloInboundService"/> sigue viendo su fila, así que el Tenant no pasa a «solo Inbound».
+    /// Declararla con la línea Outbound registrada no cierra Outbound: el comando no toca la línea Outbound (bajo el rol de
+    /// aprovisionamiento no la ve), y <see cref="TenantSoloInboundService"/> sigue viendo su fila, así que el Tenant no pasa
+    /// a «solo Inbound».
     /// </summary>
     [Fact]
     public async Task Con_la_declaracion_un_Tenant_con_linea_Outbound_contrata_Inbound_y_conserva_Outbound()

@@ -50,7 +50,7 @@ public class AltaTenantTceTests : BunitContext
     private static void Pulsar(IRenderedComponent<AltaTenantTce> cut, string texto) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto).Click();
 
-    /// <summary>DECISION_LOG 1bff7a7: el Actor de Plataforma TALVEG marca la declaración «solo Inbound» antes de dar de alta.</summary>
+    /// <summary>Opción A' (DECISION_LOG e496f33): el Actor de Plataforma TALVEG marca la declaración opcional «solo Inbound».</summary>
     private static void DeclararSoloInbound(IRenderedComponent<AltaTenantTce> cut) =>
         cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']").Change(true);
 
@@ -209,11 +209,11 @@ public class AltaTenantTceTests : BunitContext
     }
 
     /// <summary>
-    /// DECISION_LOG 1bff7a7 (opción A): la declaración «solo Inbound» nunca viene marcada, y sin marcarla no se manda el
-    /// comando: contratar Inbound a un Tenant con Outbound heredado y sin línea Outbound le cerraría Outbound en silencio.
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y nunca viene marcada. Sin marcarla, el
+    /// alta se manda igual con la declaración en false, y el Tenant conserva Outbound.
     /// </summary>
     [Fact]
-    public void Sin_marcar_la_declaracion_solo_Inbound_no_manda_el_alta_y_lo_dice()
+    public void Sin_marcar_la_declaracion_solo_Inbound_el_alta_se_manda_sin_ella()
     {
         _mediator.RespuestaContratar = Result.Exito(ProductoId);
         var cut = RenderConSesion();
@@ -227,19 +227,13 @@ public class AltaTenantTceTests : BunitContext
         var casilla = cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']");
         casilla.HasAttribute("checked").Should().BeFalse("la declaración nunca viene marcada");
         cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("contrata solo Inbound")
-            .And.Contain("no contrates Inbound desde esta pantalla")
-            .And.NotContain("registra antes su línea Outbound", "no hay comando ni pantalla que registre la línea Outbound de un Tenant");
+            .And.Contain("Opcional").And.Contain("Sin marcar, conserva Outbound");
         Pulsar(cut, "Dar de alta");
 
-        _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().BeEmpty();
-        cut.Find(".alta-tce-cuerpo [role='alert']").TextContent.Should().Contain("Marca la declaración «solo Inbound»");
-        cut.FindAll(".alta-tce-ok").Should().BeEmpty();
-
-        // Control: marcada, se manda con la declaración.
-        DeclararSoloInbound(cut);
-        Pulsar(cut, "Dar de alta");
         _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
-            .Which.DeclaraSoloInbound.Should().BeTrue();
+            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false));
+        cut.FindAll(".alta-tce-cuerpo [role='alert']").Should().BeEmpty();
+        cut.FindAll(".alta-tce-ok").Should().ContainSingle();
     }
 
     [Fact]
@@ -292,8 +286,36 @@ public class AltaTenantTceTests : BunitContext
         cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
 
         _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
-            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            .Which.Should().Be(new CorregirLineaInboundCommand("cus_Nuevo9", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false));
         cut.Find(".alta-tce-linea [role='status']").TextContent.Should().Contain("Línea Inbound corregida");
+    }
+
+    /// <summary>
+    /// Opción A' (DECISION_LOG e496f33): la corrección contrata una fila nueva y no copia la declaración «solo Inbound» de la
+    /// sustituida. La casilla de la corrección empieza sin marcar cada vez que se edita, y lo marcado viaja en el comando.
+    /// </summary>
+    [Fact]
+    public void La_correccion_manda_la_declaracion_solo_Inbound_que_se_marque_y_empieza_sin_marcar()
+    {
+        _mediator.RespuestaCorregir = Result.Exito(ProductoId);
+        var cut = RenderConSesion();
+
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
+        var casilla = cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']");
+        casilla.HasAttribute("checked").Should().BeFalse("la corrección no copia la declaración");
+        cut.Find(".alta-tce-linea").TextContent.Should().Contain("márcala otra vez si sigue valiendo");
+        cut.Find("#corr-pagador").Input("cus_Nuevo9");
+        cut.Find("#corr-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.Find("#corr-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
+        cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']").Change(true);
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Guardar").Click();
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle()
+            .Which.DeclaraSoloInbound.Should().BeTrue();
+
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == "Editar").Click();
+        cut.Find("[data-campo='declara-solo-inbound-corr'] input[type='checkbox']").HasAttribute("checked")
+            .Should().BeFalse("cada edición empieza sin marcar");
     }
 
     [Fact]
@@ -354,7 +376,7 @@ public class AltaTenantTceTests : BunitContext
     }
 
     /// <summary>
-    /// DECISION_LOG 1bff7a7: la declaración «solo Inbound» vale para un alta concreta. Ni al cancelar el alta ni tras dar
+    /// Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» vale para un alta concreta. Ni al cancelar el alta ni tras dar
     /// de baja la línea contratada puede quedar marcada para la siguiente: el Actor de Plataforma TALVEG la vuelve a hacer.
     /// </summary>
     [Theory]

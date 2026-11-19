@@ -145,8 +145,9 @@
                             </dl>
                         </section>
                     }
-                    @* DECISION_LOG 1bff7a7 (opción A): el Actor de Plataforma TALVEG declara «solo Inbound» de forma explícita;
-                       nunca viene marcada. ContratarLineaInboundCommand la exige y no lee la línea Outbound. *@
+                    @* Opción A' (DECISION_LOG e496f33): la declaración «solo Inbound» es opcional y nunca viene marcada.
+                       ContratarLineaInboundCommand la guarda en la fila de la línea Inbound; sin ella, el Tenant conserva
+                       Outbound. *@
                     <label class="alta-tce-opc" data-campo="declara-solo-inbound">
                         <input type="checkbox" checked="@_declaraSoloInbound" disabled="@Ocupado"
                                @onchange="CambiarDeclaracionSoloInbound" />
@@ -201,6 +202,11 @@
                              Tramo="@_tramoCorr" TramoChanged="CambiarTramoCorr"
                              Modalidad="@_modalidadCorr" ModalidadChanged="CambiarModalidadCorr"
                              Prefijo="corr" />
+                <label class="alta-tce-opc" data-campo="declara-solo-inbound-corr">
+                    <input type="checkbox" checked="@_declaraSoloInboundCorr" disabled="@Ocupado"
+                           @onchange="CambiarDeclaracionSoloInboundCorr" />
+                    <span><b>@Textos["DeclaracionSoloInboundTitulo"]</b> @Textos["DeclaracionSoloInboundTexto"]</span>
+                </label>
                 <div class="alta-tce-linea-acciones">
                     <Boton Variante="VarianteBoton.Fantasma" OnClick="CancelarEdicion" Deshabilitado="Ocupado">@Textos["Cancelar"]</Boton>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="GuardarCorreccionAsync" Cargando="_enviandoLinea">@Textos["Guardar"]</Boton>

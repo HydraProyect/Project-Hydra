@@ -153,7 +153,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
             await cerrar.ExecuteNonQueryAsync();
 
         var correccion = Task.Run(() => EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-            new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De81A150, ModalidadSuscripcionAlta.Mensual)));
+            new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De81A150, ModalidadSuscripcionAlta.Mensual, DeclaraSoloInbound: false)));
 
         await using (var observador = new NpgsqlConnection(_cadenaConexion))
         {
@@ -247,7 +247,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
 
         // LoggingBehavior relanza lo inesperado: la excepción del disparador llega al llamador, envuelta o no.
         var intento = () => EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-            new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual));
+            new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false));
         var excepcion = (await intento.Should().ThrowAsync<Exception>()).Which;
         var postgres = excepcion as PostgresException ?? excepcion.InnerException as PostgresException;
         postgres.Should().NotBeNull($"el rechazo tiene que venir del disparador; llegó {excepcion.GetType().Name}: {excepcion.Message}");
@@ -491,7 +491,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
 
     private static IRequest<Result<Guid>> Comando(string comando) => comando == "baja"
         ? new DarDeBajaLineaInboundCommand()
-        : new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual);
+        : new CorregirLineaInboundCommand("cus_PagadorCorregido", TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: false);
 
     private async Task<Guid> ContratarAsync(string pagador)
     {
