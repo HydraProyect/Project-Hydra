@@ -269,7 +269,8 @@ public class AnadeEsParticipanteTecATenantsTests : IAsyncLifetime
         {
             preparar.CommandText =
                 $"CREATE ROLE {rol} NOLOGIN NOSUPERUSER {atributos}; " +
-                $"GRANT UPDATE ON TABLE public.\"Tenants\" TO {rol}; " +
+                // SELECT además de UPDATE: el WHERE lee "Id", y sin él lo pararía el GRANT antes que el trigger.
+                $"GRANT SELECT, UPDATE ON TABLE public.\"Tenants\" TO {rol}; " +
                 (propietarioDeLaTabla ? $"ALTER TABLE public.\"Tenants\" OWNER TO {rol}; " : "") +
                 $"SET LOCAL ROLE {rol};";
             await preparar.ExecuteNonQueryAsync();
