@@ -1239,6 +1239,49 @@ public class GestionCuentasCommandsTests
         catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1, Beneficiario2);
     }
 
+    /// <summary>
+    /// D3 (DN-4, DN-7): el alta de un Gestor CAE con cartera es un alta de Asignación de Cartera en cada Tenant
+    /// beneficiario, y se decide por ese Tenant, no por el Tenant activo (el Operador CAE, que está abierto). Si Outbound
+    /// está cerrado para uno de ellos, no queda ni la cuenta ni ninguna cartera.
+    /// </summary>
+    [Fact]
+    public async Task Con_un_Tenant_beneficiario_de_la_cartera_con_Outbound_cerrado_no_se_crea_la_cuenta_ni_su_cartera()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == Beneficiario2);
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion, outbound: outbound)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1, Beneficiario2]), default);
+
+        resultado.Error.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado);
+        transaccion.Confirmadas.Should().Be(0);
+        transaccion.Deshechas.Should().Be(1, "la cuenta y la cartera de Beneficiario1 ya escritas se deshacen");
+        catalogo.IncorporacionesDirectas.Select(i => i.Item1).Should().NotContain(Beneficiario2);
+        catalogo.TenantsAlGuardar.Should().NotContain(Beneficiario2);
+    }
+
+    /// <summary>
+    /// Control del anterior: con Outbound cerrado solo para un Tenant que no está en la cartera, el alta pasa con sus dos
+    /// carteras.
+    /// </summary>
+    [Fact]
+    public async Task Con_los_Tenants_beneficiarios_de_la_cartera_abiertos_el_alta_pasa_aunque_otro_Tenant_este_cerrado()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+        var outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == BeneficiarioDeOtroOperador);
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion, outbound: outbound)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1, Beneficiario2]), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        transaccion.Confirmadas.Should().Be(1);
+        catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1, Beneficiario2);
+    }
+
     [Fact]
     public async Task Un_Tenant_que_no_opera_el_Operador_CAE_no_entra_en_la_cartera_ni_deja_cuenta()
     {
@@ -1997,9 +2040,11 @@ public class GestionCuentasCommandsTests
     private static CrearUsuarioCommandHandler NuevoAlta(
         IGestionCuentasUsuario puerto, ICurrentUserService actor, ITenantActual tenant,
         CatalogoIncorporacionCarteraFalso? catalogo = null, TransaccionDeComandoFalsa? transaccion = null,
-        AsignacionAutomaticaInerte? automatica = null) =>
+        AsignacionAutomaticaInerte? automatica = null,
+        CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo? outbound = null) =>
         new(puerto, actor, tenant, catalogo ?? new CatalogoIncorporacionCarteraFalso(), transaccion ?? new TransaccionDeComandoFalsa(),
-            automatica ?? new AsignacionAutomaticaInerte(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
+            automatica ?? new AsignacionAutomaticaInerte(),
+            outbound ?? CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
     private static CrearUsuarioCommand Alta(string rol, bool permiso = false, IReadOnlyCollection<Guid>? tenantsCartera = null) =>
         new("nueva@x.test", "Nueva", rol, null, null, permiso, tenantsCartera);

@@ -1,0 +1,67 @@
+# D3: quién llama a las factorías de alta de Outbound (Centro, Cliente empresarial, Relación Empresarial, delegación,
+# Asignación de Operación y de Cartera, tarifa del Operador CAE). La compara
+# LimiteTenantTecClasificacionTests.Los_llamadores_de_las_altas_de_Outbound_son_los_congelados: una llamada nueva da rojo
+# hasta que se cierre (RegistroLimiteTenantTec o el handler con IOutboundCerradoTenantTec) o se clasifique abierta con su
+# motivo en Datos/LimiteTenantTecClasificacion.txt. Los ficheros que no son Commands: las sobrecargas de Infrastructure
+# que solo llaman los Commands de arriba, el relevo de principal (RelevoDePrincipalDeCartera, abierto a la espera de
+# Chris) y los seeders, que no corren sobre un Tenant marcado. Formato: fichero :: símbolo = n.
+src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs :: new Centro = 1
+src/CaeManager.Application/Clientes/Commands/CrearCliente/CrearClienteCommand.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs :: TarifaOperadorCae.Registrar = 1
+src/CaeManager.Application/Empresas/Commands/CrearEmpresa/CrearEmpresaCommand.cs :: .AgregarSiNoVigenteAsync = 1
+src/CaeManager.Application/Empresas/Commands/EditarEmpresa/EditarEmpresaCommand.cs :: .AgregarSiNoVigenteAsync = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: .AgregarSiNoVigenteAsync = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: new Centro = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs :: .AgregarSiNoVigenteAsync = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs :: new Centro = 1
+src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/AceptarPropuestaApoyoCarteraCommand.cs :: .IncorporarApoyoAsync = 1
+src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/AceptarSolicitudIncorporacionCarteraCommand.cs :: .IncorporarAsync = 1
+src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs :: .RelevarPrincipalAsync = 1
+src/CaeManager.Application/Subcontratas/Commands/CrearSubcontrata/CrearSubcontrataCommand.cs :: .AgregarSiNoVigenteAsync = 2
+src/CaeManager.Application/Subcontratas/Commands/EditarSubcontrata/EditarSubcontrataCommand.cs :: .AgregarSiNoVigenteAsync = 2
+src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: .AbrirCarteraOperadorAsync = 1
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: .AbrirCarteraOperadorAsync = 1
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: new DelegacionTenant = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: new DelegacionTenant = 1
+src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs :: new DelegacionTenant = 1
+src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs :: .IncorporarAsync = 1
+src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs :: .RelevarPrincipalAsync = 1
+src/CaeManager.Application/Usuarios/Commands/CambiarActivacionUsuario/CambiarActivacionUsuarioCommand.cs :: .IncorporarAsync = 1
+src/CaeManager.Application/Usuarios/Commands/CrearUsuario/CrearUsuarioCommand.cs :: .IncorporarAsync = 1
+src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: new DelegacionTenant = 1
+src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: AsignacionCartera.Externa = 3
+src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: AsignacionCartera.Externa = 3
+src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: AsignacionCartera.Externa = 1
+src/CaeManager.Infrastructure/Persistence/Seed/CarterasDeSiembra.cs :: .AsegurarCarteraTenantEnteroAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: .AsegurarCarteraTenantEnteroAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: Empresa.CrearComoCliente = 3
+src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: new Centro = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: new Centro = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: new DelegacionTenant = 2
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: .AsegurarCarteraTenantEnteroAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: new Centro = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: .AsegurarCarteraTenantEnteroAsync = 2
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: new Centro = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: new DelegacionTenant = 1
+src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs :: .AsegurarCarteraTenantEnteroAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/InboundDemoSeeder.cs :: new Centro = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: .AbrirOperacionDelegadaAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: .AsegurarCarteraTenantEnteroAsync = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: AsignacionCartera.Externa = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: Empresa.CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: TarifaOperadorCae.Registrar = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: new Centro = 1

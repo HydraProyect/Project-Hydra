@@ -47,6 +47,7 @@ public class LimiteTenantTecBajoRuntimeTests : IAsyncLifetime
     private readonly Tenant _operador = new("Operador CAE externo de prueba");
 
     private Guid _sesionDeAprovisionamiento;
+    private Guid _sesionSobreTec;
 
     public async Task InitializeAsync()
     {
@@ -57,16 +58,21 @@ public class LimiteTenantTecBajoRuntimeTests : IAsyncLifetime
             contexto.Tenants.AddRange(_plataforma, _tec, _sinMarcar, _otro, _operador);
 
             var aprovisionamiento = ConcesionPrivilegio.SobreTenants(
-                _actorPlataforma, CapacidadPrivilegio.Aprovisionamiento, [_sinMarcar.Id],
+                _actorPlataforma, CapacidadPrivilegio.Aprovisionamiento, [_sinMarcar.Id, _tec.Id],
                 vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: ahora.AddHours(4));
             contexto.ConcesionesPrivilegio.Add(aprovisionamiento);
             var sesion = SesionPrivilegiada.Abrir(
                 aprovisionamiento, _sinMarcar.Id, "Marcar como participante TEC", ahora,
                 ventana: TimeSpan.FromHours(1), usuarioSimuladoId: null, ticket: null);
             contexto.SesionesPrivilegiadas.Add(sesion);
+            var sesionSobreTec = SesionPrivilegiada.Abrir(
+                aprovisionamiento, _tec.Id, "Aprovisionar Centros del Tenant TEC", ahora,
+                ventana: TimeSpan.FromHours(1), usuarioSimuladoId: null, ticket: null);
+            contexto.SesionesPrivilegiadas.Add(sesionSobreTec);
 
             await contexto.SaveChangesAsync();
             _sesionDeAprovisionamiento = sesion.Id;
+            _sesionSobreTec = sesionSobreTec.Id;
         }
 
         // El marcador de la siembra, como propietario: el trigger solo deja cambiarlo a él y a cae_app_aprovisionamiento.
@@ -134,6 +140,23 @@ public class LimiteTenantTecBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Con_Sesion_Privilegiada_de_Aprovisionamiento_el_Tenant_TEC_sin_linea_Outbound_sigue_sin_crear_Centros()
+    {
+        // DN-6: el límite no mira al actor. CrearCentroCommand es un IComandoDeAprovisionamiento, así que la autorización
+        // deja pasar la sesión sobre el Tenant TEC y lo que deniega es el límite, con su código; el control de abajo, con la
+        // línea vigente y la misma sesión, demuestra que la denegación no viene de la autorización ni de otra guarda.
+        var (cerrado, llegoCerrado) = await CrearCentroAsync(_tec.Id, _sesionSobreTec);
+        cerrado.Error!.Codigo.Should().Be(ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        llegoCerrado.Should().BeFalse();
+
+        await EjecutarComoPropietarioAsync(InsertOutbound(_tec.Id));
+
+        var (abierto, llegoAbierto) = await CrearCentroAsync(_tec.Id, _sesionSobreTec);
+        abierto.EsExitoso.Should().BeTrue(abierto.EsFallido ? $"código: {abierto.Error.Codigo}" : string.Empty);
+        llegoAbierto.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task El_comando_de_plataforma_marca_el_Tenant_bajo_aprovisionamiento()
     {
         (await MarcadorComoPropietarioAsync(_sinMarcar.Id)).Should().BeFalse("control");
@@ -165,10 +188,11 @@ public class LimiteTenantTecBajoRuntimeTests : IAsyncLifetime
         (await MarcadorComoPropietarioAsync(_sinMarcar.Id)).Should().BeFalse();
     }
 
-    private async Task<(Result<Guid> Resultado, bool LlegoAlHandler)> CrearCentroAsync(Guid tenantId)
+    private async Task<(Result<Guid> Resultado, bool LlegoAlHandler)> CrearCentroAsync(Guid tenantId, Guid? sesion = null)
     {
         var handler = new HandlerQueAnota<CrearCentroCommand>();
-        await using var proveedor = ConstruirProveedor(tenantId, sesion: null, rol: "Administrador", tenantId,
+        await using var proveedor = ConstruirProveedor(tenantId, sesion,
+            rol: sesion is null ? "Administrador" : null, sesion is null ? tenantId : _plataforma.Id,
             s => s.AddSingleton<IRequestHandler<CrearCentroCommand, Result<Guid>>>(handler));
         var resultado = await proveedor.GetRequiredService<IMediator>().Send(
             new CrearCentroCommand(Guid.NewGuid(), Guid.NewGuid(), "Centro de prueba", null, null, null, null));
