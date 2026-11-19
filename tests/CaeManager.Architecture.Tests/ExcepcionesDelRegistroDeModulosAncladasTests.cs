@@ -55,6 +55,7 @@ public class ExcepcionesDelRegistroDeModulosAncladasTests
         { "Application.Documentos.PortalDelCanalAcreditacion", Modulo.Outbound },
         { "Application.Documentos.ReglaSubidaAcreditacion", Modulo.Outbound },
         { "Application.Integraciones.ConectoresPlataformaCae", Modulo.Outbound },
+        { "Infrastructure.Integraciones.ConectoresPlataformaCae", Modulo.Outbound },
         { "Application.Integraciones.Commands.CambiarActivoProveedorPlataforma", Modulo.Outbound },
         { "Application.Integraciones.Commands.CambiarConectorApiProveedorPlataforma", Modulo.Outbound },
         { "Application.Integraciones.Commands.GuardarConexionPlataformaCae", Modulo.Outbound },
