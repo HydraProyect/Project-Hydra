@@ -472,7 +472,7 @@
        para que un lector de pantalla anuncie cada vista previa. *@
     @if (_editandoId is null)
     {
-    <div class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status">
+    <div @ref="_regionVistaPrevia" tabindex="-1" class="vista-previa-alta @(HayVistaPreviaAlta ? string.Empty : "vista-previa-alta--vacia")" role="status">
     @if (PlanAltaSolapadas is { } solapadas)
     {
         @* Con alguien sin poder asignarse hoy el servidor rechaza la Visita entera (DECISION_LOG 2026-11-19): «Guardar» queda
@@ -487,7 +487,7 @@
     }
     else if (PlanAltaSinPermiso)
     {
-        <div class="alerta-info">@Textos["PlanAltaSinPermiso"]</div>
+        <div class="alerta-info">@Textos["PlanAltaSinPermiso", PlanAltaSinPermisoNombres]</div>
     }
     else if (PlanAltaCalculando)
     {
@@ -505,7 +505,7 @@
     {
         <div class="alerta-info">
             <p>@Textos["PlanAltaFallida"]</p>
-            <button type="button" class="enlace-nombre-fila" @onclick="RecalcularPlanAltaAsync">@Textos["PlanAltaReintentar"]</button>
+            <button type="button" class="enlace-nombre-fila" @onclick="ReintentarPlanAltaAsync">@Textos["PlanAltaReintentar"]</button>
         </div>
     }
     else if (PlanAltaConAutoridad is { } planAlta)

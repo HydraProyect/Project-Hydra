@@ -172,6 +172,13 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         return cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync(fecha.ToString("yyyy-MM-dd")));
     }
 
+    /// <summary>
+    /// Intenta guardar saltándose el botón deshabilitado (que bUnit no deja pulsar): entrega el evento de «Guardar» del kit
+    /// directamente al formulario, como haría un doble envío o un repintado tardío. Ejercita la defensa de GuardarAsync.
+    /// </summary>
+    private static Task IntentarGuardarSaltandoElBotonAsync(IRenderedComponent<Visitas> cut) =>
+        cut.InvokeAsync(() => cut.FindComponent<DrawerFormulario>().Instance.OnGuardar.InvokeAsync());
+
     private static Task GuardarAsync(IRenderedComponent<Visitas> cut) =>
         cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
@@ -222,11 +229,14 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
 
         var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
-        texto.Should().Contain("No tienes permiso para asignar").And.Contain("la visita no se puede crear")
+        texto.Should().Contain("No tienes permiso para asignar a este centro a Ana García Ruiz").And.Contain("la visita no se puede crear")
             .And.Contain("Quítalos de la visita o pide a quien tenga autoridad que los asigne");
         texto.Should().NotContain("Se abrirán", "sin permiso no se promete nada");
         GuardarDebeEstarDeshabilitado(cut, "Resuelve el aviso de la vista previa: con estos trabajadores la visita no se puede crear.");
-        mediator.Creaciones.Should().BeEmpty();
+
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
+        mediator.Creaciones.Should().BeEmpty("la defensa de Guardar tampoco deja crear la Visita sin autoridad");
     }
 
     [Fact]
@@ -241,6 +251,9 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         texto.Should().Contain("La visita no se puede crear así. Quita de la visita a quien no se pueda asignar o revisa su asignación.");
         texto.Should().NotContainAny("Se asignará", "Se abrirá", "Se abrirán", "Tenant", "Inbound", "Outbound", "Gestor");
         GuardarDebeEstarDeshabilitado(cut, "Resuelve el aviso de la vista previa: con estos trabajadores la visita no se puede crear.");
+
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
         mediator.Creaciones.Should().BeEmpty("el servidor rechazaría la Visita entera: la pantalla ni lo intenta");
     }
 
@@ -259,6 +272,9 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         texto.Should().Contain("Bruno Pérez no se puede asignar hoy").And.Contain("Carla Sanz no se puede asignar hoy");
         texto.Should().NotContain("No tienes permiso");
         BotonGuardar(cut).HasAttribute("disabled").Should().BeTrue();
+
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
         mediator.Creaciones.Should().BeEmpty();
     }
 
@@ -284,8 +300,13 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
 
         BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent
-            .Should().Contain("No se puede calcular qué se asignará en este centro").And.Contain("la visita no se puede crear");
+            .Should().Contain("La visita no se puede crear con esta selección")
+            .And.Contain("no tienes acceso a este centro").And.Contain("algún trabajador no puede entrar en una visita de este centro")
+            .And.Contain("Revisa el centro y los trabajadores elegidos");
         GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
+
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
         mediator.Creaciones.Should().BeEmpty();
     }
 
@@ -321,10 +342,18 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("No se pudo calcular la vista previa. Inténtalo de nuevo.");
         GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
 
+        // Reintentar que vuelve a fallar deja el mismo estado y el botón Reintentar a mano.
+        await cut.Find(".vista-previa-alta button").ClickAsync(new MouseEventArgs());
+        mediator.ConsultasPlan.Should().HaveCount(2);
+        BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("No se pudo calcular la vista previa");
+        GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
+        cut.FindAll(".vista-previa-alta button").Should().ContainSingle("Reintentar sigue disponible tras un segundo fallo");
+
         mediator.FallaLaConsultaDelPlan = false;
         await cut.Find(".vista-previa-alta button").ClickAsync(new MouseEventArgs());
 
-        mediator.ConsultasPlan.Should().HaveCount(2, "Reintentar vuelve a pedir la vista previa");
+        JSInterop.VerifyFocusAsyncInvoke(2);
+        mediator.ConsultasPlan.Should().HaveCount(3, "Reintentar vuelve a pedir la vista previa");
         BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("Se asignará a este centro a Ana García Ruiz");
         BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse();
 
@@ -365,18 +394,67 @@ public class VisitasVistaPreviaAltaTests : BunitContext
         await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = Centro.ToString() });
         var selector = cut.FindComponent<SelectorMultiple>().Instance;
         var tope = CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote;
+        var ids = new List<Guid>();
 
         for (var i = 0; i <= tope; i++)
         {
             var id = Guid.NewGuid();
+            ids.Add(id);
             await cut.InvokeAsync(() => selector.OnAlternar.InvokeAsync((id, true)));
         }
 
-        BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent
-            .Should().Contain($"Una visita que asigna admite como mucho {tope} trabajadores");
-        GuardarDebeEstarDeshabilitado(cut, "No se puede guardar sin la vista previa de lo que se asignará.");
+        var texto = BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent;
+        texto.Should().Contain($"Una visita admite como mucho {tope} trabajadores").And.Contain("Quita a algunos de la visita");
+        texto.Should().NotContain("asigna", "el aviso no usa la jerga de la regla interna");
+        GuardarDebeEstarDeshabilitado(cut, $"Quita trabajadores: una visita admite como mucho {tope}.");
         mediator.ConsultasPlan.Should().HaveCount(tope, "con un Trabajador más que el tope ya no se pide");
+
+        await IntentarGuardarSaltandoElBotonAsync(cut);
+
         mediator.Creaciones.Should().BeEmpty();
+
+        // Quitando al último Trabajador se vuelve a pedir la vista previa y Guardar se habilita.
+        await cut.InvokeAsync(() => selector.OnAlternar.InvokeAsync((ids[^1], false)));
+
+        mediator.ConsultasPlan.Should().HaveCount(tope + 1);
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse("con el tope exacto hay vista previa válida");
+        BloquesDeVistaPrevia(cut).Should().ContainSingle().Which.TextContent.Should().Contain("Se asignará");
+    }
+
+    [Fact]
+    public async Task Con_la_fecha_de_fin_vacia_no_se_pide_la_vista_previa_ni_se_bloquea_Guardar()
+    {
+        var mediator = new MediatorAlta { Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true) };
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+        mediator.ConsultasPlan.Should().ContainSingle();
+
+        var campoFin = cut.FindComponents<CampoTexto>().Where(c => c.Instance.Type == "date").ElementAt(1);
+        await cut.InvokeAsync(() => campoFin.Instance.ValorChanged.InvokeAsync(string.Empty));
+
+        BloquesDeVistaPrevia(cut).Should().BeEmpty("sin fecha de fin válida no hay nada que calcular ni que enseñar");
+        BotonGuardar(cut).HasAttribute("disabled").Should().BeFalse("las validaciones de siempre avisan de la fecha que falta");
+    }
+
+    [Fact]
+    public async Task Un_rechazo_del_servidor_se_ve_enseguida_mientras_se_recalcula_la_vista_previa()
+    {
+        var mediator = new MediatorAlta
+        {
+            Previa = new PlanAltaVisitaPreviaDto(PlanConAsignacionYGestiones(), PuedeAsignar: true),
+            RechazoAlCrear = Error.Crear("Visita.SinAutoridadParaAsignar", "No tienes autoridad para asignar."),
+        };
+        var enVuelo = new TaskCompletionSource<PlanAltaVisitaPreviaDto?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        mediator.PlanRetenido[2] = enVuelo;
+        var cut = await NuevaVisitaConTrabajadoraAsync(mediator);
+
+        var guardado = GuardarAsync(cut);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No tienes autoridad para asignar."), TimeSpan.FromSeconds(5));
+        mediator.ConsultasPlan.Should().HaveCount(2, "el recálculo sigue en vuelo: el mensaje no esperó a que terminara");
+        enVuelo.Task.IsCompleted.Should().BeFalse();
+
+        enVuelo.SetResult(mediator.Previa);
+        await guardado;
     }
 
     [Fact]

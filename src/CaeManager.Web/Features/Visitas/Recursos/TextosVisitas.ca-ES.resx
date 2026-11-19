@@ -142,7 +142,7 @@
     <value>{0} ({1}): caduca abans del final de la visita</value>
   </data>
   <data name="PlanAltaSinPermiso" xml:space="preserve">
-    <value>No tens permís per assignar aquests treballadors a aquest centre, així que la visita no es pot crear. Treu-los de la visita o demana a qui tingui autoritat que els assigni.</value>
+    <value>No tens permís per assignar a aquest centre {0}, així que la visita no es pot crear. Treu-los de la visita o demana a qui tingui autoritat que els assigni.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
     <value>{0} no es pot assignar avui a aquest centre: té una assignació tancada amb un període que coincideix amb avui.</value>
@@ -154,10 +154,13 @@
     <value>Calculant a qui s'assignarà i quines gestions s'obriran…</value>
   </data>
   <data name="PlanAltaSuperaTope" xml:space="preserve">
-    <value>Una visita que assigna admet com a màxim {0} treballadors. Treu-ne alguns de la visita per poder desar-la.</value>
+    <value>Una visita admet com a màxim {0} treballadors. Treu-ne alguns de la visita per poder desar-la.</value>
   </data>
   <data name="PlanAltaNoCalculada" xml:space="preserve">
-    <value>No es pot calcular què s'assignarà en aquest centre, així que la visita no es pot crear. Comprova el centre o torna-ho a provar més tard.</value>
+    <value>La visita no es pot crear amb aquesta selecció: o no tens accés a aquest centre, o algun treballador no pot entrar en una visita d'aquest centre. Revisa el centre i els treballadors triats.</value>
+  </data>
+  <data name="MotivoGuardarSuperaTope" xml:space="preserve">
+    <value>Treu treballadors: una visita admet com a màxim {0}.</value>
   </data>
   <data name="PlanAltaFallida" xml:space="preserve">
     <value>No s'ha pogut calcular la vista prèvia. Torna-ho a provar.</value>

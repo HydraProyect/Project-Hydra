@@ -142,7 +142,7 @@
     <value>{0} de {1}: caduca antes del fin de la visita</value>
   </data>
   <data name="PlanAltaSinPermiso" xml:space="preserve">
-    <value>No tienes permiso para asignar a estos trabajadores a este centro, así que la visita no se puede crear. Quítalos de la visita o pide a quien tenga autoridad que los asigne.</value>
+    <value>No tienes permiso para asignar a este centro a {0}, así que la visita no se puede crear. Quítalos de la visita o pide a quien tenga autoridad que los asigne.</value>
   </data>
   <data name="PlanAltaSolapada" xml:space="preserve">
     <value>{0} no se puede asignar hoy a este centro: tiene una asignación cerrada cuyo periodo coincide con hoy.</value>
@@ -154,10 +154,13 @@
     <value>Calculando a quién se asignará y qué gestiones se abrirán…</value>
   </data>
   <data name="PlanAltaSuperaTope" xml:space="preserve">
-    <value>Una visita que asigna admite como mucho {0} trabajadores. Quita a algunos de la visita para poder guardarla.</value>
+    <value>Una visita admite como mucho {0} trabajadores. Quita a algunos de la visita para poder guardarla.</value>
   </data>
   <data name="PlanAltaNoCalculada" xml:space="preserve">
-    <value>No se puede calcular qué se asignará en este centro, así que la visita no se puede crear. Comprueba el centro o inténtalo de nuevo más tarde.</value>
+    <value>La visita no se puede crear con esta selección: o no tienes acceso a este centro, o algún trabajador no puede entrar en una visita de este centro. Revisa el centro y los trabajadores elegidos.</value>
+  </data>
+  <data name="MotivoGuardarSuperaTope" xml:space="preserve">
+    <value>Quita trabajadores: una visita admite como mucho {0}.</value>
   </data>
   <data name="PlanAltaFallida" xml:space="preserve">
     <value>No se pudo calcular la vista previa. Inténtalo de nuevo.</value>

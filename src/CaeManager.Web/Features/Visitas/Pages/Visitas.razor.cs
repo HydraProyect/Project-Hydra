@@ -152,6 +152,29 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private bool PlanAltaSinPermiso => _planAlta is { PuedeAsignar: false, Plan: { Solapadas.Count: 0, Asignaciones.Count: > 0 } };
 
+    /// <summary>A quién no puede asignar quien crea la Visita: los Trabajadores sin Asignación activa al Centro.</summary>
+    private string PlanAltaSinPermisoNombres => string.Join(", ", _planAlta?.Plan.Asignaciones.Select(a => a.TrabajadorNombre) ?? []);
+
+    private ElementReference _regionVistaPrevia;
+
+    /// <summary>
+    /// «Reintentar» desaparece al empezar a calcular: el foco pasa antes a la región de la vista previa para que un usuario de
+    /// teclado o de lector de pantalla no lo pierda en el cajón.
+    /// </summary>
+    private async Task ReintentarPlanAltaAsync()
+    {
+        try
+        {
+            await _regionVistaPrevia.FocusAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Sin foco programático (circuito caído, prerrenderizado) el reintento sigue igual.
+        }
+
+        await RecalcularPlanAltaAsync();
+    }
+
     /// <summary>Hay datos para pedir la vista previa: alta con Centro, fecha de fin válida y algún Trabajador.</summary>
     private bool PlanAltaNecesario =>
         _editandoId is null && _trabajadorIdsSeleccionados.Count > 0 && Guid.TryParse(_centroId, out _) && DateOnly.TryParse(_fechaFin, out _);
@@ -166,6 +189,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             if (!PlanAltaNecesario)
                 return null;
+            if (_estadoPlanAlta == EstadoPlanAlta.SuperaTope)
+                return Textos["MotivoGuardarSuperaTope", MaximoTrabajadoresVisitaQueAsigna].Value;
             if (_estadoPlanAlta != EstadoPlanAlta.Lista)
             {
                 var calculando = _estadoPlanAlta is EstadoPlanAlta.SinPedir or EstadoPlanAlta.Calculando;
