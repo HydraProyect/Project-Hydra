@@ -71,6 +71,16 @@ public class AltaTenantTceTests : BunitContext
     }
 
     [Fact]
+    public void La_cabecera_es_la_compartida_con_su_antetitulo_de_plataforma()
+    {
+        var cut = RenderConSesion();
+
+        cut.FindAll("header.alta-tce-cab").Should().BeEmpty("la cabecera propia pasó a CabeceraPagina");
+        cut.Find("header.cabecera-pagina h1").TextContent.Should().Contain("Alta del Tenant TCE");
+        cut.Find("header.cabecera-pagina .cabecera-pagina-kicker").TextContent.Should().Contain("Plataforma");
+    }
+
+    [Fact]
     public void Sin_Tenant_activo_resuelto_no_ofrece_ninguna_accion_aunque_la_capacidad_sea_Aprovisionamiento()
     {
         _mediator.Identidad = Identidad(CapacidadPrivilegio.Aprovisionamiento);

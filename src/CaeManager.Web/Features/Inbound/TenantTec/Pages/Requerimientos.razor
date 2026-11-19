@@ -19,7 +19,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["ReqTitulo"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Grupo="@Textos["ReqGrupo"]" Titulo="@Textos["ReqTitulo"]"
+    <CabeceraListado Titulo="@Textos["ReqTitulo"]"
                      Contador="@(_cargando || _error || !_disponible ? null : _delCliente.Count)" />
 
     @if (_cargando)

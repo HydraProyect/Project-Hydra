@@ -18,7 +18,7 @@
 
 <div class="contenedor-pagina lista-design">
     @* Sin exportación a Excel: no hay endpoint de descarga de contratos de acceso (shortcut: cablear cuando exista). *@
-    <CabeceraListado Grupo="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _todas.Count)">
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirAlta(null)">@Textos["BotonDarDeAlta"]</Boton></SoloConEscritura>
         </Primaria>
