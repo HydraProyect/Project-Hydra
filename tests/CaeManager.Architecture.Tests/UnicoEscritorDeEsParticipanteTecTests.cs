@@ -28,7 +28,7 @@ public class UnicoEscritorDeEsParticipanteTecTests
     /// <summary>Asignaciones a la propiedad de un valor que no es el literal <c>false</c>.</summary>
     private static readonly Regex AsignacionQueNoEsFalse = new(@"\bEsParticipanteTec\s*=(?![=>])(?>\s*)(?!false\b)", RegexOptions.Compiled);
 
-    private const string Migracion = "src/CaeManager.Migrations.PostgreSQL/Migrations/20261119003026_AnadeEsParticipanteTecATenants.cs";
+    private const string Migracion = "src/CaeManager.Migrations.PostgreSQL/Migrations/20261119172437_AnadeEsParticipanteTecATenants.cs";
     private const string Comando = "src/CaeManager.Application/Tenants/Commands/MarcarParticipanteTec/MarcarTenantComoParticipanteTecCommand.cs";
     private const string Entidad = "src/CaeManager.Domain/Tenants/Tenant.cs";
 
