@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -16,7 +16,7 @@
     <value>Contractes d&apos;accés</value>
   </data>
   <data name="Kicker" xml:space="preserve">
-    <value>Inbound</value>
+    <value>Contracte d&apos;accés</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
     <value>Quines Empreses contractistes poden entrar a cada Centre, sota quines condicions i fins quan.</value>
@@ -316,7 +316,7 @@
     <value>Encara no es mostren les sol·licituds</value>
   </data>
   <data name="VacioSolicitudesDescripcion" xml:space="preserve">
-    <value>Aquí veuràs les sol·licituds d&apos;accés d&apos;aquest contracte per confirmar-les o rebutjar-les. Arribarà amb les sol·licituds d&apos;Inbound.</value>
+    <value>Aquí veuràs les sol·licituds d&apos;accés d&apos;aquest contracte per confirmar-les o rebutjar-les. Arribarà amb les sol·licituds d&apos;accés.</value>
   </data>
   <data name="VacioTrabajadoresTitulo" xml:space="preserve">
     <value>Encara no es mostren els Treballadors</value>

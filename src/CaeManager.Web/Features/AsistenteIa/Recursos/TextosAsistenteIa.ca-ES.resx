@@ -64,19 +64,19 @@
     <value>Ordre reconeguda amb una confiança del {0} %</value>
   </data>
   <data name="Plan_SeEjecutaraEn" xml:space="preserve">
-    <value>S'executarà al Tenant beneficiari {0}</value>
+    <value>S'executarà a l'empresa gestionada {0}</value>
   </data>
   <data name="Plan_SinTenant" xml:space="preserve">
     <value>Sense organització de destí</value>
   </data>
   <data name="Plan_SinTenantAria" xml:space="preserve">
-    <value>Encara no hi ha cap Tenant beneficiari on s'executi el pla</value>
+    <value>Encara no hi ha cap empresa gestionada on s'executi el pla</value>
   </data>
   <data name="Plan_ElegirTenantEtiqueta" xml:space="preserve">
-    <value>Tenant beneficiari on s'executa el pla</value>
+    <value>Empresa gestionada on s'executa el pla</value>
   </data>
   <data name="Plan_Destino_Elegir" xml:space="preserve">
-    <value>Tria en quin Tenant beneficiari s'executa</value>
+    <value>Tria en quina empresa gestionada s'executa</value>
   </data>
   <data name="Plan_Destino_Mezcla" xml:space="preserve">
     <value>Aquest pla barreja dades de dues organitzacions: no es pot confirmar</value>
@@ -85,7 +85,7 @@
     <value>L'organització triada no és la de les dades: no es pot confirmar</value>
   </data>
   <data name="Plan_Destino_SinCartera" xml:space="preserve">
-    <value>No hi ha cap organització a la teva Assignació de Cartera</value>
+    <value>No hi ha cap organització entre les teves empreses assignades</value>
   </data>
   <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
     <value>El teu text nomena {0}. El pla continua a l'organització triada.</value>

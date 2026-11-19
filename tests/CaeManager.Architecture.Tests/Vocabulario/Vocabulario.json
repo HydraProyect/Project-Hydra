@@ -204,6 +204,38 @@
   ],
   "prohibidos": [
     {
+      "id": "jerga-de-producto-en-pantalla",
+      "termino": "Inbound / Outbound / TCE / TEC / Asignación de Operación / Asignación de Cartera",
+      "patron": "\\b(?:Inbound|Outbound)\\b|\\b(?:TCE|TEC)\\b|\\b[Aa]ssignaci(?:[oó]|ons) d(?:e |['’])(?:[Oo]peraci(?:[oó]|ons)|[Cc]artera)\\b|\\b[Aa]signaci(?:[oó]n|ones) de (?:[Oo]peraci(?:[oó]n|ones)|[Cc]artera)\\b",
+      "ignorarMayusculas": false,
+      "sustitucion": "Acredita y Valida (los productos); «Mis centros», «Reglas de validación»; «empresas asignadas», «permiso para gestionar»; sin siglas de Tenant",
+      "motivo": "Decisión D2 de Chris (2026-11-19): en la interfaz no hay jerga interna. Los dos productos se llaman Acredita y Valida; el modelo interno (Tenant TCE, Tenant TEC, Asignación de Operación, Asignación de Cartera) se queda en documentación, análisis y código. Auditoría de pantallas Inbound/Outbound del 2026-11-19, § 6.",
+      "contrato": "§ 1 y § 5",
+      "sentido": "Los nombres internos de línea (Inbound, Outbound), de Tenant (TCE, TEC) y de las dos asignaciones, en texto visible. No cubre identificadores de código ni rutas.",
+      "casa": [
+        "Gobierno de Inbound",
+        "Outbound",
+        "Tenant TCE",
+        "Tenant TEC",
+        "Asignación de Operación",
+        "Asignación de Cartera",
+        "Assignació de Cartera",
+        "Assignació d'Operació",
+        "Assignacions de Cartera",
+        "Asignaciones de Cartera",
+        "solicitudes de Inbound"
+      ],
+      "noCasa": [
+        "Acredita",
+        "Valida",
+        "Mis centros",
+        "Reglas de validación",
+        "Empresas asignadas",
+        "Permiso para gestionar",
+        "https://ejemplo.com/inbound/centros"
+      ]
+    },
+    {
       "id": "cliente-empresarial-en-pantalla",
       "termino": "Cliente empresarial",
       "patron": "\\bclient(?:es?|s)?(?:\\(s\\))?\\s+empresarial(?:s|es)?\\b",
@@ -439,19 +471,21 @@
   ],
   "excepciones": [
     {
-      "id": "tenant-en-rotulo-de-linea-del-menu",
+      "id": "jerga-de-producto-en-pantallas-de-plataforma",
       "prohibidos": [
-        "tenant-a-secas"
+        "jerga-de-producto-en-pantalla"
       ],
       "ficheros": [
-        "src/CaeManager.Web/Recursos/TextosComunes.resx",
-        "src/CaeManager.Web/Recursos/TextosComunes.ca-ES.resx"
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.resx",
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.ca-ES.resx",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/CorregirLineaInbound/CorregirLineaInboundCommand.cs",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/DarDeBajaLineaInbound/DarDeBajaLineaInboundCommand.cs",
+        "src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor"
       ],
-      "claves": [
-        "MenuLineaInboundTce"
-      ],
-      "contexto": "rótulo de línea del menú lateral",
-      "motivo": "Decisión D-2 de Chris (2026-11-16, interfaz Inbound/Outbound § 1.1): el rótulo separador del menú dice literalmente «Inbound · Tenant TCE» (o «Tenant TEC») cuando se ven las dos líneas. TCE/TEC es el apellido que distingue a quien recibe contratistas de quien es recibido, y «Tenant beneficiario» no lo distingue. Solo esta clave; cualquier otro uso de «Tenant» a secas sigue prohibido."
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Pantallas y comandos que solo usa un Actor de Plataforma TALVEG (plano 3) para dar de alta, corregir o dar de baja la línea Inbound de un Tenant TCE, y la vía de acceso «Asignación de operación» de su panel de privilegios: no es usuario final y necesita el vocabulario canónico (Tenant TCE, Tenant propietario, Asignación de Operación) para no confundir los planos. Auditoría de pantallas del 2026-11-19, § 6.2: «puede conservar el vocabulario canónico; no es usuario final»."
     },
     {
       "id": "nombre-de-hoja-del-libro-de-importacion",
@@ -542,7 +576,6 @@
     {
       "id": "tenant-en-pagina-de-plataforma",
       "prohibidos": [
-        "tenant-a-secas",
         "alcance-a-secas"
       ],
       "ficheros": [
@@ -567,26 +600,7 @@
       "contexto": "pastilla de filtro de Plantillas",
       "motivo": "Alcance de la plantilla: dónde aplica (Centro, Cliente empresarial o general de la organización), no alcance de autorización. El rótulo «Alcance» es el del lienzo Plantillas (decisión de la coordinadora para la PR9: se conserva el rótulo del artboard); la pastilla lista exactamente esas tres dimensiones y no tiene relación con el Ámbito efectivo, de Operación o de Cartera. Solo esta clave: el resto de textos de Plantillas no dice «alcance»."
     },
-    {
-      "id": "tenant-en-orden-global-del-menu",
-      "prohibidos": [
-        "tenant-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion*.resx"
-      ],
-      "claves": [
-        "OrdenMenuChipTenants",
-        "OrdenMenuDescripcion",
-        "OrdenMenuDetalleConCambios",
-        "OrdenMenuDialogoTexto",
-        "OrdenMenuGlobalTodos",
-        "OrdenMenuRolAdministrador",
-        "OrdenMenuSinAccesoTexto"
-      ],
-      "contexto": "acceso de plataforma",
-      "motivo": "El orden del menú lateral es un ajuste global de plataforma: lo ven todos los usuarios de todos los Tenants y solo lo cambia un Actor de Plataforma TALVEG con concesión global (OrdenMenuSinAccesoTexto). Habla de Tenants como conjunto porque es el plano de plataforma, no el de un usuario de negocio."
-    },
+
     {
       "id": "operador-de-maquinaria-en-ficha-de-vehiculo",
       "prohibidos": [

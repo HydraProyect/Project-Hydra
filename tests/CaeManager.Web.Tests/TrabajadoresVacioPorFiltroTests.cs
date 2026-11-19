@@ -212,7 +212,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         var cut = Renderizar();
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
-            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+            .Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("Todavía no hay trabajadores");
         cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.

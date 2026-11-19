@@ -399,12 +399,12 @@ public class BuzonesAcuseAutomaticoTests : BunitContext
     /// </summary>
     [Theory]
     [InlineData("es-ES", "queda sin asignar si el buzón no tiene Responsable",
-        "Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera", "nace asignada",
+        "Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar empresas asignadas", "nace asignada",
         "Cada conversación que abre un hilo nuevo se asigna al Responsable del buzón",
         "Si el correo continúa un hilo cerrado, la conversación nueva conserva a la persona que tenía asignada la anterior",
         "Cada conversación nueva")]
     [InlineData("ca-ES", "queda sense assignar si la bústia no té Responsable",
-        "Administrador, Direcció CAE i Consulta veuen les converses sense necessitar una Assignació de Cartera", "neix assignada",
+        "Administrador, Direcció CAE i Consulta veuen les converses sense necessitar empreses assignades", "neix assignada",
         "Cada conversa que obre un fil nou s'assigna al Responsable de la bústia",
         "Si el correu continua un fil tancat, la conversa nova conserva la persona que tenia assignada l'anterior",
         "Cada conversa nova")]

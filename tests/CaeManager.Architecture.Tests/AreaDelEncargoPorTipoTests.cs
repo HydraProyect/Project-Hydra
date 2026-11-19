@@ -129,6 +129,9 @@ namespace CaeManager.Architecture.Tests
             "EliminarTarifaClienteCommand",
             "EnviarNotificacionCompletaCommand",
             "FijarAcuseAutomaticoBuzonCommand",
+            // Plazo de conservación de los Documentos (decisión del 2026-11-18): solo el Administrador del Tenant propietario.
+            "FijarPlazoRetencionDocumentosCommand",
+            "FijarPlazoRetencionTipoDocumentoCommand",
             "FijarResponsableBuzonCommand",
             "GenerarClaveApiCommand",
             "GuardarConexionPlataformaCaeCommand",

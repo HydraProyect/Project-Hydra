@@ -71,6 +71,13 @@ public class ParametroSistema : EntidadConTenant
     /// </summary>
     public bool ExigeSegundoFactorTodosLosPerfiles { get; private set; }
 
+    /// <summary>
+    /// Plazo de conservación de los Documentos de este Tenant propietario, en años enteros de 1 a 5 y 5 por defecto
+    /// (<see cref="Retencion.PlazoRetencionDocumentos"/>, decisión del 2026-11-18). Un tipo de documento puede fijar
+    /// el suyo; si no, hereda este. Cambiarlo solo afecta a las propuestas de purga futuras.
+    /// </summary>
+    public int AniosRetencionDocumentos { get; private set; } = Retencion.PlazoRetencionDocumentos.PorDefecto;
+
     private ParametroSistema()
     {
     }
@@ -134,6 +141,10 @@ public class ParametroSistema : EntidadConTenant
 
         PresupuestoMensualIaUsd = presupuestoMensualIaUsd;
     }
+
+    /// <summary>Lanza <see cref="ArgumentOutOfRangeException"/> fuera de 1 a 5 años y no cambia nada.</summary>
+    public void FijarPlazoRetencionDocumentos(int anios) =>
+        AniosRetencionDocumentos = Retencion.PlazoRetencionDocumentos.Validar(anios, nameof(anios));
 
     public static bool MinutosInactividadSesionValidos(int minutos) =>
         minutos is >= MinimoMinutosInactividadSesion and <= MaximoMinutosInactividadSesion;

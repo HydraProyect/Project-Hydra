@@ -1,16 +1,16 @@
 @page "/inbound/centros"
-@* Entrada «Centros» del menú Inbound. La maqueta no trae un listado propio (la tarjeta 14 es la ficha de un Centro): este listado
+@* Entrada «Mis centros» del menú de Valida. La maqueta no trae un listado propio (la tarjeta 14 es la ficha de un Centro): este listado
    solo reúne los Centros que tienen contratos de acceso, con lo que ya existe en main (B-05), y abre su ficha. *@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Centros — @Marca.Nombre</PageTitle>
-<TituloDePaginaSinPrerender Titulo="@($"Centros — {Marca.Nombre}")" />
+<PageTitle>Mis centros — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Mis centros — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design">
-    <CabeceraListado Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _filas.Count)" />
+    <CabeceraListado Titulo="Mis centros" Contador="@(_cargando || _errorCarga ? null : _filas.Count)" />
     <p class="inbound-secundario" data-pieza="subtitulo-centros">Los Centros que reciben Empresas contratistas con un contrato de acceso.</p>
 
     @if (_cargando)
@@ -32,7 +32,7 @@
     {
         <TarjetaListado>
             <Contenido>
-                <table class="tabla-datos" aria-label="Centros">
+                <table class="tabla-datos" aria-label="Mis centros">
                     <thead><tr>
                         <th scope="col">Centro</th>
                         <th scope="col">Cliente</th>

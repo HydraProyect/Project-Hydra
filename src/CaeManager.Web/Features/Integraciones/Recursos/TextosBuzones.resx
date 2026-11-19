@@ -103,7 +103,7 @@
     <value>No pudimos cargar los buzones. Vuelve a intentarlo en unos minutos.</value>
   </data>
   <data name="PieBuzones" xml:space="preserve">
-    <value>Cada conversación que abre un hilo nuevo se asigna al Responsable del buzón; queda sin asignar si el buzón no tiene Responsable o si este ya no puede atenderla. Si el correo continúa un hilo cerrado, la conversación nueva conserva a la persona que tenía asignada la anterior. Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar una Asignación de Cartera; Coordinador CAE y Gestor CAE, según su Asignación de Cartera o de Operación.</value>
+    <value>Cada conversación que abre un hilo nuevo se asigna al Responsable del buzón; queda sin asignar si el buzón no tiene Responsable o si este ya no puede atenderla. Si el correo continúa un hilo cerrado, la conversación nueva conserva a la persona que tenía asignada la anterior. Administrador, Dirección CAE y Consulta ven las conversaciones sin necesitar empresas asignadas; Coordinador CAE y Gestor CAE, según las empresas que tengan asignadas o que su organización opere.</value>
   </data>
   <data name="ModalAcuseTitulo" xml:space="preserve">
     <value>Acuse automático al recibir un correo</value>

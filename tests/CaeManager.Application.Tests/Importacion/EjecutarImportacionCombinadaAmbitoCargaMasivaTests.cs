@@ -168,9 +168,9 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
         escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
 
         resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Be(
-            $"Empresa «{nueva}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+            $"Empresa «{nueva}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe las empresas que tienes asignadas para verla.");
         resultado.Omitidos.Should().HaveCount(2).And.OnlyContain(o => o.Motivo ==
-            $"La empresa «{nueva}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+            $"La empresa «{nueva}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe las empresas que tienes asignadas para verla.");
     }
 
     [Fact]

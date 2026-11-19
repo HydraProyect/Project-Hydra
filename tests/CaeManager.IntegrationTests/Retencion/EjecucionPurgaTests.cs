@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Retencion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Retencion;
@@ -104,10 +105,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -132,7 +134,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -198,10 +200,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -220,7 +223,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -292,10 +295,11 @@ public class EjecucionPurgaTests : IAsyncLifetime
                 contextoDeteccion,
                 contextoDeteccion,
                 contextoDeteccion,
+                contextoDeteccion,
+                contextoDeteccion,
                 new SolicitudPurgaRepository(contextoDeteccion),
                 Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions
                 {
-                    AniosRetencionDocumentos = 5,
                     AniosRetencionTrabajadores = 5
                 }),
                 new TenantActualAmbiental { TenantId = _tenant },
@@ -321,7 +325,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
             var servicioEjecucion = new EjecucionPurgaService(
                 contextoEjecucion,
                 contextoEjecucion,
-                contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -364,8 +368,10 @@ public class EjecucionPurgaTests : IAsyncLifetime
             archivoUrl: archivoUrl);
         contexto.Documentos.Add(documento);
 
-        var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+        // R4: la solicitud de Documentos purga solo la lista que se propuso al detectarla.
+        var (solicitud, propuestos) = SolicitudPurga.DeDocumentos([documento.Id], _hoy.AddYears(-5));
         contexto.SolicitudesPurga.Add(solicitud);
+        contexto.DocumentosPropuestosPurga.AddRange(propuestos);
         await contexto.SaveChangesAsync();
 
         solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
@@ -389,7 +395,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(fallaAlEliminar: true),
@@ -443,7 +449,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         await using (var contextoEjecucion = CrearContexto())
         {
             var servicioEjecucion = new EjecucionPurgaService(
-                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
                 new SolicitudPurgaRepository(contextoEjecucion),
                 new ExtraccionIaCacheRepository(contextoEjecucion),
                 new AlmacenamientoArchivosFalso(),
@@ -475,6 +481,262 @@ public class EjecucionPurgaTests : IAsyncLifetime
         (await contextoVerificacion.IncidenciasPurga.AnyAsync(i => i.SolicitudPurgaId == solicitudId))
             .Should().BeFalse("una ejecución completa no deja incidencias");
     }
+
+    /// <summary>
+    /// R4 (decisión del 2026-11-18): la ejecución purga la lista que propuso la detección y nada más. Un Documento que
+    /// también ha cumplido su plazo, pero no estaba en la propuesta (subido después, o alcanzado al acortar un plazo),
+    /// espera a una propuesta nueva: una solicitud abierta nunca se amplía.
+    /// </summary>
+    [Fact]
+    public async Task La_ejecucion_no_purga_un_Documento_que_no_estaba_en_la_propuesta()
+    {
+        var (propuestoId, solicitudId) = await SembrarDocumentoPurgableAsync("tenant/propuesto.pdf");
+
+        Guid fueraId;
+        await using (var contexto = CrearContexto())
+        {
+            var fuera = Documento.DeCliente(
+                _clienteId, _tipoDocumentoId,
+                fechaEmision: _hoy.AddYears(-9),
+                vigencia: VigenciaDocumento.VenceEl(_hoy.AddYears(-8)),
+                archivoUrl: "tenant/fuera.pdf");
+            contexto.Documentos.Add(fuera);
+            await contexto.SaveChangesAsync();
+            fueraId = fuera.Id;
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var servicioEjecucion = new EjecucionPurgaService(
+                contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion, contextoEjecucion,
+                new SolicitudPurgaRepository(contextoEjecucion),
+                new ExtraccionIaCacheRepository(contextoEjecucion),
+                new AlmacenamientoArchivosFalso(),
+                new TenantActualAmbiental { TenantId = _tenant },
+                contextoEjecucion,
+                new TransaccionDeComando(contextoEjecucion),
+                new EnmascaradoAuditoriaTrabajadorAnonimizado(contextoEjecucion),
+                new AlertaOperativaFalsa(),
+                NullLogger<EjecucionPurgaService>.Instance);
+
+            (await servicioEjecucion.EjecutarAsync(solicitudId, _hoy)).Should().Be(1);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        (await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == propuestoId))
+            .EstaAnonimizado.Should().BeTrue();
+        var noPropuesto = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == fueraId);
+        noPropuesto.EstaAnonimizado.Should().BeFalse("no estaba en la lista de la solicitud");
+        noPropuesto.ArchivoUrl.Should().Be("tenant/fuera.pdf");
+    }
+
+    /// <summary>
+    /// La lista propuesta es el tope, no la orden: la ejecución vuelve a aplicar el criterio con las fechas de hoy.
+    /// Si entre la detección y la ejecución se corrige la vigencia del Documento y ya no ha cumplido su plazo, se
+    /// conserva. El desvío va siempre hacia conservar (R4).
+    /// </summary>
+    [Fact]
+    public async Task Un_Documento_propuesto_cuya_vigencia_se_corrige_antes_de_ejecutar_se_conserva()
+    {
+        var documentoId = await SembrarDocumentoAsync(
+            _hoy.AddYears(-7), _hoy.AddYears(-6), "tenant/corregido.pdf");
+        var solicitudId = await DetectarYProgramarDocumentosAsync([documentoId]);
+
+        await using (var contexto = CrearContexto())
+        {
+            var documento = await contexto.Documentos.SingleAsync(d => d.Id == documentoId);
+            documento.CorregirVigencia(documento.FechaEmision, VigenciaDocumento.VenceEl(_hoy.AddYears(-1)));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            (await CrearEjecucion(contextoEjecucion).EjecutarAsync(solicitudId, _hoy))
+                .Should().Be(0, "con la vigencia corregida el Documento aún no ha cumplido su plazo");
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var conservado = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId);
+        conservado.EstaAnonimizado.Should().BeFalse();
+        conservado.ArchivoUrl.Should().Be("tenant/corregido.pdf");
+    }
+
+    /// <summary>
+    /// Alargar el plazo del Tenant propietario después de la detección protege lo propuesto que, con el plazo nuevo,
+    /// todavía no lo ha cumplido: la ejecución lee el plazo de hoy, no el de la detección.
+    /// </summary>
+    [Fact]
+    public async Task Alargar_el_plazo_del_Tenant_despues_de_la_deteccion_conserva_lo_propuesto()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            var parametros = new ParametroSistema(30, 15);
+            parametros.FijarPlazoRetencionDocumentos(1);
+            contexto.ParametrosSistema.Add(parametros);
+            await contexto.SaveChangesAsync();
+        }
+
+        // Vencido hace dos años: con 1 año de plazo se propone; con 5, no.
+        var documentoId = await SembrarDocumentoAsync(
+            _hoy.AddYears(-7), _hoy.AddYears(-2), "tenant/alargado.pdf");
+        var solicitudId = await DetectarYProgramarDocumentosAsync([documentoId]);
+
+        await using (var contexto = CrearContexto())
+        {
+            var parametros = await contexto.ParametrosSistema.SingleAsync();
+            parametros.FijarPlazoRetencionDocumentos(5);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            (await CrearEjecucion(contextoEjecucion).EjecutarAsync(solicitudId, _hoy))
+                .Should().Be(0, "con el plazo alargado a 5 años el Documento aún no lo ha cumplido");
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var conservado = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId);
+        conservado.EstaAnonimizado.Should().BeFalse();
+        conservado.ArchivoUrl.Should().Be("tenant/alargado.pdf");
+    }
+
+    /// <summary>
+    /// La lista de una solicitud cancelada no cuenta para otra del mismo Tenant propietario: la ejecución purga solo
+    /// lo propuesto en la solicitud que ejecuta, aunque lo de la cancelada también haya cumplido su plazo.
+    /// </summary>
+    [Fact]
+    public async Task La_lista_de_una_solicitud_cancelada_no_se_purga_al_ejecutar_otra_del_mismo_Tenant()
+    {
+        var deLaCanceladaId = await SembrarDocumentoAsync(
+            _hoy.AddYears(-8), _hoy.AddYears(-7), "tenant/cancelada.pdf");
+        var deLaProgramadaId = await SembrarDocumentoAsync(
+            _hoy.AddYears(-8), _hoy.AddYears(-7), "tenant/programada.pdf");
+
+        Guid canceladaId, programadaId;
+        await using (var contexto = CrearContexto())
+        {
+            var (cancelada, propuestosCancelada) = SolicitudPurga.DeDocumentos([deLaCanceladaId], _hoy.AddYears(-5));
+            contexto.SolicitudesPurga.Add(cancelada);
+            contexto.DocumentosPropuestosPurga.AddRange(propuestosCancelada);
+            await contexto.SaveChangesAsync();
+            cancelada.Cancelar("El Tenant propietario pidió conservarlo.");
+            await contexto.SaveChangesAsync();
+
+            var (programada, propuestosProgramada) = SolicitudPurga.DeDocumentos([deLaProgramadaId], _hoy.AddYears(-5));
+            contexto.SolicitudesPurga.Add(programada);
+            contexto.DocumentosPropuestosPurga.AddRange(propuestosProgramada);
+            await contexto.SaveChangesAsync();
+            programada.Programar(_hoy, _usuarioAutorizador, _hoy);
+            await contexto.SaveChangesAsync();
+
+            canceladaId = cancelada.Id;
+            programadaId = programada.Id;
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            (await CrearEjecucion(contextoEjecucion).EjecutarAsync(programadaId, _hoy)).Should().Be(1);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        (await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == deLaProgramadaId))
+            .EstaAnonimizado.Should().BeTrue();
+        var deLaCancelada = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == deLaCanceladaId);
+        deLaCancelada.EstaAnonimizado.Should().BeFalse("solo estaba en la lista de la solicitud cancelada");
+        deLaCancelada.ArchivoUrl.Should().Be("tenant/cancelada.pdf");
+        (await contextoVerificacion.SolicitudesPurga.SingleAsync(s => s.Id == canceladaId))
+            .Estado.Should().Be(EstadoSolicitudPurga.Cancelada);
+    }
+
+    /// <summary>
+    /// Una solicitud de Documentos anterior al plazo por Tenant propietario no guarda la lista de lo propuesto. Falla
+    /// cerrada: no purga nada, no se cierra como ejecutada y lo dice con un error explícito, que el comando devuelve
+    /// como <c>SolicitudPurga.NoEjecutable</c>.
+    /// </summary>
+    [Fact]
+    public async Task Una_solicitud_de_Documentos_sin_lista_de_propuestos_no_se_ejecuta()
+    {
+        var documentoId = await SembrarDocumentoAsync(
+            _hoy.AddYears(-8), _hoy.AddYears(-7), "tenant/sin-lista.pdf");
+
+        Guid solicitudId;
+        await using (var contexto = CrearContexto())
+        {
+            var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, 1, _hoy.AddYears(-5));
+            contexto.SolicitudesPurga.Add(solicitud);
+            await contexto.SaveChangesAsync();
+            solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
+            await contexto.SaveChangesAsync();
+            solicitudId = solicitud.Id;
+        }
+
+        await using (var contextoEjecucion = CrearContexto())
+        {
+            var ejecutar = () => CrearEjecucion(contextoEjecucion).EjecutarAsync(solicitudId, _hoy);
+            (await ejecutar.Should().ThrowAsync<InvalidOperationException>())
+                .Which.Message.Should().Be(EjecucionPurgaService.SinListaDePropuestos);
+        }
+
+        await using var contextoVerificacion = CrearContexto();
+        var sinEjecutar = await contextoVerificacion.SolicitudesPurga.SingleAsync(s => s.Id == solicitudId);
+        sinEjecutar.Estado.Should().Be(EstadoSolicitudPurga.Programada);
+        sinEjecutar.ResultadoEjecucion.Should().BeNull();
+        var documento = await contextoVerificacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId);
+        documento.EstaAnonimizado.Should().BeFalse();
+        documento.ArchivoUrl.Should().Be("tenant/sin-lista.pdf");
+    }
+
+    private async Task<Guid> SembrarDocumentoAsync(DateOnly fechaEmision, DateOnly vencimiento, string archivoUrl)
+    {
+        await using var contexto = CrearContexto();
+        var documento = Documento.DeCliente(
+            _clienteId, _tipoDocumentoId,
+            fechaEmision: fechaEmision,
+            vigencia: VigenciaDocumento.VenceEl(vencimiento),
+            archivoUrl: archivoUrl);
+        contexto.Documentos.Add(documento);
+        await contexto.SaveChangesAsync();
+        return documento.Id;
+    }
+
+    /// <summary>
+    /// Pasa por la detección real, comprueba que propuso justo <paramref name="esperados"/> y programa la solicitud
+    /// para hoy, como haría quien la autoriza.
+    /// </summary>
+    private async Task<Guid> DetectarYProgramarDocumentosAsync(IReadOnlyCollection<Guid> esperados)
+    {
+        await using var contexto = CrearContexto();
+        var deteccion = new DeteccionPurgaService(
+            contexto, contexto, contexto, contexto, contexto,
+            new SolicitudPurgaRepository(contexto),
+            Microsoft.Extensions.Options.Options.Create(new RetencionDatosOptions()),
+            new TenantActualAmbiental { TenantId = _tenant },
+            contexto);
+        await deteccion.DetectarAsync(_hoy);
+
+        var solicitud = await contexto.SolicitudesPurga.SingleAsync(s => s.TipoDato == TipoDatoPurgable.Documentos);
+        (await contexto.DocumentosPropuestosPurga
+                .Where(p => p.SolicitudPurgaId == solicitud.Id)
+                .Select(p => p.DocumentoId)
+                .ToListAsync())
+            .Should().BeEquivalentTo(esperados);
+
+        solicitud.Programar(_hoy, _usuarioAutorizador, _hoy);
+        await contexto.SaveChangesAsync();
+        return solicitud.Id;
+    }
+
+    private EjecucionPurgaService CrearEjecucion(CaeManagerDbContext contexto) => new(
+        contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+        new SolicitudPurgaRepository(contexto),
+        new ExtraccionIaCacheRepository(contexto),
+        new AlmacenamientoArchivosFalso(),
+        new TenantActualAmbiental { TenantId = _tenant },
+        contexto,
+        new TransaccionDeComando(contexto),
+        new EnmascaradoAuditoriaTrabajadorAnonimizado(contexto),
+        new AlertaOperativaFalsa(),
+        NullLogger<EjecucionPurgaService>.Instance);
 
     private CaeManagerDbContext CrearContexto(bool tenantEnLaSesion = true)
     {

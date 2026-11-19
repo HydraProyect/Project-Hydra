@@ -40,6 +40,13 @@ public class SolicitudPurga : EntidadConTenant
     /// Fecha de corte: se propone destruir lo que cumplió plazo antes de
     /// esta fecha. Se conserva para que la ejecución sea reproducible y no
     /// dependa de cuándo acabe corriendo.
+    ///
+    /// <para>
+    /// En Trabajadores es el criterio de la ejecución. En Documentos, desde que el plazo va por Tenant propietario
+    /// y por tipo de documento (decisión del 2026-11-18), es solo informativa: el corte más reciente que se aplicó
+    /// (el del plazo más corto entre los propuestos), y la ejecución purga la lista de
+    /// <see cref="DocumentoPropuestoPurga"/> (ver <see cref="DeDocumentos"/>).
+    /// </para>
     /// </summary>
     public DateOnly FechaCorte { get; private set; }
 
@@ -93,6 +100,18 @@ public class SolicitudPurga : EntidadConTenant
         RegistrosAfectados = registrosAfectados;
         FechaCorte = fechaCorte;
         Estado = EstadoSolicitudPurga.PendienteDeRevision;
+    }
+
+    /// <summary>
+    /// Propuesta de Documentos con la lista exacta de lo propuesto (R4): la ejecución purga esos Documentos y ninguno
+    /// más. Una solicitud de Documentos creada con el constructor, sin lista, no purga nada al ejecutarse.
+    /// </summary>
+    public static (SolicitudPurga Solicitud, IReadOnlyList<DocumentoPropuestoPurga> Propuestos) DeDocumentos(
+        IEnumerable<Guid> documentoIds, DateOnly fechaCorte)
+    {
+        var ids = documentoIds.Distinct().ToList();
+        var solicitud = new SolicitudPurga(TipoDatoPurgable.Documentos, ids.Count, fechaCorte);
+        return (solicitud, [.. ids.Select(id => new DocumentoPropuestoPurga(solicitud.Id, id))]);
     }
 
     /// <summary>

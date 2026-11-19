@@ -343,7 +343,7 @@
     <value>Configuración · Plataforma</value>
   </data>
   <data name="OrdenMenuDescripcion" xml:space="preserve">
-    <value>Ordena los grupos del menú lateral y los enlaces de cada grupo. El orden es el mismo para todos los usuarios de todos los Tenants.</value>
+    <value>Ordena los grupos del menú lateral y los enlaces de cada grupo. El orden es el mismo para todos los usuarios de todas las organizaciones.</value>
   </data>
   <data name="OrdenMenuSinAccesoTitulo" xml:space="preserve">
     <value>Solo el equipo de TALVEG puede cambiar el orden del menú.</value>
@@ -355,7 +355,7 @@
     <value>El cambio es global</value>
   </data>
   <data name="OrdenMenuGlobalTodos" xml:space="preserve">
-    <value>Lo verán todos los usuarios de todos los Tenants la próxima vez que carguen una página.</value>
+    <value>Lo verán todos los usuarios de todas las organizaciones la próxima vez que carguen una página.</value>
   </data>
   <data name="OrdenMenuGlobalVisibilidad" xml:space="preserve">
     <value>Ordenar no muestra ni oculta nada: cada usuario sigue viendo solo los enlaces que su rol le permite.</value>
@@ -367,7 +367,7 @@
     <value>Plano de Plataforma</value>
   </data>
   <data name="OrdenMenuChipTenants" xml:space="preserve">
-    <value>Todos los Tenants</value>
+    <value>Todas las organizaciones</value>
   </data>
   <data name="OrdenMenuChipAuditado" xml:space="preserve">
     <value>Queda auditado con el Actor real</value>
@@ -478,7 +478,7 @@
     <value>Ver el menú como</value>
   </data>
   <data name="OrdenMenuRolAdministrador" xml:space="preserve">
-    <value>Administrador de Tenant</value>
+    <value>Administrador de la organización</value>
   </data>
   <data name="OrdenMenuRolDireccionCae" xml:space="preserve">
     <value>Dirección CAE</value>
@@ -514,7 +514,7 @@
     <value>El menú de todos los usuarios coincide con lo que ves aquí.</value>
   </data>
   <data name="OrdenMenuDetalleConCambios" xml:space="preserve">
-    <value>Aún no lo ve nadie. Al guardar, se aplica a todos los usuarios de todos los Tenants.</value>
+    <value>Aún no lo ve nadie. Al guardar, se aplica a todos los usuarios de todas las organizaciones.</value>
   </data>
   <data name="OrdenMenuRestablecer" xml:space="preserve">
     <value>Restablecer el orden por defecto</value>
@@ -562,7 +562,7 @@
     <value>¿Restablecer el orden por defecto?</value>
   </data>
   <data name="OrdenMenuDialogoTexto" xml:space="preserve">
-    <value>Se vuelve al orden con el que se entrega TALVEG, para todos los usuarios de todos los Tenants. Queda auditado como cualquier otro guardado y se puede volver a ordenar después.</value>
+    <value>Se vuelve al orden con el que se entrega TALVEG, para todos los usuarios de todas las organizaciones. Queda auditado como cualquier otro guardado y se puede volver a ordenar después.</value>
   </data>
   <data name="OrdenMenuCancelar" xml:space="preserve">
     <value>Cancelar</value>
