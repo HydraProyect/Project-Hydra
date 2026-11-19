@@ -90,7 +90,7 @@ public class AnadeEsParticipanteTecATenantsTests : IAsyncLifetime
         var quitar = () => EjecutarAsync(runtime, "UPDATE public.\"Tenants\" SET \"EsParticipanteTec\" = false WHERE \"Id\" = @id;", tenantId);
 
         await DebeRechazarloElTriggerAsync(quitar);
-        (await LeerMarcadorAsync(tenantId)).Should().BeTrue("cualquier cambio de valor es del escritor autorizado");
+        (await LeerMarcadorAsync(tenantId)).Should().BeTrue("cambiar el valor de la columna, también a falso, es del escritor autorizado");
     }
 
     [Fact]

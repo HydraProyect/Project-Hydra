@@ -114,7 +114,7 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Por_SQL_el_rol_cambia_el_logo_pero_ninguna_otra_columna_de_un_Tenant()
+    public async Task Por_SQL_el_rol_cambia_el_logo_pero_ninguna_columna_sin_GRANT_de_un_Tenant()
     {
         var tenantId = await CrearTenantAsync();
         await using var conexion = await AbrirComoAprovisionamientoAsync(tenantId);

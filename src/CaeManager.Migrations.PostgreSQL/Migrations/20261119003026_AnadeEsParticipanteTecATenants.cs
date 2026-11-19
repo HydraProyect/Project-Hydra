@@ -35,6 +35,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// tres del logo que ya tenía (<c>LogoTenant</c>). No le da <c>INSERT</c> sobre <c>Tenants</c>: el alta
     /// del Tenant TEC lo necesitará y va en su propia PR de esquema.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Lo que el trigger no cubre.</b> Mira el valor de la columna, no la identidad de la fila. Con SQL
+    /// arbitrario, <c>cae_app_runtime</c> aún podría quitar el marcador a un Tenant sin nombrar la columna:
+    /// borrando la fila y volviéndola a insertar en falso (tiene <c>DELETE</c> de tabla), o intercambiando
+    /// <c>"Id"</c> con una copia en falso. Ningún camino de la aplicación reescribe la clave ni borra y recrea
+    /// un Tenant marcado, y con ese mismo SQL el runtime ya puede escribir <c>EsPlataforma</c>. Cerrarlo
+    /// exigiría rechazar el <c>DELETE</c> de un Tenant marcado, que choca con la retirada de un Tenant de
+    /// demo, y es una decisión aparte de Seguridad y plataforma.
+    /// </para>
     /// </summary>
     public partial class AnadeEsParticipanteTecATenants : Migration
     {
