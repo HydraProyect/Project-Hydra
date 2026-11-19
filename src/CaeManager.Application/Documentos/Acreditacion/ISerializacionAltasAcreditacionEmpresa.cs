@@ -9,7 +9,8 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// de serie (EstablecerDocumentacionRequeridaCentro, EliminarDocumentacionRequeridaCentro, EditarTipoDocumento), volver
 /// a gestión CAE (EstablecerGestionCaeCentro, EjecutarImportacionMaestra al confirmar, en los dos modos), restaurar un Centro o un
 /// Documento de Empresa (RestaurarCentro, RestaurarDocumento) y crear o reabrir una Asignación (CrearAsignacion,
-/// CrearAsignaciones, ReactivarAsignacion, EjecutarImportacion con una hoja de Asignaciones). Revisión Codex de la PR
+/// CrearAsignaciones, ReactivarAsignacion, EjecutarImportacion con una hoja de Asignaciones, CrearVisita con
+/// AsignarYCrearGestiones). Revisión Codex de la PR
 /// #2074, ronda 3, hallazgos 2 a 4.
 ///
 /// <para>
