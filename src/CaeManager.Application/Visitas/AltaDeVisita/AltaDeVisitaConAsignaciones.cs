@@ -71,11 +71,12 @@ public class AltaDeVisitaConAsignaciones(
                 return Result.Fallo(Error.Crear(CodigoSinAutoridad, "No puedes dar de alta a estos trabajadores en este centro."));
 
             // DEC-19: un alta nueva no puede pisar el periodo de una Asignación ya cerrada del mismo par. El plan ya los
-            // separa (la vista previa los enseña con la misma regla); se rechaza diciendo quiénes.
+            // separa y la vista previa los enseña por su nombre, tras validarlos. Aquí el mensaje no los nombra: se emite antes
+            // de que agregarVisita vuelva a comprobar el alcance bajo el candado, y un nombre que ya no fuera visible no debe salir.
             if (resultado.Solapadas.Count > 0)
                 return Result.Fallo(Error.Crear(CodigoSolape,
-                    $"No se puede asignar hoy a este centro a {string.Join(", ", resultado.Solapadas.Select(s => s.TrabajadorNombre))}: " +
-                    "ya tuvo una asignación a este centro cuyo periodo se solapa con la fecha de hoy."));
+                    "Hay trabajadores que no se pueden asignar hoy a este centro: ya tuvieron una asignación a este centro cuyo " +
+                    "periodo se solapa con la fecha de hoy. La vista previa dice quiénes."));
 
             // Cinturón: la misma comprobación por el repositorio, por si el plan y DEC-19 llegaran a separarse.
             foreach (var trabajadorId in porAsignar)

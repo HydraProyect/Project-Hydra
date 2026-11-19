@@ -223,7 +223,7 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         var resultado = await Handler().Handle(Crear([_asignada.Id, _sinAsignar.Id]), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(AltaDeVisitaConAsignaciones.CodigoSolape);
-        resultado.Error.Mensaje.Should().Contain("Bruno Pérez", "dice a quién no se puede asignar").And.NotContain("Ana");
+        resultado.Error.Mensaje.Should().NotContain("Bruno", "se emite antes de revalidar el alcance bajo el candado: no nombra a nadie");
         _visitas.Visitas.Should().BeEmpty();
         _gestiones.Gestiones.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);
@@ -360,6 +360,17 @@ public class CrearVisitaQueAsignaYCreaGestionesTests
         (await Vista(fueraDeCartera).Handle(new ObtenerPlanAltaVisitaQuery(_centro.Id, Fin, [_sinAsignar.Id]), CancellationToken.None))
             .Should().BeNull();
         (await Vista(AlcanceDeMiCartera()).Handle(new ObtenerPlanAltaVisitaQuery(_centro.Id, Fin, [_deOtraEmpresa.Id]), CancellationToken.None))
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_vista_previa_por_encima_del_tope_del_Command_no_devuelve_plan()
+    {
+        // Mismo tope que CrearVisitaCommandValidator con AsignarYCrearGestiones: el Command rechazaría la Visita.
+        var demasiados = Enumerable.Range(0, CrearAsignacionesCommandValidator.MaximoTrabajadoresPorLote).Select(_ => Guid.NewGuid())
+            .Append(_sinAsignar.Id).ToList();
+
+        (await Vista(AlcanceDeMiCartera()).Handle(new ObtenerPlanAltaVisitaQuery(_centro.Id, Fin, demasiados), CancellationToken.None))
             .Should().BeNull();
     }
 

@@ -207,6 +207,18 @@ public class PlanAltaVisitaServiceTests
     }
 
     [Fact]
+    public async Task Un_Tipo_de_ambito_Empresa_no_da_Gestion_al_Trabajador_aunque_sea_obligatorio_y_el_Centro_lo_incluya()
+    {
+        var deEmpresa = new TipoDocumentoEntidad(
+            "Seguro de responsabilidad civil", vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 2,
+            AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+        _tipos.ListaTiposDocumento.Add(deEmpresa);
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(deEmpresa.Id, _centro.Id, incluido: true));
+
+        (await CalcularAsync()).Gestiones.Should().ContainSingle().Which.TipoDocumentoId.Should().Be(_formacion.Id);
+    }
+
+    [Fact]
     public async Task La_fila_de_otro_Centro_no_cambia_lo_que_exige_este()
     {
         _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_formacion.Id, _otroCentro.Id, incluido: false));
