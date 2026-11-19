@@ -41,9 +41,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// arbitrario, <c>cae_app_runtime</c> aún podría quitar el marcador a un Tenant sin nombrar la columna:
     /// borrando la fila y volviéndola a insertar en falso (tiene <c>DELETE</c> de tabla), o intercambiando
     /// <c>"Id"</c> con una copia en falso. Ningún camino de la aplicación reescribe la clave ni borra y recrea
-    /// un Tenant marcado, y con ese mismo SQL el runtime ya puede escribir <c>EsPlataforma</c>. Cerrarlo
-    /// exigiría rechazar el <c>DELETE</c> de un Tenant marcado, que choca con la retirada de un Tenant de
-    /// demo, y es una decisión aparte de Seguridad y plataforma.
+    /// un Tenant marcado, y con ese mismo SQL el runtime ya puede escribir <c>EsPlataforma</c>. Los dos
+    /// caminos se cierran por separado. El del <c>DELETE</c> exigiría rechazar el borrado de un Tenant
+    /// marcado, que choca con la retirada de un Tenant de demo. El del <c>"Id"</c> no choca con nada (EF no
+    /// reescribe claves) y bastaría con añadir <c>"Id"</c> a la lista de columnas del trigger y rechazar el
+    /// cambio de clave de una fila marcada. Esta migración no cierra ninguno de los dos: el contrato fijado
+    /// es el trigger sobre la columna, y ampliarlo es una decisión de Seguridad y plataforma.
     /// </para>
     /// </summary>
     public partial class AnadeEsParticipanteTecATenants : Migration
