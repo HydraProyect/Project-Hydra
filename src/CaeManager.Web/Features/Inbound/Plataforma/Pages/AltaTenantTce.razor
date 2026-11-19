@@ -204,8 +204,10 @@
                              Prefijo="corr" />
                 @* Elección obligatoria y sin valor de partida: la pantalla no lee la línea vigente, así que callar la declaración
                    sería revocarla sin decirlo. Guardar no envía el comando mientras no se elija una de las dos. *@
-                <fieldset class="alta-tce-radios" data-campo="declara-solo-inbound-corr">
-                    <legend>@Textos["CorreccionDeclaracionLeyenda"]</legend>
+                <fieldset class="alta-tce-radios" data-campo="declara-solo-inbound-corr"
+                          aria-describedby="@(ErrorEsDeDeclaracion ? IdErrorDeclaracion : null)"
+                          aria-invalid="@(ErrorEsDeDeclaracion ? "true" : null)">
+                    <legend>@Textos["CorreccionDeclaracionLeyenda"]<span class="campo-obligatorio" aria-hidden="true">*</span></legend>
                     <label class="alta-tce-opc">
                         <input type="radio" name="alta-tce-corr-declaracion" value="solo" checked="@(_declaraSoloInboundCorr == true)" disabled="@Ocupado"
                                @onchange="@(() => ElegirDeclaracionSoloInboundCorr(true))" />
@@ -224,7 +226,7 @@
             }
             @if (_errorLinea is not null)
             {
-                <p class="alta-tce-err" role="alert">@_errorLinea</p>
+                <p class="alta-tce-err" role="alert" id="@(ErrorEsDeDeclaracion ? IdErrorDeclaracion : null)">@_errorLinea</p>
             }
             @if (_exitoLinea is not null)
             {

@@ -158,6 +158,11 @@ public partial class AltaTenantTce
 
     private void CambiarDeclaracionSoloInbound(ChangeEventArgs e) { _declaraSoloInbound = e.Value is true; _error = null; }
 
+    private const string IdErrorDeclaracion = "alta-tce-corr-declaracion-error";
+
+    // El error de la línea es uno solo; solo es de la declaración cuando es el mensaje de «sin elegir».
+    private bool ErrorEsDeDeclaracion => _errorLinea is not null && _errorLinea == Textos["ErrorDeclaracionCorreccion"].Value;
+
     private void ElegirDeclaracionSoloInboundCorr(bool declara) { _declaraSoloInboundCorr = declara; _errorLinea = null; }
 
     private void CambiarPagadorCorr(string valor) { _pagadorCorr = valor; _errorLinea = null; }

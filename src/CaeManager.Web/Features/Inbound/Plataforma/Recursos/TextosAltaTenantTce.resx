@@ -214,7 +214,7 @@
     <value>Al guardar, el Producto Contratado vigente se cierra y se abre otro desde ahora con los datos nuevos; el anterior queda en el histórico. La declaración «solo Inbound» no se copia: elige abajo cuál vale ahora.</value>
   </data>
   <data name="CorreccionDeclaracionLeyenda" xml:space="preserve">
-    <value>Declaración «solo Inbound» (obligatoria)</value>
+    <value>Declaración «solo Inbound»</value>
   </data>
   <data name="CorreccionDeclaracionSoloTitulo" xml:space="preserve">
     <value>Solo Inbound: la organización no usa Outbound</value>

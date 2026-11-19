@@ -121,6 +121,12 @@
     font: var(--font-label-md);
 }
 
+/* Mismo asterisco que los campos de CamposLinea (su regla es de ese componente y el CSS con ámbito no la comparte). */
+.alta-tce-radios legend .campo-obligatorio {
+    margin-left: 2px;
+    color: var(--color-danger-700);
+}
+
 .alta-tce-opc {
     display: flex;
     gap: var(--space-3);

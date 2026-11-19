@@ -343,6 +343,86 @@ public class AltaTenantTceTests : BunitContext
             .And.Subject.Last().DeclaraSoloInbound.Should().BeFalse();
     }
 
+    private static void PulsarEnLinea(IRenderedComponent<AltaTenantTce> cut, string texto) =>
+        cut.FindAll(".alta-tce-linea button").First(b => b.TextContent.Trim() == texto).Click();
+
+    private static void DebeEmpezarSinElegir(IRenderedComponent<AltaTenantTce> cut, string porque) =>
+        cut.FindAll("[data-campo='declara-solo-inbound-corr'] input[type='radio']")
+            .Should().HaveCount(2).And.OnlyContain(r => !r.HasAttribute("checked"), porque);
+
+    /// <summary>
+    /// «Cada edición empieza sin elegir» no puede depender de que la edición anterior acabara bien: lo elegido y abandonado
+    /// con Cancelar no se hereda en la edición siguiente (un «solo Inbound» olvidado se enviaría sin que nadie lo decida).
+    /// </summary>
+    [Fact]
+    public void Cancelar_la_edicion_descarta_la_declaracion_elegida()
+    {
+        var cut = RenderConSesion();
+
+        PulsarEnLinea(cut, "Editar");
+        ElegirDeclaracionCorreccion(cut, "solo");
+        cut.Find("[data-campo='declara-solo-inbound-corr'] input[value='solo']").HasAttribute("checked")
+            .Should().BeTrue("la elección se refleja mientras se edita");
+        PulsarEnLinea(cut, "Cancelar");
+        PulsarEnLinea(cut, "Editar");
+
+        DebeEmpezarSinElegir(cut, "tras Cancelar, la edición siguiente empieza sin elegir");
+    }
+
+    [Fact]
+    public void Un_fallo_del_comando_no_deja_la_declaracion_elegida_para_la_edicion_siguiente()
+    {
+        _mediator.RespuestaCorregir = Result.Fallo<Guid>(ErroresCorregirLineaInbound.SinLineaVigente);
+        var cut = RenderConSesion();
+
+        PulsarEnLinea(cut, "Editar");
+        RellenarLineaCorreccion(cut);
+        ElegirDeclaracionCorreccion(cut, "solo");
+        GuardarCorreccion(cut);
+
+        _mediator.Enviados.OfType<CorregirLineaInboundCommand>().Should().ContainSingle();
+        cut.Find(".alta-tce-linea [role='alert']").Should().NotBeNull("el comando falló y la edición sigue abierta");
+        PulsarEnLinea(cut, "Cancelar");
+        PulsarEnLinea(cut, "Editar");
+
+        DebeEmpezarSinElegir(cut, "tras un fallo del comando y Cancelar, la edición siguiente empieza sin elegir");
+    }
+
+    /// <summary>
+    /// El error de «sin elegir» se asocia al grupo de radios (aria-invalid y aria-describedby, que apuntan al párrafo del
+    /// error) y solo a él: un error de otro campo de la línea no marca el grupo como inválido.
+    /// </summary>
+    [Fact]
+    public void El_error_de_declaracion_marca_el_grupo_de_radios_como_invalido_y_lo_describe()
+    {
+        var cut = RenderConSesion();
+        PulsarEnLinea(cut, "Editar");
+        var grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse("antes de guardar no hay error");
+        grupo.HasAttribute("aria-describedby").Should().BeFalse();
+
+        PulsarEnLinea(cut, "Guardar");
+        cut.Find(".alta-tce-linea [role='alert']").TextContent.Should().Contain("Indica el Customer de Stripe");
+        cut.Find("[data-campo='declara-solo-inbound-corr']").HasAttribute("aria-invalid")
+            .Should().BeFalse("el error es de otros campos, no de la declaración");
+
+        RellenarLineaCorreccion(cut);
+        GuardarCorreccion(cut);
+
+        var error = cut.Find(".alta-tce-linea [role='alert']");
+        error.TextContent.Should().Contain("solo Inbound");
+        error.Id.Should().NotBeNullOrEmpty();
+        grupo = cut.Find("[data-campo='declara-solo-inbound-corr']");
+        grupo.GetAttribute("aria-invalid").Should().Be("true");
+        grupo.GetAttribute("aria-describedby").Should().Be(error.Id);
+        grupo.QuerySelector("legend .campo-obligatorio")!.TextContent.Should().Be("*");
+        grupo.QuerySelector("legend")!.TextContent.Should().NotContain("obligatoria");
+
+        ElegirDeclaracionCorreccion(cut, "solo");
+        cut.Find("[data-campo='declara-solo-inbound-corr']").HasAttribute("aria-invalid")
+            .Should().BeFalse("al elegir se retira el error y el grupo deja de marcarse inválido");
+    }
+
     [Fact]
     public void Dar_de_baja_pide_confirmacion_y_manda_DarDeBajaLineaInbound()
     {

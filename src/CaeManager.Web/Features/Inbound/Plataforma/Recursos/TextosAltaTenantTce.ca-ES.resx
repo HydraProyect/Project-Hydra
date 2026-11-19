@@ -214,7 +214,7 @@
     <value>En desar, el Producte Contractat vigent es tanca i se n&apos;obre un altre des d&apos;ara amb les dades noves; l&apos;anterior queda a l&apos;historial. La declaració «només Inbound» no es copia: tria a sota quina val ara.</value>
   </data>
   <data name="CorreccionDeclaracionLeyenda" xml:space="preserve">
-    <value>Declaració «només Inbound» (obligatòria)</value>
+    <value>Declaració «només Inbound»</value>
   </data>
   <data name="CorreccionDeclaracionSoloTitulo" xml:space="preserve">
     <value>Només Inbound: l&apos;organització no fa servir Outbound</value>
@@ -229,7 +229,7 @@
     <value>No es declara «només Inbound»: l&apos;organització manté Outbound.</value>
   </data>
   <data name="ErrorDeclaracionCorreccion" xml:space="preserve">
-    <value>Tria si l&apos;organització és «només Inbound» o conserva Outbound.</value>
+    <value>Tria si l&apos;organització és «només Inbound» o manté Outbound.</value>
   </data>
   <data name="CorreccionHecha" xml:space="preserve">
     <value>Línia Inbound corregida: el Producte Contractat nou és vigent des d&apos;ara.</value>
