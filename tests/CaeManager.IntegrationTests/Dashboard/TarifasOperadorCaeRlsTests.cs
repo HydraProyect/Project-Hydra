@@ -312,7 +312,7 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
     {
         await using var scope = _arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, TimeProvider.System);
+        var handler = new FijarTarifaOperadorCaeCommandHandler(_sesion, contexto, contexto, contexto, TimeProvider.System, CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
         return await handler.Handle(new FijarTarifaOperadorCaeCommand(empresa, concepto, precio, "EUR", true), CancellationToken.None);
     }
 

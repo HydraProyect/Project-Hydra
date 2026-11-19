@@ -83,7 +83,7 @@ public class CandadoEmpresaPropiaTests : IAsyncLifetime
         var alta = Alta(circuitoAlta, _tenantA).Handle(new CrearEmpresaCommand("Delta Instalaciones", null, []), CancellationToken.None);
         var restauracion = new RestaurarEmpresaCommandHandler(
                 circuitoRestauracion, new TenantActualAmbiental { TenantId = _tenantA }, new AlcanceDatosServiceFalso(),
-                circuitoRestauracion, Limite(circuitoRestauracion, _tenantA))
+                circuitoRestauracion, Limite(circuitoRestauracion, _tenantA), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(circuitoRestauracion), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
             .Handle(new RestaurarEmpresaCommand(eliminadaId), CancellationToken.None);
 
         (await EsperanElCandadoAsync(_tenantA, 2, alta, restauracion))
@@ -174,7 +174,7 @@ public class CandadoEmpresaPropiaTests : IAsyncLifetime
 
         var resultado = await new RestaurarEmpresaCommandHandler(
                 circuito, new TenantActualAmbiental { TenantId = _tenantA }, new AlcanceDatosServiceFalso(),
-                circuito, Limite(circuito, _tenantA))
+                circuito, Limite(circuito, _tenantA), new CaeManager.Infrastructure.Persistence.Repositories.RelacionEmpresarialRepository(circuito), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
             .Handle(new RestaurarEmpresaCommand(eliminadaId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();

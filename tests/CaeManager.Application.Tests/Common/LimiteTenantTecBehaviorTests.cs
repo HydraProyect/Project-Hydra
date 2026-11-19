@@ -45,16 +45,30 @@ public class LimiteTenantTecBehaviorTests
         "Tenants.Commands.ReactivarDelegacionTenant.ReactivarDelegacionTenantCommand",
         "Tenants.Commands.CrearAsignacionOperadorDelegado.CrearAsignacionOperadorDelegadoCommand",
         "Tenants.Commands.RegistrarEncargoAdministracion.RegistrarEncargoAdministracionCommand",
-        "Operaciones.ApoyoCartera.Commands.ProponerApoyoCarteraCommand",
-        "Operaciones.ApoyoCartera.Commands.AceptarPropuestaApoyoCarteraCommand",
-        "Operaciones.IncorporacionCartera.Commands.SolicitarIncorporacionCarteraCommand",
-        "Operaciones.IncorporacionCartera.Commands.AceptarSolicitudIncorporacionCarteraCommand",
         "Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand",
         "Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand",
         "Importacion.Commands.EjecutarImportacionMaestra.EjecutarImportacionMaestraCommand",
         "Importacion.Commands.EjecutarImportacionMaestra.PrevisualizarImportacionMaestraCommand",
         "Importacion.Commands.RegistrarHistorialImportacion.RegistrarHistorialImportacionCommand",
+    ];
+
+    /// <summary>
+    /// Los que D3 cierra en su handler, porque el Tenant beneficiario sale de los datos (la Asignación de Cartera, el Operador
+    /// CAE de la tarifa o las Relaciones Empresariales de la Empresa): el behavior los deja pasar sin leer la base, y su
+    /// guarda se prueba en el test de cada handler.
+    /// </summary>
+    public static readonly TheoryData<string> CerradosEnSuHandler =
+    [
+        "Operaciones.ApoyoCartera.Commands.ProponerApoyoCarteraCommand",
+        "Operaciones.ApoyoCartera.Commands.AceptarPropuestaApoyoCarteraCommand",
+        "Operaciones.IncorporacionCartera.Commands.SolicitarIncorporacionCarteraCommand",
+        "Operaciones.IncorporacionCartera.Commands.AceptarSolicitudIncorporacionCarteraCommand",
+        "Usuarios.Commands.AsignarCarteraGestorCae.AsignarCarteraGestorCaeCommand",
+        "Usuarios.Commands.CrearUsuario.CrearUsuarioCommand",
+        "Usuarios.Commands.CambiarActivacionUsuario.CambiarActivacionUsuarioCommand",
         "Dashboard.TarifasOperadorCae.FijarTarifaOperadorCaeCommand",
+        "Empresas.Commands.EditarEmpresa.EditarEmpresaCommand",
+        "Empresas.Commands.RestaurarEmpresa.RestaurarEmpresaCommand",
     ];
 
     /// <summary>
@@ -127,8 +141,10 @@ public class LimiteTenantTecBehaviorTests
     [MemberData(nameof(Cerrados))]
     public async Task Con_Outbound_abierto_el_Command_llega_al_handler(string comando)
     {
+        // Una delegación del propio Tenant activo para cualquier Id: sin ella, un IComandoSobreDelegacionTenant se deniega.
         var (respuesta, llego) = await Ejecutar<object, Result>(
-            Instancia(comando), Result.Exito(), TenantActivo, OutboundCerradoTenantTecFijo.Abierto(), new DelegacionesFalsas());
+            Instancia(comando), Result.Exito(), TenantActivo, OutboundCerradoTenantTecFijo.Abierto(),
+            new DelegacionesFalsas { ParaCualquierId = new DelegacionTenant(Guid.NewGuid(), TenantActivo) });
 
         llego.Should().BeTrue();
         respuesta.EsExitoso.Should().BeTrue();
@@ -156,6 +172,18 @@ public class LimiteTenantTecBehaviorTests
         llego.Should().BeTrue();
         respuesta.EsExitoso.Should().BeTrue();
         limite.Preguntados.Should().BeEmpty("un Command fuera del registro no consulta el marcador");
+    }
+
+    [Theory]
+    [MemberData(nameof(CerradosEnSuHandler))]
+    public async Task Lo_que_D3_cierra_en_su_handler_pasa_el_behavior_sin_leer_la_base(string comando)
+    {
+        var limite = OutboundCerradoTenantTecFijo.Cerrado();
+        var (_, llego) = await Ejecutar<object, Result>(Instancia(comando), Result.Exito(), TenantActivo, limite);
+
+        llego.Should().BeTrue("su Tenant beneficiario no es el Tenant activo, o depende de los datos: decide el handler");
+        limite.Preguntados.Should().BeEmpty();
+        RegistroLimiteTenantTec.CierraSinLinea(Tipo(comando)).Should().BeFalse();
     }
 
     [Theory]
@@ -304,6 +332,27 @@ public class LimiteTenantTecBehaviorTests
     }
 
     [Fact]
+    public async Task Si_la_delegacion_no_aparece_se_deniega()
+    {
+        // Falla cerrado: sin la DelegacionTenant (no existe, o el Tenant activo no la ve) no se sabe cuál es su Tenant
+        // beneficiario, aunque el Tenant activo tenga Outbound abierto.
+        var limite = OutboundCerradoTenantTecFijo.Abierto();
+
+        foreach (var comando in new ICommandBase[]
+                 {
+                     new CrearAsignacionOperadorDelegadoCommand(Guid.NewGuid(), Guid.NewGuid(), "GestorCae"),
+                     new ReactivarDelegacionTenantCommand(Guid.NewGuid()),
+                 })
+        {
+            var (respuesta, llego) = await Ejecutar<object, Result>(
+                comando, Result.Exito(), TenantActivo, limite, new DelegacionesFalsas());
+
+            llego.Should().BeFalse(comando.GetType().Name);
+            DebeSerElErrorDeD3(respuesta);
+        }
+    }
+
+    [Fact]
     public void No_depende_de_quien_es_el_actor()
     {
         // DN-6: el límite vale igual con Sesión Privilegiada, por un Operador CAE externo o por un Encargo de
@@ -318,8 +367,11 @@ public class LimiteTenantTecBehaviorTests
 
     private sealed class DelegacionesFalsas(params DelegacionTenant[] delegaciones) : IDelegacionTenantRepository
     {
+        /// <summary>La que se devuelve para un Id que no está en la lista; sin ella, la delegación no aparece.</summary>
+        public DelegacionTenant? ParaCualquierId { get; init; }
+
         public Task<DelegacionTenant?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromResult(delegaciones.FirstOrDefault(d => d.Id == id));
+            Task.FromResult(delegaciones.FirstOrDefault(d => d.Id == id) ?? ParaCualquierId);
 
         public Task<bool> BloquearYReleerAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

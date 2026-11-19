@@ -32,6 +32,7 @@ public class IncorporacionCarteraCommandsTests
     private readonly UnitOfWorkConAmbito _unitOfWork = new();
     private readonly DirectorioRolesEnOrigen _directorio = new();
     private readonly CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso _bloqueo = new();
+    private OutboundCerradoTenantTecFijo _outbound = OutboundCerradoTenantTecFijo.Abierto();
 
     public IncorporacionCarteraCommandsTests()
     {
@@ -54,7 +55,7 @@ public class IncorporacionCarteraCommandsTests
     }
 
     private SolicitarIncorporacionCarteraCommandHandler Solicitar(CurrentUserServicePorAmbito usuario) =>
-        new(usuario, _directorio, _catalogo, _repositorio);
+        new(usuario, _directorio, _catalogo, _repositorio, _outbound);
 
     private AceptarSolicitudIncorporacionCarteraCommandHandler Aceptar(
         CurrentUserServicePorAmbito usuario, bool solicitanteActivo = true)
@@ -64,7 +65,7 @@ public class IncorporacionCarteraCommandsTests
         return new(usuario, _catalogo, _repositorio, _directorio,
             _notificaciones, _tenants, _unitOfWork, NullLogger<AceptarSolicitudIncorporacionCarteraCommandHandler>.Instance,
             new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
-            _bloqueo);
+            _bloqueo, _outbound);
     }
 
     private RechazarSolicitudIncorporacionCarteraCommandHandler Rechazar(CurrentUserServicePorAmbito usuario) =>
@@ -94,6 +95,40 @@ public class IncorporacionCarteraCommandsTests
         solicitud.Aceptar(_coordinador, cartera, Guid.NewGuid(), DateTime.UtcNow);
         _catalogo.CarterasVigentes.Add(cartera.Id);
         return solicitud;
+    }
+
+    // ── D3: Outbound cerrado para el Tenant beneficiario ─────────────────
+
+    /// <summary>
+    /// D3 (DN-4): el Tenant beneficiario de la cartera es el de la Empresa, no el Tenant activo (el del Operador CAE
+    /// externo). Si el Tenant beneficiario es un Tenant TEC participante sin línea Outbound vigente, no se pide.
+    /// </summary>
+    [Fact]
+    public async Task D3_no_se_solicita_una_cartera_sobre_un_Tenant_beneficiario_con_Outbound_cerrado()
+    {
+        _outbound = new OutboundCerradoTenantTecFijo(t => t == _empresa.Id);
+
+        var resultado = await Solicitar(Como(_gestor, "GestorCae"))
+            .Handle(new SolicitarIncorporacionCarteraCommand(_empresa.Id, "Llevo sus centros"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        _outbound.Preguntados.Should().Equal([_empresa.Id], "decide el Tenant beneficiario, no el Operador CAE");
+        _repositorio.Solicitudes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task D3_no_se_acepta_una_cartera_sobre_un_Tenant_beneficiario_con_Outbound_cerrado()
+    {
+        var solicitud = Pendiente();
+        _outbound = new OutboundCerradoTenantTecFijo(t => t == _empresa.Id);
+
+        var resultado = await Aceptar(Como(_coordinador, "CoordinadorCae"))
+            .Handle(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        _outbound.Preguntados.Should().Equal([_empresa.Id]);
+        solicitud.Estado.Should().Be(EstadoSolicitudIncorporacionCartera.Pendiente);
+        _catalogo.TenantsAlIncorporar.Should().BeEmpty();
     }
 
     // ── Solicitar ────────────────────────────────────────────────────────

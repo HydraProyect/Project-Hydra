@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -56,7 +57,8 @@ public class AsignarCarteraGestorCaeCommandHandler(
     IDirectorioDestinosCartera directorioDestinos,
     ICatalogoIncorporacionCartera catalogo,
     ITransaccionDeComando transaccion,
-    IBloqueoCarteraUsuario bloqueoCartera)
+    IBloqueoCarteraUsuario bloqueoCartera,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<AsignarCarteraGestorCaeCommand, Result>
 {
     public static readonly Error EmpresaNoAsignable = Error.Crear(
@@ -185,6 +187,11 @@ public class AsignarCarteraGestorCaeCommandHandler(
                 {
                     var incorporada = await EnPropietarioAsync(operacion.PropietarioTenantId, async () =>
                     {
+                        // D3 (DN-4, DN-7): la Asignación de Cartera es un alta en el Tenant beneficiario, que aquí ya es
+                        // el Tenant activo; si Outbound está cerrado para él, no se asigna y no se guarda nada.
+                        if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, ct))
+                            return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
                         var r = await catalogo.IncorporarAsync(
                             operacion.PropietarioTenantId, ctx.OperadorTenantId, operacion.AsignacionOperacionId,
                             ctx.GestorUsuarioId, ct);

@@ -596,7 +596,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     cuentas, usuario, sp.GetRequiredService<ITenantActual>(),
                     new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                     new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio,
-                    new AdministradoresDelTenant(contexto, directorio), aviso)
+                    new AdministradoresDelTenant(contexto, directorio), aviso, CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new CambiarActivacionUsuarioCommand(usuarioId, Activar: false, destinoId, sinDestinoConfirmado), CancellationToken.None);
         });
 
@@ -924,7 +924,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         var emitir = EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, _) =>
             new AsignarCarteraGestorCaeCommandHandler(
                     usuario, directorio, directorio, new CatalogoConPausa(new CatalogoIncorporacionCartera(contexto, usuario), enPausa),
-                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new AsignarCarteraGestorCaeCommand(_gestorA, [_beneficiarioSinPrincipal.Id], null), CancellationToken.None));
         await enPausa.Alcanzada;
 
@@ -1140,7 +1140,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         EnArnes(_administrador, Roles.Administrador, _operador.Id, (usuario, contexto, directorio, _) =>
             new AsignarCarteraGestorCaeCommandHandler(
                     usuario, directorio, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
-                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new AsignarCarteraGestorCaeCommand(gestor, null, [beneficiario.Id]), CancellationToken.None));
 
     private Task<Result> Asumir(Guid usuarioId, string rolDeSesion, Guid origen, Guid operacionId, Pausa? pausa = null) =>

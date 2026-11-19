@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -19,7 +20,8 @@ public class SolicitarIncorporacionCarteraCommandHandler(
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
-    ISolicitudIncorporacionCarteraRepository repositorio)
+    ISolicitudIncorporacionCarteraRepository repositorio,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<SolicitarIncorporacionCarteraCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(SolicitarIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -53,6 +55,15 @@ public class SolicitarIncorporacionCarteraCommandHandler(
             var candidato = candidatos.FirstOrDefault(c => c.PropietarioTenantId == request.TenantPropietarioId);
             if (candidato is null)
                 return Result.Fallo<Guid>(ErroresSolicitudCartera.TenantNoCandidato);
+
+            // D3 (DN-4, DN-7): la Asignación de Cartera que se pide sería del Tenant beneficiario de la petición, no del
+            // Tenant activo (el del Operador CAE); si Outbound está cerrado para él, no se pide.
+            // shortcut: desde el Tenant de origen, la línea Outbound del Tenant beneficiario se lee bajo la RLS de
+            // ProductosContratados como SinLinea, así que un Tenant beneficiario marcado con línea Vigente se cierra en falso
+            // (fallo cerrado aceptado); al aceptar se vuelve a decidir con el Tenant beneficiario como Tenant activo. Se
+            // resolverá con un contrato de lectura entre Tenants cuando exista B-08.
+            if (await outboundCerrado.EstaCerradoAsync(candidato.PropietarioTenantId, cancellationToken))
+                return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
             if (await repositorio.ExistePendienteAsync(candidato.AsignacionOperacionId, ctx.UsuarioId, cancellationToken))
                 return Result.Fallo<Guid>(ErroresSolicitudCartera.YaPendiente);

@@ -29,13 +29,10 @@ namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegad
 /// </para>
 /// </summary>
 [AreaDelEncargo("Tenants")]
-// IComandoSobreAsignacionDeOperacion: el límite del Tenant TEC (D3, DN-4) mira también al Tenant beneficiario de la
-// Asignación de Operación, que en la vía heredada no es el Tenant activo.
+// IComandoSobreDelegacionTenant: el límite del Tenant TEC (D3, DN-4) mira también al Tenant beneficiario de la
+// delegación, que en la vía heredada no es el Tenant activo.
 public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol)
-    : ICommand<Guid>, IComandoSobreAsignacionDeOperacion
-{
-    Guid IComandoSobreAsignacionDeOperacion.AsignacionDeOperacionId => DelegacionTenantId;
-}
+    : ICommand<Guid>, IComandoSobreDelegacionTenant;
 
 public class CrearAsignacionOperadorDelegadoCommandValidator : AbstractValidator<CrearAsignacionOperadorDelegadoCommand>
 {

@@ -189,7 +189,7 @@ public class CarteraRevocadaBajoElCandadoDeEmpresaPropiaTests
         var tenant = new LimitesDePrueba.TenantActualFijo(tenantId);
         return comando switch
         {
-            "Empresa" => await new RestaurarEmpresaCommandHandler(empresas, tenant, alcance, uow, limite, alcance)
+            "Empresa" => await new RestaurarEmpresaCommandHandler(empresas, tenant, alcance, uow, limite, new CaeManager.Application.Tests.Empresas.RelacionesEmpresarialesFijas(), CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto(), alcance)
                 .Handle(new RestaurarEmpresaCommand(id), default),
             "Cliente" => await new RestaurarClienteCommandHandler(empresas, tenant, alcance, uow, limite, alcance)
                 .Handle(new RestaurarClienteCommand(id), default),

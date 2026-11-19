@@ -1,3 +1,4 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants.Encargo;
@@ -43,7 +44,8 @@ public class ProponerApoyoCarteraCommandHandler(
     ICurrentUserService currentUserService,
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
-    IPropuestaApoyoCarteraRepository repositorio)
+    IPropuestaApoyoCarteraRepository repositorio,
+    IOutboundCerradoTenantTec outboundCerrado)
     : IRequestHandler<ProponerApoyoCarteraCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(ProponerApoyoCarteraCommand request, CancellationToken cancellationToken)
@@ -98,6 +100,15 @@ public class ProponerApoyoCarteraCommandHandler(
             var operacion = await catalogo.ObtenerOperacionVigenteAsync(request.AsignacionOperacionId, cancellationToken);
             if (operacion is null || operacion.OperadorTenantId != ctx.OperadorTenantId)
                 return Result.Fallo<Guid>(ErroresPropuestaApoyo.OperacionNoDisponible);
+
+            // D3 (DN-4, DN-7): el apoyo sería una Asignación de Cartera nueva en el Tenant beneficiario de la Asignación de
+            // Operación, no en el Tenant activo (el del Operador CAE); si Outbound está cerrado para él, no se propone.
+            // shortcut: desde el Tenant de origen, la línea Outbound del Tenant beneficiario se lee bajo la RLS de
+            // ProductosContratados como SinLinea, así que un Tenant beneficiario marcado con línea Vigente se cierra en falso
+            // (fallo cerrado aceptado); al aceptar se vuelve a decidir con el Tenant beneficiario como Tenant activo. Se
+            // resolverá con un contrato de lectura entre Tenants cuando exista B-08.
+            if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, cancellationToken))
+                return Result.Fallo<Guid>(ErroresLimiteTenantTec.OutboundCerrado);
 
             var propuesta = PropuestaApoyoCartera.Crear(
                 operacion, ctx.UsuarioId, request.DestinatarioUsuarioId, vigenciaHasta, DateTime.UtcNow);

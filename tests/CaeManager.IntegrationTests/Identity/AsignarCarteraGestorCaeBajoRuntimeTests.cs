@@ -466,7 +466,7 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
             var handler = new AsignarCarteraGestorCaeCommandHandler(
                 usuario, directorio, directorio,
                 antesDeIncorporar is null ? catalogo : new CatalogoConGancho(catalogo, antesDeIncorporar),
-                new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto));
+                new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia);
             return handler.Handle(comando, CancellationToken.None);
         });
 

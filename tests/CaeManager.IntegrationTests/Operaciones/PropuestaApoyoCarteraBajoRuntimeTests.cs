@@ -375,7 +375,7 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
     private Task<Result<Guid>> Proponer(Guid proponente, Guid destinatario) =>
         EnArnes(proponente, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, _) =>
             new ProponerApoyoCarteraCommandHandler(
-                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario), new PropuestaApoyoCarteraRepository(contexto))
+                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario), new PropuestaApoyoCarteraRepository(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new ProponerApoyoCarteraCommand(_operacion, destinatario), CancellationToken.None));
 
     private Task<Result> Aceptar(
@@ -388,7 +388,7 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
                     usuario, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
                     new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                     directorio, new NotificacionUsuarioRepository(contexto), contexto, contexto,
-                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
+                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance, CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), CancellationToken.None);
         }, tenantActivo);
 
@@ -459,7 +459,7 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
     {
         var propuesta = await EnArnes(_gestorA, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, _) =>
             new ProponerApoyoCarteraCommandHandler(
-                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario), new PropuestaApoyoCarteraRepository(contexto))
+                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario), new PropuestaApoyoCarteraRepository(contexto), CaeManager.IntegrationTests.OutboundTenantTecAbierto.Instancia)
                 .Handle(new ProponerApoyoCarteraCommand(_operacion, _gestorB, ultimoDia), CancellationToken.None));
         propuesta.EsExitoso.Should().BeTrue(propuesta.EsFallido ? propuesta.Error.Codigo : null);
         (await Aceptar(_gestorB, _operador.Id, propuesta.Valor)).EsExitoso.Should().BeTrue();

@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Comercial.LineaOutbound;
+using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
@@ -74,6 +75,7 @@ public class CrearUsuarioCommandHandler(
     ICatalogoIncorporacionCartera catalogoCartera,
     ITransaccionDeComando transaccion,
     IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IOutboundCerradoTenantTec outboundCerrado,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CrearUsuarioCommand, Result<UsuarioCreado>>
 {
@@ -247,6 +249,11 @@ public class CrearUsuarioCommandHandler(
     {
         using (AmbitoTenantExplicito.Establecer(operacion.PropietarioTenantId))
         {
+            // D3 (DN-4, DN-7): cada Asignación de Cartera del alta es un alta en su Tenant beneficiario, que aquí ya es el
+            // Tenant activo; si Outbound está cerrado para él, no se crea ni la cuenta ni su cartera.
+            if (await outboundCerrado.EstaCerradoAsync(operacion.PropietarioTenantId, ct))
+                return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
+
             var incorporacion = await catalogoCartera.IncorporarAsync(
                 operacion.PropietarioTenantId, operadorTenantId, operacion.AsignacionOperacionId, usuarioId, ct);
 

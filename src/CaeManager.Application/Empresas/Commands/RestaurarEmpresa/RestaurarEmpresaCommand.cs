@@ -1,6 +1,8 @@
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.RelacionesEmpresariales;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +15,7 @@ public record RestaurarEmpresaCommand(Guid Id) : ICommand;
 public class RestaurarEmpresaCommandHandler(
     IEmpresasQueryContext empresasContext, ITenantActual tenantActual,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork, ILimiteEmpresaPropia limiteEmpresaPropia,
+    IRelacionEmpresarialRepository relaciones, IOutboundCerradoTenantTec outboundCerrado,
     IInvalidadorAlcance? invalidadorAlcance = null)
     : IRequestHandler<RestaurarEmpresaCommand, Result>
 {
@@ -46,6 +49,14 @@ public class RestaurarEmpresaCommandHandler(
             if (empresa.EsPropia
                 && await limiteEmpresaPropia.ComprobarAltaAsync(0, esIntento: true, ct) is { } limite)
                 return Result.Fallo(limite);
+
+            // D3 (DN-4, DN-7): restaurar una Empresa con Relaciones Empresariales vigentes con Clientes empresariales devuelve
+            // a Outbound esas relaciones, y las restauraciones se deniegan al Tenant TEC participante sin línea Outbound. La
+            // Empresa sin Clientes empresariales sigue abierta. El Tenant beneficiario es el Tenant activo, dueño de la Empresa;
+            // sin él, falla cerrado.
+            if ((await relaciones.ObtenerContrapartesVigentesAsync(empresa.Id, ct)).ClienteIds.Any()
+                && (tenantActual.TenantId is not { } tenantId || await outboundCerrado.EstaCerradoAsync(tenantId, ct)))
+                return Result.Fallo(ErroresLimiteTenantTec.OutboundCerrado);
 
             empresa.Restaurar();
             await unitOfWork.SaveChangesAsync(ct);

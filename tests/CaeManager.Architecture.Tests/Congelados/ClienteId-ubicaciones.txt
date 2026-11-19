@@ -56,6 +56,9 @@ src/CaeManager.Application/Common/IAlcanceDatosService.cs :: ObtenerClienteIdsVi
 # D3 (2026-11-19): el límite del Tenant TEC lee el Tenant propietario de la Asignación de Operación por su nombre legacy
 # (DelegacionTenant.TenantClienteId); no es un Cliente empresarial ni un nombre nuevo.
 src/CaeManager.Application/Common/LimiteTenantTecBehavior.cs :: TenantClienteId = 1
+# D3 (2026-11-19, DN-7): restaurar una Empresa se cierra si tiene Clientes empresariales vigentes; lee ContrapartesVigentes.ClienteIds,
+# la posición cliente de la Relación Empresarial, sin nombre nuevo.
+src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs :: ClienteIds = 1
 src/CaeManager.Application/Comunicaciones/AlcanceDeMensajesDeConversacion.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/BloqueoRespuestaSugerida.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/AprobarRecordatorioConversacion/AprobarRecordatorioConversacionCommand.cs :: ClienteId = 1

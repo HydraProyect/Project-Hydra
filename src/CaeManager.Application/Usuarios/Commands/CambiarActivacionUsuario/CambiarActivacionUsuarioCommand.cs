@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Clientes;
+using CaeManager.Application.Clientes;
+using CaeManager.Application.Comercial.LineaOutbound;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants.Encargo;
@@ -125,6 +126,7 @@ public class CambiarActivacionUsuarioCommandHandler(
     IDirectorioUsuariosService directorioUsuarios,
     IAdministradoresDelTenant administradores,
     IAvisoDeCarteraSinGestorCae avisoSinGestorCae,
+    IOutboundCerradoTenantTec outboundCerrado,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CambiarActivacionUsuarioCommand, Result>
 {
@@ -392,6 +394,18 @@ public class CambiarActivacionUsuarioCommandHandler(
             if (destinoId is not { } destinoUsuarioId
                 || !asignables.TryGetValue(tenant.PropietarioTenantId, out var asignable)
                 || !reasignables[tenant.PropietarioTenantId].Contains(asignable.AsignacionOperacionId))
+            {
+                aRelevar.AddRange(principalesDelTenant);
+                continue;
+            }
+
+            // D3 (DN-7): la desactivación es una baja y sigue adelante, pero el traspaso es una Asignación de Cartera nueva
+            // para el destino en el Tenant beneficiario. Si Outbound está cerrado para él, la cartera se retira sin
+            // traspasarla, como la de una operación que ya no autoriza. Se lee con el Tenant beneficiario como Tenant activo.
+            bool beneficiarioCerrado;
+            using (AmbitoTenantExplicito.Establecer(tenant.PropietarioTenantId))
+                beneficiarioCerrado = await outboundCerrado.EstaCerradoAsync(tenant.PropietarioTenantId, ct);
+            if (beneficiarioCerrado)
             {
                 aRelevar.AddRange(principalesDelTenant);
                 continue;

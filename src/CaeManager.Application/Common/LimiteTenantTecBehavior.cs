@@ -13,9 +13,11 @@ namespace CaeManager.Application.Common;
 /// lo que se pide?», no a «¿es este el papel?» ni a «¿puede escribir este actor?».
 ///
 /// <para>
-/// El Tenant beneficiario es el Tenant activo (<see cref="ITenantActual"/>) y, en un <see cref="IComandoSobreAsignacionDeOperacion"/>,
-/// también el Tenant propietario de esa Asignación de Operación. No mira al actor (DN-6): con Sesión Privilegiada, por un Operador CAE
+/// El Tenant beneficiario es el Tenant activo (<see cref="ITenantActual"/>) y, en un <see cref="IComandoSobreDelegacionTenant"/>,
+/// también el Tenant beneficiario de esa delegación. No mira al actor (DN-6): con Sesión Privilegiada, por un Operador CAE
 /// externo o por un Encargo de administración, se aplica igual; por eso este behavior no depende de quién es el usuario.
+/// Los Commands cuyo Tenant beneficiario sale de los datos cargados (las Asignaciones de Cartera, la tarifa del Operador CAE,
+/// la edición y la restauración de una Empresa) llevan la guarda en su handler (ver <see cref="RegistroLimiteTenantTec"/>).
 /// </para>
 ///
 /// <para>
@@ -53,14 +55,25 @@ public sealed class LimiteTenantTecBehavior<TRequest, TResponse>(ITenantActual t
         if (await outboundCerrado.EstaCerradoAsync(tenantId, cancellationToken))
             return Denegar();
 
-        // TenantClienteId es el nombre legacy del Tenant propietario de la Asignación de Operación (deuda terminológica).
-        if (request is IComandoSobreAsignacionDeOperacion sobreAsignacion
-            && await servicios.GetRequiredService<IDelegacionTenantRepository>()
-                .ObtenerPorIdAsync(sobreAsignacion.AsignacionDeOperacionId, cancellationToken)
-                is { TenantClienteId: var tenantPropietarioDeLaAsignacion }
-            && tenantPropietarioDeLaAsignacion != tenantId
-            && await outboundCerrado.EstaCerradoAsync(tenantPropietarioDeLaAsignacion, cancellationToken))
-            return Denegar();
+        if (request is IComandoSobreDelegacionTenant sobreDelegacion)
+        {
+            var delegacion = await servicios.GetRequiredService<IDelegacionTenantRepository>()
+                .ObtenerPorIdAsync(sobreDelegacion.DelegacionTenantId, cancellationToken);
+
+            // Falla cerrado: una DelegacionTenant que no aparece (no existe, o el Tenant activo no la ve) no deja saber cuál
+            // es su Tenant beneficiario.
+            if (delegacion is null)
+                return Denegar();
+
+            // TenantClienteId es el nombre legacy del Tenant beneficiario de la delegación (deuda terminológica).
+            // shortcut: la línea Outbound de un Tenant beneficiario que no es el Tenant activo se lee bajo la RLS de
+            // ProductosContratados como SinLinea, así que una delegación ajena con línea Vigente se cierra en falso (fallo
+            // cerrado aceptado en la vía heredada). Se resolverá con un contrato de lectura entre Tenants cuando exista B-08.
+            var tenantBeneficiarioAjeno = delegacion.TenantClienteId;
+            if (tenantBeneficiarioAjeno != tenantId
+                && await outboundCerrado.EstaCerradoAsync(tenantBeneficiarioAjeno, cancellationToken))
+                return Denegar();
+        }
 
         return await next(cancellationToken);
     }

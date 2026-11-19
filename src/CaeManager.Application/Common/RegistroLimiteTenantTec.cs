@@ -4,13 +4,23 @@ namespace CaeManager.Application.Common;
 /// Qué Commands cierra D3 al Tenant TEC participante sin línea Outbound vigente (decisiones de Chris del 2026-11-19,
 /// DN-4 y DN-7). Lo consume <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/>. Las claves son tipos o
 /// subnamespaces relativos a <c>CaeManager.Application</c>, como en el registro de módulos, para que el registro no dependa
-/// en compilación de cada área; <c>RegistroLimiteTenantTecTests</c> exige que cada clave case con al menos un Command, de
-/// modo que un renombrado da rojo en vez de abrir en silencio.
+/// en compilación de cada área; <c>LimiteTenantTecBehaviorTests.Cada_clave_del_registro_nombra_al_menos_un_Command</c>
+/// exige que cada clave case con al menos un Command, de modo que un renombrado da rojo en vez de abrir en silencio. La
+/// clasificación de todos los Commands (cerrado aquí, cerrado en su handler, abierto con su motivo o no aplica) está
+/// congelada en <c>tests/CaeManager.Architecture.Tests/Datos/LimiteTenantTecClasificacion.txt</c>.
+///
+/// <para>
+/// <b>Cerrados en su handler</b>, porque el Tenant beneficiario no es el Tenant activo o depende de los datos: las altas de
+/// Asignaciones de Cartera (solicitar y aceptar una incorporación, proponer y aceptar un apoyo, «Asignar empresas», el alta
+/// de un Gestor CAE con cartera y el traspaso al desactivar), que deciden por el Tenant beneficiario de cada cartera; la
+/// tarifa del Operador CAE (F-6), que decide por el Tenant de origen del Operador CAE; y la edición y la restauración de una
+/// Empresa, que solo se cierran si añaden o devuelven Relaciones Empresariales con Clientes empresariales.
+/// </para>
 ///
 /// <para>
 /// <b>Cerradas sin línea</b> (<see cref="CerradasSinLinea"/>): el alta de Centros, el alta de Clientes empresariales y las
 /// delegaciones (DN-4), con sus restauraciones y reactivaciones (DN-7), lo que el Tenant TEC sin línea Outbound no es
-/// (Operador CAE: la tarifa del Operador CAE, F-6; la acreditación frente a plataformas CAE de los canales de un Centro y
+/// (Operador CAE: la acreditación frente a plataformas CAE de los canales de un Centro y
 /// de un Cliente empresarial) y las importaciones, que crean Centros y Clientes empresariales sin pasar por sus Commands.
 /// Las bajas quedan abiertas (DN-7): eliminar un Centro, un Cliente empresarial o un canal, desactivar una delegación,
 /// revocar una asignación o retirar un encargo. El alta de una Empresa solo se cierra si la relaciona con Clientes
@@ -61,17 +71,8 @@ public static class RegistroLimiteTenantTec
         "Tenants.Commands.CrearAsignacionOperadorDelegado",
         "Tenants.Commands.RegistrarEncargoAdministracion",
 
-        // Asignaciones de Cartera nuevas dentro de una Asignación de Operación (altas, DN-7).
-        "Operaciones.ApoyoCartera.Commands.ProponerApoyoCarteraCommand",
-        "Operaciones.ApoyoCartera.Commands.AceptarPropuestaApoyoCarteraCommand",
-        "Operaciones.IncorporacionCartera.Commands.SolicitarIncorporacionCarteraCommand",
-        "Operaciones.IncorporacionCartera.Commands.AceptarSolicitudIncorporacionCarteraCommand",
-
         // Importaciones (área de Outbound): crean Centros, Clientes empresariales y Empresas sin sus Commands.
         "Importacion.Commands",
-
-        // Tarifa del Operador CAE (F-6): sin línea Outbound, el Tenant TEC no es Operador CAE.
-        "Dashboard.TarifasOperadorCae.FijarTarifaOperadorCaeCommand",
     ];
 
     /// <summary>
@@ -119,11 +120,12 @@ public interface ILimiteTenantTecSegunDatos
 }
 
 /// <summary>
-/// Un Command que actúa sobre una Asignación de Operación (en código, la entidad legacy <c>DelegacionTenant</c>: deuda
-/// terminológica) cuyo Tenant propietario, el Tenant beneficiario, puede no ser el Tenant activo.
-/// <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> aplica el límite también a ese Tenant.
+/// Un Command que actúa sobre una <c>DelegacionTenant</c> (entidad legacy de la vía heredada de la Asignación de Operación:
+/// deuda terminológica) cuyo Tenant beneficiario, su <c>TenantClienteId</c>, puede no ser el Tenant activo.
+/// <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> la lee y aplica el límite también a ese Tenant; si no la
+/// encuentra, deniega.
 /// </summary>
-public interface IComandoSobreAsignacionDeOperacion
+public interface IComandoSobreDelegacionTenant
 {
-    Guid AsignacionDeOperacionId { get; }
+    Guid DelegacionTenantId { get; }
 }

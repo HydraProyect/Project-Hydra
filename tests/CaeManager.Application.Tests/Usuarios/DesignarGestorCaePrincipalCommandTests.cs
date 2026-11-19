@@ -366,7 +366,7 @@ public class DesignarGestorCaePrincipalCommandTests
     // ---------- Relevo automático al retirar la cartera principal ----------
 
     private static AsignarCarteraGestorCaeCommandHandler Retirada(Escenario e) => new(
-        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo);
+        new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Cuentas, e.Catalogo, e.Transaccion, e.Bloqueo, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
     private static async Task RetirarAsync(Escenario e, Guid gestor)
     {

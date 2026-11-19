@@ -89,6 +89,7 @@ public class PropuestaApoyoCarteraTests
         public DirectorioDestinosPorUsuario Cuentas { get; } = new();
         public NotificacionUsuarioRepositorioFalso Notificaciones { get; } = new();
         public UnitOfWorkConAmbito UnitOfWork { get; } = new();
+        public CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo Outbound { get; set; } = CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto();
 
         public Escenario()
         {
@@ -145,7 +146,7 @@ public class PropuestaApoyoCarteraTests
             new(usuarioId, origen ?? Operador, rolDeSesion, rolFueraDelOrigen ?? rolDeSesion);
 
         public Task<Result<Guid>> Proponer(Guid actor, Guid destinatario, Guid? operacion = null, Guid? origen = null, string? rolDeSesion = "GestorCae", string? rolFueraDelOrigen = null) =>
-            new ProponerApoyoCarteraCommandHandler(Como(actor, origen, rolDeSesion, rolFueraDelOrigen), Roles, Catalogo, Repositorio)
+            new ProponerApoyoCarteraCommandHandler(Como(actor, origen, rolDeSesion, rolFueraDelOrigen), Roles, Catalogo, Repositorio, Outbound)
                 .Handle(new ProponerApoyoCarteraCommand(operacion ?? Operacion.Id, destinatario), default);
 
         public Task<Result> Aceptar(
@@ -153,7 +154,7 @@ public class PropuestaApoyoCarteraTests
             new AceptarPropuestaApoyoCarteraCommandHandler(
                     Como(actor, origen, rolDeSesion, rolFueraDelOrigen), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo,
                     Cuentas, Notificaciones, Tenants, UnitOfWork,
-                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
+                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance, Outbound)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), default);
 
         public Task<Result> Rechazar(Guid actor, Guid propuestaId, Guid? origen = null) =>
@@ -466,6 +467,41 @@ public class PropuestaApoyoCarteraTests
                 .Should().BeEquivalentTo(["PropuestaId"], "el Tenant propietario, la cartera y las dos personas salen de la propuesta");
     }
 
+    // ================= D3: Outbound cerrado para el Tenant beneficiario =================
+
+    /// <summary>
+    /// D3 (DN-4): el apoyo es una Asignación de Cartera sobre el Tenant beneficiario de la Asignación de Operación (la
+    /// Empresa), no sobre el Tenant activo, que es el del Operador CAE externo. Con Outbound cerrado para ese Tenant
+    /// beneficiario no se propone ni se acepta.
+    /// </summary>
+    [Fact]
+    public async Task D3_no_se_propone_un_apoyo_sobre_un_Tenant_beneficiario_con_Outbound_cerrado()
+    {
+        var e = new Escenario();
+        e.Outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == e.Empresa.Id);
+
+        var resultado = await e.Proponer(GestorA, GestorB);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        e.Outbound.Preguntados.Should().Equal([e.Empresa.Id], "decide el Tenant beneficiario, no el Operador CAE");
+        e.Repositorio.Propuestas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task D3_no_se_acepta_un_apoyo_sobre_un_Tenant_beneficiario_con_Outbound_cerrado()
+    {
+        var e = new Escenario();
+        var propuesta = e.PropuestaPendiente();
+        e.Outbound = new CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo(t => t == e.Empresa.Id);
+
+        var resultado = await e.Aceptar(GestorB, propuesta.Id);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Comercial.LineaOutbound.ErroresLimiteTenantTec.OutboundCerrado.Codigo);
+        e.Outbound.Preguntados.Should().Equal([e.Empresa.Id]);
+        propuesta.Estado.Should().Be(EstadoPropuestaApoyoCartera.Pendiente);
+        e.Catalogo.ApoyosPedidos.Should().BeEmpty();
+    }
+
     // ================= Aceptar =================
 
     [Fact]
@@ -671,7 +707,7 @@ public class PropuestaApoyoCarteraTests
         var registro = new RegistroCaptura();
         var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
             e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, new TransaccionQueFalla(), e.Bloqueo,
-            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro);
+            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
 
@@ -692,7 +728,7 @@ public class PropuestaApoyoCarteraTests
         var registro = new RegistroCaptura();
         var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
             e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, e.Transaccion, e.Bloqueo,
-            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro);
+            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro, CaeManager.Application.Tests.Comercial.OutboundCerradoTenantTecFijo.Abierto());
 
         var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
 
