@@ -33,6 +33,16 @@ public static class RegistroDataProtection
     /// </summary>
     public const string ClavePermitirClavesSinCifrar = "DataProtection:PermitirClavesSinCifrar";
 
+    /// <summary>
+    /// Directorio del llavero de Data Protection en disco (el volumen persistente del despliegue). También lo usa el
+    /// llavero de firma de la credencial de acceso de Inbound, para que su fichero viva en el mismo volumen y backup.
+    /// </summary>
+    public static string RutaAbsolutaDelLlavero(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        var ruta = configuration["DataProtection:RutaClaves"] ?? "App_Data/dataprotection-keys";
+        return Path.IsPathRooted(ruta) ? ruta : Path.Combine(entorno.ContentRootPath, ruta);
+    }
+
     public static IServiceCollection AgregarDataProtectionDeCaeManager(
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
@@ -43,10 +53,7 @@ public static class RegistroDataProtection
         // apuntar a un volumen persistente en despliegues en contenedor (ver
         // Project-Hydra-Negocio/tecnico/DEPLOY.md); en desarrollo local, relativa al content root como el
         // resto de rutas de almacenamiento de la app.
-        var rutaClavesDataProtection = configuration["DataProtection:RutaClaves"] ?? "App_Data/dataprotection-keys";
-        var rutaClavesAbsoluta = Path.IsPathRooted(rutaClavesDataProtection)
-            ? rutaClavesDataProtection
-            : Path.Combine(entorno.ContentRootPath, rutaClavesDataProtection);
+        var rutaClavesAbsoluta = RutaAbsolutaDelLlavero(configuration, entorno);
 
         var constructorDataProtection = services.AddDataProtection()
             .SetApplicationName("CaeManager")

@@ -877,6 +877,24 @@ public static class InfrastructureServiceCollectionExtensions
             sp => sp.GetRequiredService<CaeManager.Infrastructure.Exportacion.AlmacenExportacionesCompletasEnDisco>());
         services.AddHostedService<CaeManager.Infrastructure.Exportacion.GeneradorExportacionCompletaHostedService>();
 
+        // Firma ECDSA P-256 de la credencial de acceso físico de Inbound (AF-03). El llavero (privadas protegidas por
+        // Data Protection) vive en el directorio del llavero de Data Protection: mismo volumen, sin tabla nueva.
+        services.Configure<CaeManager.Infrastructure.Inbound.OpcionesFirmaCredencialAcceso>(
+            configuration.GetSection(CaeManager.Infrastructure.Inbound.OpcionesFirmaCredencialAcceso.Seccion));
+        services.AddSingleton(sp => new CaeManager.Infrastructure.Inbound.LlaveroCredencialAcceso(
+            Path.Combine(CaeManager.Infrastructure.DataProtection.RegistroDataProtection.RutaAbsolutaDelLlavero(configuration, entorno),
+                "llavero-credencial-acceso.json"),
+            sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>().CreateLogger("CaeManager.Inbound.LlaveroCredencialAcceso")));
+        services.AddSingleton(sp => new CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso(
+            sp.GetRequiredService<CaeManager.Infrastructure.Inbound.LlaveroCredencialAcceso>(),
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Inbound.OpcionesFirmaCredencialAcceso>>(),
+            sp.GetService<TimeProvider>()));
+        services.AddSingleton<CaeManager.Application.Inbound.CredencialesAcceso.IFirmanteCredencialAcceso>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso>());
+        services.AddSingleton<CaeManager.Application.Inbound.CredencialesAcceso.IAdministradorLlaveroCredencialAcceso>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Inbound.FirmanteCredencialAcceso>());
+
         // Fase F: comprobación horaria y aviso agregado por destinatario (solo campana, sin correo en v1) de
         // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen
