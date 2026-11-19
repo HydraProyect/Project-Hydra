@@ -3095,7 +3095,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("Cartera interna").And.Contain("la sigue heredando su Coordinador CAE")
+        dialogo.TextContent.Should().Contain("cartera interna").And.Contain("la sigue heredando su Coordinador CAE")
             .And.NotContain("la conserva su Coordinador CAE", "la regla del 2026-09-24 ya no describe la cartera de los Tenants beneficiarios")
             .And.NotContain("empresas");
         dialogo.QuerySelectorAll("select").Should().BeEmpty();
@@ -3492,7 +3492,7 @@ public partial class UsuariosGen2Tests : BunitContext
         var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
         deIker.TextContent.Trim().Should().Be("2 Empresas gestionadas",
             "un Coordinador CAE entra en las que su organización opera enteras, no en la operación acotada de su Gestor");
-        deIker.GetAttribute("title").Should().Contain("entra sin Asignación de Cartera");
+        deIker.GetAttribute("title").Should().Contain("entra, sin tenerlas asignadas,");
     }
 
     /// <summary>
@@ -3526,7 +3526,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
         deIker.TextContent.Trim().Should().Be("1 Empresa gestionada");
-        deIker.GetAttribute("title").Should().StartWith("Entra sin Asignación de Cartera")
+        deIker.GetAttribute("title").Should().StartWith("Entra, sin tenerlas asignadas,")
             .And.NotContain("0 Gestores CAE", "sin equipo ni cartera propia, la explicación no habla de un equipo vacío");
     }
 }

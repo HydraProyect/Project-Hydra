@@ -268,17 +268,17 @@ public class VisionCarteraGen2Tests : BunitContext
             ["12", "5", "74%"], "Refrielectric cuenta lo que alcanza su cartera ahí (12), no la organización entera (40)");
         filas[1].QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).Should().Equal("0", "0", "96%");
         filas[2].QuerySelectorAll("td").Skip(1).Take(3).Select(Texto).Should().Equal(
-            ["0", "0", "Sin Asignación de Cartera tuya"], "su 100% es «nada que evaluar», no «al día»");
+            ["0", "0", "Sin empresas asignadas a ti"], "su 100% es «nada que evaluar», no «al día»");
 
-        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que tu rol alcanza en ella; en 1 no tienes ninguna Asignación de Cartera");
+        LineasAmbito(cut)[1].Should().Be("Cada organización cuenta solo lo que tu rol alcanza en ella; en 1 no tienes ninguna empresa asignada");
         Texto(cut.Find(".aviso-sin-cartera")).Should().Be(
-            $"En {NombreB} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.");
+            $"En {NombreB} no tienes ninguna empresa asignada: no cuentas ningún documento suyo y su tasa no entra en la media.");
         MetricaMedia(cut).Valor.Should().Be("82%", "(96×64 + 74×100) / 164: Montajes Ebro no pesa en la media");
         cut.Find(".pulso-en-verde").GetAttribute("aria-label").Should().Be(
             $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más y sin bloqueos: {NombrePropio} 96%. "
-            + $"No entra {NombreB}: sin Asignación de Cartera tuya.");
+            + $"No entra {NombreB}: no tienes empresas asignadas en ella.");
         cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("sin cartera");
-        TablaDelGrafico(cut)[2].Organizacion.Should().Be($"{NombreB}, sin Asignación de Cartera tuya");
+        TablaDelGrafico(cut)[2].Organizacion.Should().Be($"{NombreB}, sin empresas asignadas a ti");
         TextoPagina(cut).Should().NotContain("completa", "la pantalla no afirma un alcance que no puede saber por organización");
     }
 
@@ -306,7 +306,7 @@ public class VisionCarteraGen2Tests : BunitContext
 
         var cut = Renderizar(escenario).Cut;
 
-        MetricaMedia(cut).Should().Be(("Cumplimiento documental promedio", "—", "Sin Asignación de Cartera en ninguna organización"));
+        MetricaMedia(cut).Should().Be(("Cumplimiento documental promedio", "—", "Sin empresas asignadas en ninguna organización"));
         Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("Sin cumplimiento que medir");
         cut.FindAll(".dashboard-resumen-tarjeta-anillo svg").Should().BeEmpty("un anillo al 100% afirmaría «al día»");
         Texto(cut.Find(".tarjeta-organizaciones-riesgo .texto-vacio-seccion"))
@@ -575,7 +575,7 @@ public class VisionCarteraGen2Tests : BunitContext
         MetricaMedia(cut).Should().Be(("Cumplimiento documental promedio", "—", "Sin documentos con vencimiento que medir"));
         Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("Sin cumplimiento que medir");
         Texto(cut.Find(".detalle-media-cartera")).Should().Be(
-            "Las organizaciones con tu Asignación de Cartera no tienen ningún documento con fecha de vencimiento que evaluar.");
+            "Las organizaciones en las que tienes empresas asignadas no tienen ningún documento con fecha de vencimiento que evaluar.");
         cut.FindAll(".dashboard-resumen-tarjeta-anillo svg").Should().BeEmpty("un anillo al 100% afirmaría «al día»");
         cut.Find(".pulso-en-verde").TextContent.Should().StartWith("0");
     }

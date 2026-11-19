@@ -443,7 +443,7 @@ public class NavMenuCaracterizacionTests
             .Should().Be(esperada, $"línea Inbound «{linea}»");
     }
 
-    // Rótulos separadores de línea (D-2): «Outbound» e «Inbound · Tenant TCE» solo cuando el menú enseña las dos líneas.
+    // Rótulos separadores de línea (D-2, enmienda D2 del 2026-11-19): «Acredita» y «Valida» solo cuando el menú enseña las dos líneas.
     private static IRenderedComponent<NavMenu> PintarConLineaInbound(bool inboundVigente, string rol = Roles.Administrador)
     {
         var ctx = new BunitContext();
@@ -490,8 +490,8 @@ public class NavMenuCaracterizacionTests
     }
 
     [Theory]
-    [InlineData("es-ES", "Outbound", "Inbound · Tenant TCE")]
-    [InlineData("ca-ES", "Outbound", "Inbound · Tenant TCE")]
+    [InlineData("es-ES", "Acredita", "Valida")]
+    [InlineData("ca-ES", "Acredita", "Valida")]
     public void Los_rotulos_de_linea_llevan_el_texto_correcto_en_cada_idioma(string cultura, string outbound, string inbound)
     {
         var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);

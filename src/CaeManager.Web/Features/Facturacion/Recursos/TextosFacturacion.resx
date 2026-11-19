@@ -73,7 +73,7 @@
     <value>Faltan {0} empresas que no alcanzas por completo</value>
   </data>
   <data name="AlcanceParcialAyuda" xml:space="preserve">
-    <value>No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.</value>
+    <value>No entran en las cifras porque solo tienes asignada una parte de ellas.</value>
   </data>
   <data name="ExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
@@ -178,7 +178,7 @@
     <value>Fijar tarifa</value>
   </data>
   <data name="AvisoImportesOcultos" xml:space="preserve">
-    <value>Los importes y las tarifas los ven Administrador del Tenant propietario y Dirección CAE.</value>
+    <value>Los importes y las tarifas los ven Administrador de la organización y Dirección CAE.</value>
   </data>
   <data name="Gestiones" xml:space="preserve">
     <value>Gestiones</value>

@@ -1015,15 +1015,15 @@ public class SelectorClienteActivoTests : BunitContext
         await Abrir(cut);
 
         cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
-            .Should().BeEquivalentTo(["Outbound", "Inbound", "Outbound"]);
+            .Should().BeEquivalentTo(["Acredita", "Valida", "Acredita"]);
 
         var inbound = FormularioDe(cut, Norte, ServicioCae.Inbound);
         inbound.Should().NotBeNull("la entrada Inbound de Empresa Norte envía servicio=Inbound");
         inbound!.GetAttribute("method").Should().Be("post");
         inbound.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
         inbound.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
-        inbound.QuerySelector(".selector-tenant-papel")!.TextContent.Trim().Should().Be("Inbound");
-        inbound.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Empresa Norte · Inbound");
+        inbound.QuerySelector(".selector-tenant-papel")!.TextContent.Trim().Should().Be("Valida");
+        inbound.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Empresa Norte · Valida");
         FormularioDe(cut, Norte, ServicioCae.Outbound).Should().NotBeNull("la de Outbound es otra entrada del mismo Tenant");
 
         // El origen no tiene papel: su formulario no envía servicio.
@@ -1055,7 +1055,7 @@ public class SelectorClienteActivoTests : BunitContext
         await Abrir(cut);
 
         cut.FindAll(".selector-tenant-lista .selector-tenant-papel").Select(p => p.TextContent.Trim())
-            .Should().BeEquivalentTo(["Outbound", "Inbound"]);
+            .Should().BeEquivalentTo(["Acredita", "Valida"]);
         FormularioDe(cut, Sur, ServicioCae.Inbound).Should().NotBeNull("la entrada Inbound envía servicio=Inbound al POST, que revalida");
     }
 
@@ -1081,7 +1081,7 @@ public class SelectorClienteActivoTests : BunitContext
         _papel = PapelActivo.Inbound;
         var cut = Renderizar(seleccionado: Norte);
 
-        cut.Find(".selector-tenant-disparador .selector-tenant-papel").TextContent.Trim().Should().Be("Inbound");
+        cut.Find(".selector-tenant-disparador .selector-tenant-papel").TextContent.Trim().Should().Be("Valida");
         await Abrir(cut);
 
         FormularioDe(cut, Norte, ServicioCae.Inbound)!.QuerySelector("button")!.GetAttribute("aria-selected").Should().Be("true");
@@ -1174,7 +1174,7 @@ public class SelectorClienteActivoTests : BunitContext
         _papel = PapelActivo.Inbound;
         var disparador = Renderizar(seleccionado: Norte).Find(".selector-tenant-disparador");
 
-        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Inbound",
+        disparador.GetAttribute("aria-label").Should().EndWith(": Empresa Norte · Valida",
             "la pastilla es aria-hidden: el papel solo llega al lector de pantalla por la etiqueta");
     }
 

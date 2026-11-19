@@ -15,11 +15,6 @@ src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [workspace-a-sec
 src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [operador-a-secas] = 2
 src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [tenant-a-secas] = 2
 src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [workspace-a-secas] = 2
-src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor :: [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.ca-ES.resx :: QuitarAjusteMensaje [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.ca-ES.resx :: QuitarAjusteMensajeConFormulario [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensaje [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensajeConFormulario [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.ca-ES.resx :: PresupuestoDescripcion [operador-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: PresupuestoDescripcion [operador-a-secas] = 1
@@ -27,7 +22,6 @@ src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor :: [op
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.ca-ES.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: [alcance-a-secas] = 1
-src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.ca-ES.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Facturacion/Recursos/TextosFacturacion.ca-ES.resx :: DrawerNota [cliente-empresarial-en-pantalla] = 1

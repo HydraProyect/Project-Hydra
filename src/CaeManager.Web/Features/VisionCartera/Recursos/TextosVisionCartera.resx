@@ -34,7 +34,7 @@
     <value>Cada organización cuenta solo lo que tu rol alcanza en ella</value>
   </data>
   <data name="LineaAlcanceConExcluidas" xml:space="preserve">
-    <value>Cada organización cuenta solo lo que tu rol alcanza en ella; en {0} no tienes ninguna Asignación de Cartera</value>
+    <value>Cada organización cuenta solo lo que tu rol alcanza en ella; en {0} no tienes ninguna empresa asignada</value>
   </data>
   <data name="AmbitoRecalculado" xml:space="preserve">
     <value>Recalculado en cada carga</value>
@@ -88,7 +88,7 @@
     <value>Ponderada por volumen de documentos</value>
   </data>
   <data name="PistaMediaSinCartera" xml:space="preserve">
-    <value>Sin Asignación de Cartera en ninguna organización</value>
+    <value>Sin empresas asignadas en ninguna organización</value>
   </data>
   <data name="LeyendaAnillo" xml:space="preserve">
     <value>Cumplimiento</value>
@@ -109,13 +109,13 @@
     <value>Sin cumplimiento que medir</value>
   </data>
   <data name="SinCumplimientoDetalle" xml:space="preserve">
-    <value>No tienes ninguna Asignación de Cartera en estas organizaciones: no hay documentos tuyos que evaluar.</value>
+    <value>No tienes ninguna empresa asignada en estas organizaciones: no hay documentos tuyos que evaluar.</value>
   </data>
   <data name="DetalleExcluidaUna" xml:space="preserve">
-    <value>No entra {0}: sin Asignación de Cartera tuya.</value>
+    <value>No entra {0}: no tienes empresas asignadas en ella.</value>
   </data>
   <data name="DetalleExcluidasVarias" xml:space="preserve">
-    <value>No entran {0}: sin Asignación de Cartera tuya.</value>
+    <value>No entran {0}: no tienes empresas asignadas en ellas.</value>
   </data>
   <data name="SeccionActividad" xml:space="preserve">
     <value>Actividad general</value>
@@ -151,7 +151,7 @@
     <value>Acciones</value>
   </data>
   <data name="RepartoFilaSinCartera" xml:space="preserve">
-    <value>{0}, sin Asignación de Cartera tuya</value>
+    <value>{0}, sin empresas asignadas a ti</value>
   </data>
   <data name="BarraSinCartera" xml:space="preserve">
     <value>sin cartera</value>
@@ -172,10 +172,10 @@
     <value>Todas, ordenadas por vencidos y, a igualdad, por urgentes</value>
   </data>
   <data name="AvisoSinCarteraUna" xml:space="preserve">
-    <value>En {0} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.</value>
+    <value>En {0} no tienes ninguna empresa asignada: no cuentas ningún documento suyo y su tasa no entra en la media.</value>
   </data>
   <data name="AvisoSinCarteraVarias" xml:space="preserve">
-    <value>En {0} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y sus tasas no entran en la media.</value>
+    <value>En {0} no tienes ninguna empresa asignada: no cuentas ningún documento suyo y sus tasas no entran en la media.</value>
   </data>
   <data name="SinRiesgoTodas" xml:space="preserve">
     <value>Ninguna organización tiene documentación vencida ni urgente.</value>
@@ -208,7 +208,7 @@
     <value>{0}: {1} documentos urgentes, dentro de su umbral urgente</value>
   </data>
   <data name="TituloCumplimientoSinCartera" xml:space="preserve">
-    <value>{0}: no tienes ninguna Asignación de Cartera aquí, así que no hay cumplimiento que medir</value>
+    <value>{0}: no tienes ninguna empresa asignada aquí, así que no hay cumplimiento que medir</value>
   </data>
   <data name="TituloCumplimiento" xml:space="preserve">
     <value>{0}: {1}% de cumplimiento documental ({2})</value>
@@ -223,7 +223,7 @@
     <value>en rojo, por debajo del 70%</value>
   </data>
   <data name="CeldaSinCartera" xml:space="preserve">
-    <value>Sin Asignación de Cartera tuya</value>
+    <value>Sin empresas asignadas a ti</value>
   </data>
   <data name="BotonCambiarOrganizacion" xml:space="preserve">
     <value>Cambiar a esta organización →</value>
@@ -289,7 +289,7 @@
     <value>Solo documental: los bloqueos se cuentan aparte</value>
   </data>
   <data name="SinCumplimientoDetalleSinDatos" xml:space="preserve">
-    <value>Las organizaciones con tu Asignación de Cartera no tienen ningún documento con fecha de vencimiento que evaluar.</value>
+    <value>Las organizaciones en las que tienes empresas asignadas no tienen ningún documento con fecha de vencimiento que evaluar.</value>
   </data>
   <data name="DetalleBloqueosUna" xml:space="preserve">
     <value>{0} tiene algún bloqueo: no está al día, aunque su porcentaje documental sea alto.</value>

@@ -439,21 +439,6 @@
   ],
   "excepciones": [
     {
-      "id": "tenant-en-rotulo-de-linea-del-menu",
-      "prohibidos": [
-        "tenant-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Recursos/TextosComunes.resx",
-        "src/CaeManager.Web/Recursos/TextosComunes.ca-ES.resx"
-      ],
-      "claves": [
-        "MenuLineaInboundTce"
-      ],
-      "contexto": "rótulo de línea del menú lateral",
-      "motivo": "Decisión D-2 de Chris (2026-11-16, interfaz Inbound/Outbound § 1.1): el rótulo separador del menú dice literalmente «Inbound · Tenant TCE» (o «Tenant TEC») cuando se ven las dos líneas. TCE/TEC es el apellido que distingue a quien recibe contratistas de quien es recibido, y «Tenant beneficiario» no lo distingue. Solo esta clave; cualquier otro uso de «Tenant» a secas sigue prohibido."
-    },
-    {
       "id": "nombre-de-hoja-del-libro-de-importacion",
       "prohibidos": [
         "cliente-empresarial-en-pantalla"
@@ -567,26 +552,7 @@
       "contexto": "pastilla de filtro de Plantillas",
       "motivo": "Alcance de la plantilla: dónde aplica (Centro, Cliente empresarial o general de la organización), no alcance de autorización. El rótulo «Alcance» es el del lienzo Plantillas (decisión de la coordinadora para la PR9: se conserva el rótulo del artboard); la pastilla lista exactamente esas tres dimensiones y no tiene relación con el Ámbito efectivo, de Operación o de Cartera. Solo esta clave: el resto de textos de Plantillas no dice «alcance»."
     },
-    {
-      "id": "tenant-en-orden-global-del-menu",
-      "prohibidos": [
-        "tenant-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion*.resx"
-      ],
-      "claves": [
-        "OrdenMenuChipTenants",
-        "OrdenMenuDescripcion",
-        "OrdenMenuDetalleConCambios",
-        "OrdenMenuDialogoTexto",
-        "OrdenMenuGlobalTodos",
-        "OrdenMenuRolAdministrador",
-        "OrdenMenuSinAccesoTexto"
-      ],
-      "contexto": "acceso de plataforma",
-      "motivo": "El orden del menú lateral es un ajuste global de plataforma: lo ven todos los usuarios de todos los Tenants y solo lo cambia un Actor de Plataforma TALVEG con concesión global (OrdenMenuSinAccesoTexto). Habla de Tenants como conjunto porque es el plano de plataforma, no el de un usuario de negocio."
-    },
+
     {
       "id": "operador-de-maquinaria-en-ficha-de-vehiculo",
       "prohibidos": [

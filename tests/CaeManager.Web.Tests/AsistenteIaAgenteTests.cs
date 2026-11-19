@@ -309,7 +309,7 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.De<CrearTareaAsistenteCommand>().Single().TextoOriginal.Should().Be("reclama la documentación a Montajes Ebro");
 
         panel.Find(".plan").GetAttribute("aria-label").Should().Be("Reclamar documentación");
-        panel.Find(".plan-chip").GetAttribute("aria-label").Should().Be("Se ejecutará en el Tenant beneficiario Hotel Mirador");
+        panel.Find(".plan-chip").GetAttribute("aria-label").Should().Be("Se ejecutará en la empresa gestionada Hotel Mirador");
         panel.Find(".plan-dato").TextContent.Should().Contain("Montajes Ebro S.A.");
         panel.Find(".plan-pastilla").TextContent.Should().Be("Listo para confirmar");
         panel.FindAll(".plan-pasos li").Should().HaveCount(2);

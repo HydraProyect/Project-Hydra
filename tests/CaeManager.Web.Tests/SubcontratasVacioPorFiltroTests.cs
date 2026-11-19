@@ -204,7 +204,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
         var cut = Renderizar();
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
-            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+            .Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("Aún no hay subcontratas");
         cut.Markup.Should().NotContain("+ Nueva subcontrata", "invitar a crear con alcance cero termina en un duplicado");
     }

@@ -141,7 +141,7 @@ public class BandejaVacioPorFiltroTests : BunitContext
         var cut = Renderizar(tipo: null);
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
-            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+            .Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("La cola está vacía");
     }
 

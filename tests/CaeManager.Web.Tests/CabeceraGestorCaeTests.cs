@@ -159,7 +159,7 @@ public class CabeceraGestorCaeTests : BunitContext
         mas.QuerySelector(".cabecera-gestor-cae-mas-escritorio")!.TextContent.Trim().Should().Be("+2", "en escritorio, las que no caben en la línea");
         mas.QuerySelector(".cabecera-gestor-cae-mas-movil")!.TextContent.Trim().Should().Be("+3", "en móvil se ve una sola persona: el resto son tres");
         var disparador = mas.QuerySelector("button.ventana-contexto-disparador")!;
-        disparador.GetAttribute("aria-label").Should().Be("2 más. Lista completa de personas con Asignación de Cartera");
+        disparador.GetAttribute("aria-label").Should().Be("2 más. Lista completa de personas que llevan esta organización");
         disparador.GetAttribute("aria-expanded").Should().Be("false", "nace cerrada; ventana-contexto.js mantiene el estado");
         mas.Closest(".cabecera-gestor-cae-personas").Should().BeNull("fuera de la caja que recorta: su panel no puede quedar cortado");
 
@@ -178,7 +178,7 @@ public class CabeceraGestorCaeTests : BunitContext
         enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-escritorio")!.TextContent.Trim().Should().Be("Abrir Empresa 360 →");
         enlace.QuerySelector(".cabecera-gestor-cae-pie-enlace-movil")!.TextContent.Trim().Should().Be("Dar acceso o desasignarte en la ficha", "botón de la hoja de móvil");
         cut.Find(".cabecera-gestor-cae-pie-ayuda").TextContent.Trim().Should().Be("Dar acceso o desasignarte: desde la ficha.");
-        cut.Find("[data-gestor-cae-mas] .ventana-contexto-titulo").TextContent.Trim().Should().Be("Gestores CAE con Asignación de Cartera");
+        cut.Find("[data-gestor-cae-mas] .ventana-contexto-titulo").TextContent.Trim().Should().Be("Gestores CAE que llevan esta organización");
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public class CabeceraGestorCaeTests : BunitContext
 
         cut.FindAll("[data-gestor-cae='principal']").Should().ContainSingle();
         cut.Find("[data-gestor-cae='otra-sin-principal']").TextContent.Trim()
-            .Should().Be("Otra Asignación de Operación, sin principal");
+            .Should().Be("Otro Operador CAE, sin Gestor CAE principal");
         cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty("hay un principal: «Sin principal» a secas sería falso");
         cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle();
     }
@@ -247,7 +247,7 @@ public class CabeceraGestorCaeTests : BunitContext
 
         cut.Find("[data-gestor-cae-mas]").GetAttribute("data-gestor-cae-mas").Should().Be("2", "control: hay personas agrupadas");
         cut.Find(".cabecera-gestor-cae-personas [data-gestor-cae='otra-sin-principal']").TextContent.Trim()
-            .Should().Be("Otra Asignación de Operación, sin principal");
+            .Should().Be("Otro Operador CAE, sin Gestor CAE principal");
         LineasDelDetalle(cut, "otra-sin-principal").Should().ContainSingle();
     }
 
@@ -307,7 +307,7 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle().Which.TextContent.Should().Contain("Ane Larrea");
 
         cut.Find(".cabecera-gestor-cae").GetAttribute("title")
-            .Should().Be("Operador CAE que gestiona esta organización y sus Gestores CAE con Asignación de Cartera");
+            .Should().Be("Operador CAE que gestiona esta organización y los Gestores CAE que la llevan");
         cut.FindAll("input").Should().BeEmpty("leer la cartera no concede nada sobre ella");
         _mediador.Enviadas.Should().OnlyContain(e => e is ObtenerPersonasConCarteraQuery || e is ObtenerOperadoresCaeDeMiTenantQuery, "solo se leen las dos carteras");
     }

@@ -85,7 +85,7 @@ public class VacioSegunAlcanceTests : BunitContext
         var cut = Render<VacioSegunAlcance>(p => p.AddChildContent(VacioPositivo));
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
-            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+            .Should().Contain("No tienes empresas asignadas").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("Todo al día");
     }
 
@@ -94,7 +94,7 @@ public class VacioSegunAlcanceTests : BunitContext
             new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
                 [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, rol)], "prueba"))));
 
-    // D-15: al propio Coordinador CAE no se le dice «pídesela a tu Coordinador CAE».
+    // D-15: al propio Coordinador CAE no se le dice «pídela a tu Coordinador CAE».
     [Fact]
     public void Al_Coordinador_CAE_no_se_le_remite_a_su_propio_rol()
     {
@@ -105,7 +105,7 @@ public class VacioSegunAlcanceTests : BunitContext
             .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae)));
 
         var texto = cut.Find("[data-estado=sin-asignacion-cartera]").TextContent;
-        texto.Should().Contain("Sin Asignación de Cartera").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
+        texto.Should().Contain("No tienes empresas asignadas").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídela").And.NotContain("Pide a tu");
         cut.Find("[data-estado=sin-asignacion-cartera] a[data-enlace=usuarios]").GetAttribute("href").Should().Be("/usuarios");
     }
 
@@ -118,7 +118,7 @@ public class VacioSegunAlcanceTests : BunitContext
             .AddChildContent(VacioPositivo)
             .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.GestorCae)));
 
-        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent.Should().Contain("Pídela a tu Coordinador CAE");
         cut.FindAll("[data-estado=sin-asignacion-cartera] a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
