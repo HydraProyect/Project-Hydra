@@ -33,18 +33,19 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// mensajes del hilo Y el nombre del Centro ligado a la conversación, siempre dentro de lo que la regla de
 /// visibilidad ya deja ver (H2, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
 /// conversaciones"). Hoy ningún flujo escribe las Etiquetas, así que el Centro se resuelve por los vínculos que ya
-/// existen en el esquema, sin migración: (1) un Centro participante del hilo; (2) una intención que señala un Centro
-/// y que una persona confirmó; (3) una Gestión nacida de un mensaje del hilo; (4) una sugerencia de visita aceptada
-/// tal cual; (5) una Visita creada desde el hilo. Una propuesta de la IA sin confirmar nunca liga. El Centro se lee
-/// por el contexto de Centros, que ya filtra por Tenant y excluye los eliminados, y el filtro se suma con AND a la
-/// visibilidad: buscar por Centro no abre ninguna conversación nueva. Todo va en una sola consulta (semi-joins
-/// <c>EXISTS</c>), sin cargar nada en memoria. Es <c>Contains</c> sin índice de texto completo y sensible a acentos
-/// (<c>ToUpper</c>, como antes para Asunto y cuerpo; pasar los textos a <c>TextoDeBusqueda.Contiene</c> sería un
-/// incremento propio), mismo nivel que las búsquedas heredadas de este repositorio — no se introduce
-/// tsvector/GIN de Postgres para esto (YAGNI). El vínculo estructurado Conversación-Centro, cuando exista, es un
-/// incremento propio.
-/// </summary>
-[AreaDelEncargo("Comunicaciones")]
+/// existen en el esquema, sin migración: (1) un Centro participante del hilo; (2) una intención que propone un Centro
+/// y que una persona confirmó (confirmar la intención no confirma por separado el Centro propuesto: una propuesta que
+/// nadie confirmó no liga, una intención confirmada con un Centro mal leído sí); (3) una Gestión nacida de un mensaje
+/// del hilo; (4) una sugerencia de visita aceptada tal cual; (5) una Visita creada desde el hilo. El nombre del Centro
+/// se compara sin distinguir acentos (<c>TextoDeBusqueda.Contiene</c>, como /centros y /visitas) y solo entre los
+/// Centros que el contexto de Centros deja leer (filtro de Tenant y de eliminados) y que están en la cartera de quien
+/// busca. El filtro se suma con AND a la visibilidad: buscar por Centro no abre ninguna conversación nueva. Todo va en
+/// una sola consulta (subconsultas <c>IN</c> no correlacionadas), sin cargar nada en memoria. Asunto, Etiquetas y
+/// cuerpo siguen siendo <c>Contains</c> sin índice de texto completo y sensible a acentos (<c>ToUpper</c>; pasarlos a
+/// <c>TextoDeBusqueda.Contiene</c> sería un incremento propio), mismo nivel que las búsquedas heredadas de este
+/// repositorio — no se introduce tsvector/GIN de Postgres para esto (YAGNI). El vínculo estructurado
+/// Conversación-Centro, cuando exista, es un incremento propio.
+/// </summary>[AreaDelEncargo("Comunicaciones")]
 public record ObtenerConversacionesQuery(
     EstadoConversacion? Estado = null,
     int? Anio = null,
@@ -187,45 +188,57 @@ public class ObtenerConversacionesQueryHandler(
         {
             var busqueda = request.Busqueda.ToUpper();
 
-            // Centros cuyo nombre contiene la búsqueda, como subconsulta (nunca en memoria). Pasa por el filtro global
-            // de Tenant y de eliminados de Centro: un Centro de otro Tenant o eliminado no liga con nada. Se suma con
-            // AND al conjunto que ya acotó la regla de visibilidad: solo deja ENCONTRAR por Centro lo que ya se veía.
-            var centrosCoincidentes = centrosContext.Centros
-                .Where(centro => centro.Nombre.ToUpper().Contains(busqueda))
-                .Select(centro => centro.Id);
+            // Centros cuyo nombre contiene la búsqueda (sin distinguir acentos, como /centros y /visitas), como
+            // subconsulta y nunca en memoria. Pasan por el filtro global de Tenant y de eliminados de Centro, y por la
+            // cartera de Centros de quien busca (la misma que ObtenerCentrosQuery): un Centro de otro Tenant, eliminado
+            // o fuera de la cartera no liga con nada ni revela su nombre. Todo se suma con AND al conjunto que ya acotó
+            // la regla de visibilidad: buscar por Centro solo deja ENCONTRAR lo que ya se veía.
+            var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+            var terminoCentro = request.Busqueda;
+            var centrosCoincidentes = centrosContext.Centros.Where(centro => TextoDeBusqueda.Contiene(centro.Nombre, terminoCentro));
+            if (centroIdsVisibles is not null)
+                centrosCoincidentes = centrosCoincidentes.Where(centro => centroIdsVisibles.Contains(centro.Id));
+            var centroIds = centrosCoincidentes.Select(centro => centro.Id);
+
+            // Una subconsulta por vínculo con las Conversaciones que liga a esos Centros. No dependen de la fila de la
+            // lista, así que Postgres las resuelve una vez (hashed subplan) en vez de una por conversación.
+            // Vínculo 1: un Centro es participante del hilo (el Centro de la visita en copia).
+            var porParticipante = comunicacionesContext.ParticipantesConversacion
+                .Where(p => p.TipoOrigen == TipoParticipanteOrigen.Centro
+                    && p.EntidadRelacionadaId != null && centroIds.Contains(p.EntidadRelacionadaId.Value))
+                .Select(p => p.ConversacionId);
+            // Vínculo 2: la intención del hilo propone un Centro y una persona confirmó la intención. OJO: confirmar la
+            // intención (ConfirmarIntencionConversacionCommand) no confirma por separado el Centro propuesto: solo una
+            // propuesta que nadie confirmó queda fuera; una intención confirmada con un Centro mal leído sí liga.
+            var porIntencion = comunicacionesContext.IntencionesConversacion
+                .Where(i => i.ConfirmadaPorPersona && i.TipoEntidadPropuesta == TipoEntidadIntencion.Centro
+                    && i.EntidadPropuestaId != null && centroIds.Contains(i.EntidadPropuestaId.Value))
+                .Select(i => i.ConversacionId);
+            // Vínculo 3: una Gestión nacida de un mensaje del hilo, en el Centro de esa Gestión.
+            var porGestion = gestionesContext.Gestiones
+                .Where(g => g.MensajeOrigenId != null && centroIds.Contains(g.CentroId))
+                .Join(comunicacionesContext.Mensajes, g => g.MensajeOrigenId!.Value, m => m.Id, (g, m) => m.ConversacionId);
+            // Vínculo 4: una sugerencia de visita aceptada tal cual (Confirmada: el Centro propuesto es el de la Visita
+            // creada). La pendiente, la descartada y la aceptada con edición no ligan: o el Centro es solo una
+            // propuesta de la IA, o el Gestor pudo cambiarlo y esta fila no guarda cuál.
+            var porSugerencia = comunicacionesContext.SugerenciasVisitaCorreo
+                .Where(s => s.Resuelta && s.Resolucion == ResolucionSugerencia.Confirmada
+                    && s.CentroId != null && centroIds.Contains(s.CentroId.Value))
+                .Join(comunicacionesContext.Mensajes, s => s.MensajeId, m => m.Id, (s, m) => m.ConversacionId);
+            // Vínculo 5: la Visita creada desde el hilo (evento VisitaCreada), en el Centro real de la Visita, también
+            // si el Gestor corrigió el Centro propuesto al crearla. Una Visita eliminada ya no liga.
+            var porVisita = comunicacionesContext.EventosConversacion
+                .Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada)
+                .Join(visitasContext.Visitas.Where(v => centroIds.Contains(v.CentroId)), e => e.ReferenciaId, v => v.Id,
+                    (e, v) => e.ConversacionId);
 
             consulta = consulta.Where(c =>
                 c.Asunto.ToUpper().Contains(busqueda) ||
                 (c.Etiquetas != null && c.Etiquetas.ToUpper().Contains(busqueda)) ||
                 comunicacionesContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.CuerpoHtml.ToUpper().Contains(busqueda)) ||
-                // Vínculo 1: un Centro es participante del hilo (el Centro de la visita en copia).
-                comunicacionesContext.ParticipantesConversacion.Any(p =>
-                    p.ConversacionId == c.Id && p.TipoOrigen == TipoParticipanteOrigen.Centro
-                    && p.EntidadRelacionadaId != null && centrosCoincidentes.Contains(p.EntidadRelacionadaId.Value)) ||
-                // Vínculo 2: la intención del hilo señala un Centro y una persona la confirmó. Una propuesta de la IA
-                // sin confirmar no liga: podría ser un error de lectura del correo.
-                comunicacionesContext.IntencionesConversacion.Any(i =>
-                    i.ConversacionId == c.Id && i.ConfirmadaPorPersona
-                    && i.TipoEntidadPropuesta == TipoEntidadIntencion.Centro
-                    && i.EntidadPropuestaId != null && centrosCoincidentes.Contains(i.EntidadPropuestaId.Value)) ||
-                // Vínculo 3: una Gestión nacida de un mensaje del hilo, en el Centro de esa Gestión.
-                gestionesContext.Gestiones.Any(g =>
-                    g.MensajeOrigenId != null && centrosCoincidentes.Contains(g.CentroId)
-                    && comunicacionesContext.Mensajes.Any(m => m.Id == g.MensajeOrigenId && m.ConversacionId == c.Id)) ||
-                // Vínculo 4: una sugerencia de visita aceptada tal cual (Confirmada: el Centro propuesto es el de la
-                // Visita creada). La pendiente, la descartada y la aceptada con edición no ligan: o el Centro es solo
-                // una propuesta de la IA, o el Gestor pudo haberlo cambiado y esta fila no guarda cuál.
-                comunicacionesContext.SugerenciasVisitaCorreo.Any(s =>
-                    s.Resuelta && s.Resolucion == ResolucionSugerencia.Confirmada
-                    && s.CentroId != null && centrosCoincidentes.Contains(s.CentroId.Value)
-                    && comunicacionesContext.Mensajes.Any(m => m.Id == s.MensajeId && m.ConversacionId == c.Id)) ||
-                // Vínculo 5: la Visita creada desde el hilo (evento VisitaCreada), en el Centro real de la Visita,
-                // también si el Gestor corrigió el Centro propuesto al crearla.
-                comunicacionesContext.EventosConversacion.Any(e =>
-                    e.ConversacionId == c.Id && e.Tipo == TipoEventoConversacion.VisitaCreada
-                    && visitasContext.Visitas.Any(v => v.Id == e.ReferenciaId && centrosCoincidentes.Contains(v.CentroId))));
+                porParticipante.Contains(c.Id) || porIntencion.Contains(c.Id) || porGestion.Contains(c.Id) ||
+                porSugerencia.Contains(c.Id) || porVisita.Contains(c.Id));
         }
-
         if (request.Intencion is { } intencion)
             consulta = consulta.Where(c => comunicacionesContext.IntencionesConversacion.Any(i => i.ConversacionId == c.Id && i.IntencionActual == intencion));
 
