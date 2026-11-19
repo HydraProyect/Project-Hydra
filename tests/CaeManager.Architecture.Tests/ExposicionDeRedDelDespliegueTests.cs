@@ -92,16 +92,26 @@ public class ExposicionDeRedDelDespliegueTests
         // La lista de arriba no ve un envoltorio con otro nombre que añada resiliencia, un segundo manejador primario que
         // gane al de sin redirecciones (ConfigurePrimaryHttpMessageHandler o UseSocketsHttpHandler) ni un AddLogger propio
         // que reciba las cabeceras sin tachar. Por eso la cadena del registro se fija entera: los métodos encadenados al
-        // AddHttpClient (los que siguen a un salto de línea o a un paréntesis de cierre) son exactamente estos dos, una vez
-        // cada uno; las llamadas de dentro de la lambda de configuración no cuentan.
-        System.Text.RegularExpressions.Regex.Matches(registro, @"(?m)(?:^\s*|\))\s*\.(\w+)\s*[<(]")
+        // AddHttpClient (los que siguen a un salto de línea o a un paréntesis de cierre, con o sin «!» o «?») son
+        // exactamente estos dos, una vez cada uno. Las llamadas de la lambda de configuración no encajan en la forma
+        // (van tras un identificador); una línea de la lambda que empezara por punto sí encajaría y daría rojo, que es el
+        // error del lado seguro. El instrumento es textual: el tramo no admite comentarios, que podrían esconder una
+        // llamada entre «)» y «.» o cortar el tramo con un «AddTransient<…» falso, ni escapes \u en los identificadores.
+        // Un análisis con Roslyn de la cadena de invocaciones queda como deuda declarada en la PR.
+        registro.Should().NotContain("//").And.NotContain("/*").And.NotContain(@"\u",
+            "un comentario o un escape unicode en el tramo burlaría la lista de abajo");
+        System.Text.RegularExpressions.Regex.Matches(registro, @"(?m)(?:^\s*|\)\s*[!?]?)\s*\.\s*@?(\w+)\s*[<(]")
             .Select(m => m.Groups[1].Value)
             .Should().Equal(["ConfigurePrimaryHttpMessageHandler", "RedactLoggedHeaders"],
                 "el cliente de CTAIMACAE.net solo encadena su manejador sin redirecciones y el tachado total");
-        // Y el builder no se guarda en una variable para seguir encadenándole métodos fuera del tramo.
+        // Y el builder no se guarda en una variable para seguir encadenándole métodos fuera del tramo: la línea empieza
+        // por «services.» y lo anterior acaba una sentencia o un bloque, así que tampoco cabe un «var b =» en la línea
+        // de encima.
         var inicioDeLinea = contenido.LastIndexOf('\n', inicio) + 1;
         contenido[inicioDeLinea..inicio].Trim().Should().Be("services.",
             "el registro empieza la sentencia; un «var b = services.AddHttpClient…» permitiría seguir configurándolo después");
+        contenido[..inicioDeLinea].TrimEnd().Should().EndWith(";",
+            "la sentencia anterior acaba antes del registro; si no, el AddHttpClient sería la continuación de una asignación");
 
         // En todo src, no solo en este fichero: un segundo AddHttpClient del cliente de CTAIMACAE.net, tipado o por el
         // nombre que .NET le da ("CtaimaCaeClient"), vuelve al mismo cliente con nombre, y su RedactLoggedHeaders o su
@@ -109,18 +119,28 @@ public class ExposicionDeRedDelDespliegueTests
         // reintentos o un tachado parcial a todos los clientes, este incluido, y lo mismo sus equivalentes: configurar
         // HttpClientFactoryOptions (ConfigureAll o por nombre, que es lo que ConfigureHttpClientDefaults hace por dentro),
         // registrar un IHttpMessageHandlerBuilderFilter o activar AddExtendedHttpClientLogging, que registra las peticiones
-        // de todos los clientes con su propio tachado.
-        var fuentes = Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "*.cs", SearchOption.AllDirectories)
+        // de todos los clientes con su propio tachado. También sustituir las piezas de la factoría que montan el pipeline
+        // (HttpMessageHandlerBuilder, IHttpMessageHandlerFactory, ITypedHttpClientFactory) o montar el cliente tipado
+        // sobre otro cliente con nombre (AddTypedClient). Los globales se buscan además en los csproj y props de src,
+        // donde un <Using Alias="…"> los renombraría para el código.
+        var raizSrc = Path.Combine(RaizDelRepositorio(), "src");
+        var fuentes = Directory.EnumerateFiles(raizSrc, "*.cs", SearchOption.AllDirectories)
             .Select(File.ReadAllText)
+            .ToList();
+        var fuentesYProyectos = fuentes
+            .Concat(Directory.EnumerateFiles(raizSrc, "*.csproj", SearchOption.AllDirectories)
+                .Concat(Directory.EnumerateFiles(raizSrc, "*.props", SearchOption.AllDirectories))
+                .Select(File.ReadAllText))
             .ToList();
         fuentes.Sum(f => System.Text.RegularExpressions.Regex.Matches(f, @"AddHttpClient\s*(<[^>]*\bCtaimaCaeClient\b|\([^)]*\bCtaimaCaeClient\b)").Count)
             .Should().Be(1, "el cliente de CTAIMACAE.net se configura en un único registro de todo src");
         foreach (var global in new[]
                  {
                      "ConfigureHttpClientDefaults", "HttpClientFactoryOptions", "IHttpMessageHandlerBuilderFilter",
-                     "AddExtendedHttpClientLogging",
+                     "AddExtendedHttpClientLogging", "HttpMessageHandlerBuilder", "IHttpMessageHandlerFactory",
+                     "ITypedHttpClientFactory", "AddTypedClient",
                  })
-            fuentes.Where(f => f.Contains(global, StringComparison.Ordinal))
+            fuentesYProyectos.Where(f => f.Contains(global, StringComparison.Ordinal))
                 .Should().BeEmpty($"{global} alcanzaría a todos los HttpClient, también al de CTAIMACAE.net");
     }
 
