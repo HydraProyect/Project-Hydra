@@ -20,7 +20,9 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Población.</b> Los handlers de las peticiones que no son comandos (<see cref="ICommandBase"/>) y que
 /// <see cref="PeticionDeOutbound.CerradaAlSoloInbound"/> cierra al Tenant solo Inbound, cuyo constructor no recibe
-/// <see cref="IAlcanceDatosService"/> ni el mediador (<see cref="IMediator"/>, <see cref="ISender"/>). Un handler que
+/// <see cref="IAlcanceDatosService"/>, <see cref="ICriterioDeOutbound"/> ni el mediador (<see cref="IMediator"/>,
+/// <see cref="ISender"/>), ni directamente ni a través de una clase concreta de Application, hasta dos saltos. Recibirlos
+/// no prueba que se consulten en todas las ramas. Un handler que
 /// recibe el mediador compone otras peticiones, y cada una fija su propio ámbito y pasa por su propio alcance. La lista
 /// es <c>Congelados/Queries-de-Outbound-sin-alcance.txt</c>, con la misma clave que
 /// <c>Queries-sin-comprobacion-de-cartera.txt</c> y, encima de cada entrada, el motivo por el que no devuelve datos de
@@ -57,7 +59,8 @@ public partial class LlamadaAlAlcanceDeCarteraEnLecturaTests
             NombreDeListaSoloInbound,
             medido,
             "NUEVA: una query de Outbound (PeticionDeOutbound.CerradaAlSoloInbound) cuyo handler no recibe " +
-            "IAlcanceDatosService ni el mediador. Al Tenant solo Inbound con el papel de Tenant de origen el alcance no le " +
+            "IAlcanceDatosService, ICriterioDeOutbound ni el mediador (directamente o por una clase concreta de " +
+            "Application, hasta dos saltos). Al Tenant solo Inbound con el papel de Tenant de origen el alcance no le " +
             "da nada dentro de una petición de Outbound, pero esta query no lo pregunta: lee lo que el filtro de Tenant y " +
             "la RLS le dejan. Filtra con el alcance (por ejemplo ObtenerCentroIdsVisiblesAsync) y añade su test, o, si no " +
             "devuelve datos de Outbound de ese Tenant, añade la línea con un comentario '#' encima que diga por qué. " +

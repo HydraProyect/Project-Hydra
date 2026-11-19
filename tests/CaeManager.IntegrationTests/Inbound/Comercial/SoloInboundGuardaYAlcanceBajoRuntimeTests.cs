@@ -87,8 +87,9 @@ namespace CaeManager.IntegrationTests.Inbound.Comercial
                 _propietario.Visitas.Add(new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(2), notas: null));
                 await _propietario.SaveChangesAsync();
 
-                // ProductosContratados tiene FORCE RLS con WITH CHECK sobre app_ctx_tenant_id(): se siembra con el
-                // interceptor de sesión RLS del Tenant, como LineaInboundVigenteBajoRuntimeTests.
+                // Se siembra con el contexto RLS firmado del Tenant por coherencia con LineaInboundVigenteBajoRuntimeTests,
+                // no porque la conexión de pruebas lo exija: es superusuario y se salta la RLS (también en las tablas FORCE
+                // que se siembran arriba con _propietario). Esta siembra no prueba el WITH CHECK.
                 if (lineas is not Lineas.Ninguna)
                 {
                     await using var siembra = ContextoDeSiembraConRls(tenant.Id);
