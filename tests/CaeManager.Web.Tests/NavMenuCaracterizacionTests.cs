@@ -521,6 +521,55 @@ public class NavMenuCaracterizacionTests
         }
     }
 
+    // D2 (Chris, 2026-11-19): en pantalla no hay jerga interna. Mira el texto y los atributos legibles (title, aria-label), no los
+    // identificadores (data-*, href, clases), que conservan «inbound» por diseño.
+    private static readonly Regex JergaInternaVisible =
+        new(@"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci[oó]n de (Operaci[oó]n|Cartera)|Assignaci[oó] de (Operaci[oó]|Cartera)", RegexOptions.CultureInvariant);
+
+    private static string TextoYAtributosVisibles(IRenderedComponent<NavMenu> cut) =>
+        string.Join(" | ", cut.Nodes.Select(n => n.TextContent))
+            + " | " + string.Join(" | ", cut.FindAll("[title], [aria-label]").Select(e => e.GetAttribute("title") + " " + e.GetAttribute("aria-label")));
+
+    [Theory]
+    [InlineData("es-ES", "Validación de contratistas", "Mis centros", "Reglas de validación")]
+    [InlineData("ca-ES", "Validació de contractistes", "Els meus centres", "Regles de validació")]
+    public void El_menu_de_Valida_pinta_grupo_Mis_centros_y_Reglas_de_validacion_sin_jerga_interna(string cultura, string grupo, string centros, string reglas)
+    {
+        var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = PintarConLineaInbound(inboundVigente: true);
+
+            cut.Find("[data-grupo=inbound] summary .nav-grupo-rotulo").TextContent.Trim().Should().Be(grupo);
+            var enlaces = cut.FindAll("a").Select(a => (Href: a.GetAttribute("href"), Texto: Regex.Replace(a.TextContent, @"\s+", " ").Trim())).ToList();
+            enlaces.Should().Contain(("inbound/centros", centros));
+            enlaces.Should().Contain(("inbound/gobierno", reglas));
+
+            var visible = TextoYAtributosVisibles(cut);
+            visible.Should().Contain(grupo, "control: el instrumento lee el texto del menú");
+            JergaInternaVisible.Matches(visible).Select(m => m.Value).Should().BeEmpty("el menú no nombra el producto ni el modelo interno");
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = anterior;
+        }
+    }
+
+    [Theory]
+    [InlineData("Inbound")]
+    [InlineData("Outbound")]
+    [InlineData("Tenant TCE")]
+    [InlineData("Tenant TEC")]
+    [InlineData("Asignación de Operación")]
+    [InlineData("Asignación de Cartera")]
+    public void El_detector_de_jerga_del_menu_salta_con_cada_termino_prohibido(string termino)
+    {
+        // Control positivo del instrumento: sin él, un NotContain sobre un texto que nunca contiene nada pasaría en vacío.
+        JergaInternaVisible.IsMatch($"Reglas de {termino} Mis centros").Should().BeTrue();
+    }
+
     [Fact]
     public void El_rotulo_de_linea_es_un_encabezado_sin_enlace_ni_foco()
     {
@@ -656,6 +705,7 @@ public class NavMenuCaracterizacionTests
             grupo.QuerySelectorAll("a").Select(a => (Href: a.GetAttribute("href"), Texto: Regex.Replace(a.TextContent, @"\s+", " ").Trim()))
                 .Should().Equal(("inbound/requerimientos", requerimientos), ("inbound/quien-lee", quienLee));
             grupo.HasAttribute("open").Should().BeTrue("nace abierto");
+            JergaInternaVisible.Matches(TextoYAtributosVisibles(cut)).Select(m => m.Value).Should().BeEmpty("el menú no nombra el producto ni el modelo interno");
         }
         finally
         {

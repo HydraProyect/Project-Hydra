@@ -1007,6 +1007,38 @@ public class SelectorClienteActivoTests : BunitContext
         ];
     }
 
+    // D2 (Chris, 2026-11-19): los subtítulos del selector dicen qué hace la persona en esa empresa, no el nombre del producto ni el
+    // modelo interno; lo que se ve y lo que se lee en voz alta (title, aria-label) va sin jerga.
+    [Theory]
+    [InlineData("es-ES", "Gestionas su documentación", "Validas a sus contratistas")]
+    [InlineData("ca-ES", "Gestiones la seva documentació", "Valides els seus contractistes")]
+    public async Task D2_los_subtitulos_del_selector_hablan_en_llano_y_sin_jerga_interna(string cultura, string subOutbound, string subInbound)
+    {
+        var anterior = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            DosPapelesSobreNorte();
+            var cut = Renderizar(seleccionado: Sur);
+            await Abrir(cut);
+
+            cut.FindAll(".selector-tenant-lista .selector-tenant-sub").Select(s => s.TextContent.Trim())
+                .Should().Equal(subOutbound, subInbound, subOutbound);
+
+            var panel = cut.Find(".selector-tenant-panel");
+            var visible = panel.TextContent + " " + string.Join(" ",
+                panel.QuerySelectorAll("[title], [aria-label]").Select(e => e.GetAttribute("title") + " " + e.GetAttribute("aria-label")));
+            System.Text.RegularExpressions.Regex.Matches(visible,
+                    @"Inbound|Outbound|\bTCE\b|\bTEC\b|Asignaci[oó]n de (Operaci[oó]n|Cartera)|Assignaci[oó] de (Operaci[oó]|Cartera)")
+                .Select(m => m.Value).Should().BeEmpty("el selector no nombra el producto ni el modelo interno");
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = anterior;
+        }
+    }
+
     [Fact]
     public async Task D4_cada_Asignacion_de_Operacion_es_una_entrada_con_su_pastilla_y_envia_su_servicio()
     {

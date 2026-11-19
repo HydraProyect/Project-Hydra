@@ -641,7 +641,7 @@ public class CentroInboundPantallasTests : BunitContext
 
         var cut = await CargadaAsync(Render<CentrosInbound>());
 
-        cut.Find("h1").TextContent.Should().Contain("Centros");
+        cut.Find("h1").TextContent.Should().Contain("Mis centros");
         cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
     }
 

@@ -204,6 +204,35 @@
   ],
   "prohibidos": [
     {
+      "id": "jerga-de-producto-en-pantalla",
+      "termino": "Inbound / Outbound / TCE / TEC / Asignación de Operación / Asignación de Cartera",
+      "patron": "\\b(?:Inbound|Outbound)\\b|\\b(?:TCE|TEC)\\b|\\b[Aa]ssignaci[oó] de (?:[Oo]peraci[oó]|[Cc]artera)\\b|\\b[Aa]signaci[oó]n de (?:[Oo]peraci[oó]n|[Cc]artera)\\b",
+      "ignorarMayusculas": false,
+      "sustitucion": "Acredita y Valida (los productos); «Mis centros», «Reglas de validación»; «empresas asignadas», «permiso para gestionar»; sin siglas de Tenant",
+      "motivo": "Decisión D2 de Chris (2026-11-19): en la interfaz no hay jerga interna. Los dos productos se llaman Acredita y Valida; el modelo interno (Tenant TCE, Tenant TEC, Asignación de Operación, Asignación de Cartera) se queda en documentación, análisis y código. Auditoría de pantallas Inbound/Outbound del 2026-11-19, § 6.",
+      "contrato": "§ 1 y § 5",
+      "sentido": "Los nombres internos de línea (Inbound, Outbound), de Tenant (TCE, TEC) y de las dos asignaciones, en texto visible. No cubre identificadores de código ni rutas.",
+      "casa": [
+        "Gobierno de Inbound",
+        "Outbound",
+        "Tenant TCE",
+        "Tenant TEC",
+        "Asignación de Operación",
+        "Asignación de Cartera",
+        "Assignació de Cartera",
+        "solicitudes de Inbound"
+      ],
+      "noCasa": [
+        "Acredita",
+        "Valida",
+        "Mis centros",
+        "Reglas de validación",
+        "Empresas asignadas",
+        "Permiso para gestionar",
+        "https://ejemplo.com/inbound/centros"
+      ]
+    },
+    {
       "id": "cliente-empresarial-en-pantalla",
       "termino": "Cliente empresarial",
       "patron": "\\bclient(?:es?|s)?(?:\\(s\\))?\\s+empresarial(?:s|es)?\\b",
@@ -438,6 +467,23 @@
     }
   ],
   "excepciones": [
+    {
+      "id": "jerga-de-producto-en-pantallas-de-plataforma",
+      "prohibidos": [
+        "jerga-de-producto-en-pantalla"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.resx",
+        "src/CaeManager.Web/Features/Inbound/Plataforma/Recursos/TextosAltaTenantTce.ca-ES.resx",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/ContratarLineaInbound/ContratarLineaInboundCommand.cs",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/CorregirLineaInbound/CorregirLineaInboundCommand.cs",
+        "src/CaeManager.Application/Inbound/Comercial/Commands/DarDeBajaLineaInbound/DarDeBajaLineaInboundCommand.cs",
+        "src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor"
+      ],
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Pantallas y comandos que solo usa un Actor de Plataforma TALVEG (plano 3) para dar de alta, corregir o dar de baja la línea Inbound de un Tenant TCE, y la vía de acceso «Asignación de operación» de su panel de privilegios: no es usuario final y necesita el vocabulario canónico (Tenant TCE, Tenant propietario, Asignación de Operación) para no confundir los planos. Auditoría de pantallas del 2026-11-19, § 6.2: «puede conservar el vocabulario canónico; no es usuario final»."
+    },
     {
       "id": "nombre-de-hoja-del-libro-de-importacion",
       "prohibidos": [

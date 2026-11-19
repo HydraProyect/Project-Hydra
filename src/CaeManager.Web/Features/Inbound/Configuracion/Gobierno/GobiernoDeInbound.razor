@@ -13,16 +13,16 @@
 @inject AuthenticationStateProvider EstadoAutenticacion
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Gobierno de Inbound — @Marca.Nombre</PageTitle>
-<TituloDePaginaSinPrerender Titulo="@($"Gobierno de Inbound — {Marca.Nombre}")" />
+<PageTitle>Reglas de validación — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"Reglas de validación — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina lista-design gb">
-    <CabeceraListado Titulo="Gobierno de Inbound" />
+    <CabeceraListado Titulo="Reglas de validación" />
     <p class="gb-subtitulo">Ajustes de @NombreConPunto Solo los ve su Administrador.</p>
 
     @if (_reservada)
     {
-        <EstadoVacio NombreIcono="vacio" Titulo="Gobierno de Inbound no está disponible con el encargo de administración"
+        <EstadoVacio NombreIcono="vacio" Titulo="Las reglas de validación no están disponibles con el encargo de administración"
                      Descripcion="Estos ajustes los gobierna el Administrador de la organización." />
     }
     else if (_cargando)
@@ -31,13 +31,13 @@
     }
     else if (_error)
     {
-        <EstadoVacio Titulo="No se pudo cargar el gobierno de Inbound" Descripcion="@(_errorCarga ?? "Inténtalo de nuevo en unos segundos.")">
+        <EstadoVacio Titulo="No se pudieron cargar las reglas de validación" Descripcion="@(_errorCarga ?? "Inténtalo de nuevo en unos segundos.")">
             <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
     else if (_datos is null)
     {
-        <EstadoVacio NombreIcono="vacio" Titulo="El gobierno de Inbound no está disponible"
+        <EstadoVacio NombreIcono="vacio" Titulo="Las reglas de validación no están disponibles"
                      Descripcion="Todavía no se pueden consultar estos ajustes. Cuando estén disponibles, aparecerán aquí." />
     }
     else
@@ -46,14 +46,14 @@
             <div class="gb-top">
                 <div>
                     <h2 id="gb-t-conv">Convalidación entre organizaciones</h2>
-                    <p>Un documento que un Gestor CAE ya validó en otra organización gestionada por el mismo Operador CAE externo puede darse por bueno aquí, sin volver a validarlo.</p>
+                    <p>Un documento que una persona de la empresa que gestiona esta organización ya validó en otra organización que esa misma empresa gestiona puede darse por bueno aquí, sin volver a validarlo.</p>
                 </div>
                 <button type="button" role="switch" class="gb-sw" aria-checked="@(_activa ? "true" : "false")"
                         aria-label="Activar la convalidación entre organizaciones" @onclick="Alternar"></button>
             </div>
             <div class="@("gb-sub" + (_activa ? "" : " gb-sub-apagado"))">
                 <h3>Con qué organizaciones</h3>
-                <div class="gb-mut">Solo los gestionados por @_datos.OperadorCae, el Operador CAE externo de esta organización.</div>
+                <div class="gb-mut">Solo los gestionados por @_datos.OperadorCae, la empresa que gestiona esta organización.</div>
                 <div class="gb-lista">
                     @foreach (var t in _datos.TenantsConvalidables)
                     {
@@ -65,7 +65,7 @@
                     }
                     @if (_datos.TenantsConvalidables.Count == 0)
                     {
-                        <span class="gb-mut" data-pieza="sin-tenants">No hay otras organizaciones gestionadas por este Operador CAE externo.</span>
+                        <span class="gb-mut" data-pieza="sin-tenants">No hay otras organizaciones gestionadas por esta empresa.</span>
                     }
                 </div>
 
@@ -102,7 +102,7 @@
                     }
                 </div>
                 <div class="gb-cond"><span class="gb-b gb-b-info">Condición fija</span><span>Solo si el criterio de validación de la otra organización es igual o menos exigente que el de esta.</span></div>
-                <p class="gb-nota">El documento entra como «Validado por convalidación» y queda auditable: se ve de qué organización y de qué Gestor CAE viene, y cuándo se dio por bueno.</p>
+                <p class="gb-nota">El documento entra como «Validado por convalidación» y queda auditable: se ve de qué organización y de qué persona viene, y cuándo se dio por bueno.</p>
                 <p class="gb-nota gb-nota-aviso">No aplica a los requisitos con formulario del Centro ni a la Información del Centro: esos siempre se validan en esta organización.</p>
             </div>
         </section>
@@ -111,7 +111,7 @@
             <div class="gb-top">
                 <div>
                     <h2 id="gb-t-auto">Validación automática por tipo de documento <span class="gb-b gb-b-sin">Próximamente</span></h2>
-                    <p>La IA validará sola los tipos de documento cuya fiabilidad medida supere un umbral. Cada tipo requerirá que el Administrador lo active; hasta entonces todo sigue pasando por un Gestor CAE.</p>
+                    <p>La IA validará sola los tipos de documento cuya fiabilidad medida supere un umbral. Cada tipo requerirá que el Administrador lo active; hasta entonces todo lo valida una persona.</p>
                 </div>
                 <button type="button" role="switch" class="gb-sw" aria-checked="false" aria-label="Activar la validación automática (próximamente)" disabled></button>
             </div>
@@ -121,15 +121,15 @@
         <section class="gb-sec" aria-labelledby="gb-t-quien" data-pieza="quien-gestiona">
             <h2 id="gb-t-quien">Quién gestiona</h2>
             <dl class="gb-dl">
-                <dt>Operador CAE externo</dt><dd><strong>@_datos.OperadorCae</strong></dd>
-                <dt>Asignación de Operación</dt>
+                <dt>Empresa que gestiona la validación</dt><dd><strong>@_datos.OperadorCae</strong></dd>
+                <dt>Permiso para gestionar</dt>
                 <dd><span class="gb-b gb-b-ok">@_datos.AsignacionDeOperacion</span> @if (_datos.AsignacionDesde is { } desde)
                     {
                         <span class="gb-cifras">desde @Fecha(desde)@(_datos.AsignacionHasta is { } hasta ? $" hasta {Fecha(hasta)}" : "")</span>
                     }</dd>
                 <dt>Otras organizaciones que gestiona</dt><dd>@(_datos.OtrosTenantsGestionados.Count == 0 ? "Ninguno" : string.Join(", ", _datos.OtrosTenantsGestionados))</dd>
             </dl>
-            <div class="gb-mut">La Asignación de Operación la da esta organización; la gestión diaria la hacen los Gestores CAE de ese Operador CAE.</div>
+            <div class="gb-mut">El permiso para gestionar lo da esta organización; la gestión diaria la hacen las personas de esa empresa.</div>
         </section>
 
         <section class="gb-sec gb-sec-tabla" aria-labelledby="gb-t-reg" data-pieza="registro">
@@ -271,7 +271,7 @@
             var respuesta = await Servicio.GuardarConvalidacionAsync(new ConvalidacionConfigurada(_activa, _tenants.ToArray(), _tipos.ToArray()));
             if (!respuesta.Disponible)
             {
-                _mensajeError = "No se puede guardar todavía: el gobierno de Inbound aún no está disponible.";
+                _mensajeError = "No se puede guardar todavía: las reglas de validación aún no están disponibles.";
                 return;
             }
             if (!respuesta.Aceptada)
