@@ -186,6 +186,34 @@ public class ComunicacionesSoloInboundSinCentrosNiSugerenciasTests
         }
     }
 
+    [Fact]
+    public async Task Confirmar_el_ruido_de_un_mensaje_con_clasificacion_propia_la_confirma_con_el_marco_solo_Inbound_sin_tocar_las_de_Gestion()
+    {
+        // Tercera pasada de Gemini (BAJA 7): el test anterior solo mide el mensaje sin clasificación propia. Aquí el
+        // mensaje sí tiene una, así que el comando tiene éxito y la confirma, y el marco solo recorta la parte de Gestión:
+        // el mutante «Activo && clasificacionMensaje is null ? null : …» dejaría pasar los detalles de la Gestión.
+        var escenario = new Escenario();
+        var mensaje = escenario.HiloConEmpresaYMensaje();
+        var clasificacionDeGestion = escenario.SugerenciaDeGestionSoloConRepeticiones(mensaje);
+        var clasificacionPropia = new ClasificacionRuidoMensaje(mensaje.Id, esNotificacionAutomatica: true, proveedorPlataformaCaeId: null);
+        var clasificacionesDelMensaje = new ClasificacionRuidoMensajeRepositorioFalso();
+        clasificacionesDelMensaje.Clasificaciones.Add(clasificacionPropia);
+        var detalles = new ClasificacionesDeDetalleFalsas(clasificacionDeGestion);
+        var unidad = new UnitOfWorkFalso();
+        var handler = new ConfirmarClasificacionRuidoMensajeCommandHandler(
+            clasificacionesDelMensaje, detalles, escenario.Comunicaciones, escenario.AlcanceDelEscenario(), unidad);
+
+        Result resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(new ConfirmarClasificacionRuidoMensajeCommand(mensaje.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        clasificacionPropia.ConfirmadaManualmente.Should().BeTrue();
+        clasificacionDeGestion.ConfirmadaManualmente.Should().BeFalse();
+        detalles.Consultas.Should().Be(0);
+        unidad.VecesGuardado.Should().Be(1);
+    }
+
     private sealed class ClasificacionesDeDetalleFalsas(ClasificacionRuidoDetalleGestion clasificacion) : IClasificacionRuidoDetalleGestionRepository
     {
         public int Consultas { get; private set; }
