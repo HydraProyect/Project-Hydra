@@ -204,6 +204,30 @@ public class PlantillasRequisitosPantallasTests : BunitContext
         cut.Markup.Should().Contain("Reintentar");
     }
 
+    [Fact]
+    public void El_listado_usa_la_cabecera_sin_antetitulo()
+    {
+        Preparar();
+
+        var cut = Cargada(Render<PlantillasRequisitos>());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+
+        cut.Find("h1").TextContent.Should().Contain("Plantillas de requisitos");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el grupo del menú ya está en las migas: Outbound tampoco pone antetítulo");
+    }
+
+    [Fact]
+    public void Los_requisitos_de_la_plantilla_pasan_su_contexto_de_la_cabecera_a_una_linea_secundaria()
+    {
+        Preparar();
+
+        var cut = Cargada(Render<RequisitosPlantilla>(p => p.Add(c => c.Id, PlantillaId)));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Registro de entrega de EPI"));
+
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
+        cut.Find("[data-pieza=contexto-plantilla]").TextContent.Should().Contain("Plantilla «Mantenimiento industrial»");
+    }
+
     // ------------------------------------------------------------ Editar requisito (tarjeta 9)
 
     [Fact]
