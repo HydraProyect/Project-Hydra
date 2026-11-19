@@ -145,6 +145,13 @@
                             </dl>
                         </section>
                     }
+                    @* DECISION_LOG 1bff7a7 (opción A): el Actor de Plataforma TALVEG declara «solo Inbound» de forma explícita;
+                       nunca viene marcada. ContratarLineaInboundCommand la exige y no lee la línea Outbound. *@
+                    <label class="alta-tce-opc" data-campo="declara-solo-inbound">
+                        <input type="checkbox" checked="@_declaraSoloInbound" disabled="@Ocupado"
+                               @onchange="CambiarDeclaracionSoloInbound" />
+                        <span><b>@Textos["DeclaracionSoloInboundTitulo"]</b> @Textos["DeclaracionSoloInboundTexto"]</span>
+                    </label>
                 }
 
                 @if (_error is not null)

@@ -421,7 +421,41 @@ public class EnviarMensajeNuevoCommandHandlerTests
         conversaciones.Conversaciones.Should().ContainSingle("no se crea otro hilo");
     }
 
-    /// <summary>Control de las dos de arriba: con una Empresa, el marco deja enviar, abrir el hilo y sumarse al de esa Empresa.</summary>
+    /// <summary>
+    /// D6=a, hilo anterior cerrado sin Empresa (triaje o de un Cliente): el mensaje no se escribe en él ni se enlaza a él;
+    /// abre un hilo nuevo anclado a la Empresa y no se pierde.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Con_el_marco_solo_Inbound_un_hilo_anterior_cerrado_sin_Empresa_no_se_enlaza_y_se_abre_uno_de_la_Empresa(bool ancladoACliente)
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion);
+        graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-6", "hilo-cerrado-987");
+        var anterior = ancladoACliente
+            ? new Conversacion("Hilo cerrado de un Cliente", clienteId: Guid.NewGuid())
+            : new Conversacion("Hilo cerrado de triaje");
+        anterior.AsociarConexion(conexion.Id, "hilo-cerrado-987");
+        anterior.CambiarEstado(EstadoConversacion.Cerrada);
+        conversaciones.Agregar(anterior);
+        var empresaId = Guid.NewGuid();
+
+        Result<Guid> resultado;
+        using (AmbitoComunicacionesSoloInbound.Fijar(acotada: true))
+            resultado = await handler.Handle(
+                new EnviarMensajeNuevoCommand(conexion.Id, ["c@contratista.com"], "Asunto", "<p>…</p>", EmpresaId: empresaId),
+                CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        anterior.Mensajes.Should().BeEmpty();
+        var nueva = conversaciones.Conversaciones.Should().ContainSingle(c => c.Id == resultado.Valor).Subject;
+        nueva.Should().NotBeSameAs(anterior);
+        nueva.EmpresaId.Should().Be(empresaId);
+        nueva.ConversacionAnteriorId.Should().BeNull("no se enlaza a un hilo que ese Tenant no ve");
+    }
+
+    /// <summary>Control de las de arriba: con una Empresa, el marco deja enviar, abrir el hilo y sumarse al de esa Empresa.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -234,6 +234,15 @@
   <data name="ErrorTramoModalidad" xml:space="preserve">
     <value>Elige el tramo y la modalidad del Producto Contratado.</value>
   </data>
+  <data name="DeclaracionSoloInboundTitulo" xml:space="preserve">
+    <value>Declaro que esta organización contrata solo Inbound.</value>
+  </data>
+  <data name="DeclaracionSoloInboundTexto" xml:space="preserve">
+    <value>Si ya opera Outbound y su línea Outbound no está registrada, contratar Inbound le cierra Outbound: registra antes su línea Outbound.</value>
+  </data>
+  <data name="ErrorDeclaracionSoloInbound" xml:space="preserve">
+    <value>Marca la declaración «solo Inbound» para dar de alta la línea Inbound. Si la organización ya opera Outbound, registra antes su línea Outbound.</value>
+  </data>
   <data name="ResumenProductoInbound" xml:space="preserve">
     <value>Inbound</value>
   </data>

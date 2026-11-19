@@ -57,6 +57,9 @@ public partial class AltaTenantTce
     private TramoTrabajadoresActivos? _tramo;
     private ModalidadSuscripcionAlta? _modalidad;
 
+    // DECISION_LOG 1bff7a7: la declaración «solo Inbound» la marca el Actor de Plataforma TALVEG; nunca viene marcada.
+    private bool _declaraSoloInbound;
+
     private bool _editandoLinea;
     private bool _enviandoLinea;
 
@@ -150,6 +153,8 @@ public partial class AltaTenantTce
 
     private void CambiarModalidad(ModalidadSuscripcionAlta? valor) { _modalidad = valor; _error = null; }
 
+    private void CambiarDeclaracionSoloInbound(ChangeEventArgs e) { _declaraSoloInbound = e.Value is true; _error = null; }
+
     private void CambiarPagadorCorr(string valor) { _pagadorCorr = valor; _errorLinea = null; }
 
     private void CambiarTramoCorr(TramoTrabajadoresActivos? valor) { _tramoCorr = valor; _errorLinea = null; }
@@ -203,6 +208,7 @@ public partial class AltaTenantTce
         _pagador = string.Empty;
         _tramo = null;
         _modalidad = null;
+        _declaraSoloInbound = false;
         _error = null;
         _cancelado = true;
     }
@@ -218,14 +224,22 @@ public partial class AltaTenantTce
             return;
         }
 
+        // Sin la declaración «solo Inbound» no se manda: el comando la exige (DECISION_LOG 1bff7a7), y contratar Inbound a
+        // un Tenant que opera Outbound sin su línea Outbound registrada le cerraría Outbound.
+        if (!_declaraSoloInbound)
+        {
+            _error = Textos["ErrorDeclaracionSoloInbound"].Value;
+            return;
+        }
+
         // Lo enviado se fija antes de mandar: la confirmación cuenta esto, no lo que haya en los campos después.
         var enviado = new LineaContratada(_pagador.Trim(), tramo, modalidad);
         _enviando = true;
         _error = null;
         try
         {
-            // DECISION_LOG 1bff7a7: el alta del Tenant TCE declara «solo Inbound» al darlo de alta; el comando la exige.
-            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(enviado.Pagador, enviado.Tramo, enviado.Modalidad, DeclaraSoloInbound: true));
+            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(
+                enviado.Pagador, enviado.Tramo, enviado.Modalidad, DeclaraSoloInbound: _declaraSoloInbound));
             if (resultado.EsExitoso)
                 _contratado = enviado;
             else

@@ -179,6 +179,19 @@ public class EnviarMensajeNuevoCommandHandler(
         var anterior = conversacion is null
             ? await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, envioResultado.Valor.HiloExternoId, cancellationToken)
             : null;
+
+        // D6=a: con el marco del Tenant solo Inbound, el mensaje no se suma a un hilo sin Empresa (triaje o un Cliente;
+        // un hilo con Cliente nunca tiene Empresa): ese Tenant no lo ve. El correo ya salió (como en el caso de otro
+        // titular), pero no se guarda en ese hilo. Un hilo anterior cerrado sin Empresa no se escribe: tampoco se enlaza,
+        // y el mensaje abre un hilo nuevo anclado a la Empresa.
+        if (soloHilosConEmpresa)
+        {
+            if (conversacion is { EmpresaId: null })
+                return Result.Fallo<Guid>(ErroresEnviarMensajeNuevo.HiloFueraDeLosHilosConEmpresa);
+            if (anterior is { EmpresaId: null })
+                anterior = null;
+        }
+
         var hiloExistente = conversacion ?? anterior;
 
         // El hilo que devuelve Graph puede existir ya y estar anclado a OTRO
@@ -189,15 +202,7 @@ public class EnviarMensajeNuevoCommandHandler(
         // ancla (triaje) sí puede recibirlo y no se ancla aquí; desde D-6 b
         // (R-3a) solo lo ve quien pasa TriajeVisibleAsync, así que quien envía
         // con un ámbito acotado deja de ver ese mensaje. Anclarlo es un
-        // incremento propio.
-        //
-        // D6=a: con el marco del Tenant solo Inbound, ni siquiera el hilo sin ancla: ese Tenant no ve el triaje ni los
-        // hilos de un Cliente, así que el mensaje acabaría en un hilo que no puede ver. El correo ya salió (como en el
-        // caso de otro titular), pero no se guarda en un hilo fuera de su subconjunto.
-        if (soloHilosConEmpresa && hiloExistente is not null &&
-            (hiloExistente.ClienteId is not null || hiloExistente.EmpresaId is null))
-            return Result.Fallo<Guid>(ErroresEnviarMensajeNuevo.HiloFueraDeLosHilosConEmpresa);
-
+        // incremento propio (con el marco del Tenant solo Inbound, ni siquiera ese: ver arriba).
         if (hiloExistente is not null &&
             ((hiloExistente.ClienteId is not null && hiloExistente.ClienteId != clienteId) ||
              (hiloExistente.EmpresaId is not null && hiloExistente.EmpresaId != request.EmpresaId)))

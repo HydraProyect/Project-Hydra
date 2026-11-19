@@ -50,6 +50,10 @@ public class AltaTenantTceTests : BunitContext
     private static void Pulsar(IRenderedComponent<AltaTenantTce> cut, string texto) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto).Click();
 
+    /// <summary>DECISION_LOG 1bff7a7: el Actor de Plataforma TALVEG marca la declaración «solo Inbound» antes de dar de alta.</summary>
+    private static void DeclararSoloInbound(IRenderedComponent<AltaTenantTce> cut) =>
+        cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']").Change(true);
+
     private static void IrAlPasoProducto(IRenderedComponent<AltaTenantTce> cut)
     {
         Pulsar(cut, "Continuar");
@@ -124,6 +128,7 @@ public class AltaTenantTceTests : BunitContext
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
 
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.FindAll(".alta-tce-seccion button").Should().HaveCount(4)
@@ -195,11 +200,45 @@ public class AltaTenantTceTests : BunitContext
 
         cut.Markup.Should().Contain("De 41 a 80 Trabajadores activos").And.Contain("cus_Delta123");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain(["Atrás", "Dar de alta", "Editar"]).And.NotContain("Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
             .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
         cut.Find(".alta-tce-ok").TextContent.Should().Contain("Logística Delta Sur S.A. dado de alta");
+    }
+
+    /// <summary>
+    /// DECISION_LOG 1bff7a7 (opción A): la declaración «solo Inbound» nunca viene marcada, y sin marcarla no se manda el
+    /// comando: contratar Inbound a un Tenant con Outbound heredado y sin línea Outbound le cerraría Outbound en silencio.
+    /// </summary>
+    [Fact]
+    public void Sin_marcar_la_declaracion_solo_Inbound_no_manda_el_alta_y_lo_dice()
+    {
+        _mediator.RespuestaContratar = Result.Exito(ProductoId);
+        var cut = RenderConSesion();
+        IrAlPasoProducto(cut);
+        cut.Find("#alta-pagador").Input("cus_Delta123");
+        cut.Find("#alta-tramo").Change(nameof(TramoTrabajadoresActivos.De41A80));
+        cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Anual));
+        Pulsar(cut, "Continuar");
+        Pulsar(cut, "Continuar");
+
+        var casilla = cut.Find("[data-campo='declara-solo-inbound'] input[type='checkbox']");
+        casilla.HasAttribute("checked").Should().BeFalse("la declaración nunca viene marcada");
+        cut.Find("[data-campo='declara-solo-inbound']").TextContent.Should().Contain("contrata solo Inbound")
+            .And.Contain("registra antes su línea Outbound");
+        Pulsar(cut, "Dar de alta");
+
+        _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().BeEmpty();
+        cut.Find(".alta-tce-cuerpo [role='alert']").TextContent.Should().Contain("Marca la declaración «solo Inbound»");
+        cut.FindAll(".alta-tce-ok").Should().BeEmpty();
+
+        // Control: marcada, se manda con la declaración.
+        DeclararSoloInbound(cut);
+        Pulsar(cut, "Dar de alta");
+        _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
+            .Which.DeclaraSoloInbound.Should().BeTrue();
     }
 
     [Fact]
@@ -213,6 +252,7 @@ public class AltaTenantTceTests : BunitContext
         cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.Find(".alta-tce-cuerpo [role='alert']").TextContent.Should()
@@ -283,6 +323,7 @@ public class AltaTenantTceTests : BunitContext
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
 
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
 
         cut.FindAll(".alta-tce-linea button").Should().HaveCount(2)
@@ -301,6 +342,7 @@ public class AltaTenantTceTests : BunitContext
         cut.Find("#alta-modalidad").Change(nameof(ModalidadSuscripcionAlta.Mensual));
         Pulsar(cut, "Continuar");
         Pulsar(cut, "Continuar");
+        DeclararSoloInbound(cut);
         Pulsar(cut, "Dar de alta");
         cut.FindAll(".alta-tce-ok").Should().ContainSingle();
 
