@@ -17,8 +17,9 @@ namespace CaeManager.Application.Tests.Common;
 
 /// <summary>
 /// D3 (decisiones de Chris del 2026-11-19): <see cref="LimiteTenantTecBehavior{TRequest,TResponse}"/> cierra los Commands
-/// de alta de Centros, de Clientes empresariales, de delegaciones, las importaciones y la tarifa del Operador CAE cuando
-/// Outbound está cerrado para el Tenant beneficiario, y deja pasar todo lo demás. La lista de tipos de este test se escribe
+/// de alta de Centros, de Clientes empresariales, de delegaciones y las importaciones cuando Outbound está cerrado para el
+/// Tenant beneficiario, y deja pasar todo lo demás. La tarifa del Operador CAE, la cartera y la Papelera de Empresas se
+/// cierran en su handler (<c>cerrado-handler</c> en <c>LimiteTenantTecClasificacion.txt</c>). La lista de tipos de este test se escribe
 /// a mano, aparte de <see cref="RegistroLimiteTenantTec"/>: si alguien quita una entrada del registro, este test da rojo
 /// (la mutación «quitar la guarda de un Command»). Qué es «cerrado» (marcador y línea) lo prueba
 /// <see cref="OutboundCerradoTenantTecServiceTests"/>; la composición con PostgreSQL, <c>LimiteTenantTecBajoRuntimeTests</c>.

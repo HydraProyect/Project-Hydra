@@ -471,11 +471,6 @@ public partial class UsuariosGen2Tests : BunitContext
         }
     }
 
-    /// <summary>
-    /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
-    /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
-    /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
-    /// </summary>
     /// <summary>Outbound abierto: estos tests no prueban la guarda de D3, que se prueba en los de Application.</summary>
     private sealed class OutboundTenantTecAbiertoWeb : CaeManager.Application.Comercial.LineaOutbound.IOutboundCerradoTenantTec
     {
@@ -483,6 +478,11 @@ public partial class UsuariosGen2Tests : BunitContext
             Task.FromResult(false);
     }
 
+    /// <summary>
+    /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
+    /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
+    /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
+    /// </summary>
     private sealed class CatalogoCarteraFalso : ICatalogoIncorporacionCartera
     {
         public List<TenantCandidatoIncorporacion> Asignables { get; } = [];
