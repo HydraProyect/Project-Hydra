@@ -76,6 +76,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // AutoridadSeguridadAcceso con el catálogo de Tenants.
         ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
         ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
+        // El plazo de conservación de los Documentos (decisión del 2026-11-18) pasa por la misma autoridad.
+        ("Configuracion.FijarPlazoRetencionDocumentosCommandHandler", "ITenantsQueryContext"),
+        ("TiposDocumento.FijarPlazoRetencionTipoDocumentoCommandHandler", "ITenantsQueryContext"),
         // Exportación completa en autoservicio (#2008): en cada solicitud y cada descarga,
         // AutoridadExportacionCompleta comprueba en el catálogo de Tenants que el Tenant en curso existe y no es el
         // de plataforma TALVEG, después de exigir el rol Administrador en la base. Solo lee; no escribe en Tenants.
@@ -994,6 +997,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IToleranciaDocumentoClienteEmpresarialRepository"),
         ("TiposDocumento.ActualizarPerfilDocumentoOficialGlobalCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.ActualizarVerificacionIaGlobalCommandHandler", "ITipoDocumentoRepository"),
+        ("TiposDocumento.FijarPlazoRetencionTipoDocumentoCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ICentrosQueryContext"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ITipoDocumentoCentroRepository"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ITipoDocumentoRepository"),

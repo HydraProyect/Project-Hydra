@@ -3,6 +3,7 @@ using System.Reflection;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
+using CaeManager.Application.Configuracion.Commands.FijarPlazoRetencionDocumentos;
 using CaeManager.Application.DerechosInteresado.Commands.TramitarSolicitudDerechoInteresado;
 using CaeManager.Application.DerechosInteresado.Queries;
 using CaeManager.Application.DocumentosIa.Queries;
@@ -21,6 +22,7 @@ using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajad
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarPerfilDocumentoOficialGlobal;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarVerificacionIaGlobal;
+using CaeManager.Application.TiposDocumento.Commands.FijarPlazoRetencionTipoDocumento;
 using MediatR;
 
 namespace CaeManager.Application.Tenants.Encargo;
@@ -162,6 +164,10 @@ public static class ActosExcluidosDelEncargo
         typeof(ActualizarPresupuestoIaCommand),
         // Seguridad de acceso del Tenant: solo su Administrador, leído en la base. Leerla sigue permitido.
         typeof(ActualizarSeguridadAccesoCommand),
+        // Plazo de conservación de los Documentos, del Tenant y de cada tipo (decisión del 2026-11-18): decide qué datos
+        // se proponen destruir; solo su Administrador, leído en la base (AutoridadPlazoRetencionDocumentos).
+        typeof(FijarPlazoRetencionDocumentosCommand),
+        typeof(FijarPlazoRetencionTipoDocumentoCommand),
         // Derechos del interesado (decisión D-3 del 2026-11-15): registrar una solicitud sigue permitido; tramitarla,
         // resolverla y leer el registro son del Administrador del Tenant propietario o de quien tenga la capacidad
         // «Derechos del interesado» (AutoridadCapacidadesTenant, que además cierra el contexto cruzado).

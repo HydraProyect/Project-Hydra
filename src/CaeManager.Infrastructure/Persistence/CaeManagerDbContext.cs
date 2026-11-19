@@ -384,6 +384,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<CaeManager.Domain.Retencion.IncidenciaPurga> IncidenciasPurga => Set<CaeManager.Domain.Retencion.IncidenciaPurga>();
+    public DbSet<CaeManager.Domain.Retencion.DocumentoPropuestoPurga> DocumentosPropuestosPurga => Set<CaeManager.Domain.Retencion.DocumentoPropuestoPurga>();
+    IQueryable<CaeManager.Domain.Retencion.DocumentoPropuestoPurga> IRetencionQueryContext.DocumentosPropuestosPurga => DocumentosPropuestosPurga;
     /// <summary>
     /// Las asignaciones de Operador Delegado que conceden su rol: excluye las
     /// revocadas (P8, 2026-09-23). Es la única vía de lectura, así que ningún
