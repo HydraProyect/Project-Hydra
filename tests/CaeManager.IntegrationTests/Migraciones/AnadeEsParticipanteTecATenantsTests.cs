@@ -31,7 +31,10 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// deja pasar el borrado y hace fallar
 /// <see cref="Bajo_runtime_borrar_una_fila_marcada_lo_rechaza_el_trigger_y_una_sin_marcar_se_borra"/>. Las filas
 /// de esos dos tests son copias insertadas por SQL, sin filas hijas, para que bajo la mutación la operación se
-/// aplique de verdad y no la pare una clave ajena.
+/// aplique de verdad y no la pare una clave ajena. Devolver <c>NEW</c> en vez de <c>OLD</c> en un <c>DELETE</c>
+/// admitido haría fallar <see cref="El_superusuario_cambia_el_Id_de_una_fila_marcada_y_la_borra"/>, y volver a
+/// admitir <c>rolbypassrls</c> o al propietario de la tabla haría fallar
+/// <see cref="Ni_BYPASSRLS_ni_ser_propietario_de_la_tabla_dejan_poner_el_marcador"/>.
 /// </para>
 ///
 /// <para>
@@ -231,6 +234,55 @@ public class AnadeEsParticipanteTecATenantsTests : IAsyncLifetime
         (await EjecutarAsync(superusuario, "UPDATE public.\"Tenants\" SET \"EsParticipanteTec\" = true WHERE \"Id\" = @id;", tenantId))
             .Should().Be(1);
         (await LeerMarcadorAsync(tenantId)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_superusuario_cambia_el_Id_de_una_fila_marcada_y_la_borra()
+    {
+        var plantilla = await CrearTenantAsync();
+        var marcada = await CrearCopiaAsync(plantilla, marcador: true);
+        var otroId = Guid.NewGuid();
+        await using var superusuario = await AbrirComoPropietarioAsync();
+
+        (await CambiarIdAsync(superusuario, marcada, otroId))
+            .Should().Be(1, "la lista blanca también cubre el cambio de clave de una fila marcada");
+        (await LeerMarcadorAsync(otroId)).Should().BeTrue();
+
+        // En DELETE el trigger tiene que devolver OLD: NEW vale NULL y el borrado se saltaría en silencio.
+        (await EjecutarAsync(superusuario, "DELETE FROM public.\"Tenants\" WHERE \"Id\" = @id;", otroId))
+            .Should().Be(1, "la retirada de un Tenant marcado con la identidad de bootstrap tiene que borrarlo de verdad");
+        (await ContarTenantAsync(otroId)).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("BYPASSRLS", false)]
+    [InlineData("", true)]
+    public async Task Ni_BYPASSRLS_ni_ser_propietario_de_la_tabla_dejan_poner_el_marcador(string atributos, bool propietarioDeLaTabla)
+    {
+        var tenantId = await CrearTenantAsync();
+        var rol = "prueba_es_tec_" + Guid.NewGuid().ToString("N")[..12];
+        await using var conexion = await AbrirComoPropietarioAsync();
+
+        // Todo dentro de una transacción que se deshace: el rol es de clúster y no debe quedar.
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var preparar = conexion.CreateCommand())
+        {
+            preparar.CommandText =
+                $"CREATE ROLE {rol} NOLOGIN NOSUPERUSER {atributos}; " +
+                $"GRANT UPDATE ON TABLE public.\"Tenants\" TO {rol}; " +
+                (propietarioDeLaTabla ? $"ALTER TABLE public.\"Tenants\" OWNER TO {rol}; " : "") +
+                $"SET LOCAL ROLE {rol};";
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        var poner = () => EjecutarAsync(conexion, "UPDATE public.\"Tenants\" SET \"EsParticipanteTec\" = true WHERE \"Id\" = @id;", tenantId);
+
+        var error = (await poner.Should().ThrowAsync<PostgresException>()).Which;
+        await transaccion.RollbackAsync();
+        error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        error.MessageText.Should().Contain(MarcaDelTrigger, "lo rechaza el trigger: la lista blanca es aprovisionamiento o rolsuper");
+        error.MessageText.Should().Contain(rol);
+        (await LeerMarcadorAsync(tenantId)).Should().BeFalse();
     }
 
     // ── Los que no llegan al trigger: los para el GRANT ─────────────────────
