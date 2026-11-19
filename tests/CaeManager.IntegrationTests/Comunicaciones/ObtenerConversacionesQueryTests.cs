@@ -234,7 +234,7 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(Busqueda: "logístico sevilla"));
+        var resultado = await EjecutarAsync(new ObtenerConversacionesQuery(Busqueda: "visita anual"));
 
         resultado.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Asunto sin relación");
     }

@@ -29,8 +29,9 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// <see cref="Busqueda"/> compara el Asunto, las Etiquetas (texto libre de la conversación, p. ej. el nombre de un
 /// centro) Y el cuerpo de los mensajes del hilo, siempre dentro de lo que la regla de visibilidad ya deja ver
 /// (H2, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
-/// conversaciones"). Es <c>Contains</c> sin índice de texto completo, mismo
-/// nivel que el resto de búsquedas de este repositorio — no se introduce
+/// conversaciones"). Es <c>Contains</c> sin índice de texto completo y sensible a acentos (<c>ToUpper</c>, como antes
+/// para Asunto y cuerpo; pasar los tres a <c>TextoDeBusqueda.Contiene</c> sería un incremento propio), mismo
+/// nivel que las búsquedas heredadas de este repositorio — no se introduce
 /// tsvector/GIN de Postgres para esto (YAGNI).
 /// </summary>
 [AreaDelEncargo("Comunicaciones")]
