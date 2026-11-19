@@ -224,7 +224,8 @@ public partial class AltaTenantTce
         _error = null;
         try
         {
-            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(enviado.Pagador, enviado.Tramo, enviado.Modalidad));
+            // DECISION_LOG 1bff7a7: el alta del Tenant TCE declara «solo Inbound» al darlo de alta; el comando la exige.
+            var resultado = await Mediator.Send(new ContratarLineaInboundCommand(enviado.Pagador, enviado.Tramo, enviado.Modalidad, DeclaraSoloInbound: true));
             if (resultado.EsExitoso)
                 _contratado = enviado;
             else

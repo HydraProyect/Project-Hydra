@@ -188,7 +188,7 @@ public class AltaTenantTceTests : BunitContext
         Pulsar(cut, "Dar de alta");
 
         _mediator.Enviados.OfType<ContratarLineaInboundCommand>().Should().ContainSingle()
-            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            .Which.Should().Be(new ContratarLineaInboundCommand("cus_Delta123", TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
         cut.Find(".alta-tce-ok").TextContent.Should().Contain("Logística Delta Sur S.A. dado de alta");
     }
 

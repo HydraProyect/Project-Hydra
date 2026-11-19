@@ -496,7 +496,7 @@ public class BajaYCorreccionLineaInboundPorAprovisionamientoTests : IAsyncLifeti
     private async Task<Guid> ContratarAsync(string pagador)
     {
         var alta = await EnviarAsync(_sesionDeAprovisionamiento, rol: null,
-            new ContratarLineaInboundCommand(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual));
+            new ContratarLineaInboundCommand(pagador, TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Anual, DeclaraSoloInbound: true));
         alta.EsExitoso.Should().BeTrue(alta.EsFallido ? $"control del alta: {alta.Error.Codigo}" : string.Empty);
         return alta.Valor;
     }

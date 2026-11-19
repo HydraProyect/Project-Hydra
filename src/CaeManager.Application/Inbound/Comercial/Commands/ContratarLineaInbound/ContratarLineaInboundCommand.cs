@@ -43,10 +43,24 @@ namespace CaeManager.Application.Inbound.Comercial.Commands.ContratarLineaInboun
 /// Un Pagador, un tramo o una modalidad mal introducidos se corrigen con <c>CorregirLineaInboundCommand</c>, y la línea
 /// se da de baja con <c>DarDeBajaLineaInboundCommand</c> (opción B del 2026-11-15).
 /// </para>
+///
+/// <para>
+/// <b>Declaración «solo Inbound»</b> (<see cref="DeclaraSoloInbound"/>, decisión de Chris del 2026-11-19, DECISION_LOG
+/// 1bff7a7, opción A, aplicada con la forma (c) que fijó la coordinadora): un Tenant que ya opera Outbound sin fila de la
+/// línea Outbound (no hay backfill) pasaría a «solo Inbound» al contratar Inbound, y <c>TenantSoloInbound</c> le cerraría
+/// Outbound en silencio. Por eso el Actor de Plataforma TALVEG declara de forma explícita que contrata solo Inbound; sin la
+/// declaración, el comando rechaza y pide registrar antes la línea Outbound. El comando no lee la línea Outbound ni
+/// escribe nada de Facturación; la declaración no se guarda.
+/// </para>
 /// </summary>
+/// <param name="DeclaraSoloInbound">
+/// El Actor de Plataforma TALVEG declara que el Tenant beneficiario contrata solo Inbound: no opera Outbound, o su línea
+/// Outbound ya está registrada. Sin ella (<c>false</c>), no se contrata.
+/// </param>
 [AreaDelEncargo("Comercial")]
 public record ContratarLineaInboundCommand(
-    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad)
+    string PagadorStripeCustomerId, TramoTrabajadoresActivos Tramo, ModalidadSuscripcionAlta Modalidad,
+    bool DeclaraSoloInbound)
     : ICommand<Guid>, IComandoDeAprovisionamiento;
 
 public class ContratarLineaInboundCommandValidator : AbstractValidator<ContratarLineaInboundCommand>
@@ -58,6 +72,9 @@ public class ContratarLineaInboundCommandValidator : AbstractValidator<Contratar
             .WithMessage(ErroresContratarLineaInbound.PagadorNoValido.Mensaje);
         RuleFor(c => c.Tramo).IsInEnum();
         RuleFor(c => c.Modalidad).IsInEnum();
+        RuleFor(c => c.DeclaraSoloInbound)
+            .Equal(true)
+            .WithMessage(ErroresContratarLineaInbound.SinDeclaracionSoloInbound.Mensaje);
     }
 }
 
@@ -79,6 +96,10 @@ public static class ErroresContratarLineaInbound
 
     public static readonly Error ContratoNoValido = Error.Crear(
         "LineaInbound.ContratoNoValido", "El tramo o la modalidad no son válidos.");
+
+    public static readonly Error SinDeclaracionSoloInbound = Error.Crear(
+        "LineaInbound.SinDeclaracionSoloInbound",
+        "Si esta organización ya opera Outbound, registra antes su línea Outbound. Si contrata solo Inbound, decláralo para contratar la línea Inbound.");
 
     public static readonly Error YaContratada = Error.Crear(
         "LineaInbound.YaContratada", "Esta organización ya tiene la línea Inbound contratada y vigente.");
@@ -130,6 +151,16 @@ public class ContratarLineaInboundCommandHandler(
             return Result.Fallo<Guid>(ErroresContratarLineaInbound.PagadorNoValido);
         if (!Enum.IsDefined(request.Tramo) || !Enum.IsDefined(request.Modalidad))
             return Result.Fallo<Guid>(ErroresContratarLineaInbound.ContratoNoValido);
+
+        // DECISION_LOG 1bff7a7 (opción A): sin la declaración «solo Inbound» del Actor de Plataforma TALVEG no se contrata,
+        // para que un Tenant con Outbound heredado y sin fila de la línea Outbound no quede cerrado a Outbound en silencio.
+        // shortcut: la casilla se pide siempre, también cuando el Tenant ya tiene registrada su línea Outbound, porque este
+        // handler corre elevado como cae_app_aprovisionamiento y la política RESTRICTIVE aprovisionamiento_solo_lee_inbound
+        // le oculta las filas de la línea Outbound: aquí no se puede saber si existe. Pedirla solo cuando no hay línea
+        // Outbound (la letra exacta de la decisión) es la opción (b), con una función SECURITY DEFINER que la lea, y va en
+        // una PR propia. Declararla con la línea Outbound registrada no la cierra: TenantSoloInbound sigue viendo esa fila.
+        if (!request.DeclaraSoloInbound)
+            return Result.Fallo<Guid>(ErroresContratarLineaInbound.SinDeclaracionSoloInbound);
 
         // La Sesión Privilegiada solo se abre sobre un Tenant que existe, pero el Tenant puede no estar ya cuando llega
         // el comando, y la base no tiene clave foránea de ProductosContratados a Tenants.
