@@ -788,6 +788,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // vuelve aquí ya no es la lista que el gestor está mirando.
             if (carga != _cargaListaVigente) return;
 
+            // Solo con la lista vacía y sin ningún filtro: «Sin buzones conectados» (L-15). Se resuelve antes de pintar el resultado
+            // para que la lista no pase por un «No quedan conversaciones» que luego se corrige.
+            var sinBuzones = resultado.TotalElementos == 0 && !HayFiltrosActivos && await NoHayBuzonConectadoAsync(_ciclo.Token);
+            if (carga != _cargaListaVigente) return;
+            _sinBuzonesConectados = sinBuzones;
+
             // El canal es un filtro opcional de la lista (chips de canal, lienzo L-10, D1 del 2026-11-17): con «Todos» —lo de siempre—
             // el Gestor CAE ve las conversaciones sin separar «correo» y «WhatsApp»; con un chip, solo las de ese canal. Así lo recoge el
             // § 10 (principio 2) y § 12.1 de Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md, con su nota del 2026-11-20: filtrar por
@@ -1047,6 +1053,64 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         !string.IsNullOrWhiteSpace(_estadoFiltro) || !string.IsNullOrWhiteSpace(_mesFiltro)
         || !string.IsNullOrWhiteSpace(_clienteIdFiltro) || !string.IsNullOrWhiteSpace(_busqueda)
         || _vistaLista != VistaLista.Todas || _canalFiltro is not null;
+
+    // --- Vacíos de la lista (lienzo «Pulida: bandeja de la cartera», L-15) ---
+
+    private bool HayBusqueda => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>Los filtros de «Más filtros» (estado, intención, mes y Cliente empresarial): el lienzo no los dibuja, así que su vacío es el de una búsqueda.</summary>
+    private bool HayFiltrosAvanzados =>
+        !string.IsNullOrEmpty(_intencionFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_mesFiltro) || !string.IsNullOrWhiteSpace(_clienteIdFiltro);
+
+    /// <summary>
+    /// El Tenant beneficiario no tiene ningún buzón de correo conectado (ver <see cref="EsBuzonDeLaBandeja"/>). Solo se mira cuando la
+    /// lista llega vacía y sin ningún filtro puesto; con filtros, un vacío nunca es «Sin buzones conectados».
+    /// </summary>
+    private bool _sinBuzonesConectados;
+
+    // shortcut: «Todas» hace de «Abiertas» (ver VistasPrincipales), por eso es la vista de «Al día» y «No quedan conversaciones»;
+    // cuando ObtenerConversacionesQuery admita el filtro de estados vivos (DN-O) y «Abiertas» sea la vista por defecto, pasar a _vistaLista == Abiertas.
+    private bool EsVistaAbiertas => _vistaLista == VistaLista.Todas;
+
+    /// <summary>«Al día» (lienzo, `alDia`): sin búsqueda, en la vista por defecto y con buzones conectados.</summary>
+    private bool AlDiaVacio => !HayBusqueda && !HayFiltrosAvanzados && !_sinBuzonesConectados && EsVistaAbiertas;
+
+    private string TituloVacio =>
+        HayBusqueda || HayFiltrosAvanzados ? TextosLista["SinResultados"].Value
+        : _sinBuzonesConectados ? TextosLista["SinBuzonesConectados"].Value
+        : EsVistaAbiertas ? TextosLista["SinConversaciones"].Value
+        : TextosLista["NadaEnVista", NombreVista(_vistaLista)].Value;
+
+    private string AyudaVacio =>
+        HayBusqueda && !HayFiltrosAvanzados ? TextosLista["SinResultadosBusquedaAyuda"].Value
+        : HayBusqueda || HayFiltrosAvanzados ? TextosLista["SinResultadosAyuda"].Value
+        : _sinBuzonesConectados ? TextosLista["SinBuzonesConectadosAyuda"].Value
+        : EsVistaAbiertas ? TextosLista["SinConversacionesAyuda"].Value
+        : TextosLista["NadaEnVistaAyuda"].Value;
+
+    /// <summary>La conexión de correo que alimenta la bandeja y desde la que se redacta: Habilitada y no personal de un Gestor CAE.</summary>
+    private static bool EsBuzonDeLaBandeja(ConexionIntegracionListaDto c) =>
+        c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null;
+
+    /// <summary>
+    /// Pregunta, solo con la lista vacía y sin filtros, si hay algún buzón conectado. Un fallo (por ejemplo, un rol sin acceso a las
+    /// conexiones) no es «sin buzones»: se queda en el vacío genérico en vez de afirmar lo que no se sabe.
+    /// </summary>
+    private async Task<bool> NoHayBuzonConectadoAsync(CancellationToken token)
+    {
+        try
+        {
+            var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), token);
+            return !conexiones.Any(EsBuzonDeLaBandeja);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo comprobar si hay buzones conectados para el vacío de la bandeja.");
+            return false;
+        }
+    }
 
     /// <summary>
     /// Todos de una vez y una sola recarga, por el mismo motivo que
@@ -2404,7 +2468,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(), _ciclo.Token);
         _conexionesRedactar = conexiones
-            .Where(c => c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null)
+            .Where(EsBuzonDeLaBandeja)
             .ToList();
         _conexionRedactarId = _conexionesRedactar.Count == 1 ? _conexionesRedactar[0].Id : null;
         _instantaneaRedactar.Fijar(ValoresRedactar());

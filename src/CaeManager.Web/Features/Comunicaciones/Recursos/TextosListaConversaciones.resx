@@ -36,7 +36,7 @@
   <data name="SinResultados" xml:space="preserve"><value>Sin resultados</value></data>
   <data name="SinResultadosAyuda" xml:space="preserve"><value>Prueba con otro término o quita los filtros.</value></data>
   <data name="SinConversaciones" xml:space="preserve"><value>No quedan conversaciones</value></data>
-  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Los mensajes nuevos aparecerán aquí.</value></data>
+  <data name="SinConversacionesAyuda" xml:space="preserve"><value>Los mensajes nuevos entrarán en su buzón.</value></data>
   <data name="QuitarFiltros" xml:space="preserve"><value>Quitar los filtros</value></data>
   <data name="TipoMensaje" xml:space="preserve"><value>Tipo de mensaje</value></data>
   <data name="RespuestaPublica" xml:space="preserve"><value>Respuesta pública</value></data>
@@ -76,4 +76,10 @@
   <data name="CanalTodosAccesible" xml:space="preserve"><value>Todos los canales</value></data>
   <data name="CanalCorreo" xml:space="preserve"><value>Correo</value></data>
   <data name="CanalWhatsApp" xml:space="preserve"><value>WhatsApp</value></data>
+  <data name="RecargarLista" xml:space="preserve"><value>Recargar la lista</value></data>
+  <data name="SinResultadosBusquedaAyuda" xml:space="preserve"><value>Prueba con otro término.</value></data>
+  <data name="SinBuzonesConectados" xml:space="preserve"><value>Sin buzones conectados</value></data>
+  <data name="SinBuzonesConectadosAyuda" xml:space="preserve"><value>Conéctalos en Configuración, Integraciones.</value></data>
+  <data name="NadaEnVista" xml:space="preserve"><value>Nada en «{0}»</value></data>
+  <data name="NadaEnVistaAyuda" xml:space="preserve"><value>Prueba con otra vista o con «Todas».</value></data>
 </root>
