@@ -169,7 +169,11 @@
     /// <summary>Línea bajo el título. Sin valor, el número de adjuntos.</summary>
     [Parameter] public string? Meta { get; set; }
 
-    /// <summary>Contenido de cada hoja. Sin valor, la imagen del adjunto si lo es, o el aviso de que no hay vista previa.</summary>
+    /// <summary>
+    /// Contenido de cada hoja. Sin valor, la imagen del adjunto si lo es, o el aviso de que no hay vista previa. Ojo: el manejador de
+    /// teclado del visor no distingue campos editables (« + », « - », « [ », « ] » y las flechas actúan siempre); quien ponga un
+    /// <c>input</c> o <c>textarea</c> aquí o junto al visor (el panel de revisión de A3) debe filtrar esas teclas antes.
+    /// </summary>
     [Parameter] public RenderFragment<HojaVisor>? Hoja { get; set; }
 
     private bool Abierto => Visible && _lista.Count > 0;

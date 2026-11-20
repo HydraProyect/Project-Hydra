@@ -568,17 +568,21 @@ public class VisorDocumentoPantallaCompletaTests : BunitContext
     public async Task Si_quien_abre_el_visor_retira_el_adjunto_actual_se_muestra_otro_desde_su_primera_hoja()
     {
         var modulo = JSInterop.SetupModule("./js/visor-documento.js");
+        modulo.Mode = JSRuntimeMode.Loose;
         var a = Adj("A.pdf");
         var b = Adj("B.pdf", paginas: 3);
         var c = Adj("C.pdf", paginas: 2);
         var cut = Pintar([a, b, c], indice: 1);
         await TeclaAsync(cut.Find("[role=dialog]"), "]");
         cut.FindAll(".vz-pag")[1].GetAttribute("aria-current").Should().Be("true");
+        cut.Find("button[aria-label='Girar documento']").Click();
+        cut.Find(".vz-hoja").ClassList.Should().Contain("vz-giro-90");
 
         cut.Render(p => p.Add(x => x.Adjuntos, [a, c]));
 
         cut.Find(".vz-tit-h").TextContent.Should().Be("C.pdf");
         cut.FindAll(".vz-pag")[0].GetAttribute("aria-current").Should().Be("true");
+        cut.Find(".vz-hoja").ClassList.Should().NotContain(clase => clase.StartsWith("vz-giro-"));
         await cut.WaitForAssertionAsync(() => modulo.Invocations["irAPagina"].Last().Arguments[1].Should().Be(0), Plazo);
     }
 
